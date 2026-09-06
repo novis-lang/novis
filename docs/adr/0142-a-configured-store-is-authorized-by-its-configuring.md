@@ -1,4 +1,4 @@
-# ADR 0142 — A store an operator configured is authorized by the configuring, and may be a Unix socket
+# `rule:config/cache-shared-is-the-grant-over-the-configured-store` — A store an operator configured is authorized by the configuring, and may be a Unix socket
 
 - **Status:** Accepted
 - **Date:** 2026-09-04

@@ -33,7 +33,7 @@
 
 ## Investigation
 
-- **A second, instrumented compiled tier selected per request** (extending [ADR 0017](0017-hot-reload-without-restart.md)'s
+- **A second, instrumented compiled tier selected per request** (extending `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s
   cache key with a `tier` dimension). Rejected: a request's compiled tier is fixed once resolved, so
   mid-request `startCoverage()` would need already-running frames to have been instrumented from the start —
   either paying the cost on every request regardless of whether coverage is ever asked for, or leaving a
@@ -105,13 +105,13 @@ debug.trace   = ["/var/log/nvs/trace"]
 debug.profile = ["/var/log/nvs/profile"]
 ```
 
-`[debug] mode` reuses [ADR 0005](0005-config-changeability.md)'s existing three-class directive model with
+`[debug] mode` reuses `rule:config/three-changeability-classes`'s existing three-class directive model with
 no new mechanism: a production `nvs.toml` sets `mode = []` and no request-side call can ever turn any bit
 on, because `RuntimeTighten` only narrows; a development or CI host's `nvs.toml` sets a wider ceiling (say
 `["coverage", "branch", "trace", "profile"]`) and a specific test run may narrow further via `Core\Debug` or
 `Core\Config::set`.
 This is deliberately the same class capability grants already use, and for the same reason
-[ADR 0017](0017-hot-reload-without-restart.md) makes `opcache.validate` `System`-class: whether a running
+`rule:config/an-edit-reaches-the-next-request-without-a-restart` makes `opcache.validate` `System`-class: whether a running
 request's internals are observable is not a request-local decision, because an attacker-controlled request
 that could turn tracing on for itself in production would gain a reconnaissance channel over call arguments
 and timing that priority 1 does not trade away.
@@ -235,7 +235,7 @@ CI wall-clock proportional to the added axes and nothing at all at run time.
   against `exec('php …')`.
 - Reuses the `System`/`Runtime`/`RuntimeTighten` model wholesale for `[debug] mode`, and the
   capability-grant model wholesale for `debug.trace`/`debug.profile` — no new changeability class, no new
-  grant shape, just two more entries in registries [ADR 0005](0005-config-changeability.md) and
+  grant shape, just two more entries in registries `rule:config/three-changeability-classes` and
   `rule:security/isolate-shares-nothing` already defined.
 
 **Negative**
@@ -269,7 +269,7 @@ CI wall-clock proportional to the added axes and nothing at all at run time.
   a dominant ecosystem-standard consumer (CI dashboards, KCachegrind/Webgrind); a converter step would add
   friction "low barrier to entry" argues against.
 - **Making `[debug] mode` a plain `Runtime` directive.** Rejected on the same reasoning
-  [ADR 0017](0017-hot-reload-without-restart.md) gives for `opcache.validate`: observability of a request's
+  `rule:config/an-edit-reaches-the-next-request-without-a-restart` gives for `opcache.validate`: observability of a request's
   own internals isn't a request-local decision.
 - **Merging a spawned isolate's coverage/trace data live into its parent's.** Rejected: requires mutable
   state crossing the arena boundary that `rule:security/isolate-shares-nothing`'s isolation exists to

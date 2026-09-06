@@ -1,8 +1,8 @@
 --TEST--
-`Core\Config::set('memory', …)` above the `[limits]` default moves the ceiling the runtime enforces, and `::restore` puts it back — ADR 0005, `rule:errors/on-limit`
+`Core\Config::set('memory', …)` above the `[limits]` default moves the ceiling the runtime enforces, and `::restore` puts it back — `rule:config/three-changeability-classes`, `rule:errors/on-limit`
 --FILE--
 <?nvs
-// The half of ADR 0005 a `false`-counting case cannot reach: an accepted set
+// The half of `rule:config/three-changeability-classes` a `false`-counting case cannot reach: an accepted set
 // has to *take effect*, not merely be echoed back by `get`. What proves it is
 // the allocation below — 64 MiB held live against a file that grants 16M. In a
 // tree where the request's cached ceiling did not move with the overlay, this
@@ -12,7 +12,7 @@
 // pins deliberately.
 echo "default=", Core\Config::get("memory") ?? "unset", "\n";
 
-// Under the `[limits.hard]` ceiling of 256M, so ADR 0005's bound is not what is
+// Under the `[limits.hard]` ceiling of 256M, so `rule:config/three-changeability-classes`'s bound is not what is
 // being asked about here.
 echo "raised=", (Core\Config::set("memory", "192M") ? "ok" : "refused"), "\n";
 echo "value=", Core\Config::get("memory") ?? "unset", "\n";

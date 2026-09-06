@@ -1,6 +1,6 @@
-//! [ADR 0064] § 5: the configuration one request reads, and the overlay it writes over it.
+//! `rule:config/ini-set-is-core-config-set`: the configuration one request reads, and the overlay it writes over it.
 //!
-//! A request clones the published [`Snapshot`] once at start ([ADR 0078] § 1) and reads that clone
+//! A request clones the published [`Snapshot`] once at start (`rule:config/the-config-is-an-immutable-snapshot`) and reads that clone
 //! for its whole life. `Core\Config::set` never writes into it: what it writes is the
 //! copy-on-write overlay this type holds beside it, so a value one request set is invisible to the
 //! next request on the same core and to every request running beside it. That is the whole of what
@@ -9,33 +9,31 @@
 //!
 //! **A bare name is a limit's name.** § 5's API is keyed on a directive *name* and `m6.md`'s own
 //! worked call is `Core\Config::set('memory', '512M')`, with no block in it. So a name with no dot
-//! that [`value::unit_of`] knows is read and written in `[limits]` — the block ADR 0005 states the
+//! that [`value::unit_of`] knows is read and written in `[limits]` — the block `rule:config/three-changeability-classes` states the
 //! request-settable default in — and every other name is the dotted path the file writes. This is
 //! not a second rule: it is the empty block [`value::unit_of`] already answers for, made into the
 //! one place that decides it.
 //!
-//! **What `set` refuses, it refuses by returning `false`** (ADR 0005, and `m6.md`'s *Verify*): a
+//! **What `set` refuses, it refuses by returning `false`** (`rule:config/three-changeability-classes`, and `m6.md`'s *Verify*): a
 //! name no [`Directive`](crate::directive::Directive) row governs, a `System` one, a value that
 //! does not spell its unit, a value above the `[limits.hard]` ceiling, a
 //! [`RuntimeTighten`](Class::RuntimeTighten) one that does not narrow, an assignment that would
 //! leave this request holding one of ADR 0074 §§ 2-3's meaningless `[http]` pairs, and a mode
 //! outside ADR 0091 § 5's ceiling — a name that is not one of the two modes being outside every
 //! ceiling. Nothing on this path throws, so a program cannot catch a refusal and cannot tell one
-//! from another — which is the API ADR 0064 § 5 states and not an omission.
+//! from another — which is the API `rule:config/ini-set-is-core-config-set` states and not an omission.
 //!
 //! **A `RuntimeTighten` directive that is not a quantity cannot be set at all**, and that is
 //! deliberate. Narrowing is `[value] within [what is in force]`, which [`value::within_ceiling`]
 //! answers for a size, a duration, a count or a ratio and for nothing else; `[capabilities]` is the
 //! only such row today and a grant is a list. Refusing is the safe direction — a request that
-//! cannot drop a capability is inconvenient, one that silently widens one is the failure ADR 0005
+//! cannot drop a capability is inconvenient, one that silently widens one is the failure `rule:config/three-changeability-classes`
 //! exists to prevent — and the capability model that will answer it properly is this milestone's
 //! own Stage 4.
 //!
 //! Cost: one `Arc` clone per request, plus one `String` pair per key a request actually set.
 //! O(in-flight requests) and never O(requests served).
 //!
-//! [ADR 0064]: ../../../docs/adr/0064-configuration-file-format.md
-//! [ADR 0078]: ../../../docs/adr/0078-config-reload-and-control-socket.md
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -82,7 +80,7 @@ impl Request {
     /// boolean answers with the way TOML spells it — `64`, `0.01`, `true`. A key naming a table or
     /// a list is `None` rather than a rendering nothing could set back.
     ///
-    /// A secret is read before the table and not out of it (ADR 0103 § 7): `db.main.password` is a
+    /// A secret is read before the table and not out of it (`rule:config/a-secret-is-a-file-whose-content-is-the-value`): `db.main.password` is a
     /// key in force whose value is a file's content, and the table holds only the `password_file`
     /// that named it. Nothing here redacts — this is the reader the value exists for, and the
     /// program asking is the one that will connect with it.
@@ -108,7 +106,7 @@ impl Request {
         if !row.class.settable_by_a_request() {
             return false;
         }
-        // ADR 0091 § 4's flip is a `Runtime` set with a bound of its own — `[mode] ceiling` and not
+        // `rule:config/a-program-may-read-and-flip-its-mode`'s flip is a `Runtime` set with a bound of its own — `[mode] ceiling` and not
         // `[limits.hard]` — and an effect beyond its own key, so it leaves the quantity path here
         // rather than threading two more conditions through it.
         if key == mode::KEY {
@@ -116,7 +114,7 @@ impl Request {
         }
         let asked = Setting::Text(value.to_string());
         let bound = match row.class {
-            // Up to the ceiling the operator kept, and freely below it (ADR 0005).
+            // Up to the ceiling the operator kept, and freely below it (`rule:config/three-changeability-classes`).
             Class::Runtime => self.ceiling(&key),
             // Narrowing only: what is in force *is* the ceiling, so the same comparison answers
             // both classes and a directive with nothing in force has nothing to narrow from.
@@ -152,7 +150,7 @@ impl Request {
         true
     }
 
-    /// ADR 0091 § 4's mode flip: the mode this request runs in, and § 3's five defaults with it.
+    /// `rule:config/a-program-may-read-and-flip-its-mode`'s mode flip: the mode this request runs in, and § 3's five defaults with it.
     ///
     /// Two things make this more than an overlay insert, and both are in that ADR rather than in a
     /// choice made here:
@@ -189,12 +187,12 @@ impl Request {
         true
     }
 
-    /// ADR 0091 § 3's run mode in force for this request — where `Core\Env::mode`'s answer comes
+    /// `rule:config/a-mode-is-five-defaults`'s run mode in force for this request — where `Core\Env::mode`'s answer comes
     /// from, and the whole of it.
     ///
     /// Deliberately **not** `get(mode::KEY)`. That reader answers the overlay and then the global
     /// key and knows nothing about the `[[app]]` block, so a request inside an application that
-    /// selected its own mode (ADR 0104 § 4) would be told the host's instead of its own. The order
+    /// selected its own mode (`rule:config/a-mount-routes-and-an-app-block-sets-policy`) would be told the host's instead of its own. The order
     /// is the flip this request made (§ 4), then [`started`](Self::started).
     #[must_use]
     pub fn mode(&self) -> String {
@@ -206,8 +204,8 @@ impl Request {
 
     /// The mode the host started this request in — [`mode`](Self::mode) with the flip taken off.
     ///
-    /// The `[[app]]` block's where one matched, since an application's mode is its own (ADR 0104
-    /// § 4), then the global `mode.default`, then `production`, which is § 5's row for a host that
+    /// The `[[app]]` block's where one matched, since an application's mode is its own (`rule:config/a-mount-routes-and-an-app-block-sets-policy`
+    /// ), then the global `mode.default`, then `production`, which is § 5's row for a host that
     /// wrote nothing at all.
     fn started(&self) -> String {
         if let Some(app) = &self.base.mode {

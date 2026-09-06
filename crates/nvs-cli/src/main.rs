@@ -33,8 +33,8 @@
 //!   diff is a released artifact rather than a program; see [`api_diff`].
 //! * `nvs config check` (M6) — resolve the configuration tree and report what
 //!   it holds, exiting non-zero on any refusal.
-//!   [ADR 0103](/docs/adr/0103-configuration-is-a-tree-of-files.md)
-//!   § 9's offline audit, which exists because § 3's later-wins precedence is
+//!   `rule:config/check-and-dump-audit-the-tree-offline`
+//!   's offline audit, which exists because § 3's later-wins precedence is
 //!   only safe while it is auditable. It compiles nothing and needs no server;
 //!   see [`config`], which also holds the reader `run` resolves that tree
 //!   through.
@@ -120,8 +120,8 @@ struct Cli {
     /// Read this configuration file instead of `./nvs.toml`, and repeat it to
     /// read several in order.
     ///
-    /// [ADR 0103](/docs/adr/0103-configuration-is-a-tree-of-files.md)
-    /// § 1 step 1: naming any file disables step 2 entirely, so an operator
+    /// `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`
+    /// step 1: naming any file disables step 2 entirely, so an operator
     /// who names a tree never gets a surprise merge with whatever `nvs.toml`
     /// happens to be in the working directory. A path is resolved against that
     /// directory (§ 5), and one that does not exist is a refusal rather than a
@@ -308,8 +308,8 @@ enum Command {
     ///
     /// A namespace beside `api`, and deliberately not part of `nvs check`,
     /// which checks *source*:
-    /// [ADR 0103](/docs/adr/0103-configuration-is-a-tree-of-files.md)
-    /// § 9 separates the two. See [`config`].
+    /// `rule:config/check-and-dump-audit-the-tree-offline`
+    /// separates the two. See [`config`].
     Config {
         #[command(subcommand)]
         command: ConfigCommand,
@@ -396,10 +396,10 @@ enum ApiCommand {
 
 /// `nvs config`'s own subcommands.
 ///
-/// ADR 0103 § 9 names three of these — `check`, `dump` and `ctl config` — and
+/// `rule:config/check-and-dump-audit-the-tree-offline` names three of these — `check`, `dump` and `ctl config` — and
 /// this enum holds the two that are offline. `ctl config` belongs to the
-/// control socket [ADR 0078](/docs/adr/0078-config-reload-and-control-socket.md)
-/// § 3 reserves and arrives with `nvs ctl`.
+/// control socket `rule:config/one-local-control-socket`
+/// reserves and arrives with `nvs ctl`.
 #[derive(Subcommand)]
 enum ConfigCommand {
     /// Resolve the configuration tree and report what it holds, exiting
@@ -411,14 +411,14 @@ enum ConfigCommand {
     Check {
         /// The root files to read, in order.
         ///
-        /// ADR 0103 § 1 step 1's list, given positionally: naming one disables
+        /// `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 1's list, given positionally: naming one disables
         /// step 2 exactly as `--config` does. With none, step 2's `./nvs.toml`
         /// is used, else step 3's shipped defaults.
         files: Vec<PathBuf>,
     },
     /// Print every key in force, one per line, in dotted-key order.
     ///
-    /// ADR 0103 § 3 permits an include to override the file that pulled it in
+    /// `rule:config/later-wins-and-every-override-is-recorded` permits an include to override the file that pulled it in
     /// *on condition* that every override is recoverable; this is where it is
     /// recovered in full. What is printed, and the one thing deliberately
     /// absent from it, is [`config::dump`]'s own doc comment.
@@ -1163,9 +1163,9 @@ fn run_run(
             }
         };
     }
-    // ADR 0078 § 1: the tree is resolved and folded into one snapshot **before**
+    // `rule:config/the-config-is-an-immutable-snapshot`: the tree is resolved and folded into one snapshot **before**
     // the request exists, and the request then clones it once. A refusal here is
-    // a refusal to start — ADR 0103 § 3's later-wins and § 6's boundary are only
+    // a refusal to start — `rule:config/later-wins-and-every-override-is-recorded`'s later-wins and § 6's boundary are only
     // worth anything if a tree that does not resolve stops the run.
     let mut config_sources = SourceMap::new();
     // A bundled program's entry file is a synthetic path inside the payload
@@ -1187,7 +1187,7 @@ fn run_run(
             return ExitCode::FAILURE;
         }
     };
-    // ADR 0103 § 7's advisories: a secret file another account can read is
+    // `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s advisories: a secret file another account can read is
     // reported and does not stop the run.
     if !snapshot.warnings.is_empty() {
         let mut diags = Diagnostics::new();
@@ -1205,7 +1205,7 @@ fn run_run(
     // **This is why the compile sits below the snapshot rather than above it**,
     // which is where it stood while nothing but Cranelift could produce a unit.
     // Both halves of the key are configuration: § 7's `[opcache]` block says
-    // where artifacts live and whether they are used at all, and ADR 0078 § 4's
+    // where artifacts live and whether they are used at all, and `rule:config/the-extension-set-is-in-every-unit-key`'s
     // environment digest — which covers the loaded extension set — is the other
     // half of every key. A pre-boot default for either would address an
     // artifact by an environment this run is not in, which is the one thing the
@@ -1254,7 +1254,7 @@ fn run_run(
     // `rule:routing/an-absolute-link-takes-a-configured-origin`'s origin is resolved before the program runs and never
     // during it, which is the whole of what makes it un-sniffable. It comes off
     // the snapshot, so it is the origin of the `[[app]]` blocks that actually
-    // match this entry file (ADR 0104 § 2) and not of any block in the file.
+    // match this entry file (`rule:config/every-matching-app-block-applies-least-specific-first`) and not of any block in the file.
     if let Some(origin) = snapshot.origin.clone() {
         ctx.set_origin(&origin);
     }
@@ -1265,7 +1265,7 @@ fn run_run(
     let for_workers = queued.is_some().then(|| std::sync::Arc::clone(&snapshot));
     // And the unit cache gets one for the same reason, taken at the same
     // moment: `[opcache]` decides when a `spawn script` path is re-checked, and
-    // ADR 0078 § 4's environment digest is half of every key it holds
+    // `rule:config/the-extension-set-is-in-every-unit-key`'s environment digest is half of every key it holds
     // (`script`'s module doc). The compiler itself is built where it is
     // installed, a few hundred lines below.
     let for_compiler = std::sync::Arc::clone(&snapshot);
@@ -1307,8 +1307,8 @@ fn run_run(
     );
     // `rule:programs/no-runtime-autoload`'s program identity, which is the one value written here that is
     // a fact about the whole graph rather than about the entry file: every
-    // unit's content hash in `resolve_program`'s order, folded with ADR 0078
-    // § 4's environment digest. Computed at this point because it is the last
+    // unit's content hash in `resolve_program`'s order, folded with `rule:config/the-extension-set-is-in-every-unit-key`
+    // 's environment digest. Computed at this point because it is the last
     // one where the walked graph and the resolved snapshot are both in hand,
     // and computed eagerly because the alternative — hashing on the first call
     // — bills one unlucky request for every unit digest in the program.
@@ -1559,7 +1559,7 @@ fn run_test(
             eprintln!("error: a program's `#[Test]` methods and `.nvst` cases are run separately");
             return ExitCode::FAILURE;
         };
-        // ADR 0078 § 1's snapshot, resolved here for the reason `run_run`
+        // `rule:config/the-config-is-an-immutable-snapshot`'s snapshot, resolved here for the reason `run_run`
         // resolves it above its own compile: ADR 0042's artifact key is half
         // configuration — § 7's `[opcache]` says where artifacts live and
         // whether they are read at all, and § 4's environment digest covers the

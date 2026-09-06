@@ -77,7 +77,7 @@ Emitted by the runtime and the M7 server, present the moment an exporter is conf
 | `nvs_tasks_in_flight` | gauge | — |
 | `nvs_deferred_trees` | gauge | — (`rule:concurrency/deferred-is-bounded-by-two-directives`) |
 | `nvs_memory_bytes` | gauge | `scope` (`request`/`cache`/`process`) |
-| `nvs_schedule_runs_total` | counter | `name`, `outcome` ([ADR 0073](0073-scheduled-work-is-config.md)) |
+| `nvs_schedule_runs_total` | counter | `name`, `outcome` (`rule:config/scheduled-work-is-a-config-block`) |
 
 Every one is read from instrumentation that already exists: the `query` kind from
 [ADR 0041](0041-timeline-export-and-gc-spawn-trace-events.md) § 1, `gc` from § 2, `spawn` from § 3, GC and

@@ -1,4 +1,4 @@
-//! ADR 0064 § 2a's block roster as a type, and § 3's unknown-key refusal that comes with it.
+//! `rule:config/every-block-is-argued-where-it-is-added`'s block roster as a type, and § 3's unknown-key refusal that comes with it.
 //!
 //! The roster is the security-relevant half: a key this tree does not name is a key an operator may
 //! write and no code will ever read, so the sweep below asserts by **counting** the blocks that
@@ -24,7 +24,7 @@ fn refusal(text: &str) -> nvs_diagnostics::Diagnostic {
         .unwrap_or_else(|| panic!("{text}\n-- was accepted, and should not have been"))
 }
 
-/// One line of TOML per block ADR 0064 § 2a's table names, in that table's order. Every one must
+/// One line of TOML per block `rule:config/every-block-is-argued-where-it-is-added`'s table names, in that table's order. Every one must
 /// parse; a block missing from [`Config`] fails here rather than at some operator's boot.
 #[rustfmt::skip] // one row per block: this is a table and reads as one, like the registry it mirrors.
 const BLOCKS: &[(&str, &str)] = &[
@@ -80,7 +80,7 @@ fn every_block_an_adr_writes_out_is_in_the_tree() {
 
     assert!(
         refused.is_empty(),
-        "ADR 0064 § 2a names these blocks and the tree refuses them: {refused:?}",
+        "`rule:config/every-block-is-argued-where-it-is-added` names these blocks and the tree refuses them: {refused:?}",
     );
     assert_eq!(
         BLOCKS.len(),
@@ -91,8 +91,8 @@ fn every_block_an_adr_writes_out_is_in_the_tree() {
 
 /// ADR 0097 § 10: a mount routes and carries nothing else. § 3's five keys say where a request
 /// arrives and which file answers it; every directive saying what the code answering it *may do*
-/// belongs to ADR 0104 § 1's `[[app]]` block, keyed on the entry file path. A `[[server.mount]]`
-/// that grew one would be a second home for a fact [ADR 0005] owns, and the per-app block goal 3
+/// belongs to `rule:config/an-application-is-its-entry-file-path`'s `[[app]]` block, keyed on the entry file path. A `[[server.mount]]`
+/// that grew one would be a second home for a fact `rule:config/three-changeability-classes` owns, and the per-app block goal 3
 /// built re-implemented one block over.
 ///
 /// Asserted on both sides, because either half alone reads as correct: § 3's routing keys parse
@@ -100,7 +100,6 @@ fn every_block_an_adr_writes_out_is_in_the_tree() {
 /// directive parses under `[[app]]`** — so a refusal that came from the directive being unspellable
 /// anywhere, rather than from the mount declining to hold policy, fails here too.
 ///
-/// [ADR 0005]: ../../../docs/adr/0005-config-changeability.md
 #[test]
 fn a_mount_carries_no_policy_of_its_own() {
     let routing = tree(concat!(
@@ -162,12 +161,12 @@ fn a_mount_carries_no_policy_of_its_own() {
         assert_eq!(
             app.app.len(),
             1,
-            "and ADR 0104 § 1's block is where it does parse: {on_the_app:?}",
+            "and `rule:config/an-application-is-its-entry-file-path`'s block is where it does parse: {on_the_app:?}",
         );
     }
 }
 
-/// ADR 0064 § 3: an unknown key is refused, under the same code a bad value gets, and the refusal
+/// `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`: an unknown key is refused, under the same code a bad value gets, and the refusal
 /// says which **block** it was found in — `unknown field \`memory\`` is unreadable until you know it
 /// was written under `[metrics]`.
 #[test]
@@ -190,7 +189,7 @@ fn an_unknown_key_is_refused_naming_the_block_that_has_no_such_directive() {
     );
     assert!(
         diagnostic.primary_span().is_some(),
-        "and the line, which is what ADR 0064 § 3 asks for",
+        "and the line, which is what `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one` asks for",
     );
 }
 
@@ -217,7 +216,7 @@ fn a_typoed_block_header_is_refused_and_claims_no_block() {
     );
 }
 
-/// ADR 0064 § 2: a capability's name is dotted, and a dotted TOML key *is* table nesting, so the two
+/// `rule:config/lists-are-arrays-and-repeated-records-are-arrays-of-tables`: a capability's name is dotted, and a dotted TOML key *is* table nesting, so the two
 /// spellings are the same input. Asserted as agreement rather than as two separate answers — a tree
 /// that grew a second path for one of them fails here while both still look right alone.
 #[test]
@@ -235,7 +234,7 @@ fn the_two_spellings_of_a_dotted_capability_agree() {
     );
 }
 
-/// ADR 0005: `[limits.hard] memory = false` removes the ceiling entirely, and ADR 0064 § 1 chose
+/// `rule:config/three-changeability-classes`: `[limits.hard] memory = false` removes the ceiling entirely, and `rule:config/the-file-is-nvs-toml-and-it-is-toml` chose
 /// TOML partly because "off" is a boolean there. A field typed `String` refuses the ADR's own
 /// example, so the bound is asserted on both sides — the size *and* the `false`.
 #[test]
@@ -264,7 +263,10 @@ fn the_repositorys_own_config_deserializes() {
     .expect("the repository root holds an nvs.toml");
     let config = tree(&text);
 
-    let app = config.app.first().expect("ADR 0104 § 1's `[[app]]` block");
+    let app = config
+        .app
+        .first()
+        .expect("`rule:config/an-application-is-its-entry-file-path`'s `[[app]]` block");
     assert_eq!(app.root.as_deref(), Some("."));
     assert_eq!(app.origin.as_deref(), Some("https://example.test"));
     assert_eq!(
@@ -278,13 +280,13 @@ fn the_repositorys_own_config_deserializes() {
 }
 
 /// An empty file is a legal configuration, which is what makes an `[[include]]` of a placeholder
-/// legal rather than a parse failure (ADR 0103 § 2).
+/// legal rather than a parse failure (`rule:config/include-takes-a-path-or-a-dir`).
 #[test]
 fn an_empty_file_is_the_default_tree() {
     assert_eq!(tree(""), Config::default());
 }
 
-/// ADR 0064 § 3's *other* refusal still holds over the typed tree: a duplicate key inside one file
+/// `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`'s *other* refusal still holds over the typed tree: a duplicate key inside one file
 /// is an error, and it is a distinct code from an unknown one because it is a distinct mistake.
 #[test]
 fn a_duplicate_key_is_still_its_own_refusal_over_the_typed_tree() {

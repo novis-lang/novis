@@ -1,6 +1,6 @@
 # Loop goal 20 — a configured store is authorized by its configuring, and may be a Unix socket
 
-[ADR 0142](../../adr/0142-a-configured-store-is-authorized-by-its-configuring.md), whole. Two things
+`rule:config/cache-shared-is-the-grant-over-the-configured-store`, whole. Two things
 that are one thing: the grant over a store an operator wrote stops naming a host, and once it does the
 store may be reached over a transport that has no host to name.
 
@@ -87,7 +87,7 @@ Goal 19's whole acceptance list — the parity program, never traded.
 
 ## Standing decisions
 
-- **This goal opens no new ADR number.** [ADR 0142](../../adr/0142-a-configured-store-is-authorized-by-its-configuring.md)
+- **This goal opens no new ADR number.** `rule:config/cache-shared-is-the-grant-over-the-configured-store`
   is written and its cross-links are landed; every question this goal meets is answered in one of its six
   sections. A gap found in it is a folded edit to *that* ADR's body, never a new number and never an
   overlay.

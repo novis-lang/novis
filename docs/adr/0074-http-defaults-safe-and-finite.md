@@ -121,9 +121,9 @@ With `origins = []` no CORS header is emitted at all and a preflight is answered
 someone deliberately relaxes it.
 
 **`origins = ["*"]` together with `credentials = true` is refused**, at boot with the line named
-([ADR 0064](0064-configuration-file-format.md) § 3's diagnostic shape) and at runtime by
+(`rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`'s diagnostic shape) and at runtime by
 `Core\Config::set` returning `false` and leaving the value unchanged
-([ADR 0005](0005-config-changeability.md)'s existing rule, not a new one). Refused rather than warned,
+(`rule:config/three-changeability-classes`'s existing rule, not a new one). Refused rather than warned,
 because the combination is not risky — it is meaningless: every browser rejects it, so the deployment that
 wrote it has an access-control policy that does not do what it says and no signal that it does not.
 
@@ -153,7 +153,7 @@ that rule meet at the same header and are otherwise independent.
 
 ### 4. Every directive is `Runtime`, and `setHeader` still wins
 
-All three blocks are [ADR 0005](0005-config-changeability.md) **`Runtime`** class: `nvs.toml` states the
+All three blocks are `rule:config/three-changeability-classes` **`Runtime`** class: `nvs.toml` states the
 default a request starts with, a request may set any value for itself, and the change is discarded when the
 request ends. `Core\Response::setHeader` additionally overrides a policy-owned header on **one** response
 with no configuration involved at all.
@@ -163,7 +163,7 @@ already write any response header it likes through `setHeader` — that is what 
 making the *policy* narrowing-only would forbid the legitimate case (one API route with an open CORS
 policy beside an application that has none; one embeddable widget route that permits framing) while
 stopping nothing. `RuntimeTighten` is reserved for grants where "may drop rights, never add them" is the
-whole mechanism ([ADR 0005](0005-config-changeability.md)); a response header is not a grant.
+whole mechanism (`rule:config/three-changeability-classes`); a response header is not a grant.
 
 A policy-owned header replaced through `setHeader` is **not** logged. A response header is ordinary output,
 the request wrote it deliberately, and logging every override would produce a line per response on any
@@ -348,7 +348,7 @@ regardless, and refusing it would buy nothing.
   either answered, which is what holds `nvs_config::http` to one implementation of the condition.
 - **M7:** a request disabling `frame_ancestors` for itself affects only its own response, and the next
   request on the same core sees the configured value — the same shape
-  [ADR 0005](0005-config-changeability.md)'s own `Core\Config::set` test already uses.
+  `rule:config/three-changeability-classes`'s own `Core\Config::set` test already uses.
 - **M8:** a `Core\Http\Client` call naming no `deadline` inherits `[http.client] deadline` and throws
   `TimeoutError` at it; a fixture asserts that no member, option or configured value can express an
   unbounded wait.

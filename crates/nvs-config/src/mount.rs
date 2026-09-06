@@ -4,7 +4,7 @@
 //! § 2 is the rule the rest of the ADR is built to keep — a request **selects** an entry point from
 //! a set enumerated before it arrived, and never **constructs** one. That is what this module is:
 //! the one place a `*` in a `scan` meets a directory listing, and it runs at boot and at
-//! [ADR 0078](/docs/adr/0078-config-reload-and-control-socket.md)'s reload, never on a
+//! `rule:config/the-config-is-an-immutable-snapshot`'s reload, never on a
 //! request path. The same glob evaluated per request would be `cgi.fix_pathinfo` with a different
 //! spelling, which is § 2's own sentence for why the expansion is here rather than in the router.
 //!
@@ -272,7 +272,7 @@ pub fn expand(
 /// `[server] root`, canonical — the one directory every mount path must resolve inside.
 ///
 /// An unwritten `root` is the directory the configuration was written in, which is
-/// [ADR 0103](/docs/adr/0103-configuration-is-a-tree-of-files.md) § 5's rule for every
+/// `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`'s rule for every
 /// relative path in the tree rather than a default chosen here.
 fn root_of(
     config: &Config,

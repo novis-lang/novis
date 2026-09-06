@@ -8,7 +8,7 @@
 //! # Decision: a relative path is anchored at the working directory
 //!
 //! Not at the entry file.
-//! [ADR 0104](/docs/adr/0104-an-application-is-an-entry-file-path.md)
+//! `rule:config/an-application-is-its-entry-file-path`
 //! makes an application an entry-file path and says nothing about a child, so
 //! there was a choice to make, and the working directory is the one a reader of
 //! the program can already predict: it is what every other path a CLI program
@@ -39,9 +39,9 @@
 //! the resolver, which is a local of `nvs run` published through
 //! [`nvs_runtime::script::scoped`] rather than leaked.
 //!
-//! # Decision: [ADR 0017]'s five steps, and what one core collapses
+//! # Decision: `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s five steps, and what one core collapses
 //!
-//! [ADR 0017]'s § *Decision* is implemented here whole, because this is the
+//! `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s § *Decision* is implemented here whole, because this is the
 //! tree's only in-memory unit table: a [`PathEntry`] holding the digest and the
 //! stamp the last check observed, in front of a table keyed by
 //! [`UnitKey`]`{ path, content_hash, env_hash }`. A resolve walks its five
@@ -80,7 +80,6 @@
 //! so a connection isolate runs to completion on the code it began with while
 //! the next resolve of that path hands the new unit to whoever asks next.
 //!
-//! [ADR 0017]: /docs/adr/0017-hot-reload-without-restart.md
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
@@ -121,7 +120,6 @@ pub(crate) struct Compiled {
 /// front-end run would make the map unreachable from the `spawn script` that
 /// run may itself perform.
 ///
-/// [ADR 0017]: /docs/adr/0017-hot-reload-without-restart.md
 #[derive(Clone, Copy, Debug)]
 struct PathEntry {
     /// The digest of the content this path last *compiled* to, which is the
@@ -136,21 +134,19 @@ struct PathEntry {
     last_checked: Instant,
 }
 
-/// The `mtime`/size pair [ADR 0017] § *Investigation* calls the cheap
+/// The `mtime`/size pair `rule:config/an-edit-reaches-the-next-request-without-a-restart` calls the cheap
 /// pre-filter: enough to say a file did *not* change, never enough to say what
 /// it now holds.
 ///
-/// [ADR 0017]: /docs/adr/0017-hot-reload-without-restart.md
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 struct Stamp {
     modified: SystemTime,
     len: u64,
 }
 
-/// [ADR 0017] § *Decision* step 3's state machine, less the state one core
+/// `rule:config/an-edit-reaches-the-next-request-without-a-restart` step 3's state machine, less the state one core
 /// cannot be in — the module doc owns why `Compiling` has no spelling here.
 ///
-/// [ADR 0017]: /docs/adr/0017-hot-reload-without-restart.md
 #[derive(Debug)]
 enum CompileState {
     /// The unit, and the route table beside it.
@@ -168,9 +164,8 @@ struct Observed {
 }
 
 /// The one implementor: the front end and the backend `nvs run` already
-/// carries, plus [ADR 0017]'s two maps in front of them.
+/// carries, plus `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s two maps in front of them.
 ///
-/// [ADR 0017]: /docs/adr/0017-hot-reload-without-restart.md
 #[derive(Debug)]
 pub(crate) struct Compiler {
     /// Written path to what the last check of it observed. `RefCell` because
@@ -181,11 +176,10 @@ pub(crate) struct Compiler {
     /// two paths holding the same source compile once and a reverted edit is a
     /// hit rather than a recompile.
     units: RefCell<HashMap<UnitKey, CompileState>>,
-    /// The environment half of every key here — [ADR 0078] § 4's digest, taken
+    /// The environment half of every key here — `rule:config/the-extension-set-is-in-every-unit-key`'s digest, taken
     /// once from the configuration this process booted, because it is constant
     /// for the life of a snapshot.
     ///
-    /// [ADR 0078]: /docs/adr/0078-config-reload-and-control-socket.md
     env: EnvHash,
     /// `[opcache] validate` and `revalidate_freq`, read once for the same
     /// reason: both are `System`-class, so no request can move them.
@@ -255,7 +249,7 @@ impl Compiler {
     /// what a server needs and what [`Resolver::resolve`]'s own signature has
     /// nowhere to put.
     ///
-    /// [ADR 0017] § *Decision*'s five steps, in order, with the module doc's
+    /// `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s five steps, in order, with the module doc's
     /// note about what a single core collapses.
     ///
     /// # Errors
@@ -263,7 +257,6 @@ impl Compiler {
     /// The one-line summary `resolve` reports, for the same two failures: a
     /// program the front end refused, and one the backend could not compile.
     ///
-    /// [ADR 0017]: /docs/adr/0017-hot-reload-without-restart.md
     pub(crate) fn compiled(
         &self,
         path: &str,
@@ -788,7 +781,7 @@ mod tests {
         // another. So `resumes == REQUESTS` is "nobody waited", asserted
         // rather than argued from the absence of a `Compiling` state.
         //
-        // This is the ADR's single-flight seen from the other side. ADR 0017
+        // This is the ADR's single-flight seen from the other side. `rule:config/an-edit-reaches-the-next-request-without-a-restart`
         // gives racing callers a broadcast to wait on because its cache is
         // reached from many cores; the module doc's § *what one core
         // collapses* says why there is nothing to wait on here, and a resume
@@ -879,7 +872,7 @@ mod tests {
     fn a_connection_opened_after_the_swap_runs_the_new_unit() {
         // The other half of the bullet, over the same fixture: what a resolve
         // taken after the edit hands back is the *new* unit. The length
-        // assertion is ADR 0017's own accounting — the pointer moved rather
+        // assertion is `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s own accounting — the pointer moved rather
         // than the table growing an entry per edit — and it holds while the
         // program resolved before the edit is still alive, because that one's
         // pages are kept by its own `Rc` (`script`'s module doc).
@@ -903,7 +896,7 @@ mod tests {
 
     #[test]
     fn a_swap_never_blocks_a_request_serving_core() {
-        // ADR 0017 § *Decision*'s paragraph after the five steps, in the
+        // `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s paragraph after the five steps, in the
         // spelling one core has for it. The ADR keeps a *thread* free by
         // running step 3 on the compile pool; what keeps this core free is the
         // property [`PathEntry`]'s own doc states — neither table is borrowed
@@ -949,7 +942,7 @@ mod tests {
 
     #[test]
     fn revalidation_is_lazy_and_rate_capped() {
-        // ADR 0017 § *Decision* step 1, both halves. A `stat` is counted the
+        // `rule:config/an-edit-reaches-the-next-request-without-a-restart` step 1, both halves. A `stat` is counted the
         // only way a unit test can count one: `observe` is the single place
         // this module makes one, and what a resolve hands back is what it
         // observed — so an edit between two resolves says whether the second

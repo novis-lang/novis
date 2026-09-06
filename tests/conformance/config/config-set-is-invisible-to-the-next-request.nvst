@@ -1,9 +1,9 @@
 --TEST--
-a `Core\Config::set` is in force only for the request that made it, and the next request on the same core reads the configuration file's value again — ADR 0078 § 1, M6's *Verify*
+a `Core\Config::set` is in force only for the request that made it, and the next request on the same core reads the configuration file's value again — `rule:config/the-config-is-an-immutable-snapshot`, M6's *Verify*
 --FILE nvs.toml--
-# The root file, ADR 0103 § 1 step 2's `./nvs.toml`. `[limits]` is the value
+# The root file, `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 2's `./nvs.toml`. `[limits]` is the value
 # every request here starts at, `[limits.hard]` is what makes the setter's `set`
-# land rather than be refused (ADR 0005), and the `script.spawn` grant is what
+# land rather than be refused (`rule:config/three-changeability-classes`), and the `script.spawn` grant is what
 # lets this case run more than one request at all (`rule:security/capability-check-at-the-door`).
 [capabilities.script]
 spawn = true
@@ -31,7 +31,7 @@ echo "the setter now reads ", Core\Config::get('memory'), "\n";
 echo "the next request reads ", Core\Config::get('memory'), "\n";
 --FILE--
 <?nvs
-// ADR 0078 § 1: a request clones the immutable snapshot at start and writes its
+// `rule:config/the-config-is-an-immutable-snapshot`: a request clones the immutable snapshot at start and writes its
 // own overlay over that clone, so a `set` moves one request's view and reaches
 // no process-wide table — `Core\Config`'s module doc says there is none to
 // reach.

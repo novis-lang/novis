@@ -10,7 +10,7 @@
 //! was split out to prevent.
 //!
 //! **A value is spelled the way [`Request::get`](crate::Request::get) answers one**, because
-//! [ADR 0064] § 5's API is string-in/string-out and a flip whose answer could be told apart from the
+//! `rule:config/ini-set-is-core-config-set`'s API is string-in/string-out and a flip whose answer could be told apart from the
 //! same value written in `nvs.toml` would be a second spelling of every directive it touches. That
 //! is the *text* of the value and not its TOML rendering — a string with no quotes around it, a bool
 //! as `true`/`false`. `[log] level` is `Log\Level`'s own case name, `Info` or `Debug`
@@ -22,13 +22,12 @@
 //! is what makes a production host — one that wrote no configuration at all — refuse every flip
 //! without an operator having to know this feature exists.
 //!
-//! **What is not here yet:** § 3's defaults are applied only by [ADR 0091] § 4's runtime flip, not at
+//! **What is not here yet:** § 3's defaults are applied only by `rule:config/a-program-may-read-and-flip-its-mode`'s runtime flip, not at
 //! boot. A tree that writes `mode = "development"` and nothing else still resolves `[log] format` to
 //! nothing rather than to `"text"`, so a reader must treat an unset directive as its production
 //! default. Closing that means the same table read where the snapshot is built, which is this
 //! module's next caller and not a second copy of the rows.
 //!
-//! [ADR 0064]: ../../../docs/adr/0064-configuration-file-format.md
 //! [ADR 0091]: ../../../docs/adr/0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md
 
 /// The dotted key a mode is written and flipped at — § 4's own spelling, and the only one.

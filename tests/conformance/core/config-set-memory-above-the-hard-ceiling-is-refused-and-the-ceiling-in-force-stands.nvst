@@ -1,11 +1,11 @@
 --TEST--
-`Core\Config::set('memory', …)` is accepted at the `[limits.hard]` ceiling and refused one unit above it, and the refusal leaves the ceiling the runtime enforces where it was — ADR 0005, `rule:errors/on-limit`
+`Core\Config::set('memory', …)` is accepted at the `[limits.hard]` ceiling and refused one unit above it, and the refusal leaves the ceiling the runtime enforces where it was — `rule:config/three-changeability-classes`, `rule:errors/on-limit`
 --FILE--
 <?nvs
 // The bound asserted on both sides. `config-every-set-refusal-answers-false-and-moves-nothing.nvst`
 // asks what a refusal answers on a host with no file at all; this one states a
 // `[limits.hard]` and pins where the ceiling actually falls — 32M is the last
-// value accepted and 33M the first refused, because ADR 0064 § 5's comparison
+// value accepted and 33M the first refused, because `rule:config/ini-set-is-core-config-set`'s comparison
 // is "at or below". A member that stopped one unit early prints plausibly
 // against either half alone.
 echo "default=", Core\Config::get("memory") ?? "unset", "\n";
@@ -35,7 +35,7 @@ while ($slabs < 64) {
 echo "held=", Core\Arr::count($ballast), "\n";
 --FILE nvs.toml--
 # The value in force and the ceiling over it. `[limits.hard]` is `System`, so
-# nothing the program below does can reach this line — ADR 0005.
+# nothing the program below does can reach this line — `rule:config/three-changeability-classes`.
 [limits]
 memory = "16M"
 

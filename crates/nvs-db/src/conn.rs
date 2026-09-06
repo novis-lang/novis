@@ -1111,7 +1111,7 @@ mod tests {
             take(&lease(&generation, "reports"), now).is_none(),
             "`[db.reports]` was handed `[db.main]`'s connection"
         );
-        // It is scoped to the generation it was read from, because ADR 0078's
+        // It is scoped to the generation it was read from, because `rule:config/the-config-is-an-immutable-snapshot`'s
         // reload can put a different database user behind the same name.
         assert!(
             take(&lease(&reloaded, "main"), now).is_none(),

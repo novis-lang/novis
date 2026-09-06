@@ -1,4 +1,4 @@
-# ADR 0005 — `nvs.toml` states defaults, not ceilings
+# `rule:config/three-changeability-classes` — `nvs.toml` states defaults, not ceilings
 
 - **Status:** Accepted
 - **Date:** 2026-08-20

@@ -174,7 +174,7 @@
 //! 7. **Executable memory is never freed.** [`Unit`] holds its `JITModule` for
 //!    the process's lifetime; `cranelift_jit::JITModule::free_memory` is
 //!    `unsafe` and needs the "no compiled frame is still live" proof that
-//!    [ADR 0017](/docs/adr/0017-hot-reload-without-restart.md)'s
+//!    `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s
 //!    pointer-swap reclamation is the real home for. A one-shot `nvs run`
 //!    exits before it matters.
 //! 8. **Integer `+`, `-`, `*` and unary `-` throw on overflow rather than

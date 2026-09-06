@@ -22,9 +22,9 @@ of `BLAKE3(unit content hashes in program order ‖ env_hash)` — the per-unit 
 [ADR 0042](../../adr/0042-on-disk-artifact-cache-format.md)'s artifact cache already computes, combined
 in program order, then the environment hash covering the target triple, the CPU feature bitset, the
 compiler build and the loaded extension set
-([ADR 0078](../../adr/0078-config-reload-and-control-socket.md)). It is computed once when the program is
+(`rule:config/the-config-is-an-immutable-snapshot`). It is computed once when the program is
 resolved, and again when a hot reload swaps code in
-([ADR 0017](../../adr/0017-hot-reload-without-restart.md)) — never per call. Two properties are the
+(`rule:config/an-edit-reaches-the-next-request-without-a-restart`) — never per call. Two properties are the
 contract: **deterministic** — every worker process, restart and machine serving the same sources on the
 same runtime answers the same id, so it is usable as a cache key; and **complete** — any change to any
 source file in the program graph, to the runtime build or to the extension set changes it, so nothing

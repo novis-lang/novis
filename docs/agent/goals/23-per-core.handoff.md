@@ -28,7 +28,7 @@ as at one.
 - [ ] **The cache stops being a `RefCell`** — `crates/nvs-cli/src/script.rs:58`'s module doc states the
       current shape and the argument that a second core breaks ("nothing can observe this cache while a
       compile is running"). Rewrite it, don't overlay it.
-- [ ] **One publisher for ADR 0017's revalidate-and-swap** — a revalidation that wins publishes a new
+- [ ] **One publisher for `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s revalidate-and-swap** — a revalidation that wins publishes a new
       `Arc`; readers never block on a compile; § 3a's `validate` pick and the "a fresher revalidation
       has not won" ordering are restated for N readers rather than one.
 - [ ] **The compile counter counts compiles, not cores** — `script.rs:193`. This is what stage 5

@@ -41,7 +41,7 @@ try {
 echo "after\n";
 --FILE nvs.toml--
 # `[limits] memory` is the whole of what this case configures — the grant the
-# ballast above is written to exceed on its third slab. ADR 0064 § 5 is the unit.
+# ballast above is written to exceed on its third slab. `rule:config/ini-set-is-core-config-set` is the unit.
 [limits]
 memory = "16M"
 --EXPECT--

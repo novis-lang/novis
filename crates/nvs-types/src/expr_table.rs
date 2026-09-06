@@ -52,7 +52,7 @@
 //! recorded call/`new` in the compiled file — attributable to the request
 //! that compiled it, freed with the rest of the check run's tables, and paid
 //! once per compile rather than per request the compiled code later serves
-//! (ADR 0017's cache makes a compile a rare event, not a per-request cost).
+//! (`rule:config/an-edit-reaches-the-next-request-without-a-restart`'s cache makes a compile a rare event, not a per-request cost).
 
 use nvs_diagnostics::Span;
 use nvs_hir::QName;

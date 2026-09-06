@@ -2,7 +2,7 @@
 //! requires.
 //!
 //! A [`Directive`] carries three fields and no more: its dotted [`key`](Directive::key), the
-//! changeability class ADR 0005 defines, and the reloadability field ADR 0078 § 2 adds
+//! changeability class `rule:config/three-changeability-classes` defines, and the reloadability field `rule:config/reloadability-is-its-own-field` adds
 //! **orthogonal** to it. The two answer different questions — [`Class`] is *who may set it*,
 //! [`Apply`] is *what applying a change requires* — and the whole reason 0078 gave reloadability a
 //! field of its own is that `System` had been carrying both meanings at once. A registry that
@@ -15,15 +15,15 @@
 //! classes in the first place — "every `[[schedule]]` key" is `System` (0005), `[server]` is `Boot`
 //! (0097 § 5) — so the registry holds one row per *stated* rule rather than a row per key invented
 //! to fill the table out. It is therefore **not** the list of legal keys: refusing an unknown key is
-//! `serde`'s `deny_unknown_fields` over the typed tree, which is ADR 0064 § 3's.
+//! `serde`'s `deny_unknown_fields` over the typed tree, which is `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`'s.
 //!
-//! One roster gap is recorded rather than guessed: ADR 0078 § 2's `Boot` set names "the
+//! One roster gap is recorded rather than guessed: `rule:config/reloadability-is-its-own-field`'s `Boot` set names "the
 //! thread-per-core count", and no ADR spells that as a key, so it has no row here yet.
 //!
 //! Cost: one `&'static` slice, no allocation and nothing per request. A lookup is a linear scan of
 //! the rows below, run at boot and on each reload and never on the request path.
 
-/// Who may set a directive — ADR 0005's changeability class.
+/// Who may set a directive — `rule:config/three-changeability-classes`'s changeability class.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Class {
     /// `nvs.toml` is the only place it can be set; `Core\Config::set` fails with `E0602` and
@@ -41,7 +41,7 @@ pub enum Class {
 
 impl Class {
     /// Whether a request may set a directive of this class at all, which is the one question the
-    /// class answers (ADR 0005). Whether the *value* it asked for is accepted is the ceiling's
+    /// class answers (`rule:config/three-changeability-classes`). Whether the *value* it asked for is accepted is the ceiling's
     /// question and this one's caller's.
     #[must_use]
     pub fn settable_by_a_request(self) -> bool {
@@ -49,7 +49,7 @@ impl Class {
     }
 }
 
-/// What applying a change to a directive requires — ADR 0078 § 2, orthogonal to [`Class`].
+/// What applying a change to a directive requires — `rule:config/reloadability-is-its-own-field`, orthogonal to [`Class`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Apply {
     /// A new snapshot is enough. This is nearly everything, including most of what is `System`.
@@ -66,9 +66,9 @@ pub struct Directive {
     /// The dotted key, `limits.hard.memory`. A key naming a block governs every key beneath it —
     /// see the module doc on why the registry is stated that way.
     pub key: &'static str,
-    /// Who may set it (ADR 0005).
+    /// Who may set it (`rule:config/three-changeability-classes`).
     pub class: Class,
-    /// What applying a change to it requires (ADR 0078 § 2).
+    /// What applying a change to it requires (`rule:config/reloadability-is-its-own-field`).
     pub apply: Apply,
 }
 
@@ -89,7 +89,7 @@ impl Directive {
 #[rustfmt::skip] // one row per line: the registry is a table and reads as one.
 pub const DIRECTIVES: &[Directive] = &[
     // `[limits]` states the default a request starts with, `[limits.hard]` the ceiling it may raise
-    // itself to (ADR 0005). Same key names under two different classes, which is why the registry
+    // itself to (`rule:config/three-changeability-classes`). Same key names under two different classes, which is why the registry
     // is keyed on the whole dotted path and not on the last segment.
     Directive { key: "limits", class: Class::Runtime, apply: Apply::Reload },
     Directive { key: "limits.hard", class: Class::System, apply: Apply::Reload },
@@ -103,16 +103,16 @@ pub const DIRECTIVES: &[Directive] = &[
     // able to raise its own recursion ceiling would exhaust the tree's heap before any depth
     // stopped it, which is the confusion m6.md's *Verify* asks this key to remove.
     Directive { key: "limits.max_script_depth", class: Class::System, apply: Apply::Reload },
-    // `[mode]` is the second and last block with that same two-halves shape (ADR 0005, ADR 0091).
+    // `[mode]` is the second and last block with that same two-halves shape (`rule:config/three-changeability-classes`, `rule:config/two-modes-and-the-default-is-production`).
     Directive { key: "mode.default", class: Class::Runtime, apply: Apply::Reload },
     Directive { key: "mode.ceiling", class: Class::System, apply: Apply::Reload },
     // Every grant in the block is the same class — a script may drop a right it holds and never add
-    // one it does not (ADR 0005, `rule:security/isolate-shares-nothing`) — so which grants exist is not this registry's question.
+    // one it does not (`rule:config/three-changeability-classes`, `rule:security/isolate-shares-nothing`) — so which grants exist is not this registry's question.
     Directive { key: "capabilities", class: Class::RuntimeTighten, apply: Apply::Reload },
-    // ADR 0005 names a response header as the counter-example to `System`: a request may set any of
+    // `rule:config/three-changeability-classes` names a response header as the counter-example to `System`: a request may set any of
     // ADR 0074's policy directives for itself, because it could already write the header directly.
     Directive { key: "http", class: Class::Runtime, apply: Apply::Reload },
-    // `[log] format` and `level` are rows of ADR 0091 § 3's mode table, and no row in that table is
+    // `[log] format` and `level` are rows of `rule:config/a-mode-is-five-defaults`'s mode table, and no row in that table is
     // `System`-class.
     Directive { key: "log", class: Class::Runtime, apply: Apply::Reload },
     // Its one sibling that is, and a more specific row for the reason the two `[cache]` rows below
@@ -136,7 +136,7 @@ pub const DIRECTIVES: &[Directive] = &[
     // resolved when a record is first written, so a new value is in force for the next context and
     // nothing is re-created. `nvs_runtime::Ctx::write_log_record` is its only reader.
     Directive { key: "log.target", class: Class::System, apply: Apply::Reload },
-    // The four `Boot` rows ADR 0078 § 2 names, less the thread-per-core count the module doc
+    // The four `Boot` rows `rule:config/reloadability-is-its-own-field` names, less the thread-per-core count the module doc
     // records as unspelled. `[server]`'s whole block is `Boot` per ADR 0097 § 5, which is more than
     // 0078's "the server's listen addresses" and includes them.
     Directive { key: "cache.dir", class: Class::System, apply: Apply::Boot },
@@ -147,7 +147,7 @@ pub const DIRECTIVES: &[Directive] = &[
     // the store re-dials every one of them, which is the same "re-creates the runtime's mapping"
     // the row above is `Boot` for.
     Directive { key: "cache.shared", class: Class::System, apply: Apply::Boot },
-    // `rule:concurrency/cache-memory-is-charged-to-the-core`'s cap on the local tier is `System` by the rule ADR 0005 states — the memory it
+    // `rule:concurrency/cache-memory-is-charged-to-the-core`'s cap on the local tier is `System` by the rule `rule:config/three-changeability-classes` states — the memory it
     // bounds is the core's, so a request raising it would spend what every other request on that
     // core then goes without — and `Reload` rather than `Boot` because a new ceiling is read by the
     // next write and enforced by forgetting entries, which re-creates nothing and re-dials nothing.
@@ -164,7 +164,7 @@ pub const DIRECTIVES: &[Directive] = &[
     // re-creates nothing, which is what lets it be flipped on around one problematic request.
     Directive { key: "debug.keep_temporary", class: Class::System, apply: Apply::Reload },
     Directive { key: "server", class: Class::System, apply: Apply::Boot },
-    // `System` and `Reload` together: the pairing ADR 0078 § 2 exists to make expressible.
+    // `System` and `Reload` together: the pairing `rule:config/reloadability-is-its-own-field` exists to make expressible.
     Directive { key: "opcache", class: Class::System, apply: Apply::Reload },
     // ADR 0139 § 3: where a fleet's sessions live is a deployment decision, so `System`; `Boot`
     // rather than `Reload` because a backend swapped under a running server strands every live

@@ -92,7 +92,7 @@ pub struct Class {
     ///
     /// **Cost:** one `Ty` per field slot per class at compile time, and one
     /// byte per slot per descriptor at run time — paid once per compiled
-    /// unit, not per request (ADR 0017's cache).
+    /// unit, not per request (`rule:config/an-edit-reaches-the-next-request-without-a-restart`'s cache).
     pub field_reprs: Vec<Ty>,
     /// Whether each field slot's *declared* type carries `rule:security/secret-qualifier`'s
     /// `secret` qualifier, in [`Self::fields`]' own order — or **empty**,

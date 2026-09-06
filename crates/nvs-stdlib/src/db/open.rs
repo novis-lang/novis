@@ -873,7 +873,7 @@ nvs_runtime::nvs_helper! {
 ///
 /// **A relative path stays relative to the process**, and that is the deliberate
 /// asymmetry with a `[db.<name>] path`, which `nvs_config::db`'s `canonicalize`
-/// resolves against the configuration file that wrote it (ADR 0103 § 5). There
+/// resolves against the configuration file that wrote it (`rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`). There
 /// is no file to resolve against here: the program computed this string, and
 /// resolving it against a configuration file it never named would make the
 /// meaning of a program's own path depend on where the operator keeps `nvs.toml`.

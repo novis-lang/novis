@@ -340,7 +340,7 @@ impl Ctx {
     /// What `[log] level` names, or [`Level::Debug`] where it names nothing —
     /// [`Self::write_log_record`]'s floor, resolved with the target above.
     ///
-    /// `Debug` for an unset directive rather than ADR 0091 § 3's per-mode
+    /// `Debug` for an unset directive rather than `rule:config/a-mode-is-five-defaults`'s per-mode
     /// `Info`: that default is applied to the *tree*, so a resolved
     /// configuration already carries it here, and a context configured by
     /// something other than a resolved tree has said nothing about which
@@ -360,7 +360,7 @@ impl Ctx {
     /// nothing — [`Self::write_log_record`]'s rendering, resolved with the two
     /// directives above.
     ///
-    /// One record per line for an unset directive, which is both ADR 0091 § 3's
+    /// One record per line for an unset directive, which is both `rule:config/a-mode-is-five-defaults`'s
     /// per-mode default and [`LogFormat`]'s own: a pipeline reading a target
     /// nobody configured can find the record boundaries without being told, and
     /// the plaintext rendering's are a blank-line-free block. A word the grammar

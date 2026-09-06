@@ -1,4 +1,4 @@
-# ADR 0078 — `nvs.toml` reloads over a local control socket, and the extension set joins the compilation key
+# `rule:config/the-config-is-an-immutable-snapshot` — `nvs.toml` reloads over a local control socket, and the extension set joins the compilation key
 
 - **Status:** Accepted
 - **Date:** 2026-08-24

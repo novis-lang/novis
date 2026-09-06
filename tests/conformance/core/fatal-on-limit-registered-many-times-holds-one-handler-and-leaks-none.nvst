@@ -26,7 +26,7 @@ Core\Fatal::onLimit(fn (): void => { echo "the last one\n"; });
 echo "done\n";
 --FILE nvs.toml--
 # Comfortably above what one request needs and far below the ~16 MiB a thousand
-# leaked captures would hold. ADR 0064 § 5 is the unit.
+# leaked captures would hold. `rule:config/ini-set-is-core-config-set` is the unit.
 [limits]
 memory = "8M"
 --EXPECT--

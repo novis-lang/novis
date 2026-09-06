@@ -19,7 +19,7 @@
 //!
 //! 1. **A copied object holds a raw `ClassDesc` pointer**, and this store
 //!    outlives the request that filled it — so under
-//!    [ADR 0017](/docs/adr/0017-hot-reload-without-restart.md)'s
+//!    `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s
 //!    unit swap a live entry would name a descriptor the old unit owned. A
 //!    payload names its classes by *name*, resolved against the receiving
 //!    program's own table on the way out, exactly as
@@ -104,7 +104,7 @@
 //!
 //! **A shared store behind a password, a database index or TLS.** The URL this
 //! reads is `redis://host[:port]` and nothing else, and each of the three is
-//! refused with a sentence rather than half-served: `AUTH` needs ADR 0103 § 7's
+//! refused with a sentence rather than half-served: `AUTH` needs `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s
 //! secret plumbing to carry the credential, a database index is a second
 //! namespace nothing yet names, and a `rediss://` client needs the trust-anchor
 //! decision `crate::http::transport` is also waiting on.
@@ -468,7 +468,7 @@ thread_local! {
 /// it. What that costs is one small string and one parse on a path that is
 /// already an O(graph) encode, and [`nvs_config::Quantity`] is the parse every
 /// other size directive uses — a second reading of what `32M` means is exactly
-/// the divergence ADR 0064 § 5 keeps one parser to prevent.
+/// the divergence `rule:config/ini-set-is-core-config-set` keeps one parser to prevent.
 ///
 /// A value that will not parse is the shipped cap, which is [`timeout_of`]'s
 /// reasoning: `nvs.toml` is refused where it is loaded, by the boundary that can
@@ -1075,7 +1075,7 @@ mod tests {
         /// The charge one entry has to be able to show through the noise.
         const LARGE: usize = 256 * 1024;
 
-        // The ceiling is `[cache.local] max_size` under ADR 0005's ordinary
+        // The ceiling is `[cache.local] max_size` under `rule:config/three-changeability-classes`'s ordinary
         // rules: the shipped one where an operator wrote nothing, a size where
         // they wrote one, and none at all for the `false` that removes it.
         let mut ctx = Ctx::buffered();

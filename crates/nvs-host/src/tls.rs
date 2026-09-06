@@ -73,7 +73,7 @@
 //! What this gives up is the private CA — an internal PKI, or a corporate
 //! inspection proxy — and that is deliberately left to the **operator**, whose
 //! decision it is, in the file that already holds every other one
-//! ([ADR 0103](/docs/adr/0103-configuration-is-a-tree-of-files.md)),
+//! (`rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`),
 //! who names a PEM bundle in `nvs.toml` and gets [`NvsTls::over_bundle`]
 //! against exactly it. The bundle **replaces** the compiled-in set for the
 //! endpoint that names it rather than adding to it — [`anchors_from`] argues

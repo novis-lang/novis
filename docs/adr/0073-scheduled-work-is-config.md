@@ -1,4 +1,4 @@
-# ADR 0073 — Scheduled work is `nvs.toml` firing a `spawn script`, with a mandatory `scope`
+# `rule:config/scheduled-work-is-a-config-block` — Scheduled work is `nvs.toml` firing a `spawn script`, with a mandatory `scope`
 
 - **Status:** Accepted
 - **Date:** 2026-08-24
@@ -39,7 +39,7 @@
   out.
 - **Novis already has every piece except the ticker.** `spawn script`
   (`rule:security/isolate-shares-nothing`) runs a file in an isolate with its own arena, its own
-  config overlay and capability narrowing. `nvs.toml` ([ADR 0064](0064-configuration-file-format.md)) is a
+  config overlay and capability narrowing. `nvs.toml` (`rule:config/the-file-is-nvs-toml-and-it-is-toml`) is a
   root-owned file the operator already writes. `Core\Cache::shared()`
   (`rule:concurrency/cross-request-state-is-explicit`) is a coherent store across machines. What is
   missing is a clock and a lock, and both are small.
@@ -47,7 +47,7 @@
   process-global mutable state (`rule:statements/static-is-a-member-modifier`) registered by whichever request
   happened to run the registering code first — a shape `rule:programs/no-runtime-autoload`
   already rejected for autoloading, for the same reason. A schedule is deployment state, and
-  [ADR 0064](0064-configuration-file-format.md) is where deployment state lives.
+  `rule:config/the-file-is-nvs-toml-and-it-is-toml` is where deployment state lives.
 - **The `scope` question is the one the user settled explicitly.** Both answers are commonly correct: a
   cache warm should run on every host, a billing run must run once. Defaulting to `"host"` silently
   multiplies a fleet's side effects; defaulting to `"fleet"` silently disables per-host maintenance and
@@ -77,7 +77,7 @@ scope = "host"
 ```
 
 An array-of-tables rather than one table with named sub-tables, because it is a repeated record with
-several fields — [ADR 0064](0064-configuration-file-format.md) § 2's existing shape, the same one
+several fields — `rule:config/lists-are-arrays-and-repeated-records-are-arrays-of-tables`'s existing shape, the same one
 `[[extension]]` uses. `name` is required and unique; a duplicate is a boot error naming both lines, exactly
 as a duplicate key already is (§ 3 of that ADR).
 
@@ -98,7 +98,7 @@ different feature with different accuracy expectations; and every dialect that a
 sub-minute work, it is a `@hourly` script holding a loop, which is visible and debuggable.
 
 The expression is parsed and validated **at boot**, with the offending line named
-([ADR 0064](0064-configuration-file-format.md) § 3's existing diagnostic shape). A typo'd schedule must not
+(`rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`'s existing diagnostic shape). A typo'd schedule must not
 be discovered by its silence.
 
 ### 3. `scope` decides who holds the lock
@@ -129,7 +129,7 @@ Nothing in this block is changeable from inside a request, and there is no `Core
 of it. A running request adding, removing or retiming a scheduled job would be process-global mutable state
 under another name, and a request *narrowing* one would silently disable a job for everyone on that host —
 so not even `RuntimeTighten` applies. This is the same class and the same reasoning
-[ADR 0017](0017-hot-reload-without-restart.md) gives for `opcache.validate`.
+`rule:config/an-edit-reaches-the-next-request-without-a-restart` gives for `opcache.validate`.
 
 ### 5. A scheduled run is a root isolate, and spends a root's budget
 
@@ -142,7 +142,7 @@ root, built by the same `Isolate` code path, and everything downstream follows w
   A run that exceeds it is a `FATAL` handled by `rule:errors/escalation-ladder`'s ladder, which
   is why a runaway nightly job cannot take the serving cores with it.
 - Its grants are the deployment's `[capabilities]`, narrowed per entry by the optional `grants` table.
-  Narrowing only, as everywhere ([ADR 0005](0005-config-changeability.md)).
+  Narrowing only, as everywhere (`rule:config/three-changeability-classes`).
 - The script receives its entry's `name` through `Core\Script::args()` and answers with a top-level
   `return`, exactly as any `spawn script` target does. There is no scheduler-specific accessor.
 - `Core\Request`/`Core\Server`/`Core\Session` throw inside it, per

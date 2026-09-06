@@ -6,7 +6,7 @@
 //! reason [`bundle`](bundle) already writes down: `nvs-cli` is a binary crate
 //! with no library target. It is also the only way to ask this particular
 //! question, because what is under test is *which `nvs.toml` a command resolves*
-//! — ADR 0103 § 1 step 2 reads `./nvs.toml` out of the working directory, and a
+//! — `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 2 reads `./nvs.toml` out of the working directory, and a
 //! working directory is a property of a process rather than of a function call.
 //!
 //! Each test owns a private directory for that reason: the tests run
@@ -40,7 +40,7 @@ fn fixture(name: &str, config: Option<&str>) -> PathBuf {
     dir
 }
 
-/// `nvs check case.nvs`, run *in* `dir` so ADR 0103 § 1 step 2 finds the
+/// `nvs check case.nvs`, run *in* `dir` so `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 2 finds the
 /// fixture's own `nvs.toml` and no other.
 fn check(dir: &Path) -> Output {
     Command::new(env!("CARGO_BIN_EXE_nvs"))

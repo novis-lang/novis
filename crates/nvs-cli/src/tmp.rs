@@ -27,7 +27,7 @@
 //! the root is the host's and no request can have moved it. This command
 //! resolves the configuration tree the way `nvs config check` does and reads
 //! that key straight off it: there is no entry file to layer
-//! [ADR 0104](/docs/adr/0104-an-application-is-an-entry-file-path.md) § 2's
+//! `rule:config/every-matching-app-block-applies-least-specific-first`'s
 //! `[[app]]` blocks with, and an operator clearing the host's root should not
 //! have to name one of the applications sharing it.
 //!
@@ -56,7 +56,7 @@ use crate::render_diagnostics;
 pub(crate) fn clean(config: &[PathBuf], dry_run: bool) -> ExitCode {
     let files = LocalFiles;
     let mut sources = SourceMap::new();
-    // ADR 0103 § 1's roots, resolved as `config check` resolves them and for the
+    // `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`'s roots, resolved as `config check` resolves them and for the
     // same reason: this command reads one key and never boots anything, so it
     // wants the tree as written rather than a snapshot built against an entry.
     let resolved = working_directory().and_then(|cwd| {

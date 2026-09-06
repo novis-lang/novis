@@ -176,7 +176,7 @@ This is the section that matters most, and it inverts the assumption every mains
   ```
 
   **A namespace granted nothing holds nothing** — deny-by-default, the same posture
-  [ADR 0005](0005-config-changeability.md) takes for the process as a whole. `nvs add` prints every
+  `rule:config/three-changeability-classes` takes for the process as a whole. `nvs add` prints every
   capability requested by the package *and its whole transitive subgraph*, and writes the grant lines, so
   the authority a new dependency brings is visible in one diff at the moment it is introduced rather than
   discoverable by audit later.

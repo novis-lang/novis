@@ -46,8 +46,8 @@ pub enum Oracle {
 ///
 /// [`Subcommand::ConfigDumpOrigin`] is the one spelling that runs no program:
 /// what it observes is the *tree* the case wrote with `--FILE <path>--`, which
-/// is the only place [ADR 0103](/docs/adr/0103-configuration-is-a-tree-of-files.md)
-/// § 3's obligation — every override recorded with both origins — is visible
+/// is the only place `rule:config/later-wins-and-every-override-is-recorded`
+/// 's obligation — every override recorded with both origins — is visible
 /// end to end. Such a case still carries a `--FILE--`, and the runner still
 /// writes it: it is the program the tree governs, and dropping the section for
 /// one spelling would make the format's one required section conditional.
@@ -68,8 +68,8 @@ pub enum Subcommand {
     /// `nvs test --format=junit case.nvs` — § 22's JUnit XML is the case.
     TestJunit,
     /// `nvs config dump --origin` — the configuration tree the case wrote into
-    /// its working directory is the case, and [ADR 0103](/docs/adr/0103-configuration-is-a-tree-of-files.md)
-    /// § 9's listing is the expectation.
+    /// its working directory is the case, and `rule:config/check-and-dump-audit-the-tree-offline`
+    /// 's listing is the expectation.
     ConfigDumpOrigin,
 }
 
@@ -92,7 +92,7 @@ impl Subcommand {
     /// Every spelling but one runs a program named on argv. `nvs config dump`
     /// takes configuration roots positionally instead, and naming a `.nvs`
     /// there would ask it to parse the program as TOML — so it is given none
-    /// and reads ADR 0103 § 1 step 2's `./nvs.toml` out of the working
+    /// and reads `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 2's `./nvs.toml` out of the working
     /// directory the case just filled, which is the tree under test.
     #[must_use]
     pub fn takes_file(self) -> bool {
@@ -252,7 +252,7 @@ const KNOWN: &[&str] = &[
 /// than something it has to refuse.
 const NOT_YET: &[(&str, &str)] = &[(
     "INI",
-    "`nvs.toml` is not read until M6 (ADR 0064), so an --INI-- section cannot be honoured",
+    "`nvs.toml` is not read until M6 (`rule:config/the-file-is-nvs-toml-and-it-is-toml`), so an --INI-- section cannot be honoured",
 )];
 
 /// The one section name that takes an argument, and what the argument is.
@@ -587,7 +587,7 @@ mod tests {
 
     #[test]
     fn the_config_dump_spelling_names_no_file_on_its_command_line() {
-        // ADR 0103 § 9's listing is read out of the working directory, so this
+        // `rule:config/check-and-dump-audit-the-tree-offline`'s listing is read out of the working directory, so this
         // is the one spelling whose command line ends at its own arguments —
         // naming `case.nvs` there would hand a program to a TOML parser.
         let parsed = case(&format!("--RUN--\nconfig dump --origin\n{MINIMAL}")).expect("it parses");

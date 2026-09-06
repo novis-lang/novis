@@ -182,11 +182,10 @@ impl Ctx {
     /// answer is not polled but taken once, at the one call that could widen
     /// the tree. [`Limit::ScriptDepth`] is the report it becomes.
     ///
-    /// A ceiling of `0` is [ADR 0005]'s no-ceiling-at-all and answers `None`
+    /// A ceiling of `0` is `rule:config/three-changeability-classes`'s no-ceiling-at-all and answers `None`
     /// however deep the chain already is — see [`Self::max_script_depth`]'s
     /// field doc, which owns why only an explicit `false` reads that way here.
     ///
-    /// [ADR 0005]: ../../../docs/adr/0005-config-changeability.md
     #[must_use]
     pub fn script_depth_breach(&self) -> Option<crate::Fault> {
         let ceiling = self.max_script_depth;
@@ -244,12 +243,11 @@ impl Ctx {
     ///
     /// See [`Self::cpu_limit`]'s field doc for what the number measures. A
     /// malformed value answers "no cap" for the reason
-    /// [`Self::configured_memory_limit`] does, and `false` — [ADR 0005]'s
+    /// [`Self::configured_memory_limit`] does, and `false` — `rule:config/three-changeability-classes`'s
     /// spelling of no ceiling at all — answers the same `0`, because a request
     /// that may burn any amount of CPU and one whose ceiling nothing states are
     /// the same request to everything downstream.
     ///
-    /// [ADR 0005]: ../../../docs/adr/0005-config-changeability.md
     fn configured_cpu_time(&self) -> u64 {
         let Some(written) = self
             .config
@@ -348,14 +346,13 @@ impl Ctx {
     /// [`Self::DEFAULT_MAX_SCRIPT_DEPTH`] where the configuration does not state
     /// one.
     ///
-    /// `false` — [ADR 0005]'s spelling of no ceiling at all — is the one value
+    /// `false` — `rule:config/three-changeability-classes`'s spelling of no ceiling at all — is the one value
     /// that answers `0` and turns the net off. A malformed one takes the default
     /// instead, which is where this reader parts company with
     /// [`Self::configured_cpu_time`]; the field doc owns why. Either way the
     /// file was already parsed and refused at the boundary that could name the
     /// line, so this is not a second place to refuse it.
     ///
-    /// [ADR 0005]: ../../../docs/adr/0005-config-changeability.md
     fn configured_max_script_depth(&self) -> u32 {
         let Some(written) = self
             .config
@@ -508,8 +505,8 @@ impl Ctx {
     ///
     /// A malformed value answers "no cap" rather than refusing here: the
     /// configuration was already parsed and refused once, at the boundary that
-    /// can name the file and the line ([ADR 0064](/docs/adr/0064-configuration-file-format.md)
-    /// § 3), and a second refusal from inside a running request could only be
+    /// can name the file and the line (`rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`
+    /// ), and a second refusal from inside a running request could only be
     /// a worse-worded copy of it.
     fn configured_memory_limit(&self) -> usize {
         self.configured_bytes("memory")
@@ -530,8 +527,8 @@ impl Ctx {
     /// Written once rather than per ceiling because a second size directive
     /// growing its own parse is how the two would come to disagree about what
     /// `"32M"` means, and `nvs_config::Quantity` is the one place that question
-    /// is answered ([ADR 0064](/docs/adr/0064-configuration-file-format.md)
-    /// § 5).
+    /// is answered (`rule:config/ini-set-is-core-config-set`
+    /// ).
     fn configured_bytes(&self, key: &str) -> usize {
         let Some(written) = self.config.as_ref().and_then(|config| config.get(key)) else {
             return 0;

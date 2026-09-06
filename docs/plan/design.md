@@ -60,7 +60,7 @@ spellings rejected, and the reasoning. Do not restate that detail here when addi
 | Implementation language | Rust (stable, pinned via `rust-toolchain.toml`) |
 | Resource priorities | Security → semantics → latency → simplicity → memory footprint, in that order, within an enforced per-request cap (`rule:programs/memory-priority`) |
 | Execution | Cranelift JIT from day one, no interpreter tier; baseline codegen first, optimising tier later |
-| Code cache | Content-addressed on-disk cache (BLAKE3) + in-process `Arc` sharing; hot-reloads on an edit via a per-path pointer swap, no watcher, no restart ([ADR 0017](../adr/0017-hot-reload-without-restart.md)); the on-disk file format, its mmap-verify-then-execute read path and its eviction policy are [ADR 0042](../adr/0042-on-disk-artifact-cache-format.md) |
+| Code cache | Content-addressed on-disk cache (BLAKE3) + in-process `Arc` sharing; hot-reloads on an edit via a per-path pointer swap, no watcher, no restart (`rule:config/an-edit-reaches-the-next-request-without-a-restart`); the on-disk file format, its mmap-verify-then-execute read path and its eviction policy are [ADR 0042](../adr/0042-on-disk-artifact-cache-format.md) |
 | Parallelism | Hybrid: `async`/`await` for I/O inside a task (same heap, cooperative) + isolated workers on other cores for CPU work |
 | Suspension | Stackful coroutines — no async colouring; any function may yield |
 | Isolated execution | `spawn script 'file.nvs'` runs another file in-process as a child isolate, file-only, never a source string (`rule:security/isolate-shares-nothing`) |
@@ -77,7 +77,7 @@ spellings rejected, and the reasoning. Do not restate that detail here when addi
 | Templating | `<?nvs … ?>` inline-HTML mode, `<?= ?>` short echo, `.nvs` extension. Explicit escaping (not auto) |
 | Request state | Strict shared-nothing: only compiled code survives a request; no connection pooling in v1 (seam reserved). A request is the root isolate of a tree; `spawn script` adds children to it |
 | Regex | Pure Rust two-tier: `regex` (linear-time) → `fancy-regex` (lookaround/backrefs) fallback |
-| Security | Server-level `nvs.toml`, root-owned, TOML ([ADR 0064](../adr/0064-configuration-file-format.md)), deny-by-default capabilities + hard per-request limits ([ADR 0005](../adr/0005-config-changeability.md)) |
+| Security | Server-level `nvs.toml`, root-owned, TOML (`rule:config/the-file-is-nvs-toml-and-it-is-toml`), deny-by-default capabilities + hard per-request limits (`rule:config/three-changeability-classes`) |
 | Serving | Built-in **HTTP/1.1** server, scoped to a development server and a proxied origin; no TLS listener, no h2c, no HTTP/3, no FastCGI, no compression ([ADR 0097](../adr/0097-development-server-and-proxied-origin.md)) |
 | Text and binary | `string` is guaranteed-valid UTF-8 and counts extended grapheme clusters; binary data is the separate `bytes` primitive, counting bytes (`rule:types/bytes`) |
 | Databases | One `Core\Db` API over MySQL, MariaDB (a driver of its own, not a MySQL version), PostgreSQL, SQLite and MS SQL Server: connections named in root-owned config, every statement prepared, a transaction is a closure (`rule:core-classes/db-one-api`) |
@@ -318,13 +318,13 @@ broadcast — N simultaneous first-hits compile exactly once, and none of them b
 
 Because the key above is not `{path}`, a `Ready` entry is write-once — two versions
 of a file are two entries, never one overwritten. A small separate index, `path → current content_hash`,
-sits in front of it and is the one thing a hot-reload actually swaps; [ADR 0017](../adr/0017-hot-reload-without-restart.md)
+sits in front of it and is the one thing a hot-reload actually swaps; `rule:config/an-edit-reaches-the-next-request-without-a-restart`
 holds the only copy of that mechanism, why revalidation needs no filesystem watcher, and how a file edited
 under a live server reaches the next request with no restart while a request already running keeps the
 version it started with. The third key field, `env_hash`, is the environment a unit was compiled in —
 including the loaded extension set — so a config reload that changes that set turns every unit into an
 ordinary cache miss rather than needing an invalidation pass
-([ADR 0078](../adr/0078-config-reload-and-control-socket.md)).
+(`rule:config/the-config-is-an-immutable-snapshot`).
 
 ### Per-request isolation
 
@@ -358,10 +358,10 @@ an application can never grant itself rights. `nvs.toml` states **defaults, not 
 limit that cannot be exceeded only when it cannot be changed at runtime at all. Each directive carries one
 of three changeability classes — `System`, `Runtime`, `RuntimeTighten`.
 
-[ADR 0005](../adr/0005-config-changeability.md) holds the only copy of the directive layout: the classes and
+`rule:config/three-changeability-classes` holds the only copy of the directive layout: the classes and
 why each is argued per directive, the `[core]`, `[limits]`, `[limits.hard]`, `[capabilities]` and `[app]`
 tables, and the `Core\Config::set`/`::get`/`::restore` overlay rules.
-[ADR 0064](../adr/0064-configuration-file-format.md) holds the only copy of why the file is TOML rather than
+`rule:config/the-file-is-nvs-toml-and-it-is-toml` holds the only copy of why the file is TOML rather than
 INI, and of the `Core\Config` signatures. Do not restate either here.
 
 Two cross-cutting consequences the milestones below depend on:

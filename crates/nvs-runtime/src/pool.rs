@@ -204,8 +204,8 @@ impl Ticket {
     /// configuration.** § 13 keys a pool on every credential and names the
     /// block's name as that key for `connect`, which holds because the block is
     /// where the credentials are written — until
-    /// [ADR 0078](/docs/adr/0078-config-reload-and-control-socket.md)
-    /// § 1's reload publishes a `[db.main]` naming a different database user
+    /// `rule:config/the-config-is-an-immutable-snapshot`
+    /// 's reload publishes a `[db.main]` naming a different database user
     /// under the same name. A pool keyed on the name alone would then hand the
     /// new generation's request a connection authenticated as the old one's
     /// user, which is exactly the sharing § 13 forbids. Scoping the key to the
@@ -806,7 +806,7 @@ mod tests {
         let after = generation();
         release(lease(&before, "main", 2), now, fake(1));
 
-        // ADR 0078's reload can put a different database user behind the same
+        // `rule:config/the-config-is-an-immutable-snapshot`'s reload can put a different database user behind the same
         // block name, so the name alone must not reach the old connection.
         assert_eq!(id_of(take(&lease(&after, "main", 2), now)), None);
         assert_eq!(id_of(take(&lease(&before, "main", 2), now)), Some(1));

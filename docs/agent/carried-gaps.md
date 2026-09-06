@@ -45,7 +45,7 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 | A cycle whose only closing edge is inside an `array<T>` survives `object::sweep` | 21 | `crates/nvs-runtime/src/object.rs` § *The five walks*, `rule:security/isolate-teardown-is-a-drain-then-a-sweep` |
 | `Core\Db::stream`/`streamAs`, `Connection::close`, § 18's three readonly properties | 21 | `crates/nvs-stdlib/src/db/mod.rs` gap 5 |
 | `{timeout?: Duration}` is in both spec signatures and in neither registry row | 21 | `crates/nvs-stdlib/src/db/mod.rs` gap 6 |
-| `scope = "fleet"` parses, boots and is not armed | 21 | `crates/nvs-server/src/schedule.rs` § *What is not armed*, ADR 0073 § 3 |
+| `scope = "fleet"` parses, boots and is not armed | 21 | `crates/nvs-server/src/schedule.rs` § *What is not armed*, `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease` |
 | `rule:core-classes/html-to-source`'s computed `$reason` is not refused — was blocked on a full diagnostic band | 21 | `crates/nvs-stdlib/src/html.rs` § *Known gaps* |
 | `queryAs<T>`'s three refusals are at run time — same blocker, same band | 21 | `crates/nvs-stdlib/src/db/mod.rs` gap 8 |
 | Twenty CLDR plural rosters throw; ordinals absent; eight pattern letters refused | 21 | `crates/nvs-stdlib/src/cldr.rs` gaps 2–4 |

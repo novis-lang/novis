@@ -1,4 +1,4 @@
-//! [ADR 0073]'s `[[schedule]]` entries, checked at boot: everything an entry must answer before
+//! `rule:config/scheduled-work-is-a-config-block`'s `[[schedule]]` entries, checked at boot: everything an entry must answer before
 //! the scheduler can arm it.
 //!
 //! **Every refusal here is a boot refusal, and that is the whole point of the module.** A schedule
@@ -11,7 +11,7 @@
 //!
 //! **Over the merged tree, beside [`app::canonicalize`](crate::app::canonicalize), and for the same
 //! reason:** `[[schedule]]` is an array of tables, so entries accumulate across the files
-//! ([ADR 0103] § 4) and the roster only exists once the merge is done. A per-file check would refuse
+//! (`rule:config/a-value-array-replaces-and-a-table-appends`) and the roster only exists once the merge is done. A per-file check would refuse
 //! a base file an include was about to complete.
 //!
 //! **The roots check is [`Capabilities::allows`](crate::tree::Capabilities::allows) and not a
@@ -34,8 +34,6 @@
 //! fields rather than minutes — at most a month, a day, an hour and a minute of stepping per
 //! answer — and the scheduler asks for one per fire. Nothing here runs on a request path.
 //!
-//! [ADR 0073]: ../../../docs/adr/0073-scheduled-work-is-config.md
-//! [ADR 0103]: ../../../docs/adr/0103-configuration-is-a-tree-of-files.md
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -210,7 +208,7 @@ pub fn validate(
 
         let script = required(entry, index, "script", entry.script.as_deref(), origins)?;
         let written_in = origins.get(&format!("schedule.{index}.script"));
-        // § 5 of ADR 0103: relative to the file that wrote it, the same rule an `[[include]]`, a
+        // § 5 of `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`: relative to the file that wrote it, the same rule an `[[include]]`, a
         // `password_file` and an `[[app]]` key follow.
         let base = written_in
             .and_then(|origin| origin.path.parent())

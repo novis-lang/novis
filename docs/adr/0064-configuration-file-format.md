@@ -1,4 +1,4 @@
-# ADR 0064 — Configuration is TOML, in `nvs.toml`
+# `rule:config/the-file-is-nvs-toml-and-it-is-toml` — Configuration is TOML, in `nvs.toml`
 
 - **Status:** Accepted
 - **Date:** 2026-08-23
@@ -66,7 +66,7 @@ further files, the order they are merged in, the ownership every one of them mus
 `nvs config` verbs that report the result. Everything below is the syntax each of those files is written
 in, which is the same whether there is one of them or ten.
 
-[ADR 0005](0005-config-changeability.md)'s layout is unchanged; only its spelling moves:
+`rule:config/three-changeability-classes`'s layout is unchanged; only its spelling moves:
 
 ```toml
 [limits]                     # Runtime — what a request starts with

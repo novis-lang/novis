@@ -1,4 +1,4 @@
-//! [ADR 0103] § 6's trust boundary: whether any account but this one can write a file the
+//! `rule:config/ownership-is-the-trust-boundary`'s trust boundary: whether any account but this one can write a file the
 //! configuration reads.
 //!
 //! The configuration grants capabilities, so whoever can write **any** file in the tree can grant
@@ -26,7 +26,7 @@
 //! **Canonicalization is part of the check, not a side effect of it.** [`check`] returns the
 //! canonical path, and that is what makes the resolver's cycle test compare files rather than
 //! spellings — a cycle assembled out of symlinks is invisible to a lexical comparison. It is also
-//! the one path comparison ADR 0104 § 2's `[[app]]` matching is built on, so it is written once
+//! the one path comparison `rule:config/every-matching-app-block-applies-least-specific-first`'s `[[app]]` matching is built on, so it is written once
 //! here rather than three times.
 //!
 //! **[`exposure`] is the same question asked about reading, and it only ever advises.** § 7 refuses
@@ -41,7 +41,6 @@
 //! outside boot — it checks its own directory once per process, which is why the Windows half is
 //! measured in microseconds rather than milliseconds.
 //!
-//! [ADR 0103]: ../../../docs/adr/0103-configuration-is-a-tree-of-files.md
 
 use std::path::{Path, PathBuf};
 
@@ -89,7 +88,7 @@ pub const REMEDY: &str = platform::REMEDY;
 /// **This is the only canonicalization in the configuration**, and that is a rule rather than a
 /// convenience. Two separate questions rest on it — whether a file the tree reads is the one the
 /// boundary was checked against (§ 6, [`check`] below) and whether an entry file is inside an
-/// `[[app]]` root ([ADR 0104] § 1, [`mod@crate::app`]) — and both are decided by comparing paths
+/// `[[app]]` root (`rule:config/an-application-is-its-entry-file-path`, [`mod@crate::app`]) — and both are decided by comparing paths
 /// afterwards. A second implementation is how one of them ends up accepting a `..` or a symlink
 /// that the other refuses, so the comparison's first half is written once and shared.
 ///
@@ -98,7 +97,6 @@ pub const REMEDY: &str = platform::REMEDY;
 /// Whatever `std::fs::canonicalize` says, which for a path that does not exist is a "not found"
 /// every caller reports as `E0605`.
 ///
-/// [ADR 0104]: ../../../docs/adr/0104-an-application-is-an-entry-file-path.md
 pub fn canonical(path: &Path) -> std::io::Result<PathBuf> {
     Ok(platform::simplified(std::fs::canonicalize(path)?))
 }
@@ -266,7 +264,7 @@ mod platform {
     ];
 
     /// `fs::canonicalize` returns a verbatim `\\?\` path, and the rest of the tree — a diagnostic,
-    /// the boot log, ADR 0104 § 2's prefix match — wants the ordinary one. A UNC path keeps its
+    /// the boot log, `rule:config/every-matching-app-block-applies-least-specific-first`'s prefix match — wants the ordinary one. A UNC path keeps its
     /// prefix, where dropping it would name a different thing.
     pub(super) fn simplified(path: PathBuf) -> PathBuf {
         let Some(rest) = path.to_str().and_then(|text| text.strip_prefix(r"\\?\")) else {

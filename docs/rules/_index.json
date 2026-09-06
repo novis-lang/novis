@@ -74,6 +74,11 @@
       "topic": "routing",
       "title": "Routing",
       "order": 150
+    },
+    {
+      "topic": "config",
+      "title": "Configuration",
+      "order": 160
     }
   ]
 }

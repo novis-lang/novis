@@ -90,7 +90,7 @@ fn the_switch_written_on_changes_nothing() {
     assert_eq!(bounds(&format!("{MAIN}pool = true\n")), PoolBounds::DEFAULT);
 }
 
-/// A partly-written block is four independent decisions, not one: ADR 0103 § 3 records an override
+/// A partly-written block is four independent decisions, not one: `rule:config/later-wins-and-every-override-is-recorded` records an override
 /// per key, so a `max` written alone must leave the other three at the default.
 #[test]
 fn a_written_bound_replaces_only_itself() {
@@ -178,7 +178,7 @@ fn a_zero_max_is_refused_by_the_key_and_points_at_the_switch() {
 }
 
 /// What the hand-written `Deserialize` on `tree::Pool` is for: a typo inside the table is still
-/// ADR 0064 § 3's unknown-key refusal, naming the key. `#[serde(untagged)]` would report *data did
+/// `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`'s unknown-key refusal, naming the key. `#[serde(untagged)]` would report *data did
 /// not match any variant* here and name nothing.
 #[test]
 fn an_unknown_key_in_the_pool_table_is_refused_by_name() {

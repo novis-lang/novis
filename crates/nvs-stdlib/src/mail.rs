@@ -53,7 +53,7 @@
 //! # A credential asks for TLS, and asking for it is what makes it required
 //!
 //! A `[mail.<name>]` block that sets `user` and `password` — or `password_file`, the same half of
-//! the credential arriving as an injected file (ADR 0103 § 7) — is sent through `STARTTLS` and
+//! the credential arriving as an injected file (`rule:config/a-secret-is-a-file-whose-content-is-the-value`) — is sent through `STARTTLS` and
 //! authenticated with `AUTH PLAIN`, and there is no path on which the credential reaches a
 //! plaintext socket: the upgrade is issued after the first `EHLO`, `EHLO` is re-issued over the
 //! secured stream because the extension list is the *session's* and an endpoint offering `AUTH`
@@ -299,7 +299,7 @@ fn configured(ctx: &Ctx, endpoint: &str, key: &str) -> Option<String> {
 /// The two halves are separate rules and this reader used to conflate them. A
 /// blank value is a cleared setting, which is the paragraph above. A *non-blank*
 /// value is the operator's, byte for byte: `password = "hunter2 "` is a
-/// credential that ends in a space, ADR 0103 § 7 is explicit that such a value
+/// credential that ends in a space, `rule:config/a-secret-is-a-file-whose-content-is-the-value` is explicit that such a value
 /// is kept rather than trimmed, and the boot already says `W1007` about it. This
 /// function trimmed the value it returned, so the one endpoint that could have
 /// used that password submitted a different one — an authentication failure at
@@ -1192,7 +1192,7 @@ mod tests {
     /// answered byte for byte.
     ///
     /// The second half is the one with a bug behind it. A credential is exactly
-    /// as the operator wrote it (ADR 0103 § 7), so a password with an edge space
+    /// as the operator wrote it (`rule:config/a-secret-is-a-file-whose-content-is-the-value`), so a password with an edge space
     /// is a password with an edge space; this reader trimmed it, and the only
     /// place that showed was a rejected `AUTH PLAIN` against a file that held
     /// the right bytes.

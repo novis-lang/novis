@@ -564,8 +564,8 @@ pub struct Ctx {
     /// once — tens of them, not thousands — and nothing at all for a program
     /// that configures none.
     origin: Option<Box<str>>,
-    /// [ADR 0078](/docs/adr/0078-config-reload-and-control-socket.md)
-    /// § 1's configuration, as this request sees it: the snapshot it cloned at
+    /// `rule:config/the-config-is-an-immutable-snapshot`
+    /// 's configuration, as this request sees it: the snapshot it cloned at
     /// start and the copy-on-write overlay `Core\Config::set` writes over it.
     ///
     /// **The clone happens once, here, and never per read.** `nvs run` builds
@@ -578,7 +578,7 @@ pub struct Ctx {
     /// `None` is a context nobody configured — every test context, and any
     /// caller that has not built a snapshot. The members answer as they do for
     /// a directive nothing set, rather than throwing: an unconfigured host is
-    /// ADR 0103 § 1 step 3's shipped defaults and not an error.
+    /// `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 3's shipped defaults and not an error.
     ///
     /// **What it spends:** one `Arc` clone per request, plus a `String` pair
     /// per key that request actually set. O(in-flight requests), per

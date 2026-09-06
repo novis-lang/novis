@@ -988,7 +988,7 @@ fn snapshot_of(written: &str) -> Arc<Snapshot> {
 ///
 /// The snapshot's identity is the third assertion. A child that re-resolved the tree from disk
 /// would answer every question above correctly against an unchanged file and silently widen the
-/// moment the file differed from what the parent was serving — which is the failure ADR 0078 § 1's
+/// moment the file differed from what the parent was serving — which is the failure `rule:config/the-config-is-an-immutable-snapshot`'s
 /// one-clone-at-start exists to prevent, asked here of the second context in a tree rather than of
 /// the first.
 #[test]

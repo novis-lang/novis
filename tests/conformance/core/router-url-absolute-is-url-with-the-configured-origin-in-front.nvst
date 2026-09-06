@@ -139,7 +139,7 @@ echo "root=", $absolute["6"], "\n";
 --FILE nvs.toml--
 # `rule:routing/an-absolute-link-takes-a-configured-origin`'s configured origin — the only source an absolute link may take
 # one from, and in a program run off the command line this file is the whole of
-# it. The block is ADR 0104 § 1's array of tables, which is the only spelling of
+# it. The block is `rule:config/an-application-is-its-entry-file-path`'s array of tables, which is the only spelling of
 # it there is, and § 1 keys it on an entry file path: `root = "."` is the
 # working directory this case runs in, so the program below is inside it.
 [[app]]

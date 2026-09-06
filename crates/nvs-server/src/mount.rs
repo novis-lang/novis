@@ -34,8 +34,8 @@
 //!
 //! # Decision: an unwritten switch is the closed one, not development's
 //!
-//! [ADR 0091](/docs/adr/0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md)
-//! § 3a gives `dispatch` and `static` different defaults per mode — `path` and
+//! `rule:config/a-startup-default-is-never-flipped`
+//! gives `dispatch` and `static` different defaults per mode — `path` and
 //! on in development, `entry` and off in production. [`Table::new`] takes both
 //! as decided values and [`Table::from_config`] reads only what was *written*,
 //! defaulting to the production pair. Resolving a mode's defaults is the mode
@@ -967,7 +967,7 @@ mod tests {
     /// the equality held over a corpus too thin to have shown it.
     ///
     /// The equality is stated at the production pair — what [`Table::from_config`]
-    /// reads from a tree writing neither switch, and what ADR 0091 § 3a gives
+    /// reads from a tree writing neither switch, and what `rule:config/a-startup-default-is-never-flipped` gives
     /// `production`. Development's pair is asserted separately and more weakly,
     /// because § 4 step 4 *deliberately* widens the set to the `.nvs` files inside
     /// a mount root: what is checked there is where the widening stops — never a

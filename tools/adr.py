@@ -54,7 +54,7 @@ WHAT IT CHECKS, AND WHY EACH ONE IS HERE RATHER THAN IN A REVIEWER'S HEAD
 
   metadata   Every ADR opens with the same field block. `Status` must be a bare value, because a
              status carrying a paragraph is a status nobody can filter on. Unknown field names are
-             refused for the reason `deny_unknown_fields` refuses an unknown config key (ADR 0064
+             refused for the reason `deny_unknown_fields` refuses an unknown config key (`rule:config/the-file-is-nvs-toml-and-it-is-toml`
              SS 3): a typo'd `Amended-by:` reads as "nothing amends this".
 
   structure  The heading set is closed and its order is fixed, so a reader who has found

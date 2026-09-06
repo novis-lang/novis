@@ -164,7 +164,7 @@ pub trait Resolver: std::fmt::Debug {
     ///
     /// `path` is exactly what the program wrote. How a relative one is
     /// anchored is the implementor's — nothing about it is decidable here, and
-    /// [ADR 0104](/docs/adr/0104-an-application-is-an-entry-file-path.md)
+    /// `rule:config/an-application-is-its-entry-file-path`
     /// settles the entry file rather than this.
     ///
     /// # Errors

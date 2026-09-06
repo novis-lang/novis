@@ -56,7 +56,7 @@ proposal arrived in, and the operator half was rejected — `mixed as Foo` is al
 `as` is a closed laundering set, and `X as ?Foo` would need two inputs to decide its legality. `rule:expressions/nullable-conversion-availability`'s *the class row is absolute* survives intact; only the sites that already convert implicitly change.
 
 **Then one more, added after goal 19 was written**: [20 unix-sockets](20-unix-sockets.md) is
-[ADR 0142](../../adr/0142-a-configured-store-is-authorized-by-its-configuring.md) — the grant over a
+`rule:config/cache-shared-is-the-grant-over-the-configured-store` — the grant over a
 store an operator configured stops naming a host (`cache.shared`, unscoped, on `mail.send`'s precedent),
 which removes the loopback double-grant *and* the obstacle to a Unix socket, since `pin_host` needed an
 address and a socket path has none. Its stage 4 puts an `AF_UNIX` connect under three of goal 5's
@@ -67,7 +67,7 @@ rather than on the end, because goal 6 going green is what *makes* the problem t
 [21 carried-gaps](21-carried-gaps.md) takes every gap a shipped feature already carries that no entry on
 this chain claimed: an ADR-written `db.open` wildcard with no reader, `nvs check` never building the
 grants its own diagnostic needs, a cycle closed through an array surviving `rule:security/isolate-teardown-is-a-drain-then-a-sweep`'s sweep, ADR
-0076 § 6's four missing log-record fields, ADR 0073 § 3's unarmed fleet lease, spec § 18's
+0076 § 6's four missing log-record fields, `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`'s unarmed fleet lease, spec § 18's
 `stream`/`streamAs`, two rules that were waiting on a diagnostic band that has since opened, and the
 CLDR rosters that throw. Its keystone is the mechanism rather than any of those: an outstanding-members
 key gains an owner column and the test fails when that owner is no longer a live entry, so a switch
@@ -157,11 +157,11 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [17 test-request](17-test-request.md) | M8, `rule:testing/in-process-request` | `nvs-runtime`, `nvs-stdlib`, `nvs-server`, `nvs-test`, `nvs-cli` |
 | [18 input-shapes](18-input-shapes.md) | M7, ADR 0140 + `rule:types/object-top`/0024 amendments | `nvs-syntax`, `nvs-types`, `nvs-stdlib` |
 | [19 parses](19-parses.md) | M7, ADR 0141 + `rule:classes/comparable`/0066/0077/0102 amendments | `nvs-hir`, `nvs-types`, `nvs-stdlib`, `nvs-runtime`, `nvs-cli` |
-| [20 unix-sockets](20-unix-sockets.md) | M8, ADR 0142 + ADR 0058/0059 amendments | `nvs-config`, `nvs-stdlib`, `nvs-db`, `nvs-host`, `nvs-diagnostics` |
+| [20 unix-sockets](20-unix-sockets.md) | M8, `rule:config/cache-shared-is-the-grant-over-the-configured-store` + ADR 0058/0059 amendments | `nvs-config`, `nvs-stdlib`, `nvs-db`, `nvs-host`, `nvs-diagnostics` |
 | [21 carried-gaps](21-carried-gaps.md) | post-parity, `rule:core-classes/db-one-api`/0073/0076/0116/0133 amendments | `nvs-config`, `nvs-cli`, `nvs-types`, `nvs-runtime`, `nvs-stdlib`, `nvs-server`, `nvs-db`, `nvs-diagnostics` |
 | [22 warm-start](22-warm-start.md) | post-parity, ADR 0042 | `nvs-codegen`, `nvs-cli`, `nvs-config` |
 | [23 per-core](23-per-core.md) | M7, one ADR slot + ADR 0097/0017 amendments | `nvs-cli`, `nvs-host`, `nvs-server`, `nvs-config` |
-| [24 net-os-signal](24-net-os-signal.md) | M8, one ADR slot + ADR 0142 § 6's deferred grant | `nvs-stdlib`, `nvs-host`, `nvs-config`, `nvs-runtime` |
+| [24 net-os-signal](24-net-os-signal.md) | M8, one ADR slot + `rule:config/net-local-is-named-and-not-on-the-roster`'s deferred grant | `nvs-stdlib`, `nvs-host`, `nvs-config`, `nvs-runtime` |
 | [25 formats](25-formats.md) | M8, one ADR slot (the shared decompression bound) | `nvs-stdlib`, `nvs-config`, `nvs-diagnostics` |
 | [26 xml-tree](26-xml-tree.md) | M8, one ADR slot + `rule:core-classes/html-parsing`'s fold | `nvs-stdlib`, `nvs-diagnostics` |
 | [27 gap-owners](27-gap-owners.md) | post-parity, no ADR — a process gate | `tools/`, every crate's module docs |

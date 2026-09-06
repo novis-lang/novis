@@ -1,4 +1,4 @@
-# ADR 0091 — A run mode is two closed values, a ceiling, and a list of defaults
+# `rule:config/two-modes-and-the-default-is-production` — A run mode is two closed values, a ceiling, and a list of defaults
 
 - **Status:** Accepted
 - **Date:** 2026-08-25
@@ -191,7 +191,7 @@ which of the two tables it belongs in, and the ADR says which by the directive's
 
 ```
 Core\Env::mode(): Env\Mode                                  // read
-Core\Config::set("mode.default", "development"): bool       // flip, per ADR 0005
+Core\Config::set("mode.default", "development"): bool       // flip, per `rule:config/three-changeability-classes`
 ```
 
 - **Reading it is first-class.** Applications legitimately need it — seed data, a null mail transport, a

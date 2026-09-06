@@ -6,7 +6,7 @@
 landed yet.** Goal 19's whole list is this goal's Stage 1 floor, which is the parity program entire.
 
 The design is settled and written:
-[ADR 0142](../../adr/0142-a-configured-store-is-authorized-by-its-configuring.md), six sections, with
+`rule:config/cache-shared-is-the-grant-over-the-configured-store`, six sections, with
 its cross-links already folded into `rule:security/net-address-policy`'s carve-out and `rule:core-api/two-cache-tiers`'s `shared()` row. **This
 goal opens no ADR number** — a gap in 0142 is a folded edit to its body.
 

@@ -1,8 +1,8 @@
 --TEST--
-Every `Core\Config::set` refusal answers `false` and leaves the value in force untouched — ADR 0005, ADR 0064 § 5
+Every `Core\Config::set` refusal answers `false` and leaves the value in force untouched — `rule:config/three-changeability-classes`, `rule:config/ini-set-is-core-config-set`
 --FILE--
 <?nvs
-// ADR 0005: a set the changeability class or a ceiling refuses returns `false`
+// `rule:config/three-changeability-classes`: a set the changeability class or a ceiling refuses returns `false`
 // and leaves the value in place. Both halves are asserted here, because the
 // half a bare `false` does not prove is that nothing moved — a member that
 // refused *and* wrote would print identically on the first three lines.

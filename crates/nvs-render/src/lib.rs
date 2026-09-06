@@ -188,8 +188,8 @@ impl Level {
     ///
     /// **Two spellings, and both of them the documentation's own.** § 2 writes
     /// the roster as `Log\Level::Debug`, and so does
-    /// [ADR 0091](/docs/adr/0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md)
-    /// § 3's per-mode default column for `[log] level`; a record renders the
+    /// `rule:config/a-mode-is-five-defaults`
+    /// 's per-mode default column for `[log] level`; a record renders the
     /// same level as [`Self::name`]'s `debug`. An operator has read one of the
     /// two and writes back what they read, so both resolve. Neither is a fold
     /// of the other: `DEBUG` is refused like any other word, the way

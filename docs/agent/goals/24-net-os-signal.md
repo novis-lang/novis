@@ -32,7 +32,7 @@ Goal 23's whole acceptance list, carried in verbatim by `tools/goal-switch.py`. 
    answers, and why there is no second event loop — "over the runtime's own reactor" is `rule:core-api/tier-placement`'s
    sentence and this is where it becomes a rule.
 2. **`net.local` joins the capability roster.**
-   [ADR 0142](../../adr/0142-a-configured-store-is-authorized-by-its-configuring.md) § 6 names it and
+   `rule:config/net-local-is-named-and-not-on-the-roster` names it and
    goal 20 deliberately did **not** add it — "it has no caller until `Core\Net` lands". This goal is
    that caller. `net.connect` keeps the outbound host scope it has; a listening socket is a separate
    question and gets `net.listen`.

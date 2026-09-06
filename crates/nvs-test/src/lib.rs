@@ -65,8 +65,8 @@
 //!
 //! `--RUN--\nconfig dump --origin` is the one spelling that runs no program.
 //! It names no file on the command line, so `nvs config dump` resolves
-//! [ADR 0103](/docs/adr/0103-configuration-is-a-tree-of-files.md)
-//! § 1 step 2's `./nvs.toml` out of the case's own working directory — which
+//! `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`
+//! step 2's `./nvs.toml` out of the case's own working directory — which
 //! makes a tree written with `--FILE nvs.toml--` and `--FILE conf.d/…--` the
 //! thing under test, and § 9's listing the expectation. That is where § 3's
 //! obligation to record an override with **both** origins is observable at
@@ -137,7 +137,7 @@
 //!
 //! `--INI--` parses — that is what keeps the M11 importer mechanical — but
 //! nothing can act on it yet: `nvs.toml` is not read until M6
-//! ([ADR 0064](/docs/adr/0064-configuration-file-format.md)). A case
+//! (`rule:config/the-file-is-nvs-toml-and-it-is-toml`). A case
 //! that uses it is reported as a **failure** naming the milestone, never
 //! run-and-half-ignored.
 //!

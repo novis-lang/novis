@@ -1,11 +1,11 @@
-//! [ADR 0078] § 1: the immutable snapshot a request clones at start.
+//! `rule:config/the-config-is-an-immutable-snapshot`: the immutable snapshot a request clones at start.
 //!
 //! A [`Snapshot`] is one entry file's whole answer — the global tree with that file's `[[app]]`
-//! blocks folded over it ([ADR 0104] § 2) — built once at boot or reload and never mutated
+//! blocks folded over it (`rule:config/every-matching-app-block-applies-least-specific-first`) — built once at boot or reload and never mutated
 //! afterwards. [`Current`] holds the published one; a request clones the [`Arc`] when it starts and
 //! reads that clone for its whole life, so a reload landing mid-request is invisible to it and no
 //! request ever sees half of one tree and half of another. `Core\Config::set` writes a per-request
-//! overlay *over* this value and never into it ([ADR 0064] § 5).
+//! overlay *over* this value and never into it (`rule:config/ini-set-is-core-config-set`).
 //!
 //! **The per-app fold is [`resolve`](crate::resolve)'s `merge_table`, over the global table, one
 //! block at a time in [`matching`](crate::app::matching)'s order** — not [`app::layer`]'s effective
@@ -15,7 +15,7 @@
 //! So [`app::layer`] answers "what is the effective `[[app]]` block", which is § 9's per-app
 //! `nvs config dump`, and this module does not go through it.
 //!
-//! **A changed `Boot` directive does not take effect** ([ADR 0078] § 2). [`Current::publish`] is
+//! **A changed `Boot` directive does not take effect** (`rule:config/reloadability-is-its-own-field`). [`Current::publish`] is
 //! the only place that can know, because it holds both trees: it carries each changed `Boot` key's
 //! *running* value into the incoming snapshot and names the directive in its [`Reload`]. Reporting
 //! alone would not be enough — the new value would still be sitting in the snapshot everything
@@ -26,9 +26,6 @@
 //! which is one plus however many outlived a reload, and never O(requests). Per request it is an
 //! `RwLock` read and an `Arc` clone, once, at start.
 //!
-//! [ADR 0064]: ../../../docs/adr/0064-configuration-file-format.md
-//! [ADR 0078]: ../../../docs/adr/0078-config-reload-and-control-socket.md
-//! [ADR 0104]: ../../../docs/adr/0104-an-application-is-an-entry-file-path.md
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -42,16 +39,14 @@ use crate::resolve::{Files, Origin, Override, Resolved};
 use crate::secret::Secret;
 use crate::tree::Config;
 
-/// One entry file's effective configuration, immutable once built — [ADR 0078] § 1.
+/// One entry file's effective configuration, immutable once built — `rule:config/the-config-is-an-immutable-snapshot`.
 ///
 /// [`Default`] is the configuration of a host with **no configuration file anywhere**, which
-/// [ADR 0103] § 1 step 3 makes a valid state rather than an error: no directive set, no capability
+/// `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 3 makes a valid state rather than an error: no directive set, no capability
 /// granted, no entry file named. It is what an embedder that has built no tree holds and what a
 /// test that is about something else asks for, and it grants nothing — every capability question
 /// against it is a refusal, so it cannot be the shape a permission leaks through.
 ///
-/// [ADR 0078]: ../../../docs/adr/0078-config-reload-and-control-socket.md
-/// [ADR 0103]: ../../../docs/adr/0103-configuration-is-a-tree-of-files.md
 #[derive(Clone, Debug, Default)]
 pub struct Snapshot {
     /// The effective tree: the global configuration with every matching `[[app]]` block's
@@ -81,16 +76,14 @@ pub struct Snapshot {
     /// This is a URL and never a [`struct@Origin`], which is where a value was written.
     pub origin: Option<String>,
     /// The `[[app]]` blocks that matched, least-specific first, by the canonical path each is keyed
-    /// on. This is [ADR 0104] § 2's `info: app blocks: …` line, already in order.
+    /// on. This is `rule:config/every-matching-app-block-applies-least-specific-first`'s `info: app blocks: …` line, already in order.
     ///
-    /// [ADR 0104]: ../../../docs/adr/0104-an-application-is-an-entry-file-path.md
     pub blocks: Vec<PathBuf>,
     /// Every file the tree was read from, in the order § 3 read them.
     pub files: Vec<PathBuf>,
-    /// Every override, in the order they happened: the tree's own first ([ADR 0103] § 3), then each
+    /// Every override, in the order they happened: the tree's own first (`rule:config/later-wins-and-every-override-is-recorded`), then each
     /// block's over what it replaced. Both carry both origins, because both came from one merge.
     ///
-    /// [ADR 0103]: ../../../docs/adr/0103-configuration-is-a-tree-of-files.md
     pub overrides: Vec<Override>,
     /// Where every leaf in [`table`](Snapshot::table) was written, by dotted key. A block's key
     /// names that block's own file, which is the whole reason the fold runs a block at a time.
@@ -98,7 +91,7 @@ pub struct Snapshot {
     /// What the tree was only advised about — a readable secret file, `W1005`. Carried so a reload
     /// can report it again: the file it names may have been re-created between the two reads.
     pub warnings: Vec<Diagnostic>,
-    /// [ADR 0103] § 7's secrets, by the key each is the value of — `db.main.password`. Carried
+    /// `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s secrets, by the key each is the value of — `db.main.password`. Carried
     /// rather than folded into [`table`](Snapshot::table) for [`mod@crate::secret`]'s reason, and
     /// carried rather than dropped because it is where the value *is*: the table this snapshot
     /// deserializes has the `_file` sibling and no content, so [`retype`](Snapshot::retype) puts
@@ -196,7 +189,7 @@ impl Snapshot {
     /// Deserializes [`table`](Snapshot::table) into [`config`](Snapshot::config), and puts
     /// [`secrets`](Snapshot::secrets) back onto it.
     ///
-    /// The second half is not an afterthought: [ADR 0103] § 7's value is carried beside the table
+    /// The second half is not an afterthought: `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s value is carried beside the table
     /// and never in it, so a typed tree deserialized from the table alone has every
     /// `password_file` and no `password`. Every path that produces a [`Config`] here goes through
     /// this function for that reason — the build below and the `Boot` carry a reload does — and a
@@ -212,7 +205,7 @@ impl Snapshot {
     /// - It writes the **table** as well, as [`db::canonicalize`](crate::db::canonicalize) does
     ///   through its `rewrite`. This is the default and the one a fourth pass should reach for.
     /// - Its value is carried **beside** the table and re-applied by the line above —
-    ///   [ADR 0103] § 7's secrets, which may not be in the table at all.
+    ///   `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s secrets, which may not be in the table at all.
     /// - Its key is read off `resolved.config` **before** any retype and then removed from the
     ///   table, as [`app::canonicalize`](crate::app::canonicalize)'s roster is: [`build`] reads
     ///   `resolved.config.app` directly and then drops `app` from the snapshot's table, so nothing
@@ -247,7 +240,7 @@ impl Snapshot {
 
     /// Carries this snapshot's `Boot` values into `next`, returning the directives that changed.
     ///
-    /// [ADR 0078] § 2: applying one of these would rebind an OS resource or re-create the runtime,
+    /// `rule:config/reloadability-is-its-own-field`: applying one of these would rebind an OS resource or re-create the runtime,
     /// so a reload names it in its result instead. The carry is what makes "does not take effect"
     /// true rather than aspirational — without it the new value is in the snapshot every later
     /// reader sees, and only the thing already bound disagrees with it.
@@ -261,7 +254,6 @@ impl Snapshot {
     /// `E0601` if the carried tree does not deserialize, which two trees that each did makes
     /// unreachable.
     ///
-    /// [ADR 0078]: ../../../docs/adr/0078-config-reload-and-control-socket.md
     fn carry_boot(&self, next: &mut Self) -> Result<Vec<&'static Directive>, Diagnostic> {
         let mut changed = Vec::new();
         for row in DIRECTIVES.iter().filter(|row| row.apply == Apply::Boot) {
@@ -285,9 +277,8 @@ impl Snapshot {
     }
 }
 
-/// What publishing a snapshot over a running one produced — [ADR 0078] §§ 1-2.
+/// What publishing a snapshot over a running one produced — `rule:config/the-config-is-an-immutable-snapshot` and `rule:config/reloadability-is-its-own-field`.
 ///
-/// [ADR 0078]: ../../../docs/adr/0078-config-reload-and-control-socket.md
 #[derive(Clone, Debug)]
 pub struct Reload {
     /// The snapshot now serving. Requests that started before it still hold the previous one.

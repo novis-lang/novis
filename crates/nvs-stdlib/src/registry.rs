@@ -1380,7 +1380,7 @@ pub const CLASSES: &[CoreClass] = &[
     // class's carrier; [`crate::command`] owns the page's layout, and
     // `nvs_runtime::commands` owns why the compiled rows cross into the runtime.
     crate::command::CLASS,
-    // ADR 0064 § 5, and no spec § of its own: `ini_get`'s family are free
+    // `rule:config/ini-set-is-core-config-set`, and no spec § of its own: `ini_get`'s family are free
     // functions in PHP, so what replaces them is decided by the configuration
     // format's ADR rather than by the library spec. [`crate::config`] owns why
     // every member of it is four lines long.

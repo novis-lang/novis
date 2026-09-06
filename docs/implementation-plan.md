@@ -57,9 +57,9 @@
 > 6-7 land**: `afterResponse` drains detached; § 7's cap counts trees; ADR 0076's trace reaches a
 > log record, both blocks boot, a core meters § 1's nine; `rule:security/isolate-shares-nothing`'s method entry binds `args:` at a
 > `Core` row too; `rule:concurrency/a-connection-is-a-root-isolate` is whole — § 1's `101` opens a root isolate, § 4's bus crosses cores, §
-> 7's bounds are finite; `Core\Sse` fills § 5's cell. **ADR 0078's endpoint lands**: `E0629` refuses
+> 7's bounds are finite; `Core\Sse` fills § 5's cell. **`rule:config/the-config-is-an-immutable-snapshot`'s endpoint lands**: `E0629` refuses
 > a network `socket`, a local one is 0600, `reload` its only operation, a changed `Boot` key named.
-> **ADR 0093 refuses**: `E0630`-`E0634`; `nvs service unit` prints § 5's. **ADR 0017 is guarded**:
+> **ADR 0093 refuses**: `E0630`-`E0634`; `nvs service unit` prints § 5's. **`rule:config/an-edit-reaches-the-next-request-without-a-restart` is guarded**:
 > `never` never `stat`s, one window is one check, a swap publishes, § 3a picks `validate`, 10k cold
 > compile once. **ADR 0042 lands.** **`Core\Cldr` is whole.** Conformance 1570, differential 276,
 > migration 100%; valgrind green, arrays too. Serve: 2.78x php-cgi.

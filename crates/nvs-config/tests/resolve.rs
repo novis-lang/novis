@@ -1,4 +1,4 @@
-//! ADR 0103's tree: which file is the root, which files it reaches, and what the one ordered stream
+//! `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`'s tree: which file is the root, which files it reaches, and what the one ordered stream
 //! they flatten to says.
 //!
 //! Every case runs against an in-memory [`Files`], not a temporary directory. That is not a
@@ -300,7 +300,7 @@ fn a_dir_include_is_sorted_shallow_and_toml_only() {
 /// wholesale, so the last file that mentions a grant states the whole grant; `[[table]]` entries
 /// accumulate, because two of them in one file already mean two.
 ///
-/// The appending block is `[[extension]]` rather than `[[schedule]]` because ADR 0073 refuses a
+/// The appending block is `[[extension]]` rather than `[[schedule]]` because `rule:config/scheduled-work-is-a-config-block` refuses a
 /// half-written schedule entry at boot ([`nvs_config::schedule`]), and a case about the merge must
 /// not be able to fail for a reason the merge had no part in.
 #[test]
@@ -570,7 +570,7 @@ fn an_include_entry_carrying_both_or_neither_is_refused() {
     }
 }
 
-/// ADR 0064 § 3's refusals stay **per file** across an include: the same key in two files is an
+/// `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`'s refusals stay **per file** across an include: the same key in two files is an
 /// override, and twice in one file is still an error — asserted as one pair, because a resolver that
 /// merged first and typed afterwards would get the first half right and lose the second entirely.
 #[test]
@@ -777,7 +777,7 @@ fn entry(scope: &str) -> String {
     )
 }
 
-/// ADR 0073 §§ 1, 3: `scope` has no default, so an entry without one refuses the boot rather than
+/// `rule:config/scheduled-work-is-a-config-block` and `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`: `scope` has no default, so an entry without one refuses the boot rather than
 /// having this file pick a coordination model for the operator. Asserted on both sides and with the
 /// third answer beside them — a check that only refused the *absent* key would pass just as well if
 /// `scope` were read as free text, and `"cluster"` is what that bug would look like.
@@ -976,7 +976,7 @@ fn a_fleet_scope_with_no_shared_store_refuses_the_boot() {
     );
 }
 
-/// ADR 0073 § 6: `overlap` has a default, and a word that is not one of its three still refuses the
+/// `rule:config/a-missed-fire-is-skipped-and-a-dst-edge-fires-once`: `overlap` has a default, and a word that is not one of its three still refuses the
 /// boot. Asserted with the default and both named modes beside the refusal, because a check that
 /// only refused would pass just as well if the key were refused whenever it was written at all —
 /// and `queue` and `kill` are configurations the ADR states, so refusing them would be the same

@@ -107,7 +107,7 @@ fn the_fatal_reserve_time_is_carved_out_of_the_cpu_ceiling() {
 
 /// The three spellings of "no ceiling" answer the same `0`, because a request that may burn any
 /// amount of CPU and one whose limit nothing states are the same request downstream. The malformed
-/// case is ADR 0064 § 3's rule seen from here: the file was refused once already, at the boundary
+/// case is `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`'s rule seen from here: the file was refused once already, at the boundary
 /// that could name the line, so this is not a second place to refuse it.
 #[test]
 fn an_unstated_uncapped_or_malformed_cpu_time_is_no_ceiling() {
@@ -153,7 +153,7 @@ fn an_unstated_or_malformed_max_script_depth_defaults_while_false_removes_the_ce
     );
 }
 
-/// A depth written as a bare integer and one written as ADR 0064 § 5's text spelling are the same
+/// A depth written as a bare integer and one written as `rule:config/ini-set-is-core-config-set`'s text spelling are the same
 /// reading, and both cross `Core\Config` as text either way. The pair is asserted rather than one
 /// of them because `Quantity::parse` reaches them by two different arms.
 #[test]
@@ -170,7 +170,7 @@ fn max_script_depth_is_read_as_a_count() {
 }
 
 /// The directive is `System`, so a request may not raise its own recursion ceiling — which is the
-/// entire reason ADR 0005's class was chosen for it, and the one property a reader test can pin
+/// entire reason `rule:config/three-changeability-classes`'s class was chosen for it, and the one property a reader test can pin
 /// without a host to spawn in.
 #[test]
 fn a_request_cannot_set_its_own_max_script_depth() {

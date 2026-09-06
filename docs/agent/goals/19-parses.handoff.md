@@ -55,6 +55,6 @@ changes** — its rows at `:139` and `:148` already are the contract.
   a `tainted string` parameter. If it does not, `parse`'s parameter takes `rule:security/unclassified-parameter-refuses-tainted`'s
   `Qual::Contagious` admission instead, which is what every `Core` member in this position already uses.
   Decided-and-recorded in `rule:security/tainted-qualifier`'s body, never `BLOCKED`.
-- **When this goal's last check goes green the driver takes goal 20** — ADR 0142's Unix sockets — and
+- **When this goal's last check goes green the driver takes goal 20** — `rule:config/cache-shared-is-the-grant-over-the-configured-store`'s Unix sockets — and
   then goal 50, the dossier, which appends everything after it. `docs/agent/goals/chain.toml` is the
   schedule and this does not restate it.

@@ -150,8 +150,8 @@ One file set: `crates/nvs-stdlib/src/log.rs`, `crates/nvs-runtime/src/ctx/`,
 
 One file set: `crates/nvs-server/src/schedule.rs`, `crates/nvs-stdlib/src/cache.rs`.
 
-13. **`scope = "fleet"` is armed, under [ADR 0073](../../adr/0073-scheduled-work-is-config.md)
-    § 3's lease.** `crates/nvs-server/src/schedule.rs:232`'s `arm` skips a fleet entry and prints a
+13. **`scope = "fleet"` is armed, under `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`
+    's lease.** `crates/nvs-server/src/schedule.rs:232`'s `arm` skips a fleet entry and prints a
     note saying so (`:241`), so a directive an operator wrote parses, boots, and does nothing. § 3
     makes a fleet-scoped interval exactly one run across the deployment held by a lease, and what is
     missing is a compare-and-set on the shared tier. The named test the handoff has carried since

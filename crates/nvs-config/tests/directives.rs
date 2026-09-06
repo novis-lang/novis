@@ -1,4 +1,4 @@
-//! The registry's two fields are two fields — ADR 0078 § 2 against ADR 0005 — plus the lookup rule
+//! The registry's two fields are two fields — `rule:config/reloadability-is-its-own-field` against `rule:config/three-changeability-classes` — plus the lookup rule
 //! the module doc states.
 
 use nvs_config::Config;
@@ -11,7 +11,7 @@ fn governing(key: &str) -> &'static Directive {
     lookup(key).unwrap_or_else(|| panic!("no directive governs `{key}`"))
 }
 
-/// ADR 0078 § 2: reloadability answers *what applying a change requires* and the changeability
+/// `rule:config/reloadability-is-its-own-field`: reloadability answers *what applying a change requires* and the changeability
 /// class answers *who may set it*. The two are independent, and the failure this pins is a registry
 /// that reads one off the other — which typechecks, looks right row by row, and re-creates the very
 /// reading ("`System` means read once at boot") that ADR replaced.
@@ -29,11 +29,11 @@ fn reloadability_is_a_field_of_its_own_and_not_the_changeability_class() {
     assert!(
         census(Class::System, Apply::Reload) > 0,
         "no `System` directive reloads, so `System` is being read as \"boot-only\" \
-         (ADR 0078 § 2 names `[limits.hard]` and a capability grant as the counter-examples)",
+         (`rule:config/reloadability-is-its-own-field` names `[limits.hard]` and a capability grant as the counter-examples)",
     );
     assert!(
         census(Class::System, Apply::Boot) > 0,
-        "no `System` directive is `Boot`, so the registry has lost ADR 0078 § 2's narrow set",
+        "no `System` directive is `Boot`, so the registry has lost `rule:config/reloadability-is-its-own-field`'s narrow set",
     );
 
     // The one direction that *is* determined, and by construction rather than by policy: a
@@ -44,7 +44,7 @@ fn reloadability_is_a_field_of_its_own_and_not_the_changeability_class() {
             assert_eq!(
                 row.apply,
                 Apply::Reload,
-                "`{}` is {:?} and `Boot`, which ADR 0078 § 2 says cannot happen: a directive a \
+                "`{}` is {:?} and `Boot`, which `rule:config/reloadability-is-its-own-field` says cannot happen: a directive a \
                  request can set is one the snapshot already holds",
                 row.key,
                 row.class,
@@ -52,12 +52,12 @@ fn reloadability_is_a_field_of_its_own_and_not_the_changeability_class() {
         }
     }
 
-    // ADR 0078 § 2's own two lists, key by key. `Boot` first — the narrow set.
+    // `rule:config/reloadability-is-its-own-field`'s own two lists, key by key. `Boot` first — the narrow set.
     for key in ["cache.dir", "control.socket", "server.listen"] {
         assert_eq!(
             governing(key).apply,
             Apply::Boot,
-            "`{key}` is one of ADR 0078 § 2's `Boot` set"
+            "`{key}` is one of `rule:config/reloadability-is-its-own-field`'s `Boot` set"
         );
     }
     // Then the ones it names as reloading *despite* being `System`, which is the pairing the field
@@ -77,13 +77,21 @@ fn reloadability_is_a_field_of_its_own_and_not_the_changeability_class() {
         "cache.local.max_size",
     ] {
         let row = governing(key);
-        assert_eq!(row.class, Class::System, "`{key}` is `System` (ADR 0005)");
-        assert_eq!(row.apply, Apply::Reload, "`{key}` reloads (ADR 0078 § 2)");
+        assert_eq!(
+            row.class,
+            Class::System,
+            "`{key}` is `System` (`rule:config/three-changeability-classes`)"
+        );
+        assert_eq!(
+            row.apply,
+            Apply::Reload,
+            "`{key}` reloads (`rule:config/reloadability-is-its-own-field`)"
+        );
     }
 }
 
 /// The longest-prefix rule, and the pair it exists for: `[limits]` and `[limits.hard]` spell the
-/// same five key names under two different classes (ADR 0005), so a registry keyed on the last
+/// same five key names under two different classes (`rule:config/three-changeability-classes`), so a registry keyed on the last
 /// segment would answer `Runtime` for a ceiling.
 #[test]
 fn a_more_specific_row_wins_and_a_prefix_must_end_on_a_dot() {
@@ -140,7 +148,7 @@ fn the_fatal_reserve_is_system_class_inside_a_runtime_block() {
     );
 }
 
-/// `block()` is what a diagnostic names when it refuses a key (ADR 0064 § 3), so a row that *is* a
+/// `block()` is what a diagnostic names when it refuses a key (`rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`), so a row that *is* a
 /// block reports the root and a key inside one reports the table it is written in.
 #[test]
 fn a_key_reports_the_block_it_is_written_in() {
@@ -150,7 +158,7 @@ fn a_key_reports_the_block_it_is_written_in() {
 }
 
 /// Every key the header `[block]` accepts, read back out of the refusal `deny_unknown_fields`
-/// writes for one it does not (ADR 0064 § 3). The list is `nvs_config::tree`'s own field set rather
+/// writes for one it does not (`rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`). The list is `nvs_config::tree`'s own field set rather
 /// than a copy of it, which is the whole point of the case below: a key added to one of those
 /// blocks joins this list in the commit that adds it, with no edit here to remember.
 fn keys_in(block: &str) -> Vec<String> {
@@ -176,7 +184,7 @@ fn keys_in(block: &str) -> Vec<String> {
     keys
 }
 
-/// ADR 0005 names a response header as its counter-example to `System`, and ADR 0074's policy
+/// `rule:config/three-changeability-classes` names a response header as its counter-example to `System`, and ADR 0074's policy
 /// blocks are what that names: a request may set any of them for itself, because it could already
 /// write the header directly. The registry states that as the one `http` row covering the whole
 /// block, so the claim holds only through the longest-prefix rule — a later, more specific row
@@ -195,7 +203,7 @@ fn every_http_response_directive_is_runtime_class() {
             assert_eq!(
                 row.class,
                 Class::Runtime,
-                "`{dotted}` resolves through `{}` to {:?}, and ADR 0005 makes a response policy \
+                "`{dotted}` resolves through `{}` to {:?}, and `rule:config/three-changeability-classes` makes a response policy \
                  directive `Runtime`: refusing it would refuse nothing, because the request can \
                  write the header itself",
                 row.key,
@@ -205,7 +213,7 @@ fn every_http_response_directive_is_runtime_class() {
                 row.apply,
                 Apply::Reload,
                 "`{dotted}` is a value read out of the snapshot, so a new snapshot applies it \
-                 (ADR 0078 § 2)",
+                 (`rule:config/reloadability-is-its-own-field`)",
             );
         }
     }

@@ -88,7 +88,7 @@ pub struct SqliteTarget<'a> {
     /// `fs.read`/`fs.write` — a rule that lives above this crate, because
     /// nothing here knows which of the two it was handed.
     ///
-    /// Resolution against the config file's own directory (ADR 0103 § 5) has
+    /// Resolution against the config file's own directory (`rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`) has
     /// already happened by the time a block reaches here — `nvs_config::db`'s
     /// `canonicalize` does it at boot, beside the `tls_ca_file` — for the reason
     /// the other drivers' addresses are resolved before they arrive: a driver

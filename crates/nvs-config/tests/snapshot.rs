@@ -1,8 +1,8 @@
-//! ADR 0078 §§ 1-2: the snapshot one entry file gets, and what a reload may and may not change.
+//! `rule:config/the-config-is-an-immutable-snapshot` and `rule:config/reloadability-is-its-own-field`: the snapshot one entry file gets, and what a reload may and may not change.
 //!
 //! Every case runs against an in-memory [`Files`] for `tests/resolve.rs`'s reason. This reader is
-//! the plain one — no symlinks and no `..` — because whether a path *matches* a block is ADR 0104
-//! § 1's claim and `tests/app.rs` pins it against a reader that resolves both. What is asked here
+//! the plain one — no symlinks and no `..` — because whether a path *matches* a block is `rule:config/an-application-is-its-entry-file-path`
+//! 's claim and `tests/app.rs` pins it against a reader that resolves both. What is asked here
 //! is what the matching blocks then produce.
 
 use std::collections::BTreeMap;
@@ -122,7 +122,7 @@ fn text(value: &str) -> Option<Setting> {
     Some(Setting::Text(value.to_string()))
 }
 
-/// ADR 0104 § 2's own example: a host-wide block, a shop beneath it, and one entry file inside the
+/// `rule:config/every-matching-app-block-applies-least-specific-first`'s own example: a host-wide block, a shop beneath it, and one entry file inside the
 /// shop, over a global tree each of them takes something from.
 const SHOP: &str = "\
 [limits]
@@ -204,7 +204,7 @@ fn a_block_that_does_not_cover_the_entry_contributes_nothing() {
     assert_eq!(limits(&snapshot).wall_time, text("30s"));
 }
 
-/// ADR 0104 § 3's widening half, which is what makes a root file that denies workable: the global
+/// `rule:config/an-app-block-may-widen-bounded-by-the-global-ceiling`'s widening half, which is what makes a root file that denies workable: the global
 /// block withholds `process.exec` and the shop's block grants it.
 #[test]
 fn a_block_grants_a_capability_the_global_block_withholds() {
@@ -255,7 +255,7 @@ fn a_block_overriding_a_global_key_is_reported_with_both_origins() {
             "nvs.toml",
             "[limits]\nmemory = \"128M\"\n\n[[include]]\npath = \"conf.d/shop.toml\"\n",
         ),
-        // The `root` is relative to the file that wrote it (ADR 0103 § 5), and that file is one
+        // The `root` is relative to the file that wrote it (`rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`), and that file is one
         // directory down — which is the half of § 5 an `[[app]]` key is easiest to get wrong.
         (
             "conf.d/shop.toml",
@@ -277,7 +277,7 @@ fn a_block_overriding_a_global_key_is_reported_with_both_origins() {
     );
 }
 
-/// ADR 0078 § 1's whole point: a request clones the `Arc` when it starts and reads that clone for
+/// `rule:config/the-config-is-an-immutable-snapshot`'s whole point: a request clones the `Arc` when it starts and reads that clone for
 /// its whole life, so a reload landing mid-request is invisible to it.
 #[test]
 fn a_request_that_started_before_a_swap_reads_the_old_value_to_completion() {
@@ -296,7 +296,7 @@ fn a_request_that_started_before_a_swap_reads_the_old_value_to_completion() {
     assert!(reload.boot.is_empty());
 }
 
-/// ADR 0078 § 2 and m6.md's *Verify*: a changed `Boot` key is reported in the result **and does not
+/// `rule:config/reloadability-is-its-own-field` and m6.md's *Verify*: a changed `Boot` key is reported in the result **and does not
 /// take effect** — the published snapshot still carries the running value, because a report beside
 /// a snapshot holding the new one would be a report of something that had already happened.
 #[test]
@@ -386,7 +386,7 @@ fn a_boot_key_a_reload_added_is_reported_and_left_unset() {
     assert_eq!(reload.snapshot.config.cache, None);
 }
 
-/// ADR 0078 § 1's validate-then-publish, and m6.md's *Verify*: a reload whose tree does not parse
+/// `rule:config/the-config-is-an-immutable-snapshot`'s validate-then-publish, and m6.md's *Verify*: a reload whose tree does not parse
 /// never reaches [`Current::publish`] at all, so the snapshot serving is the one that was already
 /// serving, and the refusal names the line an operator has to fix rather than a byte offset.
 #[test]
@@ -430,7 +430,7 @@ fn pinned(pins: &[&str]) -> Arc<Snapshot> {
     snapshot_of(&fs, "srv/www/index.nvs")
 }
 
-/// ADR 0078 § 4: one `env_hash` over the extension set, and **both** compiled-unit cache keys carry
+/// `rule:config/the-extension-set-is-in-every-unit-key`: one `env_hash` over the extension set, and **both** compiled-unit cache keys carry
 /// it — the on-disk `BLAKE3(content_hash ‖ env_hash)` and the in-memory
 /// `UnitKey { path, content_hash, env_hash }`. Asked of both keys together, because § 4's whole
 /// content is that they move as one: a key that kept the pre-§ 4 shape still looks right beside a
@@ -490,7 +490,7 @@ fn env_hash_is_carried_by_both_cache_keys() {
     );
 }
 
-/// ADR 0017 § *Decision*'s two revalidation directives, read off the merged tree: what a resolve
+/// `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s two revalidation directives, read off the merged tree: what a resolve
 /// looks at when it re-checks a compiled path, and how often it may look at all. Both are
 /// `System`-class, so what the snapshot holds is what the process runs with — nothing re-reads
 /// them per request, and `nvs_config::cache`'s own doc is where the defaults are decided.
@@ -527,7 +527,7 @@ fn the_opcache_block_is_read_into_a_revalidation_policy() {
     assert_eq!(
         written("[opcache]\nrevalidate_freq = false\n").freq,
         Duration::ZERO,
-        "ADR 0005's `false` removes the cap, which is a check on every resolve",
+        "`rule:config/three-changeability-classes`'s `false` removes the cap, which is a check on every resolve",
     );
     // A word that spells nothing keeps the default rather than refusing the boot: that check has
     // no diagnostic yet, and `nvs_config::cache`'s module doc is where it is recorded as owed. The
@@ -538,7 +538,7 @@ fn the_opcache_block_is_read_into_a_revalidation_policy() {
     );
 }
 
-/// ADR 0091 § 3a's third row, which is the only one of the three that is `System`-class: what
+/// `rule:config/a-startup-default-is-never-flipped`'s third row, which is the only one of the three that is `System`-class: what
 /// `validate` starts at when `[opcache]` writes nothing, chosen by the mode before any request
 /// exists. Asserted on both sides, because a default that stopped at one mode reads plausibly
 /// against either half alone — and asserted beside the two things the row does **not** reach: an
@@ -579,7 +579,7 @@ fn the_validate_default_is_selected_by_the_run_mode() {
         Validate::Hash,
     );
 
-    // And the cap is untouched by either mode — ADR 0091 § 3a says outright that there is no value
+    // And the cap is untouched by either mode — `rule:config/a-startup-default-is-never-flipped` says outright that there is no value
     // of `revalidate_freq` a developer's machine needs that an operator's does not.
     assert_eq!(
         written("[mode]\ndefault = \"development\"\n").freq,

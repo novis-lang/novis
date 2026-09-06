@@ -80,7 +80,7 @@ impl<'a> Target<'a> {
 pub enum Format {
     /// `json` — JSON Lines, `nvs_render::json::line`, and the default with nothing written.
     ///
-    /// The default is here as well as in ADR 0091 § 3's mode table because a context configured by
+    /// The default is here as well as in `rule:config/a-mode-is-five-defaults`'s mode table because a context configured by
     /// something other than a resolved tree has said nothing about the shape it wants, and one
     /// record per line is the shape a log pipeline can read without being told.
     #[default]
@@ -110,7 +110,7 @@ impl Format {
 
 /// § 4's target, asked of every `[log]` block the merged tree holds.
 ///
-/// The global block and each `[[app]]`'s own, because ADR 0104 § 1 lets an application carry its
+/// The global block and each `[[app]]`'s own, because `rule:config/an-application-is-its-entry-file-path` lets an application carry its
 /// own `[app.log]` and a target written there reaches the floor exactly as the global one does.
 ///
 /// # Errors
@@ -353,7 +353,7 @@ mod tests {
         }
     }
 
-    /// An `[app.log]` block's target is checked too — ADR 0104 § 1 gives an application its own
+    /// An `[app.log]` block's target is checked too — `rule:config/an-application-is-its-entry-file-path` gives an application its own
     /// block, and a value that reaches the floor from there is not a value the global check saw.
     #[test]
     fn an_applications_own_block_is_checked_as_well() {

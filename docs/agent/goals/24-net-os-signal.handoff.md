@@ -22,7 +22,7 @@ this goal extends — the name collision is the trap worth knowing before openin
 - [ ] **The ADR first.** One number for the socket surface: what a program may open, what the
       capability answers, and why there is no second event loop. `rule:core-api/tier-roster`'s row is the whole design
       on disk today.
-- [ ] **`net.local` joins the roster** — ADR 0142 § 6 named it and goal 20 deliberately did not add it
+- [ ] **`net.local` joins the roster** — `rule:config/net-local-is-named-and-not-on-the-roster` named it and goal 20 deliberately did not add it
       ("it has no caller until `Core\Net` lands"). This goal is that caller. `net.listen` is separate
       and neither widens `net.connect`.
 - [ ] **TCP over `NvsTcp`/`NvsListener`** (`net.rs:227`, `:313`) — a program-supplied host still walks

@@ -30,7 +30,7 @@
   somebody's extension."
 - Correctness (priority 2): `Core\Ast` wraps `nvs-syntax`'s existing single parser rather than adding a
   second grammar to keep in sync — the same "one implementation, not two" shape
-  `rule:statements/nothing-gets-a-second-name`/[ADR 0017](0017-hot-reload-without-restart.md) already chose.
+  `rule:statements/nothing-gets-a-second-name`/`rule:config/an-edit-reaches-the-next-request-without-a-restart` already chose.
 - Simplicity (priority 4): every domain is meant to have one obvious `Core` home
   (`rule:classes/no-free-functions-or-constants`); leaving AST parsing out would send every
   framework author back to a userland parser, reproducing PHP's own fragmentation.
@@ -107,7 +107,7 @@ have — the two are consistent, not competing, descriptions of the same closed 
 
 Both are pure in-memory operations over a program's own compiled shape or its own supplied string — neither
 touches the filesystem, the network, or another process, so neither needs an `nvs.toml` capability grant the
-way `Core\IO` or process execution do ([ADR 0005](0005-config-changeability.md),
+way `Core\IO` or process execution do (`rule:config/three-changeability-classes`,
 [the plan](../implementation-plan.md) M8). `Core\Ast::parse()` on a string is exactly as ambient-authority-free
 as `Core\Json::decode()` on one.
 

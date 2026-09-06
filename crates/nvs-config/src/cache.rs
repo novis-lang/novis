@@ -1,7 +1,7 @@
-//! [ADR 0078] § 4: the one `env_hash` both compiled-unit cache keys carry.
+//! `rule:config/the-extension-set-is-in-every-unit-key`: the one `env_hash` both compiled-unit cache keys carry.
 //!
 //! Two caches key a compiled unit — the on-disk artifact cache ([ADR 0042] § 2) and the in-memory
-//! unit table ([ADR 0017]) — and § 4 gives them the same environment digest so that a unit compiled
+//! unit table (`rule:config/an-edit-reaches-the-next-request-without-a-restart`) — and § 4 gives them the same environment digest so that a unit compiled
 //! against one extension set, one CPU or one compiler is never reused against another:
 //!
 //! ```text
@@ -33,8 +33,8 @@
 //! **Every variable-length field is length-prefixed before it is hashed**, so a pin set of
 //! `["ab", "c"]` and one of `["a", "bc"]` are different environments rather than the same one.
 //!
-//! **[`Revalidation`] is here for [`UnitKey`]'s own reason**, one layer up: [ADR 0017]
-//! § *Decision* puts a `PathEntry` in front of the unit table this key addresses, and `[opcache]
+//! **[`Revalidation`] is here for [`UnitKey`]'s own reason**, one layer up: `rule:config/an-edit-reaches-the-next-request-without-a-restart`
+//! puts a `PathEntry` in front of the unit table this key addresses, and `[opcache]
 //! validate` and `revalidate_freq` are what decide when a resolve looks at the file behind a path
 //! at all. Reading them is a question about the configuration and not about any one cache, so it
 //! lands beside the key rather than inside the crate that happens to hold the table — the same
@@ -55,9 +55,7 @@
 //! moves with the source, which is a `build.rs` this crate does not have yet and which nothing can
 //! use until the caches themselves are on disk.
 //!
-//! [ADR 0017]: ../../../docs/adr/0017-hot-reload-without-restart.md
 //! [ADR 0042]: ../../../docs/adr/0042-on-disk-artifact-cache-format.md
-//! [ADR 0078]: ../../../docs/adr/0078-config-reload-and-control-socket.md
 
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -94,9 +92,8 @@ impl fmt::Debug for Digest {
     }
 }
 
-/// The environment half of both cache keys — [ADR 0078] § 4.
+/// The environment half of both cache keys — `rule:config/the-extension-set-is-in-every-unit-key`.
 ///
-/// [ADR 0078]: ../../../docs/adr/0078-config-reload-and-control-socket.md
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct EnvHash(Digest);
 
@@ -135,13 +132,12 @@ impl fmt::Display for ProgramId {
     }
 }
 
-/// The environment this process compiles for, as one digest — [ADR 0078] § 4.
+/// The environment this process compiles for, as one digest — `rule:config/the-extension-set-is-in-every-unit-key`.
 ///
 /// The configuration's contribution is its `[[extension]]` array and nothing else: every other
 /// directive is read by a running request rather than baked into a compiled unit, so a reload that
 /// changes one must *not* invalidate the caches.
 ///
-/// [ADR 0078]: ../../../docs/adr/0078-config-reload-and-control-socket.md
 pub fn env_hash(config: &Config) -> EnvHash {
     let mut hasher = blake3::Hasher::new();
     // The triple, spelled from what the process can actually read. `rustc`'s own target string
@@ -161,13 +157,12 @@ pub fn content_hash(source: &[u8]) -> Digest {
     Digest(*blake3::hash(source).as_bytes())
 }
 
-/// [ADR 0042] § 1's on-disk key, as [ADR 0078] § 4 rekeyed it: `BLAKE3(content_hash ‖ env_hash)`.
+/// [ADR 0042] § 1's on-disk key, as `rule:config/the-extension-set-is-in-every-unit-key` rekeyed it: `BLAKE3(content_hash ‖ env_hash)`.
 ///
 /// Both inputs are fixed 32-byte digests, so neither needs [`feed`]'s length prefix to keep them
 /// apart.
 ///
 /// [ADR 0042]: ../../../docs/adr/0042-on-disk-artifact-cache-format.md
-/// [ADR 0078]: ../../../docs/adr/0078-config-reload-and-control-socket.md
 pub fn artifact_key(content: Digest, env: EnvHash) -> Digest {
     let mut hasher = blake3::Hasher::new();
     hasher.update(content.as_bytes());
@@ -187,7 +182,7 @@ pub fn artifact_key(content: Digest, env: EnvHash) -> Digest {
 /// program, and an id that could not tell them apart would name two of them the same thing.
 ///
 /// Cost: one BLAKE3 pass over `32 × (units + 1)` bytes, once per program resolution and once per
-/// hot-reload swap ([ADR 0017]), never per call — a first-call compute would put the whole hash on
+/// hot-reload swap (`rule:config/an-edit-reaches-the-next-request-without-a-restart`), never per call — a first-call compute would put the whole hash on
 /// one unlucky request's path. What it holds is 32 bytes per program, per `rule:programs/memory-priority`'s ledger.
 ///
 pub fn program_id(units: &[Digest], env: EnvHash) -> ProgramId {
@@ -199,10 +194,8 @@ pub fn program_id(units: &[Digest], env: EnvHash) -> ProgramId {
     ProgramId(Digest(*hasher.finalize().as_bytes()))
 }
 
-/// [ADR 0017]'s in-memory unit key, as [ADR 0078] § 4 rekeyed it: `{ path, content_hash, env_hash }`.
+/// `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s in-memory unit key, as `rule:config/the-extension-set-is-in-every-unit-key` rekeyed it: `{ path, content_hash, env_hash }`.
 ///
-/// [ADR 0017]: ../../../docs/adr/0017-hot-reload-without-restart.md
-/// [ADR 0078]: ../../../docs/adr/0078-config-reload-and-control-socket.md
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct UnitKey {
     path: PathBuf,
@@ -221,9 +214,8 @@ impl UnitKey {
         }
     }
 
-    /// The unit's path, which is what [ADR 0017]'s revalidation `stat`s.
+    /// The unit's path, which is what `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s revalidation `stat`s.
     ///
-    /// [ADR 0017]: ../../../docs/adr/0017-hot-reload-without-restart.md
     pub fn path(&self) -> &Path {
         &self.path
     }
@@ -240,19 +232,17 @@ impl UnitKey {
 }
 
 /// `[opcache] validate` — what a resolve looks at when it re-checks a path it has already
-/// compiled ([ADR 0017] § *Decision* steps 1-2).
+/// compiled (`rule:config/an-edit-reaches-the-next-request-without-a-restart` steps 1-2).
 ///
-/// [ADR 0017]: ../../../docs/adr/0017-hot-reload-without-restart.md
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum Validate {
     /// `never` — a path compiled once is answered from the unit table for the life of the process
     /// and no resolve spends a syscall. This is production's value, selected there by the run mode
-    /// as an [ADR 0091] § 3a row rather than by this type.
+    /// as an `rule:config/a-startup-default-is-never-flipped` row rather than by this type.
     ///
-    /// [ADR 0091]: ../../../docs/adr/0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md
     Never,
     /// `mtime` — PHP's `validate_timestamps`: `stat`, and re-read the source only where the
-    /// modification time or the size moved. The cheap pre-filter [ADR 0017] § *Investigation*
+    /// modification time or the size moved. The cheap pre-filter `rule:config/an-edit-reaches-the-next-request-without-a-restart`
     /// names, and the default.
     #[default]
     Mtime,
@@ -262,7 +252,7 @@ pub enum Validate {
 }
 
 impl Validate {
-    /// [ADR 0091] § 3a's row for this directive: the value a host **starts** with when `[opcache]`
+    /// `rule:config/a-startup-default-is-never-flipped`'s row for this directive: the value a host **starts** with when `[opcache]`
     /// writes none, `never` in `production` and the timestamp check in `development`.
     ///
     /// It is `mtime` rather than `hash` on the permissive side because the row's cell reads "on"
@@ -273,7 +263,6 @@ impl Validate {
     /// A § 3a row is fixed at boot and never re-derived, so this is read where the policy is built
     /// and nowhere on the request path; § 4's runtime mode flip re-derives only § 3's rows.
     ///
-    /// [ADR 0091]: ../../../docs/adr/0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md
     #[must_use]
     pub fn started_in(mode: &str) -> Self {
         if mode == crate::mode::DEVELOPMENT {
@@ -295,16 +284,14 @@ impl Validate {
     }
 }
 
-/// `[opcache]`'s two revalidation directives, read into what one resolve asks — [ADR 0017]
-/// § *Decision* steps 1-2.
+/// `[opcache]`'s two revalidation directives, read into what one resolve asks — `rule:config/an-edit-reaches-the-next-request-without-a-restart`
+/// steps 1-2.
 ///
-/// Both are `System`-class ([ADR 0005]) and that ADR says why in its own words: a request able to
+/// Both are `System`-class (`rule:config/three-changeability-classes`) and that ADR says why in its own words: a request able to
 /// set `validate = never` for itself could pin a version of the code past a shipped fix, and one
 /// able to lower the cap could force a `stat` storm on a hot file. Nothing here is per-request, so
 /// a caller holds one of these for a configuration generation and reads it on every resolve.
 ///
-/// [ADR 0005]: ../../../docs/adr/0005-config-changeability.md
-/// [ADR 0017]: ../../../docs/adr/0017-hot-reload-without-restart.md
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Revalidation {
     /// What a check looks at, once the cap below has let one happen.
@@ -318,8 +305,8 @@ pub struct Revalidation {
 impl Default for Revalidation {
     /// `mtime`, checked at most once every two seconds.
     ///
-    /// [ADR 0017] states neither number, so they are decided here, in the crate that reads the
-    /// block — the same place [ADR 0042] § 7 leaves its file-cache pair to the implementation. Both
+    /// `rule:config/an-edit-reaches-the-next-request-without-a-restart` states neither number, so they are decided here, in the crate that reads the
+    /// block — the same place `rule:config/opcache-file-cache-directives-are-system` leaves its file-cache pair to the implementation. Both
     /// are PHP's own `opcache` defaults, which is the behaviour every deployment this runtime is
     /// migrating from already has: an edit becomes visible without a restart, and a hot path pays
     /// at most one `stat` every two seconds for it.
@@ -343,7 +330,7 @@ impl Revalidation {
     /// refusal this crate does not make yet.
     ///
     /// **`validate`'s fallback is the run mode's, not [`Revalidation::default`]'s**, because it is
-    /// an [ADR 0091] § 3a row: [`Validate::started_in`] over `[mode] default`, which a tree that
+    /// an `rule:config/a-startup-default-is-never-flipped` row: [`Validate::started_in`] over `[mode] default`, which a tree that
     /// writes no mode at all leaves at `production`. The cap beside it is deliberately *not* a row
     /// — § 3a says so in its own words, there being no value of `revalidate_freq` a developer's
     /// machine needs that an operator's does not — so it keeps [`Revalidation::default`]'s two
@@ -352,12 +339,10 @@ impl Revalidation {
     /// supplies a default and nothing more.
     ///
     /// The mode read here is the tree's own `[mode] default`. An `[[app]]` block's mode
-    /// ([ADR 0104] § 4) is deliberately not consulted: `[opcache]` is `System`-class and one
+    /// (`rule:config/a-mount-routes-and-an-app-block-sets-policy`) is deliberately not consulted: `[opcache]` is `System`-class and one
     /// process holds one unit cache, so a per-application answer would be a second policy over a
     /// table the applications share.
     ///
-    /// [ADR 0091]: ../../../docs/adr/0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md
-    /// [ADR 0104]: ../../../docs/adr/0104-an-application-is-an-entry-file-path.md
     #[must_use]
     pub fn from_config(config: &Config) -> Self {
         let fallback = Self {
@@ -404,13 +389,11 @@ fn validate_of(setting: &Setting) -> Option<Validate> {
 
 /// One written `revalidate_freq`, as the interval it names.
 ///
-/// [`Quantity`] is the one parser for a duration anywhere in this tree ([ADR 0064] § 5), so `"2s"`,
+/// [`Quantity`] is the one parser for a duration anywhere in this tree (`rule:config/ini-set-is-core-config-set`), so `"2s"`,
 /// `"500ms"` and a bare `2` all read here exactly as they do in `[limits]`. `false` is the spelling
-/// [ADR 0005] gives to "no ceiling" and means no cap at all — a check on every resolve, which is
+/// `rule:config/three-changeability-classes` gives to "no ceiling" and means no cap at all — a check on every resolve, which is
 /// what a developer watching one file asks for and what the default deliberately is not.
 ///
-/// [ADR 0005]: ../../../docs/adr/0005-config-changeability.md
-/// [ADR 0064]: ../../../docs/adr/0064-configuration-file-format.md
 fn freq_of(setting: &Setting) -> Option<Duration> {
     match Quantity::parse("opcache.revalidate_freq", Unit::Duration, setting) {
         Ok(Quantity::Nanos(nanos)) => Some(Duration::from_nanos(nanos)),
@@ -419,14 +402,13 @@ fn freq_of(setting: &Setting) -> Option<Duration> {
     }
 }
 
-/// `BLAKE3(sorted sha256 pins of the [[extension]] array)` — [ADR 0078] § 4.
+/// `BLAKE3(sorted sha256 pins of the [[extension]] array)` — `rule:config/the-extension-set-is-in-every-unit-key`.
 ///
 /// Sorted, so the set is order-independent: duplicate class names across extensions are refused at
 /// load, which is what makes the *set* rather than the sequence the thing that matters. An entry
 /// with no pin contributes its path instead, so an unpinned extension still rekeys every unit
 /// rather than being invisible here.
 ///
-/// [ADR 0078]: ../../../docs/adr/0078-config-reload-and-control-socket.md
 fn extension_set_hash(config: &Config) -> Digest {
     let mut pins: Vec<&str> = config
         .extension

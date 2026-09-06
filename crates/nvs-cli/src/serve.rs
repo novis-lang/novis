@@ -7,7 +7,7 @@
 //! only the binary can supply — the socket the loop accepts on, the clock it
 //! holds a connection to, the handler that says which isolate a request is, and
 //! [`Scheduled`], which says the same for a `[[schedule]]` entry that fires
-//! beside it ([`nvs_server::schedule`], ADR 0073 § 5). All four are the same
+//! beside it ([`nvs_server::schedule`], `rule:config/a-scheduled-run-is-a-root-isolate`). All four are the same
 //! split: this crate has the front end, so turning a path into a program is
 //! here, and the loop and the ticker are there.
 //!
@@ -27,7 +27,7 @@
 //! that is not one of the mounted entries is refused before the socket exists,
 //! because a command told to serve a file and then serving a different
 //! application is the one outcome neither reading wants. What the argument
-//! always decides is *which* configuration this is: ADR 0104 § 2 layers the
+//! always decides is *which* configuration this is: `rule:config/every-matching-app-block-applies-least-specific-first` layers the
 //! `[[app]]` blocks that match it, and there is no second spelling for that.
 //!
 //! **Every mounted entry is compiled before the socket is bound**, which is what
@@ -96,7 +96,7 @@ pub(crate) fn run(
     port: Option<u16>,
     config: &[PathBuf],
 ) -> ExitCode {
-    // ADR 0078 § 1's snapshot, resolved exactly as `nvs run` resolves it and
+    // `rule:config/the-config-is-an-immutable-snapshot`'s snapshot, resolved exactly as `nvs run` resolves it and
     // for the same reason: a tree that does not resolve is a refusal to start.
     // The `[server]` block is `Boot`-class as a whole (ADR 0097 § 5), so this
     // is the only time it is read.
@@ -264,7 +264,7 @@ pub(crate) fn run(
     // for, and it costs one compile per mounted entry at boot rather than one
     // per entry per request. The front end renders its own diagnostics
     // (`script`'s module doc), so the message here is the summary. What a later
-    // request re-checks is ADR 0017's question and the same module doc's: this
+    // request re-checks is `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s question and the same module doc's: this
     // compiler carries the `[opcache]` block, so an edited entry is recompiled
     // for the requests that resolve it after the edit.
     let compiler = Rc::new(Compiler::new(&snapshot.config));
@@ -304,7 +304,7 @@ pub(crate) fn run(
     // The one state the probe reports, and the accept loop below is what writes
     // it: this command never asks the loop to stop yet, so it reads `false` for
     // the whole of a run and § 5's `503` half arrives with the control socket
-    // that can ask (ADR 0078 § 6).
+    // that can ask (`rule:config/no-network-control-surface`).
     // The *process's* bit, because this command is the process: an application
     // reads the same one through `Core\Server::isDraining()`, which has no
     // handle to have been given (`nvs_runtime::drain`).
@@ -458,13 +458,13 @@ pub(crate) fn run(
     // 0088 § 3) — so `OutputSink::Sink` is what it holds rather than stdout.
     let mut sched = nvs_host::Scheduler::new();
     let stopped = Rc::new(Cell::new(false));
-    // ADR 0073 § 5's roster, armed before anything is spawned so that a `fleet`
+    // `rule:config/a-scheduled-run-is-a-root-isolate`'s roster, armed before anything is spawned so that a `fleet`
     // entry this host will not run is named while an operator is still reading
     // the boot. `nvs_server::arm` is where that refusal and its reason live; a
     // tree with no `[[schedule]]` arms nothing and spawns no ticker, which is why
     // this costs a boot-time walk of an empty vector and no task at all.
     //
-    // `None` for ADR 0073 § 3's lease, and this binary is the one place that
+    // `None` for `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`'s lease, and this binary is the one place that
     // answer can be given: `nvs-server` names no `nvs-stdlib`, so the store a
     // fleet entry would be held in is reachable from here and nowhere else.
     // What is missing is the operation rather than the store — `Core\Cache`'s
@@ -568,7 +568,7 @@ pub(crate) fn run(
     ExitCode::SUCCESS
 }
 
-/// ADR 0073 § 5's fire, from the side only this binary can answer.
+/// `rule:config/a-scheduled-run-is-a-root-isolate`'s fire, from the side only this binary can answer.
 ///
 /// The ticker in `nvs-server` owns *when* a `[[schedule]]` entry runs and *where* —
 /// a task of its own, with its own context, so that a run taking an hour is not
@@ -585,7 +585,7 @@ struct Scheduled;
 
 impl nvs_server::Fires for Scheduled {
     fn isolate(&self, entry: &nvs_server::Armed, ctx: &mut Ctx) -> Option<Isolate> {
-        // Resolved per fire and not once at boot, because ADR 0017's unit swap is
+        // Resolved per fire and not once at boot, because `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s unit swap is
         // the point: an entry that fires nightly picks up an edited script at the
         // next fire, exactly as a request picks it up at the next request. What
         // the cache makes cheap is the *repeat*, not the first one.
@@ -632,7 +632,7 @@ impl nvs_server::Fires for Scheduled {
         // `error` is present exactly when `ok` is false — `nvs_host::Completion`'s
         // own doc — so the fallback is unreachable for a completion this host
         // produced, and is written rather than asserted because a schedule whose
-        // failures are silent is the failure ADR 0073's boot refusals exist to
+        // failures are silent is the failure `rule:config/scheduled-work-is-a-config-block`'s boot refusals exist to
         // prevent.
         match &done.error {
             Some(failure) => eprintln!(

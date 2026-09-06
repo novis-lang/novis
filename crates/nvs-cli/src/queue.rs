@@ -31,7 +31,7 @@
 //! **The `db.connect` capability is deliberately not asked.** `rule:core-classes/db-capabilities` grants an
 //! *application* permission to open a named block, and it is keyed on the entry file this command
 //! does not have; the principal here is the operator who ran it over configuration only a trusted
-//! account may write ([ADR 0103] § 6). A capability bounds the program, so asking it of the
+//! account may write (`rule:config/ownership-is-the-trust-boundary`). A capability bounds the program, so asking it of the
 //! operator's own command would be a check that has nothing to check.
 //!
 //! What it *does* answer offline is everything a mistyped configuration gets wrong, which is the
@@ -51,7 +51,6 @@
 //! Applying adds one connection, held for that dialect's statements and closed with the process; it opens
 //! no pool, because a pool exists to be reused by a second request and this is a command.
 //!
-//! [ADR 0103]: ../../../docs/adr/0103-configuration-is-a-tree-of-files.md
 
 use std::net::{SocketAddr, ToSocketAddrs};
 use std::path::PathBuf;

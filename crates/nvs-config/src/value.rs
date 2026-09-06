@@ -17,7 +17,7 @@
 //! block spelling `memory` for something that is not a heap does not inherit a unit by accident.
 //!
 //! **`false` is [`Quantity::Unbounded`] in both spellings** — a TOML boolean from a file, the text
-//! `"false"` through `set` — because [ADR 0005] gives "no ceiling" that spelling and § 5 crosses
+//! `"false"` through `set` — because `rule:config/three-changeability-classes` gives "no ceiling" that spelling and § 5 crosses
 //! every value as a string. It is above every magnitude, which is exactly what removing a ceiling
 //! means, and it is a value as well as a ceiling: a `[limits] memory = false` under a `512M`
 //! `[limits.hard]` is a default that exceeds its own ceiling and is refused as one.
@@ -34,7 +34,6 @@
 //! Cost: no allocation on a value that parses, one `String` per refusal. It runs at boot, on each
 //! reload, and once per `Core\Config::set` — never on a read of a limit already in the snapshot.
 //!
-//! [ADR 0005]: ../../../docs/adr/0005-config-changeability.md
 //! [ADR 0064 § 5]: ../../../docs/adr/0064-configuration-file-format.md
 
 use std::cmp::Ordering;
@@ -126,7 +125,7 @@ pub fn unit_of(key: &str) -> Option<Unit> {
     }
 }
 
-/// Whether a limit written in `block` is one of ADR 0005's — `""` for the bare name
+/// Whether a limit written in `block` is one of `rule:config/three-changeability-classes`'s — `""` for the bare name
 /// `Core\Config::set` uses, and any block ending in `limits` or `limits.hard` for the file, which
 /// covers `app.0.limits` and a `[[schedule]]`'s alike.
 ///
@@ -147,7 +146,7 @@ fn in_a_limits_block(block: &str) -> bool {
 /// runs out at 584 years and so cannot be reached by any ceiling an operator would write.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Quantity {
-    /// `false`: no ceiling at all (ADR 0005). Above every magnitude, whatever its unit.
+    /// `false`: no ceiling at all (`rule:config/three-changeability-classes`). Above every magnitude, whatever its unit.
     Unbounded,
     /// A size, in bytes.
     Bytes(u64),
@@ -207,7 +206,7 @@ impl PartialOrd for Quantity {
     }
 }
 
-/// Whether `value` stays within `ceiling` for `key` — the ceiling check ADR 0005 states, in the one
+/// Whether `value` stays within `ceiling` for `key` — the ceiling check `rule:config/three-changeability-classes` states, in the one
 /// place both the boot path and `Core\Config::set` reach it, so the two cannot disagree about which
 /// values are allowed.
 ///
@@ -299,7 +298,7 @@ fn parse(unit: Unit, value: &Setting) -> Result<Quantity, &'static str> {
 }
 
 /// The string spelling, which is what a file writes for anything with a suffix and what every
-/// `Core\Config::set` writes for everything (ADR 0064 § 5).
+/// `Core\Config::set` writes for everything (`rule:config/ini-set-is-core-config-set`).
 fn parse_text(unit: Unit, text: &str) -> Result<Quantity, &'static str> {
     let text = text.trim();
     if text.eq_ignore_ascii_case("false") {

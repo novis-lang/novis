@@ -35,15 +35,15 @@ traded.**
 
 The one file set the next four items share: a directive's declaration, and how a file becomes one.
 
-1. **The directive registry, with three fields per directive.** The changeability class ADR 0005 already
-   defines, plus [ADR 0078](../../adr/0078-config-reload-and-control-socket.md) § 2's **`Reload`/`Boot`
+1. **The directive registry, with three fields per directive.** The changeability class `rule:config/three-changeability-classes` already
+   defines, plus `rule:config/reloadability-is-its-own-field`'s **`Reload`/`Boot`
    field, orthogonal to it** — and orthogonal is the item: reloadability is now the *only* thing that
    makes a directive boot-only, and conflating the two is what that ADR exists to stop.
 2. **`nvs.toml` parses, and a duplicate or unknown key is refused.**
-   [ADR 0064](../../adr/0064-configuration-file-format.md) §§ 1, 3. TOML via `serde`. § 2a is the block
+   `rule:config/the-file-is-nvs-toml-and-it-is-toml` and `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`. TOML via `serde`. § 2a is the block
    list and names the ADR that argues each block's directives — including the four this milestone adds,
    `[deferred]`, `[[schedule]]`, `[http.*]`, `[metrics]` and `[trace]`.
-3. **The configuration is a tree.** [ADR 0103](../../adr/0103-configuration-is-a-tree-of-files.md) is the
+3. **The configuration is a tree.** `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` is the
    only copy of the resolution order and the merge rules, and every one of them is a case: a root named by
    repeatable `--config` else `./nvs.toml` else the shipped defaults (§ 1); `[[include]]` by `path` and by
    `dir` (§ 2); one ordered stream where later wins (§ 3); a value array **replaces** where a `[[table]]`
@@ -56,7 +56,7 @@ The one file set the next four items share: a directive's declaration, and how a
    list is closed at the global layer (§ 8), and `nvs config check`/`nvs config dump` exist (§ 9).
    `nvs ctl config` waits for goal 6's socket.
 6. **`[[app]]`, keyed on a canonicalized entry-file path.**
-   [ADR 0104](../../adr/0104-an-application-is-an-entry-file-path.md): every matching block applies,
+   `rule:config/an-application-is-its-entry-file-path`: every matching block applies,
    least-specific first (§ 2); a block may widen, bounded by the global ceiling (§ 3). An entry path
    reaching an `[[app]]` root through `..` or a symlink **does not match it**, which is the same
    canonicalise-then-compare rule item 10 needs and is written once.
@@ -64,11 +64,11 @@ The one file set the next four items share: a directive's declaration, and how a
 ## Stage 3 — the snapshot
 
 7. **The registry becomes an immutable `Arc<Config>` a request clones at start and reads for its whole
-   life.** [ADR 0078](../../adr/0078-config-reload-and-control-socket.md) § 1. A request that started
+   life.** `rule:config/the-config-is-an-immutable-snapshot`. A request that started
    before a swap reads the old value to completion; one started after reads the new. A malformed file
    leaves the previous snapshot serving and **names the offending line**.
 8. **`Core\Config::set` is `ini_set`'s replacement, and its three outcomes are one rule.**
-   [ADR 0064](../../adr/0064-configuration-file-format.md) § 5 and m6.md's *Verify*: above the `[limits]`
+   `rule:config/ini-set-is-core-config-set` and m6.md's *Verify*: above the `[limits]`
    default succeeds and takes effect; above the `[limits.hard]` ceiling returns `false` with the previous
    value intact; and either way it is invisible to the next request on the same core. The third clause is
    the one an implementation on a shared mutable registry gets wrong.
@@ -115,7 +115,7 @@ The one file set the next four items share: a directive's declaration, and how a
     goal forbids outright. `crates/nvs-stdlib/src/registry.rs:490` is what a member's row may say and is
     where the declaration goes.
 17. **The four new blocks refuse a bad boot, each per its own ADR's *Verification*.**
-    [ADR 0073](../../adr/0073-scheduled-work-is-config.md): a `[[schedule]]` entry with no `scope`, a
+    `rule:config/scheduled-work-is-a-config-block`: a `[[schedule]]` entry with no `scope`, a
     malformed `cron`, a `script` outside `script.spawn`'s roots, or `scope = "fleet"` with no shared
     store. [ADR 0074](../../adr/0074-http-defaults-safe-and-finite.md): `origins = ["*"]` with
     `credentials = true`, and `same_site = "None"` with `secure = false` — refused at boot **and by
@@ -178,6 +178,6 @@ there by the switch that left it and folded forward at every switch since.
 
 Every capability-bearing `Core` **member** — that is goal 4, and this goal builds the gate rather than
 the thing behind it. The listener, the control socket and `[http.*]`'s *runtime* behaviour (goal 6; only
-its boot-time validation is here). ADR 0017's freeing of executable memory, which m6.md carries and which
+its boot-time validation is here). `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s freeing of executable memory, which m6.md carries and which
 has no consumer until there is a long-running process to free it in — it goes in `## Backlog` if a
 session reaches it.

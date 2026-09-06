@@ -324,7 +324,7 @@ is exactly why that case was affordable and this one is still open. The same app
 isolates reused across requests: attractive for warm state, and it directly contradicts strict
 shared-nothing, so it needs its own argument in its own ADR.
 
-A **scheduled** run ([ADR 0073](0073-scheduled-work-is-config.md)) needs no relaxation either, and is not
+A **scheduled** run (`rule:config/scheduled-work-is-a-config-block`) needs no relaxation either, and is not
 an exception to the budget rule: it is a second **root** isolate, built by the same `Isolate` code path as
 an inbound request, spending `[limits]` capped by `[limits.hard]` like any other root.
 

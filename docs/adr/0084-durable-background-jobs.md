@@ -34,7 +34,7 @@
 
 ## Context
 
-- **Neither existing mechanism covers this.** [ADR 0073](0073-scheduled-work-is-config.md) fires work by
+- **Neither existing mechanism covers this.** `rule:config/scheduled-work-is-a-config-block` fires work by
   *time*, from operator-owned config. `rule:concurrency/one-scheduler`'s
   `afterResponse` runs work after a response but inside the request tree, bounded and in-memory: if the
   process dies, the work is gone. Neither answers *enqueue this now, run it durably later, retry it if it
@@ -147,7 +147,7 @@ A worker claims with a single statement that atomically selects and marks the ol
 `FOR UPDATE SKIP LOCKED` on PostgreSQL and MySQL, `READPAST` on SQL Server, and an immediate transaction on
 SQLite, whose single-writer model makes the contention question moot. In every case the database provides
 the mutual exclusion, so **two instances of a fleet cannot claim the same job** and Novis writes no lease
-protocol, no heartbeat and no coordinator. [ADR 0073](0073-scheduled-work-is-config.md)'s fleet lease exists
+protocol, no heartbeat and no coordinator. `rule:config/scheduled-work-is-a-config-block`'s fleet lease exists
 for the same reason and this reuses its reasoning rather than a second mechanism.
 
 A claimed job carries a **visibility timeout**: if the worker dies, the claim expires and the job becomes

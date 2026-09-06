@@ -1,4 +1,4 @@
-# ADR 0017 — The compiled-unit cache revalidates lazily and swaps one pointer, never a watcher or a restart
+# `rule:config/an-edit-reaches-the-next-request-without-a-restart` — The compiled-unit cache revalidates lazily and swaps one pointer, never a watcher or a restart
 
 - **Status:** Accepted
 - **Date:** 2026-08-20

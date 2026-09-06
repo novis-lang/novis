@@ -1,5 +1,5 @@
 --TEST--
-A `spawn script` child runs under the capability grant in force where it was spawned: it inherits the narrowing its parent's `[[app]]` block made, and neither an `[[app]]` block naming the child nor a `Core\Config::set` widens it back — ADR 0006 § *Decision*, ADR 0104 § 2, `rule:security/capability-question-is-grant-and-scope` and `rule:security/denial-is-a-runtime-error`
+A `spawn script` child runs under the capability grant in force where it was spawned: it inherits the narrowing its parent's `[[app]]` block made, and neither an `[[app]]` block naming the child nor a `Core\Config::set` widens it back — ADR 0006 § *Decision*, `rule:config/every-matching-app-block-applies-least-specific-first`, `rule:security/capability-question-is-grant-and-scope` and `rule:security/denial-is-a-runtime-error`
 --FILE nvs.toml--
 # `rule:security/capability-check-at-the-door`: `spawn script` goes through a door that asks for
 # `script.spawn` first, and deny-by-default means a case with no configuration
@@ -14,7 +14,7 @@ spawn = true
 [capabilities.fs]
 read = ["."]
 
-# ADR 0104 § 2: the block keyed on the entry file being run. A value array
+# `rule:config/every-matching-app-block-applies-least-specific-first`: the block keyed on the entry file being run. A value array
 # replaces where a `[[table]]` appends, so `fs.read` in force for this run is
 # `./data` alone. This is the narrowing everything below is measured against.
 [[app]]

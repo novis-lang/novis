@@ -73,7 +73,7 @@
 //!    rather than by a rule a reader can find, and a union that ever wanted
 //!    [`Qual::Launder`] would have no slot for it.
 //! 2. **The step budget is a constant, not a directive.** `rule:core-classes/regex-two-tiers` puts
-//!    the default in `nvs.toml` under ADR 0005's ordinary rules, and there is
+//!    the default in `nvs.toml` under `rule:config/three-changeability-classes`'s ordinary rules, and there is
 //!    no configuration subsystem before M6. [`BACKTRACK_BUDGET`] is that
 //!    default, stated once, and reading it from config is a change to that one
 //!    line.

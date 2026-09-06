@@ -14,8 +14,8 @@
 // So this case surrounds the one key that counts with two that look like it.
 // Every other near miss a file could once have held — an `origin` before any
 // table, one under `[server]`, one under an `[app.dev]` sub-table — is now
-// refused by the configuration reader itself before any of this runs (ADR 0064
-// § 3's `deny_unknown_fields` over the typed tree), so what is left to get
+// refused by the configuration reader itself before any of this runs (`rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`
+// 's `deny_unknown_fields` over the typed tree), so what is left to get
 // wrong is the two a *valid* file can still spell: a commented-out key, and a
 // block keyed on one exact entry file that is not this program. The
 // answer below has to be the third. A reader that took the first `origin` line
@@ -76,7 +76,7 @@ echo "leaked=", $leaked, "\n";
 echo "link=", $built["0"], "\n";
 echo "root=", $built["2"], "\n";
 --FILE nvs.toml--
-# `rule:routing/an-absolute-link-takes-a-configured-origin` gives an absolute link exactly one source, and ADR 0104 § 2 says
+# `rule:routing/an-absolute-link-takes-a-configured-origin` gives an absolute link exactly one source, and `rule:config/every-matching-app-block-applies-least-specific-first` says
 # which block it is: every block whose key covers the entry file, layered
 # least-specific first, so the last one to state an `origin` wins. This file is
 # two near misses around the one that answers.

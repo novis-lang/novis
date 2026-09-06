@@ -20,7 +20,7 @@
 //! `nvs_runtime::capability::require` again for itself. A program that lied to
 //! itself about the answer gets a refusal at the door exactly as before —
 //! which is why there is no `Core\Cap::drop` either: narrowing is
-//! `Core\Config::set` and stays there (ADR 0005).
+//! `Core\Config::set` and stays there (`rule:config/three-changeability-classes`).
 //!
 //! That is also why the row in `registry::CAPABILITIES` is `None`. Asking what
 //! is granted performs no effect, resolves no name and opens no file, so ADR

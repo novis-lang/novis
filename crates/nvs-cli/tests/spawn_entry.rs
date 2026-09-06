@@ -89,7 +89,7 @@ fn a_callable_typed_variable_is_refused_as_a_spawn_target() {
 ///
 /// `--config` names the grant beside the fixtures rather than letting step 2
 /// find whatever `nvs.toml` the test process happens to be standing in
-/// (ADR 0103 § 1): `script.spawn` is deny-by-default, so a run without it
+/// (`rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`): `script.spawn` is deny-by-default, so a run without it
 /// asserts the denial instead of what the case is about.
 fn run(fixture: &str) -> String {
     let dir = fixtures();

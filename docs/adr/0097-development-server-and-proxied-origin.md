@@ -213,8 +213,8 @@ a fleet of modules rather than only for one.
 root               = "/www"
 listen             = ["127.0.0.1:8000"]   # "host:port", or an absolute path meaning a Unix socket
 socket_mode        = "0660"               # Unix-socket entries only
-dispatch           = "entry"              # § 3a of ADR 0091 — development default "path"
-static             = false                # § 3a of ADR 0091 — development default true
+dispatch           = "entry"              # § 3a of `rule:config/two-modes-and-the-default-is-production` — development default "path"
+static             = false                # § 3a of `rule:config/two-modes-and-the-default-is-production` — development default true
 trusted_proxies    = []                   # § 6, fail-closed
 health_path        = ""                   # off
 max_in_flight      = 10000

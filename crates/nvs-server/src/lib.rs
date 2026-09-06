@@ -67,7 +67,7 @@
 //! `async` seam.
 //!
 //! [`schedule`] is the other thing this core runs, and it is a **second task on
-//! the same scheduler** rather than a second scheduler: ADR 0073 § 5's ticker,
+//! the same scheduler** rather than a second scheduler: `rule:config/a-scheduled-run-is-a-root-isolate`'s ticker,
 //! sleeping until the soonest `[[schedule]]` fire and spawning each one as a
 //! root isolate of its own. It takes the *how to fire* as a parameter exactly as
 //! [`serve`] takes the handler, because turning a `script` path into runnable

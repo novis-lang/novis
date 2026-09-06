@@ -1,4 +1,4 @@
-//! ADR 0103 § 6 against a real filesystem, which is the only place it can be asked at all.
+//! `rule:config/ownership-is-the-trust-boundary` against a real filesystem, which is the only place it can be asked at all.
 //!
 //! `tests/resolve.rs` runs against an in-memory reader on purpose and so cannot see this half: that
 //! the check reads the platform's own idea of who owns a path and who may write it, and that what
@@ -9,7 +9,7 @@
 //! Making a path group-writable is one `chmod` on Unix and an ACL edit on Windows, so each
 //! platform's refusals are written against its own tool: the `cfg(unix)` cases below use
 //! `set_permissions`, and the `cfg(windows)` ones drive `icacls` by SID, never by account name,
-//! because every one of those names is localized. What the boundary accepts is ADR 0103 § 6's own
+//! because every one of those names is localized. What the boundary accepts is `rule:config/ownership-is-the-trust-boundary`'s own
 //! text, and how the Windows half computes an effective right is
 //! `crates/nvs-config/src/trust.rs`'s module doc.
 
@@ -28,7 +28,7 @@ fn scratch(name: &str) -> PathBuf {
 
 /// § 6 accepts what an ordinary installation looks like — a file this account owns in a directory
 /// this account owns — and hands back the canonical path, which is the thing the resolver's cycle
-/// test and ADR 0104 § 2's `[[app]]` matching are both built on.
+/// test and `rule:config/every-matching-app-block-applies-least-specific-first`'s `[[app]]` matching are both built on.
 #[test]
 fn a_file_this_account_owns_is_trusted_and_comes_back_canonical() {
     let dir = scratch("owned");

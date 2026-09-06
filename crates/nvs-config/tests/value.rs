@@ -1,4 +1,4 @@
-//! ADR 0064 § 5's one parser: what a value means as a quantity, and how a ceiling compares.
+//! `rule:config/ini-set-is-core-config-set`'s one parser: what a value means as a quantity, and how a ceiling compares.
 //!
 //! The sweeps here assert by **counting** rather than by reading one row off a line: a parser that
 //! answers plausibly for `512M` and drops the suffix on `512K` still passes any single case, and

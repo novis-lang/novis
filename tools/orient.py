@@ -218,7 +218,7 @@ def normalize(title: str) -> str:
     section as `§2`, as `2`, or by the words in its title, and all three land.
 
     The letter is part of the number. Without it a manifest entry of `§3a` normalizes to `3 a`,
-    which is a prefix of *`### 3. A mode selects ...`* -- so ADR 0091's § 3a silently printed § 3
+    which is a prefix of *`### 3. A mode selects ...`* -- so `rule:config/two-modes-and-the-default-is-production`'s § 3a silently printed § 3
     instead, and the session that needed the row went and sliced it by hand. Any `### 3.` heading
     whose title happens to start with the word the suffix spells does this, so it is the number's
     own regex that has to stop splitting."""

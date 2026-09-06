@@ -1,4 +1,4 @@
-//! [ADR 0103] § 7: a secret arrives as a file whose content is the value.
+//! `rule:config/a-secret-is-a-file-whose-content-is-the-value`: a secret arrives as a file whose content is the value.
 //!
 //! A directive the configuration marks secret gains a `_file` sibling, and **exactly one of the
 //! pair may be set** — both is a refusal, which is what keeps this two sources for one value rather
@@ -64,7 +64,6 @@
 //! Nothing here runs per request.
 //!
 //! [ADR 0067]: ../../../docs/adr/0067-core-db.md
-//! [ADR 0103]: ../../../docs/adr/0103-configuration-is-a-tree-of-files.md
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -400,7 +399,7 @@ fn both_set(block: &str, value: &str, written_in: Option<&Origin>) -> Diagnostic
         format!("`[{block}]` sets both `{value}` and `{value}_file`"),
     )
     .with_note(format!(
-        "ADR 0103 § 7 gives a secret directive two sources and exactly one may be set: `{value}` \
+        "`rule:config/a-secret-is-a-file-whose-content-is-the-value` gives a secret directive two sources and exactly one may be set: `{value}` \
          holds the value, `{value}_file` names the file whose content is the value{}",
         origin_note(written_in)
     ))
@@ -418,7 +417,7 @@ fn refusal(path: &Path, key: &str, problem: &str, written_in: Option<&Origin>) -
         format!("`{key}` names `{}`, which {problem}", path.display()),
     )
     .with_note(format!(
-        "ADR 0103 § 7 makes that file's whole content the value, minus one trailing newline, and \
+        "`rule:config/a-secret-is-a-file-whose-content-is-the-value` makes that file's whole content the value, minus one trailing newline, and \
          refuses rather than carrying an unusable one forward: an empty credential otherwise fails \
          at the first request instead of at boot{}",
         origin_note(written_in)
@@ -439,7 +438,7 @@ fn padded(key: &str, edge: &str, from: Option<&Path>, written_in: Option<&Origin
         },
     )
     .with_note(format!(
-        "ADR 0103 § 7 keeps a credential exactly as it was written — a password may legitimately \
+        "`rule:config/a-secret-is-a-file-whose-content-is-the-value` keeps a credential exactly as it was written — a password may legitimately \
          carry an edge space, and removing it would be `rule:errors/ambiguous-input-refused`'s repair of input in place of a \
          reading of it — so the value is in force as-is and this is an advisory{}",
         origin_note(written_in)
@@ -458,7 +457,7 @@ fn exposed(path: &Path, key: &str, how: &str) -> Diagnostic {
         format!("`{key}` names `{}`, which {how}", path.display()),
     )
     .with_note(
-        "ADR 0103 § 7 warns rather than refuses here because a Compose secret is mounted `0444` \
+        "`rule:config/a-secret-is-a-file-whose-content-is-the-value` warns rather than refuses here because a Compose secret is mounted `0444` \
          and a Kubernetes secret volume defaults to `0644`: inside a container that is the norm, \
          on a shared host it is not, and nothing readable from here says which this is"
             .to_string(),

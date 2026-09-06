@@ -38,7 +38,7 @@ use serde::Deserialize;
 /// One directive's value, in the shapes the ADRs actually write.
 ///
 /// Several directives are spelled two ways on purpose and the second spelling is load-bearing:
-/// `[limits.hard] memory = false` removes a ceiling ([ADR 0005], and 0064 § 1 chose TOML partly
+/// `[limits.hard] memory = false` removes a ceiling (`rule:config/three-changeability-classes`, and 0064 § 1 chose TOML partly
 /// because "off" is a boolean there), `[metrics] exporter = false` disables an export,
 /// `[http.headers] frame_ancestors` is `"none"`, `"self"` or a list of origins. A field typed
 /// `String` would refuse the operator's own documented example, so those fields are typed here.
@@ -47,7 +47,6 @@ use serde::Deserialize;
 /// struct of its own, so a table arriving where a directive is expected is a mistake worth
 /// refusing rather than a shape worth carrying.
 ///
-/// [ADR 0005]: ../../../docs/adr/0005-config-changeability.md
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 #[serde(untagged)]
 pub enum Setting {
@@ -65,22 +64,21 @@ pub enum Setting {
 
 /// One configuration file, whole.
 ///
-/// The root table holds no directives of its own — [ADR 0064] § 2 puts every directive inside a
+/// The root table holds no directives of its own — `rule:config/lists-are-arrays-and-repeated-records-are-arrays-of-tables` puts every directive inside a
 /// block — so every field here names a block, and the array-of-tables blocks are the four that are
 /// repeated records: `[[include]]`, `[[app]]`, `[[extension]]` and `[[schedule]]`.
 ///
 /// A file that sets nothing deserializes into [`Config::default`], which is what makes an empty
 /// include legal rather than a parse failure.
 ///
-/// [ADR 0064]: ../../../docs/adr/0064-configuration-file-format.md
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Config {
-    /// `[[include]]` — the tree of files (ADR 0103 § 2).
+    /// `[[include]]` — the tree of files (`rule:config/include-takes-a-path-or-a-dir`).
     pub include: Vec<Include>,
-    /// `[[app]]` — one application, keyed on an entry file path (ADR 0104 § 1).
+    /// `[[app]]` — one application, keyed on an entry file path (`rule:config/an-application-is-its-entry-file-path`).
     pub app: Vec<App>,
-    /// `[limits]` and the `[limits.hard]` ceiling under it (ADR 0005).
+    /// `[limits]` and the `[limits.hard]` ceiling under it (`rule:config/three-changeability-classes`).
     pub limits: Option<Limits>,
     /// `[mode]` — the default a request starts in and the ceiling it may select (ADRs 0005, 0091).
     pub mode: Option<Mode>,
@@ -105,7 +103,7 @@ pub struct Config {
     pub storage: BTreeMap<String, StorageDisk>,
     /// `[deferred]` — the after-response executor's bounds (`rule:concurrency/deferred-is-bounded-by-two-directives`).
     pub deferred: Option<Deferred>,
-    /// `[[schedule]]` — scheduled work, which is configuration and not an API (ADR 0073).
+    /// `[[schedule]]` — scheduled work, which is configuration and not an API (`rule:config/scheduled-work-is-a-config-block`).
     pub schedule: Vec<Schedule>,
     /// `[queue]` — the durable job queue and the `[db.<name>]` it stores rows in (`rule:core-classes/queue-storage-is-a-table`).
     pub queue: Option<Queue>,
@@ -117,7 +115,7 @@ pub struct Config {
     pub server: Option<Server>,
     /// `[cache]` — the artifact cache's directory (ADRs 0042, 0078 § 2).
     pub cache: Option<Cache>,
-    /// `[control]` — the local control socket (ADR 0078 § 3).
+    /// `[control]` — the local control socket (`rule:config/one-local-control-socket`).
     pub control: Option<Control>,
     /// `[opcache]` — revalidation and the file cache (ADRs 0017, 0042 § 9).
     pub opcache: Option<Opcache>,
@@ -125,7 +123,7 @@ pub struct Config {
     pub session: Option<Session>,
 }
 
-/// One `[[include]]` entry — ADR 0103 § 2.
+/// One `[[include]]` entry — `rule:config/include-takes-a-path-or-a-dir`.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Include {
@@ -138,7 +136,7 @@ pub struct Include {
     pub optional: Option<bool>,
 }
 
-/// One `[[app]]` block — ADR 0104 § 1.
+/// One `[[app]]` block — `rule:config/an-application-is-its-entry-file-path`.
 ///
 /// `root` or `entry`, never both and never neither; `mode` and `origin` sit directly on the block
 /// while its directives live in the three sub-tables. Which of those two rules this struct can hold
@@ -161,14 +159,14 @@ pub struct App {
     pub capabilities: Option<Capabilities>,
     /// `[app.log]` — `rule:errors/handler-script`'s escalation handler for this application, and the rungs beside
     /// it. Per application rather than per file because that is the unit an operator reports a
-    /// failure *of*: one handler answers for every entry ADR 0104 § 1's block covers, and a
+    /// failure *of*: one handler answers for every entry `rule:config/an-application-is-its-entry-file-path`'s block covers, and a
     /// deployment running two applications out of one tree gets two, which a root-only key could
     /// not spell. It folds onto the global `[log]` block like every other sub-table here —
     /// `crate::snapshot`'s per-app merge takes the whole block and names none of these fields.
     pub log: Option<Log>,
 }
 
-/// `[limits]` — what a request starts with, plus the ceiling it may raise itself to (ADR 0005).
+/// `[limits]` — what a request starts with, plus the ceiling it may raise itself to (`rule:config/three-changeability-classes`).
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Limits {
@@ -212,7 +210,7 @@ pub struct Limits {
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct LimitSet {
-    /// The ceiling on the heap; `false` removes it (ADR 0005).
+    /// The ceiling on the heap; `false` removes it (`rule:config/three-changeability-classes`).
     pub memory: Option<Setting>,
     /// The ceiling on CPU time.
     pub cpu_time: Option<Setting>,
@@ -224,7 +222,7 @@ pub struct LimitSet {
     pub max_output: Option<Setting>,
 }
 
-/// `[mode]` — ADR 0091 § 5, whose two keys ADR 0005 gives two different classes.
+/// `[mode]` — ADR 0091 § 5, whose two keys `rule:config/three-changeability-classes` gives two different classes.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Mode {
@@ -238,7 +236,7 @@ pub struct Mode {
 /// `[capabilities]`, `[app.capabilities]` and a `[[schedule]]`'s `grants` — deny-by-default,
 /// `RuntimeTighten`, and dotted.
 ///
-/// A capability's name is dotted and a dotted TOML key *is* table nesting (ADR 0064 § 2), so
+/// A capability's name is dotted and a dotted TOML key *is* table nesting (`rule:config/lists-are-arrays-and-repeated-records-are-arrays-of-tables`), so
 /// `script.spawn = [...]` under `[capabilities]` and a `[capabilities.script]` block with a `spawn`
 /// key are the same input and both land in these sub-structs. Nothing has to choose between them.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
@@ -387,7 +385,7 @@ pub struct Log {
     /// Which rendering the target emits — `rule:errors/renderings` gives this one **two** of its three, since
     /// the HTML one is a response's and never a destination's.
     pub format: Option<String>,
-    /// The minimum level written; its per-mode default is ADR 0091 § 3's.
+    /// The minimum level written; its per-mode default is `rule:config/a-mode-is-five-defaults`'s.
     pub level: Option<String>,
 }
 
@@ -412,7 +410,7 @@ pub struct Http {
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct HttpErrors {
-    /// `generic` or `full`; `Runtime`-class, defaulting by run mode (ADR 0091 § 3).
+    /// `generic` or `full`; `Runtime`-class, defaulting by run mode (`rule:config/a-mode-is-five-defaults`).
     pub detail: Option<String>,
 }
 
@@ -496,7 +494,7 @@ pub struct CapMail {
 /// `user` and `password` are the pair that asks for TLS: a block naming them is sent through
 /// `STARTTLS` and refused where the endpoint cannot carry one, and a block naming neither stays in
 /// the clear. `nvs_stdlib::mail`'s module doc is the home of that decision, including why the
-/// upgrade is not opportunistic. The password is ADR 0103 § 7's kind of value, so `password_file` is
+/// upgrade is not opportunistic. The password is `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s kind of value, so `password_file` is
 /// beside it and [`mod@crate::secret`] owns every rule about the pair.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
@@ -515,7 +513,7 @@ pub struct MailEndpoint {
     pub password: Option<String>,
     /// The file whose whole content is the password, on [`Database::password_file`]'s footing and
     /// under every rule [`mod@crate::secret`] states: exactly one of this and `password` may be set,
-    /// and it stays set after the value is read so ADR 0103 § 9's dump can name where the secret
+    /// and it stays set after the value is read so `rule:config/check-and-dump-audit-the-tree-offline`'s dump can name where the secret
     /// came from.
     pub password_file: Option<String>,
     /// How long the whole exchange may take, 30s where the block names none.
@@ -601,7 +599,7 @@ impl std::ops::DerefMut for Databases {
 pub struct Database {
     /// Which of `rule:core-classes/db-one-api`'s drivers this block selects.
     pub driver: Option<String>,
-    /// SQLite's file, resolved against the directory of the file it is written in (ADR 0103 § 5).
+    /// SQLite's file, resolved against the directory of the file it is written in (`rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`).
     pub path: Option<String>,
     /// The server host. Refuses `tainted` at the language level and has no launderer (§ 3).
     pub host: Option<String>,
@@ -612,14 +610,14 @@ pub struct Database {
     /// The password, inline.
     pub password: Option<String>,
     /// The file whose whole content is the password, minus one trailing newline
-    /// (ADR 0103 § 7). Exactly one of this and `password` may be set, and it stays set after the
+    /// (`rule:config/a-secret-is-a-file-whose-content-is-the-value`). Exactly one of this and `password` may be set, and it stays set after the
     /// value is read so § 9's dump can name where the secret came from. [`mod@crate::secret`] is
     /// every rule about it; this is the only field on this struct another module writes to.
     pub password_file: Option<String>,
     /// The database name.
     pub database: Option<String>,
     /// The PEM file of trust anchors this server's certificate is verified against, resolved
-    /// against the directory of the file it is written in (ADR 0103 § 5).
+    /// against the directory of the file it is written in (`rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`).
     ///
     /// **Written, it replaces the compiled-in Mozilla set for this block and does not add to it** —
     /// `nvs_host::tls`'s module doc owns why, and it is `sslrootcert`'s meaning on every other
@@ -758,7 +756,7 @@ pub struct Deferred {
 
 /// `[queue]` — `rule:core-classes/queue-storage-is-a-table`'s durable job queue, which is a table in a database an operator names.
 ///
-/// Every key is `System`: the queue is armed at boot and a request may not move it, for ADR 0073's
+/// Every key is `System`: the queue is armed at boot and a request may not move it, for `rule:config/scheduled-work-is-a-config-block`'s
 /// reason on `[[schedule]]` beside it — work a request could redirect is work a request could
 /// redirect into a database it was never granted.
 ///
@@ -784,7 +782,7 @@ pub struct Queue {
     pub visibility: Option<Setting>,
 }
 
-/// One `[[schedule]]` entry — ADR 0073 § 1, every key `System`.
+/// One `[[schedule]]` entry — `rule:config/scheduled-work-is-a-config-block`, every key `System`.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Schedule {
@@ -847,9 +845,9 @@ pub struct Server {
     pub listen: Option<Vec<String>>,
     /// Unix-socket entries only.
     pub socket_mode: Option<String>,
-    /// `entry` or `path`; the development default is `path` (ADR 0091 § 3a).
+    /// `entry` or `path`; the development default is `path` (`rule:config/a-startup-default-is-never-flipped`).
     pub dispatch: Option<String>,
-    /// Static file serving; the development default is on (ADR 0091 § 3a). Spelled `static` in the
+    /// Static file serving; the development default is on (`rule:config/a-startup-default-is-never-flipped`). Spelled `static` in the
     /// file, which is a Rust keyword.
     #[serde(rename = "static")]
     pub serve_static: Option<bool>,
@@ -876,7 +874,7 @@ pub struct Server {
 
 /// One `[[server.mount]]` entry — ADR 0097 § 4.
 ///
-/// There is no `mode` key: ADR 0104 § 4 moved a mount's mode onto the `[[app]]` block, so an
+/// There is no `mode` key: `rule:config/a-mount-routes-and-an-app-block-sets-policy` moved a mount's mode onto the `[[app]]` block, so an
 /// application's mode is one answer wherever the entry file is reached from.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
@@ -897,7 +895,7 @@ pub struct Mount {
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Cache {
-    /// `System` **and** `Boot` — one of the four directives ADR 0078 § 2 names as needing a restart,
+    /// `System` **and** `Boot` — one of the four directives `rule:config/reloadability-is-its-own-field` names as needing a restart,
     /// because moving it re-creates the runtime's mapping of every cached unit.
     pub dir: Option<String>,
     /// `[cache.local]` — `rule:concurrency/cache-memory-is-charged-to-the-core`'s bound on the per-core tier, for the reason `shared` below
@@ -968,7 +966,7 @@ pub struct Session {
     pub cookie: Option<String>,
 }
 
-/// `[control]` — ADR 0078 § 3's one local socket.
+/// `[control]` — `rule:config/one-local-control-socket`'s one local socket.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Control {

@@ -1225,7 +1225,7 @@ fn failed() -> Response<Answer> {
 /// process ends answers `ControlFlow::Continue(())` every time, and a test that
 /// wants one connection answers `Break`. It is a callback rather than a flag
 /// because what stops a server is a decision the caller owns
-/// ([ADR 0078](/docs/adr/0078-config-reload-and-control-socket.md)'s
+/// (`rule:config/the-config-is-an-immutable-snapshot`'s
 /// control socket is one such caller) and this loop has no business polling for
 /// it.
 ///

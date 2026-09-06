@@ -123,7 +123,7 @@ One trailing options shape (R2), the same two fields on both members:
 - **`deadline: Duration`** — a wall-clock bound on the whole call, not per child, expressed as an
   `rule:types/duration-literal` literal. There is no default: a call that names no deadline is
   bounded by the request tree's own `wall_time`, which is finite by
-  [ADR 0005](0005-config-changeability.md) and is the only reason omitting it is safe.
+  `rule:config/three-changeability-classes` and is the only reason omitting it is safe.
 
 The plan's `timeout(...)` is therefore not a member: a timeout on a group of tasks is this option (R2 —
 optional arguments are the options shape, never a wrapper function), and a timeout on a single I/O call is

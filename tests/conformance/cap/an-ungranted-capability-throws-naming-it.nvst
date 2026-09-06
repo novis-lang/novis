@@ -1,5 +1,5 @@
 --TEST--
-a `Core` member whose capability the configuration does not grant throws a catchable `RuntimeError` naming that capability — `rule:security/capability-question-is-grant-and-scope`, ADR 0103 § 1
+a `Core` member whose capability the configuration does not grant throws a catchable `RuntimeError` naming that capability — `rule:security/capability-question-is-grant-and-scope`, `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`
 --FILE--
 <?nvs
 // The file exists and is readable by the account running this case; what is

@@ -4,7 +4,7 @@
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 #
-# When this list goes green the driver switches to goal 20 -- ADR 0142's Unix sockets -- and then to
+# When this list goes green the driver switches to goal 20 -- `rule:config/cache-shared-is-the-grant-over-the-configured-store`'s Unix sockets -- and then to
 # goal 50, the dossier, whose emitter writes everything after it.
 
 files = [

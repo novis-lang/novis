@@ -134,7 +134,7 @@ grepping for `$_SESSION`.
 The mechanics are **not** this ADR's, for the same reason [ADR 0008](0008-static-and-global.md)
 §*Alternatives rejected* declined to smuggle a memoisation cache into a decision about a keyword: this
 ADR fixes the *shape* — a class, explicit start, no ambient array — and the storage backend, its
-selection via an [ADR 0005](0005-config-changeability.md)-style directive, locking semantics and garbage
+selection via an `rule:config/three-changeability-classes`-style directive, locking semantics and garbage
 collection are a real feature with their own questions. All four are answered in
 [ADR 0139](0139-a-session-is-a-record-its-store-issued.md): the backends are the shared cache tier and
 the database, with the local tier refused at boot naming
@@ -180,7 +180,7 @@ genuinely needs facts from the request that spawned it receives them as ordinary
 `rule:classes/two-copy-depths` define. `Core\Env` and
 `Core\Cli` are not restricted this way: environment variables and process arguments are process-wide facts
 already governed by the existing capability/config-overlay machinery
-([ADR 0005](0005-config-changeability.md), `rule:security/isolate-shares-nothing`), not per-request
+(`rule:config/three-changeability-classes`, `rule:security/isolate-shares-nothing`), not per-request
 secrets this ADR needs to newly wall off.
 
 ### 8. Diagnostics

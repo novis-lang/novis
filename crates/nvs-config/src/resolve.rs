@@ -1,7 +1,7 @@
 //! The configuration tree, resolved: which file is the root, which files it pulls in, and the one
 //! ordered stream they flatten to.
 //!
-//! [ADR 0103] is the whole of this module's specification. § 1 picks the root, § 2 expands
+//! `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` is the whole of this module's specification. § 1 picks the root, § 2 expands
 //! `[[include]]`, § 3 flattens the tree to one sequence where a later assignment wins, § 4 splits
 //! replacing from appending, and § 5 resolves every relative path against the file it is written in.
 //! § 6's ownership check is not here either: it is a property of the bytes' provenance rather than
@@ -13,12 +13,12 @@
 //!
 //! **Later wins is only acceptable because every override is recorded.** § 3 states that as an
 //! obligation and not a permission: without the record it is the silent-shadowing failure
-//! [ADR 0064] refused INI for, in a file that grants capabilities. So the merge does not just
+//! `rule:config/the-file-is-nvs-toml-and-it-is-toml` refused INI for, in a file that grants capabilities. So the merge does not just
 //! overwrite — it carries an [`Origin`] for every value it holds and emits an [`Override`] naming
 //! both files whenever one replaces another. A caller that drops [`Resolved::overrides`] on the
 //! floor has removed a security property, not a log line.
 //!
-//! **Both of ADR 0064 § 3's refusals stay per file.** Each file is deserialized into
+//! **Both of `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`'s refusals stay per file.** Each file is deserialized into
 //! [`Config`] on its own before anything is merged, so an unknown key is refused with *that* file's
 //! line under it; the merge itself runs over `toml::Table`, where a key set in two files is an
 //! override rather than a duplicate. That is why a file is deserialized twice — once to refuse it,
@@ -32,8 +32,6 @@
 //! Cost: the whole tree's text and one merged table are held for the length of a boot or a reload,
 //! then dropped once the snapshot is built. Nothing here runs per request.
 //!
-//! [ADR 0064]: ../../../docs/adr/0064-configuration-file-format.md
-//! [ADR 0103]: ../../../docs/adr/0103-configuration-is-a-tree-of-files.md
 
 use std::collections::BTreeMap;
 use std::path::{Component, Path, PathBuf};
@@ -44,7 +42,7 @@ use crate::secret::Secret;
 use crate::tree::Config;
 use crate::trust::{self, Untrusted};
 
-/// How deep `[[include]]` may nest — ADR 0103 § 2.
+/// How deep `[[include]]` may nest — `rule:config/include-takes-a-path-or-a-dir`.
 ///
 /// A cycle is caught by name, not by depth: [`Files::trust`] hands back the canonical path, so a
 /// ring built out of symlinks closes on a name [`same_file`] has already seen. This is therefore a
@@ -61,7 +59,7 @@ pub const MAX_INCLUDE_DEPTH: usize = 8;
 /// order decide the answer and a capability grant settled by `readdir` order is not a design — so
 /// [`list`](Files::list) is allowed to return entries in any order and the sort is this module's.
 pub trait Files {
-    /// ADR 0103 § 6's trust check on `path`, and the **canonical** path it names.
+    /// `rule:config/ownership-is-the-trust-boundary`'s trust check on `path`, and the **canonical** path it names.
     ///
     /// This is the trust boundary. Everything the resolver does with a path afterwards — comparing
     /// it against the chain it was reached through, reading it, resolving an include against its
@@ -75,7 +73,7 @@ pub trait Files {
     /// the boundary does not hold, which is `E0607`.
     fn trust(&self, path: &Path) -> Result<PathBuf, Untrusted>;
 
-    /// The canonical path `path` names, with **no** trust check — ADR 0104 § 1's half of the
+    /// The canonical path `path` names, with **no** trust check — `rule:config/an-application-is-its-entry-file-path`'s half of the
     /// `[[app]]` comparison.
     ///
     /// Separate from [`trust`](Files::trust) because an application's root is not a file the
@@ -96,7 +94,7 @@ pub trait Files {
     /// Whatever the underlying reader says; the resolver wraps it in `E0605`.
     fn read(&self, path: &Path) -> Result<String, String>;
 
-    /// The file's bytes, unvalidated — what ADR 0103 § 7's secret file is read through.
+    /// The file's bytes, unvalidated — what `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s secret file is read through.
     ///
     /// Separate from [`read`](Files::read) because § 7 makes "not valid UTF-8" a refusal about the
     /// *content* (`E0608`), and a reader that decoded first could only report it as a failure to
@@ -108,7 +106,7 @@ pub trait Files {
     /// Whatever the underlying reader says; [`mod@crate::secret`] wraps it in `E0605`.
     fn read_bytes(&self, path: &Path) -> Result<Vec<u8>, String>;
 
-    /// ADR 0103 § 7's advisory: how an account other than this one may **read** `path`, or `None`.
+    /// `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s advisory: how an account other than this one may **read** `path`, or `None`.
     ///
     /// On the reader rather than beside [`trust`](Files::trust) for the same reason: whether there
     /// is a filesystem to ask is the reader's question. [`trust::exposure`] is the answer when
@@ -185,7 +183,7 @@ pub(crate) fn origin_note(written_in: Option<&Origin>) -> String {
     })
 }
 
-/// One assignment replaced by a later one — ADR 0103 § 3's record, carrying **both** origins.
+/// One assignment replaced by a later one — `rule:config/later-wins-and-every-override-is-recorded`'s record, carrying **both** origins.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Override {
     /// The dotted key, `limits.hard.memory`.
@@ -212,13 +210,12 @@ pub struct Resolved {
     /// ignores this field has lost a warning and never a boundary.
     pub warnings: Vec<Diagnostic>,
     /// The merged table [`config`](Resolved::config) was deserialized from, kept rather than
-    /// dropped because two things still need it. [ADR 0104] § 2 layers `[[app]]` blocks by
+    /// dropped because two things still need it. `rule:config/every-matching-app-block-applies-least-specific-first` layers `[[app]]` blocks by
     /// **the same** later-wins merge this one used, reporting overrides the same way, and it
     /// cannot run at resolve time because it needs an entry file. § 9's `nvs config dump --origin`
     /// renders keys the typed tree has no field for. Cost: one table for the length of a boot or
     /// reload, dropped with the rest of this struct.
     ///
-    /// [ADR 0104]: ../../../docs/adr/0104-an-application-is-an-entry-file-path.md
     pub table: toml::Table,
     /// Where every leaf in that table was written, by dotted key — `db.main.password_file`, and
     /// `app.1.root` for the second `[[app]]` block, whichever file appended it.
@@ -230,7 +227,7 @@ pub struct Resolved {
     pub secrets: BTreeMap<String, Secret>,
 }
 
-/// What ADR 0103 § 1's four steps selected.
+/// What `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`'s four steps selected.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Roots {
     /// Step 1 or step 2: files to read, in order, each absolute.
@@ -241,7 +238,7 @@ pub enum Roots {
     Defaults,
 }
 
-/// ADR 0103 § 1: every `--config` in the order given, else `./nvs.toml`, else the shipped defaults.
+/// `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`: every `--config` in the order given, else `./nvs.toml`, else the shipped defaults.
 ///
 /// `flags` are resolved against `cwd` because a path given on the command line means what a shell
 /// argument means (§ 5). **Any explicit `--config` disables step 2 entirely**, so an operator naming
@@ -263,7 +260,7 @@ pub fn roots(flags: &[PathBuf], cwd: &Path, files: &dyn Files) -> Roots {
     Roots::Defaults
 }
 
-/// Reads the tree and flattens it — ADR 0103 § 3's one ordered stream.
+/// Reads the tree and flattens it — `rule:config/later-wins-and-every-override-is-recorded`'s one ordered stream.
 ///
 /// Each root's own keys land first, then its includes depth-first in list order, then the next
 /// root. A later assignment wins and is recorded.
@@ -272,10 +269,10 @@ pub fn roots(flags: &[PathBuf], cwd: &Path, files: &dyn Files) -> Roots {
 ///
 /// One [`Diagnostic`]: a file that cannot be read (`E0605`), an include cycle or a nesting deeper
 /// than [`MAX_INCLUDE_DEPTH`] (`E0606`), a file outside § 6's trust boundary (`E0607`), a secret
-/// file § 7 will not take a value from (`E0608`), an `[[app]]` block ADR 0104 § 1 cannot key
-/// (`E0609`), a `[[schedule]]` entry ADR 0073 cannot arm (`E0611`), an `[http]` pair ADR 0074
+/// file § 7 will not take a value from (`E0608`), an `[[app]]` block `rule:config/an-application-is-its-entry-file-path` cannot key
+/// (`E0609`), a `[[schedule]]` entry `rule:config/scheduled-work-is-a-config-block` cannot arm (`E0611`), an `[http]` pair ADR 0074
 /// refuses (`E0612`), a `[log] target` `rule:errors/engine-floor` does not spell (`E0613`), or anything either
-/// of ADR 0064 § 3's per-file
+/// of `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`'s per-file
 /// refusals catches (`E0601`/`E0604`), which arrives already carrying its own file's line.
 pub fn resolve(
     roots: &Roots,
@@ -309,17 +306,17 @@ pub fn resolve(
     // `rule:core-classes/queue-storage-is-a-table`'s `[queue]`, immediately after the roster it names: whether `connection = "main"`
     // has a block to point at is a question only the merged `[db]` map can answer.
     crate::queue::validate(&resolved.config, &origins)?;
-    // ADR 0104 § 1's keys, for the same reason: `[[app]]` blocks accumulate across the tree (§ 4),
+    // `rule:config/an-application-is-its-entry-file-path`'s keys, for the same reason: `[[app]]` blocks accumulate across the tree (§ 4),
     // so the roster only exists once the merge is done. Alone among the three passes above it
     // rewrites `config` and never the table, which reaches a driver only because the roster is read
     // off `resolved.config` and then dropped — `Snapshot::retype`'s doc § *The seam every
     // `resolve()` pass is measured against* is where that rule lives, and what a fourth pass here
     // is checked against.
     crate::app::canonicalize(&mut resolved.config, &origins, files)?;
-    // ADR 0104 § 3's bound, once the roster is keyed: what a block asks for is compared against the
+    // `rule:config/an-app-block-may-widen-bounded-by-the-global-ceiling`'s bound, once the roster is keyed: what a block asks for is compared against the
     // global `[limits.hard]`, which is a property of the merged tree and of nothing smaller.
     crate::app::bound(&resolved.config, &origins)?;
-    // ADR 0073 §§ 1-3, last because it reads the `[capabilities]` the merge settled: a scheduled
+    // `rule:config/scheduled-work-is-a-config-block`, `rule:config/cron-is-five-fields-and-nothing-more` and `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`, last because it reads the `[capabilities]` the merge settled: a scheduled
     // script is checked against the `script.spawn` roots, which a later file may have replaced.
     crate::schedule::validate(&resolved.config, &origins, files)?;
     // ADR 0074 §§ 2-3, over the merged tree for the same reason: which `[http.cors] origins` and
@@ -380,7 +377,7 @@ fn read_into(
         .map_err(|err| unreadable(path, &err, "the configuration reads it"))?;
     let (source, parsed) =
         crate::file::parse::<Config>(sources, &path.display().to_string(), &text);
-    // ADR 0064 § 3's two refusals are per file, so this is where they run: the diagnostic carries
+    // `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`'s two refusals are per file, so this is where they run: the diagnostic carries
     // this file's own line, before anything of it has been merged into the stream.
     let file = parsed?;
     let table: toml::Table = toml::from_str(&text).map_err(|err| {
@@ -507,7 +504,7 @@ pub(crate) fn untrusted(path: &Path, why: &Untrusted, who: &str) -> Diagnostic {
         Untrusted::Unreadable(message) => unreadable(path, message, who),
         Untrusted::Breach(message) => Diagnostic::error(code::E_UNTRUSTED_CONFIG, message.clone())
             .with_note(format!(
-                "{who}, and ADR 0103 § 6 leaves no file in the tree writable by any account but \
+                "{who}, and `rule:config/ownership-is-the-trust-boundary` leaves no file in the tree writable by any account but \
                  this one: whoever can write one of them can grant themselves every capability the \
                  configuration carries"
             ))
@@ -590,7 +587,7 @@ impl Merge {
     }
 }
 
-/// ADR 0103 §§ 3 and 4 as one walk: recurse into a table, append an array of tables, replace
+/// `rule:config/later-wins-and-every-override-is-recorded` and `rule:config/a-value-array-replaces-and-a-table-appends` as one walk: recurse into a table, append an array of tables, replace
 /// anything else and say so.
 ///
 /// The replace/append split is decided **structurally** — an array whose entries are all tables is
@@ -699,7 +696,7 @@ fn same_file(a: &Path, b: &Path) -> bool {
     normalize(a) == normalize(b)
 }
 
-/// `path` made absolute against `base` when it is relative — ADR 0103 § 5.
+/// `path` made absolute against `base` when it is relative — `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`.
 pub(crate) fn absolute(base: &Path, path: &Path) -> PathBuf {
     if path.is_absolute() {
         normalize(path)

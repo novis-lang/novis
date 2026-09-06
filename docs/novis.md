@@ -21543,13 +21543,13 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `settype` | dropped | a variable's type never changes (`rule:types/declaration`) |
 | `strval` | language | `$x as string` |
 | `ini_get` | member | `Core\Config::get` — the snapshot's value with this request's own overlay applied |
-| `ini_set` | member | `Core\Config::set`, which returns `false` where the directive is `System`-class or above the `[limits.hard]` ceiling, leaving the previous value intact ([ADR 0005](adr/0005-config-changeability.md)) |
+| `ini_set` | member | `Core\Config::set`, which returns `false` where the directive is `System`-class or above the `[limits.hard]` ceiling, leaving the previous value intact (`rule:config/three-changeability-classes`) |
 | `ini_alter` | member | `Core\Config::set` — `ini_alter` is PHP's own alias for `ini_set` |
 | `ini_restore` | member | `Core\Config::restore` |
 | `ini_get_all` | member | `Core\Config::all`, string keys to string values, never PHP's per-directive `global_value`/`local_value`/`access` array (R11) |
-| `ini_parse_quantity` | dropped | a size or a duration is its own literal (`rule:types/duration-literal`), so there is no quantity string for a program to parse; a directive's value string is read by `Core\Config::set` itself, with the parser the boot path uses ([ADR 0064](adr/0064-configuration-file-format.md) § 5) |
-| `get_cfg_var` | member | `Core\Config::get`. PHP's split between the file's value and the active one does not exist — the snapshot is the value ([ADR 0078](adr/0078-config-reload-and-control-socket.md) § 1) |
-| `php_ini_loaded_file` | dropped | there is no INI file. The configuration is a tree of TOML files, and which one set a directive is what `nvs config dump --origin` reports ([ADR 0103](adr/0103-configuration-is-a-tree-of-files.md) § 9) rather than something a request reads |
+| `ini_parse_quantity` | dropped | a size or a duration is its own literal (`rule:types/duration-literal`), so there is no quantity string for a program to parse; a directive's value string is read by `Core\Config::set` itself, with the parser the boot path uses (`rule:config/ini-set-is-core-config-set`) |
+| `get_cfg_var` | member | `Core\Config::get`. PHP's split between the file's value and the active one does not exist — the snapshot is the value (`rule:config/the-config-is-an-immutable-snapshot`) |
+| `php_ini_loaded_file` | dropped | there is no INI file. The configuration is a tree of TOML files, and which one set a directive is what `nvs config dump --origin` reports (`rule:config/check-and-dump-audit-the-tree-offline`) rather than something a request reads |
 | `php_ini_scanned_files` | dropped | same — the tree's shape is the operator's to audit, not a request's to introspect |
 | `set_time_limit` | member | `Core\Config::set` on the wall-time directive, bounded by `[limits.hard]` like every other; a breach is a `FATAL` and never reaches a `catch` (`rule:errors/escalation-ladder`) |
 | `memory_get_peak_usage` | dropped | `Core\Os::memoryUsage` is the current figure; a peak is only meaningful against the request's budget, which `rule:errors/escalation-ladder`'s limit report already carries when one is breached |
@@ -21560,8 +21560,8 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `gc_collect_cycles` | dropped | nothing is deferred to collect. A cycle inside an isolate is retained until that isolate ends, which is the bound `rule:security/arena-is-an-ownership-root` states in place of a collector's schedule |
 | `gc_mem_caches` | dropped | the allocator's per-thread caches belong to the runtime, and no program empties them |
 | `gc_status` | dropped | there is no collector to report on; a request's held bytes are `Core\Os::memoryUsage` |
-| `opcache_reset` | dropped | the compiled-unit cache is the runtime's, keyed on `env_hash` ([ADR 0078](adr/0078-config-reload-and-control-socket.md) § 4) and revalidated by `opcache.validate` ([ADR 0017](adr/0017-hot-reload-without-restart.md)). An operator clears it with `nvs cache clear`; a request may not invalidate what other requests are still running against |
-| `opcache_invalidate` | dropped | same, one path at a time — `opcache.validate` is `System`-class for the reason [ADR 0017](adr/0017-hot-reload-without-restart.md) gives, and a per-path reset is that directive reached sideways |
+| `opcache_reset` | dropped | the compiled-unit cache is the runtime's, keyed on `env_hash` (`rule:config/the-extension-set-is-in-every-unit-key`) and revalidated by `opcache.validate` (`rule:config/an-edit-reaches-the-next-request-without-a-restart`). An operator clears it with `nvs cache clear`; a request may not invalidate what other requests are still running against |
+| `opcache_invalidate` | dropped | same, one path at a time — `opcache.validate` is `System`-class for the reason `rule:config/an-edit-reaches-the-next-request-without-a-restart` gives, and a per-path reset is that directive reached sideways |
 | `opcache_compile_file` | dropped | compilation happens on first use, and its artifact is verified before a single page becomes executable ([ADR 0042](adr/0042-on-disk-artifact-cache-format.md) § 3); a program does not schedule it |
 | `opcache_is_script_cached` | dropped | a cache hit is invisible by design — a bad entry is exactly as invisible as a cold one ([ADR 0042](adr/0042-on-disk-artifact-cache-format.md) § 3) — so there is no observable state to answer with |
 | `opcache_is_script_cached_in_file_cache` | dropped | same |
@@ -21570,7 +21570,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `opcache_jit_blacklist` | dropped | the JIT is not steerable per function: what gets compiled, and when, is the runtime's decision and no call or directive changes it for one name |
 | `getenv` | member | `Core\Env::get`, or `Core\Env::all` for the no-argument form; both answer with `tainted` values |
 | `putenv` | dropped | the environment is read-only, because a process-global mutation is unsound across cores (01 § 15). What PHP reached for it to change is a directive, and that is `Core\Config::set` — request-local, and gone when the request ends |
-| `extension_loaded` | dropped | an extension is an `[[extension]]` entry pinned in the configuration and resolved while compiling ([ADR 0078](adr/0078-config-reload-and-control-socket.md) § 2); a program naming a member it does not have fails to compile, so nothing is left to test at run time |
+| `extension_loaded` | dropped | an extension is an `[[extension]]` entry pinned in the configuration and resolved while compiling (`rule:config/reloadability-is-its-own-field`); a program naming a member it does not have fails to compile, so nothing is left to test at run time |
 | `dl` | dropped | nothing is loaded into the process at run time (`rule:security/closed-doors`) |
 | `php_sapi_name` | dropped | there is one runtime and one execution model; `nvs run` and the server differ in what they are handed, not in an engine to name |
 | `zend_version` | dropped | there is no Zend engine. `Core\Env::VERSION` is the runtime's own version |
@@ -21929,12 +21929,12 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `get_error_handler` | dropped | PHP 8.5's reader for the top of that stack |
 | `restore_exception_handler` | dropped | the same stack, for something that is registered once rather than pushed and popped |
 | `get_exception_handler` | dropped | reads it back |
-| `error_reporting` | dropped | a severity bitmask over a warning system there is none of. What is *written* is `[log] level`, a minimum an operator sets ([ADR 0064](adr/0064-configuration-file-format.md)), and what is *raised* is not a level at all |
+| `error_reporting` | dropped | a severity bitmask over a warning system there is none of. What is *written* is `[log] level`, a minimum an operator sets (`rule:config/the-file-is-nvs-toml-and-it-is-toml`), and what is *raised* is not a level at all |
 | `error_get_last` | dropped | reads the last warning out of a process-global slot |
 | `error_clear_last` | dropped | empties that slot. Global state a request can leave behind for the next one is the shape `rule:security/no-cross-request-state` closes |
 | `trigger_error` | member | `Core\Log::write` to say something happened, `throw` to stop. PHP folds both into one call selected by a severity argument, and they are different instructions |
 | `user_error` | dropped | `trigger_error`'s alias |
-| `error_log` | member | `Core\Log::write`. PHP's third argument turns the same call into an email or an arbitrary file path; the destination is `[log] target` and the operator's ([ADR 0064](adr/0064-configuration-file-format.md)) |
+| `error_log` | member | `Core\Log::write`. PHP's third argument turns the same call into an email or an arbitrary file path; the destination is `[log] target` and the operator's (`rule:config/the-file-is-nvs-toml-and-it-is-toml`) |
 | `openlog` | dropped | a second logging API, opened with a process-global facility and prefix that every later call reads. Syslog is a `[log] target`, not an API |
 | `syslog` | dropped | that API's write. One serialiser, reached twice, is the rule `Core\Log` and the engine floor already share |
 | `closelog` | dropped | closes what nothing opened |
@@ -21969,7 +21969,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `phpinfo` | dropped | the configuration, extension list and build detail as one HTML page, and the disclosure named above. One key at a time is `Core\Config::get` ([01 § 15](spec/01-core-library.md)) |
 | `phpcredits` | dropped | the same page, for names. Attribution ships with the distribution rather than from a call inside a request |
 | `phpversion` | dropped | the engine's version as a fact a request branches on. What a program compiles against is settled before it runs, and the deployed version is the operator's to report |
-| `pdo_drivers` | dropped | the drivers a binary was built with. What is reachable is the `[db.<name>]` blocks an operator configured (`rule:core-classes/db-one-api`, [ADR 0064](adr/0064-configuration-file-format.md)), which is a different question and the one that was being asked |
+| `pdo_drivers` | dropped | the drivers a binary was built with. What is reachable is the `[db.<name>]` blocks an operator configured (`rule:core-classes/db-one-api`, `rule:config/the-file-is-nvs-toml-and-it-is-toml`), which is a different question and the one that was being asked |
 | `php_strip_whitespace` | dropped | source with its comments removed, a deployment-size trick over a language that ships source. Novis ships a compiled artifact ([ADR 0048](adr/0048-portable-single-file-executables.md)) |
 | `highlight_file` | dropped | it reads a source file and prints it as coloured HTML — an information disclosure with a rendering attached |
 | `highlight_string` | dropped | the same over a string. Highlighting is the editor's ([ADR 0016](adr/0016-ide-integration.md)); a program that renders code renders text, through `Core\Html::escape` |
@@ -21978,7 +21978,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `clone` | language | the `clone` keyword, unchanged — PHP's shallow, single-level copy (`rule:classes/two-copy-depths`). The function spelling exists so that cloning can be passed as a callable, and a callable here is a closure (`rule:types/closure-literal`) |
 | `pack` | member | `Core\Bytes::pack` ([01 § 7](spec/01-core-library.md)), whose format string is a template rather than a mode string, so R11 does not reach it |
 | `unpack` | member | `Core\Bytes::unpack`, which names its fields the same way |
-| `parse_ini_file` | dropped | Novis's own configuration is TOML, read by the runtime rather than by the program ([ADR 0064](adr/0064-configuration-file-format.md)); `Core\Config` is the request-local view of it. Parsing somebody else's `.ini` is an ordinary parse, and a package's |
+| `parse_ini_file` | dropped | Novis's own configuration is TOML, read by the runtime rather than by the program (`rule:config/the-file-is-nvs-toml-and-it-is-toml`); `Core\Config` is the request-local view of it. Parsing somebody else's `.ini` is an ordinary parse, and a package's |
 | `parse_ini_string` | dropped | the same over a string, with the same answer |
 | `getimagesize` | dropped | it opens a path — or a URL, over the wrappers `rule:security/closed-doors` closes — and returns dimensions, a type constant and a ready-made HTML attribute string in one array. Dimensions come from the image component (`rule:core-classes/image-pixel-model`), the type from `Core\Mime` by magic bytes, and the attribute string from whoever is writing the markup |
 | `getimagesizefromstring` | dropped | the same over bytes, and the same split |

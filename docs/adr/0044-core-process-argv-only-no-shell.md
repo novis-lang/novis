@@ -83,7 +83,7 @@ and returns a `ProcessResult` carrying the exit code, captured stdout, and captu
   converts with `as string` (which throws on invalid UTF-8, the same checked conversion every other
   `bytes`-to-`string` boundary uses) rather than getting a silent replacement-character mangling.
 - Captured output is bounded by the request's existing `[limits] max_output` directive
-  ([ADR 0005](0005-config-changeability.md)) — reused, not a new cap. A child that writes past it is killed
+  (`rule:config/three-changeability-classes`) — reused, not a new cap. A child that writes past it is killed
   and `run()` throws, the same shape an over-large response body already gets.
 
 ### 2. `spawn()` — non-blocking, streamed
@@ -119,7 +119,7 @@ class ProcessOptions
   `Core\Secret::reveal()` first, the same existing escape hatch `rule:security/secret-qualifier`
   already defines — no new mechanism for a new sink.
 - `$timeout` reuses the existing safepoint-driven cancellation mechanism
-  ([ADR 0005](0005-config-changeability.md)'s `[limits] wall_time`, the same poll that already cancels a
+  (`rule:config/three-changeability-classes`'s `[limits] wall_time`, the same poll that already cancels a
   request) rather than a bespoke process-only timer: on expiry, the child is killed and the suspended
   coroutine resumes into a thrown `Throwable` naming the timeout, per `rule:errors/propagation`.
 
@@ -153,7 +153,7 @@ start on, so other requests scheduled on the same core keep making progress whil
 ### 6. `process.exec` capability
 
 Process execution is deny-by-default, the same as every other syscall-touching stdlib entry point
-([the plan](../implementation-plan.md)'s M6 paragraph, [ADR 0005](0005-config-changeability.md)):
+([the plan](../implementation-plan.md)'s M6 paragraph, `rule:config/three-changeability-classes`):
 `[capabilities] process.exec` is `RuntimeTighten`, off unless `nvs.toml` grants it, and a request may narrow
 it further but never widen it. The exact grant shape (a bare boolean vs. an allowlist of executable
 paths/directories, mirroring `script.spawn`'s canonicalise-then-prefix resolution) is stdlib design due at

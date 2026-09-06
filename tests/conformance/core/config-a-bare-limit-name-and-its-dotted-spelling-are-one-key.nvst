@@ -1,8 +1,8 @@
 --TEST--
-A bare limit name and its `[limits]` spelling are one key to every `Core\Config` member — ADR 0064 § 5, ADR 0005
+A bare limit name and its `[limits]` spelling are one key to every `Core\Config` member — `rule:config/ini-set-is-core-config-set`, `rule:config/three-changeability-classes`
 --FILE--
 <?nvs
-// ADR 0005 writes one limit in five places — `[limits]`, `[limits.hard]`,
+// `rule:config/three-changeability-classes` writes one limit in five places — `[limits]`, `[limits.hard]`,
 // `[app.limits]`, `[app.limits.hard]` and the bare name a `set` uses — so
 // `Core\Config` resolves a dotless limit name in `[limits]`, the block the
 // request-settable default is stated in. The four members share that one

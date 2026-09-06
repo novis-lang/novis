@@ -48,7 +48,7 @@
   deployment would then have to answer for every application that caches anything.
 - **`Core\Cache::shared()`** — a real store over the network (Redis by default), coherent across cores and
   across machines, gated by `cache.shared`
-  ([ADR 0142](0142-a-configured-store-is-authorized-by-its-configuring.md) § 1): the endpoint is one an
+  (`rule:config/cache-shared-is-the-grant-over-the-configured-store`): the endpoint is one an
   operator wrote into root-owned configuration, so the grant names the store rather than a host and
   `rule:security/net-address-policy`'s address policy is not asked of it. That store may be a
   Unix socket, which is the one transport with no address for a policy to read.
@@ -78,7 +78,7 @@ is single-threaded — an optimisation, not a semantic change, and it must not b
 ### 3. Memory: charged to the core, capped, and stated
 
 Cache memory is **not attributable to a request**. It is charged to the core that holds it and capped by an
-`nvs.toml` directive under [ADR 0005](0005-config-changeability.md)'s ordinary rules; exceeding the cap
+`nvs.toml` directive under `rule:config/three-changeability-classes`'s ordinary rules; exceeding the cap
 evicts rather than failing an allocation.
 
 Stated in the form `rule:programs/memory-priority` requires: the local tier costs
@@ -101,7 +101,7 @@ This is enforced rather than documented: `Core\Session`'s configurable backends 
 tier as an option. Two of the things named above now have their own homes over the shared tier rather than
 being left to the application: **rate limits** are `rule:core-classes/ratelimit-two-members`'s
 `Core\RateLimit::consume`, and the **fleet lease** a scheduled job takes is
-[ADR 0073](0073-scheduled-work-is-config.md) § 3's.
+`rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`'s.
 
 The test this section states is a test of *what a program relies on*, not of where bytes live, and one
 thing that looks like a violation is not one: a per-core **metrics** registry

@@ -1,4 +1,4 @@
-//! ADR 0104 §§ 1-2: an entry file belongs to every `[[app]]` block whose key covers it.
+//! `rule:config/an-application-is-its-entry-file-path` and `rule:config/every-matching-app-block-applies-least-specific-first`: an entry file belongs to every `[[app]]` block whose key covers it.
 //!
 //! Every case runs against an in-memory [`Files`] for `tests/resolve.rs`'s reason, plus one of its
 //! own: § 1's whole claim is that the comparison happens on **canonical** paths, so the cases have
@@ -142,7 +142,7 @@ fn blocks_for(fs: &Fake, resolved: &Resolved, entry: &str) -> Vec<String> {
         .collect()
 }
 
-/// ADR 0104 § 1's example, as the tree every matching case reads: a host-wide block, a shop
+/// `rule:config/an-application-is-its-entry-file-path`'s example, as the tree every matching case reads: a host-wide block, a shop
 /// beneath it, and one entry file inside the shop.
 const THREE_BLOCKS: &str = "\
 [[app]]
@@ -238,7 +238,7 @@ fn an_entry_path_reaching_an_app_root_through_dotdot_or_a_symlink_does_not_match
     );
 }
 
-/// ADR 0103 § 5 applies to both of § 1's keys, and the per-block origin is what makes it possible:
+/// `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in` applies to both of § 1's keys, and the per-block origin is what makes it possible:
 /// two files each write a relative `root` and each resolves against **its own** directory.
 #[test]
 fn a_relative_root_resolves_against_the_file_that_wrote_it() {
@@ -329,8 +329,8 @@ fn a_key_naming_something_that_does_not_exist_refuses_the_boot() {
     assert!(refusal.message.contains("typo"));
 }
 
-/// ADR 0104 § 1's own example, split across two files so § 2's ordering can be told apart from
-/// [ADR 0103] § 3's: the *middle* block by specificity is the *last* one the tree read.
+/// `rule:config/an-application-is-its-entry-file-path`'s own example, split across two files so § 2's ordering can be told apart from
+/// `rule:config/later-wins-and-every-override-is-recorded`'s: the *middle* block by specificity is the *last* one the tree read.
 fn layered_shop() -> Fake {
     Fake::with(&[
         (
@@ -387,7 +387,7 @@ fn every_matching_blocks_directives_layer_least_specific_first() {
     );
 }
 
-/// § 2's condition on itself: layering is [ADR 0103] § 3's later-wins with a different order, so
+/// § 2's condition on itself: layering is `rule:config/later-wins-and-every-override-is-recorded`'s later-wins with a different order, so
 /// **every override is reported the same way** — both origins, and they are the two real files.
 #[test]
 fn a_directive_one_block_takes_from_another_is_reported_with_both_origins() {
@@ -515,7 +515,7 @@ fn a_block_is_bounded_only_by_a_ceiling_the_host_wrote() {
     );
 }
 
-/// A value on either side that is not a quantity at all is ADR 0064 § 5's refusal, from the one
+/// A value on either side that is not a quantity at all is `rule:config/ini-set-is-core-config-set`'s refusal, from the one
 /// parser `Core\Config::set` will use for the same text — not a comparison that quietly passes.
 #[test]
 fn a_limit_that_is_not_a_quantity_is_refused_before_it_is_compared() {

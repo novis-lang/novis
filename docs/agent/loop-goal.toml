@@ -1970,8 +1970,8 @@ argv = ["python", "tools/check-migration.py", "--min", "34"]
 want = ["inventory:", "classified:"]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 2 -- the registry and the tree. ADR 0103 is the only copy of the resolution order and every one
-# of its rules is a case; ADR 0064 § 3 is what makes a typo an error rather than a silent default.
+# Stage 2 -- the registry and the tree. `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` is the only copy of the resolution order and every one
+# of its rules is a case; `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one` is what makes a typo an error rather than a silent default.
 # ---------------------------------------------------------------------------------------------------
 [[check]]
 kind = "cargo-named"
@@ -1981,7 +1981,7 @@ args = ["test", "-p", "nvs-config"]
 tests = [
   "a_duplicate_key_in_one_file_is_refused",
   "an_unknown_key_is_refused_naming_the_block_that_has_no_such_directive",
-  # ADR 0078 § 2 -- orthogonal to the changeability class, and conflating them is the bug it prevents.
+  # `rule:config/reloadability-is-its-own-field` -- orthogonal to the changeability class, and conflating them is the bug it prevents.
   "reloadability_is_a_field_of_its_own_and_not_the_changeability_class",
 ]
 
@@ -2013,7 +2013,7 @@ stage = "1 floor"
 name = "nvs-config (the app block)"
 args = ["test", "-p", "nvs-config"]
 tests = [
-  # ADR 0104 §§ 1-3.
+  # `rule:config/an-application-is-its-entry-file-path`, `rule:config/every-matching-app-block-applies-least-specific-first` and `rule:config/an-app-block-may-widen-bounded-by-the-global-ceiling`.
   "every_matching_app_block_applies_least_specific_first",
   "an_app_block_may_widen_bounded_by_the_global_ceiling",
   # The canonicalise-then-compare rule, written once and needed by three items.
@@ -2029,7 +2029,7 @@ exit = "nonzero"
 want = ["duplicate", "duplicate-key.toml:"]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 3 -- the snapshot. ADR 0078 § 1: an immutable Arc<Config> a request clones at start.
+# Stage 3 -- the snapshot. `rule:config/the-config-is-an-immutable-snapshot`: an immutable Arc<Config> a request clones at start.
 # ---------------------------------------------------------------------------------------------------
 [[check]]
 kind = "cargo-named"
@@ -2154,7 +2154,7 @@ stage = "1 floor"
 name = "nvs-config (the four blocks refuse a bad boot)"
 args = ["test", "-p", "nvs-config"]
 tests = [
-  # ADR 0073's own Verification list.
+  # `rule:config/scheduled-work-is-a-config-block`'s own Verification list.
   "a_schedule_entry_with_no_scope_refuses_the_boot",
   "a_malformed_cron_refuses_the_boot",
   "a_scheduled_script_outside_the_spawn_roots_refuses_the_boot",
@@ -3589,7 +3589,7 @@ kind = "cargo-named"
 stage = "1 floor"
 name = "nvs-server (schedule, deferred, metrics)"
 args = ["test", "-p", "nvs-server"]
-# ADR 0073's fleet half is deliberately not in this list, and that is a triage rather than an
+# `rule:config/scheduled-work-is-a-config-block`'s fleet half is deliberately not in this list, and that is a triage rather than an
 # omission. `a_fleet_scoped_entry_fires_once_across_the_fleet_under_its_lease` stood here until the
 # ADR's own *Verification* was read against it: "two hosts racing the same fleet-scoped interval
 # produce exactly one run" is filed under **M8 (shared store)**, beside the lease's TTL-expiry
@@ -3602,13 +3602,13 @@ args = ["test", "-p", "nvs-server"]
 # session write-back -- an `fn` pointer through `nvs-runtime` -- would therefore carry an operation
 # the store does not have, and widening the shared tier with an atomic acquire is an ADR-level
 # decision this goal has no slot left for. The name belongs to whichever goal builds the shared
-# store; the handoff's backlog carries it against ADR 0073 *Verification*'s M8 bullet. What M7 keeps
+# store; the handoff's backlog carries it against `rule:config/scheduled-work-is-a-config-block` *Verification*'s M8 bullet. What M7 keeps
 # of § 3 has landed instead: `[cache.shared] url` is that store,
 # `nvs_config::schedule::configures_a_shared_store` reads it, and
 # `a_fleet_scope_with_no_shared_store_refuses_the_boot` in `crates/nvs-config/tests/resolve.rs`
 # holds both sides of the boot question.
 tests = [
-  # ADR 0073 § 5 -- a ROOT isolate, not a child of a connection.
+  # `rule:config/a-scheduled-run-is-a-root-isolate` -- a ROOT isolate, not a child of a connection.
   "a_schedule_entry_fires_as_a_root_isolate",
   # `rule:concurrency/after-response-outlives-the-connection` and `rule:concurrency/deferred-is-bounded-by-two-directives` is deliberately NOT here any more -- the two checks below are where it went
   # and why. Neither half of it is reachable from a crate that forbids `unsafe_code`.
@@ -3773,11 +3773,11 @@ tests = [
 # BOTH NAMES ARE BLOCKED ON THE SWAP, and that is a slice rather than a filing question. `Compiler::
 # compiled` compiles once per written path and never revalidates -- `script.rs`'s own module doc states
 # "one unit per written path, kept for the process" as the policy -- `nvs_config::cache::UnitKey`, the
-# `{ path, content_hash, env_hash }` ADR 0017's revalidation keys on, has no caller outside
+# `{ path, content_hash, env_hash }` `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s revalidation keys on, has no caller outside
 # `nvs-config`'s own tests, and `[opcache] validate` / `revalidate_freq` deserialize in
 # `nvs_config::tree` with nothing reading either. A test written against that tree would pass by
 # pinning the *absence* of the bullet: everything keeps its unit across an edit when nothing can notice
-# one. ADR 0017 § *Decision* steps 1-5 is the specification, and stage 7's own `hot reload` check is
+# one. `rule:config/an-edit-reaches-the-next-request-without-a-restart` steps 1-5 is the specification, and stage 7's own `hot reload` check is
 # where the mechanism's three names already sit -- misfiled `-p nvs-server` by this same argument.
 [[check]]
 kind = "cargo-named"
@@ -3802,12 +3802,12 @@ stage = "1 floor"
 name = "nvs-server (the control socket)"
 args = ["test", "-p", "nvs-server"]
 tests = [
-  # ADR 0078 §§ 3, 6.
+  # `rule:config/one-local-control-socket` and `rule:config/no-network-control-surface`.
   "the_control_socket_is_created_0600",
   "a_world_writable_socket_directory_refuses_the_socket",
   "reload_is_the_sockets_only_operation",
   "there_is_no_network_reachable_control_surface",
-  # ADR 0078 § 5 -- a reload reports what it did AND what it could not do.
+  # `rule:config/a-reload-names-what-it-could-not-apply` -- a reload reports what it did AND what it could not do.
   "a_changed_boot_key_is_reported_and_does_not_take_effect",
 ]
 
@@ -3833,8 +3833,8 @@ stage = "1 floor"
 name = "nvs-cli (hot reload)"
 args = ["test", "-p", "nvs-cli"]
 tests = [
-  # ADR 0017 -- swapped WITHOUT ever blocking a request-serving core. Both live
-  # in `crates/nvs-cli/src/script.rs`, which IS the cache ADR 0017 § *Decision*
+  # `rule:config/an-edit-reaches-the-next-request-without-a-restart` -- swapped WITHOUT ever blocking a request-serving core. Both live
+  # in `crates/nvs-cli/src/script.rs`, which IS the cache `rule:config/an-edit-reaches-the-next-request-without-a-restart`
   # describes: `crates/nvs-server` resolves through that compiler and owns none
   # of its own, so neither claim has a spelling under `-p nvs-server`.
   "a_swap_never_blocks_a_request_serving_core",
@@ -3847,7 +3847,7 @@ stage = "1 floor"
 name = "nvs-config (the validate default)"
 args = ["test", "-p", "nvs-config"]
 tests = [
-  # ADR 0017's `validate` STARTUP default is an ADR 0091 § 3a row, chosen by the
+  # `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s `validate` STARTUP default is an `rule:config/a-startup-default-is-never-flipped` row, chosen by the
   # run mode before any request exists. It belongs to whichever module reads
   # `[opcache]` -- `nvs_config::cache` -- and NOT to `nvs_config::mode`, whose
   # own doc says § 3a's startup rows are deliberately outside its table.
@@ -3924,7 +3924,7 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 
 # m7.md's core requirement is filed here rather than under `nvs-server`, and that is not a slip being
-# tidied: ADR 0017's unit table is `crates/nvs-cli/src/script.rs` and there is no other in-memory cache of
+# tidied: `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s unit table is `crates/nvs-cli/src/script.rs` and there is no other in-memory cache of
 # compiled units in the tree, so `-p nvs-server` could never have run either of these -- that crate's
 # `Cargo.toml` names no crate that compiles a path, because the server is handed a program rather than
 # resolving one. m7.md asks for the claim to be asserted "via a compile counter", which settles it: the

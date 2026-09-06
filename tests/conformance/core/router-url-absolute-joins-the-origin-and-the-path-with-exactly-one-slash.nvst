@@ -107,7 +107,7 @@ echo "rest=", $absolute["1"], "\n";
 --FILE nvs.toml--
 # `rule:routing/an-absolute-link-takes-a-configured-origin`'s configured origin, written the way half of them are written:
 # with a trailing `/`. `Ctx::set_origin` drops it, which is what this case is
-# about. `root = "."` is ADR 0104 § 1's key: this working directory, so the
+# about. `root = "."` is `rule:config/an-application-is-its-entry-file-path`'s key: this working directory, so the
 # program below is the entry file the block covers.
 [[app]]
 root = "."

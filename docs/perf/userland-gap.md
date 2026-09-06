@@ -485,7 +485,7 @@ ever reads zero passes just as well when it is broken.
   It costs 1.5 ns against a native ~0.5 ns, and removing it means trading
   `rule:testing/debug-probes`'s guarantee
   that a probe can be switched on for a request already running. That is a decision, not a defect,
-  and its natural gate is [ADR 0091](../adr/0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md)'s
+  and its natural gate is `rule:config/two-modes-and-the-default-is-production`'s
   production mode at M6 — an amendment to 0018 when it gets there, not now.
 - **Cranelift emits redundant register moves and does not clean up the block chains.** That is the
   baseline tier's ceiling and [M12](../plan/m12.md) is where it is raised. Nothing above is a

@@ -24,7 +24,7 @@ use super::*;
 /// byte carrier in both directions — ADR 0139 § 2 says so, for the same reason
 /// a `Core\Cache` entry does — so holding the bytes means the context has
 /// nothing to release at teardown and holds no object that could name a
-/// `ClassDesc` an [ADR 0017](/docs/adr/0017-hot-reload-without-restart.md)
+/// `ClassDesc` an `rule:config/an-edit-reaches-the-next-request-without-a-restart`
 /// unit swap has retired. Decoding is [`crate::decode`]'s, once per member that
 /// reads, over bytes this struct already owns.
 ///
@@ -282,7 +282,7 @@ impl Ctx {
     }
 
     /// Hands this request the snapshot it will read for its whole life —
-    /// ADR 0078 § 1's one clone, taken before the program runs.
+    /// `rule:config/the-config-is-an-immutable-snapshot`'s one clone, taken before the program runs.
     ///
     /// Written by whoever resolved the tree, exactly as [`Self::set_origin`] is
     /// and for the same reason: nothing on the request path may re-read the

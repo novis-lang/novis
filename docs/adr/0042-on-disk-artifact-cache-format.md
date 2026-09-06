@@ -7,7 +7,7 @@
   world-writable cache directory." This ADR is the only copy of the file layout, the header shape, the
   write/verify/evict mechanics, and the `opcache.*` directives that govern it. It does not touch the
   in-process `DashMap<UnitKey, CompileState>` cache or the hot-reload pointer swap — those stay exactly as
-  [ADR 0017](0017-hot-reload-without-restart.md) defines them.
+  `rule:config/an-edit-reaches-the-next-request-without-a-restart` defines them.
 - **Amended by:** 0078
 
 > **In short:** the disk cache is a directory of immutable files, one per compiled unit, addressed by
@@ -60,7 +60,7 @@
   once, which is a strictly worse blast radius than the one this ADR is scoped to bound.
 - **A shared manifest/LRU-index file next to per-unit blobs.** Same shape of rejection: a second
   shared-mutable structure every reader must trust and every writer must keep consistent is exactly what
-  [ADR 0017](0017-hot-reload-without-restart.md) already rejected once, for the identical reason, when it
+  `rule:config/an-edit-reaches-the-next-request-without-a-restart` already rejected once, for the identical reason, when it
   chose a per-path pointer over a global generation counter.
 - **Folding the environment into the header only, keying purely by content hash.** Works, but means every
   reader must *open* a file before learning it is useless to them — an `nvs run` on a freshly rebuilt
@@ -261,7 +261,7 @@ clear` as explicit commands, same idea M6 already sketches for a tampered-artifa
 `opcache.file_cache` (bool, default on), `opcache.file_cache_dir` (path, root-owned, defaults to a fixed
 system location), `opcache.file_cache_max_size` (bytes), `opcache.file_cache_gc_probability` /
 `opcache.file_cache_gc_divisor` (mirroring PHP's session-GC pair). All `System`-class per
-[ADR 0005](0005-config-changeability.md), for the identical reason `opcache.validate` is: a script that
+`rule:config/three-changeability-classes`, for the identical reason `opcache.validate` is: a script that
 could redirect where the process reads "already-compiled, about-to-be-trusted" native code from would be
 handing itself a code-injection primitive, not a performance knob.
 
@@ -303,7 +303,7 @@ re-litigated further here since M9 has not started.
   ownership changes *after* the process has already started (a shared, long-lived host reconfigured under a
   running `nvs serve`) is not re-checked mid-run. Accepted as consistent with every other `System`-class
   directive: boot-time configuration is trusted for the life of the process, exactly as
-  [ADR 0005](0005-config-changeability.md) already establishes for the rest of `nvs.toml`.
+  `rule:config/three-changeability-classes` already establishes for the rest of `nvs.toml`.
 - Probabilistic eviction means the cache can transiently exceed its configured cap between the misses that
   happen to trigger a sweep — bounded by how unlikely a long silent stretch of pure cache hits is in
   practice, and correctable at any time with the explicit `nvs cache gc` escape hatch.
@@ -337,7 +337,7 @@ re-litigated further here since M9 has not started.
 ## Revisiting
 
 - **Cross-host cache sharing over a network filesystem** (a build farm or a fleet wanting to skip compiling
-  the same content on every host) is not addressed here — the same open [ADR 0017](0017-hot-reload-without-restart.md)
+  the same content on every host) is not addressed here — the same open `rule:config/an-edit-reaches-the-next-request-without-a-restart`
   already left for push-based invalidation: a distribution question, not a concurrency-safety one, and it
   should extend this design (the content-addressed key already makes a shared store *safe* to read from
   multiple hosts) rather than replace it.

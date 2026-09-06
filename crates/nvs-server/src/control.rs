@@ -1,13 +1,13 @@
-//! [ADR 0078] §§ 3, 5 and 6's operator surface: the one local endpoint, the one operation a client
+//! `rule:config/one-local-control-socket`, `rule:config/a-reload-names-what-it-could-not-apply` and `rule:config/no-network-control-surface`'s operator surface: the one local endpoint, the one operation a client
 //! connected to it may ask for, and what a reload reports back.
 //!
 //! **The endpoint itself is [`nvs_config::control`] and is re-exported here**, because creating an
 //! object no other account can reach is a mode on Unix and a DACL on Windows and that crate already
-//! owns both spellings for [ADR 0103] § 6's trust boundary. What is *here* is the half that is about
+//! owns both spellings for `rule:config/ownership-is-the-trust-boundary`'s trust boundary. What is *here* is the half that is about
 //! being a server: which requests arriving on that endpoint mean anything.
 //!
 //! **`reload` is the only operation, and that is a scope decision rather than the whole of § 3.**
-//! That section also reserves `ctl config` — [ADR 0103] § 9's read of the live snapshot with each
+//! That section also reserves `ctl config` — `rule:config/check-and-dump-audit-the-tree-offline`'s read of the live snapshot with each
 //! directive's origin — and this surface does not answer it yet. Nothing here is shaped to prevent
 //! it: [`Operation`] is an enum with one variant and gains a second when that lands, and the
 //! refusal below names the operation it did not know rather than claiming the roster is closed.
@@ -17,14 +17,11 @@
 //! `rule:security/no-eval`'s `eval` door with a different name on it. There is no path from here into the
 //! compiler, and there is deliberately nothing to add one to.
 //!
-//! [ADR 0078]: /docs/adr/0078-config-reload-and-control-socket.md
-//! [ADR 0103]: /docs/adr/0103-configuration-is-a-tree-of-files.md
 
 pub use nvs_config::control::{Address, Endpoint, Refusal, Report, bind, boundary, reload};
 
-/// What a request arriving on the control endpoint asked for — [ADR 0078] § 3.
+/// What a request arriving on the control endpoint asked for — `rule:config/one-local-control-socket`.
 ///
-/// [ADR 0078]: /docs/adr/0078-config-reload-and-control-socket.md
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Operation {
     /// `POST /reload`: re-read the whole configuration tree and publish it, reporting [`Report`].
@@ -103,7 +100,7 @@ mod tests {
     /// A directory of this case's own, empty, beside the test binary under `target/`.
     ///
     /// Not `std::env::temp_dir()`, which is what this was: on Unix that is `/tmp`, mode 1777, and
-    /// the ADR 0103 § 6 check § 3's socket directory is held to refuses a directory the world can
+    /// the `rule:config/ownership-is-the-trust-boundary` check § 3's socket directory is held to refuses a directory the world can
     /// write. It runs on the named directory *and* on its parent, so a scratch directory of our own
     /// is refused for the `/tmp` above it however tight its own bits are. That refusal is § 3
     /// working, so the case names a directory the rule accepts rather than asking for a rule that
@@ -184,11 +181,11 @@ mod tests {
         }
     }
 
-    /// ADR 0078 § 3: the socket is created mode `0600`, owned by the runtime's account — which is
+    /// `rule:config/one-local-control-socket`: the socket is created mode `0600`, owned by the runtime's account — which is
     /// the whole authentication story, since there is no token and no auth middleware to fall back
     /// on.
     ///
-    /// The claim is one and the spelling is two, exactly as ADR 0103 § 6's boundary is: on Unix a
+    /// The claim is one and the spelling is two, exactly as `rule:config/ownership-is-the-trust-boundary`'s boundary is: on Unix a
     /// mode is readable off the socket file, and on Windows the equivalent question is whether any
     /// of § 6's untrusted principals reaches the object at all, which
     /// `nvs_config::trust::exposure` answers from its DACL. The pipe is opened afterwards on that
@@ -237,7 +234,7 @@ mod tests {
         drop(fs::remove_dir_all(&dir));
     }
 
-    /// ADR 0078 § 3's other half of the same sentence: the server refuses to start if the socket's
+    /// `rule:config/one-local-control-socket`'s other half of the same sentence: the server refuses to start if the socket's
     /// directory is world-writable, because an account that can write that directory can put a
     /// socket of its own there and speak for the server.
     ///
@@ -285,7 +282,7 @@ mod tests {
         drop(fs::remove_dir_all(&dir));
     }
 
-    /// ADR 0078 § 3: `reload` is the operation, and the goal's own standing decision is that it is
+    /// `rule:config/one-local-control-socket`: `reload` is the operation, and the goal's own standing decision is that it is
     /// the only one this surface has. Nothing is dispatched, nothing is compiled, and no Novis code
     /// runs — so a target this roster does not hold is refused rather than resolved.
     ///
@@ -329,7 +326,7 @@ mod tests {
         );
     }
 
-    /// ADR 0078 § 6: there is no network-reachable control surface, in either direction of
+    /// `rule:config/no-network-control-surface`: there is no network-reachable control surface, in either direction of
     /// configuration.
     ///
     /// "Either direction" is what makes this a *boot* refusal rather than an absence: nothing in
@@ -392,12 +389,12 @@ mod tests {
         );
     }
 
-    /// ADR 0078 § 5: a reload names the `Boot` keys whose values changed and therefore did not take
+    /// `rule:config/a-reload-names-what-it-could-not-apply`: a reload names the `Boot` keys whose values changed and therefore did not take
     /// effect, individually, beside what it did apply.
     ///
     /// Silently ignoring a changed `Boot` key is how a deployment ends up believing it applied a
     /// change it did not, which is § 5's own sentence. The key used here is `control.socket`
-    /// itself — a `Boot` row by ADR 0078 § 2 — so the case also pins that moving the control
+    /// itself — a `Boot` row by `rule:config/reloadability-is-its-own-field` — so the case also pins that moving the control
     /// endpoint needs a restart rather than taking effect underneath the connection asking for it.
     #[test]
     fn a_changed_boot_key_is_reported_and_does_not_take_effect() {

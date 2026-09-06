@@ -22,7 +22,7 @@
 //! this module only says how long each one is.
 //!
 //! **`false` and `0` are both refused**, under `E0619`. Everywhere else in this tree `false`
-//! removes a ceiling ([ADR 0005]), and that spelling is exactly what
+//! removes a ceiling (`rule:config/three-changeability-classes`), and that spelling is exactly what
 //! [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md) has no version of: its
 //! headline is that there is no way to say "wait forever", and a `[server]` wait is the inbound
 //! half of it. Reading `false` as "keep the default" would be worse than refusing, because an
@@ -48,7 +48,6 @@
 //! address per written `listen` entry held per configuration generation. Nothing here runs on a
 //! request path.
 //!
-//! [ADR 0005]: ../../../docs/adr/0005-config-changeability.md
 //! [ADR 0097]: ../../../docs/adr/0097-development-server-and-proxied-origin.md
 
 use std::collections::BTreeMap;
@@ -65,8 +64,8 @@ use crate::value::{Quantity, Unit};
 /// ADR 0097 § 5's four waits, each a number — the whole clock one connection is bounded by.
 ///
 /// Held by value and copied per configuration generation rather than borrowed from the tree, for
-/// [`crate::queue::QueueBounds`]'s reason: [ADR 0078](/docs/adr/0078-config-reload-and-control-socket.md)
-/// § 1's reload replaces the tree whole, and these are `Boot`-class anyway — a connection already
+/// [`crate::queue::QueueBounds`]'s reason: `rule:config/the-config-is-an-immutable-snapshot`
+/// 's reload replaces the tree whole, and these are `Boot`-class anyway — a connection already
 /// being served keeps the waits it was accepted under.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Waits {
@@ -115,7 +114,7 @@ pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(
 ///
 /// A tree with no `[server]` block at all is the default set and not an absence: § 5's waits are
 /// what makes the server finite, so "unconfigured" and "unbounded" must not be the same state.
-/// Every unwritten key keeps its own default, since ADR 0103 § 3's override record is per key and
+/// Every unwritten key keeps its own default, since `rule:config/later-wins-and-every-override-is-recorded`'s override record is per key and
 /// a partly-written `[server]` is four decisions rather than one. `origins` names the file a
 /// refusal points at, and an empty map simply leaves the note off.
 ///
@@ -386,7 +385,7 @@ pub struct Capacity {
     pub configured: u64,
     /// The bytes one request may hold at its most: `[limits.hard] memory` where a ceiling is
     /// written, and otherwise the `[limits] memory` a request starts with. `None` where the tree
-    /// states neither, and where `[limits.hard] memory = false` removed the ceiling — ADR 0005's
+    /// states neither, and where `[limits.hard] memory = false` removed the ceiling — `rule:config/three-changeability-classes`'s
     /// spelling for "no ceiling" is exactly the case § 13 has nothing to divide by.
     pub per_request: Option<u64>,
     /// What this machine affords the process, as [`memory_budget`] read it.
@@ -583,7 +582,7 @@ mod tests {
             .expect("a bare `5` was refused");
         assert_eq!(suffixed.header, Duration::from_secs(5));
         assert_eq!(suffixed, bare);
-        // The other three keep their defaults independently: ADR 0103 § 3's override is per key.
+        // The other three keep their defaults independently: `rule:config/later-wins-and-every-override-is-recorded`'s override is per key.
         assert_eq!(suffixed.keepalive, Waits::default().keepalive);
     }
 
@@ -632,7 +631,7 @@ mod tests {
             "the cap a request can raise itself to did not win"
         );
 
-        // ADR 0005's spelling for "no ceiling" is exactly the case § 13 has nothing to divide by,
+        // `rule:config/three-changeability-classes`'s spelling for "no ceiling" is exactly the case § 13 has nothing to divide by,
         // and reading it as the `[limits] memory` underneath would afford a concurrency the
         // request is free to exceed.
         let unbounded = capacity_for(

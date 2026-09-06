@@ -186,7 +186,7 @@ pub struct Migration {
 ///   doc owns why, and it is the dialect argument above applied to the type map.
 /// - **`claimed_at` is when the claim was taken, not when it expires.** § 4's visibility timeout is
 ///   `[queue] visibility` measured from it, so the bound stays in configuration where
-///   [ADR 0078](/docs/adr/0078-config-reload-and-control-socket.md) § 1's reload can move
+///   `rule:config/the-config-is-an-immutable-snapshot`'s reload can move
 ///   it; a stored deadline would freeze the superseded bound onto every job already claimed.
 /// - **The dead-letter row is the job's own columns plus `failed_at` and `errors`**, where `errors`
 ///   is the JSON array § 6 asks for — an entry carrying when an attempt ran and what it threw.
@@ -417,7 +417,7 @@ pub const INSERT_POSTGRES: &str = "with existing as (\
 /// `[queue] visibility` of the claim. `$3` is that cutoff — the instant `visibility` before now,
 /// computed by the caller — rather than a bound written into this text, because [`MIGRATION_POSTGRES`]'s
 /// `claimed_at` records when the claim was *taken* precisely so that
-/// [ADR 0078](/docs/adr/0078-config-reload-and-control-socket.md) § 1's reload can move the
+/// `rule:config/the-config-is-an-immutable-snapshot`'s reload can move the
 /// bound under jobs that are already claimed.
 ///
 /// **`attempts` is incremented by the claim and not by the failure that follows it.** § 6's bound

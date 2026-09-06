@@ -1,4 +1,4 @@
-# ADR 0103 — Configuration is a tree of files, and file ownership is the trust anchor
+# `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` — Configuration is a tree of files, and file ownership is the trust anchor
 
 - **Status:** Accepted
 - **Date:** 2026-08-27
@@ -302,7 +302,7 @@ shipped defaults
  -> the file tree      (--config list + includes, later wins)
    -> CLI flags        (closed list, replaces the global value)
      -> [[app]] blocks (all that match, least-specific root first)
-       -> Core\Config::set  (per-request overlay, ADR 0005, unchanged)
+       -> Core\Config::set  (per-request overlay, `rule:config/three-changeability-classes`, unchanged)
 ```
 
 So `nvs serve --mode=development` on a mixed host does not drag an application that pins `production`

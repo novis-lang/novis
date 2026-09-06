@@ -307,7 +307,7 @@ Verification, in the order it becomes possible:
   every chunk it yields ([ADR 0105](0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)),
   and a tainted `filename` reaching `Core\IO::writeStream`'s path argument is one of that ADR's
   verification cases; the path-traversal and header-injection conformance suites already on
-  M7's verify list ([ADR 0017](0017-hot-reload-without-restart.md)'s neighboring milestone paragraph) gain a
+  M7's verify list (`rule:config/an-edit-reaches-the-next-request-without-a-restart`'s neighboring milestone paragraph) gain a
   case built specifically from a live `Core\Request` value reaching a filesystem or header sink without
   laundering, and confirm it is rejected at compile time, not only caught by the runtime suite.
 - **M8**: `Core\Db`'s query API rejects a tainted value at its SQL-text parameter at compile time, and

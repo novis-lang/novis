@@ -114,7 +114,7 @@ will try first, and the whole point of this command is that nobody should have t
 Combining `-i` with a subcommand is refused rather than guessed at.
 
 Fields that do not exist yet are not printed. `nvs info` grows a configuration section when
-[ADR 0005](0005-config-changeability.md)'s `nvs.toml` lands in M6, an artifact-cache section with
+`rule:config/three-changeability-classes`'s `nvs.toml` lands in M6, an artifact-cache section with
 [ADR 0042](0042-on-disk-artifact-cache-format.md) in the same milestone, and a loaded-extension section
 with [ADR 0003](0003-extension-system.md) in M9. It reports no per-request state, ever — that is
 `rule:testing/debug-probes`'s territory and is

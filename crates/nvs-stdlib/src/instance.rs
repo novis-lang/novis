@@ -54,7 +54,7 @@
 //! instance made from it. A compiled unit's own [`ClassTable`] cannot own these
 //! — a `Core` class is not in any program's class list, and an instance can
 //! outlive the unit that produced it in a hot-reload swap
-//! ([ADR 0017](/docs/adr/0017-hot-reload-without-restart.md)). So
+//! (`rule:config/an-edit-reaches-the-next-request-without-a-restart`). So
 //! this module builds one table per thread, on first use, and **leaks** it.
 //!
 //! **What it spends:** one descriptor per `Core` instance class per core —

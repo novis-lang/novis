@@ -1,4 +1,4 @@
-//! ADR 0103 § 7: a secret arrives as a file whose content is the value.
+//! `rule:config/a-secret-is-a-file-whose-content-is-the-value`: a secret arrives as a file whose content is the value.
 //!
 //! Every case runs against an in-memory [`Files`] for the same reason `tests/resolve.rs` does, plus
 //! one of its own: § 7's refusals are about *content* — empty, whitespace-only, oversized, not
@@ -526,7 +526,7 @@ fn tree_structs() -> Vec<(String, Vec<String>)> {
     out
 }
 
-/// ADR 0103 § 7 marks *directives*, plural: a credential added to the typed tree with no
+/// `rule:config/a-secret-is-a-file-whose-content-is-the-value` marks *directives*, plural: a credential added to the typed tree with no
 /// [`SECRETS`] row is a `_file` sibling that silently does nothing, which is exactly how
 /// `[mail.<name>] password` came to have no file half for as long as it did.
 ///
@@ -552,7 +552,7 @@ fn every_credential_on_the_tree_has_a_file_sibling_and_a_secrets_row() {
             let sibling = format!("{credential}_file");
             assert!(
                 fields.contains(&sibling),
-                "`{name}` holds a `{credential}` and no `{sibling}`: ADR 0103 § 7 gives every \
+                "`{name}` holds a `{credential}` and no `{sibling}`: `rule:config/a-secret-is-a-file-whose-content-is-the-value` gives every \
                  credential a file half, and a deployment that injects secrets as files cannot \
                  reach this one at all",
             );

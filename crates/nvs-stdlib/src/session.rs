@@ -109,7 +109,7 @@
 //! oversight: a session record is a handful of keys beside the network round trip `start` has
 //! already spent, and the alternative — holding the decoded array on the context — would put an
 //! object at teardown that an
-//! [ADR 0017](/docs/adr/0017-hot-reload-without-restart.md) unit swap could strand,
+//! `rule:config/an-edit-reaches-the-next-request-without-a-restart` unit swap could strand,
 //! which is the whole reason that struct holds bytes.
 
 use std::time::Duration;

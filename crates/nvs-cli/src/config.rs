@@ -1,4 +1,4 @@
-//! `nvs config` — [ADR 0103] § 9's offline audit of the configuration tree, and
+//! `nvs config` — `rule:config/check-and-dump-audit-the-tree-offline`'s offline audit of the configuration tree, and
 //! the reader every caller in this binary resolves that tree through.
 //!
 //! § 9 puts `check` beside `dump` and `ctl config` for one stated reason: § 3's
@@ -28,7 +28,6 @@
 //! syntax, unknown keys, a duplicate key within one file, an include cycle, a
 //! missing include, and the precedence the tree flattens to.
 //!
-//! [ADR 0103]: ../../../docs/adr/0103-configuration-is-a-tree-of-files.md
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -39,7 +38,7 @@ use nvs_diagnostics::{Diagnostic, Diagnostics, SourceMap};
 use crate::render_diagnostics;
 
 /// The reader this binary resolves the configuration tree through: the real
-/// filesystem, with ADR 0103 § 6's **ownership check not applied**.
+/// filesystem, with `rule:config/ownership-is-the-trust-boundary`'s **ownership check not applied**.
 ///
 /// `nvs_config::resolve::Files` exists for exactly this split — its own doc
 /// says § 6's check belongs on the reader so that "a caller that has one and a
@@ -110,7 +109,7 @@ impl nvs_config::resolve::Files for LocalFiles {
 /// The working directory, as the diagnostic a caller reports when it cannot be
 /// read.
 ///
-/// Both entry points below need it — ADR 0103 § 5 resolves a `--config` against
+/// Both entry points below need it — `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in` resolves a `--config` against
 /// it and § 1 step 2 looks for `./nvs.toml` in it — and neither can proceed
 /// without it, so the failure is one shape rather than two.
 pub(crate) fn working_directory() -> Result<PathBuf, Diagnostic> {
@@ -122,8 +121,8 @@ pub(crate) fn working_directory() -> Result<PathBuf, Diagnostic> {
     })
 }
 
-/// The snapshot this run's request reads — ADR 0103 § 1's roots, § 3's ordered
-/// stream, ADR 0104 § 2's `[[app]]` fold for `entry`, and ADR 0078 § 1's
+/// The snapshot this run's request reads — `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`'s roots, § 3's ordered
+/// stream, `rule:config/every-matching-app-block-applies-least-specific-first`'s `[[app]]` fold for `entry`, and `rule:config/the-config-is-an-immutable-snapshot`'s
 /// immutable result.
 ///
 /// It replaces the hand-rolled one-key `nvs.toml` scanner that stood here for
@@ -163,7 +162,7 @@ pub(crate) fn boot_origins(
 > {
     let files = LocalFiles;
     let cwd = working_directory()?;
-    // ADR 0103 § 1: every `--config` in the order given, else `./nvs.toml`,
+    // `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`: every `--config` in the order given, else `./nvs.toml`,
     // else the shipped defaults. `roots` owns all three steps, so this call is
     // the whole of the CLI's part in choosing what is read.
     let roots = nvs_config::resolve::roots(config, &cwd, &files);
@@ -177,7 +176,7 @@ pub(crate) fn boot_origins(
 /// refusal at the door.
 ///
 /// The tree is resolved exactly as [`boot_snapshot`] resolves it for a run: § 1's
-/// roots in the same order, § 3's later-wins, and ADR 0104 § 2's `[[app]]` blocks
+/// roots in the same order, § 3's later-wins, and `rule:config/every-matching-app-block-applies-least-specific-first`'s `[[app]]` blocks
 /// folded for this entry file — so the answer `nvs check` gives is the one this
 /// deployment would give the same program. A tree that does not resolve is
 /// reported here and stops the check, because a capability question answered
@@ -220,7 +219,7 @@ pub(crate) fn grants(
 /// `nvs config check [<file>...]` — resolve the tree and report what it holds,
 /// exiting non-zero on any refusal.
 ///
-/// The paths are ADR 0103 § 1 step 1's root list given positionally: naming one
+/// The paths are `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 1's root list given positionally: naming one
 /// disables step 2 exactly as `--config` does, so an audit of `/etc/nvs` on a
 /// developer's machine never quietly merges the `./nvs.toml` beside the
 /// checkout. With none named, § 1's own search runs — step 2's `./nvs.toml`,
@@ -255,8 +254,8 @@ pub(crate) fn check(config: &[PathBuf], paths: &[PathBuf]) -> ExitCode {
         }
     };
 
-    // An advisory is printed in full and does not change the verdict — ADR 0103
-    // § 7 says so, and `Resolved::warnings`' own doc says a refusal is never
+    // An advisory is printed in full and does not change the verdict — `rule:config/a-secret-is-a-file-whose-content-is-the-value`
+    // says so, and `Resolved::warnings`' own doc says a refusal is never
     // here. The count on the summary line is so a green run still says one was
     // raised.
     if !resolved.warnings.is_empty() {
@@ -295,9 +294,9 @@ pub(crate) fn check(config: &[PathBuf], paths: &[PathBuf]) -> ExitCode {
 /// - **The dump is the merged table, not the typed configuration.** It is
 ///   therefore complete — a key no reader has a field for is still in force and
 ///   still printed — which is what an audit needs, and it is the same table
-///   [ADR 0104] § 2 layers `[[app]]` blocks over.
+///   `rule:config/every-matching-app-block-applies-least-specific-first` layers `[[app]]` blocks over.
 /// - **A secret is a row of its own, rendered `<secret>` and naming its file.**
-///   ADR 0103 § 7's value is read at boot and carried beside the table rather
+///   `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s value is read at boot and carried beside the table rather
 ///   than in it, so `db.main.password` is not a leaf of the merged table at all
 ///   — and § 9's listing would be missing a key that is in force if the dump
 ///   printed only what it walks. It is added back here, with the secret file in
@@ -313,7 +312,6 @@ pub(crate) fn check(config: &[PathBuf], paths: &[PathBuf]) -> ExitCode {
 ///   so the column is useful without it, and the line is a later slice rather
 ///   than a hole in this one.
 ///
-/// [ADR 0104]: ../../../docs/adr/0104-an-application-is-an-entry-file-path.md
 /// [`Origin`]: nvs_config::resolve::Origin
 pub(crate) fn dump(config: &[PathBuf], paths: &[PathBuf], origin: bool, as_toml: bool) -> ExitCode {
     let files = LocalFiles;
@@ -390,7 +388,7 @@ pub(crate) fn dump(config: &[PathBuf], paths: &[PathBuf], origin: bool, as_toml:
     ExitCode::SUCCESS
 }
 
-/// What ADR 0103 § 9 renders a secret's value as. Never the content, and never
+/// What `rule:config/check-and-dump-audit-the-tree-offline` renders a secret's value as. Never the content, and never
 /// a fixed-width mask that would say how long it is.
 const REDACTED: &str = "<secret>";
 
@@ -433,10 +431,9 @@ fn leaves(table: &toml::Table) -> Vec<(String, String)> {
 /// An array of tables descends by index, so the second `[[app]]` block's `root`
 /// is `app.1.root`: the same spelling `Resolved::origins` uses, which is what
 /// lets the origin column be a lookup rather than a second walk. An array of
-/// scalars is a leaf, because [ADR 0103] § 4 makes a value array *replace* —
+/// scalars is a leaf, because `rule:config/a-value-array-replaces-and-a-table-appends` makes a value array *replace* —
 /// there is no per-element origin to report.
 ///
-/// [ADR 0103]: ../../../docs/adr/0103-configuration-is-a-tree-of-files.md
 fn flatten(out: &mut Vec<(String, String)>, prefix: String, value: &toml::Value) {
     let joined = |key: &str| {
         if prefix.is_empty() {
@@ -463,7 +460,7 @@ fn flatten(out: &mut Vec<(String, String)>, prefix: String, value: &toml::Value)
 /// The root list an audit reads: every `--config` in the order given, then
 /// every file named positionally.
 ///
-/// Two spellings for one of ADR 0103 § 1's steps, because the audit and the
+/// Two spellings for one of `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`'s steps, because the audit and the
 /// runtime are asking about the same files from different directions. `--config`
 /// is the runtime's, so `nvs config check --config /etc/nvs/nvs.toml` audits
 /// exactly the argv the server will be given — § 9's own example is that
@@ -483,7 +480,7 @@ fn plural(count: usize) -> &'static str {
 mod tests {
     use super::leaves;
 
-    /// The two array shapes ADR 0103 § 4 distinguishes, flattened the way
+    /// The two array shapes `rule:config/a-value-array-replaces-and-a-table-appends` distinguishes, flattened the way
     /// `Resolved::origins` spells them: an array of tables descends by index so
     /// its leaves can be looked up there, and an array of scalars is one leaf
     /// because a value array replaces whole and has no per-element origin.

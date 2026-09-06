@@ -10,7 +10,7 @@
 //! **The environment is in the address, not only in the header.** An artifact built for another
 //! target, another CPU-feature set, another compiler build or another `[[extension]]` set is a path
 //! this process never looks up, so it costs one failed `open` rather than an open-then-reject
-//! ([ADR 0078] § 4 owns the digest; this module only carries it).
+//! (`rule:config/the-extension-set-is-in-every-unit-key` owns the digest; this module only carries it).
 //!
 //! # § 2's header
 //!
@@ -107,7 +107,7 @@
 //! # § 5's directory check
 //!
 //! [`Cache::new`] refuses a cache directory another local account can write, once, before anything
-//! is read out of it, through [`nvs_config::trust`] — [ADR 0103] § 6's boundary, and the one
+//! is read out of it, through [`nvs_config::trust`] — `rule:config/ownership-is-the-trust-boundary`'s boundary, and the one
 //! implementation of it. § 5 says why no checksum can stand in for this: a principal who can write
 //! the directory computes a perfectly valid header over payload bytes of their own choosing, so a
 //! checksum answers "is this the file I wrote" and never "should I trust whoever wrote it".
@@ -120,7 +120,7 @@
 //! Two details § 5 leaves here. A directory that does not exist yet is checked at the nearest
 //! ancestor that does ([`existing_root`]), because that is the shallowest directory an attacker
 //! would have to write in order to fill the slot the first [`store`](Cache::store) will create —
-//! [ADR 0103] § 6's own answer for an absent `optional` include. And the configured spelling is
+//! `rule:config/ownership-is-the-trust-boundary`'s own answer for an absent `optional` include. And the configured spelling is
 //! kept rather than the canonical path the check hands back: there is no path *comparison* here to
 //! protect, unlike the config tree's cycle test, and an absent directory has no canonical spelling
 //! at all, so one rule covers both.
@@ -128,7 +128,7 @@
 //! A refusal is the caller's to report, and it is a refusal to start naming the path rather than a
 //! silent fall back to compiling every time. § 3's "invisible to the script" discipline is about a
 //! bad *entry*; a cache directory anyone can write is a breach of the boundary itself, and
-//! [ADR 0103] § 6 answers that the same way wherever it appears.
+//! `rule:config/ownership-is-the-trust-boundary` answers that the same way wherever it appears.
 //!
 //! # § 6's eviction
 //!
@@ -154,7 +154,7 @@
 //! *above* its compile, because both halves of the key are configuration — that ordering is the
 //! wiring, and [`from_config`] is the only place it is read.
 //!
-//! **[ADR 0078] § 4's `env_hash` says "the compiler build" and spells it as the package version**,
+//! **`rule:config/the-extension-set-is-in-every-unit-key`'s `env_hash` says "the compiler build" and spells it as the package version**,
 //! which does not distinguish two builds of an unreleased tree. [`default_dir`] compensates by
 //! keying its directory on the running executable; a *configured* `opcache.file_cache_dir` does
 //! not, so a development tree that writes one shares artifacts across rebuilds. The fix belongs to
@@ -177,7 +177,6 @@
 //! cache rather than out of it, so there is no already-produced payload for the cache to ship over.
 //!
 //! [ADR 0042]: ../../../docs/adr/0042-on-disk-artifact-cache-format.md
-//! [ADR 0078]: ../../../docs/adr/0078-config-reload-and-control-socket.md
 
 // Every compile site calls `unit_for` and `from_config`, and nothing outside this module calls
 // anything else here. What is left over is the vocabulary § 3's own steps are stated in —
@@ -225,9 +224,8 @@ pub(crate) const EXTENSION: &str = "nvsc";
 pub(crate) struct Header {
     /// § 2's `format_version`, as written. A reader compares it to [`FORMAT_VERSION`].
     pub(crate) format_version: u16,
-    /// [ADR 0078] § 4's environment digest, repeated from the path as defence in depth.
+    /// `rule:config/the-extension-set-is-in-every-unit-key`'s environment digest, repeated from the path as defence in depth.
     ///
-    /// [ADR 0078]: ../../../docs/adr/0078-config-reload-and-control-socket.md
     pub(crate) env_hash: [u8; 32],
     /// The payload's length in bytes, so a truncated file is caught before its checksum is.
     pub(crate) payload_len: u64,
@@ -931,7 +929,7 @@ impl Default for Eviction {
 ///
 /// § 5's check runs once at process start, and the cache directory is usually created by the first
 /// [`store`](Cache::store) rather than by an operator, so at that moment there is often nothing to
-/// examine. [ADR 0103] § 6 answers the same question for an absent `optional` include and this
+/// examine. `rule:config/ownership-is-the-trust-boundary` answers the same question for an absent `optional` include and this
 /// takes its answer whole: the check falls on the directory that would hold the thing, and walks up
 /// while that one does not exist either, because the promise is only as strong as the shallowest
 /// directory an attacker would have to write in order to keep it.
@@ -1351,14 +1349,14 @@ pub(crate) fn from_config(config: &nvs_config::Config) -> Option<Cache> {
 /// reason § 7 gives.
 ///
 /// **`<build>` is this executable's own identity, and it is here because `env_hash`'s is coarser
-/// than a key needs.** ADR 0078 § 4 folds "the compiler build" into every key and spells it as the
+/// than a key needs.** `rule:config/the-extension-set-is-in-every-unit-key` folds "the compiler build" into every key and spells it as the
 /// package version, which distinguishes two releases but not two builds of an unreleased tree —
 /// so a rebuilt compiler would otherwise address the artifacts its predecessor emitted, and a
 /// change to codegen or to a runtime helper's behaviour would be answered out of the cache. The
 /// header cannot catch that: such a payload really is this version's, and its checksum is
 /// correct. Keying the *directory* on the binary makes a rebuild a cold cache instead, which is
 /// the same answer § 4's `env_hash` gives for a new machine, and it costs one `metadata` call per
-/// run. When ADR 0078 § 4 distinguishes builds, this becomes redundant rather than wrong.
+/// run. When `rule:config/the-extension-set-is-in-every-unit-key` distinguishes builds, this becomes redundant rather than wrong.
 fn default_dir() -> Option<PathBuf> {
     #[cfg(windows)]
     let root = std::env::var_os("LOCALAPPDATA").map(PathBuf::from);
@@ -1604,7 +1602,7 @@ mod tests {
         drop(fs::remove_dir_all(&dir));
     }
 
-    /// ADR 0042 § 5, which is ADR 0103 § 6 applied to `[cache] dir`: a directory another local
+    /// ADR 0042 § 5, which is `rule:config/ownership-is-the-trust-boundary` applied to `[cache] dir`: a directory another local
     /// account can write is refused once, at construction, rather than entry by entry — that
     /// principal can compute a valid header and checksum over bytes of their own choosing, so
     /// there is nothing per entry that could catch them.

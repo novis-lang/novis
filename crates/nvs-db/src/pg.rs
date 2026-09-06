@@ -180,7 +180,7 @@ pub struct PgTarget<'a> {
     /// [ADR 0067 § 3](/docs/adr/0067-core-db.md) has no spelling for
     /// turning verification off and this is not one: what it changes is *whose*
     /// certificates are believed, never whether they are checked. The path
-    /// arrives absolute and already inside ADR 0103 § 6's trust boundary —
+    /// arrives absolute and already inside `rule:config/ownership-is-the-trust-boundary`'s trust boundary —
     /// `nvs_config::db` resolves it at boot — so the connect path opens it and
     /// asks nothing further about it.
     pub tls_ca_file: Option<&'a Path>,

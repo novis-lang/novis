@@ -49,7 +49,7 @@
   this: a file is read only when a name in it is referenced, and nothing references `ADB\Module`.
 - **Where the map lives is a real constraint, not a detail.** A config file under a document root is
   web-reachable; a walk-up search finds the wrong root when many project trees share one framework
-  directory; an `nvs.toml` directive ([ADR 0005](0005-config-changeability.md)) is deployment state, absent
+  directory; an `nvs.toml` directive (`rule:config/three-changeability-classes`) is deployment state, absent
   from `nvs build --compile`, and invisible to an editor running `nvs check`.
 
 ## Decision
@@ -184,7 +184,7 @@ the failure later, against the direction `rule:classes/definite-property-initial
   [ADR 0042](0042-on-disk-artifact-cache-format.md)'s key misses on its own. The exception is **shadowing**:
   adding `src/Thing.nvs` when `App\Thing` currently resolves to `vendor/compat/Thing.nvs` changes the answer
   with no existing file touched. So a unit records the ordered list of paths it probed **including the
-  misses**; a negative entry is an ordinary `PathEntry` in [ADR 0017](0017-hot-reload-without-restart.md)'s
+  misses**; a negative entry is an ordinary `PathEntry` in `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s
   table, and the trace folds into ADR 0042's key exactly the way `target_triple` does.
 - **A discovery query makes a unit depend on directory contents.** Adding a module that nothing references
   must change the generated list. So every directory listed during the scan — not just the roots, since
@@ -192,7 +192,7 @@ the failure later, against the direction `rule:classes/definite-property-initial
   discovered names hashes into the cache key, so a listing that changes without changing the discovered set
   recompiles nothing.
 - **No new directive.** Both ride `opcache.validate` and `revalidate_freq`, `System`-class per
-  [ADR 0017](0017-hot-reload-without-restart.md) — bounded at `N ⁄ revalidate_freq` stats per window for N
+  `rule:config/an-edit-reaches-the-next-request-without-a-restart` — bounded at `N ⁄ revalidate_freq` stats per window for N
   listed directories (tens, not thousands), and exactly zero under `validate = never`, which is what a
   production deployment runs. For `nvs build --compile` and the wasm target the question does not arise:
   resolution happens once, at build time.
@@ -219,7 +219,7 @@ content hash, hence the id just folded. So this is `Core\Program`'s first and on
 host computes the id once, where the resolved graph and the environment digest are both in hand, writes it
 onto the context before any Novis code runs, and the member reads that string back.
 
-**Computed at program resolution and at [ADR 0017](0017-hot-reload-without-restart.md)'s pointer swap,
+**Computed at program resolution and at `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s pointer swap,
 never per call and never lazily.** A lazy first-call compute would put a hash of every unit digest on one
 unlucky request's path, and a per-call one on all of them; the swap is the only other moment the answer
 changes, because it is the only moment a running host's set of units does. What this spends is 32 bytes per
@@ -286,7 +286,7 @@ answer at all.
   needs a file format, a discovery rule, an `extends` key, and path anchors to express "relative to the
   framework" and "relative to the project" — all of which a declaration in the framework's own bootstrap
   file gets for free. This rejection is about **discovery and lifetime, not syntax**, and it is untouched by
-  [ADR 0064](0064-configuration-file-format.md) naming the root-owned server configuration `nvs.toml`: that
+  `rule:config/the-file-is-nvs-toml-and-it-is-toml` naming the root-owned server configuration `nvs.toml`: that
   file sits at a path the operator hands the host, is never searched for by walking up from a source file,
   never lands in or beside a document root, and still may not carry an `[autoload]` table, for the reason in
   the next bullet.
@@ -336,7 +336,7 @@ answer at all.
   under an earlier root changes the resolved path.
 - **M6** ([ADR 0042](0042-on-disk-artifact-cache-format.md)) — the probe trace, including misses, folds into
   the cache key; a test asserts that adding a shadowing file misses the cache with no source file modified.
-- **M7** ([ADR 0017](0017-hot-reload-without-restart.md)) — directory listings join the revalidation set; a
+- **M7** (`rule:config/an-edit-reaches-the-next-request-without-a-restart`) — directory listings join the revalidation set; a
   test asserts a new module file is picked up without a restart, that a listing change not affecting the
   discovered set recompiles nothing, and that `validate = never` performs no directory stats at all. The
   same revalidated listings are what re-expand a [0097](0097-development-server-and-proxied-origin.md) § 3

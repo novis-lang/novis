@@ -319,7 +319,7 @@ kind of judgment call this ADR does not want resting on tier 4's one shot.
   panic-specific application-level alerting badly enough to accept running code atop uncertain runtime
   state — tier 3/4 already log every panic regardless, so reopening this is about whether tier 1/2 ever see
   one, not about whether it is reported at all.
-- **How the tier-3 handler script's compiled unit interacts with hot-reload** ([ADR 0017](0017-hot-reload-without-restart.md))
+- **How the tier-3 handler script's compiled unit interacts with hot-reload** (`rule:config/an-edit-reaches-the-next-request-without-a-restart`)
   — pinned at boot, or revalidated like any other path — is an M8 mechanism question this ADR flags but does
   not resolve.
 

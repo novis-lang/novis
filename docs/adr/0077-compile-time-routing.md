@@ -357,7 +357,7 @@ without one gets no `route` label rather than a cardinality bomb.
 - **Route groups, middleware attachment, or a per-route rate limit** in the attribute. Rejected in § 4: each
   is a dispatch opinion, and this table has no dispatch to attach them to.
 - **A route table in `nvs.toml`.** Rejected on lifetime, the same way
-  [ADR 0073](0073-scheduled-work-is-config.md) accepted it for schedules and this rejects it for routes: a
+  `rule:config/scheduled-work-is-a-config-block` accepted it for schedules and this rejects it for routes: a
   schedule is deployment state and a URL is source state — the code that handles a path and the path itself
   change together, in the same commit.
 - **Building the table from an inert `Core\Ast` walk at runtime**

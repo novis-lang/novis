@@ -1011,7 +1011,7 @@ is why" — is this file.
   does not show this, because the list is checked before the plan is.
 - **The handoff's own next-group item can contradict a settled ADR, and the ADR still wins — the same
   rule the `loop-goal.toml` bullet above states, arriving through the other artifact.** An item read
-  "the unknown-key refusal is a new `E06xx` (next free E0605) naming the block", and ADR 0064 § 3 says
+  "the unknown-key refusal is a new `E06xx` (next free E0605) naming the block", and `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one` says
   in as many words that an unknown key is refused "with the existing `E0601`/`E_BAD_DIRECTIVE`
   diagnostic naming the line". Both artifacts are written by a session; only one of them is a
   decision. Claiming E0605 for it would have put two codes on one refusal and left `file.rs`'s
@@ -1021,7 +1021,7 @@ is why" — is this file.
   nearest header and adds it as a note. The general shape — an item that asks for a new number is
   asking a question the ADR has usually already answered, and one `peek.py <adr>:"## 3"` settles it.
 - **A `Files`-style trait in a crate is the seam a new filesystem question goes through, and its
-  test fakes are where the question actually gets asked.** ADR 0104 § 1 needs a canonical path
+  test fakes are where the question actually gets asked.** `rule:config/an-application-is-its-entry-file-path` needs a canonical path
   *without* § 6's trust check, so `nvs_config::resolve::Files` gained `canonical` beside `trust`
   and `Disk` routes both to `trust.rs`. The cost that is easy to miss: the two existing fakes in
   `crates/nvs-config/tests/resolve.rs` and `crates/nvs-config/tests/secret.rs` stop compiling until
@@ -2019,7 +2019,7 @@ is why" — is this file.
 - **A `[context] adrs` entry of `§3a` printed § 3, silently, and the pack looked complete.**
   `orient.py`'s `normalize` split a leading number off its letter, so `3a` became the key `3 a` —
   and *`### 3. A mode selects defaults ...`* normalizes to `3 a mode selects ...`, which starts
-  with it. ADR 0091's § 3a was in the manifest the whole time and no session had ever seen it; the
+  with it. `rule:config/two-modes-and-the-default-is-production`'s § 3a was in the manifest the whole time and no session had ever seen it; the
   same regex is in `peek.py`'s `heading_span`, so `peek.py <adr>:"### 3a"` gave the wrong section
   too and confirmed nothing. Both now read `^(\d+[a-z]?)`. The general shape: a section slice that
   comes back plausible is not evidence the selector matched — check the heading line the slicer
@@ -2104,7 +2104,7 @@ is why" — is this file.
   neighbouring bullet says to fix the manifest in the session that finds the gap; this one says what
   to write — one entry per section (`"0042 §2"`, `"0042 §3"`) *beside* the bare number, never the
   bare number alone. The same field's other failure is loud rather than silent and had stood just as
-  long: `"0017 §2"` warned *renamed or renumbered* in every pack, because ADR 0017 has no numbered
+  long: `"0017 §2"` warned *renamed or renumbered* in every pack, because `rule:config/an-edit-reaches-the-next-request-without-a-restart` has no numbered
   sections at all — its `## Decision` is one unnumbered block, so no `§` selector could ever match it.
 - **A `## Next group` anchor is a line number, and the session that wrote it usually went on editing
   that same file.** This goal's item named `crates/nvs-cli/src/cache.rs:1141` for `unit_for` and
@@ -2211,7 +2211,7 @@ is why" — is this file.
   `brief.py` fill a plan field at width 100, so a change *anywhere earlier in the field* reflows
   every line after it and the wrap lands wherever it lands. `migrate-docs.py`'s loss test read a
   pack a line at a time; one 31-character replacement in `Open now` moved the wrap into the single
-  space of `ADR 0078`, leaving `**ADR` ending one line and `0078's endpoint lands**` opening the
+  space of ``rule:config/the-config-is-an-immutable-snapshot``, leaving `**ADR` ending one line and `0078's endpoint lands**` opening the
   next, and all twenty goals reported losing a record that no unit had touched and whose text was
   still there in full. It cost five rollbacks of a clean unit. The regex already spanned the break;
   only the loop stopped it. **Scan the whole text and let the pattern's own `\s+` decide** — the
@@ -2553,7 +2553,7 @@ is why" — is this file.
   ends. A leak stack whose top frame is an object allocation is the shape to suspect — grep the `.nvs`
   for a cycle before opening the Rust.
 - **A checkout on a non-system Windows drive grants `Authenticated Users` modify, so this repository's own
-  `nvs.toml` fails ADR 0103 § 6.** The check is right and the drive is what is unusual: such a drive's root
+  `nvs.toml` fails `rule:config/ownership-is-the-trust-boundary`.** The check is right and the drive is what is unusual: such a drive's root
   carries that ACE by default and everything under it inherits it, which is the hole § 6 closes. Nothing reads
   the tree through `Files::trust` yet — no crate depends on `nvs-config` — so nothing refuses today, but
   the session that wires the snapshot into `nvs run` will find every run in this checkout stopped by
@@ -4517,7 +4517,7 @@ is why" — is this file.
   `examples/` in the same call as `crates/`, and remember the message text is pinned in two places: the
   `Fault` in the crate and the `--EXPECT--` of the case that catches it.
 - **A relative path in an *included* configuration file resolves against that file's own directory**
-  (ADR 0103 § 5), and an `[[app]] root` is the one where it does not look like a path at all. A case
+  (`rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`), and an `[[app]] root` is the one where it does not look like a path at all. A case
   writing `root = "srv/www/shop"` into `conf.d/shop.toml` is keyed on `conf.d/srv/www/shop`, and the
   refusal it gets is `E0605 cannot read` — which reads as a broken fixture rather than as § 5 doing
   exactly what it says. Write the `..` the operator would have to write.
@@ -4525,8 +4525,7 @@ is why" — is this file.
   fails the whole case before the program starts.** The bullet above is still true about *where* it
   is mounted; what changed is who parses it. Three router-origin cases had been written against the
   line scanner that preceded `boot_snapshot` and held `[[app]]` blocks with no `root` or `entry`, a
-  root-level `origin`, an `[server] origin` and an `[app.dev]` sub-table — every one of which ADR
-  0064 § 3's typed tree refuses outright. The failure is `E0601`/`E0609` on stderr and an *empty*
+  root-level `origin`, an `[server] origin` and an `[app.dev]` sub-table — every one of which `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`'s typed tree refuses outright. The failure is `E0601`/`E0609` on stderr and an *empty*
   stdout, so it reads as the program having produced nothing rather than as a fixture problem. Two
   further rules a fixture has to keep: every `[[app]]` needs `root` or `entry` (§ 1 keys a block on
   an entry file path), and two blocks may not carry the same key (§ 2 has no order between them, so
@@ -4542,7 +4541,7 @@ is why" — is this file.
   canonicalizer's *answer*. `crates/nvs-stdlib/tests/capability.rs`'s `Fake` is the shape; six of
   its methods are `unreachable!()` with a sentence saying why that call would be a bug.
 - **A `.nvst` case can carry its own `nvs.toml`, and once a capability guards a construct it has
-  to.** ADR 0103 § 1 step 2 finds the configuration at `./nvs.toml` in the working directory, and
+  to.** `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 2 finds the configuration at `./nvs.toml` in the working directory, and
   the multi-file form writes files into the case's own directory — so `--FILE nvs.toml--` with
   `[capabilities.script] spawn = true` is how a case that spawns keeps working under `rule:security/capability-check-at-the-door`'s
   deny-by-default. Putting the check inside `nvs_runtime::script::resolve` broke four cases at once
@@ -4876,7 +4875,7 @@ is why" — is this file.
   paths are assertable from the conformance suite — and they have to be.** `crates/nvs-test`'s
   `--FILE <relative/path>--` section puts any file beside the case's own program, and
   `tests/conformance/cap/an-ungranted-capability-throws-naming-it.nvst` already uses it to grant a
-  *different* capability; ADR 0103 § 1 step 2 then reads `./nvs.toml` out of that directory. Without
+  *different* capability; `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 2 then reads `./nvs.toml` out of that directory. Without
   knowing this, every throw a member can only reach after `capability::require` has passed reads as
   unassertable, and the obvious repairs are both wrong: `OWED_A_CASE` in
   `crates/nvs-stdlib/tests/conformance_coverage.rs` is empty and documented as shrink-only, and a
@@ -4996,7 +4995,7 @@ is why" — is this file.
   crate at two, so a member landed with a single case is a red build with the work already done —
   budget the cases with the member rather than after it. The other half of the same surprise is
   that a case *can* reach a capability-bearing member for real: `--FILE nvs.toml--` writes a config
-  beside `case.nvs` and ADR 0103 § 1 step 2 resolves it out of the case's own working directory, so
+  beside `case.nvs` and `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 2 resolves it out of the case's own working directory, so
   `[capabilities.fs]` with `read = ["."]` grants the run. `tests/conformance/core/io-*.nvst` is the
   worked shape, and without it every case for such a member is another spelling of "refused", which
   is the one thing the floor is designed to reject.
@@ -5917,7 +5916,7 @@ is why" — is this file.
   `Compiler` is the tree's only in-memory unit table, looks like the whole repair and is not: that cache
   compiles once per written path and never revalidates, so a test of "an open connection keeps its unit
   across an edit" passes by pinning the rule's *absence*. What said so in one call was
-  `grep -rn UnitKey crates/` — ADR 0017's `{ path, content_hash, env_hash }` key is `pub` in
+  `grep -rn UnitKey crates/` — `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s `{ path, content_hash, env_hash }` key is `pub` in
   `nvs-config` with callers in that crate's own tests and nowhere else, and `[opcache] validate` /
   `revalidate_freq` deserialize in `nvs_config::tree` with nothing reading them. The general shape: a
   decided-but-unlanded mechanism leaves exactly that fingerprint — the ADR's types and directives
@@ -5925,7 +5924,7 @@ is why" — is this file.
   whose doc may state the missing behaviour as settled policy rather than as a gap. This one did.
 - **Every name in a `cargo-named` check has to *run* on the platform the driver runs `cargo` on,
   so the `#[cfg(unix)]` that a permission claim naturally wants is the one shape that fails the
-  check forever.** ADR 0078 § 3's `the_control_socket_is_created_0600` and
+  check forever.** `rule:config/one-local-control-socket`'s `the_control_socket_is_created_0600` and
   `a_world_writable_socket_directory_refuses_the_socket` are both about mode bits, and
   `crates/nvs-config/tests/trust.rs` — the nearest landed precedent, and the file you would copy —
   puts exactly those two shapes under `#[cfg(unix)]` with a module doc explaining that only the
@@ -5950,7 +5949,7 @@ is why" — is this file.
   TaskRoot::Request, |ctx| …)` with the isolate run inside the task, then
   `nvs_host::reactor::install(Reactor::new()?)`, then `run_until_idle`. `script.rs`'s `run_serving`
   is the twenty-line shape. Worth the bullet because a re-entrant resolve is the only way to
-  assert anything about the unit cache *while a program is running*, which is what ADR 0017's
+  assert anything about the unit cache *while a program is running*, which is what `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s
   "never blocks a request-serving core" is a claim about.
 - **Two things bite a `.nvst` case that pins a *rendering*, and both report as an error about the
   case rather than about the member.** First, `Core\Debug::render` answers `Core\Cli\Text` and not
@@ -6890,12 +6889,12 @@ sibling in the same namespace unqualified.
   `every_registered_member_has_an_implementation_address`' arithmetic, which is the same sum
   written out a second time and fails the moment the roster grows.
 - **The handoff proposes; the ADR decides — and `nvs.toml`'s location is the worked case.** The handoff
-  scoped `[app] origin` as "read `nvs.toml` beside the entry file", which ADR 0103 § 1 step 2 forbids
+  scoped `[app] origin` as "read `nvs.toml` beside the entry file", which `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 2 forbids
   outright: the root of the configuration tree is `./nvs.toml` in the **working directory**, exactly one
   directory and never a walk upward, with `--config` as the only other source. Following the handoff
   would have put the fixture in `examples/` where no `nvs run` from the repository root would ever read
   it. A handoff bullet is the previous session's *plan*, written before it read the ADR the slice lands
-  inside; when the two disagree the ADR body wins and the handoff is the bug. ADR 0104 is the one to
+  inside; when the two disagree the ADR body wins and the handoff is the bug. `rule:config/an-application-is-its-entry-file-path` is the one to
   read next here — it makes `[[app]]` an array of tables keyed on `root`/`entry`, which `rule:routing/an-absolute-link-takes-a-configured-origin`'s
   plain `[app] origin` does not know about yet.
 - **A refusal over a *derived* fact fires on declarations that were already refused for something
@@ -7155,7 +7154,7 @@ sibling in the same namespace unqualified.
   configuration snapshot is the one that bites.** ADR 0048's bundled executable resolves its entry
   and its whole `require` graph out of an appended payload, so the path handed to `nvs run` is
   synthetic — and `nvs_config::Snapshot::build` canonicalizes that same path through
-  `trust::canonical` to key ADR 0104's `[[app]]` blocks, which refused the run with `E0605` long
+  `trust::canonical` to key `rule:config/an-application-is-its-entry-file-path`'s `[[app]]` blocks, which refused the run with `E0605` long
   after the program had compiled cleanly. The fix is not to widen `trust::canonical`: a bundle is
   `rule:programs/bundle-trust-domain`'s single trust domain, and the only path an `[[app]]` block could legitimately key
   on there is the executable itself, which `run_run` now substitutes. Before changing a byte
@@ -8296,7 +8295,7 @@ sibling in the same namespace unqualified.
   absence has no compiler behind it, so when triaging a check that has never passed, re-ask the
   absence the code asserts rather than reading its doc — one `grep -n` of the block name in
   `tree.rs` settled this one, and it changed the triage's answer.
-- **`jiff`'s disambiguation does not spell ADR 0073 § 6's spring-forward rule, and the nearest option
+- **`jiff`'s disambiguation does not spell `rule:config/a-missed-fire-is-skipped-and-a-dst-edge-fires-once`'s spring-forward rule, and the nearest option
   is wrong by half an hour.** `AmbiguousZoned::compatible()` shifts a civil time inside a gap
   *forward by the gap's length* — `02:30` becomes `03:30` — and `earlier()` shifts it back to before
   the gap; § 6 says the fire is "the first valid instant after the gap", which is the transition
@@ -8320,7 +8319,7 @@ sibling in the same namespace unqualified.
   afterwards.
 - **`nvs_host::sleep` re-arms past a wake on purpose, so a loop that has to return when a *peer*
   changes state needs `nvs_host::timer::wait_until` — which is not in the crate's re-export list and
-  therefore does not turn up beside `sleep` where you look for it.** ADR 0073 § 6's `queue` holds one
+  therefore does not turn up beside `sleep` where you look for it.** `rule:config/a-missed-fire-is-skipped-and-a-dst-edge-fires-once`'s `queue` holds one
   fire until the run before it ends, and the tick was sleeping to the next interval: the `Ran` guard's
   `parent.wake()` was delivered and swallowed, because `park_until` loops until its deadline for the
   caller that asked for an instant. `crates/nvs-host/src/timer.rs`'s own docs state the split in one
@@ -8492,7 +8491,7 @@ sibling in the same namespace unqualified.
   writes `[capabilities.db] open = ["127.0.0.1"]` into the case directory and expects the *runtime*
   refusal its program catches — `rule:security/denial-is-a-runtime-error`'s denial the program is still running underneath.
   `crates/nvs-test/src/run.rs`'s module doc is why: every case spawns the real binary with the case
-  directory as its working directory, so ADR 0103 § 1 step 2 finds that file exactly as a user's
+  directory as its working directory, so `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 2 finds that file exactly as a user's
   would. The general shape: hoisting a runtime refusal to compile time is a language change wherever
   the runtime one is catchable, and the corpus is where that gets noticed.
 - **A `Core\Db` statement member is declared *twice*, under one symbol, and changing its arity
@@ -9303,7 +9302,7 @@ every session. Nothing below was reworded on the way.
   anything walking control flow out of the disassembly wants a `target_arch` gate rather than a wider
   match — `path_calls` has one. macos-aarch64 is in the test matrix, so this is not hypothetical.
 - **`std::env::temp_dir()` in a test whose path reaches `nvs_config::trust::check` is refused on Unix.**
-  `/tmp` is mode 1777, ADR 0103 § 6 refuses a group- or world-writable directory, and the check runs on
+  `/tmp` is mode 1777, `rule:config/ownership-is-the-trust-boundary` refuses a group- or world-writable directory, and the check runs on
   the directory it is handed *and* on that directory's parent — so a scratch directory of your own with
   perfectly tight bits is still refused, for the `/tmp` above it. The refusal is the product working, not
   a rule to relax, and the tell is a `Breach` naming a mode you did not set. Scratch beside the test

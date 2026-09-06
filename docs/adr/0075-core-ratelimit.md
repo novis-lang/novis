@@ -255,7 +255,7 @@ implementation of somebody else's specification, and it is a few dozen lines wit
   does by the time M8 closes, the naming argument can be preserved by keeping `consume`'s name and dropping
   `shed` until it has a caller.
 - **A second shared backend** would make the store this reads a question rather than an answer, the same way
-  it would for [ADR 0073](0073-scheduled-work-is-config.md)'s lease.
+  it would for `rule:config/scheduled-work-is-a-config-block`'s lease.
 
 ## Verification
 

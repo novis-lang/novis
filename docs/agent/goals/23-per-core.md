@@ -51,7 +51,7 @@ core, and M7's acceptance is that 10k concurrent cold requests compile it **exac
    states the current shape — "a `RefCell` reached from" one core, sound because "nothing can observe
    this cache while a compile is running". That argument is what a second core breaks. The unit behind
    it is immutable, so it is sound to share; what needs a publisher is the *swap*.
-2. **One publisher for [ADR 0017](../../adr/0017-hot-reload-without-restart.md)'s revalidate-and-swap.**
+2. **One publisher for `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s revalidate-and-swap.**
    A revalidation that wins publishes a new `Arc`; every core reads through the old one until it does,
    and a reader never blocks on a compile. ADR 0017 § 3a's `validate` pick, its one-window-is-one-check
    rule and its "a fresher revalidation has not won" ordering are unchanged in meaning and re-stated
@@ -109,7 +109,7 @@ core, and M7's acceptance is that 10k concurrent cold requests compile it **exac
   state; a compiled unit is immutable program text, which is the same exception `rule:security/isolate-shares-nothing` already
   makes when it says an isolate "shares immutable compiled code".
 - **This goal may open one ADR number** for the per-core accept and the shared unit cache, and no
-  second. Every other question it meets is a folded edit to ADR 0097's or ADR 0017's body.
+  second. Every other question it meets is a folded edit to ADR 0097's or `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s body.
 - **A core count is bounded by configuration, never by a heuristic.** `[server] workers` defaults to
   the available parallelism and is the last word when written; there is no "auto" spelling that means
   something other than the default.

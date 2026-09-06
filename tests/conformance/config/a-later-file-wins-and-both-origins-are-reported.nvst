@@ -1,16 +1,16 @@
 --TEST--
-a key set in two files of the configuration tree resolves to the later one, and the override is listed with both origins — ADR 0103 §§ 3, 9
+a key set in two files of the configuration tree resolves to the later one, and the override is listed with both origins — `rule:config/later-wins-and-every-override-is-recorded` and `rule:config/check-and-dump-audit-the-tree-offline`
 --RUN--
 config dump --origin
 --FILE--
 <?nvs
-// Not run: `--RUN--` names ADR 0103 § 9's audit, which reads the tree out of
+// Not run: `--RUN--` names `rule:config/check-and-dump-audit-the-tree-offline`'s audit, which reads the tree out of
 // this directory rather than a program off argv. This file is the program the
 // tree would govern, and the runner writes it beside `nvs.toml` so the case
 // describes a whole deployment.
 echo Core\Config::get('log.level'), "\n";
 --FILE nvs.toml--
-# The root file, ADR 0103 § 1 step 2's `./nvs.toml`. It sets `log.level` and
+# The root file, `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 2's `./nvs.toml`. It sets `log.level` and
 # then pulls in the file that overrides it, which is § 3's base-plus-local
 # shape: the include line sits at the point the operator wants overridden.
 [log]

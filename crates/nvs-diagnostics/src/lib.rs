@@ -1249,22 +1249,22 @@ pub mod code {
     pub const E_CAPABILITY_DENIED: Code = Code::new("E0602");
     /// A per-request limit was exceeded.
     pub const E_LIMIT_EXCEEDED: Code = Code::new("E0603");
-    /// The same directive set twice in one configuration file. ADR 0064 § 3 refuses
+    /// The same directive set twice in one configuration file. `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one` refuses
     /// it so that no assignment in a root-owned file is ever silently shadowed;
-    /// across an `[[include]]` the same key is an override instead (ADR 0103 § 3).
+    /// across an `[[include]]` the same key is an override instead (`rule:config/later-wins-and-every-override-is-recorded`).
     pub const E_DUPLICATE_DIRECTIVE: Code = Code::new("E0604");
     /// A file the configuration tree names cannot be read: a `--config` that does
     /// not exist, a non-`optional` `[[include]]` that does not, or an I/O failure
-    /// on one that does. ADR 0103 § 6 makes every one of these a hard refusal —
+    /// on one that does. `rule:config/ownership-is-the-trust-boundary` makes every one of these a hard refusal —
     /// `optional` covers absence and nothing else, because otherwise a stray
     /// `chmod` silently drops half a configuration and the server comes up
     /// looking healthy.
     pub const E_UNREADABLE_CONFIG: Code = Code::new("E0605");
     /// An `[[include]]` reached a file already on the chain that pulled it in, or
-    /// nested deeper than ADR 0103 § 2's cap of eight. The refusal names the whole
+    /// nested deeper than `rule:config/include-takes-a-path-or-a-dir`'s cap of eight. The refusal names the whole
     /// chain, because the cycle is a property of the path and not of its last file.
     pub const E_INCLUDE_CYCLE: Code = Code::new("E0606");
-    /// A file the configuration tree names fails ADR 0103 § 6's trust boundary:
+    /// A file the configuration tree names fails `rule:config/ownership-is-the-trust-boundary`'s trust boundary:
     /// it is owned by an account that is neither this one nor an administrative
     /// one, or an account outside those can write it — the file itself, or the
     /// directory holding it, or the directory an absent `optional` include would
@@ -1275,7 +1275,7 @@ pub mod code {
     /// A `_file` sibling of a secret directive — `[db.<name>] password_file`
     /// today — names a file the configuration cannot take a value from: it is
     /// set alongside the directive it stands in for, or its content is empty,
-    /// whitespace-only, larger than ADR 0103 § 7's 64 KiB cap, or not valid
+    /// whitespace-only, larger than `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s 64 KiB cap, or not valid
     /// UTF-8. Every one of those is a refusal to start rather than a value
     /// carried forward: an empty credential otherwise fails at the first
     /// request instead of at boot, and the size cap catches a path pointed at
@@ -1285,7 +1285,7 @@ pub mod code {
     pub const E_BAD_SECRET_FILE: Code = Code::new("E0608");
     /// An `[[app]]` block that cannot be keyed on an entry file path: it names
     /// both `root` and `entry`, or neither, or it resolves to a path another
-    /// block already claimed. ADR 0104 § 1 makes an application *be* its entry
+    /// block already claimed. `rule:config/an-application-is-its-entry-file-path` makes an application *be* its entry
     /// file path, so a block with no usable key silently covers nothing and
     /// hands every application it was meant for the global configuration
     /// instead — including one it was written to narrow. Two blocks on one path
@@ -1296,18 +1296,18 @@ pub mod code {
     pub const E_BAD_APP_BLOCK: Code = Code::new("E0609");
     /// An `[[app]]` block asking for more than the host allows: a value in
     /// `[app.limits]` above the global `[limits.hard]`, or an `[app.limits.hard]`
-    /// raising its own ceiling above it. ADR 0104 § 3 lets a block widen
+    /// raising its own ceiling above it. `rule:config/an-app-block-may-widen-bounded-by-the-global-ceiling` lets a block widen
     /// `[app.limits]` and lower its own ceiling, but leaves the bound where ADR
     /// 0005 put it — `[limits.hard]` is the host's answer and an application
     /// cannot exceed it. The refusal is at boot and the value is never clamped,
     /// exactly as a `Core\Config::set` above the ceiling is refused rather than
     /// reduced: a clamp would leave a block reading as though it got what it
     /// asked for. A value that is not a quantity at all is `E0601`, from the one
-    /// parser both this check and `Core\Config::set` share (ADR 0064 § 5).
+    /// parser both this check and `Core\Config::set` share (`rule:config/ini-set-is-core-config-set`).
     pub const E_APP_ABOVE_CEILING: Code = Code::new("E0610");
 
     /// A `[[schedule]]` entry the scheduler could not arm: no `name` or a
-    /// duplicate one, no `scope`, a `cron` outside ADR 0073 § 2's five-field
+    /// duplicate one, no `scope`, a `cron` outside `rule:config/cron-is-five-fields-and-nothing-more`'s five-field
     /// dialect, a `script` outside the `script.spawn` roots, or `scope =
     /// "fleet"` with no shared store to hold § 3's lease. Every one of them is
     /// refused at boot rather than at the first fire, because a schedule's
@@ -1325,7 +1325,7 @@ pub mod code {
     /// deployment holds an access-control rule that does not run and nothing
     /// tells it so. This is the boot half; inside a request the same two
     /// combinations make `Core\Config::set` return `false` and leave the value
-    /// unchanged (ADR 0005's existing rule), and the condition behind both
+    /// unchanged (`rule:config/three-changeability-classes`'s existing rule), and the condition behind both
     /// halves is written once in `nvs_config::http`. Each half of a pair is
     /// legitimate alone — a wildcard origin is an ordinary public API — so
     /// there is no refusal here for a single key.
@@ -1409,7 +1409,7 @@ pub mod code {
     /// A `[server]` wait that would never end: `false`, or `0`. ADR 0074's
     /// headline is that Novis never waits forever and ADR 0097 § 5 states its
     /// four inbound waits as finite with nothing configured, so `false` — which
-    /// removes a ceiling everywhere else in the tree ([ADR 0005]) — has no
+    /// removes a ceiling everywhere else in the tree (`rule:config/three-changeability-classes`) — has no
     /// meaning here and is refused rather than read as a default. `0` is the
     /// same refusal from the other side: a wait that expires as it is armed
     /// closes every connection before it can say anything, which is a server
@@ -1419,7 +1419,6 @@ pub mod code {
     /// `nvs_config::value`'s own words; this code is only for a well-formed
     /// duration whose *magnitude* is the problem.
     ///
-    /// [ADR 0005]: /docs/adr/0005-config-changeability.md
     pub const E_UNBOUNDED_WAIT: Code = Code::new("E0619");
 
     /// A `[server] listen` entry the server cannot bind, or a written array
@@ -1454,7 +1453,7 @@ pub mod code {
     /// connection and then refuses every request on it — the same deployment
     /// `E0620` refuses when `listen` is written empty, reached from the other
     /// end. `false` is not the other half of this refusal because the key is a
-    /// plain count rather than a `Setting`: ADR 0005's ceiling-removing
+    /// plain count rather than a `Setting`: `rule:config/three-changeability-classes`'s ceiling-removing
     /// spelling does not typecheck against it, so removing this valve is not
     /// something the file can say.
     ///
@@ -1568,7 +1567,7 @@ pub mod code {
     /// `[control] socket` names something that would be reachable over a
     /// network rather than a local endpoint.
     ///
-    /// ADR 0078 § 6 has no TCP listener in it, in either direction of
+    /// `rule:config/no-network-control-surface` has no TCP listener in it, in either direction of
     /// configuration, and § 3's reasoning is why: the socket's owner and mode
     /// *are* the authentication, so a control surface that arrives over a
     /// network has no authentication at all. `socket = "127.0.0.1:9000"` is
@@ -1610,8 +1609,8 @@ pub mod code {
     /// in `System32` under a minimal environment, so a relative `--config` is
     /// a guaranteed first-boot failure surfacing as an opaque service-manager
     /// error, and an argv with no `--config` at all falls back to
-    /// [ADR 0103](/docs/adr/0103-configuration-is-a-tree-of-files.md)
-    /// § 1's `./nvs.toml` — the same failure one step less visible, because it
+    /// `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`
+    /// 's `./nvs.toml` — the same failure one step less visible, because it
     /// makes the service's configuration a property of whatever directory the
     /// manager happened to start it in.
     ///
@@ -3129,7 +3128,7 @@ pub mod code {
     /// silently change meaning.
     pub const W_PHP_DIVERGENCE: Code = Code::new("W1004");
     /// A secret file the configuration reads can be read by an account other
-    /// than the one the runtime runs as. ADR 0103 § 7 advises here where it
+    /// than the one the runtime runs as. `rule:config/a-secret-is-a-file-whose-content-is-the-value` advises here where it
     /// refuses on writability: a Compose secret is mounted `0444` and a
     /// Kubernetes secret volume defaults to `0644`, so inside a container this
     /// mode is the norm and on a shared host it is not, and nothing the
@@ -3150,7 +3149,7 @@ pub mod code {
     /// gives for its own.
     pub const W_CATCH_ARM_DISCARDS_EVERY_FAILURE: Code = Code::new("W1006");
     /// A credential the configuration puts in force begins or ends with
-    /// whitespace. ADR 0103 § 7 keeps such a value exactly as it was written —
+    /// whitespace. `rule:config/a-secret-is-a-file-whose-content-is-the-value` keeps such a value exactly as it was written —
     /// a password may legitimately carry an edge space, and removing it would
     /// be `rule:errors/ambiguous-input-refused`'s repair of input in place of a reading of it — so the value
     /// is used as-is and this is an advisory, never a refusal: refusing it

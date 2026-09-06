@@ -1,4 +1,4 @@
-//! [ADR 0073](/docs/adr/0073-scheduled-work-is-config.md) § 5's ticker:
+//! `rule:config/a-scheduled-run-is-a-root-isolate`'s ticker:
 //! the `[[schedule]]` entries a boot accepted, fired beside the accept loop.
 //!
 //! **A second task, not a second scheduler.** [`serve_on_this_core`](crate::serve::serve_on_this_core)
@@ -822,7 +822,7 @@ mod tests {
         }
     }
 
-    /// ADR 0073 § 5: a fire is a **root** isolate on a task of its own — not a child of a
+    /// `rule:config/a-scheduled-run-is-a-root-isolate`: a fire is a **root** isolate on a task of its own — not a child of a
     /// connection, and not the tick's own stack.
     ///
     /// Four claims in one run, because they are four readings of the same fire and a ticker that

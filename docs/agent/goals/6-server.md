@@ -112,7 +112,7 @@ gets its first adversarial traffic.
 
 ## Stage 6 — what runs beside a request
 
-17. **The `[[schedule]]` ticker** — [ADR 0073](../../adr/0073-scheduled-work-is-config.md): each entry
+17. **The `[[schedule]]` ticker** — `rule:config/scheduled-work-is-a-config-block`: each entry
     fires as a **root** isolate through goal 2's `Isolate`, with the fleet lease over goal 4's shared
     store. Goal 3 landed its boot-time validation; this is the runtime half.
 18. **`Core\Task::afterResponse`'s tree stays alive past the connection**, bounded by `[deferred]
@@ -165,8 +165,8 @@ suite gains connections as its third parameterisation rather than a second suite
 
 ## Stage 7 — the operator's surface
 
-20. **The control socket and `nvs ctl`** — [ADR 0078](../../adr/0078-config-reload-and-control-socket.md)
-    §§ 3, 6: a local unix socket (named pipe on Windows), created `0600`, **refused if its directory is
+20. **The control socket and `nvs ctl`** — `rule:config/one-local-control-socket` and `rule:config/no-network-control-surface`
+    : a local unix socket (named pipe on Windows), created `0600`, **refused if its directory is
     world-writable**, speaking HTTP so a network listener would later be a second `bind` rather than a
     second protocol. `nvs ctl reload` is its **only** operation and there is **no control port in either
     direction of configuration**. Goal 3 built the snapshot this swaps.
@@ -177,7 +177,7 @@ suite gains connections as its third parameterisation rather than a second suite
     installer is a sink and fails closed**: a closed `serve`/`run` allowlist, no relative path, no install
     whose output would go nowhere, no password on a command line, and a refusal to install from an ADR 0048
     bundle.
-22. **Hot-reload of the compiled-unit cache** — [ADR 0017](../../adr/0017-hot-reload-without-restart.md),
+22. **Hot-reload of the compiled-unit cache** — `rule:config/an-edit-reaches-the-next-request-without-a-restart`,
     the only copy: a per-path pointer over goal 3's content-addressed cache, revalidated lazily and
     rate-capped, **swapped without ever blocking a request-serving core**, with `validate`'s startup default
     selected by the run mode. This is what makes "no restart to see an edit" true of a running server.
@@ -249,7 +249,7 @@ there by the switch that left it and folded forward at every switch since.
 - **`Core\Session` may not use the local cache tier.** `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent`.
 - **A mount routes and carries nothing else.** Policy is the per-app block's, which goal 3 built.
 - **`nvs ctl reload` is the socket's only operation**, and there is no network-reachable control surface in
-  either direction of configuration. ADR 0078 § 6.
+  either direction of configuration. `rule:config/no-network-control-surface`.
 - **No session installs a service, and item 21's checks are deliberately not end-to-end.** Registering
   with the SCM needs administrator rights the loop does not have and should not be given, and a systemd
   unit written to disk on an unattended box is a change nobody asked for. What is checked is what can be

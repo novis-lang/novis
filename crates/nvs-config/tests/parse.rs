@@ -1,4 +1,4 @@
-//! ADR 0064 § 3's per-file refusals, and that a refusal points at the line rather than at a byte.
+//! `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`'s per-file refusals, and that a refusal points at the line rather than at a byte.
 
 use nvs_diagnostics::{Severity, SourceMap, code};
 
@@ -7,9 +7,9 @@ use nvs_diagnostics::{Severity, SourceMap, code};
 /// what the `nvs config check` acceptance runs against.
 const DUPLICATE: &str = "[limits]\nmemory = \"128M\"\nmemory = \"256M\"\n";
 
-/// ADR 0064 § 3: in a root-owned file where one table grants capabilities, an assignment silently
+/// `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`: in a root-owned file where one table grants capabilities, an assignment silently
 /// shadowed by a later copy of itself is a security-relevant failure, so a duplicate key inside one
-/// file is refused. Across an `[[include]]` the same key is an override instead (ADR 0103 § 3), and
+/// file is refused. Across an `[[include]]` the same key is an override instead (`rule:config/later-wins-and-every-override-is-recorded`), and
 /// nothing here should be read as answering about that.
 #[test]
 fn a_duplicate_key_in_one_file_is_refused() {
@@ -39,7 +39,7 @@ fn a_duplicate_key_in_one_file_is_refused() {
 }
 
 /// The success path registers the file too, because resolving an override across an include has to
-/// be able to name the origin of the value it kept (ADR 0103 § 3).
+/// be able to name the origin of the value it kept (`rule:config/later-wins-and-every-override-is-recorded`).
 #[test]
 fn a_well_formed_file_parses_and_is_registered_for_reporting() {
     let mut sources = SourceMap::new();

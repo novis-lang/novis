@@ -46,7 +46,7 @@ The backtracking tier runs under a bounded step count. Exhausting it throws an o
 and never truncates the search. Per `rule:errors/escalation-ladder` this is an ordinary throw,
 not a resource-limit fatal — the request may catch it and answer 400.
 
-The budget's default is set in `nvs.toml` under [ADR 0005](0005-config-changeability.md)'s ordinary rules.
+The budget's default is set in `nvs.toml` under `rule:config/three-changeability-classes`'s ordinary rules.
 The linear tier has no budget, because it needs none.
 
 ### 3. A literal pattern is tiered at compile time

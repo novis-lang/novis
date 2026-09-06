@@ -142,7 +142,7 @@ is versioned and self-describing enough to be checked before any object is built
   no-hook rule already remove the two things a new grant would exist to contain — arbitrary code execution
   during reconstruction, and reading a class that does not exist — and the resource cost of a hostile
   payload (a huge or deeply nested graph) is already bounded by the same `[limits] memory`/`cpu_time`
-  ([ADR 0005](0005-config-changeability.md)) any other allocation-heavy call is. Revisit only if a use case
+  (`rule:config/three-changeability-classes`) any other allocation-heavy call is. Revisit only if a use case
   needs to `unserialize` genuinely foreign data (a different Novis build's format version, or another
   system's payload entirely) — that is a wire-format compatibility question this ADR deliberately does not
   answer yet.

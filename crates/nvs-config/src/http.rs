@@ -113,7 +113,7 @@ impl Inbound {
     /// Folds one `key = value` assignment in — a request's overlay entry, or the value
     /// `Core\Config::set` is proposing. A key deciding neither pair changes nothing.
     ///
-    /// `origins` is absent on purpose: it is a list, and § 5 of ADR 0064 crosses values as text, so
+    /// `origins` is absent on purpose: it is a list, and § 5 of `rule:config/the-file-is-nvs-toml-and-it-is-toml` crosses values as text, so
     /// no request can set one. Which star origins are in force is therefore always the snapshot's
     /// answer, and [`of`](Self::of) has already read it.
     pub fn assign(&mut self, key: &str, value: &str) {
@@ -308,7 +308,7 @@ fn carriable(value: &str) -> bool {
     value.bytes().all(|byte| (0x20..=0x7e).contains(&byte))
 }
 
-/// A boolean as `Core\Config::set` crosses it: ADR 0064 § 5 sends values as text, and a directive
+/// A boolean as `Core\Config::set` crosses it: `rule:config/ini-set-is-core-config-set` sends values as text, and a directive
 /// the file wrote as a TOML boolean reads back as `true` or `false`.
 fn is_true(value: &str) -> bool {
     value.trim().eq_ignore_ascii_case("true")

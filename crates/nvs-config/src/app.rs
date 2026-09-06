@@ -1,4 +1,4 @@
-//! [ADR 0104] §§ 1-3: an application is its entry file path.
+//! `rule:config/an-application-is-its-entry-file-path`, `rule:config/every-matching-app-block-applies-least-specific-first` and `rule:config/an-app-block-may-widen-bounded-by-the-global-ceiling`: an application is its entry file path.
 //!
 //! A `[[app]]` block is keyed on a directory (`root`) or on one file (`entry`), never both and
 //! never neither, an entry file belongs to every block whose key covers it, those blocks fold into
@@ -41,7 +41,6 @@
 //! Cost: one canonicalization per block at boot or reload, and one per `nvs run` for the entry file
 //! — a `stat` walk each, on a path already about to be opened. Nothing here runs per request.
 //!
-//! [ADR 0104]: ../../../docs/adr/0104-an-application-is-an-entry-file-path.md
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -53,10 +52,10 @@ use crate::tree::{App, Config, LimitSet, Limits, Setting};
 use crate::value::{Quantity, unit_of};
 
 /// § 1's keys, resolved: each `[[app]]` block's `root` or `entry` made absolute against the file
-/// that wrote it ([ADR 0103] § 5) and canonicalized, written back into the block.
+/// that wrote it (`rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`) and canonicalized, written back into the block.
 ///
 /// Runs once over the flattened tree, beside § 7's secrets and for the same reason: `[[app]]`
-/// blocks accumulate across the tree ([ADR 0103] § 4), so the roster is a question only the merge
+/// blocks accumulate across the tree (`rule:config/a-value-array-replaces-and-a-table-appends`), so the roster is a question only the merge
 /// has answered.
 ///
 /// # Errors
@@ -64,7 +63,6 @@ use crate::value::{Quantity, unit_of};
 /// One [`Diagnostic`]: `E0609` for a block naming both keys, neither key, or a path another block
 /// already claimed; `E0605` for a key naming something that cannot be examined.
 ///
-/// [ADR 0103]: ../../../docs/adr/0103-configuration-is-a-tree-of-files.md
 pub fn canonicalize(
     config: &mut Config,
     origins: &BTreeMap<String, Origin>,
@@ -119,7 +117,7 @@ pub fn canonicalize(
 /// [`Files`]. With no global `[limits.hard]` written there is no bound to apply and every block
 /// passes: § 3 bounds a block by the host's answer, and a host that gave none has not answered.
 ///
-/// The refusal is at boot and the value is **not** clamped, which is § 3 citing [ADR 0005]'s
+/// The refusal is at boot and the value is **not** clamped, which is § 3 citing `rule:config/three-changeability-classes`'s
 /// treatment of `Core\Config::set`: a clamped block still reads as though it got what it asked for,
 /// and the operator finds out at the first request that hits the real ceiling.
 ///
@@ -133,7 +131,6 @@ pub fn canonicalize(
 /// `E0601` for a value on either side that is not a quantity at all — [`crate::value`]'s refusal,
 /// which is the same one `Core\Config::set` will hand back for the same text.
 ///
-/// [ADR 0005]: ../../../docs/adr/0005-config-changeability.md
 pub fn bound(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), Diagnostic> {
     let Some(host) = config
         .limits
@@ -266,10 +263,9 @@ pub struct Layered {
     /// This is § 2's `info: app blocks: …` line.
     pub blocks: Vec<PathBuf>,
     /// Every directive one block took from another, in the order it happened, carrying **both**
-    /// origins exactly as [ADR 0103] § 3's own record does — which is § 2's whole argument for
+    /// origins exactly as `rule:config/later-wins-and-every-override-is-recorded`'s own record does — which is § 2's whole argument for
     /// being a fourth ordering rather than a third precedence rule.
     ///
-    /// [ADR 0103]: ../../../docs/adr/0103-configuration-is-a-tree-of-files.md
     pub overrides: Vec<Override>,
 }
 
@@ -277,7 +273,7 @@ pub struct Layered {
 ///
 /// The fold is [`resolve`](crate::resolve)'s own `merge_table` over the blocks' tables, not a
 /// second implementation of later-wins. That is the section's central claim — "this is not a third
-/// precedence rule: it is [ADR 0103] § 3's later wins, ordered by specificity instead of by file
+/// precedence rule: it is `rule:config/later-wins-and-every-override-is-recorded`'s later wins, ordered by specificity instead of by file
 /// position, and every override is reported the same way" — and it is only true if one function
 /// decides both. It is also why [`Resolved::table`](crate::resolve::Resolved::table) is kept:
 /// `merge_table` folds `toml::Table`s, and the typed tree cannot be turned back into one.
@@ -290,7 +286,6 @@ pub struct Layered {
 /// `E0605` when `entry` cannot be examined, and `E0601` if the folded block does not deserialize —
 /// unreachable, since every block was typed as an [`App`] in its own file before it was merged.
 ///
-/// [ADR 0103]: ../../../docs/adr/0103-configuration-is-a-tree-of-files.md
 pub fn layer(resolved: &Resolved, entry: &Path, files: &dyn Files) -> Result<Layered, Diagnostic> {
     let mut layered = Layered::default();
     let mut merged = toml::Table::new();
@@ -337,9 +332,8 @@ pub fn layer(resolved: &Resolved, entry: &Path, files: &dyn Files) -> Result<Lay
 /// A block reached the typed tree by being claimed or appended, and both of those record an origin,
 /// so the `None` arm is unreachable rather than a case with an answer. Which of the two keys it is
 /// keyed on decides which origin names it, because that key is the one [`canonicalize`] resolved
-/// against the file ([ADR 0103] § 5).
+/// against the file (`rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`).
 ///
-/// [ADR 0103]: ../../../docs/adr/0103-configuration-is-a-tree-of-files.md
 pub(crate) fn block_origin(resolved: &Resolved, index: usize) -> Option<&Origin> {
     let field = if resolved.config.app.get(index)?.root.is_some() {
         "root"
@@ -400,7 +394,7 @@ fn both_keys(index: usize, origins: &BTreeMap<String, Origin>) -> Diagnostic {
         format!("{} names both `root` and `entry`", ordinal(index)),
     )
     .with_note(format!(
-        "ADR 0104 § 1 keys an application on one or the other: `root` is every entry file beneath \
+        "`rule:config/an-application-is-its-entry-file-path` keys an application on one or the other: `root` is every entry file beneath \
          a directory, `entry` is one file exactly{}",
         origin_note(origins.get(&format!("app.{index}.root")))
     ))
@@ -419,7 +413,7 @@ fn no_key(index: usize) -> Diagnostic {
         format!("{} names neither `root` nor `entry`", ordinal(index)),
     )
     .with_note(
-        "ADR 0104 § 1 keys an application on an entry file path, so a block with no key matches no \
+        "`rule:config/an-application-is-its-entry-file-path` keys an application on an entry file path, so a block with no key matches no \
          entry file and its directives would never apply"
             .to_string(),
     )
@@ -446,7 +440,7 @@ fn duplicate(path: &Path, first: usize, second: usize, written_in: Option<&Origi
         ),
     )
     .with_note(format!(
-        "ADR 0104 § 2 layers matching blocks by specificity, so two blocks on the same path are a \
+        "`rule:config/every-matching-app-block-applies-least-specific-first` layers matching blocks by specificity, so two blocks on the same path are a \
          duplicate rather than a refinement and there is no order between them to decide which \
          value wins{}",
         written_in.map_or_else(String::new, |origin| format!(
@@ -487,7 +481,7 @@ fn above_ceiling(
         ),
     )
     .with_note(format!(
-        "ADR 0104 § 3 lets a block widen `[app.limits]` and lower its own `[app.limits.hard]`, but \
+        "`rule:config/an-app-block-may-widen-bounded-by-the-global-ceiling` lets a block widen `[app.limits]` and lower its own `[app.limits.hard]`, but \
          `[limits.hard]` is the host's answer and an application cannot exceed it{}{}",
         origin_note(written_in),
         host_written_in.map_or_else(String::new, |origin| format!(
@@ -515,16 +509,15 @@ fn not_utf8(path: &Path, index: usize, field: &str) -> Diagnostic {
         ),
     )
     .with_note(
-        "ADR 0104 § 1 matches on the canonical path, and a configuration file is UTF-8 text, so a \
+        "`rule:config/an-application-is-its-entry-file-path` matches on the canonical path, and a configuration file is UTF-8 text, so a \
          path this process cannot spell back is one no block could be compared against"
             .to_string(),
     )
 }
 
 /// `` `[[app]]` block 3 `` — blocks have no names, so they are counted in the order the tree read
-/// them, which is [ADR 0103] § 3's order.
+/// them, which is `rule:config/later-wins-and-every-override-is-recorded`'s order.
 ///
-/// [ADR 0103]: ../../../docs/adr/0103-configuration-is-a-tree-of-files.md
 fn ordinal(index: usize) -> String {
     format!("`[[app]]` block {}", index + 1)
 }

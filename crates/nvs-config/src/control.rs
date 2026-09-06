@@ -1,4 +1,4 @@
-//! [ADR 0078] § 3's control endpoint: the one local address `[control] socket` names, created so
+//! `rule:config/one-local-control-socket`'s control endpoint: the one local address `[control] socket` names, created so
 //! that no account but this one can reach it.
 //!
 //! **This lives beside [`mod@crate::trust`] and not in the server, because it is the same question
@@ -15,7 +15,7 @@
 //! directory and no mode, so the same guarantee is written as a DACL naming this account,
 //! `NT AUTHORITY\SYSTEM` and `BUILTIN\Administrators` and protected from inheritance. That is § 3's
 //! "created mode `0600`, owned by the runtime's account" in each platform's own terms, and it is
-//! the same substitution [ADR 0103] § 6 already makes for the trust boundary.
+//! the same substitution `rule:config/ownership-is-the-trust-boundary` already makes for the trust boundary.
 //!
 //! **The Unix path has a window and it is bounded rather than closed.** `bind` creates the socket
 //! with the process umask and only then does the `chmod`, because `std` offers no way to set the
@@ -28,8 +28,6 @@
 //! Cost, as `rule:programs/memory-priority` requires: one kernel object per running server, created at boot and closed
 //! when the process ends. Nothing per request and nothing per reload.
 //!
-//! [ADR 0078]: ../../../docs/adr/0078-config-reload-and-control-socket.md
-//! [ADR 0103]: ../../../docs/adr/0103-configuration-is-a-tree-of-files.md
 
 use std::collections::BTreeMap;
 use std::io;
@@ -41,9 +39,8 @@ use crate::snapshot::{Current, Snapshot};
 use crate::tree::{Config, Setting};
 use crate::trust::Untrusted;
 
-/// What `[control] socket` named — [ADR 0078] § 3.
+/// What `[control] socket` named — `rule:config/one-local-control-socket`.
 ///
-/// [ADR 0078]: ../../../docs/adr/0078-config-reload-and-control-socket.md
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Address {
     /// `socket = false`, and the state of a tree that wrote no `[control]` block at all.
@@ -79,7 +76,7 @@ impl Address {
             Setting::Text(text) if !networked(text) => Ok(Self::Local(PathBuf::from(text))),
             Setting::Text(text) => Err(refused(
                 &format!("\"{text}\""),
-                "ADR 0078 § 6 has no network-reachable control surface in it, in either direction \
+                "`rule:config/no-network-control-surface` has no network-reachable control surface in it, in either direction \
                  of configuration: the socket's owner and mode are the authentication, and a host \
                  and a port carry neither",
                 "name a local endpoint — `socket = \"/run/nvs/control.sock\"`, or \
@@ -87,12 +84,12 @@ impl Address {
             )),
             Setting::Integer(port) => Err(refused(
                 &port.to_string(),
-                "a bare number is a port, and ADR 0078 § 6 has no listener for one to be bound on",
+                "a bare number is a port, and `rule:config/no-network-control-surface` has no listener for one to be bound on",
                 "name a local endpoint, or write `socket = false` to have none",
             )),
             other => Err(refused(
                 &format!("{other:?}"),
-                "ADR 0078 § 3's value is one local endpoint or `false`",
+                "`rule:config/one-local-control-socket`'s value is one local endpoint or `false`",
                 "write the path as a string, or `socket = false` to have no control surface",
             )),
         }
@@ -173,10 +170,9 @@ impl Endpoint {
 /// Why a control endpoint was not created.
 #[derive(Debug)]
 pub enum Refusal {
-    /// § 3's other rule: the directory that would hold the socket fails [ADR 0103] § 6, so anyone
+    /// § 3's other rule: the directory that would hold the socket fails `rule:config/ownership-is-the-trust-boundary`, so anyone
     /// who can write it can replace the socket and speak for the server.
     ///
-    /// [ADR 0103]: ../../../docs/adr/0103-configuration-is-a-tree-of-files.md
     Untrusted(Untrusted),
     /// The OS refused the name: it is already in use by a live server, its directory is not there,
     /// or this account may not create it.
@@ -250,9 +246,8 @@ pub fn bind(
     Endpoint::create(name).map_err(|err| Refusal::Unavailable(err.to_string()))
 }
 
-/// [ADR 0078] § 5's answer to a reload: what it did, and what it could not do.
+/// `rule:config/a-reload-names-what-it-could-not-apply`'s answer to a reload: what it did, and what it could not do.
 ///
-/// [ADR 0078]: ../../../docs/adr/0078-config-reload-and-control-socket.md
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Report {
     /// The dotted keys the swap changed and which are now in force, in dotted-key order.

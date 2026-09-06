@@ -77,7 +77,7 @@
 //!
 //! # `mode` is the one member here that reads no environment at all
 //!
-//! [ADR 0091](/docs/adr/0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md)'s
+//! `rule:config/two-modes-and-the-default-is-production`'s
 //! run mode is set through `Core\Config` like every other directive, and spec
 //! § 15 says outright that no environment variable is consulted for it. So the
 //! member sits on this class for the reason a program asks the question —
@@ -266,7 +266,7 @@ const MODE_MEMBER_DOC: MethodDoc = MethodDoc {
 /// every message quoting it cannot drift apart.
 pub(crate) const MODE_NAME: &str = r"Core\Env\Mode";
 
-/// ADR 0091 § 3's two run modes, valued by § 5's permissiveness order — the
+/// `rule:config/a-mode-is-five-defaults`'s two run modes, valued by § 5's permissiveness order — the
 /// same order `nvs_config::mode::rank` measures a flip against, so `Production`
 /// is 0 and there is nothing below it.
 ///
@@ -409,7 +409,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Env::mode(): Core\Env\Mode` — ADR 0091's run mode, and the one
+    /// `Core\Env::mode(): Core\Env\Mode` — `rule:config/two-modes-and-the-default-is-production`'s run mode, and the one
     /// member of this class that reads no environment variable.
     ///
     /// An enum answers as its ordinal, exactly as a user-declared enum does
@@ -419,7 +419,7 @@ nvs_runtime::nvs_helper! {
     /// application's own mode, the global `mode.default`, then `production` —
     /// is `nvs_config::Request::mode`'s and is stated there. A context nobody
     /// configured is that last row reached one step earlier: an embedder with
-    /// no snapshot is a host that wrote nothing, which ADR 0103 § 1 step 3
+    /// no snapshot is a host that wrote nothing, which `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 3
     /// makes a valid host rather than an error, so this is `Production` and not
     /// a throw.
     fn nvs_core_env_mode(ctx, _args: [0]) {

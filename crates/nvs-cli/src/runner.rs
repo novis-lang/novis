@@ -412,7 +412,7 @@ fn run_suite_in_a_task(
     // `nvs run` installs — one per run, so two tests spawning one path share
     // the compiled unit (`crate::script`). It reads the tree's own `[opcache]`,
     // because the snapshot is now resolved above the suite's compile and
-    // ADR 0078 § 4's environment digest is half of every key this resolver
+    // `rule:config/the-extension-set-is-in-every-unit-key`'s environment digest is half of every key this resolver
     // writes: a default one would file a unit under an environment this run is
     // not in. Nothing edits a file mid-suite, so the revalidation policy in it
     // chooses nothing.

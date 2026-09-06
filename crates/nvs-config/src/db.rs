@@ -12,7 +12,7 @@
 //! at resolve time and neither at use time.
 //!
 //! **A CA bundle is a trust-boundary file.** Whoever can rewrite it decides which server this
-//! deployment's queries and credentials go to, which is the same authority ADR 0103 § 6 refuses to
+//! deployment's queries and credentials go to, which is the same authority `rule:config/ownership-is-the-trust-boundary` refuses to
 //! leave on the configuration files themselves. So it goes through
 //! [`Files::trust`] exactly as a `password_file` does, and an
 //! unreadable or group-writable bundle is `E0605`/`E0607` at boot. It is deliberately *not* read
@@ -40,7 +40,7 @@
 //! block's key and for its second reason: § 9's `nvs config dump` then prints the file the
 //! handshake will actually open rather than a fragment whose meaning depends on which file in the
 //! tree wrote it. A connection opened from a working directory that is not the configuration's —
-//! every request, since ADR 0103 § 5 resolves against the *file* — would otherwise read a different
+//! every request, since `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in` resolves against the *file* — would otherwise read a different
 //! bundle, a different database, or none.
 //!
 //! **The pool's bounds are read here and not where the pool is built**, for the reason every other
@@ -61,7 +61,7 @@ use crate::resolve::{Files, Origin, origin_note};
 use crate::tree::{Config, Database, Pool, Setting};
 use crate::value::{Quantity, Unit};
 
-/// Makes every `[db.<name>]` path absolute — ADR 0103 § 5 — and proves the `tls_ca_file` among them
+/// Makes every `[db.<name>]` path absolute — `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in` — and proves the `tls_ca_file` among them
 /// is inside the trust boundary.
 ///
 /// Runs over the merged tree for [`mod@crate::secret`]'s reason: which bundle is in force is a
@@ -70,7 +70,7 @@ use crate::value::{Quantity, Unit};
 ///
 /// # Errors
 ///
-/// `E0607` for a bundle outside ADR 0103 § 6's trust boundary and `E0605` for one that cannot be
+/// `E0607` for a bundle outside `rule:config/ownership-is-the-trust-boundary`'s trust boundary and `E0605` for one that cannot be
 /// read at all — [`crate::resolve::untrusted`]'s split, so an operator told "cannot read" goes
 /// looking for a typo and one told the other goes looking at a mode. A `path` resolves and cannot
 /// fail: it is arithmetic on a string, and this module's doc says why the file behind it is not
@@ -114,7 +114,7 @@ pub fn canonicalize(
     Ok(())
 }
 
-/// The directory ADR 0103 § 5 resolves a relative key against: the one the key was written in.
+/// The directory `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in` resolves a relative key against: the one the key was written in.
 ///
 /// A key with no origin cannot have been written in a file anywhere, so there is nothing but the
 /// path itself to resolve against and `.` is the honest base — the same answer the process's own
@@ -126,7 +126,7 @@ fn written_in<'a>(origins: &'a BTreeMap<String, Origin>, key: &str) -> &'a Path 
         .unwrap_or(Path::new("."))
 }
 
-/// Whether a written `path` is a relative file, and so something ADR 0103 § 5 has anything to say
+/// Whether a written `path` is a relative file, and so something `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in` has anything to say
 /// about.
 ///
 /// **Three of SQLite's spellings are not paths at all, and resolving one destroys it.** `:memory:`
@@ -252,7 +252,7 @@ pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(
 }
 
 /// The bounds `name`'s block asks for, over [`PoolBounds::DEFAULT`] — every unwritten key keeps the
-/// default, since ADR 0103 § 3's override record is per key and a partly-written `[db.x.pool]` is
+/// default, since `rule:config/later-wins-and-every-override-is-recorded`'s override record is per key and a partly-written `[db.x.pool]` is
 /// four independent decisions rather than one.
 ///
 /// `origins` names the file a refusal points at, and an empty map simply leaves the note off.

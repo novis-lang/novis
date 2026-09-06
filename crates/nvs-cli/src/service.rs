@@ -246,7 +246,7 @@ pub(crate) fn plan(request: &Request<'_>, host: &Host) -> Result<Plan, Diagnosti
             "the stored argv names no `--config`".to_owned(),
         )
         .with_note(
-            "without one the service would fall back to ADR 0103 § 1's `./nvs.toml`, making its \
+            "without one the service would fall back to `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`'s `./nvs.toml`, making its \
              configuration a property of whatever directory the service manager happened to start \
              it in"
                 .to_owned(),
@@ -490,11 +490,10 @@ pub(crate) fn decode(line: &str) -> Vec<String> {
 /// in that section: `AmbientCapabilities` is emitted **only** when the
 /// configured listen addresses include a privileged port, so the ordinary case
 /// grants nothing at all, and `MemoryMax` is derived from `[limits]` rather
-/// than invented. `ExecReload` is [ADR 0078] § 3's control socket, so a unit
+/// than invented. `ExecReload` is `rule:config/one-local-control-socket`'s control socket, so a unit
 /// generated for a server with no `[control] socket` carries no reload line
 /// rather than one that would fail.
 ///
-/// [ADR 0078]: /docs/adr/0078-config-reload-and-control-socket.md
 pub(crate) fn unit(plan: &Plan) -> String {
     let exe = plan.exe.display();
     let mut out = String::new();

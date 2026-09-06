@@ -57,8 +57,8 @@
 //! to guess at, and a `Ctx` is per request while a fault loop need not be.
 //!
 //! `[log] format` is not read here. `rule:errors/renderings`'s plaintext rendering of the
-//! same record is what [ADR 0091](/docs/adr/0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md)
-//! § 3's `development` default selects, and nothing reads that directive at run
+//! same record is what `rule:config/a-mode-is-five-defaults`
+//! 's `development` default selects, and nothing reads that directive at run
 //! time yet; JSON Lines is § 6's default and the honest single answer until the
 //! reader lands.
 

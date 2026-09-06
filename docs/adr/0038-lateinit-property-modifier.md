@@ -23,7 +23,7 @@
 > **intraprocedural, false-positive-free** compile-time check is added for free — it reuses the definite-
 > assignment dataflow `rule:classes/definite-property-initialization` already runs, so it costs nothing new to build, but it only proves the
 > narrow, calls-free case; nothing wider is attempted, because that would need whole-program analysis that
-> fights [ADR 0017](0017-hot-reload-without-restart.md)'s per-file hot-reload model (see *Alternatives
+> fights `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s per-file hot-reload model (see *Alternatives
 > rejected*).
 
 ## Context
@@ -146,7 +146,7 @@ raised and considered, is not worth its cost here.
 
 - **Interprocedural / whole-program compile-time checking**, tracing which methods can write a `lateinit`
   property before which methods read it. Rejected: Novis's hot-reload model
-  ([ADR 0017](0017-hot-reload-without-restart.md)) revalidates and swaps one file's compiled unit at a time;
+  (`rule:config/an-edit-reaches-the-next-request-without-a-restart`) revalidates and swaps one file's compiled unit at a time;
   a whole-program analysis would widen that blast radius on every edit, for a check whose easy cases § 3's
   free intraprocedural pass already covers and whose hard cases are cross-function/cross-object by nature and
   would fall through to the runtime throw anyway.

@@ -67,7 +67,7 @@
 //! and on the `map` that follows it. Both default to [`Const::Null`] and both
 //! mean "unbounded" there — `limit` because a shape literal is already bounded
 //! by its field count, and `deadline` because a call that names none is bounded
-//! by the request tree's own `wall_time`, which ADR 0005 makes finite. There is
+//! by the request tree's own `wall_time`, which `rule:config/three-changeability-classes` makes finite. There is
 //! no `timeout` member and no `race`: a timeout on a group *is* the `deadline`
 //! option, and § 3 defers `race` under the future spelling `Task::first`.
 //!

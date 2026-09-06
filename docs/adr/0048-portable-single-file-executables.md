@@ -17,7 +17,7 @@
 > cache, JIT compilation — is [ADR 0042](0042-on-disk-artifact-cache-format.md)'s existing pipeline,
 > unchanged. Rebundling means an app author reruns the same build command against their own source; the
 > shipped executable itself never mutates. Scope is deliberately CLI-only: a single downloaded-and-run
-> executable is one trust domain, the same as any other native binary, so none of ADR 0005's root/app
+> executable is one trust domain, the same as any other native binary, so none of `rule:config/three-changeability-classes`'s root/app
 > capability separation is engaged. Source ships as source, not as precompiled native artifacts — see
 > *Alternatives rejected* for why that trade was made deliberately, not by default.
 

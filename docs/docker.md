@@ -74,7 +74,7 @@ nvs serve /app/main.nvs --listen 0.0.0.0:8000
 ### Configuration
 
 `nvs` reads `./nvs.toml` from its working directory, which is `/app`
-([ADR 0103](adr/0103-configuration-is-a-tree-of-files.md) § 1 step 2). So a mounted tree's own
+(`rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 2). So a mounted tree's own
 configuration is found with nothing passed on the command line, and
 [docs/reference/tools/20-config.md](reference/tools/20-config.md) is the reference for what goes
 in it. Two keys matter more in a container than outside one:
@@ -96,7 +96,7 @@ reads files, opens sockets or connects to a database needs the grants in its `[[
 nothing; the container boundary and the capability tree are unrelated mechanisms and both apply.
 
 If you pass `--config`, note that naming any file **disables** the `./nvs.toml` lookup entirely
-(ADR 0103 § 1 step 1). That is deliberate — it is how you get a predictable tree — but it means a
+(`rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 1). That is deliberate — it is how you get a predictable tree — but it means a
 mounted `nvs.toml` is silently unread once `--config` appears.
 
 ### Health checks
@@ -197,7 +197,7 @@ Two things to know when a command *writes*:
 
 > **`nvs serve` installs no signal handler today, so there is no graceful drain.** In-flight
 > requests are cut when the process dies. This is a known gap, not a design choice:
-> [ADR 0078](adr/0078-config-reload-and-control-socket.md) § 6 puts the drain behind the control
+> `rule:config/no-network-control-surface` puts the drain behind the control
 > socket, and ADR 0097 § 5's `health_path` already answers `503` while draining — the machinery
 > is designed and not yet built.
 

@@ -1,26 +1,26 @@
-//! `Core\Config` — [ADR 0064](/docs/adr/0064-configuration-file-format.md)
-//! § 5's four members, and PHP's `ini_get` family with the free functions taken
+//! `Core\Config` — `rule:config/ini-set-is-core-config-set`
+//! 's four members, and PHP's `ini_get` family with the free functions taken
 //! off it (`rule:classes/no-free-functions-or-constants`).
 //!
 //! Every member is four lines long, because none of the rules is here. What a
 //! name resolves to, what a `set` is allowed to do and where the ceiling comes
 //! from all live in `nvs_config::request`, whose module doc is the one home for
 //! them; this module marshals a `string` in and a `string` out and does nothing
-//! else. That split is the reason ADR 0064 § 5's "the registry parses the
+//! else. That split is the reason `rule:config/ini-set-is-core-config-set`'s "the registry parses the
 //! string with the same parser the boot path uses" is true by construction: the
 //! parser is not reachable from here.
 //!
 //! **The context is the configuration.** `Ctx::config` holds the snapshot the
 //! request cloned at start plus its own overlay
-//! ([ADR 0078](/docs/adr/0078-config-reload-and-control-socket.md)
-//! § 1), so a `set` moves one request's view and is invisible to the next
+//! (`rule:config/the-config-is-an-immutable-snapshot`
+//! ), so a `set` moves one request's view and is invisible to the next
 //! request on the same core. No member here reaches a process-wide table,
 //! because there is none to reach.
 //!
 //! **A context nobody configured answers as an empty configuration**: `get` is
 //! `null`, `all` is empty, `set` is `false` and `restore` does nothing. That is
 //! every test context and any embedder that has not built a snapshot, and it is
-//! deliberately not a throw — ADR 0103 § 1 step 3 makes "no configuration
+//! deliberately not a throw — `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 3 makes "no configuration
 //! file anywhere" a valid host and not an error, so a program has to be able to
 //! ask on one.
 
@@ -182,7 +182,7 @@ nvs_runtime::nvs_helper! {
     /// `Core\Config::set(string $name, string $value): bool` — replacing
     /// `ini_set`.
     ///
-    /// The `false` this can answer with is ADR 0005's refusal and never an
+    /// The `false` this can answer with is `rule:config/three-changeability-classes`'s refusal and never an
     /// exception: `m6.md`'s *Verify* pins a set above the `[limits.hard]`
     /// ceiling as `false` with the previous value intact, and a version of it
     /// that threw would be a different API.

@@ -1,4 +1,4 @@
-//! ADR 0064 § 5 and ADR 0005: what one request may move, how far, and how far that move reaches.
+//! `rule:config/ini-set-is-core-config-set` and `rule:config/three-changeability-classes`: what one request may move, how far, and how far that move reaches.
 //!
 //! The three cases `m6.md`'s *Verify* names in one sentence are here under its own words, because
 //! the third — invisibility to the next request on the same core — is the one a shared mutable
@@ -90,7 +90,7 @@ memory = \"256M\"
 memory = \"512M\"
 ";
 
-/// ADR 0005: `[limits]` states the **default**, and a request may move above it for itself as far
+/// `rule:config/three-changeability-classes`: `[limits]` states the **default**, and a request may move above it for itself as far
 /// as the ceiling — the first of `m6.md`'s three clauses.
 #[test]
 fn config_set_above_the_default_takes_effect() {
@@ -155,7 +155,7 @@ fn restore_drops_only_what_this_request_set() {
     assert_eq!(request.get("wall_time"), None);
 }
 
-/// A `System` directive is refused whatever its value: ADR 0005's class answers *who may set it*
+/// A `System` directive is refused whatever its value: `rule:config/three-changeability-classes`'s class answers *who may set it*
 /// before any ceiling is consulted, so the ceiling of the ceiling is not a question.
 #[test]
 fn a_system_directive_is_not_settable_by_a_request() {
@@ -232,8 +232,8 @@ fn boot_refuses(text: &str) -> bool {
 /// exactly when `set` refuses it.
 #[test]
 fn the_same_two_refusals_come_from_config_set_as_from_the_boot() {
-    // The row's own line is written out twice rather than appended to the block, because ADR 0064
-    // § 3 still refuses a key set twice **in one file**: an appended override would refuse the boot
+    // The row's own line is written out twice rather than appended to the block, because `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`
+    // still refuses a key set twice **in one file**: an appended override would refuse the boot
     // as a duplicate and the two mechanisms would agree for a reason that has nothing to do with
     // ADR 0074.
     //
@@ -309,7 +309,7 @@ fn the_same_two_refusals_come_from_config_set_as_from_the_boot() {
             assert_eq!(
                 request.get(key),
                 before,
-                "a refused `set` leaves the previous value in force (ADR 0005)",
+                "a refused `set` leaves the previous value in force (`rule:config/three-changeability-classes`)",
             );
         } else {
             assert_eq!(request.get(key).as_deref(), Some(value));
@@ -372,7 +372,7 @@ fn a_script_attempting_to_set_a_system_directive_fails() {
     assert_eq!(
         request.all(),
         before,
-        "a refused `set` changes nothing about what is in force (ADR 0005)",
+        "a refused `set` changes nothing about what is in force (`rule:config/three-changeability-classes`)",
     );
 
     // The control: the `Runtime` row sitting beside them takes the same value. Without it a `set`
@@ -380,7 +380,7 @@ fn a_script_attempting_to_set_a_system_directive_fails() {
     assert!(request.set("memory", "512M"));
 }
 
-/// ADR 0005's `RuntimeTighten` half, adversarially: a request cannot widen **any** capability, asked
+/// `rule:config/three-changeability-classes`'s `RuntimeTighten` half, adversarially: a request cannot widen **any** capability, asked
 /// once per row of [`Cap::ALL`] rather than of the one grant this tree happens to hold.
 ///
 /// Two reasons refuse, and the fixture holds both. `capabilities.fs.read` has a grant in force and
@@ -442,7 +442,7 @@ read = [\"nvs.toml\"]
     assert!(request.set("log.level", "debug"));
 }
 
-/// ADR 0091 § 3's table is **closed**, and this is what makes that word mean something.
+/// `rule:config/a-mode-is-five-defaults`'s table is **closed**, and this is what makes that word mean something.
 ///
 /// The section's second property is that *what exactly does development mode change?* has a
 /// complete, mechanical answer at any moment; a sixth row added without an ADR amendment would take

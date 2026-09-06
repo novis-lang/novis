@@ -33,7 +33,7 @@
   failure path (`rule:errors/propagation`).
 - **The `_once` axis doesn't need to survive**: declarations resolve by namespace
   (`rule:classes/no-free-functions-or-constants`) and by the per-path compiled-unit cache
-  ([ADR 0017](0017-hot-reload-without-restart.md)), not by splice count — the redeclaration problem `_once`
+  (`rule:config/an-edit-reaches-the-next-request-without-a-restart`), not by splice count — the redeclaration problem `_once`
   guards against is a symptom of PHP's textual-inclusion-as-module-system, which Novis doesn't adopt for
   declarations. A template partial re-`require`d from a loop must still run every time, so the suffix goes,
   not the default.
@@ -156,6 +156,6 @@ Verification, in the order it becomes possible:
   AST shape; `include`, `include_once`, and `require_once` are each rejected with a diagnostic naming
   `require` as the replacement; none of the four keywords is available as a plain identifier.
 - **M2**: a `require`d file resolves through the same per-path compiled-unit cache
-  [ADR 0017](0017-hot-reload-without-restart.md) already defines, statically when the path is a literal and
+  `rule:config/an-edit-reaches-the-next-request-without-a-restart` already defines, statically when the path is a literal and
   by a dynamic fallback otherwise; a missing or unparseable target throws per
   `rule:errors/propagation` rather than degrading to a diagnosable-but-continuing state.

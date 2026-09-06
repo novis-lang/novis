@@ -28,7 +28,7 @@ in that goal. An item's owner is the row it sits in.
 | Code — lowering and library gaps | P1, P4, D1, D7, D8, D10, D12, D16, D17, D21, D22, D23, D27, D33, D35, U21, M1 | item 34 |
 | Docs in the tree — cards, help texts, module docs, reference chapters | M10, D2, D3, D4, D6, D9, D20, D29, U13, M2, M3, M4, M6, M7, and § *Facts worth keeping* | item 35 |
 | Planned, and unchanged by this pass | U7, U8, U9 (goal 3 items 11, 12, 17 — 11 and 17 widened to say so), U16 and D31 (goal 4), D11 (goal 6 item 19b), D28 (goal 3 stage 5) | the goal named |
-| Closed — the binary is right and the doc now says so | U10 (ADR 0103 § 6 states the `run`/`check`/`dump` exemption), U17 (`rule:types/grammar`: a bare `array` is `array<mixed>`), D13 (`rule:security/isolate-shares-nothing`: capture is the default), D18 (`rule:types/erased-member-access`), D19 (`rule:types/enum-case-type`: `as` is the only narrowing), D26 (`divergences.md`), D32 (a validator does not launder) | — |
+| Closed — the binary is right and the doc now says so | U10 (`rule:config/ownership-is-the-trust-boundary` states the `run`/`check`/`dump` exemption), U17 (`rule:types/grammar`: a bare `array` is `array<mixed>`), D13 (`rule:security/isolate-shares-nothing`: capture is the default), D18 (`rule:types/erased-member-access`), D19 (`rule:types/enum-case-type`: `as` is the only narrowing), D26 (`divergences.md`), D32 (a validator does not launder) | — |
 
 ## Panics and aborts (P)
 
@@ -158,7 +158,7 @@ in that goal. An item's owner is the row it sits in.
       typed tree out of the merged table, which never held the content, so the value was dropped
       between the resolver and every reader. It is carried beside the table now
       (`nvs_config::secret::Secret`), put back by `secret::apply` on each retype, and read by name:
-      `Core\Config::get`/`all` answer it and the dump prints ADR 0103 § 9's `<secret>` row naming the
+      `Core\Config::get`/`all` answer it and the dump prints `rule:config/check-and-dump-audit-the-tree-offline`'s `<secret>` row naming the
       file. `dump --toml` still cannot leak it, because the table is still where it never is.
 - [x] **U12** A write to a get-only hooked property compiles and is silently unobservable. *q03* —
       `E0787` refuses it from outside the declaring class; inside, it is the backing slot the `get`
@@ -278,7 +278,7 @@ in that goal. An item's owner is the row it sits in.
       The finding is right and ADR 0006 § *Decision* already said so; `1` is `require`'s, and the
       entry frame is not a `require` — `nvs_ir::lower::ScriptRole` is where the two now part.
 - [x] **D15** `Core\Config::get("mode")` answers `null` and `set("mode", …)` returns `false`;
-      `mode.default` works for both — ADR 0091 § 4 spells the bare `mode`. The spelling half is not a
+      `mode.default` works for both — `rule:config/a-program-may-read-and-flip-its-mode` spells the bare `mode`. The spelling half is not a
       bug: § 4 says `mode.default`, and a bare `mode` is a limit's name and nothing else
       (`nvs_config::request`'s module doc). What was missing is what the flip *does* — § 4's last
       bullet re-derives § 3's five defaults and § 5's ceiling bounds it, neither of which existed.

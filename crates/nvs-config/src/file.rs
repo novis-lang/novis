@@ -1,7 +1,7 @@
 //! Reading one file of the configuration: TOML in, a deserialized block tree out, and a refusal
 //! that carries a span rather than a byte offset.
 //!
-//! ADR 0064 § 1 fixes the format as TOML read through `serde`, and § 3 makes both a duplicate key
+//! `rule:config/the-file-is-nvs-toml-and-it-is-toml` fixes the format as TOML read through `serde`, and § 3 makes both a duplicate key
 //! and an unknown one an error *per file*: in a root-owned file where one table grants
 //! capabilities, an assignment silently shadowed by a later copy of itself is a security-relevant
 //! failure that costs nothing to refuse. Neither refusal is machinery of ours — the `toml` crate
@@ -15,7 +15,7 @@
 //! wanting the raw table still has one.
 //!
 //! Across an `[[include]]` the same key set twice is an override and not a duplicate, which is
-//! [`crate::directive`]'s neighbour and ADR 0103 § 3's; this module answers about one file.
+//! [`crate::directive`]'s neighbour and `rule:config/later-wins-and-every-override-is-recorded`'s; this module answers about one file.
 //!
 //! Cost: the file's text is held once in the `SourceMap` for as long as the caller keeps it, which
 //! is what buys the snippet under the diagnostic. Nothing here runs per request.
@@ -66,7 +66,7 @@ pub fn parse<T: DeserializeOwned>(
 /// the only thing to read: a duplicate is its own code because it is a distinct operator mistake
 /// with a distinct fix, while an unknown key, a bad value and a syntax error are all
 /// `E_BAD_DIRECTIVE`, whose own doc comment already covers "does not exist, or an invalid value"
-/// (ADR 0064 § 3 names that code for the unknown key).
+/// (`rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one` names that code for the unknown key).
 fn code_for(message: &str) -> Code {
     if message.starts_with("duplicate key") {
         code::E_DUPLICATE_DIRECTIVE

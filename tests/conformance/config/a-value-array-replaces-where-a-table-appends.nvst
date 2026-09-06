@@ -1,10 +1,10 @@
 --TEST--
-a value array set in a later file replaces the earlier one wholesale while `[[table]]` entries accumulate across the tree — ADR 0103 §§ 3, 4, 9
+a value array set in a later file replaces the earlier one wholesale while `[[table]]` entries accumulate across the tree — `rule:config/later-wins-and-every-override-is-recorded`, `rule:config/a-value-array-replaces-and-a-table-appends` and `rule:config/check-and-dump-audit-the-tree-offline`
 --RUN--
 config dump --origin
 --FILE--
 <?nvs
-// Not run: `--RUN--` names ADR 0103 § 9's audit. This is the program the tree
+// Not run: `--RUN--` names `rule:config/check-and-dump-audit-the-tree-offline`'s audit. This is the program the tree
 // would govern, written beside `nvs.toml` so the case describes a deployment.
 echo Core\Config::get('capabilities.fs.read'), "\n";
 --FILE nvs.toml--

@@ -1,4 +1,4 @@
-//! ADR 0073 §§ 2 and 6 from the scheduler's side: the expression the boot already read, answering
+//! `rule:config/cron-is-five-fields-and-nothing-more` and `rule:config/a-missed-fire-is-skipped-and-a-dst-edge-fires-once` from the scheduler's side: the expression the boot already read, answering
 //! the instant it next fires.
 //!
 //! The boot's own refusals are in `resolve.rs`, beside the rest of the tree's, because they are

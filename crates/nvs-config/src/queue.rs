@@ -42,7 +42,7 @@ use crate::value::{Quantity, Unit};
 /// `rule:core-classes/queue-storage-is-a-table`'s `[queue]`, resolved: the connection named, and every bound a number.
 ///
 /// Held by value and cloned per configuration generation rather than borrowed from the tree,
-/// because [ADR 0078](/docs/adr/0078-config-reload-and-control-socket.md) § 1's reload
+/// because `rule:config/the-config-is-an-immutable-snapshot`'s reload
 /// replaces the tree whole and a worker holding a borrow into the old one would be reading a
 /// generation the deployment has moved off.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -72,7 +72,7 @@ impl QueueBounds {
 ///
 /// It runs over the merged tree for [`crate::db::validate`]'s reason, plus one of its own: the
 /// `[db.<name>]` roster this block is checked against accumulates across the file tree
-/// ([ADR 0103](/docs/adr/0103-configuration-is-a-tree-of-files.md) § 4), so the name only
+/// (`rule:config/a-value-array-replaces-and-a-table-appends`), so the name only
 /// has an answer once the merge is done.
 ///
 /// # Errors
@@ -85,7 +85,7 @@ pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(
 /// The bounds the tree's `[queue]` asks for, over `QueueBounds::DEFAULTS`, and `Ok(None)` for a
 /// tree that writes no `[queue]` at all.
 ///
-/// Every unwritten key keeps its default independently, since ADR 0103 § 3's override record is per
+/// Every unwritten key keeps its default independently, since `rule:config/later-wins-and-every-override-is-recorded`'s override record is per
 /// key and a partly-written `[queue]` is four decisions rather than one. `origins` names the file a
 /// refusal points at, and an empty map simply leaves the note off.
 ///

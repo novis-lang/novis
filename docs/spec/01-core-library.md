@@ -1124,7 +1124,7 @@ originates outside the process is `tainted` (`rule:security/tainted-qualifier`).
 - `Core\Env`: `get(string): ?tainted string`, `all()`, `mode(): Env\Mode`, and the constants `EOL`, `OS`,
   `VERSION`; its one enum is `Env\Mode` — `Production`, `Development`. Read-only —
   `putenv` has no equivalent, because a process-global mutation is unsound across cores. `mode` reads the
-  run mode ([ADR 0091](../adr/0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md)); it is set
+  run mode (`rule:config/two-modes-and-the-default-is-production`); it is set
   through `Core\Config`, like every other directive, and no environment variable is consulted for it.
 - `Core\Cap`: `has(string $capability): bool`, and nothing else. Reports whether the **calling namespace**
   holds a capability at this point in the request — the grant table narrowed by anything the request or an
@@ -1181,7 +1181,7 @@ originates outside the process is `tainted` (`rule:security/tainted-qualifier`).
 Semantics are `rule:core-classes/db-one-api` — connection naming and memoization, the capability split,
 why there is no `prepare`, the transaction shape, the coercion rule and the full SQL type map. This section
 owns the signatures only. Every member needs `db.connect` or `db.open`, and a connection's credentials live
-in a root-owned `[db.<name>]` block ([ADR 0064](../adr/0064-configuration-file-format.md)).
+in a root-owned `[db.<name>]` block (`rule:config/the-file-is-nvs-toml-and-it-is-toml`).
 
 ### Entry points on `Core\Db`
 

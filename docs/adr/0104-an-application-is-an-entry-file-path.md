@@ -1,4 +1,4 @@
-# ADR 0104 — An application is an entry file path, and a per-app block is keyed on it
+# `rule:config/an-application-is-its-entry-file-path` — An application is an entry file path, and a per-app block is keyed on it
 
 - **Status:** Accepted
 - **Date:** 2026-08-27

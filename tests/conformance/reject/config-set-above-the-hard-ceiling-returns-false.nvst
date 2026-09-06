@@ -1,8 +1,8 @@
 --TEST--
-`Core\Config::set` raises a limit as far as the operator's `[limits.hard]` ceiling and refuses above it as `false` with the previous value intact, throwing neither time — ADR 0005, M6's *Verify*
+`Core\Config::set` raises a limit as far as the operator's `[limits.hard]` ceiling and refuses above it as `false` with the previous value intact, throwing neither time — `rule:config/three-changeability-classes`, M6's *Verify*
 --FILE--
 <?nvs
-// ADR 0005: `[limits]` states the value a request starts at and `[limits.hard]`
+// `rule:config/three-changeability-classes`: `[limits]` states the value a request starts at and `[limits.hard]`
 // the ceiling it may raise itself to. `memory` is a bare limit name, which
 // `Core\Config` resolves to the `[limits]` entry of the tree below.
 echo Core\Config::get('memory'), "\n";
@@ -37,7 +37,7 @@ try {
 // the accepted one wrote, not the file's and not the one it asked for.
 echo Core\Config::get('memory'), "\n";
 --FILE nvs.toml--
-# The root file, ADR 0103 § 1 step 2's `./nvs.toml`. A `[limits]` entry and the
+# The root file, `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 2's `./nvs.toml`. A `[limits]` entry and the
 # `[limits.hard]` ceiling over it are both needed for the case to have two sides
 # to assert: one set lands between them and one above.
 [limits]

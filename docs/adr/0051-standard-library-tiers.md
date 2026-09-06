@@ -51,7 +51,7 @@
 | Placement | Meaning |
 |---|---|
 | **Core** | Tier 0. Compiled into every `nvs` binary, reachable under the `Core` namespace, no build flag. |
-| **Native** | Tier 2. Statically linked subsystem in the default distribution; gated at runtime by an [ADR 0005](0005-config-changeability.md) capability, removable at build time by a Cargo feature. |
+| **Native** | Tier 2. Statically linked subsystem in the default distribution; gated at runtime by an `rule:config/three-changeability-classes` capability, removable at build time by a Cargo feature. |
 | **Ext** | Tier 1. A sandboxed `.nvsx` wasm component, first-party or third-party. |
 | **Dropped** | Not implemented at any tier. Structural closures live in `rule:security/closed-doors`; the rest are named in § 3 with their replacement. |
 | **Answered** | The problem is removed by Novis's architecture; there is nothing to port. |
