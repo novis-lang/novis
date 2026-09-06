@@ -78,28 +78,6 @@ naming the directive, and never by a page fault at an address nobody chose
 
 <sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root), [`errors/on-limit`](errors.md#errors-on-limit). Decided in [0006](../decisions/0006.md), [0116](../decisions/0116.md), [0005](../decisions/0005.md), [0004](../decisions/0004.md).</sub>
 
-<a id="security-script-spawn-capability"></a>
-
-## Executing code is its own capability, and the entry path is canonicalised and then prefix-checked
-
-`rule:security/script-spawn-capability`
-
-Spawning an isolate requires `script.spawn`, a deny-by-default grant naming the roots that code may be
-executed *from*. Being able to read a file is not permission to run it, so `fs.read` does not imply
-`script.spawn`: the two answer different questions, and a template directory that is readable by
-design should not become an execution root by accident.
-
-The entry path is canonicalised and then prefix-checked against the granted roots
-([`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix)), which closes traversal by construction rather
-than by validation. A dynamic path is allowed — a queue worker needs one — but it can only ever land
-inside a root an operator wrote down.
-
-The child's grants are the parent's effective grants, optionally narrowed at the spawn site. Nothing
-widens: a parent that has dropped `net.connect` cannot regain it by spawning
-([`security/no-runtime-grant`](security.md#security-no-runtime-grant)).
-
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed). Decided in [0006](../decisions/0006.md), [0118](../decisions/0118.md), [0112](../decisions/0112.md).</sub>
-
 <a id="security-isolate-failure-is-a-value"></a>
 
 ## A child isolate's failure arrives as data on the result and never unwinds into its parent
@@ -140,23 +118,25 @@ that rule is about owning the terminal, which an isolate's buffered output never
 
 <sub>See also [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing). Decided in [0006](../decisions/0006.md), [0088](../decisions/0088.md).</sub>
 
-<a id="security-one-isolation-implementation"></a>
+<a id="security-isolate-teardown-is-a-drain-then-a-sweep"></a>
 
-## An inbound request is the root isolate of its own tree, and there is one isolate implementation
+## An isolate ends by draining its roots through the one release worklist and then sweeping what a cycle held up
 
-`rule:security/one-isolation-implementation`
+`rule:security/isolate-teardown-is-a-drain-then-a-sweep`
 
-There is a single `Isolate` type, and **an inbound HTTP request is the root isolate of a request
-tree**. The server path and the `spawn script` path are then the same code: one arena setup, one
-construction of the accessor classes' backing state, one config-overlay derivation, one teardown, one
-place a limit is enforced.
+When an isolate ends — returning, throwing, breaching a limit, or being cancelled — its context's
+roots are released through one iterative worklist. A graph nested a million deep costs no stack, the
+cost is bounded by what is **live** at that moment rather than by what was ever allocated, and every
+native drop runs on the way. A cancelled isolate takes the same path and no other.
 
-That is worth more than it sounds. The cross-request state-bleed suite is simultaneously the
-state-bleed suite for isolates, and a fix on either path cannot forget the other — which is the
-property a second implementation would quietly give up, since two isolation mechanisms are two places
-for the same bug to be fixed once.
+The drain frees only what the refcounts say is dead, and a cycle's members hold each other above zero.
+An object is the one shape that can close a cycle, so the drain is followed by a **sweep** over the
+context's intrusive live list. The sweep first tallies, per member, how many references come from
+another member's field slot; a member the tally does not exactly account for is reachable from outside
+and is left alone, along with everything under it. Freeing memory somebody still holds is a
+use-after-free, so priority 1 decides a question priority 5 would have answered the other way.
 
-<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root). Decided in [0006](../decisions/0006.md), [0116](../decisions/0116.md).</sub>
+<sub>See also [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0116](../decisions/0116.md), [0006](../decisions/0006.md), [0004](../decisions/0004.md).</sub>
 
 <a id="security-arena-is-an-ownership-root"></a>
 
@@ -179,25 +159,45 @@ is already collected by the pooled allocator.
 
 <sub>See also [`security/isolate-teardown-is-a-drain-then-a-sweep`](security.md#security-isolate-teardown-is-a-drain-then-a-sweep), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees). Decided in [0116](../decisions/0116.md), [0006](../decisions/0006.md), [0004](../decisions/0004.md).</sub>
 
-<a id="security-isolate-teardown-is-a-drain-then-a-sweep"></a>
+<a id="security-one-isolation-implementation"></a>
 
-## An isolate ends by draining its roots through the one release worklist and then sweeping what a cycle held up
+## An inbound request is the root isolate of its own tree, and there is one isolate implementation
 
-`rule:security/isolate-teardown-is-a-drain-then-a-sweep`
+`rule:security/one-isolation-implementation`
 
-When an isolate ends — returning, throwing, breaching a limit, or being cancelled — its context's
-roots are released through one iterative worklist. A graph nested a million deep costs no stack, the
-cost is bounded by what is **live** at that moment rather than by what was ever allocated, and every
-native drop runs on the way. A cancelled isolate takes the same path and no other.
+There is a single `Isolate` type, and **an inbound HTTP request is the root isolate of a request
+tree**. The server path and the `spawn script` path are then the same code: one arena setup, one
+construction of the accessor classes' backing state, one config-overlay derivation, one teardown, one
+place a limit is enforced.
 
-The drain frees only what the refcounts say is dead, and a cycle's members hold each other above zero.
-An object is the one shape that can close a cycle, so the drain is followed by a **sweep** over the
-context's intrusive live list. The sweep first tallies, per member, how many references come from
-another member's field slot; a member the tally does not exactly account for is reachable from outside
-and is left alone, along with everything under it. Freeing memory somebody still holds is a
-use-after-free, so priority 1 decides a question priority 5 would have answered the other way.
+That is worth more than it sounds. The cross-request state-bleed suite is simultaneously the
+state-bleed suite for isolates, and a fix on either path cannot forget the other — which is the
+property a second implementation would quietly give up, since two isolation mechanisms are two places
+for the same bug to be fixed once.
 
-<sub>See also [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0116](../decisions/0116.md), [0006](../decisions/0006.md), [0004](../decisions/0004.md).</sub>
+<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root). Decided in [0006](../decisions/0006.md), [0116](../decisions/0116.md).</sub>
+
+<a id="security-script-spawn-capability"></a>
+
+## Executing code is its own capability, and the entry path is canonicalised and then prefix-checked
+
+`rule:security/script-spawn-capability`
+
+Spawning an isolate requires `script.spawn`, a deny-by-default grant naming the roots that code may be
+executed *from*. Being able to read a file is not permission to run it, so `fs.read` does not imply
+`script.spawn`: the two answer different questions, and a template directory that is readable by
+design should not become an execution root by accident.
+
+The entry path is canonicalised and then prefix-checked against the granted roots
+([`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix)), which closes traversal by construction rather
+than by validation. A dynamic path is allowed — a queue worker needs one — but it can only ever land
+inside a root an operator wrote down.
+
+The child's grants are the parent's effective grants, optionally narrowed at the spawn site. Nothing
+widens: a parent that has dropped `net.connect` cannot regain it by spawning
+([`security/no-runtime-grant`](security.md#security-no-runtime-grant)).
+
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed). Decided in [0006](../decisions/0006.md), [0118](../decisions/0118.md), [0112](../decisions/0112.md).</sub>
 
 <a id="security-request-state-throws-in-an-isolate"></a>
 
@@ -221,6 +221,30 @@ environment variables and process arguments are process-wide facts already gover
 and config-overlay machinery.
 
 <sub>See also [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0012](../decisions/0012.md), [0006](../decisions/0006.md).</sub>
+
+<a id="security-no-cross-request-state"></a>
+
+## Nothing a request does is observable by another request except through an explicit, capability-gated store
+
+`rule:security/no-cross-request-state`
+
+Nothing a request does is observable by another request except through an explicit, capability-gated
+store. Two things that look unrelated are the same violation and are closed together.
+
+**Shared memory and process-wide IPC** — a shared segment reintroduces exactly the channel isolation
+exists to eliminate, and there is no safe-if-careful version, because the entire isolation argument is
+that carefulness is not a mechanism. **Userland calls that mutate process-global configuration** —
+the environment, the locale, a numeric scale, an internal encoding, a default timezone — are ambient
+mutable state read by later, unrelated code, and several are outright unsound in a multithreaded
+process. The environment is read-only after startup, and locale, scale and timezone are always
+explicit arguments.
+
+This does not close operator configuration, which is governed, per-request, and cannot widen an
+operator's ceiling. The rule is about **userland calls whose effect outlives or escapes the caller's
+own request**. The replacement is a per-core or real shared cache, where the sharing is explicit,
+bounded, and visible in the grants.
+
+<sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0052](../decisions/0052.md), [0059](../decisions/0059.md), [0006](../decisions/0006.md).</sub>
 
 <a id="security-closed-doors"></a>
 
@@ -267,53 +291,6 @@ deadline and a memory cap — which is the whole of what an FFI gives up.
 
 <sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens). Decided in [0052](../decisions/0052.md), [0003](../decisions/0003.md), [0051](../decisions/0051.md).</sub>
 
-<a id="security-a-path-is-not-a-url"></a>
-
-## A path is a filesystem path: no member dispatches on a scheme prefix, and nothing may register one
-
-`rule:security/a-path-is-not-a-url`
-
-No `Core` member that takes a path interprets a scheme prefix, and there is no registry by which
-userland or an extension adds one. A read of `"php://filter/..."` looks for a file with that name and
-does not find it.
-
-Making every filesystem function accept a URL, and letting userland register new schemes, is the root
-of an entire vulnerability taxonomy: metadata in an archive path triggering unserialization on any
-file operation that touches it, filter chains that turn an arbitrary file read into arbitrary code
-execution, and `data://`/`http://` turning every local file-inclusion bug into a remote one.
-
-The mechanism's actual benefit is polymorphism over "things you can read bytes from," and that is
-available without any of the above, as an ordinary interface implemented by ordinary types and
-resolved statically. What is refused is specifically **dispatch on the textual content of a path**,
-which is also what makes [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix) a total rule rather than
-one with a scheme-shaped hole in it.
-
-<sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/sink-predicate`](security.md#security-sink-predicate), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix). Decided in [0052](../decisions/0052.md), [0023](../decisions/0023.md).</sub>
-
-<a id="security-no-cross-request-state"></a>
-
-## Nothing a request does is observable by another request except through an explicit, capability-gated store
-
-`rule:security/no-cross-request-state`
-
-Nothing a request does is observable by another request except through an explicit, capability-gated
-store. Two things that look unrelated are the same violation and are closed together.
-
-**Shared memory and process-wide IPC** — a shared segment reintroduces exactly the channel isolation
-exists to eliminate, and there is no safe-if-careful version, because the entire isolation argument is
-that carefulness is not a mechanism. **Userland calls that mutate process-global configuration** —
-the environment, the locale, a numeric scale, an internal encoding, a default timezone — are ambient
-mutable state read by later, unrelated code, and several are outright unsound in a multithreaded
-process. The environment is read-only after startup, and locale, scale and timezone are always
-explicit arguments.
-
-This does not close operator configuration, which is governed, per-request, and cannot widen an
-operator's ceiling. The rule is about **userland calls whose effect outlives or escapes the caller's
-own request**. The replacement is a per-core or real shared cache, where the sharing is explicit,
-bounded, and visible in the grants.
-
-<sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0052](../decisions/0052.md), [0059](../decisions/0059.md), [0006](../decisions/0006.md).</sub>
-
 <a id="security-no-eval"></a>
 
 ## There is no `eval`, and no `Core` member compiles a string produced at run time
@@ -336,6 +313,29 @@ Running code chosen at run time is `spawn script`: in an isolate, spending the p
 `eval` never had.
 
 <sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing). Decided in [0052](../decisions/0052.md), [0019](../decisions/0019.md), [0022](../decisions/0022.md), [0024](../decisions/0024.md), [0042](../decisions/0042.md), [0048](../decisions/0048.md).</sub>
+
+<a id="security-a-path-is-not-a-url"></a>
+
+## A path is a filesystem path: no member dispatches on a scheme prefix, and nothing may register one
+
+`rule:security/a-path-is-not-a-url`
+
+No `Core` member that takes a path interprets a scheme prefix, and there is no registry by which
+userland or an extension adds one. A read of `"php://filter/..."` looks for a file with that name and
+does not find it.
+
+Making every filesystem function accept a URL, and letting userland register new schemes, is the root
+of an entire vulnerability taxonomy: metadata in an archive path triggering unserialization on any
+file operation that touches it, filter chains that turn an arbitrary file read into arbitrary code
+execution, and `data://`/`http://` turning every local file-inclusion bug into a remote one.
+
+The mechanism's actual benefit is polymorphism over "things you can read bytes from," and that is
+available without any of the above, as an ordinary interface implemented by ordinary types and
+resolved statically. What is refused is specifically **dispatch on the textual content of a path**,
+which is also what makes [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix) a total rule rather than
+one with a scheme-shaped hole in it.
+
+<sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/sink-predicate`](security.md#security-sink-predicate), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix). Decided in [0052](../decisions/0052.md), [0023](../decisions/0023.md).</sub>
 
 <a id="security-reflection-enforces-visibility"></a>
 
@@ -377,6 +377,397 @@ is free to be open because there is nothing behind it
 ([`security/no-eval`](security.md#security-no-eval), [`security/reflection-enforces-visibility`](security.md#security-reflection-enforces-visibility)).
 
 <sub>See also [`security/no-eval`](security.md#security-no-eval), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/reflection-enforces-visibility`](security.md#security-reflection-enforces-visibility). Decided in [0019](../decisions/0019.md), [0052](../decisions/0052.md), [0118](../decisions/0118.md).</sub>
+
+<a id="security-capability-check-at-the-door"></a>
+
+## The capability check lives inside the function that performs the effect, and that door is the only way out of the process
+
+`rule:security/capability-check-at-the-door`
+
+The check is **not** a line in a member's body that an author remembers to write, **not** at the call
+site in emitted code, and **not** in a dispatcher. It is inside the function that performs the effect
+— the one that opens the file, or dials the socket.
+
+A `Core` member cannot reach the operating system another way, because the standard library **may not
+name the spellings that perform an effect**, and a test reads the crate's own sources and fails on
+one. So "the author forgot the check" is not a failure mode that exists: forgetting it means calling
+the raw spelling directly, and that does not get past the test. The list is of *spellings*, not of
+modules, because an address parser and a process abort live beside the doors without being ones.
+
+Every other placement leaves the check *beside* the effect, where omitting it is a silent hole that
+reviews are expected to catch. This one puts it *in* the effect, where omitting it means not
+performing the effect. The friction is the point: the door is where the check, the path rule and the
+diagnostic already are.
+
+<sub>See also [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/denial-is-a-runtime-error`](security.md#security-denial-is-a-runtime-error), [`testing/capability-closure-test`](testing.md#testing-capability-closure-test). Decided in [0118](../decisions/0118.md), [0005](../decisions/0005.md), [0112](../decisions/0112.md).</sub>
+
+<a id="security-capability-question-is-grant-and-scope"></a>
+
+## A capability question is a grant and a scope, asked of the request's own configuration snapshot
+
+`rule:security/capability-question-is-grant-and-scope`
+
+At the point of a call the question has exactly two parts: the **grant** — is this capability present
+at all in the effective configuration — and the **scope** — does *this argument* fall inside what was
+granted: a path under a granted root, a host in a granted list, a binary in a granted set.
+
+Both are answered against the request's own configuration snapshot, cloned once before the program
+runs and immutable for the request's whole life. Nothing on the request path re-reads the
+configuration tree, so two checks in one request cannot disagree, and a reload between a program's
+first syscall and its second cannot widen or narrow what that program may do halfway through.
+
+The decision procedure is pure — a snapshot, a capability, an argument, a boolean. It takes no
+context, throws nothing, and is therefore testable without a compiler in front of it. Holding a
+capability is not a promise about any one argument; the scope is asked every time.
+
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix), [`security/no-runtime-grant`](security.md#security-no-runtime-grant). Decided in [0118](../decisions/0118.md), [0078](../decisions/0078.md), [0005](../decisions/0005.md).</sub>
+
+<a id="security-capability-declaration-is-one-table"></a>
+
+## What each `Core` member needs is declared once in one table, and nothing at run time reads it
+
+`rule:security/capability-declaration-is-one-table`
+
+What each `Core` member needs is declared once, in one table: a class, a member, and an optional
+capability. **The table is never read at run time.** It is audit data — the metadata command renders
+it, the reference documentation prints it beside a member's card, and the closure test reads it.
+Enforcement is the doors ([`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door)), which do not consult it, so
+the table cannot be the thing an attacker edits to gain a permission.
+
+A field on each member row was the obvious shape and is rejected for two reasons, in this order.
+**"What can this runtime do to my machine" should be one screen of one file**; spread across dozens of
+class literals in dozens of modules it is dozens of greps and a judgement about whether you found them
+all, which is precisely the question a security review is trying not to have to make. And a field that
+is empty on the overwhelming majority of rows documents nothing while being maintained everywhere.
+
+The locality it gives up is bought back mechanically: a test fails on an entry naming a class or
+member that does not exist, and another fails on a member that owes an entry and has none.
+
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`testing/capability-closure-test`](testing.md#testing-capability-closure-test), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed). Decided in [0118](../decisions/0118.md), [0117](../decisions/0117.md), [0063](../decisions/0063.md).</sub>
+
+<a id="security-capability-roster-is-closed"></a>
+
+## Every capability name that exists is on one roster, and a name outside it is refused where it is written
+
+`rule:security/capability-roster-is-closed`
+
+Every capability name that exists is on one roster, in one place, with the reasoning for what it
+permits named beside it. **A name not on the roster is not a capability**, which is what makes a grant
+line's unknown name checkable at boot and what makes a written query for a name nobody can grant a
+compile error rather than a permanent `false`.
+
+The roster is closed in the sense that it does not grow by accident: a new capability is one variant
+and one arm in the one place a name maps to the field that grants it, which is also where a refusal
+gets the spelling it prints. Two capabilities that answer different questions stay two names — being
+able to read a file is not permission to run it
+([`security/script-spawn-capability`](security.md#security-script-spawn-capability)), and opening a connection an operator named is not opening
+one a program chose.
+
+A member that reaches nothing declares that by entering the table with no capability rather than by
+being absent from it ([`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table)), so the standard library's
+own surface is a closed claim rather than a list with an exception column.
+
+<sub>See also [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/optional-capability-degrades`](security.md#security-optional-capability-degrades). Decided in [0112](../decisions/0112.md), [0118](../decisions/0118.md), [0064](../decisions/0064.md).</sub>
+
+<a id="security-authority-is-the-enclosing-namespace"></a>
+
+## Authority is a property of the namespace enclosing the code, never of the nesting depth or the name being called  *(designed — not yet in the compiler)*
+
+`rule:security/authority-is-the-enclosing-namespace`
+
+Authority is the namespace **enclosing the code**, not the nesting depth of the statement and not the
+name being called.
+
+A top-level statement in a file declaring a namespace runs under that namespace's grants exactly as a
+method body in the same file would. **File-scope code is not exempt**, and it must not be: an
+exemption would be a one-line bypass of the whole system. A file with no namespace declaration is in
+the global namespace, which is the application, so an entry point is unrestricted up to the operator's
+ceiling. A closure carries the namespace it was **declared** in, not the one that calls it, so a
+closure written in the application and invoked from a package runs under the application's authority.
+A `use` import transfers nothing: authority is a property of where code *is*, never of what it names.
+
+Keying on the namespace is what closes the override hole — a file overriding one class of a dependency
+keeps that dependency's authority, because it must keep its namespace to be an override at all — and
+it reaches code no package manager ever touched.
+
+**Not on disk.** Nothing in the tree reads a per-namespace grant table.
+
+<sub>See also [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/longest-prefix-wins`](security.md#security-longest-prefix-wins), [`security/an-unmatched-namespace-holds-the-application`](security.md#security-an-unmatched-namespace-holds-the-application), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time). Decided in [0112](../decisions/0112.md), [0081](../decisions/0081.md), [0061](../decisions/0061.md).</sub>
+
+<a id="security-grants-are-keyed-on-a-namespace"></a>
+
+## The application's grant table is keyed on namespace prefixes, and a capability it names must be on the roster  *(designed — not yet in the compiler)*
+
+`rule:security/grants-are-keyed-on-a-namespace`
+
+The application's grant table is keyed on namespace prefixes and lives in the application's own
+configuration rather than in a package manifest. A package still declares what it requests and that
+declaration still grants nothing; the application grants explicitly, one line at a time.
+
+A capability named in a grant line must appear on the roster
+([`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed)); an unknown name is an error at boot, because a
+directive that silently means nothing is worse than one that refuses.
+
+The effective set at a call site is the **intersection** of the operator's configuration, the
+application's grant, the package's own declaration and any narrowing an enclosing isolate applied —
+every one of which may only tighten ([`security/no-runtime-grant`](security.md#security-no-runtime-grant)).
+
+**Not on disk.** The tree reads the deployment's capability block; it has no per-namespace grant
+table, and the diagnostics this rule needs do not exist.
+
+<sub>See also [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed), [`security/longest-prefix-wins`](security.md#security-longest-prefix-wins). Decided in [0112](../decisions/0112.md), [0081](../decisions/0081.md), [0064](../decisions/0064.md).</sub>
+
+<a id="security-longest-prefix-wins"></a>
+
+## The longest matching grant key wins, and a subtree is spelled out because it reaches code that does not exist yet  *(designed — not yet in the compiler)*
+
+`rule:security/longest-prefix-wins`
+
+Lookup reuses the resolution rule a developer already learned. A bare prefix grants **that namespace's
+own declarations only**; a subtree is spelled with an explicit wildcard and grants every depth below
+it. The **longest matching key wins**, an exact key beats a subtree key at equal length, and two keys
+that would match identically is an error at boot naming both.
+
+**The subtree form is spelled out because it is the dangerous one.** A subtree grant reaches code that
+does not exist yet: granting a vendor's whole subtree means a module introduced by an upgrade eight
+months from now holds the database. That is the opposite of the posture everywhere else, so it is
+never the default reading of a bare prefix — the narrow thing is what a reader gets, and the broad
+thing costs two extra characters and is visible in review as its own token.
+
+**Not on disk.** No grant table is keyed this way in the tree.
+
+<sub>See also [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace). Decided in [0112](../decisions/0112.md), [0061](../decisions/0061.md).</sub>
+
+<a id="security-an-unmatched-namespace-holds-the-application"></a>
+
+## A namespace matching no grant line holds the application's own authority, and a fetch leaves nothing unmatched  *(designed — not yet in the compiler)*
+
+`rule:security/an-unmatched-namespace-holds-the-application`
+
+A namespace matching no grant line holds what the application holds — the operator's ceiling. Denying
+by default here would refuse to compile every program written before the table existed and force every
+application to grant itself, which is ceremony charged to the common case.
+
+That default is only safe because **nothing a package manager fetched is ever unmatched**: fetching
+writes a grant line for every package in the resolved graph, direct and transitive, **including an
+empty one**. The permissive default therefore applies only to code a human wrote or pasted, which is
+the case where it is the right answer.
+
+Hand-vendored code is the residue, and it is reported rather than closed: an audit warns on a
+namespace whose autoload root lies under a directory the grant table never mentions. A warning is the
+correct strength, because the same shape describes a legitimate second source tree of the
+application's own.
+
+**Not on disk.** There is no fetch step and no audit that writes or checks these lines.
+
+<sub>See also [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time). Decided in [0112](../decisions/0112.md), [0081](../decisions/0081.md).</sub>
+
+<a id="security-path-scope-canonicalise-then-prefix"></a>
+
+## A path scope is canonicalise-then-prefix over whole components, and a path that does not exist yet is its deepest existing ancestor
+
+`rule:security/path-scope-canonicalise-then-prefix`
+
+A path-bearing capability resolves by one comparison: **canonicalise both sides, then compare whole
+components.** A traversal through `..` does not reach a root it was not already under, a symlink
+planted under a granted root does not carry the root's grant to its target, and a sibling directory
+whose name merely starts with the root's is not inside it. There is one implementation of this rule in
+the tree, and adding a second is how one of the callers ends up accepting a symlink.
+
+The granted roots are canonicalised **once, when the snapshot is built**: a root still spelled the way
+the operator typed it is a comparison against the wrong thing, and doing it per call would put a
+resolution on the grant side of every check.
+
+A write to a file that does not exist yet cannot be canonicalised, and creating it to find out whether
+creating it is allowed is obviously wrong. So the argument canonicalises its **deepest existing
+ancestor** and re-appends the remainder, with the remainder refused outright if it contains `..` — the
+one component that could still escape after the ancestor is pinned.
+
+<sub>See also [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/a-path-is-not-a-url`](security.md#security-a-path-is-not-a-url), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`errors/path-component-refusals`](errors.md#errors-path-component-refusals). Decided in [0118](../decisions/0118.md), [0104](../decisions/0104.md).</sub>
+
+<a id="security-denial-is-a-runtime-error"></a>
+
+## A denied capability is a catchable `RuntimeError` naming the capability, never a fatal
+
+`rule:security/denial-is-a-runtime-error`
+
+A denied capability throws a `RuntimeError`, and a program may catch it and degrade. It is not an
+escalation: a limit breach is fatal because the request has already consumed something it cannot give
+back, whereas a capability denial is known *before* any work is done and leaves nothing behind. A
+cache that falls back to recomputing when writing is not granted is a reasonable program, and making
+the refusal uncatchable would forbid it ([`errors/escalation-ladder`](errors.md#errors-escalation-ladder)).
+
+No new class is added: `RuntimeError` is "the world said no", where the world is the operator. The
+message names the capability **in its configuration spelling**, and for a scoped one the argument that
+fell outside the grant — because the reader of that message is usually the operator, and the grant
+name is the string they will add to their configuration.
+
+A predicate that would otherwise answer `false` is refused rather than answered, so an ungranted
+deployment never looks like a negative result.
+
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy). Decided in [0118](../decisions/0118.md), [0020](../decisions/0020.md).</sub>
+
+<a id="security-optional-capability-degrades"></a>
+
+## A capability is required or optional, and only a required one refuses to build  *(designed — not yet in the compiler)*
+
+`rule:security/optional-capability-degrades`
+
+A package's manifest splits what it asks for into `required` and `optional`. A **required** capability
+that is not granted is a compile error naming the namespace, the capability and the grant line that
+would fix it. An **optional** one compiles either way, and each such call site carries a guard that
+throws if it is reached — an ordinary catchable throwable, because a package that declared a
+capability optional has said it can proceed without it.
+
+The split exists because the compile-time check's granularity is **reachability, not execution**: a
+class no name reaches is never part of your program, but inside a class your program does name, every
+call site is checked including a branch that never runs. Without the split, the reachability of a
+*class* would be the unit of capability granularity, which is far too coarse for a class with two
+halves.
+
+`Core\Cap::has` reports what the call site already holds. It is **not** a runtime grant: nothing
+widens ([`security/no-runtime-grant`](security.md#security-no-runtime-grant)).
+
+**Partly on disk.** `Core\Cap::has` exists and refuses a written name outside the roster while
+checking. The required/optional manifest split, the guard at an optional call site and the compile
+error for a required one have no representation in the tree.
+
+<sub>See also [`security/no-runtime-grant`](security.md#security-no-runtime-grant), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed), [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace). Decided in [0112](../decisions/0112.md), [0081](../decisions/0081.md), [0061](../decisions/0061.md), [0020](../decisions/0020.md).</sub>
+
+<a id="security-no-runtime-grant"></a>
+
+## Two layers enforce a capability and only the static one grants; nothing anywhere widens
+
+`rule:security/no-runtime-grant`
+
+Two layers enforce a capability. The **static** one reads the grant tables at compile time, costs
+nothing, and answers *may this code ever do this?* The **runtime** one reads the request's effective
+configuration at every door and at every optional guard, costs one branch, and answers *may this
+request, right now?*
+
+The runtime layer exists because narrowing exists: a request may tighten a capability, and an isolate
+may drop grants at the spawn site ([`security/script-spawn-capability`](security.md#security-script-spawn-capability)). **It may only ever
+drop.** There is no runtime grant, and adding one would spend the property this whole design rests on
+in exchange for reintroducing the dynamic escape the language closed elsewhere — by having no `eval`
+([`security/no-eval`](security.md#security-no-eval)), no string or array callables, and reflection that hands back an inert tree
+([`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability)).
+
+Static attribution is total in Novis only because those doors are shut. A runtime widen would be a
+further one opened, and every claim above it would have to be qualified.
+
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/closed-doors`](security.md#security-closed-doors), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`security/optional-capability-degrades`](security.md#security-optional-capability-degrades). Decided in [0112](../decisions/0112.md), [0005](../decisions/0005.md), [0006](../decisions/0006.md), [0052](../decisions/0052.md), [0031](../decisions/0031.md), [0019](../decisions/0019.md).</sub>
+
+<a id="security-capability-costs-nothing-unasked"></a>
+
+## A member that needs no capability pays nothing, and one that does pays only beside a syscall
+
+`rule:security/capability-costs-nothing-unasked`
+
+A member that needs no capability pays nothing at all: no table lookup, no branch, no field on its
+row, no code emitted at its call sites. That falls directly out of the check living inside a function
+such a member never calls, and the declaration being data no execution path reads.
+
+A member that does need one pays, on top of a syscall: one enum-indexed field read on the snapshot it
+already holds, and for a scoped capability one canonicalisation of the argument plus a component-wise
+prefix compare per granted root. The canonicalisation is on the order of a microsecond and is dwarfed
+by the open it precedes.
+
+Every member that reaches this check is by construction about to make a syscall, so **the check is
+never on a hot path**. That is the whole latency argument, and it holds because of *where* the check
+is rather than because of how it is written.
+
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0118](../decisions/0118.md), [0004](../decisions/0004.md).</sub>
+
+<a id="security-package-authority-is-granted-one-line-at-a-time"></a>
+
+## A dependency's authority is granted by the application one line at a time, and a declaration grants nothing  *(designed — not yet in the compiler)*
+
+`rule:security/package-authority-is-granted-one-line-at-a-time`
+
+A package **declares** what it requests, split into required and optional. That declaration is
+documentation and an upper bound on itself; it grants nothing. The **application grants explicitly,
+one line at a time**, and a namespace granted nothing holds nothing. Adding a dependency prints every
+capability requested by that package *and its whole transitive subgraph* before a human writes
+anything, so the authority a new dependency brings is visible in one diff at the moment it is
+introduced rather than discoverable by audit later.
+
+What this buys, stated plainly: a fully malicious package that reaches the compiler cannot open a
+socket, read a file, spawn a process, reach a database or spawn a script unless a human wrote its name
+in a grant line. The compromise of a transitive dependency degrades from *arbitrary action with the
+process's authority* to *arbitrary computation with no authority at all*.
+
+**Not on disk.** There is no package manager, no manifest, and no grant line writer in the tree.
+
+<sub>See also [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace), [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/no-runtime-grant`](security.md#security-no-runtime-grant). Decided in [0081](../decisions/0081.md), [0112](../decisions/0112.md), [0005](../decisions/0005.md), [0055](../decisions/0055.md).</sub>
+
+<a id="security-process-exec-capability"></a>
+
+## Executing a program is deny-by-default under its own capability, and there is no shell to interpolate into
+
+`rule:security/process-exec-capability`
+
+Running another program is deny-by-default under `process.exec`, the same as every other
+syscall-touching entry point: a request may narrow it further and never widen it, and calling without
+the grant throws ([`security/denial-is-a-runtime-error`](security.md#security-denial-is-a-runtime-error)). The grant is asked for before the target
+is looked at, so an ungranted deployment never learns whether a binary exists.
+
+The capability is only half of it, and the other half is that **there is no shell to interpolate
+into**. An executable path and an argv array, with nothing in between that parses a command line,
+removes the escaping question rather than answering it — which is a stronger guarantee than any amount
+of quoting. Under the sink predicate the argv elements are therefore *data* while the executable path
+is an instruction, so the path is the sink and the arguments are not
+([`security/sink-predicate`](security.md#security-sink-predicate)).
+
+A grant that names executable roots resolves the same way a spawn root does, canonicalise-then-prefix
+([`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix)).
+
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/sink-predicate`](security.md#security-sink-predicate), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`core-classes/process-refuses-a-shell-target`](core-classes.md#core-classes-process-refuses-a-shell-target). Decided in [0044](../decisions/0044.md), [0118](../decisions/0118.md), [0112](../decisions/0112.md), [0024](../decisions/0024.md).</sub>
+
+<a id="security-net-address-policy"></a>
+
+## `net.connect` carries an address policy that denies the private ranges, and an exception is one written IP address
+
+`rule:security/net-address-policy`
+
+`net.connect` is not a boolean and not merely a host list. It carries an address policy enforced on
+**every outbound connection whose address the program supplies**, hardcoded URLs included, because a
+hardcoded hostname can resolve into a private range and because deployment configuration supplies most
+real endpoint URLs.
+
+Denied by default: loopback, the private ranges, **link-local**, unspecified, and the IPv4-mapped IPv6
+forms of all of them. An operator grants an exception as an **IP address literal** beside the connect
+grant. Three things it is not, each a widening this refuses: not a hostname, because the policy is
+asked of a resolved address and a name would except whatever it resolved to afterwards; not a range,
+because an operator writing a whole `/8` hands back most of the table without naming a host; and not
+`true`, which is the one place a capability's `true` does not mean everything.
+
+The one class of address it does not govern is an endpoint an operator wrote into root-owned
+configuration and granted by name — that address is not attacker-influenceable, and applying the
+policy there would deny every ordinary deployment. A program-supplied target stays governed in full.
+
+<sub>See also [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities). Decided in [0058](../decisions/0058.md), [0118](../decisions/0118.md), [0142](../decisions/0142.md), [0067](../decisions/0067.md).</sub>
+
+<a id="security-the-policy-lives-in-the-capability"></a>
+
+## The address policy lives in the capability, so every client obeys it and none of them may hold its own
+
+`rule:security/the-policy-lives-in-the-capability`
+
+Every client — the HTTP client, the raw socket layer, a program-supplied database target, and any
+socket a host import hands to an extension — is subject to the same policy, enforced at the point the
+connection is made rather than inside any one of them.
+
+A policy held by a client is a policy the next client does not have. Putting it in the capability
+means an extension cannot be granted a socket that escapes it, which matters because an extension may
+legitimately be an I/O source and several network clients sit outside the standard library. It also
+means the answer to "what may this deployment reach" is one grant an operator reads, not a survey of
+every class that opens a connection.
+
+The exception is the same one [`security/net-address-policy`](security.md#security-net-address-policy) names — a config-named endpoint the
+operator has already approved by writing it — and it is a property of the address, not of the client
+that dials it.
+
+<sub>See also [`security/net-address-policy`](security.md#security-net-address-policy), [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink). Decided in [0058](../decisions/0058.md), [0118](../decisions/0118.md), [0055](../decisions/0055.md), [0051](../decisions/0051.md).</sub>
 
 <a id="security-tainted-qualifier"></a>
 
@@ -448,49 +839,28 @@ would be a one-word bypass of every rule below.
 
 <sub>See also [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`types/conversion`](types.md#types-conversion), [`expressions/conversion-keeps-qualifiers`](expressions.md#expressions-conversion-keeps-qualifiers). Decided in [0024](../decisions/0024.md), [0007](../decisions/0007.md), [0066](../decisions/0066.md).</sub>
 
-<a id="security-launderers-are-sink-named"></a>
+<a id="security-tainted-has-no-default-decoration"></a>
 
-## The only way out of `tainted` is a `Core` member whose contract names the one sink it is safe for
+## `tainted` ships no default editor decoration, and the marker is opt-in  *(designed — not yet in the compiler)*
 
-`rule:security/launderers-are-sink-named`
+`rule:security/tainted-has-no-default-decoration`
 
-Short of a checked conversion, the only way to remove `tainted` is a `Core` member whose contract
-states which **one** sink it is safe for: an HTML escape for HTML text, an identifier quote for a
-dynamic table or column name, a path containment check for a path component, and one per sink as each
-class is designed.
+`tainted` gets a semantic-token modifier and **no default decoration**. A marker glyph is added
+content rather than a colour, and shipping one on by default writes into someone else's editor exactly
+what the token-modifier rule refuses. The marker is a setting with three values and `off` is the
+default; where it is on, the glyph is a themed icon rather than an emoji, and its colour is a theme
+reference rather than a literal.
 
-There is deliberately no generic `sanitize()` or `clean()`. A value safe for HTML text is not safe for
-a shell argument or a path, and a single catch-all invites exactly the false confidence the qualifier
-exists to prevent. The roster grows by adding a named member to the class that owns the sink, never by
-widening an existing one.
+**The asymmetry with `secret` is the whole content of this rule.** A credential on a shared screen is
+a security incident, which is what buys `secret` its default
+([`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server)). A tainted value on a screen is not an event
+at all: `tainted` is a compile-time guarantee already enforced by refusing the sink
+([`security/sink-predicate`](security.md#security-sink-predicate)), so marking it is teaching, and teaching does not get to override the
+user's theme.
 
-Which return type a launderer takes is a predicate rather than a per-member choice
-([`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier)). Where no built-in launderer fits, the way out is
-[`security/assert-trusted`](security.md#security-assert-trusted) — written, greppable, and carrying a reason — and never a silent cast.
+**Not on disk.** There is no language server in the tree.
 
-<sub>See also [`security/assert-trusted`](security.md#security-assert-trusted), [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier), [`security/taint-propagation`](security.md#security-taint-propagation), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape). Decided in [0024](../decisions/0024.md), [0133](../decisions/0133.md), [0055](../decisions/0055.md).</sub>
-
-<a id="security-assert-trusted"></a>
-
-## `Core\Taint::assertTrusted` is the one generic way out, and it carries a written reason at the call site
-
-`rule:security/assert-trusted`
-
-`Core\Taint::assertTrusted(tainted string, string $reason): string` is the one generic escape from the
-qualifier, for the case where the developer has validated the value themselves and needs to say so. It
-is modelled on this project's own `unsafe` policy: forbidden by default, rare, greppable, and carrying
-a written reason at the call site rather than a silent cast.
-
-It is the answer at every position that has no launderer *and cannot have one* — a metric label, whose
-hazard is unbounded cardinality rather than content ([`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted)); a
-regex pattern, where no transform makes an attacker-authored pattern safe
-([`security/regex-pattern-is-a-sink`](security.md#security-regex-pattern-is-a-sink)); a format template drawn from a translation catalogue
-([`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink)).
-
-It removes `tainted` and nothing else: a `secret` operand is refused there, because confidentiality is
-a separate axis and this member makes no claim about it.
-
-<sub>See also [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink), [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted). Decided in [0024](../decisions/0024.md), [0088](../decisions/0088.md), [0076](../decisions/0076.md).</sub>
+<sub>See also [`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server), [`security/sink-predicate`](security.md#security-sink-predicate), [`security/tainted-qualifier`](security.md#security-tainted-qualifier). Decided in [0101](../decisions/0101.md), [0099](../decisions/0099.md), [0088](../decisions/0088.md).</sub>
 
 <a id="security-sink-predicate"></a>
 
@@ -539,50 +909,6 @@ whether to *set* the qualifier on a result reaches further than the narrowing th
 
 <sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`testing/capability-closure-test`](testing.md#testing-capability-closure-test). Decided in [0088](../decisions/0088.md), [0024](../decisions/0024.md).</sub>
 
-<a id="security-response-body-is-one-typed-member"></a>
-
-## A response body is written by one typed member, and mixing `echo` with one of them does not compile
-
-`rule:security/response-body-is-one-typed-member`
-
-A response body is written by one of five typed members, each owning a body shape and setting its own
-content type. The HTML member takes the carrier and so has nothing to refuse; the JSON and text
-members are contagious; the bytes member is contagious in its body and a sink in its content type; the
-file member's path is a sink.
-
-The JSON member accepts a tainted value freely, because the framing belongs to the serializer and
-never to concatenation — a tainted string becomes a JSON string value and cannot escape it. The text
-member accepts one only because a no-sniff header is on by default with nothing configured, so
-`text/plain` is not re-parsed as HTML; that dependency is stated so removing the default is visibly a
-change to two rules.
-
-**`echo` and a typed writer on the same response is a compile error.** They disagree about the body's
-type and its content type, and silently letting the last one win is how a JSON endpoint acquires an
-HTML prelude.
-
-<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape). Decided in [0088](../decisions/0088.md), [0024](../decisions/0024.md), [0074](../decisions/0074.md).</sub>
-
-<a id="security-capture-answers-the-carrier"></a>
-
-## Capturing a sink yields that sink's carrier, never a plain `string`
-
-`rule:security/capture-answers-the-carrier`
-
-Capturing output answers **the carrier of the sink in force**, not a plain `string`. The reason is not
-symmetry: the captured bytes have *already* been through the sink, so handing them back as a `string`
-and re-emitting them would escape them a second time and corrupt the page.
-
-The same rule gives a spawned isolate's captured result its type
-([`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured)), by the same argument and with the same fix. Inheriting
-rather than capturing needs no rule at all: the child's carrier is the parent's, so appending composes
-the way carrier addition already does.
-
-This is the third instance of one rule rather than three members that each argued it alone — the other
-two being a laundering escape and an approved URL — and stating it once is what keeps a future
-capturing member from answering the wrong type ([`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier)).
-
-<sub>See also [`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured), [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier), [`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member). Decided in [0088](../decisions/0088.md), [0006](../decisions/0006.md), [0133](../decisions/0133.md).</sub>
-
 <a id="security-every-grammar-is-a-sink"></a>
 
 ## Every grammar the library parses is a sink, and none of the four gets a launderer
@@ -604,53 +930,6 @@ that routinely needs a runtime value *inside* it rather than *as* it
 ([`security/regex-pattern-is-a-sink`](security.md#security-regex-pattern-is-a-sink)).
 
 <sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/regex-pattern-is-a-sink`](security.md#security-regex-pattern-is-a-sink), [`security/assert-trusted`](security.md#security-assert-trusted), [`expressions/intrinsic-literals`](expressions.md#expressions-intrinsic-literals). Decided in [0088](../decisions/0088.md), [0063](../decisions/0063.md), [0057](../decisions/0057.md), [0056](../decisions/0056.md).</sub>
-
-<a id="security-log-is-not-a-sink"></a>
-
-## A log field is data, so it takes a tainted value and wants one
-
-`rule:security/log-is-not-a-sink`
-
-A log field is data: the writer is a structured serializer, so a field is framed by the serializer and
-never by string concatenation into a line. Log forging is therefore closed by the writer's shape
-([`errors/log-write`](errors.md#errors-log-write)), independently of the qualifier system, and logging tainted content is
-*desired* rather than tolerated — recording exactly what an attacker sent is the point of a security
-log.
-
-The same holds for a bidirectional control, which the writer escapes by construction
-([`security/bidi-boundaries`](security.md#security-bidi-boundaries)), and for a JSON decode, whose input is data the parse returns to the
-program and whose result is `tainted`.
-
-The `secret` axis does not follow: a log field **refuses** a `secret` value, because that axis is
-about confidentiality rather than structure and a log is an output
-([`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse)). Stating both here is what stops a future reader from applying
-one rule's answer to the other axis.
-
-<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`errors/log-fields`](errors.md#errors-log-fields), [`errors/log-write`](errors.md#errors-log-write). Decided in [0088](../decisions/0088.md), [0024](../decisions/0024.md), [0020](../decisions/0020.md), [0087](../decisions/0087.md).</sub>
-
-<a id="security-launderer-answers-a-carrier"></a>
-
-## A launderer answers its sink's carrier when that sink launders on its own and the transform is not idempotent, and a plain type otherwise
-
-`rule:security/launderer-answers-a-carrier`
-
-A `Core` member that removes `tainted` answers its sink's **carrier type** rather than the plain type
-when **both** hold: its sink launders automatically — a value reaches that sink and is transformed
-with no call written at the site — and its transform is **not idempotent**, so applying it to its own
-output changes the output. Otherwise it answers the plain type.
-
-The two conditions are one question asked twice: *a second application the source does not show, of a
-transform a second application changes.* Only HTML output meets both today, which is why the HTML
-escape answers a carrier and every other launderer on the roster — identifier quoting, URI component
-and form-value encoding, regex quoting, terminal escaping — answers a `string`, by the predicate
-rather than by exemption. Their results are legitimately concatenated into a larger string, and a
-carrier would force a builder API onto four classes to close a hazard whose second call is already
-visible in the source.
-
-A launderer written for a *new* sink is measured against the two conditions, not against today's
-table, and a sink that acquires an automatic launder reclassifies its own member the day it does.
-
-<sub>See also [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/sink-predicate`](security.md#security-sink-predicate), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source). Decided in [0133](../decisions/0133.md), [0024](../decisions/0024.md), [0067](../decisions/0067.md), [0086](../decisions/0086.md), [0056](../decisions/0056.md).</sub>
 
 <a id="security-regex-pattern-is-a-sink"></a>
 
@@ -697,52 +976,6 @@ resolve into a private range.
 
 <sub>See also [`security/net-address-policy`](security.md#security-net-address-policy), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/sink-predicate`](security.md#security-sink-predicate), [`expressions/intrinsic-literals`](expressions.md#expressions-intrinsic-literals). Decided in [0058](../decisions/0058.md), [0024](../decisions/0024.md), [0088](../decisions/0088.md).</sub>
 
-<a id="security-net-address-policy"></a>
-
-## `net.connect` carries an address policy that denies the private ranges, and an exception is one written IP address
-
-`rule:security/net-address-policy`
-
-`net.connect` is not a boolean and not merely a host list. It carries an address policy enforced on
-**every outbound connection whose address the program supplies**, hardcoded URLs included, because a
-hardcoded hostname can resolve into a private range and because deployment configuration supplies most
-real endpoint URLs.
-
-Denied by default: loopback, the private ranges, **link-local**, unspecified, and the IPv4-mapped IPv6
-forms of all of them. An operator grants an exception as an **IP address literal** beside the connect
-grant. Three things it is not, each a widening this refuses: not a hostname, because the policy is
-asked of a resolved address and a name would except whatever it resolved to afterwards; not a range,
-because an operator writing a whole `/8` hands back most of the table without naming a host; and not
-`true`, which is the one place a capability's `true` does not mean everything.
-
-The one class of address it does not govern is an endpoint an operator wrote into root-owned
-configuration and granted by name — that address is not attacker-influenceable, and applying the
-policy there would deny every ordinary deployment. A program-supplied target stays governed in full.
-
-<sub>See also [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities). Decided in [0058](../decisions/0058.md), [0118](../decisions/0118.md), [0142](../decisions/0142.md), [0067](../decisions/0067.md).</sub>
-
-<a id="security-the-policy-lives-in-the-capability"></a>
-
-## The address policy lives in the capability, so every client obeys it and none of them may hold its own
-
-`rule:security/the-policy-lives-in-the-capability`
-
-Every client — the HTTP client, the raw socket layer, a program-supplied database target, and any
-socket a host import hands to an extension — is subject to the same policy, enforced at the point the
-connection is made rather than inside any one of them.
-
-A policy held by a client is a policy the next client does not have. Putting it in the capability
-means an extension cannot be granted a socket that escapes it, which matters because an extension may
-legitimately be an I/O source and several network clients sit outside the standard library. It also
-means the answer to "what may this deployment reach" is one grant an operator reads, not a survey of
-every class that opens a connection.
-
-The exception is the same one [`security/net-address-policy`](security.md#security-net-address-policy) names — a config-named endpoint the
-operator has already approved by writing it — and it is a property of the address, not of the client
-that dials it.
-
-<sub>See also [`security/net-address-policy`](security.md#security-net-address-policy), [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink). Decided in [0058](../decisions/0058.md), [0118](../decisions/0118.md), [0055](../decisions/0055.md), [0051](../decisions/0051.md).</sub>
-
 <a id="security-metric-label-refuses-tainted"></a>
 
 ## A metric label value refuses `tainted`, and there is deliberately no launderer for one  *(designed — not yet in the compiler)*
@@ -767,6 +1000,96 @@ The `Core\Metrics` surface this governs is not on disk: nothing in the tree expo
 a label, so the refusal has no implementation to verify against.
 
 <sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/assert-trusted`](security.md#security-assert-trusted), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type). Decided in [0076](../decisions/0076.md), [0024](../decisions/0024.md), [0033](../decisions/0033.md), [0077](../decisions/0077.md).</sub>
+
+<a id="security-log-is-not-a-sink"></a>
+
+## A log field is data, so it takes a tainted value and wants one
+
+`rule:security/log-is-not-a-sink`
+
+A log field is data: the writer is a structured serializer, so a field is framed by the serializer and
+never by string concatenation into a line. Log forging is therefore closed by the writer's shape
+([`errors/log-write`](errors.md#errors-log-write)), independently of the qualifier system, and logging tainted content is
+*desired* rather than tolerated — recording exactly what an attacker sent is the point of a security
+log.
+
+The same holds for a bidirectional control, which the writer escapes by construction
+([`security/bidi-boundaries`](security.md#security-bidi-boundaries)), and for a JSON decode, whose input is data the parse returns to the
+program and whose result is `tainted`.
+
+The `secret` axis does not follow: a log field **refuses** a `secret` value, because that axis is
+about confidentiality rather than structure and a log is an output
+([`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse)). Stating both here is what stops a future reader from applying
+one rule's answer to the other axis.
+
+<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`errors/log-fields`](errors.md#errors-log-fields), [`errors/log-write`](errors.md#errors-log-write). Decided in [0088](../decisions/0088.md), [0024](../decisions/0024.md), [0020](../decisions/0020.md), [0087](../decisions/0087.md).</sub>
+
+<a id="security-launderers-are-sink-named"></a>
+
+## The only way out of `tainted` is a `Core` member whose contract names the one sink it is safe for
+
+`rule:security/launderers-are-sink-named`
+
+Short of a checked conversion, the only way to remove `tainted` is a `Core` member whose contract
+states which **one** sink it is safe for: an HTML escape for HTML text, an identifier quote for a
+dynamic table or column name, a path containment check for a path component, and one per sink as each
+class is designed.
+
+There is deliberately no generic `sanitize()` or `clean()`. A value safe for HTML text is not safe for
+a shell argument or a path, and a single catch-all invites exactly the false confidence the qualifier
+exists to prevent. The roster grows by adding a named member to the class that owns the sink, never by
+widening an existing one.
+
+Which return type a launderer takes is a predicate rather than a per-member choice
+([`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier)). Where no built-in launderer fits, the way out is
+[`security/assert-trusted`](security.md#security-assert-trusted) — written, greppable, and carrying a reason — and never a silent cast.
+
+<sub>See also [`security/assert-trusted`](security.md#security-assert-trusted), [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier), [`security/taint-propagation`](security.md#security-taint-propagation), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape). Decided in [0024](../decisions/0024.md), [0133](../decisions/0133.md), [0055](../decisions/0055.md).</sub>
+
+<a id="security-launderer-answers-a-carrier"></a>
+
+## A launderer answers its sink's carrier when that sink launders on its own and the transform is not idempotent, and a plain type otherwise
+
+`rule:security/launderer-answers-a-carrier`
+
+A `Core` member that removes `tainted` answers its sink's **carrier type** rather than the plain type
+when **both** hold: its sink launders automatically — a value reaches that sink and is transformed
+with no call written at the site — and its transform is **not idempotent**, so applying it to its own
+output changes the output. Otherwise it answers the plain type.
+
+The two conditions are one question asked twice: *a second application the source does not show, of a
+transform a second application changes.* Only HTML output meets both today, which is why the HTML
+escape answers a carrier and every other launderer on the roster — identifier quoting, URI component
+and form-value encoding, regex quoting, terminal escaping — answers a `string`, by the predicate
+rather than by exemption. Their results are legitimately concatenated into a larger string, and a
+carrier would force a builder API onto four classes to close a hazard whose second call is already
+visible in the source.
+
+A launderer written for a *new* sink is measured against the two conditions, not against today's
+table, and a sink that acquires an automatic launder reclassifies its own member the day it does.
+
+<sub>See also [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/sink-predicate`](security.md#security-sink-predicate), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source). Decided in [0133](../decisions/0133.md), [0024](../decisions/0024.md), [0067](../decisions/0067.md), [0086](../decisions/0086.md), [0056](../decisions/0056.md).</sub>
+
+<a id="security-capture-answers-the-carrier"></a>
+
+## Capturing a sink yields that sink's carrier, never a plain `string`
+
+`rule:security/capture-answers-the-carrier`
+
+Capturing output answers **the carrier of the sink in force**, not a plain `string`. The reason is not
+symmetry: the captured bytes have *already* been through the sink, so handing them back as a `string`
+and re-emitting them would escape them a second time and corrupt the page.
+
+The same rule gives a spawned isolate's captured result its type
+([`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured)), by the same argument and with the same fix. Inheriting
+rather than capturing needs no rule at all: the child's carrier is the parent's, so appending composes
+the way carrier addition already does.
+
+This is the third instance of one rule rather than three members that each argued it alone — the other
+two being a laundering escape and an approved URL — and stating it once is what keeps a future
+capturing member from answering the wrong type ([`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier)).
+
+<sub>See also [`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured), [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier), [`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member). Decided in [0088](../decisions/0088.md), [0006](../decisions/0006.md), [0133](../decisions/0133.md).</sub>
 
 <a id="security-route-capture-is-laundered-by-its-type"></a>
 
@@ -811,6 +1134,51 @@ with a written one.
 
 <sub>See also [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`security/taint-propagation`](security.md#security-taint-propagation), [`security/tainted-sources`](security.md#security-tainted-sources). Decided in [0071](../decisions/0071.md), [0024](../decisions/0024.md), [0033](../decisions/0033.md), [0067](../decisions/0067.md).</sub>
 
+<a id="security-assert-trusted"></a>
+
+## `Core\Taint::assertTrusted` is the one generic way out, and it carries a written reason at the call site
+
+`rule:security/assert-trusted`
+
+`Core\Taint::assertTrusted(tainted string, string $reason): string` is the one generic escape from the
+qualifier, for the case where the developer has validated the value themselves and needs to say so. It
+is modelled on this project's own `unsafe` policy: forbidden by default, rare, greppable, and carrying
+a written reason at the call site rather than a silent cast.
+
+It is the answer at every position that has no launderer *and cannot have one* — a metric label, whose
+hazard is unbounded cardinality rather than content ([`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted)); a
+regex pattern, where no transform makes an attacker-authored pattern safe
+([`security/regex-pattern-is-a-sink`](security.md#security-regex-pattern-is-a-sink)); a format template drawn from a translation catalogue
+([`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink)).
+
+It removes `tainted` and nothing else: a `secret` operand is refused there, because confidentiality is
+a separate axis and this member makes no claim about it.
+
+<sub>See also [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink), [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted). Decided in [0024](../decisions/0024.md), [0088](../decisions/0088.md), [0076](../decisions/0076.md).</sub>
+
+<a id="security-response-body-is-one-typed-member"></a>
+
+## A response body is written by one typed member, and mixing `echo` with one of them does not compile
+
+`rule:security/response-body-is-one-typed-member`
+
+A response body is written by one of five typed members, each owning a body shape and setting its own
+content type. The HTML member takes the carrier and so has nothing to refuse; the JSON and text
+members are contagious; the bytes member is contagious in its body and a sink in its content type; the
+file member's path is a sink.
+
+The JSON member accepts a tainted value freely, because the framing belongs to the serializer and
+never to concatenation — a tainted string becomes a JSON string value and cannot escape it. The text
+member accepts one only because a no-sniff header is on by default with nothing configured, so
+`text/plain` is not re-parsed as HTML; that dependency is stated so removing the default is visibly a
+change to two rules.
+
+**`echo` and a typed writer on the same response is a compile error.** They disagree about the body's
+type and its content type, and silently letting the last one win is how a JSON endpoint acquires an
+HTML prelude.
+
+<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape). Decided in [0088](../decisions/0088.md), [0024](../decisions/0024.md), [0074](../decisions/0074.md).</sub>
+
 <a id="security-db-pool-reset-is-a-boundary"></a>
 
 ## A pooled database connection is proven clean before it is reused, and a failed reset destroys it
@@ -832,156 +1200,6 @@ from: a reload can publish the same block name under a different user, and a poo
 alone would hand the new generation's request a connection authenticated as the old one's.
 
 <sub>See also [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`security/one-tls-client`](security.md#security-one-tls-client), [`security/net-address-policy`](security.md#security-net-address-policy), [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named). Decided in [0067](../decisions/0067.md), [0078](../decisions/0078.md), [0074](../decisions/0074.md).</sub>
-
-<a id="security-one-tls-client"></a>
-
-## There is one TLS client in the tree, and a driver reaches it over a generic transport rather than building a second
-
-`rule:security/one-tls-client`
-
-There is one TLS client in the tree, with one answer to "whose certificates do you believe" and one
-place a configured anchor bundle plugs into. A driver that needs a handshake tunnelled inside its own
-framing reaches that client over a **generic transport** — an ordinary read/write adapter — rather
-than building a second session of its own.
-
-A second TLS session inside a driver crate would be a second answer to a question already decided at
-length, and the failure mode is not a compile error: it is one client verifying peers strictly and
-another not. Full verification is the default with no spelling for turning it off, so the plaintext
-phase of a connection is only ever the upgrade request itself.
-
-What does not generalise is what belongs to the socket rather than to the session — the deadline and
-the peer address — so there is still one clock, on the thing that waits.
-
-<sub>See also [`security/db-pool-reset-is-a-boundary`](security.md#security-db-pool-reset-is-a-boundary), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`core-classes/db-safe-connection-defaults`](core-classes.md#core-classes-db-safe-connection-defaults), [`core-classes/db-crate-boundary`](core-classes.md#core-classes-db-crate-boundary). Decided in [0132](../decisions/0132.md), [0067](../decisions/0067.md), [0058](../decisions/0058.md).</sub>
-
-<a id="security-extension-manifest-only-tightens"></a>
-
-## Everything an extension manifest may declare is a restriction, so a hostile manifest cannot make a calling program less safe  *(designed — not yet in the compiler)*
-
-`rule:security/extension-manifest-only-tightens`
-
-Every declaration an extension manifest may carry is a **restriction**: it either rejects a call that
-would otherwise compile, or adds a qualifier the caller must discharge. Nothing a manifest can say
-makes a calling program accept more.
-
-This matters because a manifest is written by the extension's author, not by us. Hashes are pinned and
-signatures verified, but the analysis must not *depend* on that being done correctly. Under this rule
-it does not: a hostile manifest can make its own extension unusable, and cannot make a calling program
-less safe than contagion alone would ([`security/extension-contagion`](security.md#security-extension-contagion)).
-
-An extension call site is checked by the same code path as a `Core` call site, reading the qualifier
-from the registered signature rather than from a table of built-ins. There is no second analysis and
-no extension-specific relaxation, so the two cannot drift.
-
-**Not on disk.** There is no extension tier in the tree — no component loader, no manifest reader, no
-qualifier axis in a world file — so none of this is enforced today.
-
-<sub>See also [`security/extension-contagion`](security.md#security-extension-contagion), [`security/extension-declares-sink-or-source`](security.md#security-extension-declares-sink-or-source), [`security/extension-cannot-launder`](security.md#security-extension-cannot-launder), [`security/no-ffi`](security.md#security-no-ffi). Decided in [0055](../decisions/0055.md), [0003](../decisions/0003.md), [0088](../decisions/0088.md).</sub>
-
-<a id="security-extension-contagion"></a>
-
-## An extension call is an ordinary operation for taint, so contagion is the default and needs no declaration  *(designed — not yet in the compiler)*
-
-`rule:security/extension-contagion`
-
-An extension call is an ordinary operation for the purposes of taint. If any argument is `tainted`,
-every `string`/`bytes` in the result is `tainted`. This requires nothing in the manifest and nothing
-new in the checker beyond treating an extension call like any other call.
-
-Contagion is the default rather than the declared case because over-strict is the safe failure
-direction: an extension that declares nothing gets the conservative answer, and a formatted tainted
-number is still tainted. An extension cannot itself be a sink — it is a component with no ambient
-authority, so everything it does to the world outside travels through a `Core` member, and that member
-is classified ([`security/unclassified-parameter-refuses-tainted`](security.md#security-unclassified-parameter-refuses-tainted)).
-
-**Not on disk.** No extension boundary exists in the tree, so there is no call site at which this
-default is applied.
-
-<sub>See also [`security/taint-propagation`](security.md#security-taint-propagation), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`security/image-component-declares-nothing`](security.md#security-image-component-declares-nothing). Decided in [0055](../decisions/0055.md), [0024](../decisions/0024.md), [0088](../decisions/0088.md).</sub>
-
-<a id="security-extension-declares-sink-or-source"></a>
-
-## An extension manifest may declare exactly two things: a parameter that refuses `tainted`, and a return that is always `tainted`  *(designed — not yet in the compiler)*
-
-`rule:security/extension-declares-sink-or-source`
-
-A manifest may say two things, and only these two. **A parameter refuses `tainted`** — the extension
-is a sink for that argument, and a tainted operand is rejected there exactly as at a query text
-parameter. **A return is always `tainted`** — the extension is a source, producing bytes Novis did not
-see enter, so the result is tainted even when every argument was plain.
-
-Both are restrictions ([`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens)): the first can only make a
-call site fail that would otherwise have compiled, and the second can only add a qualifier the caller
-must then launder. The axis exists only in the manifest, for the compiler — a guest's generated
-bindings ignore both, since neither affects the wire representation.
-
-**Not on disk.** There is no manifest format in the tree carrying either declaration.
-
-<sub>See also [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`security/extension-contagion`](security.md#security-extension-contagion), [`security/sink-predicate`](security.md#security-sink-predicate). Decided in [0055](../decisions/0055.md), [0024](../decisions/0024.md).</sub>
-
-<a id="security-extension-cannot-launder"></a>
-
-## No extension may remove the `tainted` qualifier, in any manifest spelling  *(designed — not yet in the compiler)*
-
-`rule:security/extension-cannot-launder`
-
-There is **no manifest form** whose declared effect removes `tainted`. The only ways out are a `Core`
-member naming the single sink it is safe for ([`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named)) and the
-narrow, greppable escape hatch ([`security/assert-trusted`](security.md#security-assert-trusted)), and neither is available to a guest.
-
-A third-party HTML sanitizer can exist as an extension; what it cannot do is *assert* that its output
-is safe for HTML. The caller escapes with the `Core` member, or takes responsibility explicitly at the
-call site where it is visible and greppable. That is a real capability loss and it is not hidden: the
-alternatives are for the sanitizer to be adopted into the standard library, where we own it, or for
-the caller to say so out loud. The rejected option is the invisible one.
-
-**Not on disk.** No extension boundary exists, so nothing enforces the refusal today.
-
-<sub>See also [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/assert-trusted`](security.md#security-assert-trusted), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize). Decided in [0055](../decisions/0055.md), [0024](../decisions/0024.md), [0060](../decisions/0060.md).</sub>
-
-<a id="security-secret-does-not-cross-an-extension"></a>
-
-## A `secret` value is refused at every extension boundary, in either direction  *(designed — not yet in the compiler)*
-
-`rule:security/secret-does-not-cross-an-extension`
-
-A `secret` value passed to an extension is a compile-time diagnostic, and no manifest may declare a
-`secret` return. The refusal is in **both directions** and admits no declaration that softens it.
-
-It is the same refusal that applies to serialization and to isolate crossing
-([`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary)), for the same reason: the value is copied into memory
-whose subsequent handling Novis cannot reason about. Where an extension genuinely must see a
-credential — a signing key for a protocol component — the conspicuous reveal is the way to say so at
-the call site.
-
-This constrains what may live outside `Core`. A signer built as an extension would need a reveal at
-every call site, turning a deliberately conspicuous escape hatch into boilerplate, which is one of the
-two reasons the protocol roster stays in `Core` ([`security/protocol-roster`](security.md#security-protocol-roster)).
-
-**Not on disk.** There is no extension boundary in the tree to refuse at.
-
-<sub>See also [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`security/protocol-roster`](security.md#security-protocol-roster), [`security/extension-cannot-launder`](security.md#security-extension-cannot-launder), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0055](../decisions/0055.md), [0033](../decisions/0033.md), [0060](../decisions/0060.md).</sub>
-
-<a id="security-image-component-declares-nothing"></a>
-
-## The image component declares no qualifier deviation and requests no capability  *(designed — not yet in the compiler)*
-
-`rule:security/image-component-declares-nothing`
-
-The image component declares **no qualifier deviation**: ordinary contagion is exactly right, so a
-thumbnail of a `tainted` upload is `tainted` and reaches HTML output through the existing sinks like
-any other value, while an image decoded from a trusted file comes back plain. `secret` never crosses
-into it ([`security/secret-does-not-cross-an-extension`](security.md#security-secret-does-not-cross-an-extension)).
-
-It requests **no capability**: it reads no file and opens no socket, and a program feeds it bytes it
-obtained under its own grants. That is the shape a component should have — the effect stays on the
-program's side of the boundary, where the grant already is
-([`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door)) — and it is recorded because "declares nothing" is a
-claim worth being able to check rather than an absence nobody looked at.
-
-**Not on disk.** There is no image component in the tree.
-
-<sub>See also [`security/extension-contagion`](security.md#security-extension-contagion), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/secret-does-not-cross-an-extension`](security.md#security-secret-does-not-cross-an-extension), [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline). Decided in [0120](../decisions/0120.md), [0055](../decisions/0055.md), [0118](../decisions/0118.md).</sub>
 
 <a id="security-secret-qualifier"></a>
 
@@ -1146,6 +1364,28 @@ to rewrite the developer's terminal from inside a failure message.
 
 <sub>See also [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`testing/failure-ledger`](testing.md#testing-failure-ledger), [`errors/record-transformations`](errors.md#errors-record-transformations). Decided in [0079](../decisions/0079.md), [0033](../decisions/0033.md), [0092](../decisions/0092.md).</sub>
 
+<a id="security-reveal-is-explicit-and-window-local"></a>
+
+## A reveal is per range, window-local, and does not survive the editor closing  *(designed — not yet in the compiler)*
+
+`rule:security/reveal-is-explicit-and-window-local`
+
+A reveal is per range, window-local, and dropped when the editor for that document closes. It is not
+written to workspace state and does not survive a reload.
+
+The threat model is an unattended screen, so a reveal that outlives the moment it was needed is the
+same as no redaction at all — and a user who revealed one credential to read it has not consented to
+reveal every credential in the workspace for the rest of the week.
+
+There is **no automatic reveal and no automatic re-conceal on a signal**, because there is no signal:
+nothing reports that a window is being shared, recorded or projected. Anything that looked like one
+would be a guess with a security failure attached, so redaction is unconditional by default and the
+user is the only thing that turns it off.
+
+**Not on disk.** There is no language server in the tree.
+
+<sub>See also [`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server), [`security/redaction-does-not-reach`](security.md#security-redaction-does-not-reach). Decided in [0101](../decisions/0101.md).</sub>
+
 <a id="security-redaction-ranges-come-from-the-server"></a>
 
 ## The editor conceals a `secret` value by default, and the ranges come from the language server rather than a client guess  *(designed — not yet in the compiler)*
@@ -1192,51 +1432,6 @@ the file on disk, byte for byte.
 **Not on disk.** There is no language server in the tree.
 
 <sub>See also [`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server), [`security/secret-qualifier`](security.md#security-secret-qualifier). Decided in [0101](../decisions/0101.md), [0040](../decisions/0040.md).</sub>
-
-<a id="security-reveal-is-explicit-and-window-local"></a>
-
-## A reveal is per range, window-local, and does not survive the editor closing  *(designed — not yet in the compiler)*
-
-`rule:security/reveal-is-explicit-and-window-local`
-
-A reveal is per range, window-local, and dropped when the editor for that document closes. It is not
-written to workspace state and does not survive a reload.
-
-The threat model is an unattended screen, so a reveal that outlives the moment it was needed is the
-same as no redaction at all — and a user who revealed one credential to read it has not consented to
-reveal every credential in the workspace for the rest of the week.
-
-There is **no automatic reveal and no automatic re-conceal on a signal**, because there is no signal:
-nothing reports that a window is being shared, recorded or projected. Anything that looked like one
-would be a guess with a security failure attached, so redaction is unconditional by default and the
-user is the only thing that turns it off.
-
-**Not on disk.** There is no language server in the tree.
-
-<sub>See also [`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server), [`security/redaction-does-not-reach`](security.md#security-redaction-does-not-reach). Decided in [0101](../decisions/0101.md).</sub>
-
-<a id="security-tainted-has-no-default-decoration"></a>
-
-## `tainted` ships no default editor decoration, and the marker is opt-in  *(designed — not yet in the compiler)*
-
-`rule:security/tainted-has-no-default-decoration`
-
-`tainted` gets a semantic-token modifier and **no default decoration**. A marker glyph is added
-content rather than a colour, and shipping one on by default writes into someone else's editor exactly
-what the token-modifier rule refuses. The marker is a setting with three values and `off` is the
-default; where it is on, the glyph is a themed icon rather than an emoji, and its colour is a theme
-reference rather than a literal.
-
-**The asymmetry with `secret` is the whole content of this rule.** A credential on a shared screen is
-a security incident, which is what buys `secret` its default
-([`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server)). A tainted value on a screen is not an event
-at all: `tainted` is a compile-time guarantee already enforced by refusing the sink
-([`security/sink-predicate`](security.md#security-sink-predicate)), so marking it is teaching, and teaching does not get to override the
-user's theme.
-
-**Not on disk.** There is no language server in the tree.
-
-<sub>See also [`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server), [`security/sink-predicate`](security.md#security-sink-predicate), [`security/tainted-qualifier`](security.md#security-tainted-qualifier). Decided in [0101](../decisions/0101.md), [0099](../decisions/0099.md), [0088](../decisions/0088.md).</sub>
 
 <a id="security-redaction-reaches-the-tools-own-renderings"></a>
 
@@ -1285,350 +1480,155 @@ This list is part of the decision, not commentary on it.
 
 <sub>See also [`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server), [`security/reveal-is-explicit-and-window-local`](security.md#security-reveal-is-explicit-and-window-local). Decided in [0101](../decisions/0101.md).</sub>
 
-<a id="security-capability-check-at-the-door"></a>
+<a id="security-extension-manifest-only-tightens"></a>
 
-## The capability check lives inside the function that performs the effect, and that door is the only way out of the process
+## Everything an extension manifest may declare is a restriction, so a hostile manifest cannot make a calling program less safe  *(designed — not yet in the compiler)*
 
-`rule:security/capability-check-at-the-door`
+`rule:security/extension-manifest-only-tightens`
 
-The check is **not** a line in a member's body that an author remembers to write, **not** at the call
-site in emitted code, and **not** in a dispatcher. It is inside the function that performs the effect
-— the one that opens the file, or dials the socket.
+Every declaration an extension manifest may carry is a **restriction**: it either rejects a call that
+would otherwise compile, or adds a qualifier the caller must discharge. Nothing a manifest can say
+makes a calling program accept more.
 
-A `Core` member cannot reach the operating system another way, because the standard library **may not
-name the spellings that perform an effect**, and a test reads the crate's own sources and fails on
-one. So "the author forgot the check" is not a failure mode that exists: forgetting it means calling
-the raw spelling directly, and that does not get past the test. The list is of *spellings*, not of
-modules, because an address parser and a process abort live beside the doors without being ones.
+This matters because a manifest is written by the extension's author, not by us. Hashes are pinned and
+signatures verified, but the analysis must not *depend* on that being done correctly. Under this rule
+it does not: a hostile manifest can make its own extension unusable, and cannot make a calling program
+less safe than contagion alone would ([`security/extension-contagion`](security.md#security-extension-contagion)).
 
-Every other placement leaves the check *beside* the effect, where omitting it is a silent hole that
-reviews are expected to catch. This one puts it *in* the effect, where omitting it means not
-performing the effect. The friction is the point: the door is where the check, the path rule and the
-diagnostic already are.
+An extension call site is checked by the same code path as a `Core` call site, reading the qualifier
+from the registered signature rather than from a table of built-ins. There is no second analysis and
+no extension-specific relaxation, so the two cannot drift.
 
-<sub>See also [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/denial-is-a-runtime-error`](security.md#security-denial-is-a-runtime-error), [`testing/capability-closure-test`](testing.md#testing-capability-closure-test). Decided in [0118](../decisions/0118.md), [0005](../decisions/0005.md), [0112](../decisions/0112.md).</sub>
+**Not on disk.** There is no extension tier in the tree — no component loader, no manifest reader, no
+qualifier axis in a world file — so none of this is enforced today.
 
-<a id="security-capability-question-is-grant-and-scope"></a>
+<sub>See also [`security/extension-contagion`](security.md#security-extension-contagion), [`security/extension-declares-sink-or-source`](security.md#security-extension-declares-sink-or-source), [`security/extension-cannot-launder`](security.md#security-extension-cannot-launder), [`security/no-ffi`](security.md#security-no-ffi). Decided in [0055](../decisions/0055.md), [0003](../decisions/0003.md), [0088](../decisions/0088.md).</sub>
 
-## A capability question is a grant and a scope, asked of the request's own configuration snapshot
+<a id="security-extension-contagion"></a>
 
-`rule:security/capability-question-is-grant-and-scope`
+## An extension call is an ordinary operation for taint, so contagion is the default and needs no declaration  *(designed — not yet in the compiler)*
 
-At the point of a call the question has exactly two parts: the **grant** — is this capability present
-at all in the effective configuration — and the **scope** — does *this argument* fall inside what was
-granted: a path under a granted root, a host in a granted list, a binary in a granted set.
+`rule:security/extension-contagion`
 
-Both are answered against the request's own configuration snapshot, cloned once before the program
-runs and immutable for the request's whole life. Nothing on the request path re-reads the
-configuration tree, so two checks in one request cannot disagree, and a reload between a program's
-first syscall and its second cannot widen or narrow what that program may do halfway through.
+An extension call is an ordinary operation for the purposes of taint. If any argument is `tainted`,
+every `string`/`bytes` in the result is `tainted`. This requires nothing in the manifest and nothing
+new in the checker beyond treating an extension call like any other call.
 
-The decision procedure is pure — a snapshot, a capability, an argument, a boolean. It takes no
-context, throws nothing, and is therefore testable without a compiler in front of it. Holding a
-capability is not a promise about any one argument; the scope is asked every time.
+Contagion is the default rather than the declared case because over-strict is the safe failure
+direction: an extension that declares nothing gets the conservative answer, and a formatted tainted
+number is still tainted. An extension cannot itself be a sink — it is a component with no ambient
+authority, so everything it does to the world outside travels through a `Core` member, and that member
+is classified ([`security/unclassified-parameter-refuses-tainted`](security.md#security-unclassified-parameter-refuses-tainted)).
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix), [`security/no-runtime-grant`](security.md#security-no-runtime-grant). Decided in [0118](../decisions/0118.md), [0078](../decisions/0078.md), [0005](../decisions/0005.md).</sub>
+**Not on disk.** No extension boundary exists in the tree, so there is no call site at which this
+default is applied.
 
-<a id="security-capability-declaration-is-one-table"></a>
+<sub>See also [`security/taint-propagation`](security.md#security-taint-propagation), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`security/image-component-declares-nothing`](security.md#security-image-component-declares-nothing). Decided in [0055](../decisions/0055.md), [0024](../decisions/0024.md), [0088](../decisions/0088.md).</sub>
 
-## What each `Core` member needs is declared once in one table, and nothing at run time reads it
+<a id="security-extension-declares-sink-or-source"></a>
 
-`rule:security/capability-declaration-is-one-table`
+## An extension manifest may declare exactly two things: a parameter that refuses `tainted`, and a return that is always `tainted`  *(designed — not yet in the compiler)*
 
-What each `Core` member needs is declared once, in one table: a class, a member, and an optional
-capability. **The table is never read at run time.** It is audit data — the metadata command renders
-it, the reference documentation prints it beside a member's card, and the closure test reads it.
-Enforcement is the doors ([`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door)), which do not consult it, so
-the table cannot be the thing an attacker edits to gain a permission.
+`rule:security/extension-declares-sink-or-source`
 
-A field on each member row was the obvious shape and is rejected for two reasons, in this order.
-**"What can this runtime do to my machine" should be one screen of one file**; spread across dozens of
-class literals in dozens of modules it is dozens of greps and a judgement about whether you found them
-all, which is precisely the question a security review is trying not to have to make. And a field that
-is empty on the overwhelming majority of rows documents nothing while being maintained everywhere.
+A manifest may say two things, and only these two. **A parameter refuses `tainted`** — the extension
+is a sink for that argument, and a tainted operand is rejected there exactly as at a query text
+parameter. **A return is always `tainted`** — the extension is a source, producing bytes Novis did not
+see enter, so the result is tainted even when every argument was plain.
 
-The locality it gives up is bought back mechanically: a test fails on an entry naming a class or
-member that does not exist, and another fails on a member that owes an entry and has none.
+Both are restrictions ([`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens)): the first can only make a
+call site fail that would otherwise have compiled, and the second can only add a qualifier the caller
+must then launder. The axis exists only in the manifest, for the compiler — a guest's generated
+bindings ignore both, since neither affects the wire representation.
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`testing/capability-closure-test`](testing.md#testing-capability-closure-test), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed). Decided in [0118](../decisions/0118.md), [0117](../decisions/0117.md), [0063](../decisions/0063.md).</sub>
+**Not on disk.** There is no manifest format in the tree carrying either declaration.
 
-<a id="security-path-scope-canonicalise-then-prefix"></a>
+<sub>See also [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`security/extension-contagion`](security.md#security-extension-contagion), [`security/sink-predicate`](security.md#security-sink-predicate). Decided in [0055](../decisions/0055.md), [0024](../decisions/0024.md).</sub>
 
-## A path scope is canonicalise-then-prefix over whole components, and a path that does not exist yet is its deepest existing ancestor
+<a id="security-extension-cannot-launder"></a>
 
-`rule:security/path-scope-canonicalise-then-prefix`
+## No extension may remove the `tainted` qualifier, in any manifest spelling  *(designed — not yet in the compiler)*
 
-A path-bearing capability resolves by one comparison: **canonicalise both sides, then compare whole
-components.** A traversal through `..` does not reach a root it was not already under, a symlink
-planted under a granted root does not carry the root's grant to its target, and a sibling directory
-whose name merely starts with the root's is not inside it. There is one implementation of this rule in
-the tree, and adding a second is how one of the callers ends up accepting a symlink.
+`rule:security/extension-cannot-launder`
 
-The granted roots are canonicalised **once, when the snapshot is built**: a root still spelled the way
-the operator typed it is a comparison against the wrong thing, and doing it per call would put a
-resolution on the grant side of every check.
+There is **no manifest form** whose declared effect removes `tainted`. The only ways out are a `Core`
+member naming the single sink it is safe for ([`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named)) and the
+narrow, greppable escape hatch ([`security/assert-trusted`](security.md#security-assert-trusted)), and neither is available to a guest.
 
-A write to a file that does not exist yet cannot be canonicalised, and creating it to find out whether
-creating it is allowed is obviously wrong. So the argument canonicalises its **deepest existing
-ancestor** and re-appends the remainder, with the remainder refused outright if it contains `..` — the
-one component that could still escape after the ancestor is pinned.
+A third-party HTML sanitizer can exist as an extension; what it cannot do is *assert* that its output
+is safe for HTML. The caller escapes with the `Core` member, or takes responsibility explicitly at the
+call site where it is visible and greppable. That is a real capability loss and it is not hidden: the
+alternatives are for the sanitizer to be adopted into the standard library, where we own it, or for
+the caller to say so out loud. The rejected option is the invisible one.
 
-<sub>See also [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/a-path-is-not-a-url`](security.md#security-a-path-is-not-a-url), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`errors/path-component-refusals`](errors.md#errors-path-component-refusals). Decided in [0118](../decisions/0118.md), [0104](../decisions/0104.md).</sub>
+**Not on disk.** No extension boundary exists, so nothing enforces the refusal today.
 
-<a id="security-denial-is-a-runtime-error"></a>
+<sub>See also [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/assert-trusted`](security.md#security-assert-trusted), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize). Decided in [0055](../decisions/0055.md), [0024](../decisions/0024.md), [0060](../decisions/0060.md).</sub>
 
-## A denied capability is a catchable `RuntimeError` naming the capability, never a fatal
+<a id="security-secret-does-not-cross-an-extension"></a>
 
-`rule:security/denial-is-a-runtime-error`
+## A `secret` value is refused at every extension boundary, in either direction  *(designed — not yet in the compiler)*
 
-A denied capability throws a `RuntimeError`, and a program may catch it and degrade. It is not an
-escalation: a limit breach is fatal because the request has already consumed something it cannot give
-back, whereas a capability denial is known *before* any work is done and leaves nothing behind. A
-cache that falls back to recomputing when writing is not granted is a reasonable program, and making
-the refusal uncatchable would forbid it ([`errors/escalation-ladder`](errors.md#errors-escalation-ladder)).
+`rule:security/secret-does-not-cross-an-extension`
 
-No new class is added: `RuntimeError` is "the world said no", where the world is the operator. The
-message names the capability **in its configuration spelling**, and for a scoped one the argument that
-fell outside the grant — because the reader of that message is usually the operator, and the grant
-name is the string they will add to their configuration.
+A `secret` value passed to an extension is a compile-time diagnostic, and no manifest may declare a
+`secret` return. The refusal is in **both directions** and admits no declaration that softens it.
 
-A predicate that would otherwise answer `false` is refused rather than answered, so an ungranted
-deployment never looks like a negative result.
+It is the same refusal that applies to serialization and to isolate crossing
+([`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary)), for the same reason: the value is copied into memory
+whose subsequent handling Novis cannot reason about. Where an extension genuinely must see a
+credential — a signing key for a protocol component — the conspicuous reveal is the way to say so at
+the call site.
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy). Decided in [0118](../decisions/0118.md), [0020](../decisions/0020.md).</sub>
+This constrains what may live outside `Core`. A signer built as an extension would need a reveal at
+every call site, turning a deliberately conspicuous escape hatch into boilerplate, which is one of the
+two reasons the protocol roster stays in `Core` ([`security/protocol-roster`](security.md#security-protocol-roster)).
 
-<a id="security-capability-costs-nothing-unasked"></a>
+**Not on disk.** There is no extension boundary in the tree to refuse at.
 
-## A member that needs no capability pays nothing, and one that does pays only beside a syscall
+<sub>See also [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`security/protocol-roster`](security.md#security-protocol-roster), [`security/extension-cannot-launder`](security.md#security-extension-cannot-launder), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0055](../decisions/0055.md), [0033](../decisions/0033.md), [0060](../decisions/0060.md).</sub>
 
-`rule:security/capability-costs-nothing-unasked`
+<a id="security-image-component-declares-nothing"></a>
 
-A member that needs no capability pays nothing at all: no table lookup, no branch, no field on its
-row, no code emitted at its call sites. That falls directly out of the check living inside a function
-such a member never calls, and the declaration being data no execution path reads.
+## The image component declares no qualifier deviation and requests no capability  *(designed — not yet in the compiler)*
 
-A member that does need one pays, on top of a syscall: one enum-indexed field read on the snapshot it
-already holds, and for a scoped capability one canonicalisation of the argument plus a component-wise
-prefix compare per granted root. The canonicalisation is on the order of a microsecond and is dwarfed
-by the open it precedes.
+`rule:security/image-component-declares-nothing`
 
-Every member that reaches this check is by construction about to make a syscall, so **the check is
-never on a hot path**. That is the whole latency argument, and it holds because of *where* the check
-is rather than because of how it is written.
+The image component declares **no qualifier deviation**: ordinary contagion is exactly right, so a
+thumbnail of a `tainted` upload is `tainted` and reaches HTML output through the existing sinks like
+any other value, while an image decoded from a trusted file comes back plain. `secret` never crosses
+into it ([`security/secret-does-not-cross-an-extension`](security.md#security-secret-does-not-cross-an-extension)).
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0118](../decisions/0118.md), [0004](../decisions/0004.md).</sub>
+It requests **no capability**: it reads no file and opens no socket, and a program feeds it bytes it
+obtained under its own grants. That is the shape a component should have — the effect stays on the
+program's side of the boundary, where the grant already is
+([`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door)) — and it is recorded because "declares nothing" is a
+claim worth being able to check rather than an absence nobody looked at.
 
-<a id="security-authority-is-the-enclosing-namespace"></a>
+**Not on disk.** There is no image component in the tree.
 
-## Authority is a property of the namespace enclosing the code, never of the nesting depth or the name being called  *(designed — not yet in the compiler)*
+<sub>See also [`security/extension-contagion`](security.md#security-extension-contagion), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/secret-does-not-cross-an-extension`](security.md#security-secret-does-not-cross-an-extension), [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline). Decided in [0120](../decisions/0120.md), [0055](../decisions/0055.md), [0118](../decisions/0118.md).</sub>
 
-`rule:security/authority-is-the-enclosing-namespace`
+<a id="security-one-tls-client"></a>
 
-Authority is the namespace **enclosing the code**, not the nesting depth of the statement and not the
-name being called.
+## There is one TLS client in the tree, and a driver reaches it over a generic transport rather than building a second
 
-A top-level statement in a file declaring a namespace runs under that namespace's grants exactly as a
-method body in the same file would. **File-scope code is not exempt**, and it must not be: an
-exemption would be a one-line bypass of the whole system. A file with no namespace declaration is in
-the global namespace, which is the application, so an entry point is unrestricted up to the operator's
-ceiling. A closure carries the namespace it was **declared** in, not the one that calls it, so a
-closure written in the application and invoked from a package runs under the application's authority.
-A `use` import transfers nothing: authority is a property of where code *is*, never of what it names.
+`rule:security/one-tls-client`
 
-Keying on the namespace is what closes the override hole — a file overriding one class of a dependency
-keeps that dependency's authority, because it must keep its namespace to be an override at all — and
-it reaches code no package manager ever touched.
+There is one TLS client in the tree, with one answer to "whose certificates do you believe" and one
+place a configured anchor bundle plugs into. A driver that needs a handshake tunnelled inside its own
+framing reaches that client over a **generic transport** — an ordinary read/write adapter — rather
+than building a second session of its own.
 
-**Not on disk.** Nothing in the tree reads a per-namespace grant table.
+A second TLS session inside a driver crate would be a second answer to a question already decided at
+length, and the failure mode is not a compile error: it is one client verifying peers strictly and
+another not. Full verification is the default with no spelling for turning it off, so the plaintext
+phase of a connection is only ever the upgrade request itself.
 
-<sub>See also [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/longest-prefix-wins`](security.md#security-longest-prefix-wins), [`security/an-unmatched-namespace-holds-the-application`](security.md#security-an-unmatched-namespace-holds-the-application), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time). Decided in [0112](../decisions/0112.md), [0081](../decisions/0081.md), [0061](../decisions/0061.md).</sub>
+What does not generalise is what belongs to the socket rather than to the session — the deadline and
+the peer address — so there is still one clock, on the thing that waits.
 
-<a id="security-grants-are-keyed-on-a-namespace"></a>
-
-## The application's grant table is keyed on namespace prefixes, and a capability it names must be on the roster  *(designed — not yet in the compiler)*
-
-`rule:security/grants-are-keyed-on-a-namespace`
-
-The application's grant table is keyed on namespace prefixes and lives in the application's own
-configuration rather than in a package manifest. A package still declares what it requests and that
-declaration still grants nothing; the application grants explicitly, one line at a time.
-
-A capability named in a grant line must appear on the roster
-([`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed)); an unknown name is an error at boot, because a
-directive that silently means nothing is worse than one that refuses.
-
-The effective set at a call site is the **intersection** of the operator's configuration, the
-application's grant, the package's own declaration and any narrowing an enclosing isolate applied —
-every one of which may only tighten ([`security/no-runtime-grant`](security.md#security-no-runtime-grant)).
-
-**Not on disk.** The tree reads the deployment's capability block; it has no per-namespace grant
-table, and the diagnostics this rule needs do not exist.
-
-<sub>See also [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed), [`security/longest-prefix-wins`](security.md#security-longest-prefix-wins). Decided in [0112](../decisions/0112.md), [0081](../decisions/0081.md), [0064](../decisions/0064.md).</sub>
-
-<a id="security-longest-prefix-wins"></a>
-
-## The longest matching grant key wins, and a subtree is spelled out because it reaches code that does not exist yet  *(designed — not yet in the compiler)*
-
-`rule:security/longest-prefix-wins`
-
-Lookup reuses the resolution rule a developer already learned. A bare prefix grants **that namespace's
-own declarations only**; a subtree is spelled with an explicit wildcard and grants every depth below
-it. The **longest matching key wins**, an exact key beats a subtree key at equal length, and two keys
-that would match identically is an error at boot naming both.
-
-**The subtree form is spelled out because it is the dangerous one.** A subtree grant reaches code that
-does not exist yet: granting a vendor's whole subtree means a module introduced by an upgrade eight
-months from now holds the database. That is the opposite of the posture everywhere else, so it is
-never the default reading of a bare prefix — the narrow thing is what a reader gets, and the broad
-thing costs two extra characters and is visible in review as its own token.
-
-**Not on disk.** No grant table is keyed this way in the tree.
-
-<sub>See also [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace). Decided in [0112](../decisions/0112.md), [0061](../decisions/0061.md).</sub>
-
-<a id="security-an-unmatched-namespace-holds-the-application"></a>
-
-## A namespace matching no grant line holds the application's own authority, and a fetch leaves nothing unmatched  *(designed — not yet in the compiler)*
-
-`rule:security/an-unmatched-namespace-holds-the-application`
-
-A namespace matching no grant line holds what the application holds — the operator's ceiling. Denying
-by default here would refuse to compile every program written before the table existed and force every
-application to grant itself, which is ceremony charged to the common case.
-
-That default is only safe because **nothing a package manager fetched is ever unmatched**: fetching
-writes a grant line for every package in the resolved graph, direct and transitive, **including an
-empty one**. The permissive default therefore applies only to code a human wrote or pasted, which is
-the case where it is the right answer.
-
-Hand-vendored code is the residue, and it is reported rather than closed: an audit warns on a
-namespace whose autoload root lies under a directory the grant table never mentions. A warning is the
-correct strength, because the same shape describes a legitimate second source tree of the
-application's own.
-
-**Not on disk.** There is no fetch step and no audit that writes or checks these lines.
-
-<sub>See also [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time). Decided in [0112](../decisions/0112.md), [0081](../decisions/0081.md).</sub>
-
-<a id="security-optional-capability-degrades"></a>
-
-## A capability is required or optional, and only a required one refuses to build  *(designed — not yet in the compiler)*
-
-`rule:security/optional-capability-degrades`
-
-A package's manifest splits what it asks for into `required` and `optional`. A **required** capability
-that is not granted is a compile error naming the namespace, the capability and the grant line that
-would fix it. An **optional** one compiles either way, and each such call site carries a guard that
-throws if it is reached — an ordinary catchable throwable, because a package that declared a
-capability optional has said it can proceed without it.
-
-The split exists because the compile-time check's granularity is **reachability, not execution**: a
-class no name reaches is never part of your program, but inside a class your program does name, every
-call site is checked including a branch that never runs. Without the split, the reachability of a
-*class* would be the unit of capability granularity, which is far too coarse for a class with two
-halves.
-
-`Core\Cap::has` reports what the call site already holds. It is **not** a runtime grant: nothing
-widens ([`security/no-runtime-grant`](security.md#security-no-runtime-grant)).
-
-**Partly on disk.** `Core\Cap::has` exists and refuses a written name outside the roster while
-checking. The required/optional manifest split, the guard at an optional call site and the compile
-error for a required one have no representation in the tree.
-
-<sub>See also [`security/no-runtime-grant`](security.md#security-no-runtime-grant), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed), [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace). Decided in [0112](../decisions/0112.md), [0081](../decisions/0081.md), [0061](../decisions/0061.md), [0020](../decisions/0020.md).</sub>
-
-<a id="security-no-runtime-grant"></a>
-
-## Two layers enforce a capability and only the static one grants; nothing anywhere widens
-
-`rule:security/no-runtime-grant`
-
-Two layers enforce a capability. The **static** one reads the grant tables at compile time, costs
-nothing, and answers *may this code ever do this?* The **runtime** one reads the request's effective
-configuration at every door and at every optional guard, costs one branch, and answers *may this
-request, right now?*
-
-The runtime layer exists because narrowing exists: a request may tighten a capability, and an isolate
-may drop grants at the spawn site ([`security/script-spawn-capability`](security.md#security-script-spawn-capability)). **It may only ever
-drop.** There is no runtime grant, and adding one would spend the property this whole design rests on
-in exchange for reintroducing the dynamic escape the language closed elsewhere — by having no `eval`
-([`security/no-eval`](security.md#security-no-eval)), no string or array callables, and reflection that hands back an inert tree
-([`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability)).
-
-Static attribution is total in Novis only because those doors are shut. A runtime widen would be a
-further one opened, and every claim above it would have to be qualified.
-
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/closed-doors`](security.md#security-closed-doors), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`security/optional-capability-degrades`](security.md#security-optional-capability-degrades). Decided in [0112](../decisions/0112.md), [0005](../decisions/0005.md), [0006](../decisions/0006.md), [0052](../decisions/0052.md), [0031](../decisions/0031.md), [0019](../decisions/0019.md).</sub>
-
-<a id="security-capability-roster-is-closed"></a>
-
-## Every capability name that exists is on one roster, and a name outside it is refused where it is written
-
-`rule:security/capability-roster-is-closed`
-
-Every capability name that exists is on one roster, in one place, with the reasoning for what it
-permits named beside it. **A name not on the roster is not a capability**, which is what makes a grant
-line's unknown name checkable at boot and what makes a written query for a name nobody can grant a
-compile error rather than a permanent `false`.
-
-The roster is closed in the sense that it does not grow by accident: a new capability is one variant
-and one arm in the one place a name maps to the field that grants it, which is also where a refusal
-gets the spelling it prints. Two capabilities that answer different questions stay two names — being
-able to read a file is not permission to run it
-([`security/script-spawn-capability`](security.md#security-script-spawn-capability)), and opening a connection an operator named is not opening
-one a program chose.
-
-A member that reaches nothing declares that by entering the table with no capability rather than by
-being absent from it ([`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table)), so the standard library's
-own surface is a closed claim rather than a list with an exception column.
-
-<sub>See also [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/optional-capability-degrades`](security.md#security-optional-capability-degrades). Decided in [0112](../decisions/0112.md), [0118](../decisions/0118.md), [0064](../decisions/0064.md).</sub>
-
-<a id="security-package-authority-is-granted-one-line-at-a-time"></a>
-
-## A dependency's authority is granted by the application one line at a time, and a declaration grants nothing  *(designed — not yet in the compiler)*
-
-`rule:security/package-authority-is-granted-one-line-at-a-time`
-
-A package **declares** what it requests, split into required and optional. That declaration is
-documentation and an upper bound on itself; it grants nothing. The **application grants explicitly,
-one line at a time**, and a namespace granted nothing holds nothing. Adding a dependency prints every
-capability requested by that package *and its whole transitive subgraph* before a human writes
-anything, so the authority a new dependency brings is visible in one diff at the moment it is
-introduced rather than discoverable by audit later.
-
-What this buys, stated plainly: a fully malicious package that reaches the compiler cannot open a
-socket, read a file, spawn a process, reach a database or spawn a script unless a human wrote its name
-in a grant line. The compromise of a transitive dependency degrades from *arbitrary action with the
-process's authority* to *arbitrary computation with no authority at all*.
-
-**Not on disk.** There is no package manager, no manifest, and no grant line writer in the tree.
-
-<sub>See also [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace), [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/no-runtime-grant`](security.md#security-no-runtime-grant). Decided in [0081](../decisions/0081.md), [0112](../decisions/0112.md), [0005](../decisions/0005.md), [0055](../decisions/0055.md).</sub>
-
-<a id="security-process-exec-capability"></a>
-
-## Executing a program is deny-by-default under its own capability, and there is no shell to interpolate into
-
-`rule:security/process-exec-capability`
-
-Running another program is deny-by-default under `process.exec`, the same as every other
-syscall-touching entry point: a request may narrow it further and never widen it, and calling without
-the grant throws ([`security/denial-is-a-runtime-error`](security.md#security-denial-is-a-runtime-error)). The grant is asked for before the target
-is looked at, so an ungranted deployment never learns whether a binary exists.
-
-The capability is only half of it, and the other half is that **there is no shell to interpolate
-into**. An executable path and an argv array, with nothing in between that parses a command line,
-removes the escaping question rather than answering it — which is a stronger guarantee than any amount
-of quoting. Under the sink predicate the argv elements are therefore *data* while the executable path
-is an instruction, so the path is the sink and the arguments are not
-([`security/sink-predicate`](security.md#security-sink-predicate)).
-
-A grant that names executable roots resolves the same way a spawn root does, canonicalise-then-prefix
-([`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix)).
-
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/sink-predicate`](security.md#security-sink-predicate), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`core-classes/process-refuses-a-shell-target`](core-classes.md#core-classes-process-refuses-a-shell-target). Decided in [0044](../decisions/0044.md), [0118](../decisions/0118.md), [0112](../decisions/0112.md), [0024](../decisions/0024.md).</sub>
+<sub>See also [`security/db-pool-reset-is-a-boundary`](security.md#security-db-pool-reset-is-a-boundary), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`core-classes/db-safe-connection-defaults`](core-classes.md#core-classes-db-safe-connection-defaults), [`core-classes/db-crate-boundary`](core-classes.md#core-classes-db-crate-boundary). Decided in [0132](../decisions/0132.md), [0067](../decisions/0067.md), [0058](../decisions/0058.md).</sub>
 
 <a id="security-protocol-roster"></a>
 
@@ -1758,6 +1758,54 @@ two is the rule, not an inconsistency: one is a value we had, the other is a val
 
 <sub>See also [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/tainted-sources`](security.md#security-tainted-sources), [`security/protocol-roster`](security.md#security-protocol-roster). Decided in [0060](../decisions/0060.md), [0024](../decisions/0024.md).</sub>
 
+<a id="security-csrf-is-on-by-default"></a>
+
+## The server refuses an unsafe verb without a valid CSRF token, and the opt-out is written on the route itself
+
+`rule:security/csrf-is-on-by-default`
+
+The server refuses an unsafe verb — the four that change state — without a valid token, using the
+match it already made to know which handler is which. Generation and constant-time verification belong
+to the protocol roster ([`security/protocol-roster`](security.md#security-protocol-roster)); this decides only the default, and the
+default is on with nothing configured.
+
+A route that legitimately needs no token — a webhook authenticated by signature, an API authenticated
+by a bearer token — says so **in its own declaration**, per route, in the attribute that route already
+carries: never a group and never a configuration key. Writing it on the route is what keeps the
+exemption reviewable next to the handler it exempts.
+
+Enforcing only when a session cookie is present was rejected within this rule. It sounds tighter,
+since forgery can only target cookie-authenticated requests, but it makes protection depend on what
+the client sent rather than on what the code says, which is harder to reason about and harder to test.
+
+<sub>See also [`security/access-is-checked-for-presence-not-meaning`](security.md#security-access-is-checked-for-presence-not-meaning), [`security/protocol-roster`](security.md#security-protocol-roster), [`attributes/access-payload`](attributes.md#attributes-access-payload). Decided in [0096](../decisions/0096.md), [0102](../decisions/0102.md), [0060](../decisions/0060.md), [0074](../decisions/0074.md).</sub>
+
+<a id="security-access-is-checked-for-presence-not-meaning"></a>
+
+## The compiler proves a route's access decision was written, never that it was honoured
+
+`rule:security/access-is-checked-for-presence-not-meaning`
+
+The compiler verifies that a route's access attribute is there and that the name inside it resolves.
+It never asks what the name means, never calls anything, and has no opinion about roles, policies or
+sessions. An omission is an error rather than a public default — that half is
+[`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), and the payload's shape is
+[`attributes/access-payload`](attributes.md#attributes-access-payload).
+
+**Interpretation belongs to whoever dispatches.** The declared name rides on the match the server made
+as uninterpreted data, and the application's own dispatch reads and enforces it. **The server enforces
+CSRF and nothing else** ([`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default)): interpreting a role would need a
+session, a user model and a role source, all three of which are deliberately outside the binary. Two
+enforcement points is how a route ends up checked twice in development and not at all in production,
+so there is one.
+
+**The limit is stated rather than implied: the compiler guarantees the decision was *written*, not
+that it was *honoured*.** An application that hand-rolls dispatch and never reads the access name gets
+no enforcement from anyone. Closing that would require recognising a dispatch site, which is an
+opinion the route table refuses to hold.
+
+<sub>See also [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`attributes/access-payload`](attributes.md#attributes-access-payload), [`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type). Decided in [0096](../decisions/0096.md), [0102](../decisions/0102.md), [0077](../decisions/0077.md), [0082](../decisions/0082.md).</sub>
+
 <a id="security-bidi-predicate"></a>
 
 ## A span is rejected when it ends with a directional scope still open, decided by two counters
@@ -1829,74 +1877,6 @@ the compiler sees it, so the check protects the merge and not the reading.
 
 <sub>See also [`security/bidi-predicate`](security.md#security-bidi-predicate), [`security/bidi-boundaries`](security.md#security-bidi-boundaries). Decided in [0087](../decisions/0087.md), [0029](../decisions/0029.md).</sub>
 
-<a id="security-access-is-checked-for-presence-not-meaning"></a>
-
-## The compiler proves a route's access decision was written, never that it was honoured
-
-`rule:security/access-is-checked-for-presence-not-meaning`
-
-The compiler verifies that a route's access attribute is there and that the name inside it resolves.
-It never asks what the name means, never calls anything, and has no opinion about roles, policies or
-sessions. An omission is an error rather than a public default — that half is
-[`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), and the payload's shape is
-[`attributes/access-payload`](attributes.md#attributes-access-payload).
-
-**Interpretation belongs to whoever dispatches.** The declared name rides on the match the server made
-as uninterpreted data, and the application's own dispatch reads and enforces it. **The server enforces
-CSRF and nothing else** ([`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default)): interpreting a role would need a
-session, a user model and a role source, all three of which are deliberately outside the binary. Two
-enforcement points is how a route ends up checked twice in development and not at all in production,
-so there is one.
-
-**The limit is stated rather than implied: the compiler guarantees the decision was *written*, not
-that it was *honoured*.** An application that hand-rolls dispatch and never reads the access name gets
-no enforcement from anyone. Closing that would require recognising a dispatch site, which is an
-opinion the route table refuses to hold.
-
-<sub>See also [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`attributes/access-payload`](attributes.md#attributes-access-payload), [`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type). Decided in [0096](../decisions/0096.md), [0102](../decisions/0102.md), [0077](../decisions/0077.md), [0082](../decisions/0082.md).</sub>
-
-<a id="security-csrf-is-on-by-default"></a>
-
-## The server refuses an unsafe verb without a valid CSRF token, and the opt-out is written on the route itself
-
-`rule:security/csrf-is-on-by-default`
-
-The server refuses an unsafe verb — the four that change state — without a valid token, using the
-match it already made to know which handler is which. Generation and constant-time verification belong
-to the protocol roster ([`security/protocol-roster`](security.md#security-protocol-roster)); this decides only the default, and the
-default is on with nothing configured.
-
-A route that legitimately needs no token — a webhook authenticated by signature, an API authenticated
-by a bearer token — says so **in its own declaration**, per route, in the attribute that route already
-carries: never a group and never a configuration key. Writing it on the route is what keeps the
-exemption reviewable next to the handler it exempts.
-
-Enforcing only when a session cookie is present was rejected within this rule. It sounds tighter,
-since forgery can only target cookie-authenticated requests, but it makes protection depend on what
-the client sent rather than on what the code says, which is harder to reason about and harder to test.
-
-<sub>See also [`security/access-is-checked-for-presence-not-meaning`](security.md#security-access-is-checked-for-presence-not-meaning), [`security/protocol-roster`](security.md#security-protocol-roster), [`attributes/access-payload`](attributes.md#attributes-access-payload). Decided in [0096](../decisions/0096.md), [0102](../decisions/0102.md), [0060](../decisions/0060.md), [0074](../decisions/0074.md).</sub>
-
-<a id="security-bcrypt-read-roster"></a>
-
-## A stored password hash is read from a roster of exactly two shapes, and the roster grows only by amendment
-
-`rule:security/bcrypt-read-roster`
-
-Verification accepts exactly two stored shapes: the modern hash this library writes, and a bcrypt hash
-under three prefixes — one algorithm under three tags, verified identically. **The roster grows only
-by amending this rule, never by accepting what a parser happens to read.**
-
-One further prefix is refused: it exists to be bug-compatible with an implementation's
-sign-extension overflow, and verifying it means reimplementing the bug.
-
-This is what lets a PHP application's existing user table verify on day one and rewrite itself one
-successful login at a time ([`security/needs-rehash-answers-weaker`](security.md#security-needs-rehash-answers-weaker)). What it spends: a few
-kilobytes transiently per verification of a legacy row, on the calling task — bounded by in-flight
-logins, and shrinking as the table converges.
-
-<sub>See also [`security/hash-writes-argon2id-only`](security.md#security-hash-writes-argon2id-only), [`security/needs-rehash-answers-weaker`](security.md#security-needs-rehash-answers-weaker), [`security/an-unreadable-stored-hash-throws`](security.md#security-an-unreadable-stored-hash-throws). Decided in [0129](../decisions/0129.md), [0051](../decisions/0051.md).</sub>
-
 <a id="security-hash-writes-argon2id-only"></a>
 
 ## `hash` writes Argon2id and nothing else, and no member takes an algorithm argument
@@ -1917,6 +1897,26 @@ The write-side parameters and their reasons live with the implementation rather 
 a call site, so raising them is one change rather than a sweep.
 
 <sub>See also [`security/bcrypt-read-roster`](security.md#security-bcrypt-read-roster), [`security/needs-rehash-answers-weaker`](security.md#security-needs-rehash-answers-weaker). Decided in [0129](../decisions/0129.md).</sub>
+
+<a id="security-bcrypt-read-roster"></a>
+
+## A stored password hash is read from a roster of exactly two shapes, and the roster grows only by amendment
+
+`rule:security/bcrypt-read-roster`
+
+Verification accepts exactly two stored shapes: the modern hash this library writes, and a bcrypt hash
+under three prefixes — one algorithm under three tags, verified identically. **The roster grows only
+by amending this rule, never by accepting what a parser happens to read.**
+
+One further prefix is refused: it exists to be bug-compatible with an implementation's
+sign-extension overflow, and verifying it means reimplementing the bug.
+
+This is what lets a PHP application's existing user table verify on day one and rewrite itself one
+successful login at a time ([`security/needs-rehash-answers-weaker`](security.md#security-needs-rehash-answers-weaker)). What it spends: a few
+kilobytes transiently per verification of a legacy row, on the calling task — bounded by in-flight
+logins, and shrinking as the table converges.
+
+<sub>See also [`security/hash-writes-argon2id-only`](security.md#security-hash-writes-argon2id-only), [`security/needs-rehash-answers-weaker`](security.md#security-needs-rehash-answers-weaker), [`security/an-unreadable-stored-hash-throws`](security.md#security-an-unreadable-stored-hash-throws). Decided in [0129](../decisions/0129.md), [0051](../decisions/0051.md).</sub>
 
 <a id="security-needs-rehash-answers-weaker"></a>
 

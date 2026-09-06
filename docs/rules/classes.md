@@ -30,6 +30,75 @@ top of the annotations [`types/declaration`](types.md#types-declaration) already
 
 <sub>See also [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier), [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call), [`types/class-constant`](types.md#types-class-constant). Decided in [0011](../decisions/0011.md), [0008](../decisions/0008.md), [0003](../decisions/0003.md).</sub>
 
+<a id="classes-names-resolve-case-sensitively"></a>
+
+## Every name is compared exactly, so `Foo` and `foo` are two names and never one
+
+`rule:classes/names-resolve-case-sensitively`
+
+Every name — class, interface, enum, enum case, namespace segment, method, property, parameter, local,
+class constant — is compared exactly, everywhere resolution happens. `Foo` and `foo` are two names.
+There is no configuration and no compatibility mode.
+
+PHP folds case for classes, functions, methods and keywords but not for variables, properties or
+constants, which is a split nobody memorizes; then the one place that compares a class name as a
+string — a router table, a cache key, a serialized payload — disagrees with the resolver. Here it
+costs nothing to be strict, because exactly one casing is legal per identifier category anyway: two
+names differing only in case cannot both be valid declarations of the same kind, so case-sensitive
+resolution can never make a working program ambiguous. It only turns a wrong reference into a
+diagnostic.
+
+A reserved-name check that is deliberately case-insensitive is not an exception to this. It only ever
+rejects more, and a tightening cannot make a program's meaning depend on case, because no spelling it
+touches has a meaning to depend on.
+
+<sub>See also [`classes/reserved-spellings-are-lower-case`](classes.md#classes-reserved-spellings-are-lower-case), [`programs/path-case`](programs.md#programs-path-case), [`programs/autoload`](programs.md#programs-autoload). Decided in [0062](../decisions/0062.md), [0029](../decisions/0029.md).</sub>
+
+<a id="classes-reserved-spellings-are-lower-case"></a>
+
+## Keywords, contextual keywords and the `<?nvs` tag are lower case and nothing else
+
+`rule:classes/reserved-spellings-are-lower-case`
+
+Keywords are matched exactly: `if` is a keyword, `IF` and `If` are not. The same holds for the
+contextual keywords — `spawn`, `script`, `with`, `type`, `from`, `by`, `get`, `set` — for the
+`true`/`false`/`null` literals, and for the `<?nvs` open tag.
+
+A mis-cased keyword gets no diagnostic of its own, deliberately. The casing rule makes `IF`, `ECHO` and
+`TRUE` legal class names, so nothing lexical distinguishes a mistyped `if` from a deliberate reference
+to a class called `IF`. The lexer emits an ordinary identifier and the program fails later as an
+undefined name or a parse error. A heuristic would be the one place in the compiler that guesses, and
+case-normalising reserved words is the easiest thing the converter does.
+
+`<?nvs` is the one exception, because it is the one spelling that cannot be anything else: `<?NVS` is
+recognised, reported, and still opens code mode — an unrecognised tag collapses the whole file into one
+inline-HTML token and teaches the author nothing. Two things fall out: `Core\Bytes` is three ordinary
+name tokens rather than a collision with the `bytes` type keyword, and identifier lexing no longer
+allocates a lower-cased copy of every name in the file.
+
+<sub>See also [`classes/names-resolve-case-sensitively`](classes.md#classes-names-resolve-case-sensitively), [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag). Decided in [0062](../decisions/0062.md), [0029](../decisions/0029.md).</sub>
+
+<a id="classes-no-leading-underscore-identifiers"></a>
+
+## No property, parameter or local name may begin with `_`
+
+`rule:classes/no-leading-underscore-identifiers`
+
+No property, parameter or local variable name may begin with `_`. All three categories use the same
+`camelCase` pattern methods have always used, and there is no allowance left to state for them.
+
+The allowance existed only to spare a PHP habit — `_privateField`, `$_unused` — that converts by
+dropping one character. Keeping it would have preserved exactly the single-name carve-out the casing
+rule argues against generalizing from, for comfort this project already declined to buy elsewhere.
+Removing it, together with respelling the constructor
+([`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor)), leaves the identifier check with zero
+exceptions of any kind.
+
+What it costs is a mechanical rename per underscore-prefixed name during conversion, and one habit
+a PHP-native contributor has to unlearn at the point the compiler names it.
+
+<sub>See also [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor). Decided in [0030](../decisions/0030.md), [0029](../decisions/0029.md).</sub>
+
 <a id="classes-constructor-is-a-method-named-constructor"></a>
 
 ## A constructor is an ordinary method named `constructor`, and `__construct` does not compile
@@ -53,232 +122,48 @@ mechanical rename for every converted class, which is the cheapest kind of break
 
 <sub>See also [`classes/no-leading-underscore-identifiers`](classes.md#classes-no-leading-underscore-identifiers), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods). Decided in [0030](../decisions/0030.md), [0022](../decisions/0022.md), [0029](../decisions/0029.md).</sub>
 
-<a id="classes-no-leading-underscore-identifiers"></a>
+<a id="classes-promotion-is-constructor-only"></a>
 
-## No property, parameter or local name may begin with `_`
+## A visibility keyword on a parameter promotes it to a property only in the `constructor`
 
-`rule:classes/no-leading-underscore-identifiers`
+`rule:classes/promotion-is-constructor-only`
 
-No property, parameter or local variable name may begin with `_`. All three categories use the same
-`camelCase` pattern methods have always used, and there is no allowance left to state for them.
+A `public`, `protected` or `private` keyword on a parameter promotes it to a property, and it does
+that only in the `constructor`. On any other method's parameter it is refused.
 
-The allowance existed only to spare a PHP habit — `_privateField`, `$_unused` — that converts by
-dropping one character. Keeping it would have preserved exactly the single-name carve-out the casing
-rule argues against generalizing from, for comfort this project already declined to buy elsewhere.
-Removing it, together with respelling the constructor
-([`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor)), leaves the identifier check with zero
-exceptions of any kind.
+Promotion is PHP 8's feature and nothing else: the keyword says where a *property* may be read from,
+and an ordinary method has no allocation to promote into. A property is a slot on an instance, armed
+once where the instance is made; a method may be called any number of times, or none, so there is no
+moment for a promoted parameter of one to exist.
 
-What it costs is a mechanical rename per underscore-prefixed name during conversion, and one habit
-a PHP-native contributor has to unlearn at the point the compiler names it.
+A promoted parameter is otherwise an ordinary property in every respect — declared, visible,
+inherited, initialized by the binding itself
+([`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization)), namable by an `implements ... by $field` clause, and
+carrying whatever qualifiers its type does.
 
-<sub>See also [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor). Decided in [0030](../decisions/0030.md), [0029](../decisions/0029.md).</sub>
+<sub>See also [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field). Decided in [0043](../decisions/0043.md), [0022](../decisions/0022.md), [0094](../decisions/0094.md).</sub>
 
-<a id="classes-comparable"></a>
+<a id="classes-constructor-compatibility"></a>
 
-## Two objects order only when their class implements `Comparable`, and there is no property-walk fallback
+## A `new` through a class reference checks `T`'s constructor, and an implementor whose constructor diverges is refused there
 
-`rule:classes/comparable`
+`rule:classes/constructor-compatibility`
 
-Two objects may be compared with `<`, `>`, `<=`, `>=` or `<=>` only when their class implements the
-global interface `Comparable`, whose single member is `compareTo(self $other): int` returning
-negative, zero or positive. A class that does not implement it cannot be ordered, and the attempt is
-a compile-time diagnostic naming `Comparable` as the fix. There is no fallback path anywhere in the
-implementation.
+`new $cls(...)` over a `class<T>` types its arguments against **`T`'s** constructor, exactly as
+`new static(...)` types them against the current class's. That is the only signature the site can see,
+and the value may be any implementor of `T`.
 
-PHP walks two same-class objects' declared properties in order and takes the first difference —
-behaviour that exists ambiently, that no class opts into or out of, and whose cost is unbounded in
-the size of the graph it recurses into. An ordering a class produces should be the ordering its own
-code states, once, reviewably.
+So the site is refused, at the `new`, when any implementor of `T` declares a constructor incompatible
+with `T`'s — the same compatibility test the override check already makes, and the diagnostic names
+that subclass. It is stricter than PHP, which discovers the mismatch when the wrong subclass arrives,
+and it is never *different* from PHP: every program it accepts, PHP runs the same way.
 
-`Comparable` lives in the global namespace beside `Stringable`, not under `Core`, because it is a
-contract an ordinary class implements rather than a domain class holding `static` members. Equality
-is a separate question and is unaffected: a `Comparable` class still compares by identity under `==`
-([`expressions/object-identity-equality`](expressions.md#expressions-object-identity-equality)), and asking the content question explicitly is
-`$a->compareTo($b) == 0`.
+It is checked at the `new` and not at the class declaration on purpose. A subclass never instantiated
+through a class reference is nobody's problem, and refusing it at its declaration would make an
+unrelated file's `new` the reason a class cannot be written. The cost is one hierarchy-wide question
+asked per dynamic `new` site; `new Dog()` pays nothing.
 
-<sub>See also [`classes/ordering-lowers-to-compare-to`](classes.md#classes-ordering-lowers-to-compare-to), [`classes/comparable-is-same-class-only`](classes.md#classes-comparable-is-same-class-only), [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/object-identity-equality`](expressions.md#expressions-object-identity-equality), [`types/ordering`](types.md#types-ordering). Decided in [0013](../decisions/0013.md), [0011](../decisions/0011.md).</sub>
-
-<a id="classes-ordering-lowers-to-compare-to"></a>
-
-## `<`, `>`, `<=`, `>=` and `<=>` on two objects lower to one `compareTo` call
-
-`rule:classes/ordering-lowers-to-compare-to`
-
-All five relational spellings lower to one call: `$a < $b` is `$a->compareTo($b) < 0`, `$a >= $b` is
-`$a->compareTo($b) >= 0`, and `$a <=> $b` is the call itself. The lowering happens at compile time
-and produces an ordinary method call — devirtualized when the static type is known exactly, like any
-other call — so no second dispatch path exists beside the one every method already uses.
-
-One method therefore fixes all five operators at once, and they cannot disagree with each other the
-way five separate hooks could. A subclass that overrides `compareTo` changes how a base-typed pair
-answers, because the call reaches the receiver's own implementation like any other virtual call.
-
-A `compareTo` that throws propagates as a checked status ([`errors/propagation`](errors.md#errors-propagation)), so an ordering
-is a call site with a failure edge rather than an operator that cannot fail.
-
-<sub>See also [`classes/comparable`](classes.md#classes-comparable), [`types/arithmetic`](types.md#types-arithmetic), [`errors/propagation`](errors.md#errors-propagation). Decided in [0013](../decisions/0013.md).</sub>
-
-<a id="classes-comparable-is-same-class-only"></a>
-
-## `compareTo` fixes the other operand to `self`, so two different classes are never ordered against each other
-
-`rule:classes/comparable-is-same-class-only`
-
-`compareTo(self $other)` fixes the other operand to the implementing class. Comparing two objects
-that are not both known to be that same class is a diagnostic even when both classes implement
-`Comparable` independently — there is no cross-class overload and no implicit widening from a
-subclass's `compareTo` to an ancestor's.
-
-The alternative is a resolution question with no non-arbitrary answer: which of two classes' methods
-decides the order of a mixed pair, and what a program should conclude when they disagree. Fixing the
-parameter to `self` removes the question instead of answering it.
-
-A type that genuinely needs to be ordered against a different type says so with an ordinary named
-method — `Money::isGreaterThan(Distance $d): bool` reads oddly on purpose. The cost is real: PHP's
-permissiveness here is gone until a parameterized `Comparable<T>` is designed, and no such generic
-exists yet.
-
-<sub>See also [`classes/comparable`](classes.md#classes-comparable), [`classes/ordering-lowers-to-compare-to`](classes.md#classes-ordering-lowers-to-compare-to). Decided in [0013](../decisions/0013.md).</sub>
-
-<a id="classes-property-hooks"></a>
-
-## A property's own `get`/`set` hook is PHP 8.4's, unchanged, and every read or write of that property is a call to it
-
-`rule:classes/property-hooks`
-
-A property may declare `get` and `set` hooks, with PHP 8.4's syntax, per-property scoping, and its
-interaction with `readonly` and asymmetric visibility unchanged. A hooked property's read is a call
-to its `get` and its write a call to its `set`, at every access spelling alike — including one inside
-a string interpolation.
-
-Each hook body compiles to its own function, with the receiver in the ordinary parameter-0 slot, so
-a hooked access costs no new instruction, no new calling convention and no dispatch-table entry.
-Inside a hook the property names its own backing slot, which is what makes a `set` hook that
-transforms the value it stores terminate rather than recurse.
-
-Novis keeps the backing slot for every hooked property, so PHP 8.4's virtual-versus-backed split does
-not exist here. That spends one slot on a property whose `get` computes its answer, and buys one
-storage model instead of two — and a `set` hook that commits a value discharges that property's
-initialization obligation ([`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization)) exactly as a plain
-assignment does.
-
-<sub>See also [`classes/property-observer-pipeline`](classes.md#classes-property-observer-pipeline), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`types/declaration`](types.md#types-declaration). Decided in [0014](../decisions/0014.md).</sub>
-
-<a id="classes-property-observer"></a>
-
-## A class observes every read and write of its own properties by implementing `PropertyObserver`, never by declaring `__get`/`__set`
-
-`rule:classes/property-observer`
-
-A class observes its own properties by implementing the global interface `PropertyObserver`, whose
-members are `onPropertyGet(string $name, mixed $value): void` and
-`onPropertySet(string $name, mixed $value): void`. Implementing it once observes *every* declared
-property of that class, hooked or not, instead of writing a hook on each one.
-
-PHP's `__get`/`__set` are not recognized by name and have no equivalent, because the case they exist
-for is gone: an undeclared property is a hard error ([`classes/no-dynamic-properties`](classes.md#classes-no-dynamic-properties)), so there
-is nothing left to fall back onto. The gap PHP never filled is the one covered here — a
-cross-cutting observation point for the properties a class really has, which `__get` never saw.
-
-The name is deliberately not `__get`: a magic spelling advertises "the runtime recognizes this name",
-which is exactly the ambient behaviour a declared `implements` replaces. Both members return `void`,
-so an observer reports and never decides. It costs one ordinary virtual call per access, paid only by
-a class that asked for it.
-
-<sub>See also [`classes/property-observer-pipeline`](classes.md#classes-property-observer-pipeline), [`classes/no-dynamic-properties`](classes.md#classes-no-dynamic-properties), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`classes/stringable`](classes.md#classes-stringable). Decided in [0014](../decisions/0014.md), [0011](../decisions/0011.md).</sub>
-
-<a id="classes-property-observer-pipeline"></a>
-
-## A property access runs its hook or its storage first and the observer second, and the observer cannot change the answer
-
-`rule:classes/property-observer-pipeline`
-
-Every read or write of a property on a class implementing `PropertyObserver` runs two steps in one
-fixed order. First the value is produced or committed exactly as it would be without the interface in
-the picture — by the property's own hook if it declares one, by plain field storage otherwise. Then
-the settled value is passed to `onPropertyGet` or `onPropertySet`. A caller receives what the first
-step produced; a slot holds what the first step committed, which for a transforming `set` hook is not
-the caller's own argument.
-
-This is a pipeline and not a fallback: a hooked property is not exempt, and a hookless one still
-reaches the observer. An observer that throws still fails the access, propagated like any other call
-([`errors/propagation`](errors.md#errors-propagation)).
-
-Three boundaries follow from writing it about a receiver. An access inside the property's own hooks
-is the backing slot and carries no observer, or one write would be reported twice. A `static`
-property has no receiving instance and reaches nothing. An observer that touches a property of its own
-class recurses, exactly as any method calling itself does — there is no re-entry guard, because a
-guard would be a second rule about which write is the real one.
-
-<sub>See also [`classes/property-observer`](classes.md#classes-property-observer), [`classes/property-hooks`](classes.md#classes-property-hooks), [`classes/clone-is-shallow`](classes.md#classes-clone-is-shallow), [`errors/propagation`](errors.md#errors-propagation). Decided in [0014](../decisions/0014.md).</sub>
-
-<a id="classes-property-observer-costs-nothing-when-unused"></a>
-
-## A class that implements no `PropertyObserver` pays nothing for one
-
-`rule:classes/property-observer-costs-nothing-when-unused`
-
-Whether a class implements `PropertyObserver` is known at compile time from its declaration, so a
-property with no hook on a class that does not implement it compiles to a direct field load or store:
-no branch, no virtual call, nothing paid by a class that never asked for either mechanism.
-
-"Direct" is a claim about the path a run that throws nothing takes. A landing block is not a dispatch
-the access asked for — every status-returning instruction owns one, so `$obj->n = $obj->n + 1` carries
-an overflow raise and a release of the receiver on mutually exclusive cold edges. Those belong to
-[`errors/propagation`](errors.md#errors-propagation)'s checked return and to [`types/arithmetic`](types.md#types-arithmetic)'s overflow throw; counting
-them here prices this rule for two other mechanisms.
-
-The measurement rather than the assertion is what guards it: three more unhooked accesses emit no
-machine-code call at all, and cost a fraction of the same accesses behind a per-property hook.
-
-<sub>See also [`classes/property-observer-pipeline`](classes.md#classes-property-observer-pipeline), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0014](../decisions/0014.md), [0004](../decisions/0004.md).</sub>
-
-<a id="classes-no-dynamic-properties"></a>
-
-## A property that the class does not declare cannot be read or written, and no user code runs for the attempt
-
-`rule:classes/no-dynamic-properties`
-
-A class's declared properties are its whole property surface. Naming one that is not on the list is a
-compile-time diagnostic where the name is a literal identifier, and a checked, catchable throw where
-the name arrives at run time — through reflection, through an erased receiver
-([`types/erased-member-access`](types.md#types-erased-member-access)), or through a property key. A write through any of those can never
-create a field, and it is checked against the field's real declared type.
-
-`PropertyObserver` is never consulted for a name that does not exist, unlike PHP's `__get`/`__set`,
-which exist specifically for that case. There is no path in Novis from "the name is wrong" to any user
-code running at all, which is what makes a typo a failure rather than a silent second property.
-
-A name that is computed out of nothing is refused rather than deferred: `$obj->$name` and
-`$obj->{$expr}` do not resolve, in front of a call's parentheses as much as on a property. The one
-operand that carries its own answer is [`types/property-key`](types.md#types-property-key)'s `property<T>`, whose value is by
-construction one of `T`'s public declared names — the check moved to the conversion, once, instead of
-being repeated at every access.
-
-<sub>See also [`classes/property-observer`](classes.md#classes-property-observer), [`types/erased-member-access`](types.md#types-erased-member-access), [`types/property-key`](types.md#types-property-key), [`types/property-key-access`](types.md#types-property-key-access), [`types/declaration`](types.md#types-declaration). Decided in [0014](../decisions/0014.md), [0011](../decisions/0011.md), [0036](../decisions/0036.md).</sub>
-
-<a id="classes-no-call-magic"></a>
-
-## There is no `__call` or `__callStatic`: a call to a method the class does not declare is a diagnostic
-
-`rule:classes/no-call-magic`
-
-Calling a method a class does not declare is a compile-time diagnostic, like any other unresolvable
-name. There is no `__call` and no `__callStatic`, and neither name can be declared at all — the
-method-casing rule refuses a leading underscore before any resolution logic runs.
-
-Nothing replaces them. The requirement is not that PHP's spelling is wrong but that dispatching to a
-name the class never declared is: it is invisible from the declaration, unreadable by a checker or an
-IDE without reimplementing PHP's dispatch rules, and it turns a mistyped method into behaviour rather
-than an error.
-
-A program that wants to handle a family of unknown calls writes an ordinary method taking an explicit
-name and argument list, or a `match` keyed by name — visible in the class body and type-checked like
-every other call. What that costs is real: a proxy or a fluent facade generated from `__call` has no
-mechanical translation and needs a human to write the surface out.
-
-<sub>See also [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`classes/no-dynamic-properties`](classes.md#classes-no-dynamic-properties), [`types/callable-is-a-closure`](types.md#types-callable-is-a-closure). Decided in [0014](../decisions/0014.md), [0029](../decisions/0029.md), [0011](../decisions/0011.md).</sub>
+<sub>See also [`types/class-reference`](types.md#types-class-reference), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization). Decided in [0125](../decisions/0125.md), [0022](../decisions/0022.md).</sub>
 
 <a id="classes-definite-property-initialization"></a>
 
@@ -422,180 +307,29 @@ a bonus, not a safety net to rely on.
 
 <sub>See also [`classes/lateinit`](classes.md#classes-lateinit), [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws). Decided in [0038](../decisions/0038.md), [0022](../decisions/0022.md), [0017](../decisions/0017.md).</sub>
 
-<a id="classes-two-copy-depths"></a>
+<a id="classes-no-dynamic-properties"></a>
 
-## A copy is either `clone`'s one level or the graph copy, and no class customizes either
+## A property that the class does not declare cannot be read or written, and no user code runs for the attempt
 
-`rule:classes/two-copy-depths`
+`rule:classes/no-dynamic-properties`
 
-Novis has two copy depths and no third. `clone` is the shallow, same-heap, one-level copy
-([`classes/clone-is-shallow`](classes.md#classes-clone-is-shallow)). The graph copy is recursive, cycle-safe and heap-crossing
-([`classes/graph-copy`](classes.md#classes-graph-copy)), and it is one operation reached by two carriers — the isolate boundary
-and `Core\Serialize`. Neither depth is customizable by a class: there is no `__clone`, no
-`__serialize`, no `__unserialize`, no `__sleep` and no `__wakeup`.
+A class's declared properties are its whole property surface. Naming one that is not on the list is a
+compile-time diagnostic where the name is a literal identifier, and a checked, catchable throw where
+the name arrives at run time — through reflection, through an erased receiver
+([`types/erased-member-access`](types.md#types-erased-member-access)), or through a property key. A write through any of those can never
+create a field, and it is checked against the field's real declared type.
 
-Keeping both is deliberate. PHP already drew this line and it is a real distinction: cloning a tree
-node should not deep-copy what it references, and forcing `clone` deep would silently change every
-ported class that relies on shallow-copy-then-shared-reference.
+`PropertyObserver` is never consulted for a name that does not exist, unlike PHP's `__get`/`__set`,
+which exist specifically for that case. There is no path in Novis from "the name is wrong" to any user
+code running at all, which is what makes a typo a failure rather than a silent second property.
 
-A copy therefore always means what the language says it means, which is what closes PHP's
-`unserialize` gadget-chain class by construction — no hook fires during reconstruction, so there is no
-method call for attacker-controlled property values to drive. The cost is a real capability: a class
-that wants a duplicated nested collection or custom versioning has to expose an explicit method and
-call it, and two copy depths remain two things to learn.
+A name that is computed out of nothing is refused rather than deferred: `$obj->$name` and
+`$obj->{$expr}` do not resolve, in front of a call's parentheses as much as on a property. The one
+operand that carries its own answer is [`types/property-key`](types.md#types-property-key)'s `property<T>`, whose value is by
+construction one of `T`'s public declared names — the check moved to the conversion, once, instead of
+being repeated at every access.
 
-<sub>See also [`classes/clone-is-shallow`](classes.md#classes-clone-is-shallow), [`classes/graph-copy`](classes.md#classes-graph-copy), [`classes/serialize-is-a-closed-format`](classes.md#classes-serialize-is-a-closed-format), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods). Decided in [0023](../decisions/0023.md), [0014](../decisions/0014.md), [0006](../decisions/0006.md).</sub>
-
-<a id="classes-clone-is-shallow"></a>
-
-## `clone` copies an object's declared storage one level deep and shares every object it reaches
-
-`rule:classes/clone-is-shallow`
-
-`clone $x` produces a new instance of `$x`'s class and copies its declared storage one level deep,
-using PHP's own rule for what one level means. A scalar or `array<T>` property is copied by the value
-semantics it already has, so the two sides diverge on the first write. An object-typed property — held
-directly or reached through a cloned array — keeps pointing at the same instance, host handles
-included; `clone` never crosses a heap, so nothing is asked to leave the arena it is in. The copy
-answers `instanceof` as the original did, so it is not a fresh construction of the declared type.
-
-Storage is written through the privileged path construction already uses, not through ordinary
-property assignment. Two things follow: a `readonly` property survives the copy without throwing, and
-a declared `PropertyObserver` is told nothing about it
-([`classes/property-observer-pipeline`](classes.md#classes-property-observer-pipeline) observes assignments, and the copy makes none).
-
-No `__clone` runs, and no class can declare one. A class needing a duplicated nested collection
-exposes an explicit method and calls it, rather than overloading what `clone` means.
-
-<sub>See also [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`classes/graph-copy`](classes.md#classes-graph-copy), [`classes/property-observer-pipeline`](classes.md#classes-property-observer-pipeline), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0023](../decisions/0023.md), [0014](../decisions/0014.md), [0022](../decisions/0022.md).</sub>
-
-<a id="classes-graph-copy"></a>
-
-## The graph copy is one recursive, cycle-safe walk with two carriers, and it refuses what has no meaning on the other side
-
-`rule:classes/graph-copy`
-
-The graph copy is a recursive, cycle-safe traversal of a value's reachable structure producing a
-result that shares no mutable heap state with its source. Shared substructure stays shared — two
-properties pointing at one nested object still point at one object on the other side — and a cycle
-terminates instead of recursing. It never runs a constructor, and no hook fires: the shape that
-crosses is the class's own declared properties, every time.
-
-It refuses what has no meaning on the other side, naming the offending value and its path: a closure,
-which captures a heap and a scope; an `inout` binding, which aliases a specific frame; and an object
-holding a host handle. Declared types make most of that a compile-time refusal at the copy site; the
-run-time check is what a `mixed` carrying one of them needs. An object whose class the receiving side
-cannot resolve is refused by name, never stubbed.
-
-One walk serves both carriers — arena-to-arena at the isolate boundary, and bytes through
-`Core\Serialize` — so a rule added to it reaches both or neither. Two implementations that agree today
-is the failure that costs.
-
-<sub>See also [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`classes/serialize-is-a-closed-format`](classes.md#classes-serialize-is-a-closed-format), [`classes/clone-is-shallow`](classes.md#classes-clone-is-shallow), [`types/callable-is-a-closure`](types.md#types-callable-is-a-closure), [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling). Decided in [0023](../decisions/0023.md), [0006](../decisions/0006.md), [0024](../decisions/0024.md).</sub>
-
-<a id="classes-serialize-is-a-closed-format"></a>
-
-## `Core\Serialize::decode` accepts only bytes this build's `encode` produced, and refuses everything else outright
-
-`rule:classes/serialize-is-a-closed-format`
-
-`Core\Serialize::encode($x): bytes` runs the graph copy and encodes the result; `decode` runs it in
-reverse. The accepted format is Novis's own, versioned and self-describing enough to be checked before
-any object is built. A payload without the format marker is refused outright rather than best-effort
-parsed. A payload naming a class the receiving side cannot resolve is refused, naming the class. A
-payload whose recorded property set does not exactly match the target class's current declarations —
-one added, removed or retyped — is refused, naming the mismatch, never coerced and never filled with a
-default.
-
-`decode` is a `tainted` sink with no launderer. The rules above close code execution but not type
-confusion: a payload reconstructing a `User` with `isAdmin` set bypasses the constructor while
-satisfying every check. Bytes the program produced itself carry no qualifier and decode normally;
-bytes that arrived from outside are refused at compile time.
-
-No capability grant is required, because the closed format and the no-hook rule already remove what a
-grant would contain, and a hostile payload's cost is bounded by the same memory and CPU limits every
-other allocation-heavy call has. What it costs is foreign data: PHP's open wire format cannot be read
-at all.
-
-<sub>See also [`classes/graph-copy`](classes.md#classes-graph-copy), [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization). Decided in [0023](../decisions/0023.md), [0024](../decisions/0024.md), [0063](../decisions/0063.md).</sub>
-
-<a id="classes-no-magic-methods"></a>
-
-## No method name changes a class's behaviour by being present; every PHP magic method is replaced by a declared interface or gone
-
-`rule:classes/no-magic-methods`
-
-No method name changes what a class does by being present. Each of PHP's magic methods is either
-replaced by a declared interface — `__get`/`__set` by `PropertyObserver`
-([`classes/property-observer`](classes.md#classes-property-observer)), `__toString` by `Stringable` ([`classes/stringable`](classes.md#classes-stringable)), and
-ordering's implicit property walk by `Comparable` ([`classes/comparable`](classes.md#classes-comparable)) — or removed outright:
-`__call`/`__callStatic` ([`classes/no-call-magic`](classes.md#classes-no-call-magic)), `__destruct`
-([`classes/no-destructors`](classes.md#classes-no-destructors)), `__clone` and the four serialization hooks
-([`classes/two-copy-depths`](classes.md#classes-two-copy-depths)), `__isset`/`__unset` ([`classes/unset-is-refused-on-a-property`](classes.md#classes-unset-is-refused-on-a-property)),
-`__debugInfo` ([`classes/no-debug-hook`](classes.md#classes-no-debug-hook)), `__invoke` ([`types/callable-is-a-closure`](types.md#types-callable-is-a-closure)) and
-`__set_state`, whose reconstruct-from-generated-code use is answered by the closed round trip instead.
-
-Every one of those names is refused where it is *written*: the method-casing rule allows no leading
-underscore, so a class cannot declare a hook for the runtime to decline to call. That is stronger than
-"never invoked", and it is what makes an absence checkable at all.
-
-`__autoload` needs no decision — PHP removed it, and every class reference resolves statically, so
-there is no runtime moment for a loader callback to attach to. What replaces
-`spl_autoload_register` is [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload).
-
-<sub>See also [`classes/stringable`](classes.md#classes-stringable), [`classes/no-destructors`](classes.md#classes-no-destructors), [`classes/no-call-magic`](classes.md#classes-no-call-magic), [`classes/property-observer`](classes.md#classes-property-observer), [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload). Decided in [0028](../decisions/0028.md), [0014](../decisions/0014.md), [0023](../decisions/0023.md), [0027](../decisions/0027.md), [0029](../decisions/0029.md).</sub>
-
-<a id="classes-stringable"></a>
-
-## An object becomes a string only through `Stringable::toString`, and everywhere else is a diagnostic
-
-`rule:classes/stringable`
-
-An object reaches a string only through the global interface `Stringable`, whose single member is
-`toString(): string`. Every implicitly converting position — interpolation, concatenation, `echo` and
-`print`, and an `as string` conversion — accepts an object only when its static type provably
-implements it, and calls `toString()`. An object whose class does not is a compile-time diagnostic
-naming `Stringable` as the fix; PHP's own answer here is already a fatal error, so nothing permissive
-is being removed.
-
-`Stringable` lives in the global namespace, not under `Core`: it is a contract an ordinary class
-implements, not a domain class holding `static` members. The method is `toString`, not `__toString`,
-for the same reason `PropertyObserver`'s members are not `__get` — a magic spelling would misdescribe
-what the declaration site is doing.
-
-The refusal is made wherever the static type names a class, which is the whole of what a compile-time
-rule can promise. Through a `mixed` or a plain `object` the same question is answered from the
-instance's runtime class and a class with no `toString` throws there, because there was no site to
-refuse at.
-
-<sub>See also [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`classes/comparable`](classes.md#classes-comparable), [`types/conversion`](types.md#types-conversion), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0028](../decisions/0028.md), [0013](../decisions/0013.md), [0007](../decisions/0007.md).</sub>
-
-<a id="classes-no-destructors"></a>
-
-## There are no destructors: cleanup is an explicit method call the holder makes
-
-`rule:classes/no-destructors`
-
-Novis has no destructors. There is no refcount-triggered cleanup hook and no scope-exit hook, and
-`__destruct` cannot even be declared. Cleanup that PHP puts there — closing a handle, releasing a
-lock, flushing a buffer — becomes an explicit method the holder calls when it is actually done.
-
-Two independent arguments each suffice. There is no sound place to report a throw: every call returns
-a checked status to a caller, and a destructor has no call site — it fires from wherever a refcount
-happens to reach zero, which is an assignment, a loop step, or a return that has nothing to do with
-the failure. And it would undo the wholesale heap drop, whose whole point is not walking live objects
-individually at request end.
-
-One thing does run when a refcount reaches zero, and it is not a destructor: a generator suspended
-inside a `try ... finally` is resumed in a return-like mode so the `finally` runs, matching PHP
-([`iteration/generators`](iteration.md#iteration-generators)). Nothing is declared, no name is recognized, and the release resumes a
-frame the program had already entered. A throw escaping such a `finally` is discarded, since a release
-is exactly the site with nowhere to report one.
-
-What it costs is real: no RAII, so a caller who forgets an explicit `close()` gets nothing — PHP's
-`__destruct` was an unreliable safety net, but it was a net.
-
-<sub>See also [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`iteration/generators`](iteration.md#iteration-generators), [`errors/propagation`](errors.md#errors-propagation), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0028](../decisions/0028.md), [0002](../decisions/0002.md), [0004](../decisions/0004.md).</sub>
+<sub>See also [`classes/property-observer`](classes.md#classes-property-observer), [`types/erased-member-access`](types.md#types-erased-member-access), [`types/property-key`](types.md#types-property-key), [`types/property-key-access`](types.md#types-property-key-access), [`types/declaration`](types.md#types-declaration). Decided in [0014](../decisions/0014.md), [0011](../decisions/0011.md), [0036](../decisions/0036.md).</sub>
 
 <a id="classes-unset-is-refused-on-a-property"></a>
 
@@ -621,27 +355,120 @@ return it to, and a temporary, which copy-on-write would separate into a slot no
 
 <sub>See also [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/no-dynamic-properties`](classes.md#classes-no-dynamic-properties), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`expressions/truthy-table`](expressions.md#expressions-truthy-table). Decided in [0028](../decisions/0028.md), [0022](../decisions/0022.md), [0014](../decisions/0014.md).</sub>
 
-<a id="classes-no-debug-hook"></a>
+<a id="classes-property-hooks"></a>
 
-## A debug dump shows a class's real declared properties and their real values, and no class can change that
+## A property's own `get`/`set` hook is PHP 8.4's, unchanged, and every read or write of that property is a call to it
 
-`rule:classes/no-debug-hook`
+`rule:classes/property-hooks`
 
-A debug dump shows a class's real declared properties and their real current values. There is no hook
-to filter, rename or synthesize what appears: `__debugInfo` does not exist and cannot be declared, so
-what you declare is what a dump shows. What the view looks like belongs to the diagnostic record
-([`errors/debug-dump`](errors.md#errors-debug-dump)); the rule here is the absence of the hook.
+A property may declare `get` and `set` hooks, with PHP 8.4's syntax, per-property scoping, and its
+interaction with `readonly` and asymmetric visibility unchanged. A hooked property's read is a call
+to its `get` and its write a call to its `set`, at every access spelling alike — including one inside
+a string interpolation.
 
-The alternative would be a customization surface with no unsafe default to close — the dump is a
-fixed, built-in operation a developer did not write and cannot call with attacker-influenced arguments
-to bypass anything.
+Each hook body compiles to its own function, with the receiver in the ordinary parameter-0 slot, so
+a hooked access costs no new instruction, no new calling convention and no dispatch-table entry.
+Inside a hook the property names its own backing slot, which is what makes a `set` hook that
+transforms the value it stores terminate rather than recurse.
 
-That is unrelated to reflection, which enforces the same visibility check an ordinary access would:
-one is a built-in view, the other a call site a script constructs, and they have different threat
-models. A `secret`-typed property is redacted wherever it is dumped, which is the qualifier's rule and
-not an exception to this one.
+Novis keeps the backing slot for every hooked property, so PHP 8.4's virtual-versus-backed split does
+not exist here. That spends one slot on a property whose `get` computes its answer, and buys one
+storage model instead of two — and a `set` hook that commits a value discharges that property's
+initialization obligation ([`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization)) exactly as a plain
+assignment does.
 
-<sub>See also [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`errors/debug-dump`](errors.md#errors-debug-dump), [`errors/no-render-hook`](errors.md#errors-no-render-hook). Decided in [0028](../decisions/0028.md), [0092](../decisions/0092.md), [0019](../decisions/0019.md).</sub>
+<sub>See also [`classes/property-observer-pipeline`](classes.md#classes-property-observer-pipeline), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`types/declaration`](types.md#types-declaration). Decided in [0014](../decisions/0014.md).</sub>
+
+<a id="classes-property-observer"></a>
+
+## A class observes every read and write of its own properties by implementing `PropertyObserver`, never by declaring `__get`/`__set`
+
+`rule:classes/property-observer`
+
+A class observes its own properties by implementing the global interface `PropertyObserver`, whose
+members are `onPropertyGet(string $name, mixed $value): void` and
+`onPropertySet(string $name, mixed $value): void`. Implementing it once observes *every* declared
+property of that class, hooked or not, instead of writing a hook on each one.
+
+PHP's `__get`/`__set` are not recognized by name and have no equivalent, because the case they exist
+for is gone: an undeclared property is a hard error ([`classes/no-dynamic-properties`](classes.md#classes-no-dynamic-properties)), so there
+is nothing left to fall back onto. The gap PHP never filled is the one covered here — a
+cross-cutting observation point for the properties a class really has, which `__get` never saw.
+
+The name is deliberately not `__get`: a magic spelling advertises "the runtime recognizes this name",
+which is exactly the ambient behaviour a declared `implements` replaces. Both members return `void`,
+so an observer reports and never decides. It costs one ordinary virtual call per access, paid only by
+a class that asked for it.
+
+<sub>See also [`classes/property-observer-pipeline`](classes.md#classes-property-observer-pipeline), [`classes/no-dynamic-properties`](classes.md#classes-no-dynamic-properties), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`classes/stringable`](classes.md#classes-stringable). Decided in [0014](../decisions/0014.md), [0011](../decisions/0011.md).</sub>
+
+<a id="classes-property-observer-pipeline"></a>
+
+## A property access runs its hook or its storage first and the observer second, and the observer cannot change the answer
+
+`rule:classes/property-observer-pipeline`
+
+Every read or write of a property on a class implementing `PropertyObserver` runs two steps in one
+fixed order. First the value is produced or committed exactly as it would be without the interface in
+the picture — by the property's own hook if it declares one, by plain field storage otherwise. Then
+the settled value is passed to `onPropertyGet` or `onPropertySet`. A caller receives what the first
+step produced; a slot holds what the first step committed, which for a transforming `set` hook is not
+the caller's own argument.
+
+This is a pipeline and not a fallback: a hooked property is not exempt, and a hookless one still
+reaches the observer. An observer that throws still fails the access, propagated like any other call
+([`errors/propagation`](errors.md#errors-propagation)).
+
+Three boundaries follow from writing it about a receiver. An access inside the property's own hooks
+is the backing slot and carries no observer, or one write would be reported twice. A `static`
+property has no receiving instance and reaches nothing. An observer that touches a property of its own
+class recurses, exactly as any method calling itself does — there is no re-entry guard, because a
+guard would be a second rule about which write is the real one.
+
+<sub>See also [`classes/property-observer`](classes.md#classes-property-observer), [`classes/property-hooks`](classes.md#classes-property-hooks), [`classes/clone-is-shallow`](classes.md#classes-clone-is-shallow), [`errors/propagation`](errors.md#errors-propagation). Decided in [0014](../decisions/0014.md).</sub>
+
+<a id="classes-property-observer-costs-nothing-when-unused"></a>
+
+## A class that implements no `PropertyObserver` pays nothing for one
+
+`rule:classes/property-observer-costs-nothing-when-unused`
+
+Whether a class implements `PropertyObserver` is known at compile time from its declaration, so a
+property with no hook on a class that does not implement it compiles to a direct field load or store:
+no branch, no virtual call, nothing paid by a class that never asked for either mechanism.
+
+"Direct" is a claim about the path a run that throws nothing takes. A landing block is not a dispatch
+the access asked for — every status-returning instruction owns one, so `$obj->n = $obj->n + 1` carries
+an overflow raise and a release of the receiver on mutually exclusive cold edges. Those belong to
+[`errors/propagation`](errors.md#errors-propagation)'s checked return and to [`types/arithmetic`](types.md#types-arithmetic)'s overflow throw; counting
+them here prices this rule for two other mechanisms.
+
+The measurement rather than the assertion is what guards it: three more unhooked accesses emit no
+machine-code call at all, and cost a fraction of the same accesses behind a per-property hook.
+
+<sub>See also [`classes/property-observer-pipeline`](classes.md#classes-property-observer-pipeline), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0014](../decisions/0014.md), [0004](../decisions/0004.md).</sub>
+
+<a id="classes-member-conflict-is-an-error"></a>
+
+## A member reachable from two default or delegated sources with no override is a compile error  *(designed — not yet in the compiler)*
+
+`rule:classes/member-conflict-is-an-error`
+
+A method name reachable from more than one source — a default from one implemented interface, a
+default from another, or a `by`-delegated interface — is a compile error when the class does not
+itself declare that method, and the diagnostic names every contributing source.
+
+There is no `insteadof`. PHP needed one because trait flattening had no other way to pick a winner;
+here the fix is the ordinary override a reader already knows how to write, and it can still reach a
+specific source explicitly — `InterfaceName::method()` for a default, or plain property access
+`$this->field->method()` for a delegate, since a delegate is a real object.
+
+**Not implemented.** `E_INTERFACE_MEMBER_CONFLICT` has no code allocated and nothing reports it:
+`crates/nvs-types/src/conformance.rs` checks that every required member is answered, one member at a
+time, but not that two sources answer the same one. A class reaching two defaults for one name
+currently resolves to whichever the member walk finds first rather than being refused.
+
+<sub>See also [`classes/no-traits`](classes.md#classes-no-traits), [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field). Decided in [0043](../decisions/0043.md).</sub>
 
 <a id="classes-no-traits"></a>
 
@@ -742,48 +569,291 @@ replacing PHP's per-class-copied trait state, which was not free either, with so
 
 <sub>See also [`classes/no-traits`](classes.md#classes-no-traits), [`classes/member-conflict-is-an-error`](classes.md#classes-member-conflict-is-an-error), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws), [`statements/inout-is-written-at-the-call`](statements.md#statements-inout-is-written-at-the-call). Decided in [0043](../decisions/0043.md), [0022](../decisions/0022.md), [0038](../decisions/0038.md).</sub>
 
-<a id="classes-promotion-is-constructor-only"></a>
+<a id="classes-comparable"></a>
 
-## A visibility keyword on a parameter promotes it to a property only in the `constructor`
+## Two objects order only when their class implements `Comparable`, and there is no property-walk fallback
 
-`rule:classes/promotion-is-constructor-only`
+`rule:classes/comparable`
 
-A `public`, `protected` or `private` keyword on a parameter promotes it to a property, and it does
-that only in the `constructor`. On any other method's parameter it is refused.
+Two objects may be compared with `<`, `>`, `<=`, `>=` or `<=>` only when their class implements the
+global interface `Comparable`, whose single member is `compareTo(self $other): int` returning
+negative, zero or positive. A class that does not implement it cannot be ordered, and the attempt is
+a compile-time diagnostic naming `Comparable` as the fix. There is no fallback path anywhere in the
+implementation.
 
-Promotion is PHP 8's feature and nothing else: the keyword says where a *property* may be read from,
-and an ordinary method has no allocation to promote into. A property is a slot on an instance, armed
-once where the instance is made; a method may be called any number of times, or none, so there is no
-moment for a promoted parameter of one to exist.
+PHP walks two same-class objects' declared properties in order and takes the first difference —
+behaviour that exists ambiently, that no class opts into or out of, and whose cost is unbounded in
+the size of the graph it recurses into. An ordering a class produces should be the ordering its own
+code states, once, reviewably.
 
-A promoted parameter is otherwise an ordinary property in every respect — declared, visible,
-inherited, initialized by the binding itself
-([`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization)), namable by an `implements ... by $field` clause, and
-carrying whatever qualifiers its type does.
+`Comparable` lives in the global namespace beside `Stringable`, not under `Core`, because it is a
+contract an ordinary class implements rather than a domain class holding `static` members. Equality
+is a separate question and is unaffected: a `Comparable` class still compares by identity under `==`
+([`expressions/object-identity-equality`](expressions.md#expressions-object-identity-equality)), and asking the content question explicitly is
+`$a->compareTo($b) == 0`.
 
-<sub>See also [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field). Decided in [0043](../decisions/0043.md), [0022](../decisions/0022.md), [0094](../decisions/0094.md).</sub>
+<sub>See also [`classes/ordering-lowers-to-compare-to`](classes.md#classes-ordering-lowers-to-compare-to), [`classes/comparable-is-same-class-only`](classes.md#classes-comparable-is-same-class-only), [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/object-identity-equality`](expressions.md#expressions-object-identity-equality), [`types/ordering`](types.md#types-ordering). Decided in [0013](../decisions/0013.md), [0011](../decisions/0011.md).</sub>
 
-<a id="classes-member-conflict-is-an-error"></a>
+<a id="classes-comparable-is-same-class-only"></a>
 
-## A member reachable from two default or delegated sources with no override is a compile error  *(designed — not yet in the compiler)*
+## `compareTo` fixes the other operand to `self`, so two different classes are never ordered against each other
 
-`rule:classes/member-conflict-is-an-error`
+`rule:classes/comparable-is-same-class-only`
 
-A method name reachable from more than one source — a default from one implemented interface, a
-default from another, or a `by`-delegated interface — is a compile error when the class does not
-itself declare that method, and the diagnostic names every contributing source.
+`compareTo(self $other)` fixes the other operand to the implementing class. Comparing two objects
+that are not both known to be that same class is a diagnostic even when both classes implement
+`Comparable` independently — there is no cross-class overload and no implicit widening from a
+subclass's `compareTo` to an ancestor's.
 
-There is no `insteadof`. PHP needed one because trait flattening had no other way to pick a winner;
-here the fix is the ordinary override a reader already knows how to write, and it can still reach a
-specific source explicitly — `InterfaceName::method()` for a default, or plain property access
-`$this->field->method()` for a delegate, since a delegate is a real object.
+The alternative is a resolution question with no non-arbitrary answer: which of two classes' methods
+decides the order of a mixed pair, and what a program should conclude when they disagree. Fixing the
+parameter to `self` removes the question instead of answering it.
 
-**Not implemented.** `E_INTERFACE_MEMBER_CONFLICT` has no code allocated and nothing reports it:
-`crates/nvs-types/src/conformance.rs` checks that every required member is answered, one member at a
-time, but not that two sources answer the same one. A class reaching two defaults for one name
-currently resolves to whichever the member walk finds first rather than being refused.
+A type that genuinely needs to be ordered against a different type says so with an ordinary named
+method — `Money::isGreaterThan(Distance $d): bool` reads oddly on purpose. The cost is real: PHP's
+permissiveness here is gone until a parameterized `Comparable<T>` is designed, and no such generic
+exists yet.
 
-<sub>See also [`classes/no-traits`](classes.md#classes-no-traits), [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field). Decided in [0043](../decisions/0043.md).</sub>
+<sub>See also [`classes/comparable`](classes.md#classes-comparable), [`classes/ordering-lowers-to-compare-to`](classes.md#classes-ordering-lowers-to-compare-to). Decided in [0013](../decisions/0013.md).</sub>
+
+<a id="classes-ordering-lowers-to-compare-to"></a>
+
+## `<`, `>`, `<=`, `>=` and `<=>` on two objects lower to one `compareTo` call
+
+`rule:classes/ordering-lowers-to-compare-to`
+
+All five relational spellings lower to one call: `$a < $b` is `$a->compareTo($b) < 0`, `$a >= $b` is
+`$a->compareTo($b) >= 0`, and `$a <=> $b` is the call itself. The lowering happens at compile time
+and produces an ordinary method call — devirtualized when the static type is known exactly, like any
+other call — so no second dispatch path exists beside the one every method already uses.
+
+One method therefore fixes all five operators at once, and they cannot disagree with each other the
+way five separate hooks could. A subclass that overrides `compareTo` changes how a base-typed pair
+answers, because the call reaches the receiver's own implementation like any other virtual call.
+
+A `compareTo` that throws propagates as a checked status ([`errors/propagation`](errors.md#errors-propagation)), so an ordering
+is a call site with a failure edge rather than an operator that cannot fail.
+
+<sub>See also [`classes/comparable`](classes.md#classes-comparable), [`types/arithmetic`](types.md#types-arithmetic), [`errors/propagation`](errors.md#errors-propagation). Decided in [0013](../decisions/0013.md).</sub>
+
+<a id="classes-stringable"></a>
+
+## An object becomes a string only through `Stringable::toString`, and everywhere else is a diagnostic
+
+`rule:classes/stringable`
+
+An object reaches a string only through the global interface `Stringable`, whose single member is
+`toString(): string`. Every implicitly converting position — interpolation, concatenation, `echo` and
+`print`, and an `as string` conversion — accepts an object only when its static type provably
+implements it, and calls `toString()`. An object whose class does not is a compile-time diagnostic
+naming `Stringable` as the fix; PHP's own answer here is already a fatal error, so nothing permissive
+is being removed.
+
+`Stringable` lives in the global namespace, not under `Core`: it is a contract an ordinary class
+implements, not a domain class holding `static` members. The method is `toString`, not `__toString`,
+for the same reason `PropertyObserver`'s members are not `__get` — a magic spelling would misdescribe
+what the declaration site is doing.
+
+The refusal is made wherever the static type names a class, which is the whole of what a compile-time
+rule can promise. Through a `mixed` or a plain `object` the same question is answered from the
+instance's runtime class and a class with no `toString` throws there, because there was no site to
+refuse at.
+
+<sub>See also [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`classes/comparable`](classes.md#classes-comparable), [`types/conversion`](types.md#types-conversion), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0028](../decisions/0028.md), [0013](../decisions/0013.md), [0007](../decisions/0007.md).</sub>
+
+<a id="classes-no-magic-methods"></a>
+
+## No method name changes a class's behaviour by being present; every PHP magic method is replaced by a declared interface or gone
+
+`rule:classes/no-magic-methods`
+
+No method name changes what a class does by being present. Each of PHP's magic methods is either
+replaced by a declared interface — `__get`/`__set` by `PropertyObserver`
+([`classes/property-observer`](classes.md#classes-property-observer)), `__toString` by `Stringable` ([`classes/stringable`](classes.md#classes-stringable)), and
+ordering's implicit property walk by `Comparable` ([`classes/comparable`](classes.md#classes-comparable)) — or removed outright:
+`__call`/`__callStatic` ([`classes/no-call-magic`](classes.md#classes-no-call-magic)), `__destruct`
+([`classes/no-destructors`](classes.md#classes-no-destructors)), `__clone` and the four serialization hooks
+([`classes/two-copy-depths`](classes.md#classes-two-copy-depths)), `__isset`/`__unset` ([`classes/unset-is-refused-on-a-property`](classes.md#classes-unset-is-refused-on-a-property)),
+`__debugInfo` ([`classes/no-debug-hook`](classes.md#classes-no-debug-hook)), `__invoke` ([`types/callable-is-a-closure`](types.md#types-callable-is-a-closure)) and
+`__set_state`, whose reconstruct-from-generated-code use is answered by the closed round trip instead.
+
+Every one of those names is refused where it is *written*: the method-casing rule allows no leading
+underscore, so a class cannot declare a hook for the runtime to decline to call. That is stronger than
+"never invoked", and it is what makes an absence checkable at all.
+
+`__autoload` needs no decision — PHP removed it, and every class reference resolves statically, so
+there is no runtime moment for a loader callback to attach to. What replaces
+`spl_autoload_register` is [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload).
+
+<sub>See also [`classes/stringable`](classes.md#classes-stringable), [`classes/no-destructors`](classes.md#classes-no-destructors), [`classes/no-call-magic`](classes.md#classes-no-call-magic), [`classes/property-observer`](classes.md#classes-property-observer), [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload). Decided in [0028](../decisions/0028.md), [0014](../decisions/0014.md), [0023](../decisions/0023.md), [0027](../decisions/0027.md), [0029](../decisions/0029.md).</sub>
+
+<a id="classes-no-call-magic"></a>
+
+## There is no `__call` or `__callStatic`: a call to a method the class does not declare is a diagnostic
+
+`rule:classes/no-call-magic`
+
+Calling a method a class does not declare is a compile-time diagnostic, like any other unresolvable
+name. There is no `__call` and no `__callStatic`, and neither name can be declared at all — the
+method-casing rule refuses a leading underscore before any resolution logic runs.
+
+Nothing replaces them. The requirement is not that PHP's spelling is wrong but that dispatching to a
+name the class never declared is: it is invisible from the declaration, unreadable by a checker or an
+IDE without reimplementing PHP's dispatch rules, and it turns a mistyped method into behaviour rather
+than an error.
+
+A program that wants to handle a family of unknown calls writes an ordinary method taking an explicit
+name and argument list, or a `match` keyed by name — visible in the class body and type-checked like
+every other call. What that costs is real: a proxy or a fluent facade generated from `__call` has no
+mechanical translation and needs a human to write the surface out.
+
+<sub>See also [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`classes/no-dynamic-properties`](classes.md#classes-no-dynamic-properties), [`types/callable-is-a-closure`](types.md#types-callable-is-a-closure). Decided in [0014](../decisions/0014.md), [0029](../decisions/0029.md), [0011](../decisions/0011.md).</sub>
+
+<a id="classes-no-destructors"></a>
+
+## There are no destructors: cleanup is an explicit method call the holder makes
+
+`rule:classes/no-destructors`
+
+Novis has no destructors. There is no refcount-triggered cleanup hook and no scope-exit hook, and
+`__destruct` cannot even be declared. Cleanup that PHP puts there — closing a handle, releasing a
+lock, flushing a buffer — becomes an explicit method the holder calls when it is actually done.
+
+Two independent arguments each suffice. There is no sound place to report a throw: every call returns
+a checked status to a caller, and a destructor has no call site — it fires from wherever a refcount
+happens to reach zero, which is an assignment, a loop step, or a return that has nothing to do with
+the failure. And it would undo the wholesale heap drop, whose whole point is not walking live objects
+individually at request end.
+
+One thing does run when a refcount reaches zero, and it is not a destructor: a generator suspended
+inside a `try ... finally` is resumed in a return-like mode so the `finally` runs, matching PHP
+([`iteration/generators`](iteration.md#iteration-generators)). Nothing is declared, no name is recognized, and the release resumes a
+frame the program had already entered. A throw escaping such a `finally` is discarded, since a release
+is exactly the site with nowhere to report one.
+
+What it costs is real: no RAII, so a caller who forgets an explicit `close()` gets nothing — PHP's
+`__destruct` was an unreliable safety net, but it was a net.
+
+<sub>See also [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`iteration/generators`](iteration.md#iteration-generators), [`errors/propagation`](errors.md#errors-propagation), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0028](../decisions/0028.md), [0002](../decisions/0002.md), [0004](../decisions/0004.md).</sub>
+
+<a id="classes-no-debug-hook"></a>
+
+## A debug dump shows a class's real declared properties and their real values, and no class can change that
+
+`rule:classes/no-debug-hook`
+
+A debug dump shows a class's real declared properties and their real current values. There is no hook
+to filter, rename or synthesize what appears: `__debugInfo` does not exist and cannot be declared, so
+what you declare is what a dump shows. What the view looks like belongs to the diagnostic record
+([`errors/debug-dump`](errors.md#errors-debug-dump)); the rule here is the absence of the hook.
+
+The alternative would be a customization surface with no unsafe default to close — the dump is a
+fixed, built-in operation a developer did not write and cannot call with attacker-influenced arguments
+to bypass anything.
+
+That is unrelated to reflection, which enforces the same visibility check an ordinary access would:
+one is a built-in view, the other a call site a script constructs, and they have different threat
+models. A `secret`-typed property is redacted wherever it is dumped, which is the qualifier's rule and
+not an exception to this one.
+
+<sub>See also [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`errors/debug-dump`](errors.md#errors-debug-dump), [`errors/no-render-hook`](errors.md#errors-no-render-hook). Decided in [0028](../decisions/0028.md), [0092](../decisions/0092.md), [0019](../decisions/0019.md).</sub>
+
+<a id="classes-two-copy-depths"></a>
+
+## A copy is either `clone`'s one level or the graph copy, and no class customizes either
+
+`rule:classes/two-copy-depths`
+
+Novis has two copy depths and no third. `clone` is the shallow, same-heap, one-level copy
+([`classes/clone-is-shallow`](classes.md#classes-clone-is-shallow)). The graph copy is recursive, cycle-safe and heap-crossing
+([`classes/graph-copy`](classes.md#classes-graph-copy)), and it is one operation reached by two carriers — the isolate boundary
+and `Core\Serialize`. Neither depth is customizable by a class: there is no `__clone`, no
+`__serialize`, no `__unserialize`, no `__sleep` and no `__wakeup`.
+
+Keeping both is deliberate. PHP already drew this line and it is a real distinction: cloning a tree
+node should not deep-copy what it references, and forcing `clone` deep would silently change every
+ported class that relies on shallow-copy-then-shared-reference.
+
+A copy therefore always means what the language says it means, which is what closes PHP's
+`unserialize` gadget-chain class by construction — no hook fires during reconstruction, so there is no
+method call for attacker-controlled property values to drive. The cost is a real capability: a class
+that wants a duplicated nested collection or custom versioning has to expose an explicit method and
+call it, and two copy depths remain two things to learn.
+
+<sub>See also [`classes/clone-is-shallow`](classes.md#classes-clone-is-shallow), [`classes/graph-copy`](classes.md#classes-graph-copy), [`classes/serialize-is-a-closed-format`](classes.md#classes-serialize-is-a-closed-format), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods). Decided in [0023](../decisions/0023.md), [0014](../decisions/0014.md), [0006](../decisions/0006.md).</sub>
+
+<a id="classes-clone-is-shallow"></a>
+
+## `clone` copies an object's declared storage one level deep and shares every object it reaches
+
+`rule:classes/clone-is-shallow`
+
+`clone $x` produces a new instance of `$x`'s class and copies its declared storage one level deep,
+using PHP's own rule for what one level means. A scalar or `array<T>` property is copied by the value
+semantics it already has, so the two sides diverge on the first write. An object-typed property — held
+directly or reached through a cloned array — keeps pointing at the same instance, host handles
+included; `clone` never crosses a heap, so nothing is asked to leave the arena it is in. The copy
+answers `instanceof` as the original did, so it is not a fresh construction of the declared type.
+
+Storage is written through the privileged path construction already uses, not through ordinary
+property assignment. Two things follow: a `readonly` property survives the copy without throwing, and
+a declared `PropertyObserver` is told nothing about it
+([`classes/property-observer-pipeline`](classes.md#classes-property-observer-pipeline) observes assignments, and the copy makes none).
+
+No `__clone` runs, and no class can declare one. A class needing a duplicated nested collection
+exposes an explicit method and calls it, rather than overloading what `clone` means.
+
+<sub>See also [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`classes/graph-copy`](classes.md#classes-graph-copy), [`classes/property-observer-pipeline`](classes.md#classes-property-observer-pipeline), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0023](../decisions/0023.md), [0014](../decisions/0014.md), [0022](../decisions/0022.md).</sub>
+
+<a id="classes-graph-copy"></a>
+
+## The graph copy is one recursive, cycle-safe walk with two carriers, and it refuses what has no meaning on the other side
+
+`rule:classes/graph-copy`
+
+The graph copy is a recursive, cycle-safe traversal of a value's reachable structure producing a
+result that shares no mutable heap state with its source. Shared substructure stays shared — two
+properties pointing at one nested object still point at one object on the other side — and a cycle
+terminates instead of recursing. It never runs a constructor, and no hook fires: the shape that
+crosses is the class's own declared properties, every time.
+
+It refuses what has no meaning on the other side, naming the offending value and its path: a closure,
+which captures a heap and a scope; an `inout` binding, which aliases a specific frame; and an object
+holding a host handle. Declared types make most of that a compile-time refusal at the copy site; the
+run-time check is what a `mixed` carrying one of them needs. An object whose class the receiving side
+cannot resolve is refused by name, never stubbed.
+
+One walk serves both carriers — arena-to-arena at the isolate boundary, and bytes through
+`Core\Serialize` — so a rule added to it reaches both or neither. Two implementations that agree today
+is the failure that costs.
+
+<sub>See also [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`classes/serialize-is-a-closed-format`](classes.md#classes-serialize-is-a-closed-format), [`classes/clone-is-shallow`](classes.md#classes-clone-is-shallow), [`types/callable-is-a-closure`](types.md#types-callable-is-a-closure), [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling). Decided in [0023](../decisions/0023.md), [0006](../decisions/0006.md), [0024](../decisions/0024.md).</sub>
+
+<a id="classes-serialize-is-a-closed-format"></a>
+
+## `Core\Serialize::decode` accepts only bytes this build's `encode` produced, and refuses everything else outright
+
+`rule:classes/serialize-is-a-closed-format`
+
+`Core\Serialize::encode($x): bytes` runs the graph copy and encodes the result; `decode` runs it in
+reverse. The accepted format is Novis's own, versioned and self-describing enough to be checked before
+any object is built. A payload without the format marker is refused outright rather than best-effort
+parsed. A payload naming a class the receiving side cannot resolve is refused, naming the class. A
+payload whose recorded property set does not exactly match the target class's current declarations —
+one added, removed or retyped — is refused, naming the mismatch, never coerced and never filled with a
+default.
+
+`decode` is a `tainted` sink with no launderer. The rules above close code execution but not type
+confusion: a payload reconstructing a `User` with `isAdmin` set bypasses the constructor while
+satisfying every check. Bytes the program produced itself carry no qualifier and decode normally;
+bytes that arrived from outside are refused at compile time.
+
+No capability grant is required, because the closed format and the no-hook rule already remove what a
+grant would contain, and a hostile payload's cost is bounded by the same memory and CPU limits every
+other allocation-heavy call has. What it costs is foreign data: PHP's open wire format cannot be read
+at all.
+
+<sub>See also [`classes/graph-copy`](classes.md#classes-graph-copy), [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization). Decided in [0023](../decisions/0023.md), [0024](../decisions/0024.md), [0063](../decisions/0063.md).</sub>
 
 <a id="classes-no-class-alias"></a>
 
@@ -807,73 +877,3 @@ already pay when they decline to alias: two libraries choosing one short name me
 fully-qualified one at the call site.
 
 <sub>See also [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`types/type-alias`](types.md#types-type-alias), [`types/alias-is-never-a-bare-class`](types.md#types-alias-is-never-a-bare-class). Decided in [0015](../decisions/0015.md), [0011](../decisions/0011.md).</sub>
-
-<a id="classes-names-resolve-case-sensitively"></a>
-
-## Every name is compared exactly, so `Foo` and `foo` are two names and never one
-
-`rule:classes/names-resolve-case-sensitively`
-
-Every name — class, interface, enum, enum case, namespace segment, method, property, parameter, local,
-class constant — is compared exactly, everywhere resolution happens. `Foo` and `foo` are two names.
-There is no configuration and no compatibility mode.
-
-PHP folds case for classes, functions, methods and keywords but not for variables, properties or
-constants, which is a split nobody memorizes; then the one place that compares a class name as a
-string — a router table, a cache key, a serialized payload — disagrees with the resolver. Here it
-costs nothing to be strict, because exactly one casing is legal per identifier category anyway: two
-names differing only in case cannot both be valid declarations of the same kind, so case-sensitive
-resolution can never make a working program ambiguous. It only turns a wrong reference into a
-diagnostic.
-
-A reserved-name check that is deliberately case-insensitive is not an exception to this. It only ever
-rejects more, and a tightening cannot make a program's meaning depend on case, because no spelling it
-touches has a meaning to depend on.
-
-<sub>See also [`classes/reserved-spellings-are-lower-case`](classes.md#classes-reserved-spellings-are-lower-case), [`programs/path-case`](programs.md#programs-path-case), [`programs/autoload`](programs.md#programs-autoload). Decided in [0062](../decisions/0062.md), [0029](../decisions/0029.md).</sub>
-
-<a id="classes-reserved-spellings-are-lower-case"></a>
-
-## Keywords, contextual keywords and the `<?nvs` tag are lower case and nothing else
-
-`rule:classes/reserved-spellings-are-lower-case`
-
-Keywords are matched exactly: `if` is a keyword, `IF` and `If` are not. The same holds for the
-contextual keywords — `spawn`, `script`, `with`, `type`, `from`, `by`, `get`, `set` — for the
-`true`/`false`/`null` literals, and for the `<?nvs` open tag.
-
-A mis-cased keyword gets no diagnostic of its own, deliberately. The casing rule makes `IF`, `ECHO` and
-`TRUE` legal class names, so nothing lexical distinguishes a mistyped `if` from a deliberate reference
-to a class called `IF`. The lexer emits an ordinary identifier and the program fails later as an
-undefined name or a parse error. A heuristic would be the one place in the compiler that guesses, and
-case-normalising reserved words is the easiest thing the converter does.
-
-`<?nvs` is the one exception, because it is the one spelling that cannot be anything else: `<?NVS` is
-recognised, reported, and still opens code mode — an unrecognised tag collapses the whole file into one
-inline-HTML token and teaches the author nothing. Two things fall out: `Core\Bytes` is three ordinary
-name tokens rather than a collision with the `bytes` type keyword, and identifier lexing no longer
-allocates a lower-cased copy of every name in the file.
-
-<sub>See also [`classes/names-resolve-case-sensitively`](classes.md#classes-names-resolve-case-sensitively), [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag). Decided in [0062](../decisions/0062.md), [0029](../decisions/0029.md).</sub>
-
-<a id="classes-constructor-compatibility"></a>
-
-## A `new` through a class reference checks `T`'s constructor, and an implementor whose constructor diverges is refused there
-
-`rule:classes/constructor-compatibility`
-
-`new $cls(...)` over a `class<T>` types its arguments against **`T`'s** constructor, exactly as
-`new static(...)` types them against the current class's. That is the only signature the site can see,
-and the value may be any implementor of `T`.
-
-So the site is refused, at the `new`, when any implementor of `T` declares a constructor incompatible
-with `T`'s — the same compatibility test the override check already makes, and the diagnostic names
-that subclass. It is stricter than PHP, which discovers the mismatch when the wrong subclass arrives,
-and it is never *different* from PHP: every program it accepts, PHP runs the same way.
-
-It is checked at the `new` and not at the class declaration on purpose. A subclass never instantiated
-through a class reference is nobody's problem, and refusing it at its declaration would make an
-unrelated file's `new` the reason a class cannot be written. The cost is one hierarchy-wide question
-asked per dynamic `new` site; `new Dog()` pays nothing.
-
-<sub>See also [`types/class-reference`](types.md#types-class-reference), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization). Decided in [0125](../decisions/0125.md), [0022](../decisions/0022.md).</sub>

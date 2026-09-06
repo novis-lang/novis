@@ -1,7 +1,7 @@
 {
   "topic": "testing",
   "title": "Testing",
-  "order": 60,
+  "order": 120,
   "rules": [
     {
       "id": "testing/test-attribute",
@@ -23,6 +23,15 @@
       ]
     },
     {
+      "id": "testing/tests-never-reach-a-build",
+      "title": "`nvs run` and `nvs build` lower no test, and `nvs check` type-checks every one",
+      "status": "designed",
+      "because": ["0079"],
+      "divergesFromPhp": "test code is absent from a built artifact by construction, rather than excluded by whatever the deployment happened to copy",
+      "seeAlso": ["testing/test-attribute", "testing/determinism-declared-on-the-test"],
+      "guardedBy": []
+    },
+    {
       "id": "testing/isolate-per-test",
       "title": "Every test runs in its own isolate and shares nothing but compiled code with its siblings",
       "status": "shipped",
@@ -37,12 +46,12 @@
       "guardedBy": ["crates/nvs-cli/src/runner.rs"]
     },
     {
-      "id": "testing/tests-never-reach-a-build",
-      "title": "`nvs run` and `nvs build` lower no test, and `nvs check` type-checks every one",
+      "id": "testing/private-in-the-same-file",
+      "title": "A test reaches `private` members of classes declared in its own file, and nowhere else",
       "status": "designed",
       "because": ["0079"],
-      "divergesFromPhp": "test code is absent from a built artifact by construction, rather than excluded by whatever the deployment happened to copy",
-      "seeAlso": ["testing/test-attribute", "testing/determinism-declared-on-the-test"],
+      "divergesFromPhp": "there is no reflection to reach a private member with, so white-box testing is bought by co-location and by nothing else",
+      "seeAlso": ["testing/test-attribute", "testing/tests-never-reach-a-build"],
       "guardedBy": []
     },
     {
@@ -164,39 +173,6 @@
       ]
     },
     {
-      "id": "testing/property-testing",
-      "title": "`#[Property]` derives its generators from the parameters' declared types",
-      "status": "designed",
-      "because": ["0079", "0071", "0009"],
-      "seeAlso": ["testing/data-rows", "testing/assertions-are-typed"],
-      "guardedBy": []
-    },
-    {
-      "id": "testing/inline-snapshots",
-      "title": "A snapshot is a literal in the test body, and the updater rewrites that literal and nothing else",
-      "status": "shipped",
-      "because": ["0079", "0033"],
-      "seeAlso": ["testing/assertions-are-typed", "testing/report-formats"],
-      "guardedBy": [
-        "tests/conformance/core/test-assert-matches-inline-agrees-with-debug-render-over-every-value-kind.nvst",
-        "tests/conformance/core/test-assert-matches-inline-quotes-both-sides-of-a-mismatch.nvst",
-        "tests/conformance/core/test-assert-matches-inline-never-holds-a-secret-property.nvst",
-        "crates/nvs-cli/src/runner.rs"
-      ]
-    },
-    {
-      "id": "testing/bench-counters",
-      "title": "`#[Bench]` reports counted semantic work, and CI may gate on the counts but never on wall-clock",
-      "status": "designed",
-      "because": ["0079", "0018", "0041", "0026", "0004"],
-      "seeAlso": [
-        "testing/debug-probes",
-        "testing/perf-two-mechanisms",
-        "testing/member-perf-ledger"
-      ],
-      "guardedBy": []
-    },
-    {
       "id": "testing/task-tree-and-virtual-clock",
       "title": "A task still running when a test returns fails that test",
       "status": "shipped",
@@ -236,12 +212,32 @@
       ]
     },
     {
-      "id": "testing/private-in-the-same-file",
-      "title": "A test reaches `private` members of classes declared in its own file, and nowhere else",
+      "id": "testing/property-testing",
+      "title": "`#[Property]` derives its generators from the parameters' declared types",
       "status": "designed",
-      "because": ["0079"],
-      "divergesFromPhp": "there is no reflection to reach a private member with, so white-box testing is bought by co-location and by nothing else",
-      "seeAlso": ["testing/test-attribute", "testing/tests-never-reach-a-build"],
+      "because": ["0079", "0071", "0009"],
+      "seeAlso": ["testing/data-rows", "testing/assertions-are-typed"],
+      "guardedBy": []
+    },
+    {
+      "id": "testing/inline-snapshots",
+      "title": "A snapshot is a literal in the test body, and the updater rewrites that literal and nothing else",
+      "status": "shipped",
+      "because": ["0079", "0033"],
+      "seeAlso": ["testing/assertions-are-typed", "testing/report-formats"],
+      "guardedBy": [
+        "tests/conformance/core/test-assert-matches-inline-agrees-with-debug-render-over-every-value-kind.nvst",
+        "tests/conformance/core/test-assert-matches-inline-quotes-both-sides-of-a-mismatch.nvst",
+        "tests/conformance/core/test-assert-matches-inline-never-holds-a-secret-property.nvst",
+        "crates/nvs-cli/src/runner.rs"
+      ]
+    },
+    {
+      "id": "testing/mutation-testing",
+      "title": "A mutation run asks whether any test would have noticed the code being wrong",
+      "status": "designed",
+      "because": ["0079", "0018", "0042"],
+      "seeAlso": ["testing/debug-probes", "testing/isolate-per-test", "testing/four-proofs"],
       "guardedBy": []
     },
     {
@@ -261,14 +257,6 @@
         "tests/conformance/reject/a-retry-states-the-reason-it-is-retried.nvst",
         "tests/conformance/lang/a-test-attribute-builds-a-table-the-runner-reports.nvst"
       ]
-    },
-    {
-      "id": "testing/mutation-testing",
-      "title": "A mutation run asks whether any test would have noticed the code being wrong",
-      "status": "designed",
-      "because": ["0079", "0018", "0042"],
-      "seeAlso": ["testing/debug-probes", "testing/isolate-per-test", "testing/four-proofs"],
-      "guardedBy": []
     },
     {
       "id": "testing/report-formats",
@@ -291,104 +279,28 @@
       "guardedBy": ["crates/nvs-test/src/lib.rs", "crates/nvs-cli/src/main.rs"]
     },
     {
-      "id": "testing/debug-probes",
-      "title": "Coverage, tracing and profiling are one per-request flag word checked at fixed probe sites, never a second compiled tier",
+      "id": "testing/one-slice-is-one-feature",
+      "title": "One slice writes all four of a feature's proofs together",
       "status": "shipped",
-      "because": ["0018", "0079", "0041"],
-      "divergesFromPhp": "there is no instrumented build and no extension to load; the probes are compiled into every unit and a bit is flipped on a request already in flight",
-      "seeAlso": ["testing/debug-surface", "testing/debug-mode-directive", "testing/bench-counters"],
-      "guardedBy": [
-        "crates/nvs-codegen/tests/probes.rs",
-        "crates/nvs-runtime/src/ctx/trace.rs"
-      ]
+      "because": ["0134"],
+      "seeAlso": ["testing/four-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "testing/roster-is-derived"],
+      "guardedBy": ["tools/dossier.py"]
     },
     {
-      "id": "testing/debug-surface",
-      "title": "Each probe starts and stops mid-request, and exports what existing tooling already reads",
-      "status": "designed",
-      "because": ["0018", "0006", "0011"],
-      "seeAlso": ["testing/debug-probes", "testing/debug-mode-directive", "testing/report-formats"],
-      "guardedBy": []
-    },
-    {
-      "id": "testing/debug-mode-directive",
-      "title": "`[debug] mode` is the ceiling as well as the default, and writing a trace or a profile is its own capability",
+      "id": "testing/examples-live-in-the-repository",
+      "title": "`docs/examples/` is authoritative and the website mirrors it",
       "status": "shipped",
-      "because": ["0018", "0005", "0006"],
-      "seeAlso": ["testing/debug-probes", "testing/debug-surface"],
-      "guardedBy": [
-        "crates/nvs-config/tests/tree.rs",
-        "crates/nvs-config/src/tree.rs"
-      ]
+      "because": ["0134"],
+      "seeAlso": ["testing/four-proofs", "testing/proof-attribution"],
+      "guardedBy": ["docs/examples/README.md"]
     },
     {
-      "id": "testing/probes-on-is-a-tested-configuration",
-      "title": "The conformance suite runs with the probes on, and once per optimisation level",
-      "status": "designed",
-      "because": ["0018"],
-      "seeAlso": ["testing/debug-probes", "testing/the-deep-lane", "testing/nvst-is-separate"],
-      "guardedBy": []
-    },
-    {
-      "id": "testing/perf-two-mechanisms",
-      "title": "A per-PR guard and the historical dashboard are separate measurements, and never one",
+      "id": "testing/hostile-case-contract",
+      "title": "A hostile case passes when nothing came apart, and a compile diagnostic is never a pass",
       "status": "shipped",
-      "because": ["0026", "0143"],
-      "seeAlso": [
-        "testing/perf-secondary-figures",
-        "testing/perf-history-file",
-        "testing/bench-counters",
-        "testing/member-perf-ledger"
-      ],
-      "guardedBy": ["benches/abi-probe/tests/perf_guards.rs"]
-    },
-    {
-      "id": "testing/perf-secondary-figures",
-      "title": "Wall-clock and the PHP ratio ride beside the instruction count as same-host figures only",
-      "status": "shipped",
-      "because": ["0026"],
-      "seeAlso": ["testing/perf-two-mechanisms", "testing/perf-history-file", "testing/userland-benchmarks"],
-      "guardedBy": ["tools/bench.py", "docs/perf/history.ndjson"]
-    },
-    {
-      "id": "testing/perf-history-file",
-      "title": "The performance history is an append-only NDJSON file in the repository",
-      "status": "shipped",
-      "because": ["0026"],
-      "seeAlso": ["testing/perf-two-mechanisms", "testing/perf-secondary-figures", "testing/valgrind-on-wsl"],
-      "guardedBy": ["docs/perf/history.ndjson"]
-    },
-    {
-      "id": "testing/valgrind-on-wsl",
-      "title": "The historical leg runs under callgrind on Linux or WSL, and nowhere else",
-      "status": "shipped",
-      "because": ["0026"],
-      "seeAlso": ["testing/perf-two-mechanisms", "testing/perf-history-file", "testing/the-deep-lane"],
-      "guardedBy": ["docs/setup.md"]
-    },
-    {
-      "id": "testing/userland-benchmarks",
-      "title": "A cross-engine comparison is a `benches/userland/` case with one twin per engine",
-      "status": "shipped",
-      "because": ["0026", "0100"],
-      "seeAlso": ["testing/perf-secondary-figures", "testing/member-perf-ledger", "testing/perf-two-mechanisms"],
-      "guardedBy": ["benches/userland/README.md", "tools/bench.py"]
-    },
-    {
-      "id": "testing/attribution-is-diffed-in-ci",
-      "title": "The third-party notice is committed, and a check fails when the lockfile moved without it",
-      "status": "shipped",
-      "because": ["0065", "0143"],
-      "seeAlso": ["testing/lane-table", "testing/ci-lanes"],
-      "guardedBy": ["tools/gen-attribution.py", ".github/workflows/ci.yml"]
-    },
-    {
-      "id": "testing/capability-closure-test",
-      "title": "Every member of a capability-bearing class declares a capability or declares none, and there is no allowlist",
-      "status": "shipped",
-      "because": ["0118"],
-      "seeAlso": ["testing/four-proofs", "testing/hostile-case-contract"],
-      "guardedBy": ["crates/nvs-stdlib/tests/capability.rs"]
+      "because": ["0134"],
+      "seeAlso": ["testing/four-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "testing/capability-closure-test"],
+      "guardedBy": ["tests/hostile/README.md", "tools/dossier.py"]
     },
     {
       "id": "testing/four-proofs",
@@ -421,22 +333,6 @@
       "guardedBy": ["tools/dossier.py"]
     },
     {
-      "id": "testing/member-perf-ledger",
-      "title": "A member's figure is Novis against Novis, fingerprinted, and re-measured only when its implementing file moves",
-      "status": "shipped",
-      "because": ["0134", "0026"],
-      "seeAlso": ["testing/four-proofs", "testing/perf-two-mechanisms", "testing/userland-benchmarks"],
-      "guardedBy": ["docs/perf/members.ndjson", "tools/dossier.py"]
-    },
-    {
-      "id": "testing/hostile-case-contract",
-      "title": "A hostile case passes when nothing came apart, and a compile diagnostic is never a pass",
-      "status": "shipped",
-      "because": ["0134"],
-      "seeAlso": ["testing/four-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "testing/capability-closure-test"],
-      "guardedBy": ["tests/hostile/README.md", "tools/dossier.py"]
-    },
-    {
       "id": "testing/a-failing-proof-is-fixed-or-recorded",
       "title": "A proof that fails is fixed or recorded as a known gap, and never weakened",
       "status": "shipped",
@@ -445,20 +341,124 @@
       "guardedBy": ["tools/dossier.py"]
     },
     {
-      "id": "testing/one-slice-is-one-feature",
-      "title": "One slice writes all four of a feature's proofs together",
+      "id": "testing/capability-closure-test",
+      "title": "Every member of a capability-bearing class declares a capability or declares none, and there is no allowlist",
       "status": "shipped",
-      "because": ["0134"],
-      "seeAlso": ["testing/four-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "testing/roster-is-derived"],
-      "guardedBy": ["tools/dossier.py"]
+      "because": ["0118"],
+      "seeAlso": ["testing/four-proofs", "testing/hostile-case-contract"],
+      "guardedBy": ["crates/nvs-stdlib/tests/capability.rs"]
     },
     {
-      "id": "testing/examples-live-in-the-repository",
-      "title": "`docs/examples/` is authoritative and the website mirrors it",
+      "id": "testing/attribution-is-diffed-in-ci",
+      "title": "The third-party notice is committed, and a check fails when the lockfile moved without it",
       "status": "shipped",
-      "because": ["0134"],
-      "seeAlso": ["testing/four-proofs", "testing/proof-attribution"],
-      "guardedBy": ["docs/examples/README.md"]
+      "because": ["0065", "0143"],
+      "seeAlso": ["testing/lane-table", "testing/ci-lanes"],
+      "guardedBy": ["tools/gen-attribution.py", ".github/workflows/ci.yml"]
+    },
+    {
+      "id": "testing/debug-mode-directive",
+      "title": "`[debug] mode` is the ceiling as well as the default, and writing a trace or a profile is its own capability",
+      "status": "shipped",
+      "because": ["0018", "0005", "0006"],
+      "seeAlso": ["testing/debug-probes", "testing/debug-surface"],
+      "guardedBy": [
+        "crates/nvs-config/tests/tree.rs",
+        "crates/nvs-config/src/tree.rs"
+      ]
+    },
+    {
+      "id": "testing/debug-probes",
+      "title": "Coverage, tracing and profiling are one per-request flag word checked at fixed probe sites, never a second compiled tier",
+      "status": "shipped",
+      "because": ["0018", "0079", "0041"],
+      "divergesFromPhp": "there is no instrumented build and no extension to load; the probes are compiled into every unit and a bit is flipped on a request already in flight",
+      "seeAlso": ["testing/debug-surface", "testing/debug-mode-directive", "testing/bench-counters"],
+      "guardedBy": [
+        "crates/nvs-codegen/tests/probes.rs",
+        "crates/nvs-runtime/src/ctx/trace.rs"
+      ]
+    },
+    {
+      "id": "testing/debug-surface",
+      "title": "Each probe starts and stops mid-request, and exports what existing tooling already reads",
+      "status": "designed",
+      "because": ["0018", "0006", "0011"],
+      "seeAlso": ["testing/debug-probes", "testing/debug-mode-directive", "testing/report-formats"],
+      "guardedBy": []
+    },
+    {
+      "id": "testing/probes-on-is-a-tested-configuration",
+      "title": "The conformance suite runs with the probes on, and once per optimisation level",
+      "status": "designed",
+      "because": ["0018"],
+      "seeAlso": ["testing/debug-probes", "testing/the-deep-lane", "testing/nvst-is-separate"],
+      "guardedBy": []
+    },
+    {
+      "id": "testing/bench-counters",
+      "title": "`#[Bench]` reports counted semantic work, and CI may gate on the counts but never on wall-clock",
+      "status": "designed",
+      "because": ["0079", "0018", "0041", "0026", "0004"],
+      "seeAlso": [
+        "testing/debug-probes",
+        "testing/perf-two-mechanisms",
+        "testing/member-perf-ledger"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "testing/perf-two-mechanisms",
+      "title": "A per-PR guard and the historical dashboard are separate measurements, and never one",
+      "status": "shipped",
+      "because": ["0026", "0143"],
+      "seeAlso": [
+        "testing/perf-secondary-figures",
+        "testing/perf-history-file",
+        "testing/bench-counters",
+        "testing/member-perf-ledger"
+      ],
+      "guardedBy": ["benches/abi-probe/tests/perf_guards.rs"]
+    },
+    {
+      "id": "testing/perf-secondary-figures",
+      "title": "Wall-clock and the PHP ratio ride beside the instruction count as same-host figures only",
+      "status": "shipped",
+      "because": ["0026"],
+      "seeAlso": ["testing/perf-two-mechanisms", "testing/perf-history-file", "testing/userland-benchmarks"],
+      "guardedBy": ["tools/bench.py", "docs/perf/history.ndjson"]
+    },
+    {
+      "id": "testing/perf-history-file",
+      "title": "The performance history is an append-only NDJSON file in the repository",
+      "status": "shipped",
+      "because": ["0026"],
+      "seeAlso": ["testing/perf-two-mechanisms", "testing/perf-secondary-figures", "testing/valgrind-on-wsl"],
+      "guardedBy": ["docs/perf/history.ndjson"]
+    },
+    {
+      "id": "testing/member-perf-ledger",
+      "title": "A member's figure is Novis against Novis, fingerprinted, and re-measured only when its implementing file moves",
+      "status": "shipped",
+      "because": ["0134", "0026"],
+      "seeAlso": ["testing/four-proofs", "testing/perf-two-mechanisms", "testing/userland-benchmarks"],
+      "guardedBy": ["docs/perf/members.ndjson", "tools/dossier.py"]
+    },
+    {
+      "id": "testing/userland-benchmarks",
+      "title": "A cross-engine comparison is a `benches/userland/` case with one twin per engine",
+      "status": "shipped",
+      "because": ["0026", "0100"],
+      "seeAlso": ["testing/perf-secondary-figures", "testing/member-perf-ledger", "testing/perf-two-mechanisms"],
+      "guardedBy": ["benches/userland/README.md", "tools/bench.py"]
+    },
+    {
+      "id": "testing/valgrind-on-wsl",
+      "title": "The historical leg runs under callgrind on Linux or WSL, and nowhere else",
+      "status": "shipped",
+      "because": ["0026"],
+      "seeAlso": ["testing/perf-two-mechanisms", "testing/perf-history-file", "testing/the-deep-lane"],
+      "guardedBy": ["docs/setup.md"]
     },
     {
       "id": "testing/ci-lanes",
@@ -490,19 +490,19 @@
       "guardedBy": ["tools/ci-changes.py"]
     },
     {
-      "id": "testing/a-deferred-job-is-skipped-never-absent",
-      "title": "A job a lane defers is skipped by its own `if:`, never filtered out of the workflow",
-      "status": "shipped",
-      "because": ["0143"],
-      "seeAlso": ["testing/ci-lanes", "testing/lane-table"],
-      "guardedBy": [".github/workflows/ci.yml"]
-    },
-    {
       "id": "testing/the-deep-lane",
       "title": "Miri, the fuzzers and the unsafe audit run nightly and at release, and the fuzz corpus persists",
       "status": "shipped",
       "because": ["0143"],
       "seeAlso": ["testing/ci-lanes", "testing/probes-on-is-a-tested-configuration", "testing/valgrind-on-wsl"],
+      "guardedBy": [".github/workflows/ci.yml"]
+    },
+    {
+      "id": "testing/a-deferred-job-is-skipped-never-absent",
+      "title": "A job a lane defers is skipped by its own `if:`, never filtered out of the workflow",
+      "status": "shipped",
+      "because": ["0143"],
+      "seeAlso": ["testing/ci-lanes", "testing/lane-table"],
       "guardedBy": [".github/workflows/ci.yml"]
     },
     {

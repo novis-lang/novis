@@ -1,7 +1,7 @@
 {
   "topic": "http-server",
   "title": "The HTTP server",
-  "order": 190,
+  "order": 180,
   "rules": [
     {
       "id": "http-server/two-deployments-and-nothing-a-proxy-owns",
@@ -26,86 +26,6 @@
       "guardedBy": [
         "crates/nvs-server/src/io.rs",
         "crates/nvs-server/src/serve.rs"
-      ]
-    },
-    {
-      "id": "http-server/a-path-is-never-derived-from-a-url",
-      "title": "A filesystem path is never derived from a URL at request time",
-      "status": "shipped",
-      "because": [
-        "0097",
-        "0095"
-      ],
-      "divergesFromPhp": "`cgi.fix_pathinfo`, `SCRIPT_FILENAME` and `PATH_INFO` have no counterpart: a request selects a mount from a table expanded at boot and can never name a file",
-      "seeAlso": [
-        "http-server/a-mount-table-expands-at-boot",
-        "security/a-path-is-not-a-url",
-        "errors/path-component-refusals"
-      ],
-      "guardedBy": [
-        "crates/nvs-server/src/mount.rs",
-        "crates/nvs-config/src/mount.rs"
-      ]
-    },
-    {
-      "id": "http-server/a-mount-table-expands-at-boot",
-      "title": "A mount matches on `prefix` or `host`, names one `entry` or one `scan`, and a scan expands against the disk at boot",
-      "status": "shipped",
-      "because": [
-        "0097",
-        "0102",
-        "0104",
-        "0017"
-      ],
-      "divergesFromPhp": "a vhost's rewrite rules become one `[[server.mount]]` block, and a module is relocatable because the matched prefix is stripped before the route table sees the path",
-      "seeAlso": [
-        "http-server/a-path-is-never-derived-from-a-url",
-        "http-server/a-mount-carries-no-policy",
-        "routing/a-request-reads-its-mount",
-        "routing/link-carries-the-mount-prefix",
-        "routing/an-origin-is-per-mount-and-checked-at-boot",
-        "errors/path-component-refusals"
-      ],
-      "guardedBy": [
-        "crates/nvs-config/tests/mount.rs",
-        "tests/conformance/core/a-mounts-captures-carry-the-mark-and-its-prefix-does-not.nvst"
-      ]
-    },
-    {
-      "id": "http-server/a-request-resolves-in-five-steps",
-      "title": "A request resolves by longest mount match, prefix strip, static file, path dispatch, then the entry — and production runs only match, strip, entry",
-      "status": "shipped",
-      "because": [
-        "0097",
-        "0091"
-      ],
-      "divergesFromPhp": "`try_files $uri /index.php` is the development sequence only; in production a URL naming an existing `.nvs` file still runs the mount's entry",
-      "seeAlso": [
-        "http-server/a-mount-table-expands-at-boot",
-        "http-server/static-serving-is-one-policy",
-        "config/a-startup-default-is-never-flipped",
-        "routing/matched-once-before-the-handler"
-      ],
-      "guardedBy": [
-        "crates/nvs-server/src/mount.rs",
-        "crates/nvs-cli/src/serve.rs"
-      ]
-    },
-    {
-      "id": "http-server/static-serving-is-one-policy",
-      "title": "Static serving is one policy in both modes: the exact file, never a listing, one `ETag`, one `Range`, and a `.nvs` file is never served as source",
-      "status": "shipped",
-      "because": [
-        "0097",
-        "0074"
-      ],
-      "divergesFromPhp": "there is no `Last-Modified`, no directory index, no `.htaccess` and no `max-age`; `php -S` serving any file under the root, source included, has no counterpart",
-      "seeAlso": [
-        "http-server/a-request-resolves-in-five-steps",
-        "http-server/an-unsafe-or-unbounded-default-is-a-defect"
-      ],
-      "guardedBy": [
-        "crates/nvs-server/src/statics.rs"
       ]
     },
     {
@@ -135,6 +55,50 @@
       ]
     },
     {
+      "id": "http-server/a-mount-table-expands-at-boot",
+      "title": "A mount matches on `prefix` or `host`, names one `entry` or one `scan`, and a scan expands against the disk at boot",
+      "status": "shipped",
+      "because": [
+        "0097",
+        "0102",
+        "0104",
+        "0017"
+      ],
+      "divergesFromPhp": "a vhost's rewrite rules become one `[[server.mount]]` block, and a module is relocatable because the matched prefix is stripped before the route table sees the path",
+      "seeAlso": [
+        "http-server/a-path-is-never-derived-from-a-url",
+        "http-server/a-mount-carries-no-policy",
+        "routing/a-request-reads-its-mount",
+        "routing/link-carries-the-mount-prefix",
+        "routing/an-origin-is-per-mount-and-checked-at-boot",
+        "errors/path-component-refusals"
+      ],
+      "guardedBy": [
+        "crates/nvs-config/tests/mount.rs",
+        "tests/conformance/core/a-mounts-captures-carry-the-mark-and-its-prefix-does-not.nvst"
+      ]
+    },
+    {
+      "id": "http-server/a-mount-carries-no-policy",
+      "title": "A mount's key set is `prefix`, `host`, `scan`, `entry` and `origin`; `mode`, limits and capabilities belong to the `[[app]]` block",
+      "status": "shipped",
+      "because": [
+        "0097",
+        "0104",
+        "0005",
+        "0091"
+      ],
+      "seeAlso": [
+        "http-server/a-mount-table-expands-at-boot",
+        "http-server/the-mode-ceiling-defaults-to-the-startup-mode",
+        "config/a-mount-routes-and-an-app-block-sets-policy",
+        "config/an-application-is-its-entry-file-path"
+      ],
+      "guardedBy": [
+        "crates/nvs-config/tests/tree.rs"
+      ]
+    },
+    {
       "id": "http-server/a-unix-socket-listener",
       "title": "A `listen` entry beginning with a separator is a Unix socket, Unix-only, with `socket_mode`, and it is the transport a proxy should prefer",
       "status": "designed",
@@ -151,21 +115,64 @@
       "guardedBy": []
     },
     {
-      "id": "http-server/four-idle-waits-all-finite",
-      "title": "Four waits bound a connection, all finite with nothing configured and all idle rather than total",
+      "id": "http-server/the-mode-ceiling-defaults-to-the-startup-mode",
+      "title": "`[mode] ceiling` is `System`-class, bounds a runtime flip and not the startup value, and unset equals the mode the server started in",
       "status": "shipped",
       "because": [
-        "0097",
-        "0074"
+        "0091",
+        "0005",
+        "0104"
       ],
-      "divergesFromPhp": "`max_execution_time` and `request_terminate_timeout` bound a whole request; these bound a stalled socket only, so a slow 2 GB upload completes while a stalled one is closed",
+      "divergesFromPhp": "there is no `php.ini-development` to copy: a production host that wrote nothing is unreachable from code, and one root-owned line opens it",
       "seeAlso": [
-        "http-server/the-server-block-is-boot-class",
-        "concurrency/connection-bounds-are-finite"
+        "config/a-program-may-read-and-flip-its-mode",
+        "config/ceilings-are-their-own-directives",
+        "config/the-mode-flag-wins-over-the-file",
+        "config/a-mount-routes-and-an-app-block-sets-policy",
+        "http-server/a-mount-carries-no-policy"
       ],
       "guardedBy": [
-        "crates/nvs-server/src/io.rs",
-        "crates/nvs-server/src/serve.rs"
+        "tests/conformance/core/config-a-mode-flip-above-the-ceiling-is-refused.nvst",
+        "crates/nvs-config/src/request.rs"
+      ]
+    },
+    {
+      "id": "http-server/a-development-server-on-a-public-interface-warns-and-serves",
+      "title": "A development-mode server binding a non-loopback address prints a banner, writes one `Warn` record naming the address, and serves",
+      "status": "designed",
+      "because": [
+        "0091",
+        "0092"
+      ],
+      "divergesFromPhp": "`php -S 0.0.0.0:8000` says nothing; here the bind is announced on the console and in the log stream, and it is not refused",
+      "seeAlso": [
+        "http-server/the-server-block-is-boot-class",
+        "config/the-mode-flag-wins-over-the-file",
+        "errors/log-level"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "http-server/an-unsafe-or-unbounded-default-is-a-defect",
+      "title": "A default that is unsafe inbound or unbounded outbound is a defect, not a neutral starting point",
+      "status": "shipped",
+      "because": [
+        "0074"
+      ],
+      "divergesFromPhp": "php-fpm behind nginx ships no security headers, no cookie flags and no outbound timeout until somebody writes them; here nothing written is already the safe and finite configuration",
+      "seeAlso": [
+        "http-server/secure-headers-with-nothing-written",
+        "http-server/cors-is-closed-until-origins-are-named",
+        "http-server/cookies-are-secure-httponly-and-lax",
+        "http-server/no-spelling-for-an-unbounded-wait",
+        "config/no-configuration-file-is-a-complete-configuration",
+        "http-server/the-server-block-is-boot-class",
+        "http-server/the-body-is-read-on-demand-under-two-caps",
+        "http-server/a-requests-blast-radius-is-bounded-at-four-tiers"
+      ],
+      "guardedBy": [
+        "crates/nvs-server/src/secure.rs",
+        "tests/conformance/core/no-client-member-accepts-an-unbounded-wait.nvst"
       ]
     },
     {
@@ -187,20 +194,81 @@
       ]
     },
     {
-      "id": "http-server/health-path-is-off-and-checks-nothing",
-      "title": "`health_path` is off by default; set, it answers `200` while accepting and `503` while draining, and checks no dependency",
+      "id": "http-server/admission-is-arithmetic-not-a-number",
+      "title": "The effective in-flight ceiling is the smaller of `max_in_flight` and what the memory budget affords, and a clamp is logged once at boot",
       "status": "shipped",
       "because": [
-        "0097"
+        "0106",
+        "0097",
+        "0004"
       ],
-      "divergesFromPhp": "php-fpm's `ping.path` and `pm.status_path` have a counterpart that reports no status page, no version and no pool statistics",
+      "divergesFromPhp": "`pm.max_children` is a free number and the out-of-memory killer enforces its product with memory; here the ceiling is derived from the budget, the configured number is clamped rather than trusted, and the overflow is a `503`",
+      "seeAlso": [
+        "http-server/upload-total-is-enforced-on-the-wire",
+        "http-server/a-wedged-core-is-shed-never-killed",
+        "http-server/a-requests-blast-radius-is-bounded-at-four-tiers",
+        "security/isolate-budget-is-the-trees",
+        "programs/memory-priority",
+        "http-server/the-server-block-is-boot-class"
+      ],
+      "guardedBy": [
+        "crates/nvs-server/src/admit.rs",
+        "crates/nvs-config/src/server.rs"
+      ]
+    },
+    {
+      "id": "http-server/four-idle-waits-all-finite",
+      "title": "Four waits bound a connection, all finite with nothing configured and all idle rather than total",
+      "status": "shipped",
+      "because": [
+        "0097",
+        "0074"
+      ],
+      "divergesFromPhp": "`max_execution_time` and `request_terminate_timeout` bound a whole request; these bound a stalled socket only, so a slow 2 GB upload completes while a stalled one is closed",
       "seeAlso": [
         "http-server/the-server-block-is-boot-class",
-        "concurrency/a-drain-closes-a-connection-cleanly"
+        "concurrency/connection-bounds-are-finite"
+      ],
+      "guardedBy": [
+        "crates/nvs-server/src/io.rs",
+        "crates/nvs-server/src/serve.rs"
+      ]
+    },
+    {
+      "id": "http-server/the-accept-loop-backs-off",
+      "title": "An `accept` that fails on descriptor exhaustion is retried under a bounded backoff and logged once per window",
+      "status": "shipped",
+      "because": [
+        "0106",
+        "0095"
+      ],
+      "seeAlso": [
+        "http-server/the-floor-cannot-fill-the-disk",
+        "http-server/a-requests-blast-radius-is-bounded-at-four-tiers",
+        "errors/multipart-part-count"
+      ],
+      "guardedBy": [
+        "crates/nvs-server/src/serve.rs"
+      ]
+    },
+    {
+      "id": "http-server/a-request-resolves-in-five-steps",
+      "title": "A request resolves by longest mount match, prefix strip, static file, path dispatch, then the entry — and production runs only match, strip, entry",
+      "status": "shipped",
+      "because": [
+        "0097",
+        "0091"
+      ],
+      "divergesFromPhp": "`try_files $uri /index.php` is the development sequence only; in production a URL naming an existing `.nvs` file still runs the mount's entry",
+      "seeAlso": [
+        "http-server/a-mount-table-expands-at-boot",
+        "http-server/static-serving-is-one-policy",
+        "config/a-startup-default-is-never-flipped",
+        "routing/matched-once-before-the-handler"
       ],
       "guardedBy": [
         "crates/nvs-server/src/mount.rs",
-        "tests/conformance/core/server-is-draining-answers-a-bool-and-its-readings-agree.nvst"
+        "crates/nvs-cli/src/serve.rs"
       ]
     },
     {
@@ -300,6 +368,42 @@
       ]
     },
     {
+      "id": "http-server/a-path-is-never-derived-from-a-url",
+      "title": "A filesystem path is never derived from a URL at request time",
+      "status": "shipped",
+      "because": [
+        "0097",
+        "0095"
+      ],
+      "divergesFromPhp": "`cgi.fix_pathinfo`, `SCRIPT_FILENAME` and `PATH_INFO` have no counterpart: a request selects a mount from a table expanded at boot and can never name a file",
+      "seeAlso": [
+        "http-server/a-mount-table-expands-at-boot",
+        "security/a-path-is-not-a-url",
+        "errors/path-component-refusals"
+      ],
+      "guardedBy": [
+        "crates/nvs-server/src/mount.rs",
+        "crates/nvs-config/src/mount.rs"
+      ]
+    },
+    {
+      "id": "http-server/a-trailing-slash-is-never-normalised",
+      "title": "A trailing slash is never normalised: `/users` and `/users/` are two URIs",
+      "status": "shipped",
+      "because": [
+        "0097",
+        "0095",
+        "0077"
+      ],
+      "divergesFromPhp": "no `DirectorySlash`, no framework redirect and no `rtrim($uri, '/')`: whether the two name one resource is the application's knowledge",
+      "seeAlso": [
+        "http-server/head-runs-as-get",
+        "routing/a-trailing-segment-may-be-absent",
+        "errors/ambiguous-input-refused"
+      ],
+      "guardedBy": []
+    },
+    {
       "id": "http-server/head-runs-as-get",
       "title": "`HEAD` runs as `GET` with the body discarded and `Content-Length` kept; `method()` reports `Get` and `isHead()` tells the truth",
       "status": "shipped",
@@ -338,23 +442,6 @@
       ]
     },
     {
-      "id": "http-server/a-trailing-slash-is-never-normalised",
-      "title": "A trailing slash is never normalised: `/users` and `/users/` are two URIs",
-      "status": "shipped",
-      "because": [
-        "0097",
-        "0095",
-        "0077"
-      ],
-      "divergesFromPhp": "no `DirectorySlash`, no framework redirect and no `rtrim($uri, '/')`: whether the two name one resource is the application's knowledge",
-      "seeAlso": [
-        "http-server/head-runs-as-get",
-        "routing/a-trailing-segment-may-be-absent",
-        "errors/ambiguous-input-refused"
-      ],
-      "guardedBy": []
-    },
-    {
       "id": "http-server/the-body-is-read-on-demand-under-two-caps",
       "title": "`[limits] request_body` bounds bytes parsed into memory and `upload_total` bounds a streamed multipart body, each with a hard ceiling, and a route that never reads a body allocates nothing",
       "status": "shipped",
@@ -382,25 +469,38 @@
       ]
     },
     {
-      "id": "http-server/the-access-log-is-a-mode-default",
-      "title": "`[log] access` is a mode default — on in development, off in production — and a `5xx` is logged whatever it says",
-      "status": "designed",
+      "id": "http-server/static-serving-is-one-policy",
+      "title": "Static serving is one policy in both modes: the exact file, never a listing, one `ETag`, one `Range`, and a `.nvs` file is never served as source",
+      "status": "shipped",
       "because": [
         "0097",
-        "0091",
-        "0092",
-        "0076"
+        "0074"
       ],
-      "divergesFromPhp": "there is no Common or Combined Log Format and no pool `access.log`: the line is a diagnostic record, text in development and JSON in production",
+      "divergesFromPhp": "there is no `Last-Modified`, no directory index, no `.htaccess` and no `max-age`; `php -S` serving any file under the root, source included, has no counterpart",
       "seeAlso": [
-        "http-server/the-trace-id-is-the-request-identifier",
-        "http-server/health-path-is-off-and-checks-nothing",
-        "config/a-mode-is-five-defaults",
-        "errors/log-fields",
-        "errors/renderings",
-        "observability/the-runtime-exports-what-it-already-measures"
+        "http-server/a-request-resolves-in-five-steps",
+        "http-server/an-unsafe-or-unbounded-default-is-a-defect"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-server/src/statics.rs"
+      ]
+    },
+    {
+      "id": "http-server/health-path-is-off-and-checks-nothing",
+      "title": "`health_path` is off by default; set, it answers `200` while accepting and `503` while draining, and checks no dependency",
+      "status": "shipped",
+      "because": [
+        "0097"
+      ],
+      "divergesFromPhp": "php-fpm's `ping.path` and `pm.status_path` have a counterpart that reports no status page, no version and no pool statistics",
+      "seeAlso": [
+        "http-server/the-server-block-is-boot-class",
+        "concurrency/a-drain-closes-a-connection-cleanly"
+      ],
+      "guardedBy": [
+        "crates/nvs-server/src/mount.rs",
+        "tests/conformance/core/server-is-draining-answers-a-bool-and-its-readings-agree.nvst"
+      ]
     },
     {
       "id": "http-server/the-trace-id-is-the-request-identifier",
@@ -421,85 +521,25 @@
       ]
     },
     {
-      "id": "http-server/a-mount-carries-no-policy",
-      "title": "A mount's key set is `prefix`, `host`, `scan`, `entry` and `origin`; `mode`, limits and capabilities belong to the `[[app]]` block",
-      "status": "shipped",
-      "because": [
-        "0097",
-        "0104",
-        "0005",
-        "0091"
-      ],
-      "seeAlso": [
-        "http-server/a-mount-table-expands-at-boot",
-        "http-server/the-mode-ceiling-defaults-to-the-startup-mode",
-        "config/a-mount-routes-and-an-app-block-sets-policy",
-        "config/an-application-is-its-entry-file-path"
-      ],
-      "guardedBy": [
-        "crates/nvs-config/tests/tree.rs"
-      ]
-    },
-    {
-      "id": "http-server/the-mode-ceiling-defaults-to-the-startup-mode",
-      "title": "`[mode] ceiling` is `System`-class, bounds a runtime flip and not the startup value, and unset equals the mode the server started in",
-      "status": "shipped",
-      "because": [
-        "0091",
-        "0005",
-        "0104"
-      ],
-      "divergesFromPhp": "there is no `php.ini-development` to copy: a production host that wrote nothing is unreachable from code, and one root-owned line opens it",
-      "seeAlso": [
-        "config/a-program-may-read-and-flip-its-mode",
-        "config/ceilings-are-their-own-directives",
-        "config/the-mode-flag-wins-over-the-file",
-        "config/a-mount-routes-and-an-app-block-sets-policy",
-        "http-server/a-mount-carries-no-policy"
-      ],
-      "guardedBy": [
-        "tests/conformance/core/config-a-mode-flip-above-the-ceiling-is-refused.nvst",
-        "crates/nvs-config/src/request.rs"
-      ]
-    },
-    {
-      "id": "http-server/a-development-server-on-a-public-interface-warns-and-serves",
-      "title": "A development-mode server binding a non-loopback address prints a banner, writes one `Warn` record naming the address, and serves",
+      "id": "http-server/the-access-log-is-a-mode-default",
+      "title": "`[log] access` is a mode default — on in development, off in production — and a `5xx` is logged whatever it says",
       "status": "designed",
       "because": [
+        "0097",
         "0091",
-        "0092"
+        "0092",
+        "0076"
       ],
-      "divergesFromPhp": "`php -S 0.0.0.0:8000` says nothing; here the bind is announced on the console and in the log stream, and it is not refused",
+      "divergesFromPhp": "there is no Common or Combined Log Format and no pool `access.log`: the line is a diagnostic record, text in development and JSON in production",
       "seeAlso": [
-        "http-server/the-server-block-is-boot-class",
-        "config/the-mode-flag-wins-over-the-file",
-        "errors/log-level"
+        "http-server/the-trace-id-is-the-request-identifier",
+        "http-server/health-path-is-off-and-checks-nothing",
+        "config/a-mode-is-five-defaults",
+        "errors/log-fields",
+        "errors/renderings",
+        "observability/the-runtime-exports-what-it-already-measures"
       ],
       "guardedBy": []
-    },
-    {
-      "id": "http-server/an-unsafe-or-unbounded-default-is-a-defect",
-      "title": "A default that is unsafe inbound or unbounded outbound is a defect, not a neutral starting point",
-      "status": "shipped",
-      "because": [
-        "0074"
-      ],
-      "divergesFromPhp": "php-fpm behind nginx ships no security headers, no cookie flags and no outbound timeout until somebody writes them; here nothing written is already the safe and finite configuration",
-      "seeAlso": [
-        "http-server/secure-headers-with-nothing-written",
-        "http-server/cors-is-closed-until-origins-are-named",
-        "http-server/cookies-are-secure-httponly-and-lax",
-        "http-server/no-spelling-for-an-unbounded-wait",
-        "config/no-configuration-file-is-a-complete-configuration",
-        "http-server/the-server-block-is-boot-class",
-        "http-server/the-body-is-read-on-demand-under-two-caps",
-        "http-server/a-requests-blast-radius-is-bounded-at-four-tiers"
-      ],
-      "guardedBy": [
-        "crates/nvs-server/src/secure.rs",
-        "tests/conformance/core/no-client-member-accepts-an-unbounded-wait.nvst"
-      ]
     },
     {
       "id": "http-server/secure-headers-with-nothing-written",
@@ -606,126 +646,6 @@
       "guardedBy": [
         "crates/nvs-config/tests/directives.rs",
         "crates/nvs-server/src/secure.rs"
-      ]
-    },
-    {
-      "id": "http-server/no-spelling-for-an-unbounded-wait",
-      "title": "`Core\\Http\\Client` has no spelling for \"wait forever\": every bound is a `Duration`, an omitted one inherits `[http.client]`, and expiry throws `TimeoutError`",
-      "status": "shipped",
-      "because": [
-        "0074"
-      ],
-      "divergesFromPhp": "curl defaults to no timeout and `file_get_contents` to `default_socket_timeout`'s sixty seconds; here there is no `null`, no `0` and no option that means unbounded, so a long call names its own `deadline`",
-      "seeAlso": [
-        "http-server/one-deadline-covers-the-whole-call",
-        "http-server/retry-is-opt-in-jittered-and-closed",
-        "types/duration-literal",
-        "core-api/failure-throws",
-        "core-classes/process-is-argv-only"
-      ],
-      "guardedBy": [
-        "tests/conformance/core/no-client-member-accepts-an-unbounded-wait.nvst",
-        "crates/nvs-types/tests/core_members.rs",
-        "crates/nvs-config/tests/tree.rs"
-      ]
-    },
-    {
-      "id": "http-server/one-deadline-covers-the-whole-call",
-      "title": "One `deadline` covers the whole call: the connection, every redirect hop, every retry attempt and every backoff between them",
-      "status": "shipped",
-      "because": [
-        "0074",
-        "0058"
-      ],
-      "divergesFromPhp": "curl's `CURLOPT_TIMEOUT` bounds one transfer, so three attempts at five seconds is a fifteen-second call; here the stated number is the bound on everything",
-      "seeAlso": [
-        "http-server/no-spelling-for-an-unbounded-wait",
-        "http-server/retry-is-opt-in-jittered-and-closed",
-        "http-server/redirects-are-off-and-every-hop-is-re-pinned"
-      ],
-      "guardedBy": [
-        "crates/nvs-stdlib/src/http/transport.rs",
-        "tests/conformance/core/every-client-member-answers-a-response-with-the-same-two-readers.nvst"
-      ]
-    },
-    {
-      "id": "http-server/retry-is-opt-in-jittered-and-closed",
-      "title": "Retry is opt-in, exponential with full jitter that cannot be turned off, and retries only a connection failure, a timeout, `429`, `502`, `503` and `504`",
-      "status": "shipped",
-      "because": [
-        "0074",
-        "0058"
-      ],
-      "divergesFromPhp": "PHP's clients have no retry, so every application writes its own loop; here it is three flat options, the jitter is not configurable, and a `Retry-After` header replaces the computed wait",
-      "seeAlso": [
-        "http-server/one-deadline-covers-the-whole-call",
-        "http-server/a-non-idempotent-retry-needs-an-idempotency-key",
-        "http-server/redirects-are-off-and-every-hop-is-re-pinned",
-        "http-server/no-spelling-for-an-unbounded-wait"
-      ],
-      "guardedBy": [
-        "crates/nvs-stdlib/src/http/transport.rs",
-        "tests/conformance/core/every-client-member-judges-a-request-before-it-leaves-the-process.nvst"
-      ]
-    },
-    {
-      "id": "http-server/a-non-idempotent-retry-needs-an-idempotency-key",
-      "title": "A `POST` or `PATCH` is not retried without `retryIdempotencyKey`, and at an ordinary call site the missing key is a compile-time diagnostic",
-      "status": "shipped",
-      "because": [
-        "0074"
-      ],
-      "divergesFromPhp": "a retried `POST` in PHP does whatever the loop the developer wrote does, including charging a card twice; here the missing key is a red squiggle before the program runs",
-      "seeAlso": [
-        "http-server/retry-is-opt-in-jittered-and-closed",
-        "core-api/shape-rules",
-        "core-api/options-bag"
-      ],
-      "guardedBy": [
-        "tests/conformance/core/a-post-retried-without-an-idempotency-key-is-refused-while-compiling.nvst",
-        "crates/nvs-types/tests/core_members.rs"
-      ]
-    },
-    {
-      "id": "http-server/allow-url-pins-the-address",
-      "title": "`Core\\Http::allowUrl` resolves, checks and pins: it answers a `Target` carrying the URL and the one approved address, and the connection is made to that address",
-      "status": "shipped",
-      "because": [
-        "0058",
-        "0074"
-      ],
-      "divergesFromPhp": "`file_get_contents($userUrl)` and `curl_setopt(CURLOPT_URL, $userUrl)` are a compile-time diagnostic, and the laundered value is a `Target` the program cannot read an address back out of, not a string",
-      "seeAlso": [
-        "security/outbound-url-is-a-sink",
-        "security/net-address-policy",
-        "security/the-policy-lives-in-the-capability",
-        "security/launderers-are-sink-named",
-        "http-server/redirects-are-off-and-every-hop-is-re-pinned"
-      ],
-      "guardedBy": [
-        "tests/conformance/core/an-approved-url-is-pinned-to-one-address.nvst",
-        "tests/conformance/core/every-client-member-refuses-a-tainted-url.nvst",
-        "tests/conformance/core/an-outbound-url-is-judged-before-the-capability-is-consulted.nvst"
-      ]
-    },
-    {
-      "id": "http-server/redirects-are-off-and-every-hop-is-re-pinned",
-      "title": "Redirects are not followed by default; when enabled every hop is re-checked and re-pinned, a denied hop fails the request, and a retry never re-resolves",
-      "status": "shipped",
-      "because": [
-        "0058",
-        "0074"
-      ],
-      "divergesFromPhp": "curl's `FOLLOWLOCATION` is off by default too, but a hop it follows is never checked against anything; here each hop passes the same policy the first URL did and a denied one fails the call rather than being dropped from the chain",
-      "seeAlso": [
-        "http-server/allow-url-pins-the-address",
-        "http-server/one-deadline-covers-the-whole-call",
-        "http-server/retry-is-opt-in-jittered-and-closed",
-        "security/net-address-policy"
-      ],
-      "guardedBy": [
-        "crates/nvs-stdlib/src/http/transport.rs",
-        "crates/nvs-config/tests/tree.rs"
       ]
     },
     {
@@ -966,6 +886,126 @@
       ]
     },
     {
+      "id": "http-server/no-spelling-for-an-unbounded-wait",
+      "title": "`Core\\Http\\Client` has no spelling for \"wait forever\": every bound is a `Duration`, an omitted one inherits `[http.client]`, and expiry throws `TimeoutError`",
+      "status": "shipped",
+      "because": [
+        "0074"
+      ],
+      "divergesFromPhp": "curl defaults to no timeout and `file_get_contents` to `default_socket_timeout`'s sixty seconds; here there is no `null`, no `0` and no option that means unbounded, so a long call names its own `deadline`",
+      "seeAlso": [
+        "http-server/one-deadline-covers-the-whole-call",
+        "http-server/retry-is-opt-in-jittered-and-closed",
+        "types/duration-literal",
+        "core-api/failure-throws",
+        "core-classes/process-is-argv-only"
+      ],
+      "guardedBy": [
+        "tests/conformance/core/no-client-member-accepts-an-unbounded-wait.nvst",
+        "crates/nvs-types/tests/core_members.rs",
+        "crates/nvs-config/tests/tree.rs"
+      ]
+    },
+    {
+      "id": "http-server/one-deadline-covers-the-whole-call",
+      "title": "One `deadline` covers the whole call: the connection, every redirect hop, every retry attempt and every backoff between them",
+      "status": "shipped",
+      "because": [
+        "0074",
+        "0058"
+      ],
+      "divergesFromPhp": "curl's `CURLOPT_TIMEOUT` bounds one transfer, so three attempts at five seconds is a fifteen-second call; here the stated number is the bound on everything",
+      "seeAlso": [
+        "http-server/no-spelling-for-an-unbounded-wait",
+        "http-server/retry-is-opt-in-jittered-and-closed",
+        "http-server/redirects-are-off-and-every-hop-is-re-pinned"
+      ],
+      "guardedBy": [
+        "crates/nvs-stdlib/src/http/transport.rs",
+        "tests/conformance/core/every-client-member-answers-a-response-with-the-same-two-readers.nvst"
+      ]
+    },
+    {
+      "id": "http-server/retry-is-opt-in-jittered-and-closed",
+      "title": "Retry is opt-in, exponential with full jitter that cannot be turned off, and retries only a connection failure, a timeout, `429`, `502`, `503` and `504`",
+      "status": "shipped",
+      "because": [
+        "0074",
+        "0058"
+      ],
+      "divergesFromPhp": "PHP's clients have no retry, so every application writes its own loop; here it is three flat options, the jitter is not configurable, and a `Retry-After` header replaces the computed wait",
+      "seeAlso": [
+        "http-server/one-deadline-covers-the-whole-call",
+        "http-server/a-non-idempotent-retry-needs-an-idempotency-key",
+        "http-server/redirects-are-off-and-every-hop-is-re-pinned",
+        "http-server/no-spelling-for-an-unbounded-wait"
+      ],
+      "guardedBy": [
+        "crates/nvs-stdlib/src/http/transport.rs",
+        "tests/conformance/core/every-client-member-judges-a-request-before-it-leaves-the-process.nvst"
+      ]
+    },
+    {
+      "id": "http-server/a-non-idempotent-retry-needs-an-idempotency-key",
+      "title": "A `POST` or `PATCH` is not retried without `retryIdempotencyKey`, and at an ordinary call site the missing key is a compile-time diagnostic",
+      "status": "shipped",
+      "because": [
+        "0074"
+      ],
+      "divergesFromPhp": "a retried `POST` in PHP does whatever the loop the developer wrote does, including charging a card twice; here the missing key is a red squiggle before the program runs",
+      "seeAlso": [
+        "http-server/retry-is-opt-in-jittered-and-closed",
+        "core-api/shape-rules",
+        "core-api/options-bag"
+      ],
+      "guardedBy": [
+        "tests/conformance/core/a-post-retried-without-an-idempotency-key-is-refused-while-compiling.nvst",
+        "crates/nvs-types/tests/core_members.rs"
+      ]
+    },
+    {
+      "id": "http-server/allow-url-pins-the-address",
+      "title": "`Core\\Http::allowUrl` resolves, checks and pins: it answers a `Target` carrying the URL and the one approved address, and the connection is made to that address",
+      "status": "shipped",
+      "because": [
+        "0058",
+        "0074"
+      ],
+      "divergesFromPhp": "`file_get_contents($userUrl)` and `curl_setopt(CURLOPT_URL, $userUrl)` are a compile-time diagnostic, and the laundered value is a `Target` the program cannot read an address back out of, not a string",
+      "seeAlso": [
+        "security/outbound-url-is-a-sink",
+        "security/net-address-policy",
+        "security/the-policy-lives-in-the-capability",
+        "security/launderers-are-sink-named",
+        "http-server/redirects-are-off-and-every-hop-is-re-pinned"
+      ],
+      "guardedBy": [
+        "tests/conformance/core/an-approved-url-is-pinned-to-one-address.nvst",
+        "tests/conformance/core/every-client-member-refuses-a-tainted-url.nvst",
+        "tests/conformance/core/an-outbound-url-is-judged-before-the-capability-is-consulted.nvst"
+      ]
+    },
+    {
+      "id": "http-server/redirects-are-off-and-every-hop-is-re-pinned",
+      "title": "Redirects are not followed by default; when enabled every hop is re-checked and re-pinned, a denied hop fails the request, and a retry never re-resolves",
+      "status": "shipped",
+      "because": [
+        "0058",
+        "0074"
+      ],
+      "divergesFromPhp": "curl's `FOLLOWLOCATION` is off by default too, but a hop it follows is never checked against anything; here each hop passes the same policy the first URL did and a denied one fails the call rather than being dropped from the chain",
+      "seeAlso": [
+        "http-server/allow-url-pins-the-address",
+        "http-server/one-deadline-covers-the-whole-call",
+        "http-server/retry-is-opt-in-jittered-and-closed",
+        "security/net-address-policy"
+      ],
+      "guardedBy": [
+        "crates/nvs-stdlib/src/http/transport.rs",
+        "crates/nvs-config/tests/tree.rs"
+      ]
+    },
+    {
       "id": "http-server/a-requests-blast-radius-is-bounded-at-four-tiers",
       "title": "Nothing a request can send terminates or wedges a worker: its blast radius is bounded at four named tiers, and the residue is one stated fault class",
       "status": "designed",
@@ -1019,25 +1059,6 @@
       ]
     },
     {
-      "id": "http-server/no-path-reaches-abort",
-      "title": "No path reaches `abort()`: nothing on a teardown path panics, teardown is iterative, and an allocation sized by request data is fallible",
-      "status": "shipped",
-      "because": [
-        "0106",
-        "0002"
-      ],
-      "seeAlso": [
-        "http-server/containment-does-not-end-at-the-helper",
-        "http-server/engine-depth-is-bounded-per-decoder",
-        "security/isolate-teardown-is-a-drain-then-a-sweep",
-        "programs/memory-priority"
-      ],
-      "guardedBy": [
-        "benches/abi-probe/tests/invariants.rs",
-        "crates/nvs-runtime/src/release.rs"
-      ]
-    },
-    {
       "id": "http-server/engine-depth-is-bounded-per-decoder",
       "title": "Every engine-side recursive descent over request data carries a depth counter and refuses past it, with a limit per decoder and `512` for JSON",
       "status": "shipped",
@@ -1078,6 +1099,25 @@
       "guardedBy": [
         "crates/nvs-stdlib/tests/deadline_poll.rs",
         "benches/abi-probe/tests/perf_guards.rs"
+      ]
+    },
+    {
+      "id": "http-server/no-path-reaches-abort",
+      "title": "No path reaches `abort()`: nothing on a teardown path panics, teardown is iterative, and an allocation sized by request data is fallible",
+      "status": "shipped",
+      "because": [
+        "0106",
+        "0002"
+      ],
+      "seeAlso": [
+        "http-server/containment-does-not-end-at-the-helper",
+        "http-server/engine-depth-is-bounded-per-decoder",
+        "security/isolate-teardown-is-a-drain-then-a-sweep",
+        "programs/memory-priority"
+      ],
+      "guardedBy": [
+        "benches/abi-probe/tests/invariants.rs",
+        "crates/nvs-runtime/src/release.rs"
       ]
     },
     {
@@ -1157,23 +1197,6 @@
       ]
     },
     {
-      "id": "http-server/the-accept-loop-backs-off",
-      "title": "An `accept` that fails on descriptor exhaustion is retried under a bounded backoff and logged once per window",
-      "status": "shipped",
-      "because": [
-        "0106",
-        "0095"
-      ],
-      "seeAlso": [
-        "http-server/the-floor-cannot-fill-the-disk",
-        "http-server/a-requests-blast-radius-is-bounded-at-four-tiers",
-        "errors/multipart-part-count"
-      ],
-      "guardedBy": [
-        "crates/nvs-server/src/serve.rs"
-      ]
-    },
-    {
       "id": "http-server/every-deadline-is-monotonic",
       "title": "Every timeout, deadline and backoff in the engine is computed on a monotonic clock",
       "status": "shipped",
@@ -1227,29 +1250,6 @@
         "programs/compile-target"
       ],
       "guardedBy": []
-    },
-    {
-      "id": "http-server/admission-is-arithmetic-not-a-number",
-      "title": "The effective in-flight ceiling is the smaller of `max_in_flight` and what the memory budget affords, and a clamp is logged once at boot",
-      "status": "shipped",
-      "because": [
-        "0106",
-        "0097",
-        "0004"
-      ],
-      "divergesFromPhp": "`pm.max_children` is a free number and the out-of-memory killer enforces its product with memory; here the ceiling is derived from the budget, the configured number is clamped rather than trusted, and the overflow is a `503`",
-      "seeAlso": [
-        "http-server/upload-total-is-enforced-on-the-wire",
-        "http-server/a-wedged-core-is-shed-never-killed",
-        "http-server/a-requests-blast-radius-is-bounded-at-four-tiers",
-        "security/isolate-budget-is-the-trees",
-        "programs/memory-priority",
-        "http-server/the-server-block-is-boot-class"
-      ],
-      "guardedBy": [
-        "crates/nvs-server/src/admit.rs",
-        "crates/nvs-config/src/server.rs"
-      ]
     },
     {
       "id": "http-server/the-residue-is-one-named-fault-class",

@@ -148,6 +148,37 @@ are written down as they are incurred.
 
 <sub>See also [`programs/program-id`](programs.md#programs-program-id), [`programs/three-claims`](programs.md#programs-three-claims), [`errors/propagation`](errors.md#errors-propagation). Decided in [0004](../decisions/0004.md).</sub>
 
+<a id="programs-implementing"></a>
+
+## `Core\Program::implementing<T>()` is the one enumeration, and it expands while compiling
+
+`rule:programs/implementing`
+
+```php
+function Core\Program::implementing<T>(): array<T>;   // T must be an interface type
+```
+
+It expands, while compiling, to an array literal of `new` expressions — one per non-abstract class in
+the program implementing `T`, **sorted by fully-qualified name**, so the order never depends on
+filesystem enumeration. Each such class needs a no-argument constructor; a diagnostic names any that
+does not, and dependencies arrive through the interface's own methods instead. Because the expansion is
+ordinary `new` evaluated at the call site, the instances are per-request like every other object and
+nothing crosses an isolate boundary.
+
+The selector is an interface rather than an attribute because the interface is what gives the loop body
+a static type to call through: `object` is opaque, shape types describe data rather than methods, and
+`callable` carries no signature.
+
+Answering the query means parsing and collecting declarations from every file under every autoload root
+— the one place resolution is not lazy, and the only thing in Novis that makes a compiled unit depend
+on a *directory's contents* rather than a file's bytes. It is therefore opt-in: **a program that calls
+neither this member nor the compile-time route table performs no scan at all**, and a program calling
+either pays the directory-listing dependency once rather than twice. Type checking and lowering stay
+lazy regardless — a discovered class nobody calls is never checked past its declaration and never
+reaches codegen.
+
+<sub>See also [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`programs/autoload`](programs.md#programs-autoload), [`programs/framework-refusals`](programs.md#programs-framework-refusals). Decided in [0061](../decisions/0061.md).</sub>
+
 <a id="programs-compile-target"></a>
 
 ## A compile target changes the host context, never the language  *(designed — not yet in the compiler)*
@@ -289,37 +320,6 @@ Three properties keep the check honest:
   business.
 
 <sub>See also [`programs/autoload`](programs.md#programs-autoload). Decided in [0062](../decisions/0062.md), [0021](../decisions/0021.md).</sub>
-
-<a id="programs-implementing"></a>
-
-## `Core\Program::implementing<T>()` is the one enumeration, and it expands while compiling
-
-`rule:programs/implementing`
-
-```php
-function Core\Program::implementing<T>(): array<T>;   // T must be an interface type
-```
-
-It expands, while compiling, to an array literal of `new` expressions — one per non-abstract class in
-the program implementing `T`, **sorted by fully-qualified name**, so the order never depends on
-filesystem enumeration. Each such class needs a no-argument constructor; a diagnostic names any that
-does not, and dependencies arrive through the interface's own methods instead. Because the expansion is
-ordinary `new` evaluated at the call site, the instances are per-request like every other object and
-nothing crosses an isolate boundary.
-
-The selector is an interface rather than an attribute because the interface is what gives the loop body
-a static type to call through: `object` is opaque, shape types describe data rather than methods, and
-`callable` carries no signature.
-
-Answering the query means parsing and collecting declarations from every file under every autoload root
-— the one place resolution is not lazy, and the only thing in Novis that makes a compiled unit depend
-on a *directory's contents* rather than a file's bytes. It is therefore opt-in: **a program that calls
-neither this member nor the compile-time route table performs no scan at all**, and a program calling
-either pays the directory-listing dependency once rather than twice. Type checking and lowering stay
-lazy regardless — a discovered class nobody calls is never checked past its declaration and never
-reaches codegen.
-
-<sub>See also [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`programs/autoload`](programs.md#programs-autoload), [`programs/framework-refusals`](programs.md#programs-framework-refusals). Decided in [0061](../decisions/0061.md).</sub>
 
 <a id="programs-program-id"></a>
 
@@ -487,6 +487,27 @@ would be a second spelling of one job. `Web\Response::view` renders a `.nvs` fil
 
 <sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/implementing`](programs.md#programs-implementing). Decided in [0082](../decisions/0082.md).</sub>
 
+<a id="programs-no-migration-runner"></a>
+
+## No migration runner ships until migration semantics are decided  *(designed — not yet in the compiler)*
+
+`rule:programs/no-migration-runner`
+
+`Web\Migration` has a place in the package roster and **no semantics**. Each of these is undecided:
+ordering and dependency between migrations; transactional DDL where the backend supports it, and what
+happens on the backends that do not; locking, so two instances of a fleet cannot run the same migration
+twice; what "reversible" means, and whether a down-migration exists at all; and how any of it is safe
+against a live multi-tenant database.
+
+Every one of those interacts with taint tracking — DDL is a sink — with the database API, and with
+root-owned configuration, and none of them is obvious.
+
+**This is a known gap, not an oversight.** Until it is closed by a decision of its own, nothing in
+`nvs/web` may ship a migration runner, and one appearing in the package without that decision is a
+review failure.
+
+<sub>See also [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`programs/first-party-framework`](programs.md#programs-first-party-framework). Decided in [0082](../decisions/0082.md).</sub>
+
 <a id="programs-nvs-new"></a>
 
 ## `nvs new` writes an application that runs before it is edited  *(designed — not yet in the compiler)*
@@ -514,24 +535,3 @@ own standard: tested on Windows, Linux and macOS as a first-class CI job, and a 
 is a regression.
 
 <sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`programs/audience`](programs.md#programs-audience). Decided in [0082](../decisions/0082.md), [0080](../decisions/0080.md).</sub>
-
-<a id="programs-no-migration-runner"></a>
-
-## No migration runner ships until migration semantics are decided  *(designed — not yet in the compiler)*
-
-`rule:programs/no-migration-runner`
-
-`Web\Migration` has a place in the package roster and **no semantics**. Each of these is undecided:
-ordering and dependency between migrations; transactional DDL where the backend supports it, and what
-happens on the backends that do not; locking, so two instances of a fleet cannot run the same migration
-twice; what "reversible" means, and whether a down-migration exists at all; and how any of it is safe
-against a live multi-tenant database.
-
-Every one of those interacts with taint tracking — DDL is a sink — with the database API, and with
-root-owned configuration, and none of them is obvious.
-
-**This is a known gap, not an oversight.** Until it is closed by a decision of its own, nothing in
-`nvs/web` may ship a migration runner, and one appearing in the package without that decision is a
-review failure.
-
-<sub>See also [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`programs/first-party-framework`](programs.md#programs-first-party-framework). Decided in [0082](../decisions/0082.md).</sub>

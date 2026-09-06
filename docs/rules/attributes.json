@@ -1,7 +1,7 @@
 {
   "topic": "attributes",
   "title": "Attributes",
-  "order": 60,
+  "order": 80,
   "rules": [
     {
       "id": "attributes/inert-metadata",
@@ -72,6 +72,21 @@
       ]
     },
     {
+      "id": "attributes/call-site-type-argument",
+      "title": "An explicit `<T>` at a call site is written for compiler-owned members only",
+      "status": "shipped",
+      "because": ["0046", "0071", "0007"],
+      "divergesFromPhp": "`Foo::BAR < X > ($y)` reads as a call carrying a type argument where PHP reads two comparisons",
+      "seeAlso": [
+        "attributes/structural-retrieval",
+        "programs/implementing"
+      ],
+      "guardedBy": [
+        "tests/conformance/core/an-attribute-is-retrieved-by-the-shape-it-satisfies.nvst",
+        "crates/nvs-syntax/src/parser/expr.rs"
+      ]
+    },
+    {
       "id": "attributes/structural-retrieval",
       "title": "A retrieval matches a payload by the shape it satisfies, never by the name it was attached under",
       "status": "shipped",
@@ -104,21 +119,6 @@
         "tests/conformance/reject/an-attribute-retrieval-is-refused-where-it-cannot-be-folded.nvst",
         "tests/conformance/core/an-attribute-payload-holds-a-constant.nvst",
         "crates/nvs-types/tests/attributes.rs"
-      ]
-    },
-    {
-      "id": "attributes/call-site-type-argument",
-      "title": "An explicit `<T>` at a call site is written for compiler-owned members only",
-      "status": "shipped",
-      "because": ["0046", "0071", "0007"],
-      "divergesFromPhp": "`Foo::BAR < X > ($y)` reads as a call carrying a type argument where PHP reads two comparisons",
-      "seeAlso": [
-        "attributes/structural-retrieval",
-        "programs/implementing"
-      ],
-      "guardedBy": [
-        "tests/conformance/core/an-attribute-is-retrieved-by-the-shape-it-satisfies.nvst",
-        "crates/nvs-syntax/src/parser/expr.rs"
       ]
     },
     {

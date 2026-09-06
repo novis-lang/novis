@@ -60,6 +60,722 @@ resolved to a concrete type.
 
 <sub>See also [`types/declaration`](types.md#types-declaration), [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement), [`types/arrays`](types.md#types-arrays). Decided in [0037](../decisions/0037.md), [0007](../decisions/0007.md), [0114](../decisions/0114.md).</sub>
 
+<a id="types-grammar"></a>
+
+## The type grammar is a closed set of atoms under unions and intersections
+
+`rule:types/grammar`
+
+```
+type         := qualified
+qualified    := ('secret')? ('tainted')? union
+union        := intersection ('|' intersection)*
+intersection := atom ('&' atom)*  |  '(' union ')'        // DNF, as PHP 8.2
+atom         := 'null' | 'bool' | 'int' | 'uint' | 'float' | 'decimal'
+              | 'string' | 'bytes'
+              | 'array' | 'array' '<' type '>'
+              | 'class' '<' Name '>'
+              | 'property' '<' Name '>'
+              | 'object' | 'mixed' | 'void' | 'never' | 'true' | 'false'
+              | 'iterable' | 'callable' | 'self' | 'static' | 'parent'
+              | 'callable' '(' (type (',' type)*)? ')' ':' type
+              | StringLiteral | IntLiteral
+              | '{' field (',' field)* '}'
+              | Name
+              | '?' atom                                  // sugar for atom|null
+field        := identifier ':' type
+```
+
+Unions are canonicalised — flattened, de-duplicated, order-insensitive — so `int|string` and
+`string|int|int` are one type. `array` with no argument is exactly `array<mixed>`. `void` and `never`
+are return-only. `array<T>` is parsed **only in type position**, where a `<` is unambiguously a
+type-argument list; two expression positions also admit one, a call site's own `<...>` and a `new`
+target's, both settled by a checkpointed trial parse that commits only when the list parses cleanly
+and a `(` follows, so `new Foo < $x` stays a comparison. Only a compiler-owned generic declaration may
+carry one.
+
+`Name` covers four kinds of atom told apart by resolution: a class or interface name, an enum's name,
+an enum case ([`types/enum-case-type`](types.md#types-enum-case-type)), and a `type` alias ([`types/type-alias`](types.md#types-type-alias)). A class name
+carries concrete arguments only where it names a compiler-owned generic interface — `Iterator<User>`
+([`iteration/concrete-generic-implements`](iteration.md#iteration-concrete-generic-implements)) — and nowhere else.
+
+**There is no `resource` type.** A host handle is an ordinary object with an explicit `close()`.
+
+<sub>See also [`types/declaration`](types.md#types-declaration), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/type-alias`](types.md#types-type-alias), [`types/shape-type`](types.md#types-shape-type). Decided in [0007](../decisions/0007.md), [0009](../decisions/0009.md), [0015](../decisions/0015.md), [0024](../decisions/0024.md), [0031](../decisions/0031.md), [0033](../decisions/0033.md), [0036](../decisions/0036.md), [0047](../decisions/0047.md), [0053](../decisions/0053.md), [0054](../decisions/0054.md), [0125](../decisions/0125.md), [0126](../decisions/0126.md), [0136](../decisions/0136.md).</sub>
+
+<a id="types-integer-literals"></a>
+
+## An integer literal is decimal, `0x`, `0o` or `0b`, and a leading zero is not a radix
+
+`rule:types/integer-literals`
+
+An integer literal is written decimal, `0x`, `0o` or `0b` — either case of the prefix letter, with `_`
+separators allowed between digits. Those four are the closed set, so **a leading zero is not a
+radix**: `017` is decimal seventeen where PHP reads octal fifteen, and `0o17` is the only spelling of
+that fifteen. PHP's legacy form is refused as a *silent* reinterpretation rather than as a spelling —
+it changes a value without changing a character, which is the one thing a converted file cannot be
+checked for, and a file-mode constant is where it bites.
+
+**There is no literal suffix, for any numeric type.** A literal takes `int`, `uint`, `float` or
+`decimal` from the position it is written in instead ([`types/numeric-literal-placement`](types.md#types-numeric-literal-placement)), and a
+literal too wide for `int` is legal only where a `uint` is expected.
+
+The escape grammar inside a string literal is unrelated to this and matches PHP's exactly, `\v`, `\f`,
+`\e` and the octal `\0`–`\777` included.
+
+<sub>See also [`types/uint`](types.md#types-uint), [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement), [`types/arithmetic`](types.md#types-arithmetic). Decided in [0007](../decisions/0007.md).</sub>
+
+<a id="types-numeric-literal-placement"></a>
+
+## A numeric literal is untyped until it is placed, and `as T` is a placing position
+
+`rule:types/numeric-literal-placement`
+
+A numeric literal is **untyped until it is placed**, and takes its type from the position it appears
+in. An integer literal becomes `int`, `uint`, `float` or `decimal`; a literal carrying a fractional
+part or an exponent becomes `decimal` or `float`. Because every binding site declares a type
+([`types/declaration`](types.md#types-declaration)), the target is known almost everywhere.
+
+```php
+decimal $price = 19.99;          // exact: mantissa 1999, scale 2
+float   $ratio = 19.99;          // an f64
+var $x = 19.99;                  // no target type: float
+var $y = 19.99 as decimal;       // `as` supplies one: decimal, exact
+```
+
+**`expr as T` is itself a placing position.** A literal written directly under a conversion takes `T`
+as its target rather than being typed first and converted afterwards, so `19.99 as decimal` is exact
+to the full 29 significant digits and never becomes an `f64` on the way. That is not merely notational:
+`float → decimal` recovers only the ~17 digits an `f64` round-trips, so without this rule a wider
+literal would be unwritable in any position lacking an annotation.
+
+**There is no literal suffix, and in particular no `m`** ([`types/integer-literals`](types.md#types-integer-literals)). A suffix
+would buy only a second spelling of what `as decimal` already says, in the two positions that lack a
+target: a `var` declaration ([`types/var-inference`](types.md#types-var-inference)) and a `mixed` or generic argument.
+
+<sub>See also [`types/decimal`](types.md#types-decimal), [`types/integer-literals`](types.md#types-integer-literals), [`types/var-inference`](types.md#types-var-inference), [`types/implicit-widening`](types.md#types-implicit-widening). Decided in [0054](../decisions/0054.md), [0007](../decisions/0007.md), [0037](../decisions/0037.md).</sub>
+
+<a id="types-uint"></a>
+
+## `uint` is a distinct unsigned 64-bit integer, and it costs no bytes a value did not already hold
+
+`rule:types/uint`
+
+`uint` is an unsigned 64-bit integer, `0 … 2^64−1`. It is a new **tag** in the existing tagged value
+whose payload is already a `u64`, so a `uint` costs **zero additional bytes per value**.
+`Core\Reflect::typeOf` reports it as its own kind, and there is no `is_int`-style predicate to
+disagree with it, because there are no free functions.
+
+`uint` exists because web software needs the half of the 64-bit range PHP's single signed integer
+cannot reach: `BIGINT UNSIGNED` keys, snowflake ids, nanosecond timestamps, WIT's `u32`/`u64`. An
+integer literal that does not fit `int` is legal only where a `uint` is expected, and is otherwise a
+diagnostic saying exactly that.
+
+`int` and `uint` are separate types everywhere it matters. They mix in a comparison, which has an
+exact answer over the mathematical integers, and they do not mix in arithmetic, which has no
+representable common type to return ([`types/arithmetic`](types.md#types-arithmetic)). Converting between them is `as`, and it
+throws rather than wrapping ([`types/conversion`](types.md#types-conversion)).
+
+<sub>See also [`types/arithmetic`](types.md#types-arithmetic), [`types/integer-literals`](types.md#types-integer-literals), [`types/conversion`](types.md#types-conversion). Decided in [0007](../decisions/0007.md), [0004](../decisions/0004.md).</sub>
+
+<a id="types-arithmetic"></a>
+
+## An arithmetic operator answers in its operands' own type, and overflow throws rather than wrapping or promoting
+
+`rule:types/arithmetic`
+
+| operation | result | on overflow / edge |
+|---|---|---|
+| `int ⊕ int`, `uint ⊕ uint` for `+ - * ** %` | the same type | **throws `ArithmeticError`.** No wrap, no promotion to `float` |
+| `int ⊕ uint` arithmetic | **compile error** | there is no representable common type; convert one side explicitly |
+| `int / int`, `uint / uint` | `int\|float`, `uint\|float` — PHP-exact: `6/3` is an integer, `7/2` is a float | `/ 0` throws `ArithmeticError` |
+| either operand a `float` | `float` for `+ - * ** /`; **`%` is a compile error** | `/ 0` throws here too — the zero divisor is refused before the operand types are consulted. IEEE division is `Core\Math::fdiv` |
+| `decimal ⊕ decimal`, `decimal ⊕ int`, `decimal ⊕ uint` for `+ - * %` | `decimal` | throws when the mantissa exceeds 96 bits **or** the scale would exceed 28 |
+| `decimal / decimal` | `decimal`, half-even at the maximum scale the result admits | `/ 0` throws |
+| `decimal ⊕ float`; `**` with a `decimal` base | **compile error** | no representable common type; `Core\Decimal::pow` for the power |
+| `>>` | arithmetic on `int`, **logical on `uint`** | — |
+| `& \| ^ ~ <<` | the operand type, preserved | — |
+
+The arithmetic rows are a **closed** list. Their operands are `int`, `uint`, `float` and `decimal`, so
+a `bool`, a `string`, a `bytes`, an `array<T>`, a `callable`, `null` and an object have no `+` at all
+and are refused where they are written. `%` is narrower than its own float row: a `float` operand is
+refused rather than given one of two plausible answers, and `Core\Math::mod` is the member that says
+the floating-point remainder out loud.
+
+Division is the one row that returns a union, and in practice the target's declared type absorbs it
+through the `int → float` widening ([`types/implicit-widening`](types.md#types-implicit-widening)): `float $avg = $sum / $n;` works,
+`int $n = 7 / 2;` is a diagnostic, and `Core\Math::intDiv` is there when integer division was meant.
+
+An operand whose static type names no row — `mixed`, a union, the `int|float` a division returns — is
+answered from its runtime **tag**: the rows above where the tags name one, and the same refusal as a
+*catchable throw* where they do not, carrying the diagnostic's own wording.
+
+Overflow throwing is the divergence this table is least willing to trade. A silent promotion to
+`float` changes a binding's type behind its declaration, and a silent wrap is the classic
+size-computation bug. Code that wants unbounded magnitude declares `float`, or converts.
+
+<sub>See also [`types/ordering`](types.md#types-ordering), [`types/uint`](types.md#types-uint), [`types/decimal`](types.md#types-decimal), [`types/implicit-widening`](types.md#types-implicit-widening). Decided in [0007](../decisions/0007.md), [0054](../decisions/0054.md), [0010](../decisions/0010.md), [0035](../decisions/0035.md).</sub>
+
+<a id="types-implicit-widening"></a>
+
+## An `int` or `uint` widening into a `float` position is the only implicit conversion in the language
+
+`rule:types/implicit-widening`
+
+Implicit conversion happens in exactly one place: an `int` or `uint` **widening into a `float`
+position** — an argument, a return, an assignment, or the far side of an arithmetic operator. It is
+the one coercion PHP's own `strict_types` permits, and it throws above 2^53 rather than rounding,
+where `f64` stops representing every integer.
+
+Everything else is a diagnostic. `mixed` never absorbs implicitly in either direction
+([`types/unions-and-mixed`](types.md#types-unions-and-mixed)), a `decimal` never meets a `float` in arithmetic
+([`types/decimal`](types.md#types-decimal)), and every remaining change of type is written as `as`
+([`types/conversion`](types.md#types-conversion)). A numeric literal is not a conversion at all: it is untyped until placed,
+so it takes `int`, `uint`, `float` or `decimal` from its target ([`types/numeric-literal-placement`](types.md#types-numeric-literal-placement)).
+
+<sub>See also [`types/conversion`](types.md#types-conversion), [`types/arithmetic`](types.md#types-arithmetic), [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement). Decided in [0007](../decisions/0007.md), [0054](../decisions/0054.md).</sub>
+
+<a id="types-decimal"></a>
+
+## `decimal` is an exact scalar of 96 mantissa bits and a scale of 0 to 28
+
+`rule:types/decimal`
+
+`decimal` is a scalar: a sign, a 96-bit unsigned mantissa, and a scale of 0 to 28 giving the digits
+after the point. Its value is `(-1)^sign × mantissa × 10^-scale` — roughly 29 significant digits. It
+is register-pair sized, allocation-free and refcount-free, and it costs **16 bytes per value** against
+8 for a `float`.
+
+It is deliberately **not** arbitrary precision. World GDP in cents is 17 digits; Bitcoin to satoshis
+is 16. What lies beyond is `Core\BigDecimal` — arbitrary-precision, heap-allocated, method-based, no
+literal form — named here so the boundary is stated rather than discovered.
+
+Scale is carried for rendering and does not affect equality or hashing: `1.10 == 1.1000` is true, and
+`19.90` renders `"19.90"`. **Division is the one operation that may be inexact**, and its policy is
+fixed in the language and not configurable: round half to even, at the maximum scale the result
+admits. There is no `bcscale()` equivalent and never will be. Where rounding is business logic it is
+said out loud — `Core\Decimal::divExact()` throws unless the quotient is exact,
+`::divRound($scale, $mode)` names both, and `::allocate($amount, $ratios)` splits a sum into parts
+that add back to it exactly.
+
+`bcmath` and `gmp` are retired rather than ported, because they conflated two unrelated capabilities:
+exact fractional arithmetic at human magnitudes, which is `decimal`, and arbitrary-magnitude integers
+wearing a decimal API, which is `Core\BigInt`.
+
+`decimal` is not an enum backing type ([`enums/one-backing-type`](enums.md#enums-one-backing-type)), and array keys are unaffected —
+every key is a `string` already ([`types/arrays`](types.md#types-arrays)).
+
+<sub>See also [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement), [`types/arithmetic`](types.md#types-arithmetic), [`types/conversion`](types.md#types-conversion). Decided in [0054](../decisions/0054.md), [0007](../decisions/0007.md), [0051](../decisions/0051.md), [0004](../decisions/0004.md).</sub>
+
+<a id="types-ordering"></a>
+
+## Only the types the table orders may be ordered, and two objects need `Comparable`
+
+`rule:types/ordering`
+
+`< <= > >= <=>` are defined on a **closed** list of operand pairs, and refused everywhere else:
+
+| operands | result |
+|---|---|
+| two numerics, `int` against `uint` included | `bool` (`int` for `<=>`), mathematically exact over the full range of both |
+| `decimal` against `int`, `uint` or `float` | `bool`, exact — a comparison is computable where a common arithmetic type is not |
+| two `bool`s | `false < true`, the ordering of the one bit they already are |
+| two objects whose static type is provably the same class implementing `Comparable` | `bool`/`int`, via `compareTo`; a throwing `compareTo` propagates as a checked status like any other call |
+| any other operands | **compile error** |
+
+There is no fallback. Everything else PHP orders, it orders by converting an operand first, and there
+is no implicit conversion for that to be. So two strings order through `Core\Str::compare`, an enum
+case orders through its backing `as int` ([`enums/closed-integer-type`](enums.md#enums-closed-integer-type)), and an `array<T>`, a
+`callable` and `null` do not order at all. Two objects with no `Comparable` between them are a
+compile error whose diagnostic names `Comparable` as the fix, however the receiver was spelled — an
+erased `object` and a shape type included.
+
+An operand whose static type names no row is answered from its runtime tag, and refuses as a
+*catchable throw* where the tags name none. Two consequences follow from the tag being all there is:
+two objects behind two `mixed`s throw, because `compareTo` is dispatched from the class the *site*
+named, and an enum case orders as the integer it is even though the written spelling is still refused
+— which is where the author is told to say `as int`.
+
+`==` and `!=` are a different question and are unaffected by any of this.
+
+<sub>See also [`types/arithmetic`](types.md#types-arithmetic), [`types/conversion`](types.md#types-conversion), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0013](../decisions/0013.md), [0007](../decisions/0007.md), [0010](../decisions/0010.md), [0047](../decisions/0047.md).</sub>
+
+<a id="types-string-is-utf8"></a>
+
+## A `string` is valid UTF-8 for its whole lifetime, and its unmarked unit is the grapheme cluster
+
+`rule:types/string-is-utf8`
+
+A `string` cannot hold invalid UTF-8 at any point in its lifetime. The invariant is enforced at every
+construction site — literals, conversions, concatenation, and every stdlib member that builds a
+string — the same way an array's element type is enforced on every write ([`types/arrays`](types.md#types-arrays)). That
+is what removes PHP's `mbstring` split: there is only one encoding a `string` can hold, so there is
+only one correct answer to "how long is it".
+
+**A `string`'s length, indexing and iteration operate on extended grapheme clusters** (Unicode UAX
+#29) — the unit a person reading the source calls "one character", including a flag emoji, an emoji
+built from a ZWJ sequence, or a letter with a combining accent. Byte-level and codepoint-level
+operations remain available under separately named members, the inverse of PHP's default.
+`nvs_stdlib::granularity` states that default in code, once, and every `Core\Str` member with a unit
+reads it from there.
+
+Two consequences an implementer owes: what counts as one character is pinned to whichever Unicode
+version `nvs-runtime` embeds, and can change across a runtime upgrade; and `Core\Str::length` is O(n)
+where PHP's `strlen` is O(1), a vectorized scan over ASCII and a full segmentation run over anything
+else. Normalization (NFC/NFD) is explicitly out of scope — grapheme awareness says nothing about
+whether two visually identical strings compare equal, exactly as PHP leaves it.
+
+<sub>See also [`types/bytes`](types.md#types-bytes), [`types/conversion`](types.md#types-conversion). Decided in [0009](../decisions/0009.md), [0007](../decisions/0007.md).</sub>
+
+<a id="types-bytes"></a>
+
+## `bytes` is a primitive peer to `string` for data that carries no encoding
+
+`rule:types/bytes`
+
+`bytes` is a primitive scalar, peer to `string`, for data with no encoding at all — a file's contents,
+a socket read, a hash digest, a request body before anyone has claimed it is text. It has the same
+copy-on-write, interned-buffer value semantics `string` already has, minus the UTF-8 invariant, and it
+is indexed and sliced by **byte offset**; there is no other unit for it to be ambiguous about.
+
+It is not a class: a flat, contiguous, immutable-until-copied buffer has no use for identity,
+properties or a vtable. It is not `array<uint>` either, which would cost a tagged value per byte plus
+a per-write element check for a type whose whole point is that it has no per-element structure.
+
+Anywhere the host hands a program data it has not itself asserted is text, it hands over `bytes`.
+Structured input stays `array<mixed>` — `Core\Request`, `Core\Server` and `Core\Json::decode`'s result
+are untyped deliberately ([`types/unions-and-mixed`](types.md#types-unions-and-mixed)) — and this rule is about the *scalar* payload
+underneath, once one is pulled out of `mixed`. Converting is `as`, checked in the direction that can
+fail ([`types/conversion`](types.md#types-conversion)), which is what makes "treat these untrusted bytes as text" a reviewable,
+throwing event rather than an unasserted assumption.
+
+There is no dedicated literal token: `"…" as bytes` covers the valid-UTF-8 case for free, and
+`Core\Bytes::fromHex()`/`::fromBase64()` cover arbitrary binary constants.
+
+<sub>See also [`types/string-is-utf8`](types.md#types-string-is-utf8), [`types/conversion`](types.md#types-conversion), [`types/grammar`](types.md#types-grammar). Decided in [0009](../decisions/0009.md), [0007](../decisions/0007.md), [0006](../decisions/0006.md), [0012](../decisions/0012.md).</sub>
+
+<a id="types-duration-literal"></a>
+
+## `1h30m` is a `Core\Time\Duration` constant, in one grammar shared by source, `parse` and `nvs.toml`
+
+`rule:types/duration-literal`
+
+```
+duration := ( DEC_INT unit )+
+unit     := ns | us | ms | s | m | h | d | w
+```
+
+- **One token.** `1h30m` lexes as a single duration literal, maximal munch, not as three tokens.
+- **Units strictly descend and may not repeat.** `1h30m` is accepted; `30m1h` and `1h1h` are lexer
+  errors naming this rule, so there is exactly one spelling of any given constant.
+- **Only after a plain decimal integer** — never after `0x…`, `0b…`, a float or an exponent, so `0x1d`
+  stays a hex literal and `1.5s` is an error rather than a rounded duration.
+- **Lower case only**; `30S` is a diagnostic, not a second spelling.
+- **No sign.** `-7d` does not parse; a backwards step is `->minus(7d)`.
+- `d` is exactly 24 h and `w` exactly 168 h. A *calendar* day is a `DateTime` unit and never a
+  `Duration` at all.
+
+The type is `Core\Time\Duration`, always — the suffix *is* the type, with nothing
+untyped-until-placed about it ([`types/numeric-literal-placement`](types.md#types-numeric-literal-placement)). A literal is a compile-time
+constant folded to a single nanosecond count and emitted into the constant pool, so `{timeout: 30s}`
+allocates nothing at run time and a literal beyond `Duration`'s range is a compile error, not a wrap.
+
+`1h + 30m` does not compile — there is no operator overloading; write `1h30m` or `$a->plus($b)`. So
+does `1h30m as int`; write `->toSeconds()`. `$n s` is not a literal; a computed count is
+`Duration::seconds($n)`.
+
+**One grammar, three places, one parser**: source, `Duration::parse($s)` at run time, and a `"30s"` in
+`nvs.toml` at boot. `Duration`'s string form emits this grammar too, so a value round-trips through
+`parse` over exactly the durations the grammar can spell — the non-negative ones. A negative duration
+renders `-1h30m` for a reader, and `parse` refuses that leading `-` **by name** rather than reading a
+positive value out of it.
+
+<sub>See also [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement), [`types/integer-literals`](types.md#types-integer-literals). Decided in [0070](../decisions/0070.md), [0046](../decisions/0046.md), [0057](../decisions/0057.md), [0062](../decisions/0062.md), [0039](../decisions/0039.md).</sub>
+
+<a id="types-literal-types"></a>
+
+## A `string` or `int` literal is its own type, and a union of them is a closed set
+
+`rule:types/literal-types`
+
+A `string` literal and an `int` literal are each their own type — the singleton type inhabited by that
+exact value — parsed only in type position, the way `array<T>` is. `"a"|"b"|"c"` and `1|2|3` are
+ordinary unions of those atoms, canonicalised like any other, and `?"a"` is sugar for `"a"|null`. They
+are usable at every binding site ([`types/declaration`](types.md#types-declaration)), with no special case.
+
+```php
+function setMode("a"|"b"|"c" $mode) { … }   // the set is the type
+```
+
+Assignability and conversion:
+
+| direction | behaviour |
+|---|---|
+| a literal type → its base type, and a literal union → its base type | **total, free** — a strict widening, the same representation |
+| base type or `mixed` → a literal or literal-union type | **checked.** Throws unless the value equals one of the named literals |
+| a wider literal union → a narrower one | needs a guard or a checked `as` — ordinary narrowing ([`types/narrowing`](types.md#types-narrowing)) |
+
+**Zero additional runtime representation.** A literal type shares its base type's tag and payload
+exactly; the singleton-ness is enforced by the checker wherever the static type is known. The only
+place it costs anything is where a value arrives through `mixed` or an isolate boundary, and the
+checked conversion runs a membership test against the small, closed, compile-time-known set.
+
+A failed conversion names the accepted set, generated from the type: ``` `"z"` is not one of `"a"`,
+`"b"`, `"c"` ``` (`E0469`). That is a **compile** error where the operand settles the question by
+itself — the target a closed set, the operand naming one value — and otherwise the ordinary checked
+conversion answered at run time. A `tainted` or `secret` value needs the same laundering it would need
+to leave `mixed` for any other typed binding; neither qualifier gets a rule of its own here.
+
+Two limits are deliberate: **no `float` literal type**, because float equality is imprecise enough
+that a singleton `0.1` is a footgun; and **no wildcard matching** over constant or case names, since
+the whole point is that the accepted set is spelled out.
+
+<sub>See also [`types/constant-in-type-position`](types.md#types-constant-in-type-position), [`types/enum-case-type`](types.md#types-enum-case-type), [`types/conversion`](types.md#types-conversion), [`types/narrowing`](types.md#types-narrowing). Decided in [0047](../decisions/0047.md), [0007](../decisions/0007.md), [0024](../decisions/0024.md), [0033](../decisions/0033.md), [0066](../decisions/0066.md).</sub>
+
+<a id="types-constant-in-type-position"></a>
+
+## A scalar class constant used as a type folds to its own literal type
+
+`rule:types/constant-in-type-position`
+
+`ClassName::CONST_NAME`, written where a type is expected, resolves at compile time to the constant's
+own value — exactly as long as that value is a `string` or `int` compile-time constant.
+
+```php
+class Foo {
+    public const string TYPE_A = "a";
+    public const string TYPE_B = "b";
+}
+
+function handle(Foo::TYPE_A|Foo::TYPE_B $type) { … }   // exactly "a"|"b"
+```
+
+This is safe precisely because a scalar `const` is not a distinct nominal type: `Foo::TYPE_A`
+genuinely *is* the string `"a"`, so folding it to that literal type changes nothing a caller could
+observe — passing the bare `"a"` is exactly as valid.
+
+A constant backed by a non-scalar type — an `array`, an object, a `float` — is **not eligible**, and
+using one this way is a diagnostic naming the eligible types. An enum case is not folded either, and
+for the opposite reason: it carries its enum's nominal type and stays a narrowed view of it
+([`types/enum-case-type`](types.md#types-enum-case-type)).
+
+<sub>See also [`types/literal-types`](types.md#types-literal-types), [`types/enum-case-type`](types.md#types-enum-case-type). Decided in [0047](../decisions/0047.md), [0046](../decisions/0046.md).</sub>
+
+<a id="types-enum-case-type"></a>
+
+## An enum case used as a type is a narrowed subtype of its enum, never its backing integer
+
+`rule:types/enum-case-type`
+
+`EnumName::CaseName`, written where a type is expected, does **not** resolve to its backing integer. It
+names a new checker-only type: a subtype of `EnumName` inhabited by exactly that one case.
+
+```php
+enum Mode { Read, Write, Admin }
+
+function grant(Mode::Read|Mode::Write $m) { … }   // accepts only those two cases
+```
+
+Folding it to the cases' backing integers would let a caller satisfy the parameter with a bare `int`,
+which is exactly the hole a checked `int → Mode` conversion closes
+([`enums/closed-integer-type`](enums.md#enums-closed-integer-type)). An enum-case type is therefore its own atom kind, never unified by
+canonicalisation with an int literal type that happens to share a case's value, because the two carry
+different runtime tags.
+
+A case-subset union may name cases of more than one enum, or mix case atoms with unrelated atoms,
+exactly as any other heterogeneous union may. Widening a case-subset union to its enum is total and
+free; going the other way is checked and throws unless the value's case is one of the named ones — a
+further-restricted form of the existing enum conversion, not a new kind
+([`types/conversion`](types.md#types-conversion)). `E0470` names the accepted cases.
+
+A binding is narrowed to a case-subset type **through `as` and nowhere else**: `$m == Mode::Read` does
+not narrow `$m` in the branch it guards ([`types/narrowing`](types.md#types-narrowing)). Like a literal type, this costs
+nothing at runtime — it shares the enum's existing zero-byte representation
+([`enums/representation`](enums.md#enums-representation)).
+
+<sub>See also [`types/literal-types`](types.md#types-literal-types), [`types/conversion`](types.md#types-conversion), [`types/narrowing`](types.md#types-narrowing). Decided in [0047](../decisions/0047.md), [0010](../decisions/0010.md), [0007](../decisions/0007.md).</sub>
+
+<a id="types-arrays"></a>
+
+## An array is PHP's ordered hash with `string` keys and a declared element type
+
+`rule:types/arrays`
+
+The container is PHP's insertion-ordered hash with copy-on-write value semantics, unchanged. Two
+things change.
+
+**Every key is a `string`.** There is no integer key.
+
+- `$a[] = $v` appends under the next integer index rendered in decimal — `"0"`, `"1"`, `"2"` — from
+  the counter PHP already keeps, so lists behave as they always did.
+- An `int` or `uint` subscript is normalised to its decimal string at the subscript: `$a[8]` is
+  `$a["8"]`. That is key normalisation, not a conversion, and needs no `as`. `"08"` stays a distinct
+  key from `"8"`, exactly as in PHP.
+- A `...$a` spread in an array literal, and one filling a variadic tail, renumber an integer-looking
+  key and preserve every other — each entry copied is either the append above or the write
+  `$a[$k] = $v`. A spread therefore throws exactly where an append throws.
+- A `float`, `bool` or `null` subscript is **rejected**, where PHP truncates, stringifies `true` to
+  `"1"` and `null` to `""`.
+- Iteration order is insertion order, always; only the sort members reorder, and they say so in their
+  names. Binary `+` and `+=` over two arrays are a diagnostic naming `Core\Arr::underlay`
+  ([`types/array-combination`](types.md#types-array-combination)).
+- What comes back is a `string` everywhere: `Core\Arr::keys()` returns `array<string>`, so do
+  `keyOf`, `firstKey`, `lastKey`, `findKey` and `flip`, and so is the `$key` a callback is handed —
+  on a packed list exactly as on a map. A key **parameter** still takes `int|string`, because the
+  subscript normalisation above is what makes those one key. A key binding declaring any other type is
+  refused where it is written (`E0723`), because there is no array that could fill it.
+
+**The element type may be declared, and nests to any depth** — `array<uint>`, `array<array<int|string>>`,
+`array<User|null>`; one parameter, not two, because the key type is fixed.
+
+- **Enforced on every write** — `$a['k'] = $v`, `$a[] = $v`, `+=`, and every `Core\Arr` member that
+  builds an array. Where the value's static type satisfies the element type the check is compile-time
+  and free; through `mixed` it is a runtime check, and a failure is a throw like any other
+  ([`errors/propagation`](errors.md#errors-propagation)).
+- **Invariant.** `array<int>` is not an `array<int|string>`; converting is `as array<int|string>` and
+  costs an O(n) restamp ([`types/conversion`](types.md#types-conversion)). What it does not cost is a copy — the two views
+  share one copy-on-write buffer.
+- The empty literal `[]` has type `array<never>`, which satisfies every `array<T>`.
+- **Array literals are checked against the target type, never inferred and then compared.** Because
+  every binding is annotated, a literal always has a target — which is why `var` refuses a bare one
+  ([`types/var-inference`](types.md#types-var-inference)).
+- At runtime an array header carries a pointer to an interned, immutable type descriptor: **one
+  pointer per array header**, interned process-wide and O(distinct types in the program). Nesting is
+  bounded at depth 32 with a diagnostic, so a pathological type cannot make checking superlinear.
+- The stdlib's array signatures are parametric in `T`. Type variables belong to declarations the
+  compiler owns; a call site may write a type argument only for a compiler-owned member that declares
+  one it cannot infer. User-written generic functions and classes are not part of this.
+
+<sub>See also [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/array-combination`](types.md#types-array-combination), [`types/preserve-keys`](types.md#types-preserve-keys), [`types/conversion`](types.md#types-conversion). Decided in [0007](../decisions/0007.md), [0069](../decisions/0069.md), [0114](../decisions/0114.md), [0002](../decisions/0002.md).</sub>
+
+<a id="types-array-combination"></a>
+
+## Three combining members treat every key alike, and `array + array` does not compile
+
+`rule:types/array-combination`
+
+Three members combine arrays, and each walks its arguments left to right treating **every key the
+same way**:
+
+| Member | Rule | PHP equivalent |
+|---|---|---|
+| `overlay(array<T> $base, array<U> ...$layers)` | a key already present **replaces** in place; a new key is appended | `array_replace` exactly |
+| `underlay(array<T> $base, array<U> ...$layers)` | a key already present is **ignored**; a new key is appended | `$a + $b` exactly |
+| `appendAll(array<T> $a, array<U> ...$others)` | every **value** in order, keys discarded; the result is always a list | `array_merge`, for list arguments |
+
+**Key order** is one rule for all three: an existing key keeps its position, a new key lands at the end
+in the order first met. That is what makes `overlay` and `underlay` two operations rather than one
+with its arguments flipped — `overlay($b, $a)` and `underlay($a, $b)` hold the same entries in
+different order, and arrays are insertion-ordered ([`types/arrays`](types.md#types-arrays)), so the difference is
+observable.
+
+`overlayDeep` recurses where **both** sides of a key hold an array and **neither is a list**; in every
+other case the right-hand value replaces the left wholesale. A list is replaced, never merged
+element-wise, because element-wise is the surprise in `array_replace_recursive`.
+
+**`Core\Arr` has no member named `merge`**, in any spelling — the word names two operations in the
+language a developer is arriving from — and binary `+`/`+=` with an array operand is a **compile
+error** naming `Arr::underlay`. Nothing reproduces `array_merge`; a converter rewrites it by static
+type, and diagnoses where the type is not provably a list or a map.
+
+Two related behaviours are stated rather than inherited: `unique`, `diff` and `intersect` compare by
+**strict identity**, not by PHP's string cast; and `flip` collapses duplicate values, last occurrence
+winning, its result typed `array<string>`.
+
+<sub>See also [`types/arrays`](types.md#types-arrays), [`types/preserve-keys`](types.md#types-preserve-keys). Decided in [0069](../decisions/0069.md), [0007](../decisions/0007.md), [0063](../decisions/0063.md).</sub>
+
+<a id="types-preserve-keys"></a>
+
+## `{preserveKeys: false}` discards every key, whatever shape the key has
+
+`rule:types/preserve-keys`
+
+Wherever the `{preserveKeys: …}` option appears — `slice`, `chunk`, `reverse`, the sorts —
+**`false` means the result is a list**, keys renumbered from `"0"`, and `true` means every key is kept.
+
+PHP renumbers integer keys and silently keeps string ones, which is the key-type-dependent rule
+[`types/array-combination`](types.md#types-array-combination) removes, arriving through an option name. Here the option has one
+meaning over every array shape.
+
+`false` stays the default, matching PHP for a list argument, which is what these members are
+overwhelmingly called with. For an argument with non-numeric keys the result differs from PHP's — the
+keys are gone rather than kept — and `{preserveKeys: true}` is the faithful rewrite where that
+mattered.
+
+<sub>See also [`types/array-combination`](types.md#types-array-combination), [`types/arrays`](types.md#types-arrays). Decided in [0069](../decisions/0069.md), [0007](../decisions/0007.md).</sub>
+
+<a id="types-mixed-subscript"></a>
+
+## A subscript through a `mixed` is the tag's question; every other base answers it where it is written
+
+`rule:types/mixed-subscript`
+
+A base that declares an element type is checked where it is written. A base whose declared type can
+hold no array at all — a scalar, an untested `?array<T>`, a union naming none — is **refused** there
+(`E0482`), because a type that has already answered the question does not get to ask it again at run
+time.
+
+`mixed` is the one unchecked position ([`types/unions-and-mixed`](types.md#types-unions-and-mixed)), so a subscript through one
+defers not only *which* array is behind the handle but *whether there is one*. The read is answered
+from the tag, and the two answers are the element or a catchable throw carrying the same "only an
+`array<T>` has elements" wording the refusal above uses — never PHP's warning and a `null`. Under a
+`??` both failures answer `null` instead, which is what PHP's own null-coalescing read does for any
+subject.
+
+The **write** side is not deferred. An element write separates a copy-on-write buffer and needs a
+holder to write the separated one back through, which a value that is only a tag does not name, so
+`$m[$k] = v` keeps the refusal. This is [`types/erased-member-access`](types.md#types-erased-member-access)'s rule one storage kind
+along.
+
+<sub>See also [`types/arrays`](types.md#types-arrays), [`types/erased-member-access`](types.md#types-erased-member-access), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0007](../decisions/0007.md), [0036](../decisions/0036.md).</sub>
+
+<a id="types-property-key"></a>
+
+## `property<T>` is a type whose values are `T`'s public property names, and `as` is its only source
+
+`rule:types/property-key`
+
+`property<T>` is a type atom, written in every position a type is written, whose **values** are the
+names of `T`'s public declared properties — its own and its ancestors' — and nothing else. What is
+carried at run time is that name, a string in the representation but **not** in the type.
+
+`T` names one **class**. An interface, an enum, a scalar, a `class<...>` — anything that is not a
+class — is `E0799` where it is written, and so is a class declaring no public property at all, since
+no value of that type could exist. The interface row is the conservative one: a key's set has to be a
+roster the receiver certainly has storage for. The set is the same roster reflection walks; the
+visibility question has one shared implementation and this is not a second one.
+
+**`as` is its only source.** A string literal is a `string` and stays one, so no program acquires a key
+by accident. Three rows sit in the one conversion grid ([`types/conversion`](types.md#types-conversion)): a `string` must name
+a public declared property of `T`, or it throws; a `property<U>` narrows at run time; and
+`property<T> → string` is total. A name that names nothing and a name that names a `private` property
+are the same failure and throw the same way — visibility is decided at the conversion, once. A
+written-out operand is decided **where it is written**: `"email" as property<User>` is a compile-time
+yes, or the same unknown-member diagnostic an ordinary `$user->emial` gets. `as ?property<T>` yields
+`null` where the checked form throws.
+
+A qualifier is stripped for a reason narrower than the general row's: the conversion's whole output
+range is the set of properties `User` declares `public` in this program's own source. A tainted string
+cannot widen that set, name a field the author did not write down, or reach a `private` one.
+
+It is its own **equality domain**: two keys are equal when they name the same property, nothing else is
+ever equal to one, and ordering one is refused ([`types/ordering`](types.md#types-ordering)). `property` is a keyword only
+in type position — `$property`, a method named `property` and a class named `Property` are untouched.
+
+<sub>See also [`types/property-key-variance`](types.md#types-property-key-variance), [`types/property-key-access`](types.md#types-property-key-access), [`types/class-reference`](types.md#types-class-reference), [`types/conversion`](types.md#types-conversion). Decided in [0126](../decisions/0126.md), [0007](../decisions/0007.md), [0090](../decisions/0090.md), [0019](../decisions/0019.md), [0066](../decisions/0066.md), [0024](../decisions/0024.md), [0033](../decisions/0033.md).</sub>
+
+<a id="types-property-key-variance"></a>
+
+## `property<T>` widens as `T` narrows, because the argument bounds the receiver
+
+`rule:types/property-key-variance`
+
+A subclass *adds* properties, so `property<Animal>`'s names are all valid on a `Dog` while
+`property<Dog>`'s are not all valid on an `Animal`. **`property<Animal>` therefore widens to
+`property<Dog>`, and never back**: the argument is contravariant.
+
+That is exactly opposite to `class<T>` ([`types/class-reference-variance`](types.md#types-class-reference-variance)), and for the reason
+that inverts it — a class reference is *produced* against its bound, while a key is *consumed* by a
+receiver. Narrowing is written like every other narrowing, `as property<Animal>`, and is the run-time
+check the conversion's second row already describes.
+
+The rule at the site follows and adds nothing: `$obj->$key` requires `$obj`'s type to be a `T`, where
+`T` is the key's argument. A key made against `Animal` reads a `Dog`; a key made against `Dog` does not
+read an `Animal`.
+
+<sub>See also [`types/property-key`](types.md#types-property-key), [`types/class-reference-variance`](types.md#types-class-reference-variance), [`types/property-key-access`](types.md#types-property-key-access). Decided in [0126](../decisions/0126.md), [0125](../decisions/0125.md).</sub>
+
+<a id="types-property-key-access"></a>
+
+## `$obj->$key` accepts a `property<T>` and nothing else; a read is the union and a write is checked
+
+`rule:types/property-key-access`
+
+`$obj->$key` and `$obj->{$expr}` are admitted, and **only** when the operand's type is a `property<T>`
+whose argument the receiver satisfies ([`types/property-key-variance`](types.md#types-property-key-variance)). Every other operand keeps
+`E0235`, with its help naming `as property<T>`, and the refusal lives in the checker rather than the
+parser, because the operand's *type* is the question and the parser cannot see one. The spelling is no
+longer what is rejected; the missing check is.
+
+Three neighbours stay exactly as they are: `$obj->$m(...)` is `E0235` forever, because computed
+*dispatch* is rejected as a concept and a key is not a method name; `$obj->$key` on a `mixed` or
+shape-typed receiver is `E0235`, because there is no `T` to check the key's bound against; and
+`unset($obj->$key)` is `E0234`, as `unset` of any property already is.
+
+A **read** through a key is typed as the **union of the set's declared types** — `int|string|?Address`
+for a `User` declaring those three — which widens into `mixed` or any covering union without an `as`
+and narrows the way every union narrows ([`types/unions-and-mixed`](types.md#types-unions-and-mixed)).
+
+A **write** is the checked erased store ([`types/erased-member-access`](types.md#types-erased-member-access)): it writes an existing
+property, never creates one, and the incoming value is checked at run time against what the class
+declares that property to hold. Statically the value must satisfy at least one member of the union — a
+value no property of `T` could accept is refused where it is written. Both directions lower to the
+erased access the runtime already performs, so per-property hooks and a declared property observer
+behave exactly as they do there.
+
+**A write is refused, at the write, where `T`'s public set holds a `readonly` property**, naming it
+(`E0782`) — the code an ordinary post-construction write already gets. Reading `$id` through a key is
+fine, and a class whose fields are all assignable is unaffected. It is deliberately compile-time:
+where a request-controlled name selects a field to write, refusing at build time is the direction
+priority 1 points in.
+
+<sub>See also [`types/property-key`](types.md#types-property-key), [`types/erased-member-access`](types.md#types-erased-member-access), [`types/property-key-variance`](types.md#types-property-key-variance). Decided in [0126](../decisions/0126.md), [0036](../decisions/0036.md), [0014](../decisions/0014.md), [0038](../decisions/0038.md).</sub>
+
+<a id="types-unions-and-mixed"></a>
+
+## A union permits only what every member permits, and `mixed` is the one position checked nowhere
+
+`rule:types/unions-and-mixed`
+
+A union permits only the operations valid for *every* member. Reaching a member's own operations means
+narrowing ([`types/narrowing`](types.md#types-narrowing)), and there is no `is_int()`-style predicate to narrow with, because
+there are no free functions. Getting a scalar out of a union or out of `mixed` is `as T`, which
+throws, or `as ?T`, which yields `null` — deliberately the same reviewable spelling either way, which
+is why `Core\Validate` carries no numeric predicates.
+
+`mixed` is **not checked at all** — that is its entire job. It holds anything, every operation on it
+is allowed, and every operation on it is resolved dynamically at runtime through the generic helper
+path. That is PHP's semantics, exactly, at PHP's cost, which is the right pressure: the fast path is
+the typed one. `Core\Reflect::typeOf` is the one type-introspection member, and it is meaningful only
+on a `mixed`, because the checker already knows every other case.
+
+`mixed` is where untrusted input lands, deliberately. `Core\Request::query()`/`::post()`,
+`Core\Server::*`, `Core\Script::args()` and `Core\Json::decode`'s result are `array<mixed>`, or return
+`mixed` per key, because input genuinely is untyped and pretending otherwise would be a lie in the
+type:
+
+```php
+uint $id = Core\Request::query('id') as uint;     // throws on "abc", on "-1", on "" — never quietly 0
+```
+
+`mixed` never absorbs implicitly in the other direction: `int $n = $m;` where `$m` is `mixed` is a
+diagnostic, not a runtime check.
+
+<sub>See also [`types/narrowing`](types.md#types-narrowing), [`types/conversion`](types.md#types-conversion), [`types/grammar`](types.md#types-grammar), [`types/mixed-subscript`](types.md#types-mixed-subscript). Decided in [0007](../decisions/0007.md), [0012](../decisions/0012.md), [0066](../decisions/0066.md), [0047](../decisions/0047.md).</sub>
+
+<a id="types-narrowing"></a>
+
+## Narrowing is flow-sensitive and branch-local, and there are exactly four spellings of it
+
+`rule:types/narrowing`
+
+Narrowing is flow-sensitive and **branch-local**, and there are four spellings of it: `instanceof`, a
+`== null` test, a comparison against a literal-typed value, and `match (true)`. A `switch (true)`
+narrows per arm the same way. A write inside a narrowed block widens the binding again, because the
+narrowing described the value that was there, not the slot.
+
+Nothing else narrows. In particular an equality against an enum case does not — `$m == Mode::Read`
+leaves `$m` at its declared type in the branch it guards, and `$m as Mode::Read|Mode::Write` is how a
+case-subset type is reached ([`types/enum-case-type`](types.md#types-enum-case-type)). Adding equality-driven narrowing would
+have to be stated again for `!=`, `&&`, `||` and negation, where `as` says the same thing in one
+place.
+
+Narrowing never changes a binding's declared type ([`types/declaration`](types.md#types-declaration)); it changes what the
+checker knows about it on one path. A value that has to *stay* narrowed is a second binding at the
+type you want, or a checked `as` ([`types/conversion`](types.md#types-conversion)).
+
+<sub>See also [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/conversion`](types.md#types-conversion), [`types/enum-case-type`](types.md#types-enum-case-type). Decided in [0007](../decisions/0007.md), [0047](../decisions/0047.md), [0066](../decisions/0066.md).</sub>
+
 <a id="types-conversion"></a>
 
 ## `expr as T` is the only conversion, and it produces a `T` or throws
@@ -134,371 +850,6 @@ keep their ordinary meaning everywhere else, and the rejected form still consume
 before it parses.
 
 <sub>See also [`types/conversion`](types.md#types-conversion). Decided in [0034](../decisions/0034.md), [0007](../decisions/0007.md), [0049](../decisions/0049.md).</sub>
-
-<a id="types-implicit-widening"></a>
-
-## An `int` or `uint` widening into a `float` position is the only implicit conversion in the language
-
-`rule:types/implicit-widening`
-
-Implicit conversion happens in exactly one place: an `int` or `uint` **widening into a `float`
-position** — an argument, a return, an assignment, or the far side of an arithmetic operator. It is
-the one coercion PHP's own `strict_types` permits, and it throws above 2^53 rather than rounding,
-where `f64` stops representing every integer.
-
-Everything else is a diagnostic. `mixed` never absorbs implicitly in either direction
-([`types/unions-and-mixed`](types.md#types-unions-and-mixed)), a `decimal` never meets a `float` in arithmetic
-([`types/decimal`](types.md#types-decimal)), and every remaining change of type is written as `as`
-([`types/conversion`](types.md#types-conversion)). A numeric literal is not a conversion at all: it is untyped until placed,
-so it takes `int`, `uint`, `float` or `decimal` from its target ([`types/numeric-literal-placement`](types.md#types-numeric-literal-placement)).
-
-<sub>See also [`types/conversion`](types.md#types-conversion), [`types/arithmetic`](types.md#types-arithmetic), [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement). Decided in [0007](../decisions/0007.md), [0054](../decisions/0054.md).</sub>
-
-<a id="types-grammar"></a>
-
-## The type grammar is a closed set of atoms under unions and intersections
-
-`rule:types/grammar`
-
-```
-type         := qualified
-qualified    := ('secret')? ('tainted')? union
-union        := intersection ('|' intersection)*
-intersection := atom ('&' atom)*  |  '(' union ')'        // DNF, as PHP 8.2
-atom         := 'null' | 'bool' | 'int' | 'uint' | 'float' | 'decimal'
-              | 'string' | 'bytes'
-              | 'array' | 'array' '<' type '>'
-              | 'class' '<' Name '>'
-              | 'property' '<' Name '>'
-              | 'object' | 'mixed' | 'void' | 'never' | 'true' | 'false'
-              | 'iterable' | 'callable' | 'self' | 'static' | 'parent'
-              | 'callable' '(' (type (',' type)*)? ')' ':' type
-              | StringLiteral | IntLiteral
-              | '{' field (',' field)* '}'
-              | Name
-              | '?' atom                                  // sugar for atom|null
-field        := identifier ':' type
-```
-
-Unions are canonicalised — flattened, de-duplicated, order-insensitive — so `int|string` and
-`string|int|int` are one type. `array` with no argument is exactly `array<mixed>`. `void` and `never`
-are return-only. `array<T>` is parsed **only in type position**, where a `<` is unambiguously a
-type-argument list; two expression positions also admit one, a call site's own `<...>` and a `new`
-target's, both settled by a checkpointed trial parse that commits only when the list parses cleanly
-and a `(` follows, so `new Foo < $x` stays a comparison. Only a compiler-owned generic declaration may
-carry one.
-
-`Name` covers four kinds of atom told apart by resolution: a class or interface name, an enum's name,
-an enum case ([`types/enum-case-type`](types.md#types-enum-case-type)), and a `type` alias ([`types/type-alias`](types.md#types-type-alias)). A class name
-carries concrete arguments only where it names a compiler-owned generic interface — `Iterator<User>`
-([`iteration/concrete-generic-implements`](iteration.md#iteration-concrete-generic-implements)) — and nowhere else.
-
-**There is no `resource` type.** A host handle is an ordinary object with an explicit `close()`.
-
-<sub>See also [`types/declaration`](types.md#types-declaration), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/type-alias`](types.md#types-type-alias), [`types/shape-type`](types.md#types-shape-type). Decided in [0007](../decisions/0007.md), [0009](../decisions/0009.md), [0015](../decisions/0015.md), [0024](../decisions/0024.md), [0031](../decisions/0031.md), [0033](../decisions/0033.md), [0036](../decisions/0036.md), [0047](../decisions/0047.md), [0053](../decisions/0053.md), [0054](../decisions/0054.md), [0125](../decisions/0125.md), [0126](../decisions/0126.md), [0136](../decisions/0136.md).</sub>
-
-<a id="types-uint"></a>
-
-## `uint` is a distinct unsigned 64-bit integer, and it costs no bytes a value did not already hold
-
-`rule:types/uint`
-
-`uint` is an unsigned 64-bit integer, `0 … 2^64−1`. It is a new **tag** in the existing tagged value
-whose payload is already a `u64`, so a `uint` costs **zero additional bytes per value**.
-`Core\Reflect::typeOf` reports it as its own kind, and there is no `is_int`-style predicate to
-disagree with it, because there are no free functions.
-
-`uint` exists because web software needs the half of the 64-bit range PHP's single signed integer
-cannot reach: `BIGINT UNSIGNED` keys, snowflake ids, nanosecond timestamps, WIT's `u32`/`u64`. An
-integer literal that does not fit `int` is legal only where a `uint` is expected, and is otherwise a
-diagnostic saying exactly that.
-
-`int` and `uint` are separate types everywhere it matters. They mix in a comparison, which has an
-exact answer over the mathematical integers, and they do not mix in arithmetic, which has no
-representable common type to return ([`types/arithmetic`](types.md#types-arithmetic)). Converting between them is `as`, and it
-throws rather than wrapping ([`types/conversion`](types.md#types-conversion)).
-
-<sub>See also [`types/arithmetic`](types.md#types-arithmetic), [`types/integer-literals`](types.md#types-integer-literals), [`types/conversion`](types.md#types-conversion). Decided in [0007](../decisions/0007.md), [0004](../decisions/0004.md).</sub>
-
-<a id="types-integer-literals"></a>
-
-## An integer literal is decimal, `0x`, `0o` or `0b`, and a leading zero is not a radix
-
-`rule:types/integer-literals`
-
-An integer literal is written decimal, `0x`, `0o` or `0b` — either case of the prefix letter, with `_`
-separators allowed between digits. Those four are the closed set, so **a leading zero is not a
-radix**: `017` is decimal seventeen where PHP reads octal fifteen, and `0o17` is the only spelling of
-that fifteen. PHP's legacy form is refused as a *silent* reinterpretation rather than as a spelling —
-it changes a value without changing a character, which is the one thing a converted file cannot be
-checked for, and a file-mode constant is where it bites.
-
-**There is no literal suffix, for any numeric type.** A literal takes `int`, `uint`, `float` or
-`decimal` from the position it is written in instead ([`types/numeric-literal-placement`](types.md#types-numeric-literal-placement)), and a
-literal too wide for `int` is legal only where a `uint` is expected.
-
-The escape grammar inside a string literal is unrelated to this and matches PHP's exactly, `\v`, `\f`,
-`\e` and the octal `\0`–`\777` included.
-
-<sub>See also [`types/uint`](types.md#types-uint), [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement), [`types/arithmetic`](types.md#types-arithmetic). Decided in [0007](../decisions/0007.md).</sub>
-
-<a id="types-arithmetic"></a>
-
-## An arithmetic operator answers in its operands' own type, and overflow throws rather than wrapping or promoting
-
-`rule:types/arithmetic`
-
-| operation | result | on overflow / edge |
-|---|---|---|
-| `int ⊕ int`, `uint ⊕ uint` for `+ - * ** %` | the same type | **throws `ArithmeticError`.** No wrap, no promotion to `float` |
-| `int ⊕ uint` arithmetic | **compile error** | there is no representable common type; convert one side explicitly |
-| `int / int`, `uint / uint` | `int\|float`, `uint\|float` — PHP-exact: `6/3` is an integer, `7/2` is a float | `/ 0` throws `ArithmeticError` |
-| either operand a `float` | `float` for `+ - * ** /`; **`%` is a compile error** | `/ 0` throws here too — the zero divisor is refused before the operand types are consulted. IEEE division is `Core\Math::fdiv` |
-| `decimal ⊕ decimal`, `decimal ⊕ int`, `decimal ⊕ uint` for `+ - * %` | `decimal` | throws when the mantissa exceeds 96 bits **or** the scale would exceed 28 |
-| `decimal / decimal` | `decimal`, half-even at the maximum scale the result admits | `/ 0` throws |
-| `decimal ⊕ float`; `**` with a `decimal` base | **compile error** | no representable common type; `Core\Decimal::pow` for the power |
-| `>>` | arithmetic on `int`, **logical on `uint`** | — |
-| `& \| ^ ~ <<` | the operand type, preserved | — |
-
-The arithmetic rows are a **closed** list. Their operands are `int`, `uint`, `float` and `decimal`, so
-a `bool`, a `string`, a `bytes`, an `array<T>`, a `callable`, `null` and an object have no `+` at all
-and are refused where they are written. `%` is narrower than its own float row: a `float` operand is
-refused rather than given one of two plausible answers, and `Core\Math::mod` is the member that says
-the floating-point remainder out loud.
-
-Division is the one row that returns a union, and in practice the target's declared type absorbs it
-through the `int → float` widening ([`types/implicit-widening`](types.md#types-implicit-widening)): `float $avg = $sum / $n;` works,
-`int $n = 7 / 2;` is a diagnostic, and `Core\Math::intDiv` is there when integer division was meant.
-
-An operand whose static type names no row — `mixed`, a union, the `int|float` a division returns — is
-answered from its runtime **tag**: the rows above where the tags name one, and the same refusal as a
-*catchable throw* where they do not, carrying the diagnostic's own wording.
-
-Overflow throwing is the divergence this table is least willing to trade. A silent promotion to
-`float` changes a binding's type behind its declaration, and a silent wrap is the classic
-size-computation bug. Code that wants unbounded magnitude declares `float`, or converts.
-
-<sub>See also [`types/ordering`](types.md#types-ordering), [`types/uint`](types.md#types-uint), [`types/decimal`](types.md#types-decimal), [`types/implicit-widening`](types.md#types-implicit-widening). Decided in [0007](../decisions/0007.md), [0054](../decisions/0054.md), [0010](../decisions/0010.md), [0035](../decisions/0035.md).</sub>
-
-<a id="types-ordering"></a>
-
-## Only the types the table orders may be ordered, and two objects need `Comparable`
-
-`rule:types/ordering`
-
-`< <= > >= <=>` are defined on a **closed** list of operand pairs, and refused everywhere else:
-
-| operands | result |
-|---|---|
-| two numerics, `int` against `uint` included | `bool` (`int` for `<=>`), mathematically exact over the full range of both |
-| `decimal` against `int`, `uint` or `float` | `bool`, exact — a comparison is computable where a common arithmetic type is not |
-| two `bool`s | `false < true`, the ordering of the one bit they already are |
-| two objects whose static type is provably the same class implementing `Comparable` | `bool`/`int`, via `compareTo`; a throwing `compareTo` propagates as a checked status like any other call |
-| any other operands | **compile error** |
-
-There is no fallback. Everything else PHP orders, it orders by converting an operand first, and there
-is no implicit conversion for that to be. So two strings order through `Core\Str::compare`, an enum
-case orders through its backing `as int` ([`enums/closed-integer-type`](enums.md#enums-closed-integer-type)), and an `array<T>`, a
-`callable` and `null` do not order at all. Two objects with no `Comparable` between them are a
-compile error whose diagnostic names `Comparable` as the fix, however the receiver was spelled — an
-erased `object` and a shape type included.
-
-An operand whose static type names no row is answered from its runtime tag, and refuses as a
-*catchable throw* where the tags name none. Two consequences follow from the tag being all there is:
-two objects behind two `mixed`s throw, because `compareTo` is dispatched from the class the *site*
-named, and an enum case orders as the integer it is even though the written spelling is still refused
-— which is where the author is told to say `as int`.
-
-`==` and `!=` are a different question and are unaffected by any of this.
-
-<sub>See also [`types/arithmetic`](types.md#types-arithmetic), [`types/conversion`](types.md#types-conversion), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0013](../decisions/0013.md), [0007](../decisions/0007.md), [0010](../decisions/0010.md), [0047](../decisions/0047.md).</sub>
-
-<a id="types-arrays"></a>
-
-## An array is PHP's ordered hash with `string` keys and a declared element type
-
-`rule:types/arrays`
-
-The container is PHP's insertion-ordered hash with copy-on-write value semantics, unchanged. Two
-things change.
-
-**Every key is a `string`.** There is no integer key.
-
-- `$a[] = $v` appends under the next integer index rendered in decimal — `"0"`, `"1"`, `"2"` — from
-  the counter PHP already keeps, so lists behave as they always did.
-- An `int` or `uint` subscript is normalised to its decimal string at the subscript: `$a[8]` is
-  `$a["8"]`. That is key normalisation, not a conversion, and needs no `as`. `"08"` stays a distinct
-  key from `"8"`, exactly as in PHP.
-- A `...$a` spread in an array literal, and one filling a variadic tail, renumber an integer-looking
-  key and preserve every other — each entry copied is either the append above or the write
-  `$a[$k] = $v`. A spread therefore throws exactly where an append throws.
-- A `float`, `bool` or `null` subscript is **rejected**, where PHP truncates, stringifies `true` to
-  `"1"` and `null` to `""`.
-- Iteration order is insertion order, always; only the sort members reorder, and they say so in their
-  names. Binary `+` and `+=` over two arrays are a diagnostic naming `Core\Arr::underlay`
-  ([`types/array-combination`](types.md#types-array-combination)).
-- What comes back is a `string` everywhere: `Core\Arr::keys()` returns `array<string>`, so do
-  `keyOf`, `firstKey`, `lastKey`, `findKey` and `flip`, and so is the `$key` a callback is handed —
-  on a packed list exactly as on a map. A key **parameter** still takes `int|string`, because the
-  subscript normalisation above is what makes those one key. A key binding declaring any other type is
-  refused where it is written (`E0723`), because there is no array that could fill it.
-
-**The element type may be declared, and nests to any depth** — `array<uint>`, `array<array<int|string>>`,
-`array<User|null>`; one parameter, not two, because the key type is fixed.
-
-- **Enforced on every write** — `$a['k'] = $v`, `$a[] = $v`, `+=`, and every `Core\Arr` member that
-  builds an array. Where the value's static type satisfies the element type the check is compile-time
-  and free; through `mixed` it is a runtime check, and a failure is a throw like any other
-  ([`errors/propagation`](errors.md#errors-propagation)).
-- **Invariant.** `array<int>` is not an `array<int|string>`; converting is `as array<int|string>` and
-  costs an O(n) restamp ([`types/conversion`](types.md#types-conversion)). What it does not cost is a copy — the two views
-  share one copy-on-write buffer.
-- The empty literal `[]` has type `array<never>`, which satisfies every `array<T>`.
-- **Array literals are checked against the target type, never inferred and then compared.** Because
-  every binding is annotated, a literal always has a target — which is why `var` refuses a bare one
-  ([`types/var-inference`](types.md#types-var-inference)).
-- At runtime an array header carries a pointer to an interned, immutable type descriptor: **one
-  pointer per array header**, interned process-wide and O(distinct types in the program). Nesting is
-  bounded at depth 32 with a diagnostic, so a pathological type cannot make checking superlinear.
-- The stdlib's array signatures are parametric in `T`. Type variables belong to declarations the
-  compiler owns; a call site may write a type argument only for a compiler-owned member that declares
-  one it cannot infer. User-written generic functions and classes are not part of this.
-
-<sub>See also [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/array-combination`](types.md#types-array-combination), [`types/preserve-keys`](types.md#types-preserve-keys), [`types/conversion`](types.md#types-conversion). Decided in [0007](../decisions/0007.md), [0069](../decisions/0069.md), [0114](../decisions/0114.md), [0002](../decisions/0002.md).</sub>
-
-<a id="types-mixed-subscript"></a>
-
-## A subscript through a `mixed` is the tag's question; every other base answers it where it is written
-
-`rule:types/mixed-subscript`
-
-A base that declares an element type is checked where it is written. A base whose declared type can
-hold no array at all — a scalar, an untested `?array<T>`, a union naming none — is **refused** there
-(`E0482`), because a type that has already answered the question does not get to ask it again at run
-time.
-
-`mixed` is the one unchecked position ([`types/unions-and-mixed`](types.md#types-unions-and-mixed)), so a subscript through one
-defers not only *which* array is behind the handle but *whether there is one*. The read is answered
-from the tag, and the two answers are the element or a catchable throw carrying the same "only an
-`array<T>` has elements" wording the refusal above uses — never PHP's warning and a `null`. Under a
-`??` both failures answer `null` instead, which is what PHP's own null-coalescing read does for any
-subject.
-
-The **write** side is not deferred. An element write separates a copy-on-write buffer and needs a
-holder to write the separated one back through, which a value that is only a tag does not name, so
-`$m[$k] = v` keeps the refusal. This is [`types/erased-member-access`](types.md#types-erased-member-access)'s rule one storage kind
-along.
-
-<sub>See also [`types/arrays`](types.md#types-arrays), [`types/erased-member-access`](types.md#types-erased-member-access), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0007](../decisions/0007.md), [0036](../decisions/0036.md).</sub>
-
-<a id="types-unions-and-mixed"></a>
-
-## A union permits only what every member permits, and `mixed` is the one position checked nowhere
-
-`rule:types/unions-and-mixed`
-
-A union permits only the operations valid for *every* member. Reaching a member's own operations means
-narrowing ([`types/narrowing`](types.md#types-narrowing)), and there is no `is_int()`-style predicate to narrow with, because
-there are no free functions. Getting a scalar out of a union or out of `mixed` is `as T`, which
-throws, or `as ?T`, which yields `null` — deliberately the same reviewable spelling either way, which
-is why `Core\Validate` carries no numeric predicates.
-
-`mixed` is **not checked at all** — that is its entire job. It holds anything, every operation on it
-is allowed, and every operation on it is resolved dynamically at runtime through the generic helper
-path. That is PHP's semantics, exactly, at PHP's cost, which is the right pressure: the fast path is
-the typed one. `Core\Reflect::typeOf` is the one type-introspection member, and it is meaningful only
-on a `mixed`, because the checker already knows every other case.
-
-`mixed` is where untrusted input lands, deliberately. `Core\Request::query()`/`::post()`,
-`Core\Server::*`, `Core\Script::args()` and `Core\Json::decode`'s result are `array<mixed>`, or return
-`mixed` per key, because input genuinely is untyped and pretending otherwise would be a lie in the
-type:
-
-```php
-uint $id = Core\Request::query('id') as uint;     // throws on "abc", on "-1", on "" — never quietly 0
-```
-
-`mixed` never absorbs implicitly in the other direction: `int $n = $m;` where `$m` is `mixed` is a
-diagnostic, not a runtime check.
-
-<sub>See also [`types/narrowing`](types.md#types-narrowing), [`types/conversion`](types.md#types-conversion), [`types/grammar`](types.md#types-grammar), [`types/mixed-subscript`](types.md#types-mixed-subscript). Decided in [0007](../decisions/0007.md), [0012](../decisions/0012.md), [0066](../decisions/0066.md), [0047](../decisions/0047.md).</sub>
-
-<a id="types-narrowing"></a>
-
-## Narrowing is flow-sensitive and branch-local, and there are exactly four spellings of it
-
-`rule:types/narrowing`
-
-Narrowing is flow-sensitive and **branch-local**, and there are four spellings of it: `instanceof`, a
-`== null` test, a comparison against a literal-typed value, and `match (true)`. A `switch (true)`
-narrows per arm the same way. A write inside a narrowed block widens the binding again, because the
-narrowing described the value that was there, not the slot.
-
-Nothing else narrows. In particular an equality against an enum case does not — `$m == Mode::Read`
-leaves `$m` at its declared type in the branch it guards, and `$m as Mode::Read|Mode::Write` is how a
-case-subset type is reached ([`types/enum-case-type`](types.md#types-enum-case-type)). Adding equality-driven narrowing would
-have to be stated again for `!=`, `&&`, `||` and negation, where `as` says the same thing in one
-place.
-
-Narrowing never changes a binding's declared type ([`types/declaration`](types.md#types-declaration)); it changes what the
-checker knows about it on one path. A value that has to *stay* narrowed is a second binding at the
-type you want, or a checked `as` ([`types/conversion`](types.md#types-conversion)).
-
-<sub>See also [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/conversion`](types.md#types-conversion), [`types/enum-case-type`](types.md#types-enum-case-type). Decided in [0007](../decisions/0007.md), [0047](../decisions/0047.md), [0066](../decisions/0066.md).</sub>
-
-<a id="types-string-is-utf8"></a>
-
-## A `string` is valid UTF-8 for its whole lifetime, and its unmarked unit is the grapheme cluster
-
-`rule:types/string-is-utf8`
-
-A `string` cannot hold invalid UTF-8 at any point in its lifetime. The invariant is enforced at every
-construction site — literals, conversions, concatenation, and every stdlib member that builds a
-string — the same way an array's element type is enforced on every write ([`types/arrays`](types.md#types-arrays)). That
-is what removes PHP's `mbstring` split: there is only one encoding a `string` can hold, so there is
-only one correct answer to "how long is it".
-
-**A `string`'s length, indexing and iteration operate on extended grapheme clusters** (Unicode UAX
-#29) — the unit a person reading the source calls "one character", including a flag emoji, an emoji
-built from a ZWJ sequence, or a letter with a combining accent. Byte-level and codepoint-level
-operations remain available under separately named members, the inverse of PHP's default.
-`nvs_stdlib::granularity` states that default in code, once, and every `Core\Str` member with a unit
-reads it from there.
-
-Two consequences an implementer owes: what counts as one character is pinned to whichever Unicode
-version `nvs-runtime` embeds, and can change across a runtime upgrade; and `Core\Str::length` is O(n)
-where PHP's `strlen` is O(1), a vectorized scan over ASCII and a full segmentation run over anything
-else. Normalization (NFC/NFD) is explicitly out of scope — grapheme awareness says nothing about
-whether two visually identical strings compare equal, exactly as PHP leaves it.
-
-<sub>See also [`types/bytes`](types.md#types-bytes), [`types/conversion`](types.md#types-conversion). Decided in [0009](../decisions/0009.md), [0007](../decisions/0007.md).</sub>
-
-<a id="types-bytes"></a>
-
-## `bytes` is a primitive peer to `string` for data that carries no encoding
-
-`rule:types/bytes`
-
-`bytes` is a primitive scalar, peer to `string`, for data with no encoding at all — a file's contents,
-a socket read, a hash digest, a request body before anyone has claimed it is text. It has the same
-copy-on-write, interned-buffer value semantics `string` already has, minus the UTF-8 invariant, and it
-is indexed and sliced by **byte offset**; there is no other unit for it to be ambiguous about.
-
-It is not a class: a flat, contiguous, immutable-until-copied buffer has no use for identity,
-properties or a vtable. It is not `array<uint>` either, which would cost a tagged value per byte plus
-a per-write element check for a type whose whole point is that it has no per-element structure.
-
-Anywhere the host hands a program data it has not itself asserted is text, it hands over `bytes`.
-Structured input stays `array<mixed>` — `Core\Request`, `Core\Server` and `Core\Json::decode`'s result
-are untyped deliberately ([`types/unions-and-mixed`](types.md#types-unions-and-mixed)) — and this rule is about the *scalar* payload
-underneath, once one is pulled out of `mixed`. Converting is `as`, checked in the direction that can
-fail ([`types/conversion`](types.md#types-conversion)), which is what makes "treat these untrusted bytes as text" a reviewable,
-throwing event rather than an unasserted assumption.
-
-There is no dedicated literal token: `"…" as bytes` covers the valid-UTF-8 case for free, and
-`Core\Bytes::fromHex()`/`::fromBase64()` cover arbitrary binary constants.
-
-<sub>See also [`types/string-is-utf8`](types.md#types-string-is-utf8), [`types/conversion`](types.md#types-conversion), [`types/grammar`](types.md#types-grammar). Decided in [0009](../decisions/0009.md), [0007](../decisions/0007.md), [0006](../decisions/0006.md), [0012](../decisions/0012.md).</sub>
 
 <a id="types-type-alias"></a>
 
@@ -613,87 +964,6 @@ closure that needs to call itself carries a self-name instead ([`types/closure-s
 
 <sub>See also [`types/implicit-capture`](types.md#types-implicit-capture), [`types/closure-self-name`](types.md#types-closure-self-name), [`types/callable-is-a-closure`](types.md#types-callable-is-a-closure). Decided in [0031](../decisions/0031.md), [0027](../decisions/0027.md), [0015](../decisions/0015.md).</sub>
 
-<a id="types-implicit-capture"></a>
-
-## A closure captures by value exactly the outer names its body reads, and there is no `use` clause
-
-`rule:types/implicit-capture`
-
-A closure captures exactly the outer variables its body reads, snapshotted **by value** at the point
-the literal is evaluated. There is no syntax to opt a variable in or out, and no by-reference capture:
-`use ($y)` and `use (&$y)` are both diagnostics, the second with its own wording where the intent was
-mutation visible outside the closure. `$this` is captured like any other binding when the body names
-it.
-
-Dropping `use (&$y)` has one real consequence, and it is deliberate: **sharing one mutable cell
-between two independent closures** has no builtin replacement. It is written in user code with an
-ordinary object, because capturing an object by value still shares the same heap object — only
-rebinding a bare scalar or a copy-on-write `array<T>` local from inside a closure is actually lost.
-
-```php
-class Counter { public int $value = 0; }
-$count = new Counter();
-$increment = fn() => $count->value++;   // both capture $count by value...
-$get       = fn() => $count->value;     // ...but $count is a heap object, so they share it
-```
-
-There is no `Core\Ref<T>` or boxed-cell builtin for this, and an anonymous object literal
-([`types/object-literal`](types.md#types-object-literal)) is the lightweight way to write the carrier.
-
-<sub>See also [`types/closure-literal`](types.md#types-closure-literal), [`types/closure-self-name`](types.md#types-closure-self-name), [`types/object-literal`](types.md#types-object-literal). Decided in [0031](../decisions/0031.md), [0008](../decisions/0008.md).</sub>
-
-<a id="types-closure-self-name"></a>
-
-## A closure may carry a self-name, visible only inside its own body
-
-`rule:types/closure-self-name`
-
-A closure that needs to call itself may carry an optional name between `fn` and its parameter list:
-
-```php
-$fact = fn factorial($n) => $n <= 1 ? 1 : $n * factorial($n - 1);
-```
-
-`factorial` is visible **only inside that closure's own body**. It is not a capture — it is not among
-the outer variables the body reads — not a second declared name reachable from anywhere else, and not
-a runtime slot: it resolves the way a method resolves `self::`, entirely at compile time, with no cost
-at literals that do not use it. It composes with both body shapes and is not a third closure form.
-
-It does not reopen "every callable is a declared class member": that rule bars a free, globally
-callable function existing outside a class, and this name is unreachable from anywhere but its own
-body — the same status as a parameter name. A recursive helper that *is* reusable elsewhere still
-belongs on a class as a named method; the self-name covers only the case where the sole reason a
-closure would need a name is to call itself.
-
-<sub>See also [`types/closure-literal`](types.md#types-closure-literal), [`types/implicit-capture`](types.md#types-implicit-capture). Decided in [0031](../decisions/0031.md), [0011](../decisions/0011.md).</sub>
-
-<a id="types-callable-absorbs-closure"></a>
-
-## `callable` is the only closure type name, and a callable value is invoked directly
-
-`rule:types/callable-absorbs-closure`
-
-`callable` is the only type name for a closure value. `Closure` is not a type in Novis, and naming it
-is a diagnostic. This is a rename rather than a behaviour change: after
-[`types/callable-is-a-closure`](types.md#types-callable-is-a-closure) narrowed which values satisfy `callable`, the two names had
-identical membership, and `callable` reads more accurately for a value that captures nothing at all,
-such as a reference to a static method.
-
-`bind`, `bindTo` and `call` still exist, called with the same method-call syntax, now as builtin
-operations on an opaque type rather than inherited methods of a base class a program could
-`instanceof` or extend. `Closure::fromCallable` is dropped, because after that narrowing there is
-nothing left for it to normalise away from.
-
-`call_user_func` and `call_user_func_array` are dropped with it. Every `callable` value supports
-direct invocation, which is what they existed to route around:
-
-```php
-$result = $fn($arg);       // replaces call_user_func($fn, $arg)
-$result = $fn(...$args);   // replaces call_user_func_array($fn, $args)
-```
-
-<sub>See also [`types/callable-is-a-closure`](types.md#types-callable-is-a-closure), [`types/closure-literal`](types.md#types-closure-literal), [`types/grammar`](types.md#types-grammar). Decided in [0031](../decisions/0031.md), [0027](../decisions/0027.md), [0007](../decisions/0007.md).</sub>
-
 <a id="types-callable-signature"></a>
 
 ## A `callable` type may name its parameters, and must then name its return type  *(designed — not yet in the compiler)*
@@ -805,6 +1075,87 @@ A block-bodied `fn` still declares its own return type; inferring one under an e
 whole-body return-type inference and is not part of this ([`types/closure-literal`](types.md#types-closure-literal)).
 
 <sub>See also [`types/callable-signature`](types.md#types-callable-signature), [`types/closure-literal`](types.md#types-closure-literal), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0136](../decisions/0136.md), [0036](../decisions/0036.md), [0031](../decisions/0031.md).</sub>
+
+<a id="types-callable-absorbs-closure"></a>
+
+## `callable` is the only closure type name, and a callable value is invoked directly
+
+`rule:types/callable-absorbs-closure`
+
+`callable` is the only type name for a closure value. `Closure` is not a type in Novis, and naming it
+is a diagnostic. This is a rename rather than a behaviour change: after
+[`types/callable-is-a-closure`](types.md#types-callable-is-a-closure) narrowed which values satisfy `callable`, the two names had
+identical membership, and `callable` reads more accurately for a value that captures nothing at all,
+such as a reference to a static method.
+
+`bind`, `bindTo` and `call` still exist, called with the same method-call syntax, now as builtin
+operations on an opaque type rather than inherited methods of a base class a program could
+`instanceof` or extend. `Closure::fromCallable` is dropped, because after that narrowing there is
+nothing left for it to normalise away from.
+
+`call_user_func` and `call_user_func_array` are dropped with it. Every `callable` value supports
+direct invocation, which is what they existed to route around:
+
+```php
+$result = $fn($arg);       // replaces call_user_func($fn, $arg)
+$result = $fn(...$args);   // replaces call_user_func_array($fn, $args)
+```
+
+<sub>See also [`types/callable-is-a-closure`](types.md#types-callable-is-a-closure), [`types/closure-literal`](types.md#types-closure-literal), [`types/grammar`](types.md#types-grammar). Decided in [0031](../decisions/0031.md), [0027](../decisions/0027.md), [0007](../decisions/0007.md).</sub>
+
+<a id="types-implicit-capture"></a>
+
+## A closure captures by value exactly the outer names its body reads, and there is no `use` clause
+
+`rule:types/implicit-capture`
+
+A closure captures exactly the outer variables its body reads, snapshotted **by value** at the point
+the literal is evaluated. There is no syntax to opt a variable in or out, and no by-reference capture:
+`use ($y)` and `use (&$y)` are both diagnostics, the second with its own wording where the intent was
+mutation visible outside the closure. `$this` is captured like any other binding when the body names
+it.
+
+Dropping `use (&$y)` has one real consequence, and it is deliberate: **sharing one mutable cell
+between two independent closures** has no builtin replacement. It is written in user code with an
+ordinary object, because capturing an object by value still shares the same heap object — only
+rebinding a bare scalar or a copy-on-write `array<T>` local from inside a closure is actually lost.
+
+```php
+class Counter { public int $value = 0; }
+$count = new Counter();
+$increment = fn() => $count->value++;   // both capture $count by value...
+$get       = fn() => $count->value;     // ...but $count is a heap object, so they share it
+```
+
+There is no `Core\Ref<T>` or boxed-cell builtin for this, and an anonymous object literal
+([`types/object-literal`](types.md#types-object-literal)) is the lightweight way to write the carrier.
+
+<sub>See also [`types/closure-literal`](types.md#types-closure-literal), [`types/closure-self-name`](types.md#types-closure-self-name), [`types/object-literal`](types.md#types-object-literal). Decided in [0031](../decisions/0031.md), [0008](../decisions/0008.md).</sub>
+
+<a id="types-closure-self-name"></a>
+
+## A closure may carry a self-name, visible only inside its own body
+
+`rule:types/closure-self-name`
+
+A closure that needs to call itself may carry an optional name between `fn` and its parameter list:
+
+```php
+$fact = fn factorial($n) => $n <= 1 ? 1 : $n * factorial($n - 1);
+```
+
+`factorial` is visible **only inside that closure's own body**. It is not a capture — it is not among
+the outer variables the body reads — not a second declared name reachable from anywhere else, and not
+a runtime slot: it resolves the way a method resolves `self::`, entirely at compile time, with no cost
+at literals that do not use it. It composes with both body shapes and is not a third closure form.
+
+It does not reopen "every callable is a declared class member": that rule bars a free, globally
+callable function existing outside a class, and this name is unreachable from anywhere but its own
+body — the same status as a parameter name. A recursive helper that *is* reusable elsewhere still
+belongs on a class as a named method; the self-name covers only the case where the sole reason a
+closure would need a name is to call itself.
+
+<sub>See also [`types/closure-literal`](types.md#types-closure-literal), [`types/implicit-capture`](types.md#types-implicit-capture). Decided in [0031](../decisions/0031.md), [0011](../decisions/0011.md).</sub>
 
 <a id="types-object-top"></a>
 
@@ -927,265 +1278,6 @@ same access one step along.
 
 <sub>See also [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/shape-type`](types.md#types-shape-type), [`types/property-key-access`](types.md#types-property-key-access), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0036](../decisions/0036.md), [0014](../decisions/0014.md), [0007](../decisions/0007.md), [0022](../decisions/0022.md), [0126](../decisions/0126.md).</sub>
 
-<a id="types-literal-types"></a>
-
-## A `string` or `int` literal is its own type, and a union of them is a closed set
-
-`rule:types/literal-types`
-
-A `string` literal and an `int` literal are each their own type — the singleton type inhabited by that
-exact value — parsed only in type position, the way `array<T>` is. `"a"|"b"|"c"` and `1|2|3` are
-ordinary unions of those atoms, canonicalised like any other, and `?"a"` is sugar for `"a"|null`. They
-are usable at every binding site ([`types/declaration`](types.md#types-declaration)), with no special case.
-
-```php
-function setMode("a"|"b"|"c" $mode) { … }   // the set is the type
-```
-
-Assignability and conversion:
-
-| direction | behaviour |
-|---|---|
-| a literal type → its base type, and a literal union → its base type | **total, free** — a strict widening, the same representation |
-| base type or `mixed` → a literal or literal-union type | **checked.** Throws unless the value equals one of the named literals |
-| a wider literal union → a narrower one | needs a guard or a checked `as` — ordinary narrowing ([`types/narrowing`](types.md#types-narrowing)) |
-
-**Zero additional runtime representation.** A literal type shares its base type's tag and payload
-exactly; the singleton-ness is enforced by the checker wherever the static type is known. The only
-place it costs anything is where a value arrives through `mixed` or an isolate boundary, and the
-checked conversion runs a membership test against the small, closed, compile-time-known set.
-
-A failed conversion names the accepted set, generated from the type: ``` `"z"` is not one of `"a"`,
-`"b"`, `"c"` ``` (`E0469`). That is a **compile** error where the operand settles the question by
-itself — the target a closed set, the operand naming one value — and otherwise the ordinary checked
-conversion answered at run time. A `tainted` or `secret` value needs the same laundering it would need
-to leave `mixed` for any other typed binding; neither qualifier gets a rule of its own here.
-
-Two limits are deliberate: **no `float` literal type**, because float equality is imprecise enough
-that a singleton `0.1` is a footgun; and **no wildcard matching** over constant or case names, since
-the whole point is that the accepted set is spelled out.
-
-<sub>See also [`types/constant-in-type-position`](types.md#types-constant-in-type-position), [`types/enum-case-type`](types.md#types-enum-case-type), [`types/conversion`](types.md#types-conversion), [`types/narrowing`](types.md#types-narrowing). Decided in [0047](../decisions/0047.md), [0007](../decisions/0007.md), [0024](../decisions/0024.md), [0033](../decisions/0033.md), [0066](../decisions/0066.md).</sub>
-
-<a id="types-constant-in-type-position"></a>
-
-## A scalar class constant used as a type folds to its own literal type
-
-`rule:types/constant-in-type-position`
-
-`ClassName::CONST_NAME`, written where a type is expected, resolves at compile time to the constant's
-own value — exactly as long as that value is a `string` or `int` compile-time constant.
-
-```php
-class Foo {
-    public const string TYPE_A = "a";
-    public const string TYPE_B = "b";
-}
-
-function handle(Foo::TYPE_A|Foo::TYPE_B $type) { … }   // exactly "a"|"b"
-```
-
-This is safe precisely because a scalar `const` is not a distinct nominal type: `Foo::TYPE_A`
-genuinely *is* the string `"a"`, so folding it to that literal type changes nothing a caller could
-observe — passing the bare `"a"` is exactly as valid.
-
-A constant backed by a non-scalar type — an `array`, an object, a `float` — is **not eligible**, and
-using one this way is a diagnostic naming the eligible types. An enum case is not folded either, and
-for the opposite reason: it carries its enum's nominal type and stays a narrowed view of it
-([`types/enum-case-type`](types.md#types-enum-case-type)).
-
-<sub>See also [`types/literal-types`](types.md#types-literal-types), [`types/enum-case-type`](types.md#types-enum-case-type). Decided in [0047](../decisions/0047.md), [0046](../decisions/0046.md).</sub>
-
-<a id="types-enum-case-type"></a>
-
-## An enum case used as a type is a narrowed subtype of its enum, never its backing integer
-
-`rule:types/enum-case-type`
-
-`EnumName::CaseName`, written where a type is expected, does **not** resolve to its backing integer. It
-names a new checker-only type: a subtype of `EnumName` inhabited by exactly that one case.
-
-```php
-enum Mode { Read, Write, Admin }
-
-function grant(Mode::Read|Mode::Write $m) { … }   // accepts only those two cases
-```
-
-Folding it to the cases' backing integers would let a caller satisfy the parameter with a bare `int`,
-which is exactly the hole a checked `int → Mode` conversion closes
-([`enums/closed-integer-type`](enums.md#enums-closed-integer-type)). An enum-case type is therefore its own atom kind, never unified by
-canonicalisation with an int literal type that happens to share a case's value, because the two carry
-different runtime tags.
-
-A case-subset union may name cases of more than one enum, or mix case atoms with unrelated atoms,
-exactly as any other heterogeneous union may. Widening a case-subset union to its enum is total and
-free; going the other way is checked and throws unless the value's case is one of the named ones — a
-further-restricted form of the existing enum conversion, not a new kind
-([`types/conversion`](types.md#types-conversion)). `E0470` names the accepted cases.
-
-A binding is narrowed to a case-subset type **through `as` and nowhere else**: `$m == Mode::Read` does
-not narrow `$m` in the branch it guards ([`types/narrowing`](types.md#types-narrowing)). Like a literal type, this costs
-nothing at runtime — it shares the enum's existing zero-byte representation
-([`enums/representation`](enums.md#enums-representation)).
-
-<sub>See also [`types/literal-types`](types.md#types-literal-types), [`types/conversion`](types.md#types-conversion), [`types/narrowing`](types.md#types-narrowing). Decided in [0047](../decisions/0047.md), [0010](../decisions/0010.md), [0007](../decisions/0007.md).</sub>
-
-<a id="types-decimal"></a>
-
-## `decimal` is an exact scalar of 96 mantissa bits and a scale of 0 to 28
-
-`rule:types/decimal`
-
-`decimal` is a scalar: a sign, a 96-bit unsigned mantissa, and a scale of 0 to 28 giving the digits
-after the point. Its value is `(-1)^sign × mantissa × 10^-scale` — roughly 29 significant digits. It
-is register-pair sized, allocation-free and refcount-free, and it costs **16 bytes per value** against
-8 for a `float`.
-
-It is deliberately **not** arbitrary precision. World GDP in cents is 17 digits; Bitcoin to satoshis
-is 16. What lies beyond is `Core\BigDecimal` — arbitrary-precision, heap-allocated, method-based, no
-literal form — named here so the boundary is stated rather than discovered.
-
-Scale is carried for rendering and does not affect equality or hashing: `1.10 == 1.1000` is true, and
-`19.90` renders `"19.90"`. **Division is the one operation that may be inexact**, and its policy is
-fixed in the language and not configurable: round half to even, at the maximum scale the result
-admits. There is no `bcscale()` equivalent and never will be. Where rounding is business logic it is
-said out loud — `Core\Decimal::divExact()` throws unless the quotient is exact,
-`::divRound($scale, $mode)` names both, and `::allocate($amount, $ratios)` splits a sum into parts
-that add back to it exactly.
-
-`bcmath` and `gmp` are retired rather than ported, because they conflated two unrelated capabilities:
-exact fractional arithmetic at human magnitudes, which is `decimal`, and arbitrary-magnitude integers
-wearing a decimal API, which is `Core\BigInt`.
-
-`decimal` is not an enum backing type ([`enums/one-backing-type`](enums.md#enums-one-backing-type)), and array keys are unaffected —
-every key is a `string` already ([`types/arrays`](types.md#types-arrays)).
-
-<sub>See also [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement), [`types/arithmetic`](types.md#types-arithmetic), [`types/conversion`](types.md#types-conversion). Decided in [0054](../decisions/0054.md), [0007](../decisions/0007.md), [0051](../decisions/0051.md), [0004](../decisions/0004.md).</sub>
-
-<a id="types-numeric-literal-placement"></a>
-
-## A numeric literal is untyped until it is placed, and `as T` is a placing position
-
-`rule:types/numeric-literal-placement`
-
-A numeric literal is **untyped until it is placed**, and takes its type from the position it appears
-in. An integer literal becomes `int`, `uint`, `float` or `decimal`; a literal carrying a fractional
-part or an exponent becomes `decimal` or `float`. Because every binding site declares a type
-([`types/declaration`](types.md#types-declaration)), the target is known almost everywhere.
-
-```php
-decimal $price = 19.99;          // exact: mantissa 1999, scale 2
-float   $ratio = 19.99;          // an f64
-var $x = 19.99;                  // no target type: float
-var $y = 19.99 as decimal;       // `as` supplies one: decimal, exact
-```
-
-**`expr as T` is itself a placing position.** A literal written directly under a conversion takes `T`
-as its target rather than being typed first and converted afterwards, so `19.99 as decimal` is exact
-to the full 29 significant digits and never becomes an `f64` on the way. That is not merely notational:
-`float → decimal` recovers only the ~17 digits an `f64` round-trips, so without this rule a wider
-literal would be unwritable in any position lacking an annotation.
-
-**There is no literal suffix, and in particular no `m`** ([`types/integer-literals`](types.md#types-integer-literals)). A suffix
-would buy only a second spelling of what `as decimal` already says, in the two positions that lack a
-target: a `var` declaration ([`types/var-inference`](types.md#types-var-inference)) and a `mixed` or generic argument.
-
-<sub>See also [`types/decimal`](types.md#types-decimal), [`types/integer-literals`](types.md#types-integer-literals), [`types/var-inference`](types.md#types-var-inference), [`types/implicit-widening`](types.md#types-implicit-widening). Decided in [0054](../decisions/0054.md), [0007](../decisions/0007.md), [0037](../decisions/0037.md).</sub>
-
-<a id="types-array-combination"></a>
-
-## Three combining members treat every key alike, and `array + array` does not compile
-
-`rule:types/array-combination`
-
-Three members combine arrays, and each walks its arguments left to right treating **every key the
-same way**:
-
-| Member | Rule | PHP equivalent |
-|---|---|---|
-| `overlay(array<T> $base, array<U> ...$layers)` | a key already present **replaces** in place; a new key is appended | `array_replace` exactly |
-| `underlay(array<T> $base, array<U> ...$layers)` | a key already present is **ignored**; a new key is appended | `$a + $b` exactly |
-| `appendAll(array<T> $a, array<U> ...$others)` | every **value** in order, keys discarded; the result is always a list | `array_merge`, for list arguments |
-
-**Key order** is one rule for all three: an existing key keeps its position, a new key lands at the end
-in the order first met. That is what makes `overlay` and `underlay` two operations rather than one
-with its arguments flipped — `overlay($b, $a)` and `underlay($a, $b)` hold the same entries in
-different order, and arrays are insertion-ordered ([`types/arrays`](types.md#types-arrays)), so the difference is
-observable.
-
-`overlayDeep` recurses where **both** sides of a key hold an array and **neither is a list**; in every
-other case the right-hand value replaces the left wholesale. A list is replaced, never merged
-element-wise, because element-wise is the surprise in `array_replace_recursive`.
-
-**`Core\Arr` has no member named `merge`**, in any spelling — the word names two operations in the
-language a developer is arriving from — and binary `+`/`+=` with an array operand is a **compile
-error** naming `Arr::underlay`. Nothing reproduces `array_merge`; a converter rewrites it by static
-type, and diagnoses where the type is not provably a list or a map.
-
-Two related behaviours are stated rather than inherited: `unique`, `diff` and `intersect` compare by
-**strict identity**, not by PHP's string cast; and `flip` collapses duplicate values, last occurrence
-winning, its result typed `array<string>`.
-
-<sub>See also [`types/arrays`](types.md#types-arrays), [`types/preserve-keys`](types.md#types-preserve-keys). Decided in [0069](../decisions/0069.md), [0007](../decisions/0007.md), [0063](../decisions/0063.md).</sub>
-
-<a id="types-preserve-keys"></a>
-
-## `{preserveKeys: false}` discards every key, whatever shape the key has
-
-`rule:types/preserve-keys`
-
-Wherever the `{preserveKeys: …}` option appears — `slice`, `chunk`, `reverse`, the sorts —
-**`false` means the result is a list**, keys renumbered from `"0"`, and `true` means every key is kept.
-
-PHP renumbers integer keys and silently keeps string ones, which is the key-type-dependent rule
-[`types/array-combination`](types.md#types-array-combination) removes, arriving through an option name. Here the option has one
-meaning over every array shape.
-
-`false` stays the default, matching PHP for a list argument, which is what these members are
-overwhelmingly called with. For an argument with non-numeric keys the result differs from PHP's — the
-keys are gone rather than kept — and `{preserveKeys: true}` is the faithful rewrite where that
-mattered.
-
-<sub>See also [`types/array-combination`](types.md#types-array-combination), [`types/arrays`](types.md#types-arrays). Decided in [0069](../decisions/0069.md), [0007](../decisions/0007.md).</sub>
-
-<a id="types-duration-literal"></a>
-
-## `1h30m` is a `Core\Time\Duration` constant, in one grammar shared by source, `parse` and `nvs.toml`
-
-`rule:types/duration-literal`
-
-```
-duration := ( DEC_INT unit )+
-unit     := ns | us | ms | s | m | h | d | w
-```
-
-- **One token.** `1h30m` lexes as a single duration literal, maximal munch, not as three tokens.
-- **Units strictly descend and may not repeat.** `1h30m` is accepted; `30m1h` and `1h1h` are lexer
-  errors naming this rule, so there is exactly one spelling of any given constant.
-- **Only after a plain decimal integer** — never after `0x…`, `0b…`, a float or an exponent, so `0x1d`
-  stays a hex literal and `1.5s` is an error rather than a rounded duration.
-- **Lower case only**; `30S` is a diagnostic, not a second spelling.
-- **No sign.** `-7d` does not parse; a backwards step is `->minus(7d)`.
-- `d` is exactly 24 h and `w` exactly 168 h. A *calendar* day is a `DateTime` unit and never a
-  `Duration` at all.
-
-The type is `Core\Time\Duration`, always — the suffix *is* the type, with nothing
-untyped-until-placed about it ([`types/numeric-literal-placement`](types.md#types-numeric-literal-placement)). A literal is a compile-time
-constant folded to a single nanosecond count and emitted into the constant pool, so `{timeout: 30s}`
-allocates nothing at run time and a literal beyond `Duration`'s range is a compile error, not a wrap.
-
-`1h + 30m` does not compile — there is no operator overloading; write `1h30m` or `$a->plus($b)`. So
-does `1h30m as int`; write `->toSeconds()`. `$n s` is not a literal; a computed count is
-`Duration::seconds($n)`.
-
-**One grammar, three places, one parser**: source, `Duration::parse($s)` at run time, and a `"30s"` in
-`nvs.toml` at boot. `Duration`'s string form emits this grammar too, so a value round-trips through
-`parse` over exactly the durations the grammar can spell — the non-negative ones. A negative duration
-renders `-1h30m` for a reader, and `parse` refuses that leading `-` **by name** rather than reading a
-positive value out of it.
-
-<sub>See also [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement), [`types/integer-literals`](types.md#types-integer-literals). Decided in [0070](../decisions/0070.md), [0046](../decisions/0046.md), [0057](../decisions/0057.md), [0062](../decisions/0062.md), [0039](../decisions/0039.md).</sub>
-
 <a id="types-class-reference"></a>
 
 ## `class<T>` is a type whose value is a class descriptor, and `as` is its only source
@@ -1270,98 +1362,6 @@ through a class reference is nobody's problem.
 member" ([`types/property-key-access`](types.md#types-property-key-access)).
 
 <sub>See also [`types/class-reference`](types.md#types-class-reference), [`types/property-key-access`](types.md#types-property-key-access). Decided in [0125](../decisions/0125.md), [0007](../decisions/0007.md), [0126](../decisions/0126.md).</sub>
-
-<a id="types-property-key"></a>
-
-## `property<T>` is a type whose values are `T`'s public property names, and `as` is its only source
-
-`rule:types/property-key`
-
-`property<T>` is a type atom, written in every position a type is written, whose **values** are the
-names of `T`'s public declared properties — its own and its ancestors' — and nothing else. What is
-carried at run time is that name, a string in the representation but **not** in the type.
-
-`T` names one **class**. An interface, an enum, a scalar, a `class<...>` — anything that is not a
-class — is `E0799` where it is written, and so is a class declaring no public property at all, since
-no value of that type could exist. The interface row is the conservative one: a key's set has to be a
-roster the receiver certainly has storage for. The set is the same roster reflection walks; the
-visibility question has one shared implementation and this is not a second one.
-
-**`as` is its only source.** A string literal is a `string` and stays one, so no program acquires a key
-by accident. Three rows sit in the one conversion grid ([`types/conversion`](types.md#types-conversion)): a `string` must name
-a public declared property of `T`, or it throws; a `property<U>` narrows at run time; and
-`property<T> → string` is total. A name that names nothing and a name that names a `private` property
-are the same failure and throw the same way — visibility is decided at the conversion, once. A
-written-out operand is decided **where it is written**: `"email" as property<User>` is a compile-time
-yes, or the same unknown-member diagnostic an ordinary `$user->emial` gets. `as ?property<T>` yields
-`null` where the checked form throws.
-
-A qualifier is stripped for a reason narrower than the general row's: the conversion's whole output
-range is the set of properties `User` declares `public` in this program's own source. A tainted string
-cannot widen that set, name a field the author did not write down, or reach a `private` one.
-
-It is its own **equality domain**: two keys are equal when they name the same property, nothing else is
-ever equal to one, and ordering one is refused ([`types/ordering`](types.md#types-ordering)). `property` is a keyword only
-in type position — `$property`, a method named `property` and a class named `Property` are untouched.
-
-<sub>See also [`types/property-key-variance`](types.md#types-property-key-variance), [`types/property-key-access`](types.md#types-property-key-access), [`types/class-reference`](types.md#types-class-reference), [`types/conversion`](types.md#types-conversion). Decided in [0126](../decisions/0126.md), [0007](../decisions/0007.md), [0090](../decisions/0090.md), [0019](../decisions/0019.md), [0066](../decisions/0066.md), [0024](../decisions/0024.md), [0033](../decisions/0033.md).</sub>
-
-<a id="types-property-key-variance"></a>
-
-## `property<T>` widens as `T` narrows, because the argument bounds the receiver
-
-`rule:types/property-key-variance`
-
-A subclass *adds* properties, so `property<Animal>`'s names are all valid on a `Dog` while
-`property<Dog>`'s are not all valid on an `Animal`. **`property<Animal>` therefore widens to
-`property<Dog>`, and never back**: the argument is contravariant.
-
-That is exactly opposite to `class<T>` ([`types/class-reference-variance`](types.md#types-class-reference-variance)), and for the reason
-that inverts it — a class reference is *produced* against its bound, while a key is *consumed* by a
-receiver. Narrowing is written like every other narrowing, `as property<Animal>`, and is the run-time
-check the conversion's second row already describes.
-
-The rule at the site follows and adds nothing: `$obj->$key` requires `$obj`'s type to be a `T`, where
-`T` is the key's argument. A key made against `Animal` reads a `Dog`; a key made against `Dog` does not
-read an `Animal`.
-
-<sub>See also [`types/property-key`](types.md#types-property-key), [`types/class-reference-variance`](types.md#types-class-reference-variance), [`types/property-key-access`](types.md#types-property-key-access). Decided in [0126](../decisions/0126.md), [0125](../decisions/0125.md).</sub>
-
-<a id="types-property-key-access"></a>
-
-## `$obj->$key` accepts a `property<T>` and nothing else; a read is the union and a write is checked
-
-`rule:types/property-key-access`
-
-`$obj->$key` and `$obj->{$expr}` are admitted, and **only** when the operand's type is a `property<T>`
-whose argument the receiver satisfies ([`types/property-key-variance`](types.md#types-property-key-variance)). Every other operand keeps
-`E0235`, with its help naming `as property<T>`, and the refusal lives in the checker rather than the
-parser, because the operand's *type* is the question and the parser cannot see one. The spelling is no
-longer what is rejected; the missing check is.
-
-Three neighbours stay exactly as they are: `$obj->$m(...)` is `E0235` forever, because computed
-*dispatch* is rejected as a concept and a key is not a method name; `$obj->$key` on a `mixed` or
-shape-typed receiver is `E0235`, because there is no `T` to check the key's bound against; and
-`unset($obj->$key)` is `E0234`, as `unset` of any property already is.
-
-A **read** through a key is typed as the **union of the set's declared types** — `int|string|?Address`
-for a `User` declaring those three — which widens into `mixed` or any covering union without an `as`
-and narrows the way every union narrows ([`types/unions-and-mixed`](types.md#types-unions-and-mixed)).
-
-A **write** is the checked erased store ([`types/erased-member-access`](types.md#types-erased-member-access)): it writes an existing
-property, never creates one, and the incoming value is checked at run time against what the class
-declares that property to hold. Statically the value must satisfy at least one member of the union — a
-value no property of `T` could accept is refused where it is written. Both directions lower to the
-erased access the runtime already performs, so per-property hooks and a declared property observer
-behave exactly as they do there.
-
-**A write is refused, at the write, where `T`'s public set holds a `readonly` property**, naming it
-(`E0782`) — the code an ordinary post-construction write already gets. Reading `$id` through a key is
-fine, and a class whose fields are all assignable is unaffected. It is deliberately compile-time:
-where a request-controlled name selects a field to write, refusing at build time is the direction
-priority 1 points in.
-
-<sub>See also [`types/property-key`](types.md#types-property-key), [`types/erased-member-access`](types.md#types-erased-member-access), [`types/property-key-variance`](types.md#types-property-key-variance). Decided in [0126](../decisions/0126.md), [0036](../decisions/0036.md), [0014](../decisions/0014.md), [0038](../decisions/0038.md).</sub>
 
 <a id="types-class-constant"></a>
 

@@ -5,28 +5,6 @@
 
 *1 of 8 rules below are **designed** rather than shipped, and are marked where they appear.*
 
-<a id="enums-closed-integer-type"></a>
-
-## An enum declares a new, closed, named integer type
-
-`rule:enums/closed-integer-type`
-
-`enum Status { Active, Banned }` declares a new named integer type with a fixed set of cases, and
-the enum's name is then a type like any other — a property, a parameter, a return, a local, a class
-constant, an `array<T>` element, an `Iterator<T>` yield, a `foreach` binding. The `enum` keyword
-appears only at the declaration site; every use site spells the enum's own name, exactly as a class
-does.
-
-A case is a compile-time constant of that type, never an object. There is no singleton to allocate,
-no identity distinct from the value ([`enums/no-class-machinery`](enums.md#enums-no-class-machinery)), and no per-isolate storage
-slot to build or tear down ([`enums/representation`](enums.md#enums-representation)).
-
-The set is closed, and closed means checked: a value no case names never becomes a case by default
-or by silent coercion. `EnumName` is its own kind of type atom rather than a class reference, so a
-name that resolves to an enum is not a class name and is never treated as one.
-
-<sub>See also [`enums/declaration`](enums.md#enums-declaration), [`enums/one-backing-type`](enums.md#enums-one-backing-type), [`enums/no-class-machinery`](enums.md#enums-no-class-machinery), [`enums/representation`](enums.md#enums-representation). Decided in [0010](../decisions/0010.md), [0007](../decisions/0007.md), [0008](../decisions/0008.md).</sub>
-
 <a id="enums-declaration"></a>
 
 ## A case with no written value counts on from the one before it, starting at zero
@@ -71,6 +49,28 @@ only its spelling is wrong.
 
 <sub>See also [`enums/declaration`](enums.md#enums-declaration), [`enums/no-class-machinery`](enums.md#enums-no-class-machinery). Decided in [0010](../decisions/0010.md).</sub>
 
+<a id="enums-closed-integer-type"></a>
+
+## An enum declares a new, closed, named integer type
+
+`rule:enums/closed-integer-type`
+
+`enum Status { Active, Banned }` declares a new named integer type with a fixed set of cases, and
+the enum's name is then a type like any other — a property, a parameter, a return, a local, a class
+constant, an `array<T>` element, an `Iterator<T>` yield, a `foreach` binding. The `enum` keyword
+appears only at the declaration site; every use site spells the enum's own name, exactly as a class
+does.
+
+A case is a compile-time constant of that type, never an object. There is no singleton to allocate,
+no identity distinct from the value ([`enums/no-class-machinery`](enums.md#enums-no-class-machinery)), and no per-isolate storage
+slot to build or tear down ([`enums/representation`](enums.md#enums-representation)).
+
+The set is closed, and closed means checked: a value no case names never becomes a case by default
+or by silent coercion. `EnumName` is its own kind of type atom rather than a class reference, so a
+name that resolves to an enum is not a class name and is never treated as one.
+
+<sub>See also [`enums/declaration`](enums.md#enums-declaration), [`enums/one-backing-type`](enums.md#enums-one-backing-type), [`enums/no-class-machinery`](enums.md#enums-no-class-machinery), [`enums/representation`](enums.md#enums-representation). Decided in [0010](../decisions/0010.md), [0007](../decisions/0007.md), [0008](../decisions/0008.md).</sub>
+
 <a id="enums-one-backing-type"></a>
 
 ## Every enum is backed by exactly one integer type, and nothing else backs one
@@ -91,6 +91,47 @@ The two backings are told apart everywhere the type is. A `uint`-backed case con
 only, an `int`-backed one with `as int` only, and each refuses the other.
 
 <sub>See also [`enums/declaration`](enums.md#enums-declaration), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`enums/representation`](enums.md#enums-representation). Decided in [0010](../decisions/0010.md), [0007](../decisions/0007.md).</sub>
+
+<a id="enums-representation"></a>
+
+## An enum value costs nothing beyond the integer it is
+
+`rule:enums/representation`
+
+An enum value is its backing integer and nothing more — zero additional bytes over what `int` or
+`uint` already costs, no allocation, no refcount, no descriptor. Where the static type is known,
+which the type system makes the common case, codegen already knows which enum it is and there is
+nothing further to carry.
+
+A runtime tag of its own is **reserved for an enum but not spent**. Materialized into a tagged
+value, a case takes the tag of the type backing it, `Int` or `Uint`. A tag only has to answer "which
+type is this?" where the static type does not — the `mixed` case, whose representation is still
+open. The consequence to obey today: a value that reaches `mixed` is not distinguishable there from
+its backing integer, nor one enum from another enum with the same backing.
+
+Crossing an isolate boundary copies a plain scalar, with no object identity to preserve or discard.
+
+<sub>See also [`enums/no-class-machinery`](enums.md#enums-no-class-machinery), [`enums/one-backing-type`](enums.md#enums-one-backing-type), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type). Decided in [0010](../decisions/0010.md), [0007](../decisions/0007.md), [0006](../decisions/0006.md), [0004](../decisions/0004.md).</sub>
+
+<a id="enums-truthiness"></a>
+
+## An enum case is always truthy, whatever integer backs it
+
+`rule:enums/truthiness`
+
+An enum case in a condition is **always truthy**, whatever integer backs it. `Signal::Idle` backed
+by `0` is truthy; so is a case backed by a negative value.
+
+An enum follows the object row of the truthy table rather than the integer row its backing type
+might suggest ([`enums/representation`](enums.md#enums-representation)). PHP's enum cases are objects, PHP has no mechanism for
+making an object falsy, and so every ported `if ($status)` over an enum has only ever meant "always
+true" — judging a case by its backing integer instead would silently change the branch that
+condition takes.
+
+Lowering reads this statically: a condition whose static type is an enum needs no truthiness helper
+and no comparison at all.
+
+<sub>See also [`enums/representation`](enums.md#enums-representation), [`enums/no-class-machinery`](enums.md#enums-no-class-machinery), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type). Decided in [0035](../decisions/0035.md), [0010](../decisions/0010.md).</sub>
 
 <a id="enums-no-class-machinery"></a>
 
@@ -123,27 +164,6 @@ is no standalone-function destination for it to go to.
 
 <sub>See also [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`enums/representation`](enums.md#enums-representation), [`enums/no-case-keyword`](enums.md#enums-no-case-keyword), [`enums/reflection`](enums.md#enums-reflection). Decided in [0010](../decisions/0010.md), [0008](../decisions/0008.md), [0011](../decisions/0011.md).</sub>
 
-<a id="enums-representation"></a>
-
-## An enum value costs nothing beyond the integer it is
-
-`rule:enums/representation`
-
-An enum value is its backing integer and nothing more — zero additional bytes over what `int` or
-`uint` already costs, no allocation, no refcount, no descriptor. Where the static type is known,
-which the type system makes the common case, codegen already knows which enum it is and there is
-nothing further to carry.
-
-A runtime tag of its own is **reserved for an enum but not spent**. Materialized into a tagged
-value, a case takes the tag of the type backing it, `Int` or `Uint`. A tag only has to answer "which
-type is this?" where the static type does not — the `mixed` case, whose representation is still
-open. The consequence to obey today: a value that reaches `mixed` is not distinguishable there from
-its backing integer, nor one enum from another enum with the same backing.
-
-Crossing an isolate boundary copies a plain scalar, with no object identity to preserve or discard.
-
-<sub>See also [`enums/no-class-machinery`](enums.md#enums-no-class-machinery), [`enums/one-backing-type`](enums.md#enums-one-backing-type), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type). Decided in [0010](../decisions/0010.md), [0007](../decisions/0007.md), [0006](../decisions/0006.md), [0004](../decisions/0004.md).</sub>
-
 <a id="enums-reflection"></a>
 
 ## Reflection describes an enum's shape and grants it nothing a class has  *(designed — not yet in the compiler)*
@@ -159,23 +179,3 @@ type ([`enums/closed-integer-type`](enums.md#enums-closed-integer-type)), not a 
 description of a case list is not a `::cases()` the language does not have.
 
 <sub>See also [`enums/no-class-machinery`](enums.md#enums-no-class-machinery), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type). Decided in [0019](../decisions/0019.md), [0010](../decisions/0010.md).</sub>
-
-<a id="enums-truthiness"></a>
-
-## An enum case is always truthy, whatever integer backs it
-
-`rule:enums/truthiness`
-
-An enum case in a condition is **always truthy**, whatever integer backs it. `Signal::Idle` backed
-by `0` is truthy; so is a case backed by a negative value.
-
-An enum follows the object row of the truthy table rather than the integer row its backing type
-might suggest ([`enums/representation`](enums.md#enums-representation)). PHP's enum cases are objects, PHP has no mechanism for
-making an object falsy, and so every ported `if ($status)` over an enum has only ever meant "always
-true" — judging a case by its backing integer instead would silently change the branch that
-condition takes.
-
-Lowering reads this statically: a condition whose static type is an enum needs no truthiness helper
-and no comparison at all.
-
-<sub>See also [`enums/representation`](enums.md#enums-representation), [`enums/no-class-machinery`](enums.md#enums-no-class-machinery), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type). Decided in [0035](../decisions/0035.md), [0010](../decisions/0010.md).</sub>

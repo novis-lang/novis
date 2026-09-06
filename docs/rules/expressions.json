@@ -1,7 +1,7 @@
 {
   "topic": "expressions",
   "title": "Expressions",
-  "order": 20,
+  "order": 30,
   "rules": [
     {
       "id": "expressions/truthy-positions",
@@ -50,15 +50,122 @@
       ]
     },
     {
-      "id": "expressions/bracket-destructuring",
-      "title": "`list(...)` does not parse; `[...]` is the only destructuring target",
+      "id": "expressions/nullable-condition-lint",
+      "title": "A `?T` used directly as a condition is warned about, not refused",
+      "status": "designed",
+      "because": ["0066", "0035"],
+      "seeAlso": [
+        "expressions/nullable-conversion",
+        "expressions/truthy-table",
+        "expressions/bare-throwable-arm-warns"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "expressions/one-equality-operator",
+      "title": "`==` and `!=` are the whole of equality, and `===`, `!==` and `<>` do not parse",
       "status": "shipped",
-      "because": ["0050", "0049"],
-      "divergesFromPhp": "one of PHP's two destructuring spellings is refused, so `list($a, $b) = $pair;` is a diagnostic naming the bracket form",
-      "seeAlso": ["expressions/no-keyword-logical-operators"],
+      "because": ["0090", "0013", "0029"],
+      "divergesFromPhp": "there is no loose-versus-strict pair to pick between — one operator, which never converts either operand",
+      "seeAlso": [
+        "expressions/disjoint-comparison-refused",
+        "expressions/equality-semantics",
+        "expressions/object-identity-equality",
+        "expressions/mixed-equality",
+        "expressions/switch-match-equality"
+      ],
       "guardedBy": [
-        "tests/conformance/reject/list-destructuring-does-not-parse.nvst",
-        "tests/conformance/lang/destructuring-reads-elements-off-one-array.nvst"
+        "tests/conformance/reject/not-equal-is-spelled-bang-equals.nvst",
+        "tests/conformance/lang/equality-and-inequality-over-scalars.nvst",
+        "tests/conformance/lang/comparison-operators.nvst"
+      ]
+    },
+    {
+      "id": "expressions/equality-semantics",
+      "title": "Equality has one row per type, and every row is the strict reading",
+      "status": "shipped",
+      "because": ["0090", "0054", "0010", "0007", "0031", "0009"],
+      "divergesFromPhp": "each row where PHP's two operators disagreed takes `===`'s answer — two strings compare as text and never as numbers, and an array compares in key order",
+      "seeAlso": [
+        "expressions/one-equality-operator",
+        "expressions/object-identity-equality",
+        "expressions/mixed-equality",
+        "expressions/disjoint-comparison-refused",
+        "enums/representation"
+      ],
+      "guardedBy": [
+        "tests/conformance/lang/equality-over-strings-and-bools.nvst",
+        "tests/conformance/lang/equality-over-arrays-objects-and-mixed.nvst",
+        "tests/conformance/lang/float-comparisons-and-equality.nvst",
+        "tests/conformance/lang/two-nulls-are-equal-and-two-bools-order.nvst"
+      ]
+    },
+    {
+      "id": "expressions/mixed-equality",
+      "title": "A `mixed` or union operand resolves at run time, and a mismatched pair answers `false`",
+      "status": "shipped",
+      "because": ["0090", "0007"],
+      "divergesFromPhp": "a cross-type pairing is `false` rather than PHP's converting comparison, and it is the one place a comparison answers instead of refusing to compile",
+      "seeAlso": [
+        "expressions/disjoint-comparison-refused",
+        "expressions/equality-semantics",
+        "expressions/truthy-table"
+      ],
+      "guardedBy": [
+        "tests/conformance/lang/numeric-identity-is-one-domain-at-runtime.nvst",
+        "tests/conformance/lang/equality-over-arrays-objects-and-mixed.nvst",
+        "crates/nvs-types/tests/equality.rs"
+      ]
+    },
+    {
+      "id": "expressions/object-identity-equality",
+      "title": "Two objects are equal only when they are the same object, and no class may change that",
+      "status": "shipped",
+      "because": ["0090", "0013", "0014", "0028", "0079"],
+      "divergesFromPhp": "PHP's `==` walked properties; here there is no property walk, no `__equals`, no `equals()` protocol and no `Equatable` interface",
+      "seeAlso": [
+        "expressions/equality-semantics",
+        "expressions/one-equality-operator",
+        "expressions/mixed-equality"
+      ],
+      "guardedBy": [
+        "tests/conformance/lang/equality-over-arrays-objects-and-mixed.nvst",
+        "tests/conformance/core/object-collections-hold-one-member-per-distinct-value.nvst"
+      ]
+    },
+    {
+      "id": "expressions/disjoint-comparison-refused",
+      "title": "Comparing two types that no single value inhabits is a compile error",
+      "status": "shipped",
+      "because": ["0090", "0007", "0009", "0010", "0047", "0054"],
+      "divergesFromPhp": "`\"1\" == 1` neither answers `true` nor `false`; it does not compile, and the diagnostic names the conversion the author meant",
+      "seeAlso": [
+        "expressions/one-equality-operator",
+        "expressions/equality-semantics",
+        "expressions/mixed-equality",
+        "expressions/switch-match-equality"
+      ],
+      "guardedBy": [
+        "tests/conformance/lang/disjoint-equality-is-a-compile-error.nvst",
+        "tests/conformance/lang/equality-across-overlapping-types-still-compiles.nvst",
+        "crates/nvs-types/tests/equality.rs"
+      ]
+    },
+    {
+      "id": "expressions/switch-match-equality",
+      "title": "A `switch` label and a `match` arm compare by the equality rule and by nothing else",
+      "status": "shipped",
+      "because": ["0090", "0035"],
+      "divergesFromPhp": "`switch` no longer compares loosely while `match` compares identically — there is one comparison, and both use it",
+      "seeAlso": [
+        "expressions/one-equality-operator",
+        "expressions/disjoint-comparison-refused",
+        "expressions/equality-semantics"
+      ],
+      "guardedBy": [
+        "tests/conformance/lang/a-switch-compares-in-order-and-falls-through.nvst",
+        "tests/conformance/lang/equality-across-overlapping-types-still-compiles.nvst",
+        "tests/differential/lang/a-switch-and-a-match-agree-with-php.nvst"
       ]
     },
     {
@@ -89,16 +196,15 @@
       "guardedBy": ["crates/nvs-types/tests/intrinsics.rs"]
     },
     {
-      "id": "expressions/preparation-preserves-behaviour",
-      "title": "The prepared path and the runtime path are one implementation, so preparation is only earlier and never different",
+      "id": "expressions/bracket-destructuring",
+      "title": "`list(...)` does not parse; `[...]` is the only destructuring target",
       "status": "shipped",
-      "because": ["0057", "0042", "0018"],
-      "seeAlso": [
-        "expressions/intrinsic-literals",
-        "expressions/intrinsic-list-is-closed"
-      ],
+      "because": ["0050", "0049"],
+      "divergesFromPhp": "one of PHP's two destructuring spellings is refused, so `list($a, $b) = $pair;` is a diagnostic naming the bracket form",
+      "seeAlso": ["expressions/no-keyword-logical-operators"],
       "guardedBy": [
-        "tests/conformance/core/a-literal-intrinsic-is-validated-while-checking.nvst"
+        "tests/conformance/reject/list-destructuring-does-not-parse.nvst",
+        "tests/conformance/lang/destructuring-reads-elements-off-one-array.nvst"
       ]
     },
     {
@@ -138,6 +244,20 @@
       ]
     },
     {
+      "id": "expressions/conversion-keeps-qualifiers",
+      "title": "`as ?T` decides `tainted` and `secret` by exactly the rule `as T` uses, and launders nothing of its own",
+      "status": "shipped",
+      "because": ["0066", "0024", "0033"],
+      "seeAlso": [
+        "expressions/nullable-conversion",
+        "expressions/nullable-conversion-availability"
+      ],
+      "guardedBy": [
+        "crates/nvs-types/tests/tainted.rs",
+        "crates/nvs-types/tests/secret.rs"
+      ]
+    },
+    {
       "id": "expressions/try-parse",
       "title": "A failable single-`string` parse is spelled `tryParse`, and no separate validity predicate stands beside it",
       "status": "shipped",
@@ -154,136 +274,16 @@
       ]
     },
     {
-      "id": "expressions/conversion-keeps-qualifiers",
-      "title": "`as ?T` decides `tainted` and `secret` by exactly the rule `as T` uses, and launders nothing of its own",
+      "id": "expressions/preparation-preserves-behaviour",
+      "title": "The prepared path and the runtime path are one implementation, so preparation is only earlier and never different",
       "status": "shipped",
-      "because": ["0066", "0024", "0033"],
+      "because": ["0057", "0042", "0018"],
       "seeAlso": [
-        "expressions/nullable-conversion",
-        "expressions/nullable-conversion-availability"
+        "expressions/intrinsic-literals",
+        "expressions/intrinsic-list-is-closed"
       ],
       "guardedBy": [
-        "crates/nvs-types/tests/tainted.rs",
-        "crates/nvs-types/tests/secret.rs"
-      ]
-    },
-    {
-      "id": "expressions/nullable-condition-lint",
-      "title": "A `?T` used directly as a condition is warned about, not refused",
-      "status": "designed",
-      "because": ["0066", "0035"],
-      "seeAlso": [
-        "expressions/nullable-conversion",
-        "expressions/truthy-table",
-        "expressions/bare-throwable-arm-warns"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "expressions/one-equality-operator",
-      "title": "`==` and `!=` are the whole of equality, and `===`, `!==` and `<>` do not parse",
-      "status": "shipped",
-      "because": ["0090", "0013", "0029"],
-      "divergesFromPhp": "there is no loose-versus-strict pair to pick between — one operator, which never converts either operand",
-      "seeAlso": [
-        "expressions/disjoint-comparison-refused",
-        "expressions/equality-semantics",
-        "expressions/object-identity-equality",
-        "expressions/mixed-equality",
-        "expressions/switch-match-equality"
-      ],
-      "guardedBy": [
-        "tests/conformance/reject/not-equal-is-spelled-bang-equals.nvst",
-        "tests/conformance/lang/equality-and-inequality-over-scalars.nvst",
-        "tests/conformance/lang/comparison-operators.nvst"
-      ]
-    },
-    {
-      "id": "expressions/disjoint-comparison-refused",
-      "title": "Comparing two types that no single value inhabits is a compile error",
-      "status": "shipped",
-      "because": ["0090", "0007", "0009", "0010", "0047", "0054"],
-      "divergesFromPhp": "`\"1\" == 1` neither answers `true` nor `false`; it does not compile, and the diagnostic names the conversion the author meant",
-      "seeAlso": [
-        "expressions/one-equality-operator",
-        "expressions/equality-semantics",
-        "expressions/mixed-equality",
-        "expressions/switch-match-equality"
-      ],
-      "guardedBy": [
-        "tests/conformance/lang/disjoint-equality-is-a-compile-error.nvst",
-        "tests/conformance/lang/equality-across-overlapping-types-still-compiles.nvst",
-        "crates/nvs-types/tests/equality.rs"
-      ]
-    },
-    {
-      "id": "expressions/equality-semantics",
-      "title": "Equality has one row per type, and every row is the strict reading",
-      "status": "shipped",
-      "because": ["0090", "0054", "0010", "0007", "0031", "0009"],
-      "divergesFromPhp": "each row where PHP's two operators disagreed takes `===`'s answer — two strings compare as text and never as numbers, and an array compares in key order",
-      "seeAlso": [
-        "expressions/one-equality-operator",
-        "expressions/object-identity-equality",
-        "expressions/mixed-equality",
-        "expressions/disjoint-comparison-refused",
-        "enums/representation"
-      ],
-      "guardedBy": [
-        "tests/conformance/lang/equality-over-strings-and-bools.nvst",
-        "tests/conformance/lang/equality-over-arrays-objects-and-mixed.nvst",
-        "tests/conformance/lang/float-comparisons-and-equality.nvst",
-        "tests/conformance/lang/two-nulls-are-equal-and-two-bools-order.nvst"
-      ]
-    },
-    {
-      "id": "expressions/object-identity-equality",
-      "title": "Two objects are equal only when they are the same object, and no class may change that",
-      "status": "shipped",
-      "because": ["0090", "0013", "0014", "0028", "0079"],
-      "divergesFromPhp": "PHP's `==` walked properties; here there is no property walk, no `__equals`, no `equals()` protocol and no `Equatable` interface",
-      "seeAlso": [
-        "expressions/equality-semantics",
-        "expressions/one-equality-operator",
-        "expressions/mixed-equality"
-      ],
-      "guardedBy": [
-        "tests/conformance/lang/equality-over-arrays-objects-and-mixed.nvst",
-        "tests/conformance/core/object-collections-hold-one-member-per-distinct-value.nvst"
-      ]
-    },
-    {
-      "id": "expressions/mixed-equality",
-      "title": "A `mixed` or union operand resolves at run time, and a mismatched pair answers `false`",
-      "status": "shipped",
-      "because": ["0090", "0007"],
-      "divergesFromPhp": "a cross-type pairing is `false` rather than PHP's converting comparison, and it is the one place a comparison answers instead of refusing to compile",
-      "seeAlso": [
-        "expressions/disjoint-comparison-refused",
-        "expressions/equality-semantics",
-        "expressions/truthy-table"
-      ],
-      "guardedBy": [
-        "tests/conformance/lang/numeric-identity-is-one-domain-at-runtime.nvst",
-        "tests/conformance/lang/equality-over-arrays-objects-and-mixed.nvst",
-        "crates/nvs-types/tests/equality.rs"
-      ]
-    },
-    {
-      "id": "expressions/switch-match-equality",
-      "title": "A `switch` label and a `match` arm compare by the equality rule and by nothing else",
-      "status": "shipped",
-      "because": ["0090", "0035"],
-      "divergesFromPhp": "`switch` no longer compares loosely while `match` compares identically — there is one comparison, and both use it",
-      "seeAlso": [
-        "expressions/one-equality-operator",
-        "expressions/disjoint-comparison-refused",
-        "expressions/equality-semantics"
-      ],
-      "guardedBy": [
-        "tests/conformance/lang/a-switch-compares-in-order-and-falls-through.nvst",
-        "tests/conformance/lang/equality-across-overlapping-types-still-compiles.nvst",
-        "tests/differential/lang/a-switch-and-a-match-agree-with-php.nvst"
+        "tests/conformance/core/a-literal-intrinsic-is-validated-while-checking.nvst"
       ]
     },
     {

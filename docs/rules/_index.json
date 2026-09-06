@@ -1,63 +1,63 @@
 {
   "topics": [
     {
-      "topic": "errors",
-      "title": "Errors",
-      "order": 10
-    },
-    {
-      "topic": "enums",
-      "title": "Enums",
-      "order": 20
-    },
-    {
-      "topic": "iteration",
-      "title": "Iteration",
-      "order": 30
-    },
-    {
       "topic": "programs",
       "title": "Programs",
-      "order": 40
-    },
-    {
-      "topic": "statements",
-      "title": "Statements",
-      "order": 50
-    },
-    {
-      "topic": "attributes",
-      "title": "Attributes",
-      "order": 60
-    },
-    {
-      "topic": "testing",
-      "title": "Testing",
-      "order": 70
-    },
-    {
-      "topic": "expressions",
-      "title": "Expressions",
-      "order": 80
+      "order": 10
     },
     {
       "topic": "types",
       "title": "Types",
-      "order": 90
+      "order": 20
+    },
+    {
+      "topic": "expressions",
+      "title": "Expressions",
+      "order": 30
+    },
+    {
+      "topic": "statements",
+      "title": "Statements",
+      "order": 40
     },
     {
       "topic": "classes",
       "title": "Classes",
+      "order": 50
+    },
+    {
+      "topic": "enums",
+      "title": "Enums",
+      "order": 60
+    },
+    {
+      "topic": "iteration",
+      "title": "Iteration",
+      "order": 70
+    },
+    {
+      "topic": "attributes",
+      "title": "Attributes",
+      "order": 80
+    },
+    {
+      "topic": "errors",
+      "title": "Errors",
+      "order": 90
+    },
+    {
+      "topic": "tooling",
+      "title": "Tooling",
       "order": 100
     },
     {
-      "topic": "core-classes",
-      "title": "The Core classes",
+      "topic": "ide",
+      "title": "The editor",
       "order": 110
     },
     {
-      "topic": "core-api",
-      "title": "The Core API",
+      "topic": "testing",
+      "title": "Testing",
       "order": 120
     },
     {
@@ -71,38 +71,38 @@
       "order": 140
     },
     {
-      "topic": "routing",
-      "title": "Routing",
+      "topic": "core-api",
+      "title": "The Core API",
       "order": 150
     },
     {
-      "topic": "config",
-      "title": "Configuration",
+      "topic": "core-classes",
+      "title": "The Core classes",
       "order": 160
-    },
-    {
-      "topic": "packaging",
-      "title": "Packaging",
-      "order": 170
     },
     {
       "topic": "observability",
       "title": "Observability",
-      "order": 180
+      "order": 170
     },
     {
       "topic": "http-server",
       "title": "The HTTP server",
+      "order": 180
+    },
+    {
+      "topic": "routing",
+      "title": "Routing",
       "order": 190
     },
     {
-      "topic": "tooling",
-      "title": "Tooling",
+      "topic": "config",
+      "title": "Configuration",
       "order": 200
     },
     {
-      "topic": "ide",
-      "title": "The editor",
+      "topic": "packaging",
+      "title": "Packaging",
       "order": 210
     },
     {

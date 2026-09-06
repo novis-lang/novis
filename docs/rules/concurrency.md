@@ -29,6 +29,27 @@ and no handle to leak, so a task tree is bounded by the same accounting a reques
 
 <sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`core-api/tier-roster`](core-api.md#core-api-tier-roster). Decided in [0072](../decisions/0072.md), [0006](../decisions/0006.md).</sub>
 
+<a id="concurrency-a-child-belongs-to-the-calling-task"></a>
+
+## Every task is a child of the task that started it, shares that request's accounting, and dies with it
+
+`rule:concurrency/a-child-belongs-to-the-calling-task`
+
+Every task starts as a child of the task that started it. There is no unparented task and no way to
+write one: a group's closures are children of the calling task, a served connection is a child of
+the task accepting on that core, a scheduled fire is a child of the ticker's task, and a `spawn
+script` isolate is a child of the frame that spawned it.
+
+Parentage is what carries accounting. A child shares its request's memory, CPU and capability
+grants rather than opening an account of its own, so a tree's cost is attributable to one request
+and bounded by that request's limits with nothing added. It is also what carries death: a parent
+that ends cancels what it left running, so the tree cannot outlive it and there are no orphans.
+
+A host with no calling task therefore has no place to put children, which is why every entry point
+that runs a program makes a task first even where one buys nothing else.
+
+<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0072](../decisions/0072.md), [0006](../decisions/0006.md).</sub>
+
 <a id="concurrency-all-answers-a-typed-shape"></a>
 
 ## `Core\Task::all` answers a shape with the argument's own field names, each field keeping its own type
@@ -80,27 +101,6 @@ runs them cannot use `all`; it uses [`concurrency/map-preserves-keys-and-order`]
 the restriction, and until they land this is the honest cost of not answering `array<mixed>`.
 
 <sub>See also [`types/closure-literal`](types.md#types-closure-literal), [`types/callable-absorbs-closure`](types.md#types-callable-absorbs-closure), [`types/grammar`](types.md#types-grammar). Decided in [0072](../decisions/0072.md), [0114](../decisions/0114.md).</sub>
-
-<a id="concurrency-a-child-belongs-to-the-calling-task"></a>
-
-## Every task is a child of the task that started it, shares that request's accounting, and dies with it
-
-`rule:concurrency/a-child-belongs-to-the-calling-task`
-
-Every task starts as a child of the task that started it. There is no unparented task and no way to
-write one: a group's closures are children of the calling task, a served connection is a child of
-the task accepting on that core, a scheduled fire is a child of the ticker's task, and a `spawn
-script` isolate is a child of the frame that spawned it.
-
-Parentage is what carries accounting. A child shares its request's memory, CPU and capability
-grants rather than opening an account of its own, so a tree's cost is attributable to one request
-and bounded by that request's limits with nothing added. It is also what carries death: a parent
-that ends cancels what it left running, so the tree cannot outlive it and there are no orphans.
-
-A host with no calling task therefore has no place to put children, which is why every entry point
-that runs a program makes a task first even where one buys nothing else.
-
-<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0072](../decisions/0072.md), [0006](../decisions/0006.md).</sub>
 
 <a id="concurrency-map-preserves-keys-and-order"></a>
 
@@ -175,27 +175,6 @@ it is why cancellation is the runtime's own teardown rather than anything a prog
 
 <sub>See also [`concurrency/cancellation-runs-no-user-code`](concurrency.md#concurrency-cancellation-runs-no-user-code), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`errors/log-write`](errors.md#errors-log-write). Decided in [0072](../decisions/0072.md).</sub>
 
-<a id="concurrency-a-deadline-bounds-the-cancel-not-the-return"></a>
-
-## A deadline bounds when cancellation is asked for, not when the call returns  *(designed — not yet in the compiler)*
-
-`rule:concurrency/a-deadline-bounds-the-cancel-not-the-return`
-
-A `deadline` bounds when cancellation is **requested**, not when the call returns.
-
-A child blocked mid-statement cannot simply be abandoned: a database connection with an unread
-result set is unusable, so the statement is cancelled through the driver's own mechanism and the
-call waits until that connection is back in a known state. That drain is bounded in turn by the
-connection's own `timeout`, after which the connection is **closed rather than returned to the
-pool**.
-
-So `deadline: 2s` can return at two seconds plus one connection timeout in the pathological case.
-Overrunning a stated deadline by a bounded amount is the correct trade against handing a poisoned
-connection back to a pool, where it would fail some later, unrelated request. A deadline is a bound
-on when the work stops being asked for; it is not a hard wall-clock guarantee on return.
-
-<sub>See also [`concurrency/nothing-is-still-running-when-a-call-returns`](concurrency.md#concurrency-nothing-is-still-running-when-a-call-returns), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state). Decided in [0072](../decisions/0072.md).</sub>
-
 <a id="concurrency-cancellation-runs-no-user-code"></a>
 
 ## A cancelled task runs no `catch`, no cleanup and no handler, and cancellation is not a `Throwable`
@@ -219,6 +198,27 @@ goes inside the transaction that made it necessary, in
 [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection)'s deferred work, or in a durable queue.
 
 <sub>See also [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`security/isolate-teardown-is-a-drain-then-a-sweep`](security.md#security-isolate-teardown-is-a-drain-then-a-sweep). Decided in [0072](../decisions/0072.md), [0106](../decisions/0106.md).</sub>
+
+<a id="concurrency-a-deadline-bounds-the-cancel-not-the-return"></a>
+
+## A deadline bounds when cancellation is asked for, not when the call returns  *(designed — not yet in the compiler)*
+
+`rule:concurrency/a-deadline-bounds-the-cancel-not-the-return`
+
+A `deadline` bounds when cancellation is **requested**, not when the call returns.
+
+A child blocked mid-statement cannot simply be abandoned: a database connection with an unread
+result set is unusable, so the statement is cancelled through the driver's own mechanism and the
+call waits until that connection is back in a known state. That drain is bounded in turn by the
+connection's own `timeout`, after which the connection is **closed rather than returned to the
+pool**.
+
+So `deadline: 2s` can return at two seconds plus one connection timeout in the pathological case.
+Overrunning a stated deadline by a bounded amount is the correct trade against handing a poisoned
+connection back to a pool, where it would fail some later, unrelated request. A deadline is a bound
+on when the work stops being asked for; it is not a hard wall-clock guarantee on return.
+
+<sub>See also [`concurrency/nothing-is-still-running-when-a-call-returns`](concurrency.md#concurrency-nothing-is-still-running-when-a-call-returns), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state). Decided in [0072](../decisions/0072.md).</sub>
 
 <a id="concurrency-after-response-outlives-the-connection"></a>
 
@@ -368,6 +368,28 @@ read and nothing decides on. Both are charged to a core and capped, which is the
 
 <sub>See also [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`security/closed-doors`](security.md#security-closed-doors), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0059](../decisions/0059.md), [0052](../decisions/0052.md), [0004](../decisions/0004.md).</sub>
 
+<a id="concurrency-put-and-get-are-the-whole-boundary"></a>
+
+## The cache boundary is a copy in and a copy out, so nothing across it is read-modify-write
+
+`rule:concurrency/put-and-get-are-the-whole-boundary`
+
+What crosses the cache boundary is a copy in and a copy out. There is no read-modify-write across
+it: no set-if-absent, no compare-and-set, no atomic increment, and no operation that observes an
+entry and writes it in the same step.
+
+An entry is therefore a payload rather than a live graph, and a rewrite **replaces** the entry
+instead of merging into it. Two requests that read the same key, change what they read and write it
+back are two last-writer-wins races, not a coordination primitive, and nothing about the boundary
+pretends otherwise.
+
+That is why a lock, a counter or a limiter is never built on the cache. The mechanisms that need
+those guarantees have their own homes over the shared tier, where the store's own atomicity is what
+provides them — `Core\RateLimit::consume` for a limit, a lease for scheduled work, and the database
+for anything else.
+
+<sub>See also [`concurrency/a-cached-value-is-copied-across-the-boundary`](concurrency.md#concurrency-a-cached-value-is-copied-across-the-boundary), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers). Decided in [0059](../decisions/0059.md).</sub>
+
 <a id="concurrency-a-cached-value-is-copied-across-the-boundary"></a>
 
 ## A value is copied into the cache and copied back out, by the same graph copy the isolate boundary uses
@@ -392,28 +414,6 @@ later share immutable scalars within a core by refcount, since a core is single-
 optimisation, and it must not be observable.
 
 <sub>See also [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`iteration/generator-stays-in-one-isolate`](iteration.md#iteration-generator-stays-in-one-isolate). Decided in [0059](../decisions/0059.md), [0033](../decisions/0033.md).</sub>
-
-<a id="concurrency-put-and-get-are-the-whole-boundary"></a>
-
-## The cache boundary is a copy in and a copy out, so nothing across it is read-modify-write
-
-`rule:concurrency/put-and-get-are-the-whole-boundary`
-
-What crosses the cache boundary is a copy in and a copy out. There is no read-modify-write across
-it: no set-if-absent, no compare-and-set, no atomic increment, and no operation that observes an
-entry and writes it in the same step.
-
-An entry is therefore a payload rather than a live graph, and a rewrite **replaces** the entry
-instead of merging into it. Two requests that read the same key, change what they read and write it
-back are two last-writer-wins races, not a coordination primitive, and nothing about the boundary
-pretends otherwise.
-
-That is why a lock, a counter or a limiter is never built on the cache. The mechanisms that need
-those guarantees have their own homes over the shared tier, where the store's own atomicity is what
-provides them — `Core\RateLimit::consume` for a limit, a lease for scheduled work, and the database
-for anything else.
-
-<sub>See also [`concurrency/a-cached-value-is-copied-across-the-boundary`](concurrency.md#concurrency-a-cached-value-is-copied-across-the-boundary), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers). Decided in [0059](../decisions/0059.md).</sub>
 
 <a id="concurrency-cache-memory-is-charged-to-the-core"></a>
 
@@ -717,6 +717,320 @@ client cannot tell apart from a network failure.
 
 <sub>See also [`concurrency/connection-bounds-are-finite`](concurrency.md#concurrency-connection-bounds-are-finite), [`concurrency/a-connection-keeps-its-compiled-unit`](concurrency.md#concurrency-a-connection-keeps-its-compiled-unit). Decided in [0083](../decisions/0083.md), [0078](../decisions/0078.md).</sub>
 
+<a id="concurrency-enqueue-commits-with-your-write"></a>
+
+## A `push` on the queue's connection commits with the write that caused it, or neither happens
+
+`rule:concurrency/enqueue-commits-with-your-write`
+
+`Core\Queue::push` on the queue's own connection enlists in whatever transaction that connection
+already has open. If the transaction rolls back the job was never enqueued; if it commits the job is
+durable. There is no window in which the order exists and the job that was to send its receipt does
+not, and there is no outbox to write.
+
+That is the property a job being a row buys, and it is the whole reason the storage is a table in a
+database `Core\Db` already talks to ([`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table)). Every queue built
+on an external broker has an enqueue and a business write in two systems that cannot commit together,
+and every team on one rediscovers the outbox pattern — which is to say they rediscover that the
+database was the right queue.
+
+Outside a transaction, `push` is its own committed statement, which is the ordinary case and needs
+nothing said about it. Pointing `[queue] connection` at a separate database is permitted and silently
+gives up this property; so does pushing on a different connection than the queue's
+([`concurrency/foreign-connection-enqueue-is-counted`](concurrency.md#concurrency-foreign-connection-enqueue-is-counted)).
+
+<sub>See also [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table), [`concurrency/foreign-connection-enqueue-is-counted`](concurrency.md#concurrency-foreign-connection-enqueue-is-counted), [`concurrency/no-broker-and-no-driver-interface`](concurrency.md#concurrency-no-broker-and-no-driver-interface). Decided in [0084](../decisions/0084.md), [0067](../decisions/0067.md).</sub>
+
+<a id="concurrency-queue-four-members"></a>
+
+## `Core\Queue` is four members, and each is asked about a job or about a queue, never about a row number
+
+`rule:concurrency/queue-four-members`
+
+`Core\Queue` is `push`, `status`, `cancel` and `stats`, and nothing else. `push(string $script, {…})`
+answers a `Queue\Id` — a receipt that carries its queue with it, not the row's primary key — and
+`status` and `cancel` are asked with that receipt rather than with a number a caller would have to
+carry a queue name beside. `stats` is the odd one out on purpose: it is asked about a *queue*, because
+what wants watching is a population rather than a job, and it answers a `Queue\Stats` whose four
+counters are members read out of one statement, so they describe one instant rather than four.
+
+The shape is [`core-api/shape-rules`](core-api.md#core-api-shape-rules) throughout: subject first, one trailing options shape,
+nothing mutates, failure throws, absence is `?T`. `push`'s options are the job's own — its queue, its
+earliest run time, its attempt ceiling, its backoff base, a dedupe `key` that admits at most one
+pending job per key, and the isolate's limits and grants
+([`concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue`](concurrency.md#concurrency-a-jobs-budget-and-grants-are-recorded-at-enqueue)).
+
+<sub>See also [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`concurrency/a-job-between-attempts-is-pending`](concurrency.md#concurrency-a-job-between-attempts-is-pending), [`concurrency/cancel-is-a-race-it-can-lose`](concurrency.md#concurrency-cancel-is-a-race-it-can-lose). Decided in [0084](../decisions/0084.md), [0063](../decisions/0063.md).</sub>
+
+<a id="concurrency-a-job-names-a-file"></a>
+
+## A job names a script file, and its payload crosses as a copied value
+
+`rule:concurrency/a-job-names-a-file`
+
+A job names a script file — not a class, not a closure, not a static method. It is the third
+construct to take that shape, after `spawn script` and a connection upgrade, and the reason it takes
+the *narrowest* of the three is the row: a job's target is stored as data and claimed by any host in
+the fleet, possibly after a redeploy, and a string in a table can hold a path but not a method
+reference.
+
+A payload crossing into the job is a value **copied**, never a reference, and it is decoded on the
+other side into declared types through the derived codecs. That makes a job a compiled unit like any
+other file — cached, hot-reloadable, traceable and coverable with no special case
+([`concurrency/a-job-runs-as-a-root-isolate`](concurrency.md#concurrency-a-job-runs-as-a-root-isolate)) — and it is why reconstructing an object from a
+payload is a question the runtime never has to answer.
+
+<sub>See also [`concurrency/a-job-runs-as-a-root-isolate`](concurrency.md#concurrency-a-job-runs-as-a-root-isolate), [`concurrency/a-payload-refuses-secret-and-keeps-its-qualifiers`](concurrency.md#concurrency-a-payload-refuses-secret-and-keeps-its-qualifiers). Decided in [0084](../decisions/0084.md), [0006](../decisions/0006.md), [0023](../decisions/0023.md), [0071](../decisions/0071.md).</sub>
+
+<a id="concurrency-a-jobs-budget-and-grants-are-recorded-at-enqueue"></a>
+
+## A job's budget and grants are recorded when it is enqueued, and narrowed from that context rather than widened  *(designed — not yet in the compiler)*
+
+`rule:concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue`
+
+`push` takes the job's `limits` — the memory, CPU and time its isolate may spend — and its `grants`,
+and both are recorded with the row. The grants are **narrowed** from those of the context that
+enqueued the job and never widened: a request that could not reach a resource cannot enqueue work
+that reaches it either, which is what keeps a queue from being a privilege-escalation seam.
+
+The budget is what makes an overrun a bounded failure rather than a fatal
+([`concurrency/a-budget-overrun-is-a-failed-attempt`](concurrency.md#concurrency-a-budget-overrun-is-a-failed-attempt)), and the grants are asked at the same
+capability door every other isolate goes through
+([`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door)), with the job's own path as the scope.
+
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`concurrency/a-job-runs-as-a-root-isolate`](concurrency.md#concurrency-a-job-runs-as-a-root-isolate). Decided in [0084](../decisions/0084.md), [0005](../decisions/0005.md).</sub>
+
+<a id="concurrency-claiming-is-one-statement"></a>
+
+## A worker claims a job with one statement the database arbitrates, so a fleet needs no lease protocol
+
+`rule:concurrency/claiming-is-one-statement`
+
+A worker claims a job with a single statement that selects the oldest due job in its queues and marks
+it in the same moment: `for update skip locked` on PostgreSQL and MySQL, `readpast` on SQL Server, and
+an immediate transaction on SQLite, whose single-writer model makes contention moot. The database
+provides the mutual exclusion, so two instances of a fleet cannot claim the same job, and the runtime
+writes no lease protocol, no heartbeat and no coordinator of its own.
+
+A claimed job carries a **visibility timeout**: the claim is keyed on the instant it was taken, and a
+worker that dies — or that overruns the window — matches no row when it tries to report, so the job
+becomes claimable again. That is what makes delivery at-least-once
+([`concurrency/delivery-is-at-least-once`](concurrency.md#concurrency-delivery-is-at-least-once)) and what makes bounded retries a rule rather than
+advice.
+
+<sub>See also [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`concurrency/delivery-is-at-least-once`](concurrency.md#concurrency-delivery-is-at-least-once). Decided in [0084](../decisions/0084.md), [0073](../decisions/0073.md), [0067](../decisions/0067.md).</sub>
+
+<a id="concurrency-a-job-between-attempts-is-pending"></a>
+
+## A job between attempts is `Pending`, and there is no `Failed` state to ask about
+
+`rule:concurrency/a-job-between-attempts-is-pending`
+
+`Queue\State` is `Pending`, `Claimed`, `Succeeded`, `Dead` and `Cancelled`. There is no `Failed`,
+because a failed attempt is retried: a job between attempts is `Pending` with its backoff still to
+elapse, and it is indistinguishable from one that has never run — which is correct, since both are
+waiting to be claimed.
+
+So "did this job fail" is a question about `Dead`, and the answer is in the dead-letter table
+([`concurrency/attempts-are-finite-and-a-dead-letter-is-kept`](concurrency.md#concurrency-attempts-are-finite-and-a-dead-letter-is-kept)) rather than in a state the job
+passes through.
+
+The state is a closed integer type ([`enums/closed-integer-type`](enums.md#enums-closed-integer-type)), not the ordinal the row stores
+it as: a program compares against a case rather than a magic number, and a `Queue\State` is not
+interchangeable with another `Core` enum that happens to share its ordinals.
+
+<sub>See also [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`concurrency/attempts-are-finite-and-a-dead-letter-is-kept`](concurrency.md#concurrency-attempts-are-finite-and-a-dead-letter-is-kept). Decided in [0084](../decisions/0084.md).</sub>
+
+<a id="concurrency-delivery-is-at-least-once"></a>
+
+## Delivery is at-least-once, and idempotency is the job's own obligation
+
+`rule:concurrency/delivery-is-at-least-once`
+
+A job may run twice, and that is stated rather than implied. The worker can die after doing the work
+and before acknowledging it, or the visibility timeout can expire under load while the attempt is
+still in flight; in both cases a second worker will claim the job and run it again.
+
+Idempotency is therefore the application's obligation. `key` gives deduplication at *enqueue* time —
+at most one pending job per key — and nothing else in the design pretends to give it at execution
+time.
+
+Exactly-once is not on offer, from this queue or from any honest one: systems that claim it are
+describing at-least-once plus deduplication, which is what `key` and an idempotent job already are.
+
+<sub>See also [`concurrency/claiming-is-one-statement`](concurrency.md#concurrency-claiming-is-one-statement), [`concurrency/attempts-are-finite-and-a-dead-letter-is-kept`](concurrency.md#concurrency-attempts-are-finite-and-a-dead-letter-is-kept). Decided in [0084](../decisions/0084.md).</sub>
+
+<a id="concurrency-attempts-are-finite-and-a-dead-letter-is-kept"></a>
+
+## Attempts are finite, backoff is exponential and jittered, and an exhausted job is kept rather than discarded
+
+`rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`
+
+A job's attempts are finite with nothing configured, because an unbounded retry is an unbounded wait
+wearing a different name. Between attempts the delay grows exponentially, is jittered so a fleet does
+not retry in lockstep, and is capped.
+
+A job that exhausts its attempts **moves** to the dead-letter table, carrying its payload, every
+attempt's error and its timing. The runtime never deletes it. `stats` reports the dead-letter depth
+beside the pending and claimed counts, because an unwatched dead-letter table is the classic way a
+queue silently loses work and a depth nobody reads is the same as no record at all.
+
+An attempt ceiling of zero is refused at the call rather than accepted: it asks for a job dead-lettered
+by the enqueue that created it, and attempts are finite, not optional.
+
+<sub>See also [`concurrency/delivery-is-at-least-once`](concurrency.md#concurrency-delivery-is-at-least-once), [`concurrency/a-budget-overrun-is-a-failed-attempt`](concurrency.md#concurrency-a-budget-overrun-is-a-failed-attempt), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0084](../decisions/0084.md), [0074](../decisions/0074.md), [0076](../decisions/0076.md).</sub>
+
+<a id="concurrency-a-budget-overrun-is-a-failed-attempt"></a>
+
+## A job that exceeds its budget is a failed attempt, reported as that and retried like any other
+
+`rule:concurrency/a-budget-overrun-is-a-failed-attempt`
+
+A job that exceeds its memory, CPU or time budget has had a **failed attempt**. It is recorded as
+that, retried on the same ladder as any other failure
+([`concurrency/attempts-are-finite-and-a-dead-letter-is-kept`](concurrency.md#concurrency-attempts-are-finite-and-a-dead-letter-is-kept)), and never reported as an
+out-of-memory — the job is the unit torn down, and the worker keeps claiming.
+
+A fatal error inside a job follows the ordinary escalation ladder
+([`errors/escalation-ladder`](errors.md#errors-escalation-ladder)) with the job as that unit, so a job whose script does not resolve at
+all is a failed attempt too rather than a second policy written beside the first. One shape covers a
+throw, a refusal and a budget teardown, which is why a dead-letter row can hold any of the three
+without a second entry shape.
+
+<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`concurrency/attempts-are-finite-and-a-dead-letter-is-kept`](concurrency.md#concurrency-attempts-are-finite-and-a-dead-letter-is-kept). Decided in [0084](../decisions/0084.md), [0005](../decisions/0005.md).</sub>
+
+<a id="concurrency-cancel-is-a-race-it-can-lose"></a>
+
+## `cancel` answers whether it won the race, and it changes the job's state rather than deleting the row
+
+`rule:concurrency/cancel-is-a-race-it-can-lose`
+
+`cancel` answers a `bool`, and the `bool` says whether *this* call is what took the job out of the
+queue. A worker may claim a pending job at any moment, so a late cancel finding the work already
+running is the ordinary outcome rather than an unlucky one, and answering `false` is how that is
+reported. Throwing would make the commonest race an exception.
+
+Cancelling changes the job's state rather than deleting its row, so a caller that cancels and then
+asks `status` is answered `Cancelled` instead of being refused. The receipt still names something
+`status` can answer about, which is what keeps the two members usable in the order a program actually
+writes them ([`concurrency/queue-four-members`](concurrency.md#concurrency-queue-four-members)).
+
+<sub>See also [`concurrency/claiming-is-one-statement`](concurrency.md#concurrency-claiming-is-one-statement), [`concurrency/queue-four-members`](concurrency.md#concurrency-queue-four-members). Decided in [0084](../decisions/0084.md).</sub>
+
+<a id="concurrency-a-job-runs-as-a-root-isolate"></a>
+
+## A job runs as a root isolate, and there is no second execution path
+
+`rule:concurrency/a-job-runs-as-a-root-isolate`
+
+A job runs as a **root isolate**: its own arena, its own budget, its own grants, sharing only compiled
+code. It is the same isolate a `spawn script` builds, reached through the same door — there is no
+second execution path, and no part of the enqueuing request's heap, statics or session is visible
+from inside it.
+
+A job holds the compiled unit it started with, exactly as a request and a persistent connection do,
+so a redeploy mid-drain does not change what a running job is executing. A queue draining ten jobs off
+one script compiles it once.
+
+Output is captured rather than written through, because a job's `echo` landing in the middle of what
+the server or the run's own script is writing is exactly the mixing capture exists to prevent.
+
+<sub>See also [`concurrency/a-job-names-a-file`](concurrency.md#concurrency-a-job-names-a-file), [`concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue`](concurrency.md#concurrency-a-jobs-budget-and-grants-are-recorded-at-enqueue). Decided in [0084](../decisions/0084.md), [0006](../decisions/0006.md), [0017](../decisions/0017.md).</sub>
+
+<a id="concurrency-who-runs-a-job-is-configuration"></a>
+
+## Which process runs a job is configuration, and every spelling drives the identical isolate  *(designed — not yet in the compiler)*
+
+`rule:concurrency/who-runs-a-job-is-configuration`
+
+Whether jobs run inside the server process or in a worker of their own is configuration, not a
+different mechanism. `[queue] workers` is a count per *instance* and running workers in-process is the
+default shape; `workers = 0` makes an instance enqueue-only, which is how a deployment separates the
+machines that accept requests from the ones that drain the queue.
+
+Both spellings drive the identical isolate ([`concurrency/a-job-runs-as-a-root-isolate`](concurrency.md#concurrency-a-job-runs-as-a-root-isolate)) over the
+identical claim statement ([`concurrency/claiming-is-one-statement`](concurrency.md#concurrency-claiming-is-one-statement)), so moving work between them
+is an operational decision and never a behavioural one. There is nothing to install beside the runtime
+and no supervisor to keep alive.
+
+<sub>See also [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table), [`concurrency/a-job-runs-as-a-root-isolate`](concurrency.md#concurrency-a-job-runs-as-a-root-isolate). Decided in [0084](../decisions/0084.md).</sub>
+
+<a id="concurrency-a-payload-refuses-secret-and-keeps-its-qualifiers"></a>
+
+## A durable payload refuses `secret`, and a `tainted` value comes back `tainted`  *(designed — not yet in the compiler)*
+
+`rule:concurrency/a-payload-refuses-secret-and-keeps-its-qualifiers`
+
+A durable row is an output, and an output refuses `secret` ([`security/secret-qualifier`](security.md#security-secret-qualifier)). So a
+`secret` cannot enter a job payload — the enqueue does not compile. A job that needs a credential
+reads it from configuration when it runs, which is where credentials live anyway and which keeps them
+out of a table, a backup and a replica.
+
+A payload's other qualifiers are recorded with it and restored on decode: a `tainted` value enqueued
+comes back `tainted` ([`security/tainted-qualifier`](security.md#security-tainted-qualifier)), so the analysis survives the round trip
+instead of being laundered by a database. The queue's table is trusted exactly as far as the rest of
+the application's database is — an attacker who can write to it has already won — which is a better
+answer than returning every field `tainted` and training every job to launder reflexively.
+
+<sub>See also [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`concurrency/a-job-names-a-file`](concurrency.md#concurrency-a-job-names-a-file). Decided in [0084](../decisions/0084.md), [0033](../decisions/0033.md), [0024](../decisions/0024.md), [0023](../decisions/0023.md).</sub>
+
+<a id="concurrency-foreign-connection-enqueue-is-counted"></a>
+
+## A `push` on a connection other than the queue's is not transactional, and is counted rather than assumed away  *(designed — not yet in the compiler)*
+
+`rule:concurrency/foreign-connection-enqueue-is-counted`
+
+A `push` issued while a transaction is open on a *different* connection than the queue's is not
+transactional. The job commits on its own, the business write commits on its own, and there is a
+window between them — the failure mode
+[`concurrency/enqueue-commits-with-your-write`](concurrency.md#concurrency-enqueue-commits-with-your-write) exists to remove.
+
+Nothing at compile time can see this: the queue's connection name is operator-owned configuration and
+the program never writes it, so the checker has no way to compare the two. The runtime therefore
+**records** it, and `stats` reports non-transactional enqueues, so a deployment that has quietly lost
+the property can find out by reading a counter rather than by losing a job.
+
+<sub>See also [`concurrency/enqueue-commits-with-your-write`](concurrency.md#concurrency-enqueue-commits-with-your-write), [`concurrency/queue-four-members`](concurrency.md#concurrency-queue-four-members). Decided in [0084](../decisions/0084.md).</sub>
+
+<a id="concurrency-queued-work-is-not-scheduled-work"></a>
+
+## Queued work is durable, retried and declared by the application; scheduled work is a clock tick and none of those
+
+`rule:concurrency/queued-work-is-not-scheduled-work`
+
+Two things run outside a request, and they are not variants of one mechanism. A `[[schedule]]` entry
+is triggered by a clock, declared by the operator in root-owned configuration, carries no data, is not
+retried, and a missed tick is simply missed. A queued job is triggered by a program calling `push`,
+declared by the application, carries a payload, is durable until it succeeds or dead-letters, and is
+retried within bounds.
+
+"Every night at 03:00" is a schedule. "Because this request happened" is a job. A scheduled entry may
+of course `push`, and that is the intended way to enqueue a nightly batch's worth of work: the clock
+decides when the batch is created and the queue decides how each piece of it is run, retried and
+recorded.
+
+<sub>See also [`concurrency/delivery-is-at-least-once`](concurrency.md#concurrency-delivery-is-at-least-once), [`concurrency/attempts-are-finite-and-a-dead-letter-is-kept`](concurrency.md#concurrency-attempts-are-finite-and-a-dead-letter-is-kept). Decided in [0084](../decisions/0084.md), [0073](../decisions/0073.md).</sub>
+
+<a id="concurrency-no-broker-and-no-driver-interface"></a>
+
+## There is no broker backend and no pluggable driver, because a driver makes transactional enqueue optional
+
+`rule:concurrency/no-broker-and-no-driver-interface`
+
+There is no Redis, NATS, SQS or AMQP backend, and no pluggable driver interface. A driver interface
+would make transactional enqueue a property of *one* driver rather than of the API
+([`concurrency/enqueue-commits-with-your-write`](concurrency.md#concurrency-enqueue-commits-with-your-write)), which is the guarantee the whole design exists
+to hold, and it would multiply the surface to specify and test across backends nobody has asked for.
+
+The throughput this buys is a database's throughput — thousands of jobs per second, bounded by write
+contention on one table. That ceiling is real and it is documented rather than discovered.
+
+The seam that stays open is the storage layer's internal boundary and not a public interface. Someone
+genuinely bounded by database write throughput has outgrown what the queue promises, and a
+broker-backed queue would have to say plainly which guarantee it drops.
+
+<sub>See also [`concurrency/enqueue-commits-with-your-write`](concurrency.md#concurrency-enqueue-commits-with-your-write), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0084](../decisions/0084.md).</sub>
+
 <a id="concurrency-one-future-per-connection"></a>
 
 ## A connection is one future, driven to completion by the coroutine that owns it
@@ -847,342 +1161,6 @@ would be precisely wrong.
 
 <sub>See also [`concurrency/one-future-per-connection`](concurrency.md#concurrency-one-future-per-connection), [`concurrency/a-waker-is-one-permission-to-poll`](concurrency.md#concurrency-a-waker-is-one-permission-to-poll). Decided in [0138](../decisions/0138.md), [0115](../decisions/0115.md), [0106](../decisions/0106.md).</sub>
 
-<a id="concurrency-enqueue-commits-with-your-write"></a>
-
-## A `push` on the queue's connection commits with the write that caused it, or neither happens
-
-`rule:concurrency/enqueue-commits-with-your-write`
-
-`Core\Queue::push` on the queue's own connection enlists in whatever transaction that connection
-already has open. If the transaction rolls back the job was never enqueued; if it commits the job is
-durable. There is no window in which the order exists and the job that was to send its receipt does
-not, and there is no outbox to write.
-
-That is the property a job being a row buys, and it is the whole reason the storage is a table in a
-database `Core\Db` already talks to ([`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table)). Every queue built
-on an external broker has an enqueue and a business write in two systems that cannot commit together,
-and every team on one rediscovers the outbox pattern — which is to say they rediscover that the
-database was the right queue.
-
-Outside a transaction, `push` is its own committed statement, which is the ordinary case and needs
-nothing said about it. Pointing `[queue] connection` at a separate database is permitted and silently
-gives up this property; so does pushing on a different connection than the queue's
-([`concurrency/foreign-connection-enqueue-is-counted`](concurrency.md#concurrency-foreign-connection-enqueue-is-counted)).
-
-<sub>See also [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table), [`concurrency/foreign-connection-enqueue-is-counted`](concurrency.md#concurrency-foreign-connection-enqueue-is-counted), [`concurrency/no-broker-and-no-driver-interface`](concurrency.md#concurrency-no-broker-and-no-driver-interface). Decided in [0084](../decisions/0084.md), [0067](../decisions/0067.md).</sub>
-
-<a id="concurrency-queue-four-members"></a>
-
-## `Core\Queue` is four members, and each is asked about a job or about a queue, never about a row number
-
-`rule:concurrency/queue-four-members`
-
-`Core\Queue` is `push`, `status`, `cancel` and `stats`, and nothing else. `push(string $script, {…})`
-answers a `Queue\Id` — a receipt that carries its queue with it, not the row's primary key — and
-`status` and `cancel` are asked with that receipt rather than with a number a caller would have to
-carry a queue name beside. `stats` is the odd one out on purpose: it is asked about a *queue*, because
-what wants watching is a population rather than a job, and it answers a `Queue\Stats` whose four
-counters are members read out of one statement, so they describe one instant rather than four.
-
-The shape is [`core-api/shape-rules`](core-api.md#core-api-shape-rules) throughout: subject first, one trailing options shape,
-nothing mutates, failure throws, absence is `?T`. `push`'s options are the job's own — its queue, its
-earliest run time, its attempt ceiling, its backoff base, a dedupe `key` that admits at most one
-pending job per key, and the isolate's limits and grants
-([`concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue`](concurrency.md#concurrency-a-jobs-budget-and-grants-are-recorded-at-enqueue)).
-
-<sub>See also [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`concurrency/a-job-between-attempts-is-pending`](concurrency.md#concurrency-a-job-between-attempts-is-pending), [`concurrency/cancel-is-a-race-it-can-lose`](concurrency.md#concurrency-cancel-is-a-race-it-can-lose). Decided in [0084](../decisions/0084.md), [0063](../decisions/0063.md).</sub>
-
-<a id="concurrency-a-job-between-attempts-is-pending"></a>
-
-## A job between attempts is `Pending`, and there is no `Failed` state to ask about
-
-`rule:concurrency/a-job-between-attempts-is-pending`
-
-`Queue\State` is `Pending`, `Claimed`, `Succeeded`, `Dead` and `Cancelled`. There is no `Failed`,
-because a failed attempt is retried: a job between attempts is `Pending` with its backoff still to
-elapse, and it is indistinguishable from one that has never run — which is correct, since both are
-waiting to be claimed.
-
-So "did this job fail" is a question about `Dead`, and the answer is in the dead-letter table
-([`concurrency/attempts-are-finite-and-a-dead-letter-is-kept`](concurrency.md#concurrency-attempts-are-finite-and-a-dead-letter-is-kept)) rather than in a state the job
-passes through.
-
-The state is a closed integer type ([`enums/closed-integer-type`](enums.md#enums-closed-integer-type)), not the ordinal the row stores
-it as: a program compares against a case rather than a magic number, and a `Queue\State` is not
-interchangeable with another `Core` enum that happens to share its ordinals.
-
-<sub>See also [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`concurrency/attempts-are-finite-and-a-dead-letter-is-kept`](concurrency.md#concurrency-attempts-are-finite-and-a-dead-letter-is-kept). Decided in [0084](../decisions/0084.md).</sub>
-
-<a id="concurrency-cancel-is-a-race-it-can-lose"></a>
-
-## `cancel` answers whether it won the race, and it changes the job's state rather than deleting the row
-
-`rule:concurrency/cancel-is-a-race-it-can-lose`
-
-`cancel` answers a `bool`, and the `bool` says whether *this* call is what took the job out of the
-queue. A worker may claim a pending job at any moment, so a late cancel finding the work already
-running is the ordinary outcome rather than an unlucky one, and answering `false` is how that is
-reported. Throwing would make the commonest race an exception.
-
-Cancelling changes the job's state rather than deleting its row, so a caller that cancels and then
-asks `status` is answered `Cancelled` instead of being refused. The receipt still names something
-`status` can answer about, which is what keeps the two members usable in the order a program actually
-writes them ([`concurrency/queue-four-members`](concurrency.md#concurrency-queue-four-members)).
-
-<sub>See also [`concurrency/claiming-is-one-statement`](concurrency.md#concurrency-claiming-is-one-statement), [`concurrency/queue-four-members`](concurrency.md#concurrency-queue-four-members). Decided in [0084](../decisions/0084.md).</sub>
-
-<a id="concurrency-a-job-names-a-file"></a>
-
-## A job names a script file, and its payload crosses as a copied value
-
-`rule:concurrency/a-job-names-a-file`
-
-A job names a script file — not a class, not a closure, not a static method. It is the third
-construct to take that shape, after `spawn script` and a connection upgrade, and the reason it takes
-the *narrowest* of the three is the row: a job's target is stored as data and claimed by any host in
-the fleet, possibly after a redeploy, and a string in a table can hold a path but not a method
-reference.
-
-A payload crossing into the job is a value **copied**, never a reference, and it is decoded on the
-other side into declared types through the derived codecs. That makes a job a compiled unit like any
-other file — cached, hot-reloadable, traceable and coverable with no special case
-([`concurrency/a-job-runs-as-a-root-isolate`](concurrency.md#concurrency-a-job-runs-as-a-root-isolate)) — and it is why reconstructing an object from a
-payload is a question the runtime never has to answer.
-
-<sub>See also [`concurrency/a-job-runs-as-a-root-isolate`](concurrency.md#concurrency-a-job-runs-as-a-root-isolate), [`concurrency/a-payload-refuses-secret-and-keeps-its-qualifiers`](concurrency.md#concurrency-a-payload-refuses-secret-and-keeps-its-qualifiers). Decided in [0084](../decisions/0084.md), [0006](../decisions/0006.md), [0023](../decisions/0023.md), [0071](../decisions/0071.md).</sub>
-
-<a id="concurrency-a-jobs-budget-and-grants-are-recorded-at-enqueue"></a>
-
-## A job's budget and grants are recorded when it is enqueued, and narrowed from that context rather than widened  *(designed — not yet in the compiler)*
-
-`rule:concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue`
-
-`push` takes the job's `limits` — the memory, CPU and time its isolate may spend — and its `grants`,
-and both are recorded with the row. The grants are **narrowed** from those of the context that
-enqueued the job and never widened: a request that could not reach a resource cannot enqueue work
-that reaches it either, which is what keeps a queue from being a privilege-escalation seam.
-
-The budget is what makes an overrun a bounded failure rather than a fatal
-([`concurrency/a-budget-overrun-is-a-failed-attempt`](concurrency.md#concurrency-a-budget-overrun-is-a-failed-attempt)), and the grants are asked at the same
-capability door every other isolate goes through
-([`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door)), with the job's own path as the scope.
-
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`concurrency/a-job-runs-as-a-root-isolate`](concurrency.md#concurrency-a-job-runs-as-a-root-isolate). Decided in [0084](../decisions/0084.md), [0005](../decisions/0005.md).</sub>
-
-<a id="concurrency-claiming-is-one-statement"></a>
-
-## A worker claims a job with one statement the database arbitrates, so a fleet needs no lease protocol
-
-`rule:concurrency/claiming-is-one-statement`
-
-A worker claims a job with a single statement that selects the oldest due job in its queues and marks
-it in the same moment: `for update skip locked` on PostgreSQL and MySQL, `readpast` on SQL Server, and
-an immediate transaction on SQLite, whose single-writer model makes contention moot. The database
-provides the mutual exclusion, so two instances of a fleet cannot claim the same job, and the runtime
-writes no lease protocol, no heartbeat and no coordinator of its own.
-
-A claimed job carries a **visibility timeout**: the claim is keyed on the instant it was taken, and a
-worker that dies — or that overruns the window — matches no row when it tries to report, so the job
-becomes claimable again. That is what makes delivery at-least-once
-([`concurrency/delivery-is-at-least-once`](concurrency.md#concurrency-delivery-is-at-least-once)) and what makes bounded retries a rule rather than
-advice.
-
-<sub>See also [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`concurrency/delivery-is-at-least-once`](concurrency.md#concurrency-delivery-is-at-least-once). Decided in [0084](../decisions/0084.md), [0073](../decisions/0073.md), [0067](../decisions/0067.md).</sub>
-
-<a id="concurrency-delivery-is-at-least-once"></a>
-
-## Delivery is at-least-once, and idempotency is the job's own obligation
-
-`rule:concurrency/delivery-is-at-least-once`
-
-A job may run twice, and that is stated rather than implied. The worker can die after doing the work
-and before acknowledging it, or the visibility timeout can expire under load while the attempt is
-still in flight; in both cases a second worker will claim the job and run it again.
-
-Idempotency is therefore the application's obligation. `key` gives deduplication at *enqueue* time —
-at most one pending job per key — and nothing else in the design pretends to give it at execution
-time.
-
-Exactly-once is not on offer, from this queue or from any honest one: systems that claim it are
-describing at-least-once plus deduplication, which is what `key` and an idempotent job already are.
-
-<sub>See also [`concurrency/claiming-is-one-statement`](concurrency.md#concurrency-claiming-is-one-statement), [`concurrency/attempts-are-finite-and-a-dead-letter-is-kept`](concurrency.md#concurrency-attempts-are-finite-and-a-dead-letter-is-kept). Decided in [0084](../decisions/0084.md).</sub>
-
-<a id="concurrency-attempts-are-finite-and-a-dead-letter-is-kept"></a>
-
-## Attempts are finite, backoff is exponential and jittered, and an exhausted job is kept rather than discarded
-
-`rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`
-
-A job's attempts are finite with nothing configured, because an unbounded retry is an unbounded wait
-wearing a different name. Between attempts the delay grows exponentially, is jittered so a fleet does
-not retry in lockstep, and is capped.
-
-A job that exhausts its attempts **moves** to the dead-letter table, carrying its payload, every
-attempt's error and its timing. The runtime never deletes it. `stats` reports the dead-letter depth
-beside the pending and claimed counts, because an unwatched dead-letter table is the classic way a
-queue silently loses work and a depth nobody reads is the same as no record at all.
-
-An attempt ceiling of zero is refused at the call rather than accepted: it asks for a job dead-lettered
-by the enqueue that created it, and attempts are finite, not optional.
-
-<sub>See also [`concurrency/delivery-is-at-least-once`](concurrency.md#concurrency-delivery-is-at-least-once), [`concurrency/a-budget-overrun-is-a-failed-attempt`](concurrency.md#concurrency-a-budget-overrun-is-a-failed-attempt), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0084](../decisions/0084.md), [0074](../decisions/0074.md), [0076](../decisions/0076.md).</sub>
-
-<a id="concurrency-a-budget-overrun-is-a-failed-attempt"></a>
-
-## A job that exceeds its budget is a failed attempt, reported as that and retried like any other
-
-`rule:concurrency/a-budget-overrun-is-a-failed-attempt`
-
-A job that exceeds its memory, CPU or time budget has had a **failed attempt**. It is recorded as
-that, retried on the same ladder as any other failure
-([`concurrency/attempts-are-finite-and-a-dead-letter-is-kept`](concurrency.md#concurrency-attempts-are-finite-and-a-dead-letter-is-kept)), and never reported as an
-out-of-memory — the job is the unit torn down, and the worker keeps claiming.
-
-A fatal error inside a job follows the ordinary escalation ladder
-([`errors/escalation-ladder`](errors.md#errors-escalation-ladder)) with the job as that unit, so a job whose script does not resolve at
-all is a failed attempt too rather than a second policy written beside the first. One shape covers a
-throw, a refusal and a budget teardown, which is why a dead-letter row can hold any of the three
-without a second entry shape.
-
-<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`concurrency/attempts-are-finite-and-a-dead-letter-is-kept`](concurrency.md#concurrency-attempts-are-finite-and-a-dead-letter-is-kept). Decided in [0084](../decisions/0084.md), [0005](../decisions/0005.md).</sub>
-
-<a id="concurrency-a-job-runs-as-a-root-isolate"></a>
-
-## A job runs as a root isolate, and there is no second execution path
-
-`rule:concurrency/a-job-runs-as-a-root-isolate`
-
-A job runs as a **root isolate**: its own arena, its own budget, its own grants, sharing only compiled
-code. It is the same isolate a `spawn script` builds, reached through the same door — there is no
-second execution path, and no part of the enqueuing request's heap, statics or session is visible
-from inside it.
-
-A job holds the compiled unit it started with, exactly as a request and a persistent connection do,
-so a redeploy mid-drain does not change what a running job is executing. A queue draining ten jobs off
-one script compiles it once.
-
-Output is captured rather than written through, because a job's `echo` landing in the middle of what
-the server or the run's own script is writing is exactly the mixing capture exists to prevent.
-
-<sub>See also [`concurrency/a-job-names-a-file`](concurrency.md#concurrency-a-job-names-a-file), [`concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue`](concurrency.md#concurrency-a-jobs-budget-and-grants-are-recorded-at-enqueue). Decided in [0084](../decisions/0084.md), [0006](../decisions/0006.md), [0017](../decisions/0017.md).</sub>
-
-<a id="concurrency-who-runs-a-job-is-configuration"></a>
-
-## Which process runs a job is configuration, and every spelling drives the identical isolate  *(designed — not yet in the compiler)*
-
-`rule:concurrency/who-runs-a-job-is-configuration`
-
-Whether jobs run inside the server process or in a worker of their own is configuration, not a
-different mechanism. `[queue] workers` is a count per *instance* and running workers in-process is the
-default shape; `workers = 0` makes an instance enqueue-only, which is how a deployment separates the
-machines that accept requests from the ones that drain the queue.
-
-Both spellings drive the identical isolate ([`concurrency/a-job-runs-as-a-root-isolate`](concurrency.md#concurrency-a-job-runs-as-a-root-isolate)) over the
-identical claim statement ([`concurrency/claiming-is-one-statement`](concurrency.md#concurrency-claiming-is-one-statement)), so moving work between them
-is an operational decision and never a behavioural one. There is nothing to install beside the runtime
-and no supervisor to keep alive.
-
-<sub>See also [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table), [`concurrency/a-job-runs-as-a-root-isolate`](concurrency.md#concurrency-a-job-runs-as-a-root-isolate). Decided in [0084](../decisions/0084.md).</sub>
-
-<a id="concurrency-a-payload-refuses-secret-and-keeps-its-qualifiers"></a>
-
-## A durable payload refuses `secret`, and a `tainted` value comes back `tainted`  *(designed — not yet in the compiler)*
-
-`rule:concurrency/a-payload-refuses-secret-and-keeps-its-qualifiers`
-
-A durable row is an output, and an output refuses `secret` ([`security/secret-qualifier`](security.md#security-secret-qualifier)). So a
-`secret` cannot enter a job payload — the enqueue does not compile. A job that needs a credential
-reads it from configuration when it runs, which is where credentials live anyway and which keeps them
-out of a table, a backup and a replica.
-
-A payload's other qualifiers are recorded with it and restored on decode: a `tainted` value enqueued
-comes back `tainted` ([`security/tainted-qualifier`](security.md#security-tainted-qualifier)), so the analysis survives the round trip
-instead of being laundered by a database. The queue's table is trusted exactly as far as the rest of
-the application's database is — an attacker who can write to it has already won — which is a better
-answer than returning every field `tainted` and training every job to launder reflexively.
-
-<sub>See also [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`concurrency/a-job-names-a-file`](concurrency.md#concurrency-a-job-names-a-file). Decided in [0084](../decisions/0084.md), [0033](../decisions/0033.md), [0024](../decisions/0024.md), [0023](../decisions/0023.md).</sub>
-
-<a id="concurrency-foreign-connection-enqueue-is-counted"></a>
-
-## A `push` on a connection other than the queue's is not transactional, and is counted rather than assumed away  *(designed — not yet in the compiler)*
-
-`rule:concurrency/foreign-connection-enqueue-is-counted`
-
-A `push` issued while a transaction is open on a *different* connection than the queue's is not
-transactional. The job commits on its own, the business write commits on its own, and there is a
-window between them — the failure mode
-[`concurrency/enqueue-commits-with-your-write`](concurrency.md#concurrency-enqueue-commits-with-your-write) exists to remove.
-
-Nothing at compile time can see this: the queue's connection name is operator-owned configuration and
-the program never writes it, so the checker has no way to compare the two. The runtime therefore
-**records** it, and `stats` reports non-transactional enqueues, so a deployment that has quietly lost
-the property can find out by reading a counter rather than by losing a job.
-
-<sub>See also [`concurrency/enqueue-commits-with-your-write`](concurrency.md#concurrency-enqueue-commits-with-your-write), [`concurrency/queue-four-members`](concurrency.md#concurrency-queue-four-members). Decided in [0084](../decisions/0084.md).</sub>
-
-<a id="concurrency-queued-work-is-not-scheduled-work"></a>
-
-## Queued work is durable, retried and declared by the application; scheduled work is a clock tick and none of those
-
-`rule:concurrency/queued-work-is-not-scheduled-work`
-
-Two things run outside a request, and they are not variants of one mechanism. A `[[schedule]]` entry
-is triggered by a clock, declared by the operator in root-owned configuration, carries no data, is not
-retried, and a missed tick is simply missed. A queued job is triggered by a program calling `push`,
-declared by the application, carries a payload, is durable until it succeeds or dead-letters, and is
-retried within bounds.
-
-"Every night at 03:00" is a schedule. "Because this request happened" is a job. A scheduled entry may
-of course `push`, and that is the intended way to enqueue a nightly batch's worth of work: the clock
-decides when the batch is created and the queue decides how each piece of it is run, retried and
-recorded.
-
-<sub>See also [`concurrency/delivery-is-at-least-once`](concurrency.md#concurrency-delivery-is-at-least-once), [`concurrency/attempts-are-finite-and-a-dead-letter-is-kept`](concurrency.md#concurrency-attempts-are-finite-and-a-dead-letter-is-kept). Decided in [0084](../decisions/0084.md), [0073](../decisions/0073.md).</sub>
-
-<a id="concurrency-no-broker-and-no-driver-interface"></a>
-
-## There is no broker backend and no pluggable driver, because a driver makes transactional enqueue optional
-
-`rule:concurrency/no-broker-and-no-driver-interface`
-
-There is no Redis, NATS, SQS or AMQP backend, and no pluggable driver interface. A driver interface
-would make transactional enqueue a property of *one* driver rather than of the API
-([`concurrency/enqueue-commits-with-your-write`](concurrency.md#concurrency-enqueue-commits-with-your-write)), which is the guarantee the whole design exists
-to hold, and it would multiply the surface to specify and test across backends nobody has asked for.
-
-The throughput this buys is a database's throughput — thousands of jobs per second, bounded by write
-contention on one table. That ceiling is real and it is documented rather than discovered.
-
-The seam that stays open is the storage layer's internal boundary and not a public interface. Someone
-genuinely bounded by database write throughput has outgrown what the queue promises, and a
-broker-backed queue would have to say plainly which guarantee it drops.
-
-<sub>See also [`concurrency/enqueue-commits-with-your-write`](concurrency.md#concurrency-enqueue-commits-with-your-write), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0084](../decisions/0084.md).</sub>
-
-<a id="concurrency-the-reactor-reports-readiness"></a>
-
-## The reactor reports readiness on every platform, Windows included, so a stream is written once
-
-`rule:concurrency/the-reactor-reports-readiness`
-
-The reactor reports **readiness**, never completion, on every platform: epoll on Linux, kqueue on the
-BSDs and macOS, and on Windows a poll of `\Device\Afd` through the completion port, which turns it
-into a readiness source. One contract, three back ends, and the stream code above it is written once.
-
-That choice is the reason there is one stream implementation rather than two. Completion semantics are
-a *different* contract — a completion-based read owns its buffer across a suspension and a
-readiness-based one does not — so adopting the native Windows shape would duplicate every stream and
-every helper that reads one, on the platform that gets the least traffic.
-
-The readiness layer is a poller and not an async runtime: no executor, no task type, no futures. The
-runtime brings its own scheduler ([`concurrency/the-parking-contract`](concurrency.md#concurrency-the-parking-contract)), and nothing
-attacker-controlled reaches a registration, which carries a descriptor and an interest set and no
-parsed input at all.
-
-<sub>See also [`concurrency/the-parking-contract`](concurrency.md#concurrency-the-parking-contract), [`concurrency/try-the-syscall-then-park`](concurrency.md#concurrency-try-the-syscall-then-park). Decided in [0115](../decisions/0115.md), [0106](../decisions/0106.md), [0051](../decisions/0051.md).</sub>
-
 <a id="concurrency-the-parking-contract"></a>
 
 ## A task registers before it suspends, treats a wake as a hint, and leaves the reactor holding nothing when it ends
@@ -1231,6 +1209,28 @@ A registration is kept while the task holds the stream rather than torn down per
 that parks repeatedly pays a modification and not a creation.
 
 <sub>See also [`concurrency/the-parking-contract`](concurrency.md#concurrency-the-parking-contract), [`concurrency/a-stream-is-an-ordinary-io-stream`](concurrency.md#concurrency-a-stream-is-an-ordinary-io-stream). Decided in [0115](../decisions/0115.md).</sub>
+
+<a id="concurrency-the-reactor-reports-readiness"></a>
+
+## The reactor reports readiness on every platform, Windows included, so a stream is written once
+
+`rule:concurrency/the-reactor-reports-readiness`
+
+The reactor reports **readiness**, never completion, on every platform: epoll on Linux, kqueue on the
+BSDs and macOS, and on Windows a poll of `\Device\Afd` through the completion port, which turns it
+into a readiness source. One contract, three back ends, and the stream code above it is written once.
+
+That choice is the reason there is one stream implementation rather than two. Completion semantics are
+a *different* contract — a completion-based read owns its buffer across a suspension and a
+readiness-based one does not — so adopting the native Windows shape would duplicate every stream and
+every helper that reads one, on the platform that gets the least traffic.
+
+The readiness layer is a poller and not an async runtime: no executor, no task type, no futures. The
+runtime brings its own scheduler ([`concurrency/the-parking-contract`](concurrency.md#concurrency-the-parking-contract)), and nothing
+attacker-controlled reaches a registration, which carries a descriptor and an interest set and no
+parsed input at all.
+
+<sub>See also [`concurrency/the-parking-contract`](concurrency.md#concurrency-the-parking-contract), [`concurrency/try-the-syscall-then-park`](concurrency.md#concurrency-try-the-syscall-then-park). Decided in [0115](../decisions/0115.md), [0106](../decisions/0106.md), [0051](../decisions/0051.md).</sub>
 
 <a id="concurrency-a-stream-is-an-ordinary-io-stream"></a>
 

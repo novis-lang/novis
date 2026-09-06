@@ -5,584 +5,6 @@
 
 *40 of 68 rules below are **designed** rather than shipped, and are marked where they appear.*
 
-<a id="packaging-an-extension-is-a-sandboxed-wasm-component"></a>
-
-## A third-party extension is a sandboxed WebAssembly component, never a shared library loaded with `dlopen`  *(designed — not yet in the compiler)*
-
-`rule:packaging/an-extension-is-a-sandboxed-wasm-component`
-
-Third-party code is added to a running Novis as a **WebAssembly component** — a `.nvsx` file — and never
-as a native shared library. There is no `dlopen` path, no `.dll`/`.so`/`.dylib` loader, and no FFI
-([`security/no-ffi`](security.md#security-no-ffi)): a component cannot address host memory, so it is memory-safe by construction,
-and it runs under the same request isolation, capability checks and resource limits as script code
-because the sandbox enforces them rather than the extension author remembering to.
-
-The engine is wasmtime, not a hand-rolled one. The wasm **validator** is security-critical — a bug in
-it is a sandbox escape — and it is the same argument that puts `hyper` in front of a protocol parser
-Novis did not write. Wasmtime is memory-safe Rust and pins the same Cranelift version the JIT already
-uses, so the two coexist with one shared `cranelift-codegen`.
-
-What this buys: one binary for every platform; bindings generated for any language with a wasm target
-rather than C only; a crashing or malicious extension that harms one request and not the process; and
-calls that are type-checked at compile time ([`packaging/extension-calls-are-statically-typed`](packaging.md#packaging-extension-calls-are-statically-typed)).
-An extension doing I/O suspends the request's coroutine like any other Novis function — wasmtime's
-async support is the same stack switching the scheduler already uses, so there is no async colouring
-at the boundary. What it costs is [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost), and an author who wants
-direct heap access cannot have it. That is the point.
-
-<sub>See also [`packaging/three-tiers`](packaging.md#packaging-three-tiers), [`packaging/values-cross-as-handles`](packaging.md#packaging-values-cross-as-handles), [`packaging/a-guest-has-no-ambient-authority`](packaging.md#packaging-a-guest-has-no-ambient-authority), [`security/no-ffi`](security.md#security-no-ffi), [`security/closed-doors`](security.md#security-closed-doors), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0003](../decisions/0003.md), [0052](../decisions/0052.md).</sub>
-
-<a id="packaging-three-tiers"></a>
-
-## Library and extension code sits at one of three tiers: built-in, sandboxed component, or statically linked native  *(designed — not yet in the compiler)*
-
-`rule:packaging/three-tiers`
-
-Library and extension code lives at one of three tiers, and each exists because it is the right
-answer for a different class of code:
-
-- **Tier 0 — built-in.** `nvs-stdlib`, compiled into the binary: native speed, direct heap access,
-  no boundary. This is where fine-grained primitives go — string, array and arithmetic operations,
-  anything whose whole cost is comparable to a call — each a `static` member of a `Core` domain
-  class ([`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants)).
-- **Tier 1 — a sandboxed `.nvsx` component.** The default and recommended path for third-party
-  code, and where hostile-bytes parsers go ([`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component)).
-- **Tier 2 — statically linked native.** A Rust crate compiled into the `nvs` binary, for
-  first-party subsystems that need raw sockets, TLS termination or the heap: the database drivers,
-  the regex engine, crypto. Safe because it is safe Rust, and built from source, which is exactly the
-  right friction for code that runs unsandboxed.
-
-Which tier a candidate lands at is decided by [`core-api/tier-placement`](core-api.md#core-api-tier-placement)'s six ordered tests,
-and the resulting roster is [`core-api/tier-roster`](core-api.md#core-api-tier-roster). The partition is not PHP's: `ctype` being an
-extension while `str_pad` is not tracks 1997 build engineering and nothing worth preserving.
-
-<sub>See also [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost). Decided in [0003](../decisions/0003.md), [0051](../decisions/0051.md).</sub>
-
-<a id="packaging-an-nvsx-is-one-file-carrying-its-manifest"></a>
-
-## A `.nvsx` is a single WebAssembly component whose manifest is an `nvs.manifest` custom section  *(designed — not yet in the compiler)*
-
-`rule:packaging/an-nvsx-is-one-file-carrying-its-manifest`
-
-A `.nvsx` is **one file**: a WebAssembly component implementing the versioned world `nvs:ext@1.0.0`,
-with an `nvs.manifest` custom section inside it. There is no archive, no sidecar manifest, and no
-per-platform variant — the same file loads on every host Novis runs on.
-
-The manifest is what the host reads at load: the classes the extension declares, with their `static`
-methods and `const` members; the `nvs.toml` directives it wants; and the qualifier declarations of
-[`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens). Because the manifest travels inside the component,
-hashing an `[[extension]]` entry's pin covers everything the extension declares with no separate
-manifest hash — which is what lets the loaded set fold into every compiled unit's key
-([`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key)).
-
-The world is WIT, so an extension gets rich types — records, variants, lists, strings, results,
-resources — rather than everything marshalled through `i32`, and semantic versioning of the interface
-is part of the contract. A PHP extension must be recompiled for every minor engine release; an
-`.nvsx` compiled against `nvs:ext@1.0.0` is not.
-
-<sub>See also [`packaging/extension-calls-are-statically-typed`](packaging.md#packaging-extension-calls-are-statically-typed), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key). Decided in [0003](../decisions/0003.md), [0055](../decisions/0055.md).</sub>
-
-<a id="packaging-values-cross-as-handles"></a>
-
-## A value crosses the guest boundary as a bounds-checked handle, never as a pointer  *(designed — not yet in the compiler)*
-
-`rule:packaging/values-cross-as-handles`
-
-Novis values stay in the host heap. The guest receives an opaque `value` resource — an index into a
-per-call handle table the host bounds-checks — and reads through host accessor functions. A guest
-cannot forge a host pointer; it can only present an index, which is validated, and a guest reading past
-the end of the host heap gets nothing rather than adjacent memory.
-
-The host stays authoritative for refcounting and copy-on-write, and the guest never sees a refcount.
-Large arrays and strings are not copied wholesale — the guest pulls what it reads — and for byte
-strings it may request a bulk copy into its own linear memory, which is memcpy-bound at roughly 12 ns
-per KiB.
-
-This is also why an extension exposes no per-pixel or per-element accessor across the boundary: each
-accessor call is a fixed cost, a bulk copy is nearly free, and the design that wins moves whole buffers
-a few times rather than words many times ([`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost),
-[`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline)).
-
-<sub>See also [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost), [`core-api/a-lifetime-is-an-object`](core-api.md#core-api-a-lifetime-is-an-object). Decided in [0003](../decisions/0003.md).</sub>
-
-<a id="packaging-extension-calls-are-statically-typed"></a>
-
-## An extension's classes are registered from its manifest at load, and a call into one is type-checked at compile time and emitted as a direct call  *(designed — not yet in the compiler)*
-
-`rule:packaging/extension-calls-are-statically-typed`
-
-At load the host reads an extension's manifest — its declared classes, their `static` methods and
-`const` members, and any `nvs.toml` directives it contributes — and registers them into the compiler's
-symbol table. There is no function- or constant-shaped registration: an extension follows the same
-class-only shape [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants) requires of user code, and it may not
-register under `Core\` ([`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present)).
-
-Consequently `nvs check` type-checks a call into an extension at compile time, and codegen emits a
-**direct call** to the extension's trampoline rather than a dynamic dispatch. PHP can do neither.
-
-The direct call is why the loaded extension set is a codegen input: an artifact compiled against one set
-holds a jump into a trampoline that another set may have moved, so the set is part of every compiled
-unit's key and a changed set is an ordinary cache miss
-([`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key)).
-
-<sub>See also [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-nvsx-is-one-file-carrying-its-manifest`](packaging.md#packaging-an-nvsx-is-one-file-carrying-its-manifest). Decided in [0003](../decisions/0003.md), [0011](../decisions/0011.md), [0078](../decisions/0078.md).</sub>
-
-<a id="packaging-extension-loading-is-root-controlled"></a>
-
-## An extension loads only from an `[[extension]]` entry in the root-owned `nvs.toml`, pinned by its `sha256`  *(designed — not yet in the compiler)*
-
-`rule:packaging/extension-loading-is-root-controlled`
-
-An extension is loaded from an `[[extension]]` entry in the root-owned `nvs.toml`, and from nowhere
-else:
-
-```toml
-[[extension]]
-path   = "image.nvsx"
-sha256 = "…"
-```
-
-A project cannot cause code to be loaded. The pin is a field of the entry rather than a naming
-convention over a repeated key, which is one reason the configuration format has an array-of-tables
-shape ([`config/lists-are-arrays-and-repeated-records-are-arrays-of-tables`](config.md#config-lists-are-arrays-and-repeated-records-are-arrays-of-tables)); the entry lives
-where [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary) puts every grant of authority.
-
-The set is reloadable, not boot-only. A reload re-verifies every pin against the file on disk, loads
-the manifests, and refuses the whole swap if any pin does not match — so a running server gains, loses
-or replaces an extension without dropping a request, and never on a binary that changed under its pin.
-Duplicate class names across extensions are refused at load, which is what makes the set's hash
-order-independent, and the set is folded into every compiled unit's key
-([`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key)) so a changed set is a lazy recompile with no
-invalidation pass. A component is compiled once, into the same content-addressed artifact cache as
-Novis's own code, and the compiled module is shared across every core.
-
-<sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/lists-are-arrays-and-repeated-records-are-arrays-of-tables`](config.md#config-lists-are-arrays-and-repeated-records-are-arrays-of-tables), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-extension-package-carries-two-payloads`](packaging.md#packaging-an-extension-package-carries-two-payloads), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0003](../decisions/0003.md), [0064](../decisions/0064.md), [0078](../decisions/0078.md).</sub>
-
-<a id="packaging-a-fresh-instance-per-request"></a>
-
-## A guest is instantiated fresh for each request that calls it, so extension state cannot leak between requests  *(designed — not yet in the compiler)*
-
-`rule:packaging/a-fresh-instance-per-request`
-
-Each request that calls an extension gets a **pristine instance** of it, created lazily on first use.
-Nothing a guest wrote into a global, a static or its linear memory is there on the next request, and a
-test that stores state in one instance must not be able to observe it from the next. PHP does not offer
-this: a stateful extension keeps its state for the worker's lifetime.
-
-Instantiation costs about 8 µs with the pooling allocator, paid only for the extensions a request
-actually calls. A typical request touches one to three, so the realistic cost is 8–23 µs against a
-request budget measured in milliseconds — and the figure is environment-sensitive, so quote it as a
-range.
-
-This is also the property that decides tier placement for anything whose defining feature is state
-outliving a request. A connection pool, a bound directory session, a broker consumer cannot be a guest,
-because a guest re-instantiated per request loses them every time; such a client is Native or nothing
-([`core-api/tier-placement`](core-api.md#core-api-tier-placement)). Cross-request state a program wants is explicit and host-owned
-([`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit)).
-
-<sub>See also [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit), [`packaging/a-guest-runs-under-the-requests-budget`](packaging.md#packaging-a-guest-runs-under-the-requests-budget). Decided in [0003](../decisions/0003.md).</sub>
-
-<a id="packaging-a-guest-runs-under-the-requests-budget"></a>
-
-## A guest runs under the request's CPU and memory caps, and a runaway guest traps rather than hanging a core  *(designed — not yet in the compiler)*
-
-`rule:packaging/a-guest-runs-under-the-requests-budget`
-
-Guest execution is tied to the request's own limits. Epoch interruption binds it to the per-request
-CPU cap, so a deliberately infinite guest loop traps rather than hanging a core; memory is capped
-through the store's limits. An extension therefore cannot starve its neighbours — a stronger guarantee
-than a built-in native function currently has, because it is enforced by the sandbox rather than by
-discipline.
-
-A trapped guest is a resource-limit failure of the request that called it, and reaches that request
-the way any other limit does ([`errors/on-limit`](errors.md#errors-on-limit)); it never reaches the process. Together with
-[`packaging/a-fresh-instance-per-request`](packaging.md#packaging-a-fresh-instance-per-request), this is what makes a single-process server defensible
-with third-party code inside it: a crashing or malicious extension harms one request, not every request
-in flight.
-
-<sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`packaging/a-fresh-instance-per-request`](packaging.md#packaging-a-fresh-instance-per-request). Decided in [0003](../decisions/0003.md), [0020](../decisions/0020.md).</sub>
-
-<a id="packaging-a-guest-has-no-ambient-authority"></a>
-
-## A guest has no ambient authority: WASI is not granted by default, and every host function it receives is capability-checked  *(designed — not yet in the compiler)*
-
-`rule:packaging/a-guest-has-no-ambient-authority`
-
-WASI is **not** granted to a guest by default. A component receives only Novis's own capability-checked
-host functions, so its filesystem and network access is governed by the same root-owned `nvs.toml`
-grants as script code ([`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door),
-[`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope)). Native extension code calls `open()` and
-`connect()` directly and bypasses any capability system; a guest cannot, because it has no syscalls at
-all.
-
-WASI is available as an opt-in world, and its preopens are derived from the capability grants rather
-than declared beside them — there is no second place authority is written.
-
-The same absence is what keeps an extension honest about qualifiers: with no ambient source and no
-sink of its own, it can declare what it consumes and produces but cannot launder
-([`security/extension-cannot-launder`](security.md#security-extension-cannot-launder)).
-
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/extension-cannot-launder`](security.md#security-extension-cannot-launder). Decided in [0003](../decisions/0003.md).</sub>
-
-<a id="packaging-the-boundary-is-the-cost"></a>
-
-## An extension call costs a fixed ten-odd nanoseconds over a built-in call, so an extension's API is coarse-grained  *(designed — not yet in the compiler)*
-
-`rule:packaging/the-boundary-is-the-cost`
-
-Measured in a release build: a host-to-guest call costs about 11.5 ns, a guest-to-host accessor call
-about 9 ns, a 1 KiB bulk copy into guest memory about 12 ns, and a fresh pooled instance plus one call
-about 8 µs. A built-in call frame costs under a nanosecond, so **an extension call carries roughly 10 ns
-more overhead than a built-in one**. In-guest compute throughput relative to native is not yet measured
-and is not claimed.
-
-That is noise for coarse-grained work — image codecs, compression, crypto, document parsing — and
-decisive for fine-grained work, which is why primitives are Tier 0 and performance-critical first-party
-subsystems are Tier 2 ([`packaging/three-tiers`](packaging.md#packaging-three-tiers)). An extension author controls the boundary, not the
-compute, so an extension's API is designed **coarse**: whole inputs in, whole outputs out, a batch where
-PHP would offer a per-item call. Collation exposes sort-key generation and whole-array sort rather than
-a comparator, because sorting ten thousand strings through a per-comparison boundary would be about
-130,000 crossings; the image component crosses once per terminal
-([`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline)).
-
-<sub>See also [`packaging/three-tiers`](packaging.md#packaging-three-tiers), [`packaging/values-cross-as-handles`](packaging.md#packaging-values-cross-as-handles), [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline). Decided in [0003](../decisions/0003.md), [0051](../decisions/0051.md).</sub>
-
-<a id="packaging-a-c-dependency-answers-two-questions"></a>
-
-## A C dependency is admitted under ordinary audit only if attacker-controlled data never reaches it; otherwise it needs an exceptional verification record or is confined to wasm
-
-`rule:packaging/a-c-dependency-answers-two-questions`
-
-"Pure Rust by default, deviations argued individually" is a standing test rather than a case-by-case
-argument, so the answer does not depend on who argues it:
-
-1. **Does attacker-controlled data reach this code?** If no — accept it under ordinary audit.
-2. If yes — accept it only with a **demonstrable, exceptional verification record**. Otherwise it
-   must be confined to wasm.
-
-SQLite passes the second question: its test suite is orders of magnitude larger than its source and it
-is continuously fuzzed. Almost nothing else clears that bar, which is the point. A codec, an archive
-reader or an XSLT engine fails it and is therefore Tier 1 — including when the only implementation is
-C, since compiling a C library to wasm is the standing answer when the test fails; lossy WebP encoding
-via libwebp is admitted exactly that way. An authentication handshake handles attacker-reachable bytes,
-so a driver plugin the pure-Rust crates lack gets a Rust implementation or a documented refusal, never a
-C dependency.
-
-The test is enforced rather than remembered: `python tools/gen-attribution.py --check` enumerates the
-default binary's C dependencies from the resolved graph and fails CI on any without a recorded answer
-([`testing/attribution-is-diffed-in-ci`](testing.md#testing-attribution-is-diffed-in-ci)).
-
-<sub>See also [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`testing/attribution-is-diffed-in-ci`](testing.md#testing-attribution-is-diffed-in-ci), [`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component), [`packaging/the-third-party-notice-is-generated-never-written-by-hand`](packaging.md#packaging-the-third-party-notice-is-generated-never-written-by-hand). Decided in [0051](../decisions/0051.md).</sub>
-
-<a id="packaging-a-service-is-one-stored-argv"></a>
-
-## `nvs service` is a namespace, and everything after a mandatory `--` is stored verbatim as the argv the service runs  *(designed — not yet in the compiler)*
-
-`rule:packaging/a-service-is-one-stored-argv`
-
-```
-nvs service install   <name> [options] -- <verbatim nvs args…>
-nvs service uninstall <name>
-nvs service start | stop | status <name>
-nvs service run       <name>                                  # the service manager's entry point
-nvs service unit      <name> [options] -- <verbatim nvs args…>  # Linux: print, install nothing
-```
-
-A service is this binary, registered with the platform's service manager, running **one stored argv**.
-Everything left of `--` belongs to the installer; everything right of it is stored untouched and never
-interpreted, which is what makes every parameter `nvs` accepts passable. `--` is mandatory: without it,
-`--start` is ambiguous between the installer and the hosted program, a defect `mysqld --install` has
-and Novis does not inherit. `nvs install-service` is accepted as a hidden alias for the muscle memory
-`mysqld --install` and `httpd -k install` built.
-
-The verbs are namespaced like `nvs ctl` because they act on a server rather than on files, and the name
-is positional and is the same identity `nvs ctl --socket` uses. `start`/`stop`/`status` are thin — the
-SCM directly on Windows, `systemctl` by argv with no shell on Linux
-([`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only)) — and earn their second spelling by reporting what no
-service manager knows: the in-flight request count, and drain progress during a stop, asked over the
-control socket ([`config/one-local-control-socket`](config.md#config-one-local-control-socket)).
-
-What that argv may name is [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink)'s closed list.
-
-<sub>See also [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink), [`packaging/the-argv-lives-in-imagepath`](packaging.md#packaging-the-argv-lives-in-imagepath), [`packaging/the-unit-is-printed-and-install-is-the-opt-in`](packaging.md#packaging-the-unit-is-printed-and-install-is-the-opt-in), [`config/one-local-control-socket`](config.md#config-one-local-control-socket), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only). Decided in [0093](../decisions/0093.md), [0078](../decisions/0078.md).</sub>
-
-<a id="packaging-the-installer-is-a-sink"></a>
-
-## The service installer fails closed: a closed `serve`/`run` allowlist, no relative path, no argv without `--config`, no install whose output goes nowhere, no password on a command line
-
-`rule:packaging/the-installer-is-a-sink`
-
-The trailing argv is the sharpest sink in the project ([`security/sink-predicate`](security.md#security-sink-predicate)): the command
-runs elevated, and what it stores is executed by a privileged account at every boot until somebody
-removes it. So the default is refusal, and the allowlist is closed:
-
-| Refused | Because |
-|---|---|
-| A subcommand other than `serve` or `run` | everything else exits at once — a crash loop, forever — or needs a terminal |
-| `--fault-inject`, on any subcommand | a hook that must never be reachable from a served request, now with a privileged account |
-| Any relative path, in the argv or an installer option | a Windows service starts in `System32`: a first-boot failure as an opaque SCM code |
-| An argv with no `--config` | it would fall back to `./nvs.toml` ([`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults)), making the configuration a property of the starting directory; a service names it absolutely |
-| Neither `--log-file` nor a `[log]` file or syslog destination | a service has no console handle, so stderr goes nowhere and a refused compile leaves no trace; `stderr` is not a destination |
-| An `--account` password on the command line | readable by other users; it is prompted, and is `secret` for its whole life ([`security/secret-qualifier`](security.md#security-secret-qualifier)) |
-| Running from a bundle | [`packaging/a-bundle-may-not-install-itself`](packaging.md#packaging-a-bundle-may-not-install-itself) |
-
-Every surviving path is canonicalized and stored absolute. Each refusal is an `E0630`–`E0634`
-diagnostic naming what was refused and why — two pairs of rows share a code because they share a
-reason — never a bare non-zero exit. The refusals run in front of `nvs service unit` too, so an
-operator learns what would have been refused without an elevated shell and without installing
-anything.
-
-<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`packaging/a-bundle-may-not-install-itself`](packaging.md#packaging-a-bundle-may-not-install-itself). Decided in [0093](../decisions/0093.md), [0088](../decisions/0088.md), [0103](../decisions/0103.md), [0048](../decisions/0048.md).</sub>
-
-<a id="packaging-the-argv-lives-in-imagepath"></a>
-
-## On Windows the argv is encoded into the SCM's one `ImagePath` string, the binary path is always quoted, and nothing else holds it  *(designed — not yet in the compiler)*
-
-`rule:packaging/the-argv-lives-in-imagepath`
-
-The Windows SCM stores **one string**, and the process gets it back through `CommandLineToArgvW`. The
-trailing argv is encoded into that string under those rules — the backslash-run-before-a-quote rule
-included — and **that string is the only record of what the service runs**. `sc qc <name>` shows an
-auditor literally what runs, with no second place to look.
-
-A sidecar argv file with a short `ImagePath` would make the round trip exact and is refused anyway: a
-file that decides what a `LocalSystem` process executes is a new writable instruction source, which is
-[`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink) with the check removed.
-
-The encoder is one function with a round-trip property — trailing backslashes, embedded quotes, a
-directory path ending in `\` before a closing quote — and a fuzz target. It is
-[`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only) inverted: that rule refuses to *build* a command line for a
-child, this one has no choice, so the construction is confined to one tested place.
-
-**The binary path is quoted unconditionally**, whether or not it currently contains a space. An
-unquoted `ImagePath` under a path with a space is the textbook Windows privilege-escalation finding,
-Novis's default install location is such a path, and the finding usually appears after somebody moves
-the installation. Arguments given to `sc start <name> arg` reach `ServiceMain` but are not persisted;
-nothing may depend on them, and `nvs service run` ignores them.
-
-<sub>See also [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`packaging/a-service-is-one-stored-argv`](packaging.md#packaging-a-service-is-one-stored-argv). Decided in [0093](../decisions/0093.md), [0044](../decisions/0044.md).</sub>
-
-<a id="packaging-a-service-runs-as-a-virtual-account"></a>
-
-## A service's default identity is the per-service virtual account `NT SERVICE\<name>`, and `LocalSystem` is never the default  *(designed — not yet in the compiler)*
-
-`rule:packaging/a-service-runs-as-a-virtual-account`
-
-The default identity is `NT SERVICE\<name>` — a virtual account the SCM creates and owns, with a
-per-service SID, no password to rotate or leak, and no interactive logon. Install grants that SID read
-on the config, read/write on the cache and log directories, and nothing further; the account can read
-its configuration and write its cache and log, and cannot write its own binary.
-
-`--account` takes a domain identity for a deployment that needs one, with the password prompted rather
-than taken from the command line ([`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink)). `LocalSystem` is never the
-default and must be written out as `--account SYSTEM`.
-
-<sub>See also [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink), [`packaging/a-service-answers-its-manager`](packaging.md#packaging-a-service-answers-its-manager). Decided in [0093](../decisions/0093.md).</sub>
-
-<a id="packaging-a-service-answers-its-manager"></a>
-
-## A stop drains, a `PARAMCHANGE` reloads, and lifecycle records go to the event log beside the configured log destination  *(designed — not yet in the compiler)*
-
-`rule:packaging/a-service-answers-its-manager`
-
-A hosted server answers its service manager with the operations it already has, rather than a shim
-reporting what it can see from outside:
-
-| Control | What the service does |
-|---|---|
-| stop (`SERVICE_CONTROL_STOP`, `systemctl stop`) | reports `STOP_PENDING` with a checkpoint that advances while requests drain, then `STOPPED` — a machine restart drains in-flight requests instead of killing them |
-| `SERVICE_CONTROL_PARAMCHANGE`, `systemctl reload` | performs the configuration reload in-process; the keys it could not apply are written to the event log **by name** ([`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply)) |
-| `SERVICE_CONTROL_PRESHUTDOWN` | requested at install, because plain `SHUTDOWN` allows roughly five seconds and a drain needs more |
-
-Failure actions are set at install — `--restart on-failure` by default, with a reset period — beside
-delayed auto-start (`--start`), dependencies (`--depends-on`, for a database that must come up first)
-and a description.
-
-**Output.** With no console handle the process's stderr goes nowhere, so `nvs service run` binds
-diagnostics and `Core\Log` to the destination the installer insisted on, and additionally writes a
-small, fixed set of lifecycle records — started, stopped, failed to start, reload applied — to the
-Windows event log, the first place an administrator looks. The event-log source is registered at
-install and removed at uninstall, and `uninstall` leaves nothing behind: no registry key, no source, no
-unit file, no granted ACL.
-
-<sub>See also [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly), [`packaging/a-service-runs-as-a-virtual-account`](packaging.md#packaging-a-service-runs-as-a-virtual-account), [`http-server/the-residue-is-one-named-fault-class`](http-server.md#http-server-the-residue-is-one-named-fault-class). Decided in [0093](../decisions/0093.md), [0078](../decisions/0078.md).</sub>
-
-<a id="packaging-the-unit-is-printed-and-install-is-the-opt-in"></a>
-
-## On Linux `nvs service unit` prints the systemd unit and touches nothing; writing it is an explicit `--install`
-
-`rule:packaging/the-unit-is-printed-and-install-is-the-opt-in`
-
-`nvs service unit <name> -- serve --config …` writes a systemd unit to stdout and touches nothing.
-`nvs service install` on Linux is that same generation followed by a write to the system unit
-directory and a `daemon-reload` — the explicit request, never the default.
-
-The asymmetry with Windows is deliberate. There, the SCM's own state is the only representation a
-service has, so there is no file to hand anyone and installing **is** the feature
-([`packaging/the-argv-lives-in-imagepath`](packaging.md#packaging-the-argv-lives-in-imagepath)). On Linux the representation is a text file, the
-operator's configuration management already owns the directory it belongs in, and a binary that writes
-there and reloads the daemon behind Ansible's back is a worse citizen than one that prints. The
-printed unit is also the artifact a change-management review actually wants, which is why `--print`
-exists on Windows too, emitting the equivalent `New-Service` invocation for review rather than
-execution.
-
-Nothing else is generated: no OpenRC, no SysV, no `rc.d`; `launchd` would take the same printing-only
-shape if it is ever added. What the printed unit contains is
-[`packaging/the-generated-unit-is-hardened`](packaging.md#packaging-the-generated-unit-is-hardened).
-
-<sub>See also [`packaging/the-generated-unit-is-hardened`](packaging.md#packaging-the-generated-unit-is-hardened), [`packaging/the-argv-lives-in-imagepath`](packaging.md#packaging-the-argv-lives-in-imagepath), [`packaging/a-service-is-one-stored-argv`](packaging.md#packaging-a-service-is-one-stored-argv). Decided in [0093](../decisions/0093.md).</sub>
-
-<a id="packaging-the-generated-unit-is-hardened"></a>
-
-## The generated unit carries the hardening block, `Type=notify`, `MemoryMax` from `[limits]`, and `AmbientCapabilities` only for a privileged port  *(designed — not yet in the compiler)*
-
-`rule:packaging/the-generated-unit-is-hardened`
-
-The generated unit carries what a hand-written one usually does not:
-
-```ini
-[Service]
-Type=notify
-ExecStart=/usr/bin/nvs serve --config /etc/nvs/nvs.toml
-ExecReload=/usr/bin/nvs ctl reload --socket /run/nvs/control.sock
-WatchdogSec=30
-User=nvs-web
-NoNewPrivileges=true
-ProtectSystem=strict
-ProtectHome=true
-PrivateTmp=true
-CapabilityBoundingSet=
-AmbientCapabilities=CAP_NET_BIND_SERVICE
-RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
-SystemCallFilter=@system-service
-```
-
-`AmbientCapabilities` is emitted **only** when the configured `[server] listen` addresses include a
-privileged port, so the ordinary case grants nothing at all. `MemoryMax` is derived from the config's
-`[limits]` rather than invented. `Type=notify` means `READY=1` after the listener binds — so
-`systemctl start` does not return before the port accepts — plus `RELOADING=1`/`STOPPING=1` at the
-transitions and a watchdog ping from the accept loop. The `sd_notify` protocol is a datagram to
-`$NOTIFY_SOCKET` and needs no `libsystemd`, so this adds no C dependency and
-[`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions) does not arise.
-
-Socket activation — a privileged port with an empty capability set — is deferred rather than refused:
-it changes how `nvs serve` acquires its listener, which makes it a server change the unit generator
-would simply follow.
-
-<sub>See also [`packaging/the-unit-is-printed-and-install-is-the-opt-in`](packaging.md#packaging-the-unit-is-printed-and-install-is-the-opt-in), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions), [`config/three-changeability-classes`](config.md#config-three-changeability-classes). Decided in [0093](../decisions/0093.md), [0097](../decisions/0097.md), [0051](../decisions/0051.md).</sub>
-
-<a id="packaging-a-bundle-may-not-install-itself"></a>
-
-## A single-file bundle may not install itself as a service
-
-`rule:packaging/a-bundle-may-not-install-itself`
-
-`nvs service install` refuses when the running binary is a single-file bundle, with a diagnostic
-(`E0634`) naming the reason.
-
-A bundle is a single trust domain because the person who downloads and runs it is the only principal
-involved ([`programs/bundle-trust-domain`](programs.md#programs-bundle-trust-domain)). Installing a service creates a **second principal** — a
-privileged account executing that payload at every boot, with no operator having read what it
-contains. That is the operator-versus-app-author boundary the bundle declined to cross, arrived at from
-the other side, and the answer has to be the same one.
-
-The narrower rule — allow it for a non-`serve` payload — is rejected as a conditional a reader must
-carry in their head to serve a case nobody has asked for. Reopening this means arguing the trust-domain
-point directly.
-
-<sub>See also [`programs/bundle-trust-domain`](programs.md#programs-bundle-trust-domain), [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink). Decided in [0093](../decisions/0093.md), [0048](../decisions/0048.md).</sub>
-
-<a id="packaging-a-service-is-operator-surface"></a>
-
-## There is no `Core\Service`: only an operator installs a service, from the command line, and nothing about it is on the request path
-
-`rule:packaging/a-service-is-operator-surface`
-
-There is no `Core\Service`, no new grammar, no runtime change and nothing on the request path. A
-service manager is not a stdlib candidate under [`core-api/tier-placement`](core-api.md#core-api-tier-placement)'s tests at all: a Novis
-program cannot install itself as a service, only an operator can, from the command line. That keeps
-"an application can never grant itself rights" ([`security/no-runtime-grant`](security.md#security-no-runtime-grant)) intact rather than
-restating it.
-
-What the feature costs is paid at start and at stop: one control-handler thread with its stack plus a
-status structure per served process — kilobytes, O(1), attributable to no request because no request
-causes it — and nothing per request. Its dependencies are one Windows-only crate and one Linux-only
-crate for `sd_notify`, both behind `#[cfg]`, both pure Rust with no build script, and neither reachable
-from a served request.
-
-<sub>See also [`security/no-runtime-grant`](security.md#security-no-runtime-grant), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`packaging/a-service-is-one-stored-argv`](packaging.md#packaging-a-service-is-one-stored-argv). Decided in [0093](../decisions/0093.md), [0005](../decisions/0005.md).</sub>
-
-<a id="packaging-an-extension-package-carries-two-payloads"></a>
-
-## An extension package may carry Novis source beside its `.nvsx`, under one namespace, and the component's manifest registers exactly one class  *(designed — not yet in the compiler)*
-
-`rule:packaging/an-extension-package-carries-two-payloads`
-
-An extension package may carry **two payloads**: the `.nvsx` wasm component, and Novis source that
-composes calls into it. Everything a program names is under one namespace, the component's manifest
-registers **exactly one class** whose static methods are the component's closed set of entry points,
-and every other class under that namespace is Novis source that calls them. `nvs/image` is the first
-package of this shape — `Novis\Image\Codec` is the manifest's class, and the builder above it is source
-([`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline)); `nvs/spreadsheet` follows it with `Novis\Spreadsheet\Engine`
-([`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io)).
-
-Loading is unchanged: the `.nvsx` alone is what an `[[extension]]` pin governs
-([`packaging/extension-loading-is-root-controlled`](packaging.md#packaging-extension-loading-is-root-controlled)), and the source beside it is resolved exactly as
-a source package's is.
-
-The split is the point rather than a packaging convenience. Building a plan is data manipulation and
-costs nothing to do in Novis; the codecs belong inside the sandbox. A builder that lived in the guest
-would spend a boundary crossing per method to append to an array
-([`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost)), and would hold plan state across calls in an instance
-whose whole premise is that state does not outlive a request.
-
-<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io), [`packaging/an-nvsx-is-one-file-carrying-its-manifest`](packaging.md#packaging-an-nvsx-is-one-file-carrying-its-manifest), [`packaging/extension-loading-is-root-controlled`](packaging.md#packaging-extension-loading-is-root-controlled), [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0120](../decisions/0120.md), [0081](../decisions/0081.md), [0123](../decisions/0123.md).</sub>
-
-<a id="packaging-pdf-decoding-ships-in-the-image-package"></a>
-
-## PDF is a decode-only format of `nvs/image`, in the second wave, and never a member of `nvs/pdf`  *(designed — not yet in the compiler)*
-
-`rule:packaging/pdf-decoding-ships-in-the-image-package`
-
-PDF joins the image component's format roster **decode only**, in the second wave beside SVG, with
-`Format` gaining a `Pdf` case and no new entry point: the plan/terminal shape and the component's closed
-set of exports are unchanged ([`core-classes/image-format-roster`](core-classes.md#core-classes-image-format-roster),
-[`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source)).
-
-It is not a member of `nvs/pdf`. A writer and an interpreter share no code, and a raster produced in the
-generation package would have to recross the boundary to enter the image pipeline that is the whole
-point of loading one. Generation stays [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io)'s; text extraction,
-page manipulation and forms are different jobs and stay in the third-party channel.
-
-The job this replaces is PHP's ImageMagick-delegating-to-Ghostscript pair — an installed, unsandboxed
-interpreter with an RCE history long enough that ImageMagick's stock policy ships with the PDF coder
-disabled. A PDF interpreter is a strictly larger hostile-bytes case than any format already on the
-roster, and the sandbox is where a parser that size belongs.
-
-<sub>See also [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/image-format-roster`](core-classes.md#core-classes-image-format-roster), [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`packaging/an-extension-package-carries-two-payloads`](packaging.md#packaging-an-extension-package-carries-two-payloads). Decided in [0128](../decisions/0128.md), [0120](../decisions/0120.md), [0121](../decisions/0121.md).</sub>
-
-<a id="packaging-the-artifact-cache-is-read-not-mapped"></a>
-
-## A compiled-unit cache entry is read into memory, never mapped  *(designed — not yet in the compiler)*
-
-`rule:packaging/the-artifact-cache-is-read-not-mapped`
-
-The compiled-unit cache is **read into memory**, never mapped. A mapped file that is truncated or
-replaced underneath a reader raises `SIGBUS` in the reader — a signal, which no in-process mechanism
-contains: `catch_unwind` catches a panic, not a signal, and a signal in a worker is the one thing left
-that can cost more than the request that provoked it ([`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code) is the
-boundary this sits outside of).
-
-The cost is one copy per unit at load, on the compile pool that single-flight compilation already
-keeps off every request core, against a whole class of fault that has no answer once it fires. Memory
-buys isolation, which is the direction the priority ordering exists to permit.
-
-What the entry contains, how it is verified before it becomes executable, and why its key carries the
-extension set ([`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key)) are unchanged by how its bytes
-arrive; only the read path is.
-
-<sub>See also [`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-artifact-is-verified-whole-before-a-page-is-executable`](packaging.md#packaging-an-artifact-is-verified-whole-before-a-page-is-executable), [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers). Decided in [0106](../decisions/0106.md), [0042](../decisions/0042.md).</sub>
-
 <a id="packaging-an-artifact-is-one-immutable-content-addressed-file"></a>
 
 ## A compiled unit is one immutable file whose address is its content and its environment
@@ -652,6 +74,28 @@ file becomes a plain miss rather than one relocated under yesterday's rules.
 
 <sub>See also [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file), [`packaging/an-artifact-is-verified-whole-before-a-page-is-executable`](packaging.md#packaging-an-artifact-is-verified-whole-before-a-page-is-executable), [`packaging/a-warm-hit-skips-codegen-not-the-front-end`](packaging.md#packaging-a-warm-hit-skips-codegen-not-the-front-end). Decided in [0042](../decisions/0042.md).</sub>
 
+<a id="packaging-the-artifact-cache-is-read-not-mapped"></a>
+
+## A compiled-unit cache entry is read into memory, never mapped  *(designed — not yet in the compiler)*
+
+`rule:packaging/the-artifact-cache-is-read-not-mapped`
+
+The compiled-unit cache is **read into memory**, never mapped. A mapped file that is truncated or
+replaced underneath a reader raises `SIGBUS` in the reader — a signal, which no in-process mechanism
+contains: `catch_unwind` catches a panic, not a signal, and a signal in a worker is the one thing left
+that can cost more than the request that provoked it ([`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code) is the
+boundary this sits outside of).
+
+The cost is one copy per unit at load, on the compile pool that single-flight compilation already
+keeps off every request core, against a whole class of fault that has no answer once it fires. Memory
+buys isolation, which is the direction the priority ordering exists to permit.
+
+What the entry contains, how it is verified before it becomes executable, and why its key carries the
+extension set ([`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key)) are unchanged by how its bytes
+arrive; only the read path is.
+
+<sub>See also [`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-artifact-is-verified-whole-before-a-page-is-executable`](packaging.md#packaging-an-artifact-is-verified-whole-before-a-page-is-executable), [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers). Decided in [0106](../decisions/0106.md), [0042](../decisions/0042.md).</sub>
+
 <a id="packaging-a-warm-hit-skips-codegen-not-the-front-end"></a>
 
 ## A warm hit skips codegen and nothing else, and it must beat the compile it replaces
@@ -705,6 +149,34 @@ relocation that still does not fit is a miss, never a truncated address; so is a
 
 <sub>See also [`packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`](packaging.md#packaging-an-artifact-is-a-relocatable-object-behind-a-self-describing-header), [`packaging/a-bad-cache-entry-is-a-miss-never-an-error`](packaging.md#packaging-a-bad-cache-entry-is-a-miss-never-an-error), [`packaging/the-checksum-proves-integrity-and-ownership-proves-trust`](packaging.md#packaging-the-checksum-proves-integrity-and-ownership-proves-trust). Decided in [0042](../decisions/0042.md).</sub>
 
+<a id="packaging-the-checksum-proves-integrity-and-ownership-proves-trust"></a>
+
+## The checksum answers corruption; a cache directory another account can write is refused at startup
+
+`rule:packaging/the-checksum-proves-integrity-and-ownership-proves-trust`
+
+The header checksum defends against **corruption**: truncation, bit rot, an interrupted write that
+landed at a final path by bypassing the runtime's own writer. It is not, and is not claimed to be, a
+defense against a hostile file placed by another local principal who can write the cache directory —
+that principal computes a perfectly valid header and checksum over payload bytes of their own choosing.
+A checksum answers "is this the file I wrote", never "should I trust whoever wrote it"; conflating the
+two would be the actual security hole.
+
+That threat is closed by a permission and ownership check, not a hash. **A world-writable cache
+directory, or one not owned by the account the runtime process runs as, is refused at startup**, the
+same class of check `ssh` applies to `~/.ssh`, and it is [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary)
+applied to the cache directory. A directory that does not exist yet is checked at the nearest ancestor
+that does, because that is the shallowest directory an attacker would have to write in order to fill
+the slot the first store will create.
+
+The check is done once, before anything is read from the directory, and never per entry: a `Cache`
+value is itself the evidence it passed. It is also a refusal to start, naming the path, rather than a
+silent fall back to compiling every time — a bad entry is invisible, a breached boundary is not.
+Ownership that changes after the process started is not re-checked mid-run, consistent with every other
+`System`-class directive ([`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system)).
+
+<sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system), [`packaging/an-artifact-is-verified-whole-before-a-page-is-executable`](packaging.md#packaging-an-artifact-is-verified-whole-before-a-page-is-executable). Decided in [0042](../decisions/0042.md).</sub>
+
 <a id="packaging-a-bad-cache-entry-is-a-miss-never-an-error"></a>
 
 ## A bad cache entry is a miss the script never sees, and only a corrupt one is deleted
@@ -756,34 +228,6 @@ run continues on the compile it just did.
 
 <sub>See also [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file). Decided in [0042](../decisions/0042.md).</sub>
 
-<a id="packaging-the-checksum-proves-integrity-and-ownership-proves-trust"></a>
-
-## The checksum answers corruption; a cache directory another account can write is refused at startup
-
-`rule:packaging/the-checksum-proves-integrity-and-ownership-proves-trust`
-
-The header checksum defends against **corruption**: truncation, bit rot, an interrupted write that
-landed at a final path by bypassing the runtime's own writer. It is not, and is not claimed to be, a
-defense against a hostile file placed by another local principal who can write the cache directory —
-that principal computes a perfectly valid header and checksum over payload bytes of their own choosing.
-A checksum answers "is this the file I wrote", never "should I trust whoever wrote it"; conflating the
-two would be the actual security hole.
-
-That threat is closed by a permission and ownership check, not a hash. **A world-writable cache
-directory, or one not owned by the account the runtime process runs as, is refused at startup**, the
-same class of check `ssh` applies to `~/.ssh`, and it is [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary)
-applied to the cache directory. A directory that does not exist yet is checked at the nearest ancestor
-that does, because that is the shallowest directory an attacker would have to write in order to fill
-the slot the first store will create.
-
-The check is done once, before anything is read from the directory, and never per entry: a `Cache`
-value is itself the evidence it passed. It is also a refusal to start, naming the path, rather than a
-silent fall back to compiling every time — a bad entry is invisible, a breached boundary is not.
-Ownership that changes after the process started is not re-checked mid-run, consistent with every other
-`System`-class directive ([`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system)).
-
-<sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system), [`packaging/an-artifact-is-verified-whole-before-a-page-is-executable`](packaging.md#packaging-an-artifact-is-verified-whole-before-a-page-is-executable). Decided in [0042](../decisions/0042.md).</sub>
-
 <a id="packaging-eviction-rides-the-cold-miss-at-a-probability"></a>
 
 ## Eviction rides the cold miss at a configured probability, and a warm hit pays nothing for it
@@ -825,6 +269,38 @@ changed toolchain or a changed extension set is a different key — so the only 
 changes is disk usage, and the next run of anything they removed pays one cold compile.
 
 <sub>See also [`packaging/eviction-rides-the-cold-miss-at-a-probability`](packaging.md#packaging-eviction-rides-the-cold-miss-at-a-probability). Decided in [0042](../decisions/0042.md).</sub>
+
+<a id="packaging-autoload-probes-fold-into-the-cache-key"></a>
+
+## A unit's cache key covers every autoload path it probed, misses included, and every directory a discovery query listed  *(designed — not yet in the compiler)*
+
+`rule:packaging/autoload-probes-fold-into-the-cache-key`
+
+Plain `autoload` ([`programs/autoload`](programs.md#programs-autoload)) adds no new dependency kind to the artifact cache, with
+one exception. A file nobody references changes nothing, and when a reference is finally written the
+*referencing* file's content hash changes and the cache key misses on its own. The exception is
+**shadowing**: adding `src/Thing.nvs` when `App\Thing` currently resolves to
+`vendor/compat/Thing.nvs` changes the answer with no existing file touched. So a unit records the
+**ordered list of paths it probed, including the misses**; a negative entry is an ordinary path
+entry in the revalidation table, and the trace folds into the unit's cache key exactly as the target
+triple does.
+
+A **discovery query** ([`programs/implementing`](programs.md#programs-implementing)) makes a unit depend on directory *contents*:
+adding a module that nothing references must change the generated list. So every directory listed
+during the scan — not just the roots, since a directory's `mtime` does not propagate upward — joins
+the revalidation set, and the sorted list of discovered names hashes into the key, so a listing that
+changes without changing the discovered set recompiles nothing.
+
+**No new directive.** Both ride the existing revalidation directives, which are `System`-class
+([`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class)): bounded at N ⁄ `revalidate_freq` stats per
+window for N listed directories — tens, not thousands — and exactly zero under `validate = never`,
+which is what production runs. For a compiled build and the wasm target the question does not
+arise; resolution happens once, at build time.
+
+**Not on disk.** The resolver produces the probe trace and then drops it: the revalidation table the
+key needs does not exist yet, so neither the trace nor the listed directories reach a cache key.
+
+<sub>See also [`programs/autoload`](programs.md#programs-autoload), [`programs/implementing`](programs.md#programs-implementing), [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file). Decided in [0061](../decisions/0061.md), [0042](../decisions/0042.md).</sub>
 
 <a id="packaging-a-wasm-module-cache-reuses-the-artifact-cache"></a>
 
@@ -951,21 +427,20 @@ all, which is the one behaviour that cannot corrupt anything.
 
 <sub>See also [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host), [`packaging/a-bundle-carries-source-not-artifacts`](packaging.md#packaging-a-bundle-carries-source-not-artifacts). Decided in [0048](../decisions/0048.md).</sub>
 
-<a id="packaging-a-macos-bundle-is-ad-hoc-signed-at-build"></a>
+<a id="packaging-build-compile-packages-what-is-on-disk-and-resolves-nothing"></a>
 
-## A macOS bundle is ad-hoc signed by the build command; PE and ELF need no step
+## `nvs build --compile` packages what is already resolved on disk and fetches no dependency
 
-`rule:packaging/a-macos-bundle-is-ad-hoc-signed-at-build`
+`rule:packaging/build-compile-packages-what-is-on-disk-and-resolves-nothing`
 
-Appending bytes after an already-signed Mach-O invalidates its signature. `nvs build --compile`
-therefore appends the payload *before* signing and ad-hoc-signs the result by default
-(`codesign --sign -`), with a flag reserved for a user-supplied identity later. A macOS bundle passes
-Gatekeeper's ad-hoc-signature check out of the box.
+`nvs build --compile` packages what is already resolved and present on disk, and nothing else. It
+fetches no dependency, reads no lockfile and contacts no registry; a `require` target that is not on
+disk fails the build ([`packaging/a-bundled-require-resolves-at-build-time`](packaging.md#packaging-a-bundled-require-resolves-at-build-time)) rather than being
+looked for anywhere.
 
-Windows (PE) and Linux (ELF) have no equivalent step: the append is the entire build. The signing is a
-one-time cost inside the build command, paid by the author at build time and never by the end user —
-which is also why a bundle never re-signs itself
-([`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host)).
+Resolving dependencies into source on disk is a separate command's job — `nvs pkg` — and the two
+compose rather than overlap: `nvs pkg install && nvs build --compile`. Keeping them apart is what keeps
+the bundler's own surface at one input, one output and one footer.
 
 <sub>See also [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host). Decided in [0048](../decisions/0048.md).</sub>
 
@@ -987,22 +462,40 @@ pin, read from a different byte source.
 
 <sub>See also [`packaging/a-bundle-carries-source-not-artifacts`](packaging.md#packaging-a-bundle-carries-source-not-artifacts), [`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component). Decided in [0048](../decisions/0048.md), [0003](../decisions/0003.md).</sub>
 
-<a id="packaging-build-compile-packages-what-is-on-disk-and-resolves-nothing"></a>
+<a id="packaging-a-macos-bundle-is-ad-hoc-signed-at-build"></a>
 
-## `nvs build --compile` packages what is already resolved on disk and fetches no dependency
+## A macOS bundle is ad-hoc signed by the build command; PE and ELF need no step
 
-`rule:packaging/build-compile-packages-what-is-on-disk-and-resolves-nothing`
+`rule:packaging/a-macos-bundle-is-ad-hoc-signed-at-build`
 
-`nvs build --compile` packages what is already resolved and present on disk, and nothing else. It
-fetches no dependency, reads no lockfile and contacts no registry; a `require` target that is not on
-disk fails the build ([`packaging/a-bundled-require-resolves-at-build-time`](packaging.md#packaging-a-bundled-require-resolves-at-build-time)) rather than being
-looked for anywhere.
+Appending bytes after an already-signed Mach-O invalidates its signature. `nvs build --compile`
+therefore appends the payload *before* signing and ad-hoc-signs the result by default
+(`codesign --sign -`), with a flag reserved for a user-supplied identity later. A macOS bundle passes
+Gatekeeper's ad-hoc-signature check out of the box.
 
-Resolving dependencies into source on disk is a separate command's job — `nvs pkg` — and the two
-compose rather than overlap: `nvs pkg install && nvs build --compile`. Keeping them apart is what keeps
-the bundler's own surface at one input, one output and one footer.
+Windows (PE) and Linux (ELF) have no equivalent step: the append is the entire build. The signing is a
+one-time cost inside the build command, paid by the author at build time and never by the end user —
+which is also why a bundle never re-signs itself
+([`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host)).
 
 <sub>See also [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host). Decided in [0048](../decisions/0048.md).</sub>
+
+<a id="packaging-a-build-records-no-timestamp"></a>
+
+## A build records its target, host, profile, compiler and commit, and never a date
+
+`rule:packaging/a-build-records-no-timestamp`
+
+`build.rs` records the target, the host, the profile, `rustc --version`, the Cranelift version from
+`Cargo.lock` and the commit — and no date. A build date makes two builds of the same commit differ for
+no gain: the commit already answers "which source is this?" exactly, and a byte-identical rebuild is
+worth more than knowing when it happened.
+
+`NVS_BUILD_COMMIT` lets a distribution packaging Novis from a tarball supply the revision when no `.git`
+is present, and every fact that cannot be determined becomes `unknown` rather than failing the build.
+All of it reaches [`packaging/nvs-info-is-the-one-call-and-nvs-i-its-php-spelling`](packaging.md#packaging-nvs-info-is-the-one-call-and-nvs-i-its-php-spelling)'s report.
+
+<sub>See also [`packaging/nvs-info-is-the-one-call-and-nvs-i-its-php-spelling`](packaging.md#packaging-nvs-info-is-the-one-call-and-nvs-i-its-php-spelling). Decided in [0065](../decisions/0065.md).</sub>
 
 <a id="packaging-the-third-party-notice-is-generated-never-written-by-hand"></a>
 
@@ -1088,22 +581,25 @@ flag-gated for reasons this command does not share.
 
 <sub>See also [`packaging/the-notice-is-embedded-in-the-binary`](packaging.md#packaging-the-notice-is-embedded-in-the-binary), [`packaging/a-build-records-no-timestamp`](packaging.md#packaging-a-build-records-no-timestamp), [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`testing/debug-probes`](testing.md#testing-debug-probes). Decided in [0065](../decisions/0065.md).</sub>
 
-<a id="packaging-a-build-records-no-timestamp"></a>
+<a id="packaging-a-package-name-is-vendor-slash-name"></a>
 
-## A build records its target, host, profile, compiler and commit, and never a date
+## A package name is `vendor/name`, lowercase ASCII compared exactly, and `nvs` is reserved for first-party packages  *(designed — not yet in the compiler)*
 
-`rule:packaging/a-build-records-no-timestamp`
+`rule:packaging/a-package-name-is-vendor-slash-name`
 
-`build.rs` records the target, the host, the profile, `rustc --version`, the Cranelift version from
-`Cargo.lock` and the commit — and no date. A build date makes two builds of the same commit differ for
-no gain: the commit already answers "which source is this?" exactly, and a byte-identical rebuild is
-worth more than knowing when it happened.
+A package name is **`vendor/name`**: both segments lowercase ASCII with `-` permitted, and compared
+**exactly** — the same rule the compiler applies to every other name, so that a name which resolves
+on one operating system resolves on all three. A registry maps a name plus a minimum version to a
+digest; the name is never the identity ([`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest)).
 
-`NVS_BUILD_COMMIT` lets a distribution packaging Novis from a tarball supply the revision when no `.git`
-is present, and every fact that cannot be determined becomes `unknown` rather than failing the build.
-All of it reaches [`packaging/nvs-info-is-the-one-call-and-nvs-i-its-php-spelling`](packaging.md#packaging-nvs-info-is-the-one-call-and-nvs-i-its-php-spelling)'s report.
+The vendor segment `nvs` is reserved for first-party packages, exactly as `Core` is reserved in the
+language ([`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace)). First-party packages are otherwise subject to every
+rule here: `nvs/web` resolves, locks, is logged and is granted like anyone else's package, because a
+registry whose maintainers do not depend on it does not stay good.
 
-<sub>See also [`packaging/nvs-info-is-the-one-call-and-nvs-i-its-php-spelling`](packaging.md#packaging-nvs-info-is-the-one-call-and-nvs-i-its-php-spelling). Decided in [0065](../decisions/0065.md).</sub>
+Names are first-come, and the squatting policy is the registry operator's own operational document.
+
+<sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace), [`programs/path-case`](programs.md#programs-path-case), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions). Decided in [0081](../decisions/0081.md), [0062](../decisions/0062.md), [0051](../decisions/0051.md).</sub>
 
 <a id="packaging-a-package-is-its-digest"></a>
 
@@ -1135,224 +631,66 @@ archive.
 
 <sub>See also [`packaging/a-package-name-is-vendor-slash-name`](packaging.md#packaging-a-package-name-is-vendor-slash-name), [`packaging/a-package-cannot-reach-its-host`](packaging.md#packaging-a-package-cannot-reach-its-host), [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`programs/bundle-trust-domain`](programs.md#programs-bundle-trust-domain), [`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component), [`packaging/an-extension-package-carries-two-payloads`](packaging.md#packaging-an-extension-package-carries-two-payloads), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file). Decided in [0081](../decisions/0081.md), [0120](../decisions/0120.md), [0042](../decisions/0042.md), [0003](../decisions/0003.md).</sub>
 
-<a id="packaging-a-package-name-is-vendor-slash-name"></a>
+<a id="packaging-package-toml-is-a-tool-input"></a>
 
-## A package name is `vendor/name`, lowercase ASCII compared exactly, and `nvs` is reserved for first-party packages  *(designed — not yet in the compiler)*
+## `package.toml` is read by the `nvs` CLI, never by the runtime and never by name resolution  *(designed — not yet in the compiler)*
 
-`rule:packaging/a-package-name-is-vendor-slash-name`
+`rule:packaging/package-toml-is-a-tool-input`
 
-A package name is **`vendor/name`**: both segments lowercase ASCII with `-` permitted, and compared
-**exactly** — the same rule the compiler applies to every other name, so that a name which resolves
-on one operating system resolves on all three. A registry maps a name plus a minimum version to a
-digest; the name is never the identity ([`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest)).
+The rejection of "a manifest file found by walking up from the entry file"
+([`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload)) stands, and so does
+[`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest). `package.toml` is neither, because the distinction
+both draw is about *who reads the file*.
 
-The vendor segment `nvs` is reserved for first-party packages, exactly as `Core` is reserved in the
-language ([`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace)). First-party packages are otherwise subject to every
-rule here: `nvs/web` resolves, locks, is logged and is granted like anyone else's package, because a
-registry whose maintainers do not depend on it does not stay good.
+**Neither the runtime nor name resolution ever reads `package.toml`.** Program semantics do not
+depend on it, no compiled unit's cache key includes it, and a program whose `vendor/` is already
+populated resolves every name identically whether the file is present, absent or malformed. That is
+a statement about *name resolution*, not about the build as a whole: the manifest's
+`required`/`optional` split ([`security/optional-capability-degrades`](security.md#security-optional-capability-degrades)) and its declared
+namespace prefix are compiler inputs, reached through the fetched layout, so a malformed manifest
+still fails a build.
 
-Names are first-come, and the squatting policy is the registry operator's own operational document.
+It is read by the **`nvs` CLI** — `add`, `fetch`, `update`, `vendor`, `audit`, `publish` — which may
+find it by walking up from the working directory the way `git` finds `.git`, because a tool locating
+its own project is a different question from a language locating a declaration.
 
-<sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace), [`programs/path-case`](programs.md#programs-path-case), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions). Decided in [0081](../decisions/0081.md), [0062](../decisions/0062.md), [0051](../decisions/0051.md).</sub>
+It is TOML with unknown fields refused ([`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one)),
+and its integration with the program is the generated file
+[`packaging/a-fetched-package-is-an-autoload-line`](packaging.md#packaging-a-fetched-package-is-an-autoload-line) describes.
 
-<a id="packaging-a-package-cannot-reach-its-host"></a>
+<sub>See also [`packaging/a-fetched-package-is-an-autoload-line`](packaging.md#packaging-a-fetched-package-is-an-autoload-line), [`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest), [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`security/optional-capability-degrades`](security.md#security-optional-capability-degrades). Decided in [0081](../decisions/0081.md), [0061](../decisions/0061.md), [0064](../decisions/0064.md), [0112](../decisions/0112.md).</sub>
 
-## A package ships no `nvs.toml`, and none of its `require` or `autoload` paths reaches outside its own directory  *(designed — not yet in the compiler)*
+<a id="packaging-a-package-file-stays-under-its-declared-prefix"></a>
 
-`rule:packaging/a-package-cannot-reach-its-host`
+## Every file in a fetched package declares a namespace under the prefix its manifest claims, and two packages claiming one prefix is a fetch error naming both  *(designed — not yet in the compiler)*
 
-Two things a package may not do to the tree it lands in.
+`rule:packaging/a-package-file-stays-under-its-declared-prefix`
 
-**A package may not contain an `nvs.toml`.** Server configuration is root-owned and
-deployment-scoped ([`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest)); a package that shipped one
-would be asking to configure the host it lands on. Fetching an archive containing one is an error
-naming the file, and the registry refuses such an archive at publish.
+Authority is looked up by the enclosing namespace alone
+([`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace)), and keying on a self-declared attribute would
+be worthless if a package could declare any attribute it liked. Two checks close that.
 
-**A package's files are reachable only from within the package.** A `require` or an `autoload` path
-inside a package that escapes the package's own directory — through `..`, an absolute path or a
-symlink — is a **compile error**. A package cannot read the application's tree, and the check is the
-same canonicalise-and-prefix-check `spawn script` performs against its granted roots
-([`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix)).
+**A package declares its namespace prefix in its manifest, and two packages claiming one prefix is
+an error at fetch time naming both.** The collision is caught when the graph is assembled, not as a
+redeclaration during compilation.
 
-**Not on disk.** No fetch path exists to refuse an archive, and the compiler has no file-to-package
-map against which to check a path.
+**Every file in a fetched package must declare a namespace under that package's declared prefix.**
+This is a compile-time check needing no new information: the file's package is known from the
+fetched layout, the prefix from the manifest, and the declaration is in the file. A package whose
+file declares `namespace App;` in order to reach the application's grants fails to compile, naming
+the file, the namespace it declared and the prefix it was required to stay inside.
 
-<sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix). Decided in [0081](../decisions/0081.md), [0064](../decisions/0064.md), [0006](../decisions/0006.md).</sub>
+The second check is *not* how authority is looked up — the lookup reads the namespace alone. It is a
+separate integrity check that the fetched layout and the declared namespaces agree, so the attribute
+the lookup trusts is one the package was not free to choose. Hand-vendored code has no manifest and
+so no such check; what it has instead is a human writing the `autoload` line that names its prefix,
+and the audit warning [`security/an-unmatched-namespace-holds-the-application`](security.md#security-an-unmatched-namespace-holds-the-application) describes if they
+did not think about it.
 
-<a id="packaging-a-git-dependency-is-root-only"></a>
+**Not on disk.** The diagnostic code the design named has since been issued to a configuration
+refusal; the check takes the band's next free number when it lands.
 
-## A git dependency pins an exact commit, and only the root application may declare one  *(designed — not yet in the compiler)*
-
-`rule:packaging/a-git-dependency-is-root-only`
-
-Two kinds of source produce a package's digest, and only one of them is transitive.
-
-A **registry dependency** is a name plus a minimum version, which the registry maps to a digest. A
-**git dependency** is a URL plus an **exact commit `rev`** — never a branch, never a tag, because
-neither is immutable. The fetched tree is archived and digested exactly as a registry artifact is,
-and the digest goes in the lockfile, so from the second fetch onward the two kinds are
-indistinguishable.
-
-**Only the root application may declare a git dependency.** A package published to the registry
-whose manifest names a git source is rejected at publish time, and a git dependency encountered
-below the root is a hard error naming the package that declared it. The convenience of git — a fork,
-a patch under test, private code, a monorepo — is entirely a property of *your own* project, and
-your transitive graph stays inside a namespace with a transparency log and a retraction mechanism:
-no dependency of yours can drag in code from a URL you never saw.
-
-A private registry is a registry: the protocol is static signed files over HTTPS, so an organisation
-that cannot use the public one runs or mirrors its own, and nothing above changes.
-
-**Not on disk**, with the rest of the package system.
-
-<sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest), [`packaging/publishing-never-overwrites`](packaging.md#packaging-publishing-never-overwrites). Decided in [0081](../decisions/0081.md).</sub>
-
-<a id="packaging-resolution-takes-the-highest-minimum"></a>
-
-## Resolution selects the highest minimum any package asked for, and nothing upgrades itself  *(designed — not yet in the compiler)*
-
-`rule:packaging/resolution-takes-the-highest-minimum`
-
-Every dependency names the **minimum version** it needs. The version selected for a package is the
-**highest minimum any package in the graph asked for**. That is the whole algorithm.
-
-There is no solver, no backtracking and no unsolvable graph: resolution is a walk taking a maximum,
-so it always succeeds, it is fast, and it is deterministic without the lockfile — the lockfile
-records digests for *integrity*, not to pin a choice that would otherwise wobble
-([`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest)). Adding a dependency cannot move an unrelated
-one, and the version you get is one somebody explicitly asked for, never the newest thing published
-this morning, so a build that worked yesterday works today and a fresh clone matches CI.
-
-**Upgrades are explicit.** `nvs update <package>` raises a minimum in `package.toml` and shows the
-effect on the whole graph; `nvs outdated` reports what is available. Nothing upgrades itself — which
-is also why a security patch does not arrive on its own, and why retraction and `nvs audit`
-([`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted)) have to be genuinely good rather
-than an afterthought.
-
-A minimum is a floor and never a ceiling, so the algorithm is sound only if a higher version is
-always acceptable — which is what [`packaging/a-breaking-release-is-a-new-name`](packaging.md#packaging-a-breaking-release-is-a-new-name) guarantees.
-
-<sub>See also [`packaging/a-breaking-release-is-a-new-name`](packaging.md#packaging-a-breaking-release-is-a-new-name), [`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted), [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest). Decided in [0081](../decisions/0081.md).</sub>
-
-<a id="packaging-a-breaking-release-is-a-new-name"></a>
-
-## A package that breaks its API publishes under a new name carrying `supersedes`  *(designed — not yet in the compiler)*
-
-`rule:packaging/a-breaking-release-is-a-new-name`
-
-A package that breaks its API **publishes under a new name** — conventionally the old name with a
-numeric suffix, `acme/http` → `acme/http2` — carrying `supersedes = "acme/http"` so that
-`nvs outdated` and `nvs audit` can point at it. The two coexist in one graph without conflict,
-because they are two packages.
-
-This is what keeps [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum) sound: a minimum is never a
-ceiling, so a higher version of one name must always be acceptable, and a version that is not
-acceptable is therefore not a version of that name. It is the real cost of having no solver, and it
-is paid by the publisher rather than by every consumer. The absorb-don't-forward discipline
-([`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded)) — Novis's own rule for its Rust
-dependencies — is what makes a rename rare enough to live with.
-
-The rule is watched rather than enforced: if library authors route around it by shipping breaks
-under the same name, either an API-diff check at publish or a ceiling mechanism becomes necessary.
-
-<sub>See also [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum), [`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded), [`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted). Decided in [0081](../decisions/0081.md), [0068](../decisions/0068.md).</sub>
-
-<a id="packaging-a-known-bad-version-is-retracted-not-deleted"></a>
-
-## A known-bad version is retracted, never deleted, and `nvs audit` names the minimum bump that clears it  *(designed — not yet in the compiler)*
-
-`rule:packaging/a-known-bad-version-is-retracted-not-deleted`
-
-A publisher marks a version **retracted** with a reason and a fixed-in version. Resolution refuses to
-*select* a retracted version and names the fix, while the bytes remain fetchable forever, so an
-existing lockfile still builds. Deletion is not offered.
-
-**`nvs audit`** reads the registry's signed advisory feed, reports the minimum bump that clears each
-advisory, and exits non-zero for CI. Retraction plus audit is the answer to minimal version
-selection's one real weakness — that a patch nobody asked for does not arrive on its own
-([`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum)) — and it covers the one case a version
-range expresses that a minimum cannot: "not 2.3.1, it is broken".
-
-If audit proves insufficient in practice and users sit on known-vulnerable versions, the thing to
-argue is a narrowly scoped automatic patch floor, not a general range system.
-
-<sub>See also [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum), [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log). Decided in [0081](../decisions/0081.md).</sub>
-
-<a id="packaging-nothing-runs-before-the-program"></a>
-
-## Nothing in a package runs before your program does  *(designed — not yet in the compiler)*
-
-`rule:packaging/nothing-runs-before-the-program`
-
-**No install scripts, no post-install hooks, no build step, no code generation, no macros.** There is
-no point in the fetch, resolve, verify or compile pipeline at which a package's code executes. The
-first time a line of a dependency runs is when your program calls it.
-
-Most of this was already true — there is no `eval` ([`security/no-eval`](security.md#security-no-eval)), attributes are inert
-shape literals, the only compiler-recognised attributes are a closed `Core`-owned list, and there is
-no macro expander for a package to hook. This rule adds the one thing that was missing, *no build
-lifecycle, ever*, and thereby closes the category: the entire post-install attack class has nowhere
-to execute.
-
-A package that needs generated code generates it into its own repository **before** publishing,
-where a human reviews the output and the digest covers it. The generated file is source like any
-other.
-
-A package containing a top-level statement with an observable effect produces no effect from
-`nvs fetch`, `nvs build` or `nvs vendor` — only from a call. There is no legitimate exception: in a
-language with no FFI and no native compilation step available to userland, an allowance for
-"packages that genuinely need it" would exist only to be abused, and if such a need ever appears
-the rule is re-argued from scratch rather than amended.
-
-<sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`security/no-eval`](security.md#security-no-eval), [`security/closed-doors`](security.md#security-closed-doors), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time). Decided in [0081](../decisions/0081.md), [0052](../decisions/0052.md), [0046](../decisions/0046.md), [0071](../decisions/0071.md).</sub>
-
-<a id="packaging-the-lockfile-holds-every-digest"></a>
-
-## `package.lock` records every package's digest, a mismatch is a hard error, and `--locked` fetches nothing the lock does not name  *(designed — not yet in the compiler)*
-
-`rule:packaging/the-lockfile-holds-every-digest`
-
-**`package.lock` records every package in the graph** — direct and transitive — with its name,
-selected version, source and digest. `nvs build --locked`, and every CI invocation, fetches nothing
-that is not in the lock and fails rather than updating it.
-
-**A digest mismatch is a hard error** — never a warning and never a re-fetch — and the failure names
-the package. The digest is the same BLAKE3 the artifact cache keys on, so a package's identity
-([`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest)) and its integrity check are one hash.
-
-**`nvs vendor`** writes the whole resolved graph into the application tree, so a build needs no
-network at all. Vendored bytes are digest-checked against the lock on every build, which makes
-vendoring a convenience rather than a second trust root.
-
-The lock is for integrity, not for determinism: [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum)
-is deterministic on its own, and `nvs build --locked` on a clean machine with an empty cache produces
-byte-identical compiled units to the machine that wrote the lock, on all three platforms.
-
-<sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log), [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file). Decided in [0081](../decisions/0081.md), [0042](../decisions/0042.md).</sub>
-
-<a id="packaging-the-registry-keeps-an-append-only-log"></a>
-
-## The registry publishes an append-only transparency log, and a client verifies inclusion and consistency before using an artifact  *(designed — not yet in the compiler)*
-
-`rule:packaging/the-registry-keeps-an-append-only-log`
-
-The registry publishes an **append-only transparency log** of `name → version → digest`: a Merkle
-tree with signed checkpoints. Before a client uses an artifact it verifies the artifact's inclusion
-in the log and the log's consistency with the newest checkpoint the client has seen. An artifact
-absent from the log is refused; a checkpoint inconsistent with a previously seen one is refused and
-reported as a registry fork rather than as a network error.
-
-A registry that serves one client different bytes than another must therefore either fork the log —
-detected by the next client that checks consistency — or produce a signed statement contradicting
-one it already made. Compromising the registry stops being silent, which is the property that
-matters; the lockfile ([`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest)) then holds the digest so a
-client need not trust the registry twice.
-
-The log is also why a registry, rather than git URLs alone, is the transitive source: retraction,
-the advisory feed and `nvs audit` all need a namespace with an authority behind it that cannot
-quietly rewrite what it said.
-
-<sub>See also [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest), [`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted), [`packaging/publishing-never-overwrites`](packaging.md#packaging-publishing-never-overwrites). Decided in [0081](../decisions/0081.md).</sub>
+<sub>See also [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace), [`security/an-unmatched-namespace-holds-the-application`](security.md#security-an-unmatched-namespace-holds-the-application), [`packaging/a-fetched-package-is-an-autoload-line`](packaging.md#packaging-a-fetched-package-is-an-autoload-line). Decided in [0112](../decisions/0112.md), [0081](../decisions/0081.md).</sub>
 
 <a id="packaging-a-fetched-package-is-an-autoload-line"></a>
 
@@ -1387,34 +725,160 @@ compilation ([`packaging/a-package-file-stays-under-its-declared-prefix`](packag
 
 <sub>See also [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`programs/autoload`](programs.md#programs-autoload), [`packaging/a-package-file-stays-under-its-declared-prefix`](packaging.md#packaging-a-package-file-stays-under-its-declared-prefix), [`packaging/package-toml-is-a-tool-input`](packaging.md#packaging-package-toml-is-a-tool-input), [`packaging/autoload-probes-fold-into-the-cache-key`](packaging.md#packaging-autoload-probes-fold-into-the-cache-key). Decided in [0081](../decisions/0081.md), [0061](../decisions/0061.md).</sub>
 
-<a id="packaging-package-toml-is-a-tool-input"></a>
+<a id="packaging-nothing-runs-before-the-program"></a>
 
-## `package.toml` is read by the `nvs` CLI, never by the runtime and never by name resolution  *(designed — not yet in the compiler)*
+## Nothing in a package runs before your program does  *(designed — not yet in the compiler)*
 
-`rule:packaging/package-toml-is-a-tool-input`
+`rule:packaging/nothing-runs-before-the-program`
 
-The rejection of "a manifest file found by walking up from the entry file"
-([`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload)) stands, and so does
-[`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest). `package.toml` is neither, because the distinction
-both draw is about *who reads the file*.
+**No install scripts, no post-install hooks, no build step, no code generation, no macros.** There is
+no point in the fetch, resolve, verify or compile pipeline at which a package's code executes. The
+first time a line of a dependency runs is when your program calls it.
 
-**Neither the runtime nor name resolution ever reads `package.toml`.** Program semantics do not
-depend on it, no compiled unit's cache key includes it, and a program whose `vendor/` is already
-populated resolves every name identically whether the file is present, absent or malformed. That is
-a statement about *name resolution*, not about the build as a whole: the manifest's
-`required`/`optional` split ([`security/optional-capability-degrades`](security.md#security-optional-capability-degrades)) and its declared
-namespace prefix are compiler inputs, reached through the fetched layout, so a malformed manifest
-still fails a build.
+Most of this was already true — there is no `eval` ([`security/no-eval`](security.md#security-no-eval)), attributes are inert
+shape literals, the only compiler-recognised attributes are a closed `Core`-owned list, and there is
+no macro expander for a package to hook. This rule adds the one thing that was missing, *no build
+lifecycle, ever*, and thereby closes the category: the entire post-install attack class has nowhere
+to execute.
 
-It is read by the **`nvs` CLI** — `add`, `fetch`, `update`, `vendor`, `audit`, `publish` — which may
-find it by walking up from the working directory the way `git` finds `.git`, because a tool locating
-its own project is a different question from a language locating a declaration.
+A package that needs generated code generates it into its own repository **before** publishing,
+where a human reviews the output and the digest covers it. The generated file is source like any
+other.
 
-It is TOML with unknown fields refused ([`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one)),
-and its integration with the program is the generated file
-[`packaging/a-fetched-package-is-an-autoload-line`](packaging.md#packaging-a-fetched-package-is-an-autoload-line) describes.
+A package containing a top-level statement with an observable effect produces no effect from
+`nvs fetch`, `nvs build` or `nvs vendor` — only from a call. There is no legitimate exception: in a
+language with no FFI and no native compilation step available to userland, an allowance for
+"packages that genuinely need it" would exist only to be abused, and if such a need ever appears
+the rule is re-argued from scratch rather than amended.
 
-<sub>See also [`packaging/a-fetched-package-is-an-autoload-line`](packaging.md#packaging-a-fetched-package-is-an-autoload-line), [`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest), [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`security/optional-capability-degrades`](security.md#security-optional-capability-degrades). Decided in [0081](../decisions/0081.md), [0061](../decisions/0061.md), [0064](../decisions/0064.md), [0112](../decisions/0112.md).</sub>
+<sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`security/no-eval`](security.md#security-no-eval), [`security/closed-doors`](security.md#security-closed-doors), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time). Decided in [0081](../decisions/0081.md), [0052](../decisions/0052.md), [0046](../decisions/0046.md), [0071](../decisions/0071.md).</sub>
+
+<a id="packaging-a-package-cannot-reach-its-host"></a>
+
+## A package ships no `nvs.toml`, and none of its `require` or `autoload` paths reaches outside its own directory  *(designed — not yet in the compiler)*
+
+`rule:packaging/a-package-cannot-reach-its-host`
+
+Two things a package may not do to the tree it lands in.
+
+**A package may not contain an `nvs.toml`.** Server configuration is root-owned and
+deployment-scoped ([`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest)); a package that shipped one
+would be asking to configure the host it lands on. Fetching an archive containing one is an error
+naming the file, and the registry refuses such an archive at publish.
+
+**A package's files are reachable only from within the package.** A `require` or an `autoload` path
+inside a package that escapes the package's own directory — through `..`, an absolute path or a
+symlink — is a **compile error**. A package cannot read the application's tree, and the check is the
+same canonicalise-and-prefix-check `spawn script` performs against its granted roots
+([`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix)).
+
+**Not on disk.** No fetch path exists to refuse an archive, and the compiler has no file-to-package
+map against which to check a path.
+
+<sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix). Decided in [0081](../decisions/0081.md), [0064](../decisions/0064.md), [0006](../decisions/0006.md).</sub>
+
+<a id="packaging-resolution-takes-the-highest-minimum"></a>
+
+## Resolution selects the highest minimum any package asked for, and nothing upgrades itself  *(designed — not yet in the compiler)*
+
+`rule:packaging/resolution-takes-the-highest-minimum`
+
+Every dependency names the **minimum version** it needs. The version selected for a package is the
+**highest minimum any package in the graph asked for**. That is the whole algorithm.
+
+There is no solver, no backtracking and no unsolvable graph: resolution is a walk taking a maximum,
+so it always succeeds, it is fast, and it is deterministic without the lockfile — the lockfile
+records digests for *integrity*, not to pin a choice that would otherwise wobble
+([`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest)). Adding a dependency cannot move an unrelated
+one, and the version you get is one somebody explicitly asked for, never the newest thing published
+this morning, so a build that worked yesterday works today and a fresh clone matches CI.
+
+**Upgrades are explicit.** `nvs update <package>` raises a minimum in `package.toml` and shows the
+effect on the whole graph; `nvs outdated` reports what is available. Nothing upgrades itself — which
+is also why a security patch does not arrive on its own, and why retraction and `nvs audit`
+([`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted)) have to be genuinely good rather
+than an afterthought.
+
+A minimum is a floor and never a ceiling, so the algorithm is sound only if a higher version is
+always acceptable — which is what [`packaging/a-breaking-release-is-a-new-name`](packaging.md#packaging-a-breaking-release-is-a-new-name) guarantees.
+
+<sub>See also [`packaging/a-breaking-release-is-a-new-name`](packaging.md#packaging-a-breaking-release-is-a-new-name), [`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted), [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest). Decided in [0081](../decisions/0081.md).</sub>
+
+<a id="packaging-the-lockfile-holds-every-digest"></a>
+
+## `package.lock` records every package's digest, a mismatch is a hard error, and `--locked` fetches nothing the lock does not name  *(designed — not yet in the compiler)*
+
+`rule:packaging/the-lockfile-holds-every-digest`
+
+**`package.lock` records every package in the graph** — direct and transitive — with its name,
+selected version, source and digest. `nvs build --locked`, and every CI invocation, fetches nothing
+that is not in the lock and fails rather than updating it.
+
+**A digest mismatch is a hard error** — never a warning and never a re-fetch — and the failure names
+the package. The digest is the same BLAKE3 the artifact cache keys on, so a package's identity
+([`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest)) and its integrity check are one hash.
+
+**`nvs vendor`** writes the whole resolved graph into the application tree, so a build needs no
+network at all. Vendored bytes are digest-checked against the lock on every build, which makes
+vendoring a convenience rather than a second trust root.
+
+The lock is for integrity, not for determinism: [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum)
+is deterministic on its own, and `nvs build --locked` on a clean machine with an empty cache produces
+byte-identical compiled units to the machine that wrote the lock, on all three platforms.
+
+<sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log), [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file). Decided in [0081](../decisions/0081.md), [0042](../decisions/0042.md).</sub>
+
+<a id="packaging-a-git-dependency-is-root-only"></a>
+
+## A git dependency pins an exact commit, and only the root application may declare one  *(designed — not yet in the compiler)*
+
+`rule:packaging/a-git-dependency-is-root-only`
+
+Two kinds of source produce a package's digest, and only one of them is transitive.
+
+A **registry dependency** is a name plus a minimum version, which the registry maps to a digest. A
+**git dependency** is a URL plus an **exact commit `rev`** — never a branch, never a tag, because
+neither is immutable. The fetched tree is archived and digested exactly as a registry artifact is,
+and the digest goes in the lockfile, so from the second fetch onward the two kinds are
+indistinguishable.
+
+**Only the root application may declare a git dependency.** A package published to the registry
+whose manifest names a git source is rejected at publish time, and a git dependency encountered
+below the root is a hard error naming the package that declared it. The convenience of git — a fork,
+a patch under test, private code, a monorepo — is entirely a property of *your own* project, and
+your transitive graph stays inside a namespace with a transparency log and a retraction mechanism:
+no dependency of yours can drag in code from a URL you never saw.
+
+A private registry is a registry: the protocol is static signed files over HTTPS, so an organisation
+that cannot use the public one runs or mirrors its own, and nothing above changes.
+
+**Not on disk**, with the rest of the package system.
+
+<sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest), [`packaging/publishing-never-overwrites`](packaging.md#packaging-publishing-never-overwrites). Decided in [0081](../decisions/0081.md).</sub>
+
+<a id="packaging-the-registry-keeps-an-append-only-log"></a>
+
+## The registry publishes an append-only transparency log, and a client verifies inclusion and consistency before using an artifact  *(designed — not yet in the compiler)*
+
+`rule:packaging/the-registry-keeps-an-append-only-log`
+
+The registry publishes an **append-only transparency log** of `name → version → digest`: a Merkle
+tree with signed checkpoints. Before a client uses an artifact it verifies the artifact's inclusion
+in the log and the log's consistency with the newest checkpoint the client has seen. An artifact
+absent from the log is refused; a checkpoint inconsistent with a previously seen one is refused and
+reported as a registry fork rather than as a network error.
+
+A registry that serves one client different bytes than another must therefore either fork the log —
+detected by the next client that checks consistency — or produce a signed statement contradicting
+one it already made. Compromising the registry stops being silent, which is the property that
+matters; the lockfile ([`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest)) then holds the digest so a
+client need not trust the registry twice.
+
+The log is also why a registry, rather than git URLs alone, is the transitive source: retraction,
+the advisory feed and `nvs audit` all need a namespace with an authority behind it that cannot
+quietly rewrite what it said.
+
+<sub>See also [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest), [`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted), [`packaging/publishing-never-overwrites`](packaging.md#packaging-publishing-never-overwrites). Decided in [0081](../decisions/0081.md).</sub>
 
 <a id="packaging-publishing-never-overwrites"></a>
 
@@ -1441,69 +905,49 @@ is cheap and mirrorable, but the responsibility is the main cost of having a pac
 
 <sub>See also [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log), [`packaging/a-git-dependency-is-root-only`](packaging.md#packaging-a-git-dependency-is-root-only), [`packaging/a-package-cannot-reach-its-host`](packaging.md#packaging-a-package-cannot-reach-its-host), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time). Decided in [0081](../decisions/0081.md).</sub>
 
-<a id="packaging-a-package-file-stays-under-its-declared-prefix"></a>
+<a id="packaging-a-known-bad-version-is-retracted-not-deleted"></a>
 
-## Every file in a fetched package declares a namespace under the prefix its manifest claims, and two packages claiming one prefix is a fetch error naming both  *(designed — not yet in the compiler)*
+## A known-bad version is retracted, never deleted, and `nvs audit` names the minimum bump that clears it  *(designed — not yet in the compiler)*
 
-`rule:packaging/a-package-file-stays-under-its-declared-prefix`
+`rule:packaging/a-known-bad-version-is-retracted-not-deleted`
 
-Authority is looked up by the enclosing namespace alone
-([`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace)), and keying on a self-declared attribute would
-be worthless if a package could declare any attribute it liked. Two checks close that.
+A publisher marks a version **retracted** with a reason and a fixed-in version. Resolution refuses to
+*select* a retracted version and names the fix, while the bytes remain fetchable forever, so an
+existing lockfile still builds. Deletion is not offered.
 
-**A package declares its namespace prefix in its manifest, and two packages claiming one prefix is
-an error at fetch time naming both.** The collision is caught when the graph is assembled, not as a
-redeclaration during compilation.
+**`nvs audit`** reads the registry's signed advisory feed, reports the minimum bump that clears each
+advisory, and exits non-zero for CI. Retraction plus audit is the answer to minimal version
+selection's one real weakness — that a patch nobody asked for does not arrive on its own
+([`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum)) — and it covers the one case a version
+range expresses that a minimum cannot: "not 2.3.1, it is broken".
 
-**Every file in a fetched package must declare a namespace under that package's declared prefix.**
-This is a compile-time check needing no new information: the file's package is known from the
-fetched layout, the prefix from the manifest, and the declaration is in the file. A package whose
-file declares `namespace App;` in order to reach the application's grants fails to compile, naming
-the file, the namespace it declared and the prefix it was required to stay inside.
+If audit proves insufficient in practice and users sit on known-vulnerable versions, the thing to
+argue is a narrowly scoped automatic patch floor, not a general range system.
 
-The second check is *not* how authority is looked up — the lookup reads the namespace alone. It is a
-separate integrity check that the fetched layout and the declared namespaces agree, so the attribute
-the lookup trusts is one the package was not free to choose. Hand-vendored code has no manifest and
-so no such check; what it has instead is a human writing the `autoload` line that names its prefix,
-and the audit warning [`security/an-unmatched-namespace-holds-the-application`](security.md#security-an-unmatched-namespace-holds-the-application) describes if they
-did not think about it.
+<sub>See also [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum), [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log). Decided in [0081](../decisions/0081.md).</sub>
 
-**Not on disk.** The diagnostic code the design named has since been issued to a configuration
-refusal; the check takes the band's next free number when it lands.
+<a id="packaging-a-breaking-release-is-a-new-name"></a>
 
-<sub>See also [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace), [`security/an-unmatched-namespace-holds-the-application`](security.md#security-an-unmatched-namespace-holds-the-application), [`packaging/a-fetched-package-is-an-autoload-line`](packaging.md#packaging-a-fetched-package-is-an-autoload-line). Decided in [0112](../decisions/0112.md), [0081](../decisions/0081.md).</sub>
+## A package that breaks its API publishes under a new name carrying `supersedes`  *(designed — not yet in the compiler)*
 
-<a id="packaging-autoload-probes-fold-into-the-cache-key"></a>
+`rule:packaging/a-breaking-release-is-a-new-name`
 
-## A unit's cache key covers every autoload path it probed, misses included, and every directory a discovery query listed  *(designed — not yet in the compiler)*
+A package that breaks its API **publishes under a new name** — conventionally the old name with a
+numeric suffix, `acme/http` → `acme/http2` — carrying `supersedes = "acme/http"` so that
+`nvs outdated` and `nvs audit` can point at it. The two coexist in one graph without conflict,
+because they are two packages.
 
-`rule:packaging/autoload-probes-fold-into-the-cache-key`
+This is what keeps [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum) sound: a minimum is never a
+ceiling, so a higher version of one name must always be acceptable, and a version that is not
+acceptable is therefore not a version of that name. It is the real cost of having no solver, and it
+is paid by the publisher rather than by every consumer. The absorb-don't-forward discipline
+([`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded)) — Novis's own rule for its Rust
+dependencies — is what makes a rename rare enough to live with.
 
-Plain `autoload` ([`programs/autoload`](programs.md#programs-autoload)) adds no new dependency kind to the artifact cache, with
-one exception. A file nobody references changes nothing, and when a reference is finally written the
-*referencing* file's content hash changes and the cache key misses on its own. The exception is
-**shadowing**: adding `src/Thing.nvs` when `App\Thing` currently resolves to
-`vendor/compat/Thing.nvs` changes the answer with no existing file touched. So a unit records the
-**ordered list of paths it probed, including the misses**; a negative entry is an ordinary path
-entry in the revalidation table, and the trace folds into the unit's cache key exactly as the target
-triple does.
+The rule is watched rather than enforced: if library authors route around it by shipping breaks
+under the same name, either an API-diff check at publish or a ceiling mechanism becomes necessary.
 
-A **discovery query** ([`programs/implementing`](programs.md#programs-implementing)) makes a unit depend on directory *contents*:
-adding a module that nothing references must change the generated list. So every directory listed
-during the scan — not just the roots, since a directory's `mtime` does not propagate upward — joins
-the revalidation set, and the sorted list of discovered names hashes into the key, so a listing that
-changes without changing the discovered set recompiles nothing.
-
-**No new directive.** Both ride the existing revalidation directives, which are `System`-class
-([`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class)): bounded at N ⁄ `revalidate_freq` stats per
-window for N listed directories — tens, not thousands — and exactly zero under `validate = never`,
-which is what production runs. For a compiled build and the wasm target the question does not
-arise; resolution happens once, at build time.
-
-**Not on disk.** The resolver produces the probe trace and then drops it: the revalidation table the
-key needs does not exist yet, so neither the trace nor the listed directories reach a cache key.
-
-<sub>See also [`programs/autoload`](programs.md#programs-autoload), [`programs/implementing`](programs.md#programs-implementing), [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file). Decided in [0061](../decisions/0061.md), [0042](../decisions/0042.md).</sub>
+<sub>See also [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum), [`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded), [`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted). Decided in [0081](../decisions/0081.md), [0068](../decisions/0068.md).</sub>
 
 <a id="packaging-the-version-contract-starts-at-0-1-0"></a>
 
@@ -1742,3 +1186,559 @@ neutral state, because the alternative is one enormous forced migration under a 
 The cadence applies in both of [`packaging/the-version-contract-starts-at-0-1-0`](packaging.md#packaging-the-version-contract-starts-at-0-1-0)'s regimes.
 
 <sub>See also [`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded), [`packaging/a-dependency-move-proves-two-things`](packaging.md#packaging-a-dependency-move-proves-two-things), [`packaging/one-bump-one-commit`](packaging.md#packaging-one-bump-one-commit), [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms). Decided in [0068](../decisions/0068.md), [0143](../decisions/0143.md), [0026](../decisions/0026.md).</sub>
+
+<a id="packaging-an-extension-is-a-sandboxed-wasm-component"></a>
+
+## A third-party extension is a sandboxed WebAssembly component, never a shared library loaded with `dlopen`  *(designed — not yet in the compiler)*
+
+`rule:packaging/an-extension-is-a-sandboxed-wasm-component`
+
+Third-party code is added to a running Novis as a **WebAssembly component** — a `.nvsx` file — and never
+as a native shared library. There is no `dlopen` path, no `.dll`/`.so`/`.dylib` loader, and no FFI
+([`security/no-ffi`](security.md#security-no-ffi)): a component cannot address host memory, so it is memory-safe by construction,
+and it runs under the same request isolation, capability checks and resource limits as script code
+because the sandbox enforces them rather than the extension author remembering to.
+
+The engine is wasmtime, not a hand-rolled one. The wasm **validator** is security-critical — a bug in
+it is a sandbox escape — and it is the same argument that puts `hyper` in front of a protocol parser
+Novis did not write. Wasmtime is memory-safe Rust and pins the same Cranelift version the JIT already
+uses, so the two coexist with one shared `cranelift-codegen`.
+
+What this buys: one binary for every platform; bindings generated for any language with a wasm target
+rather than C only; a crashing or malicious extension that harms one request and not the process; and
+calls that are type-checked at compile time ([`packaging/extension-calls-are-statically-typed`](packaging.md#packaging-extension-calls-are-statically-typed)).
+An extension doing I/O suspends the request's coroutine like any other Novis function — wasmtime's
+async support is the same stack switching the scheduler already uses, so there is no async colouring
+at the boundary. What it costs is [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost), and an author who wants
+direct heap access cannot have it. That is the point.
+
+<sub>See also [`packaging/three-tiers`](packaging.md#packaging-three-tiers), [`packaging/values-cross-as-handles`](packaging.md#packaging-values-cross-as-handles), [`packaging/a-guest-has-no-ambient-authority`](packaging.md#packaging-a-guest-has-no-ambient-authority), [`security/no-ffi`](security.md#security-no-ffi), [`security/closed-doors`](security.md#security-closed-doors), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0003](../decisions/0003.md), [0052](../decisions/0052.md).</sub>
+
+<a id="packaging-three-tiers"></a>
+
+## Library and extension code sits at one of three tiers: built-in, sandboxed component, or statically linked native  *(designed — not yet in the compiler)*
+
+`rule:packaging/three-tiers`
+
+Library and extension code lives at one of three tiers, and each exists because it is the right
+answer for a different class of code:
+
+- **Tier 0 — built-in.** `nvs-stdlib`, compiled into the binary: native speed, direct heap access,
+  no boundary. This is where fine-grained primitives go — string, array and arithmetic operations,
+  anything whose whole cost is comparable to a call — each a `static` member of a `Core` domain
+  class ([`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants)).
+- **Tier 1 — a sandboxed `.nvsx` component.** The default and recommended path for third-party
+  code, and where hostile-bytes parsers go ([`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component)).
+- **Tier 2 — statically linked native.** A Rust crate compiled into the `nvs` binary, for
+  first-party subsystems that need raw sockets, TLS termination or the heap: the database drivers,
+  the regex engine, crypto. Safe because it is safe Rust, and built from source, which is exactly the
+  right friction for code that runs unsandboxed.
+
+Which tier a candidate lands at is decided by [`core-api/tier-placement`](core-api.md#core-api-tier-placement)'s six ordered tests,
+and the resulting roster is [`core-api/tier-roster`](core-api.md#core-api-tier-roster). The partition is not PHP's: `ctype` being an
+extension while `str_pad` is not tracks 1997 build engineering and nothing worth preserving.
+
+<sub>See also [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost). Decided in [0003](../decisions/0003.md), [0051](../decisions/0051.md).</sub>
+
+<a id="packaging-an-nvsx-is-one-file-carrying-its-manifest"></a>
+
+## A `.nvsx` is a single WebAssembly component whose manifest is an `nvs.manifest` custom section  *(designed — not yet in the compiler)*
+
+`rule:packaging/an-nvsx-is-one-file-carrying-its-manifest`
+
+A `.nvsx` is **one file**: a WebAssembly component implementing the versioned world `nvs:ext@1.0.0`,
+with an `nvs.manifest` custom section inside it. There is no archive, no sidecar manifest, and no
+per-platform variant — the same file loads on every host Novis runs on.
+
+The manifest is what the host reads at load: the classes the extension declares, with their `static`
+methods and `const` members; the `nvs.toml` directives it wants; and the qualifier declarations of
+[`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens). Because the manifest travels inside the component,
+hashing an `[[extension]]` entry's pin covers everything the extension declares with no separate
+manifest hash — which is what lets the loaded set fold into every compiled unit's key
+([`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key)).
+
+The world is WIT, so an extension gets rich types — records, variants, lists, strings, results,
+resources — rather than everything marshalled through `i32`, and semantic versioning of the interface
+is part of the contract. A PHP extension must be recompiled for every minor engine release; an
+`.nvsx` compiled against `nvs:ext@1.0.0` is not.
+
+<sub>See also [`packaging/extension-calls-are-statically-typed`](packaging.md#packaging-extension-calls-are-statically-typed), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key). Decided in [0003](../decisions/0003.md), [0055](../decisions/0055.md).</sub>
+
+<a id="packaging-an-extension-package-carries-two-payloads"></a>
+
+## An extension package may carry Novis source beside its `.nvsx`, under one namespace, and the component's manifest registers exactly one class  *(designed — not yet in the compiler)*
+
+`rule:packaging/an-extension-package-carries-two-payloads`
+
+An extension package may carry **two payloads**: the `.nvsx` wasm component, and Novis source that
+composes calls into it. Everything a program names is under one namespace, the component's manifest
+registers **exactly one class** whose static methods are the component's closed set of entry points,
+and every other class under that namespace is Novis source that calls them. `nvs/image` is the first
+package of this shape — `Novis\Image\Codec` is the manifest's class, and the builder above it is source
+([`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline)); `nvs/spreadsheet` follows it with `Novis\Spreadsheet\Engine`
+([`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io)).
+
+Loading is unchanged: the `.nvsx` alone is what an `[[extension]]` pin governs
+([`packaging/extension-loading-is-root-controlled`](packaging.md#packaging-extension-loading-is-root-controlled)), and the source beside it is resolved exactly as
+a source package's is.
+
+The split is the point rather than a packaging convenience. Building a plan is data manipulation and
+costs nothing to do in Novis; the codecs belong inside the sandbox. A builder that lived in the guest
+would spend a boundary crossing per method to append to an array
+([`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost)), and would hold plan state across calls in an instance
+whose whole premise is that state does not outlive a request.
+
+<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io), [`packaging/an-nvsx-is-one-file-carrying-its-manifest`](packaging.md#packaging-an-nvsx-is-one-file-carrying-its-manifest), [`packaging/extension-loading-is-root-controlled`](packaging.md#packaging-extension-loading-is-root-controlled), [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0120](../decisions/0120.md), [0081](../decisions/0081.md), [0123](../decisions/0123.md).</sub>
+
+<a id="packaging-extension-loading-is-root-controlled"></a>
+
+## An extension loads only from an `[[extension]]` entry in the root-owned `nvs.toml`, pinned by its `sha256`  *(designed — not yet in the compiler)*
+
+`rule:packaging/extension-loading-is-root-controlled`
+
+An extension is loaded from an `[[extension]]` entry in the root-owned `nvs.toml`, and from nowhere
+else:
+
+```toml
+[[extension]]
+path   = "image.nvsx"
+sha256 = "…"
+```
+
+A project cannot cause code to be loaded. The pin is a field of the entry rather than a naming
+convention over a repeated key, which is one reason the configuration format has an array-of-tables
+shape ([`config/lists-are-arrays-and-repeated-records-are-arrays-of-tables`](config.md#config-lists-are-arrays-and-repeated-records-are-arrays-of-tables)); the entry lives
+where [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary) puts every grant of authority.
+
+The set is reloadable, not boot-only. A reload re-verifies every pin against the file on disk, loads
+the manifests, and refuses the whole swap if any pin does not match — so a running server gains, loses
+or replaces an extension without dropping a request, and never on a binary that changed under its pin.
+Duplicate class names across extensions are refused at load, which is what makes the set's hash
+order-independent, and the set is folded into every compiled unit's key
+([`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key)) so a changed set is a lazy recompile with no
+invalidation pass. A component is compiled once, into the same content-addressed artifact cache as
+Novis's own code, and the compiled module is shared across every core.
+
+<sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/lists-are-arrays-and-repeated-records-are-arrays-of-tables`](config.md#config-lists-are-arrays-and-repeated-records-are-arrays-of-tables), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-extension-package-carries-two-payloads`](packaging.md#packaging-an-extension-package-carries-two-payloads), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0003](../decisions/0003.md), [0064](../decisions/0064.md), [0078](../decisions/0078.md).</sub>
+
+<a id="packaging-extension-calls-are-statically-typed"></a>
+
+## An extension's classes are registered from its manifest at load, and a call into one is type-checked at compile time and emitted as a direct call  *(designed — not yet in the compiler)*
+
+`rule:packaging/extension-calls-are-statically-typed`
+
+At load the host reads an extension's manifest — its declared classes, their `static` methods and
+`const` members, and any `nvs.toml` directives it contributes — and registers them into the compiler's
+symbol table. There is no function- or constant-shaped registration: an extension follows the same
+class-only shape [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants) requires of user code, and it may not
+register under `Core\` ([`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present)).
+
+Consequently `nvs check` type-checks a call into an extension at compile time, and codegen emits a
+**direct call** to the extension's trampoline rather than a dynamic dispatch. PHP can do neither.
+
+The direct call is why the loaded extension set is a codegen input: an artifact compiled against one set
+holds a jump into a trampoline that another set may have moved, so the set is part of every compiled
+unit's key and a changed set is an ordinary cache miss
+([`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key)).
+
+<sub>See also [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-nvsx-is-one-file-carrying-its-manifest`](packaging.md#packaging-an-nvsx-is-one-file-carrying-its-manifest). Decided in [0003](../decisions/0003.md), [0011](../decisions/0011.md), [0078](../decisions/0078.md).</sub>
+
+<a id="packaging-values-cross-as-handles"></a>
+
+## A value crosses the guest boundary as a bounds-checked handle, never as a pointer  *(designed — not yet in the compiler)*
+
+`rule:packaging/values-cross-as-handles`
+
+Novis values stay in the host heap. The guest receives an opaque `value` resource — an index into a
+per-call handle table the host bounds-checks — and reads through host accessor functions. A guest
+cannot forge a host pointer; it can only present an index, which is validated, and a guest reading past
+the end of the host heap gets nothing rather than adjacent memory.
+
+The host stays authoritative for refcounting and copy-on-write, and the guest never sees a refcount.
+Large arrays and strings are not copied wholesale — the guest pulls what it reads — and for byte
+strings it may request a bulk copy into its own linear memory, which is memcpy-bound at roughly 12 ns
+per KiB.
+
+This is also why an extension exposes no per-pixel or per-element accessor across the boundary: each
+accessor call is a fixed cost, a bulk copy is nearly free, and the design that wins moves whole buffers
+a few times rather than words many times ([`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost),
+[`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline)).
+
+<sub>See also [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost), [`core-api/a-lifetime-is-an-object`](core-api.md#core-api-a-lifetime-is-an-object). Decided in [0003](../decisions/0003.md).</sub>
+
+<a id="packaging-a-fresh-instance-per-request"></a>
+
+## A guest is instantiated fresh for each request that calls it, so extension state cannot leak between requests  *(designed — not yet in the compiler)*
+
+`rule:packaging/a-fresh-instance-per-request`
+
+Each request that calls an extension gets a **pristine instance** of it, created lazily on first use.
+Nothing a guest wrote into a global, a static or its linear memory is there on the next request, and a
+test that stores state in one instance must not be able to observe it from the next. PHP does not offer
+this: a stateful extension keeps its state for the worker's lifetime.
+
+Instantiation costs about 8 µs with the pooling allocator, paid only for the extensions a request
+actually calls. A typical request touches one to three, so the realistic cost is 8–23 µs against a
+request budget measured in milliseconds — and the figure is environment-sensitive, so quote it as a
+range.
+
+This is also the property that decides tier placement for anything whose defining feature is state
+outliving a request. A connection pool, a bound directory session, a broker consumer cannot be a guest,
+because a guest re-instantiated per request loses them every time; such a client is Native or nothing
+([`core-api/tier-placement`](core-api.md#core-api-tier-placement)). Cross-request state a program wants is explicit and host-owned
+([`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit)).
+
+<sub>See also [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit), [`packaging/a-guest-runs-under-the-requests-budget`](packaging.md#packaging-a-guest-runs-under-the-requests-budget). Decided in [0003](../decisions/0003.md).</sub>
+
+<a id="packaging-a-guest-runs-under-the-requests-budget"></a>
+
+## A guest runs under the request's CPU and memory caps, and a runaway guest traps rather than hanging a core  *(designed — not yet in the compiler)*
+
+`rule:packaging/a-guest-runs-under-the-requests-budget`
+
+Guest execution is tied to the request's own limits. Epoch interruption binds it to the per-request
+CPU cap, so a deliberately infinite guest loop traps rather than hanging a core; memory is capped
+through the store's limits. An extension therefore cannot starve its neighbours — a stronger guarantee
+than a built-in native function currently has, because it is enforced by the sandbox rather than by
+discipline.
+
+A trapped guest is a resource-limit failure of the request that called it, and reaches that request
+the way any other limit does ([`errors/on-limit`](errors.md#errors-on-limit)); it never reaches the process. Together with
+[`packaging/a-fresh-instance-per-request`](packaging.md#packaging-a-fresh-instance-per-request), this is what makes a single-process server defensible
+with third-party code inside it: a crashing or malicious extension harms one request, not every request
+in flight.
+
+<sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`packaging/a-fresh-instance-per-request`](packaging.md#packaging-a-fresh-instance-per-request). Decided in [0003](../decisions/0003.md), [0020](../decisions/0020.md).</sub>
+
+<a id="packaging-a-guest-has-no-ambient-authority"></a>
+
+## A guest has no ambient authority: WASI is not granted by default, and every host function it receives is capability-checked  *(designed — not yet in the compiler)*
+
+`rule:packaging/a-guest-has-no-ambient-authority`
+
+WASI is **not** granted to a guest by default. A component receives only Novis's own capability-checked
+host functions, so its filesystem and network access is governed by the same root-owned `nvs.toml`
+grants as script code ([`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door),
+[`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope)). Native extension code calls `open()` and
+`connect()` directly and bypasses any capability system; a guest cannot, because it has no syscalls at
+all.
+
+WASI is available as an opt-in world, and its preopens are derived from the capability grants rather
+than declared beside them — there is no second place authority is written.
+
+The same absence is what keeps an extension honest about qualifiers: with no ambient source and no
+sink of its own, it can declare what it consumes and produces but cannot launder
+([`security/extension-cannot-launder`](security.md#security-extension-cannot-launder)).
+
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/extension-cannot-launder`](security.md#security-extension-cannot-launder). Decided in [0003](../decisions/0003.md).</sub>
+
+<a id="packaging-the-boundary-is-the-cost"></a>
+
+## An extension call costs a fixed ten-odd nanoseconds over a built-in call, so an extension's API is coarse-grained  *(designed — not yet in the compiler)*
+
+`rule:packaging/the-boundary-is-the-cost`
+
+Measured in a release build: a host-to-guest call costs about 11.5 ns, a guest-to-host accessor call
+about 9 ns, a 1 KiB bulk copy into guest memory about 12 ns, and a fresh pooled instance plus one call
+about 8 µs. A built-in call frame costs under a nanosecond, so **an extension call carries roughly 10 ns
+more overhead than a built-in one**. In-guest compute throughput relative to native is not yet measured
+and is not claimed.
+
+That is noise for coarse-grained work — image codecs, compression, crypto, document parsing — and
+decisive for fine-grained work, which is why primitives are Tier 0 and performance-critical first-party
+subsystems are Tier 2 ([`packaging/three-tiers`](packaging.md#packaging-three-tiers)). An extension author controls the boundary, not the
+compute, so an extension's API is designed **coarse**: whole inputs in, whole outputs out, a batch where
+PHP would offer a per-item call. Collation exposes sort-key generation and whole-array sort rather than
+a comparator, because sorting ten thousand strings through a per-comparison boundary would be about
+130,000 crossings; the image component crosses once per terminal
+([`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline)).
+
+<sub>See also [`packaging/three-tiers`](packaging.md#packaging-three-tiers), [`packaging/values-cross-as-handles`](packaging.md#packaging-values-cross-as-handles), [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline). Decided in [0003](../decisions/0003.md), [0051](../decisions/0051.md).</sub>
+
+<a id="packaging-a-c-dependency-answers-two-questions"></a>
+
+## A C dependency is admitted under ordinary audit only if attacker-controlled data never reaches it; otherwise it needs an exceptional verification record or is confined to wasm
+
+`rule:packaging/a-c-dependency-answers-two-questions`
+
+"Pure Rust by default, deviations argued individually" is a standing test rather than a case-by-case
+argument, so the answer does not depend on who argues it:
+
+1. **Does attacker-controlled data reach this code?** If no — accept it under ordinary audit.
+2. If yes — accept it only with a **demonstrable, exceptional verification record**. Otherwise it
+   must be confined to wasm.
+
+SQLite passes the second question: its test suite is orders of magnitude larger than its source and it
+is continuously fuzzed. Almost nothing else clears that bar, which is the point. A codec, an archive
+reader or an XSLT engine fails it and is therefore Tier 1 — including when the only implementation is
+C, since compiling a C library to wasm is the standing answer when the test fails; lossy WebP encoding
+via libwebp is admitted exactly that way. An authentication handshake handles attacker-reachable bytes,
+so a driver plugin the pure-Rust crates lack gets a Rust implementation or a documented refusal, never a
+C dependency.
+
+The test is enforced rather than remembered: `python tools/gen-attribution.py --check` enumerates the
+default binary's C dependencies from the resolved graph and fails CI on any without a recorded answer
+([`testing/attribution-is-diffed-in-ci`](testing.md#testing-attribution-is-diffed-in-ci)).
+
+<sub>See also [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`testing/attribution-is-diffed-in-ci`](testing.md#testing-attribution-is-diffed-in-ci), [`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component), [`packaging/the-third-party-notice-is-generated-never-written-by-hand`](packaging.md#packaging-the-third-party-notice-is-generated-never-written-by-hand). Decided in [0051](../decisions/0051.md).</sub>
+
+<a id="packaging-pdf-decoding-ships-in-the-image-package"></a>
+
+## PDF is a decode-only format of `nvs/image`, in the second wave, and never a member of `nvs/pdf`  *(designed — not yet in the compiler)*
+
+`rule:packaging/pdf-decoding-ships-in-the-image-package`
+
+PDF joins the image component's format roster **decode only**, in the second wave beside SVG, with
+`Format` gaining a `Pdf` case and no new entry point: the plan/terminal shape and the component's closed
+set of exports are unchanged ([`core-classes/image-format-roster`](core-classes.md#core-classes-image-format-roster),
+[`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source)).
+
+It is not a member of `nvs/pdf`. A writer and an interpreter share no code, and a raster produced in the
+generation package would have to recross the boundary to enter the image pipeline that is the whole
+point of loading one. Generation stays [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io)'s; text extraction,
+page manipulation and forms are different jobs and stay in the third-party channel.
+
+The job this replaces is PHP's ImageMagick-delegating-to-Ghostscript pair — an installed, unsandboxed
+interpreter with an RCE history long enough that ImageMagick's stock policy ships with the PDF coder
+disabled. A PDF interpreter is a strictly larger hostile-bytes case than any format already on the
+roster, and the sandbox is where a parser that size belongs.
+
+<sub>See also [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/image-format-roster`](core-classes.md#core-classes-image-format-roster), [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`packaging/an-extension-package-carries-two-payloads`](packaging.md#packaging-an-extension-package-carries-two-payloads). Decided in [0128](../decisions/0128.md), [0120](../decisions/0120.md), [0121](../decisions/0121.md).</sub>
+
+<a id="packaging-a-service-is-one-stored-argv"></a>
+
+## `nvs service` is a namespace, and everything after a mandatory `--` is stored verbatim as the argv the service runs  *(designed — not yet in the compiler)*
+
+`rule:packaging/a-service-is-one-stored-argv`
+
+```
+nvs service install   <name> [options] -- <verbatim nvs args…>
+nvs service uninstall <name>
+nvs service start | stop | status <name>
+nvs service run       <name>                                  # the service manager's entry point
+nvs service unit      <name> [options] -- <verbatim nvs args…>  # Linux: print, install nothing
+```
+
+A service is this binary, registered with the platform's service manager, running **one stored argv**.
+Everything left of `--` belongs to the installer; everything right of it is stored untouched and never
+interpreted, which is what makes every parameter `nvs` accepts passable. `--` is mandatory: without it,
+`--start` is ambiguous between the installer and the hosted program, a defect `mysqld --install` has
+and Novis does not inherit. `nvs install-service` is accepted as a hidden alias for the muscle memory
+`mysqld --install` and `httpd -k install` built.
+
+The verbs are namespaced like `nvs ctl` because they act on a server rather than on files, and the name
+is positional and is the same identity `nvs ctl --socket` uses. `start`/`stop`/`status` are thin — the
+SCM directly on Windows, `systemctl` by argv with no shell on Linux
+([`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only)) — and earn their second spelling by reporting what no
+service manager knows: the in-flight request count, and drain progress during a stop, asked over the
+control socket ([`config/one-local-control-socket`](config.md#config-one-local-control-socket)).
+
+What that argv may name is [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink)'s closed list.
+
+<sub>See also [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink), [`packaging/the-argv-lives-in-imagepath`](packaging.md#packaging-the-argv-lives-in-imagepath), [`packaging/the-unit-is-printed-and-install-is-the-opt-in`](packaging.md#packaging-the-unit-is-printed-and-install-is-the-opt-in), [`config/one-local-control-socket`](config.md#config-one-local-control-socket), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only). Decided in [0093](../decisions/0093.md), [0078](../decisions/0078.md).</sub>
+
+<a id="packaging-the-installer-is-a-sink"></a>
+
+## The service installer fails closed: a closed `serve`/`run` allowlist, no relative path, no argv without `--config`, no install whose output goes nowhere, no password on a command line
+
+`rule:packaging/the-installer-is-a-sink`
+
+The trailing argv is the sharpest sink in the project ([`security/sink-predicate`](security.md#security-sink-predicate)): the command
+runs elevated, and what it stores is executed by a privileged account at every boot until somebody
+removes it. So the default is refusal, and the allowlist is closed:
+
+| Refused | Because |
+|---|---|
+| A subcommand other than `serve` or `run` | everything else exits at once — a crash loop, forever — or needs a terminal |
+| `--fault-inject`, on any subcommand | a hook that must never be reachable from a served request, now with a privileged account |
+| Any relative path, in the argv or an installer option | a Windows service starts in `System32`: a first-boot failure as an opaque SCM code |
+| An argv with no `--config` | it would fall back to `./nvs.toml` ([`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults)), making the configuration a property of the starting directory; a service names it absolutely |
+| Neither `--log-file` nor a `[log]` file or syslog destination | a service has no console handle, so stderr goes nowhere and a refused compile leaves no trace; `stderr` is not a destination |
+| An `--account` password on the command line | readable by other users; it is prompted, and is `secret` for its whole life ([`security/secret-qualifier`](security.md#security-secret-qualifier)) |
+| Running from a bundle | [`packaging/a-bundle-may-not-install-itself`](packaging.md#packaging-a-bundle-may-not-install-itself) |
+
+Every surviving path is canonicalized and stored absolute. Each refusal is an `E0630`–`E0634`
+diagnostic naming what was refused and why — two pairs of rows share a code because they share a
+reason — never a bare non-zero exit. The refusals run in front of `nvs service unit` too, so an
+operator learns what would have been refused without an elevated shell and without installing
+anything.
+
+<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`packaging/a-bundle-may-not-install-itself`](packaging.md#packaging-a-bundle-may-not-install-itself). Decided in [0093](../decisions/0093.md), [0088](../decisions/0088.md), [0103](../decisions/0103.md), [0048](../decisions/0048.md).</sub>
+
+<a id="packaging-the-argv-lives-in-imagepath"></a>
+
+## On Windows the argv is encoded into the SCM's one `ImagePath` string, the binary path is always quoted, and nothing else holds it  *(designed — not yet in the compiler)*
+
+`rule:packaging/the-argv-lives-in-imagepath`
+
+The Windows SCM stores **one string**, and the process gets it back through `CommandLineToArgvW`. The
+trailing argv is encoded into that string under those rules — the backslash-run-before-a-quote rule
+included — and **that string is the only record of what the service runs**. `sc qc <name>` shows an
+auditor literally what runs, with no second place to look.
+
+A sidecar argv file with a short `ImagePath` would make the round trip exact and is refused anyway: a
+file that decides what a `LocalSystem` process executes is a new writable instruction source, which is
+[`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink) with the check removed.
+
+The encoder is one function with a round-trip property — trailing backslashes, embedded quotes, a
+directory path ending in `\` before a closing quote — and a fuzz target. It is
+[`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only) inverted: that rule refuses to *build* a command line for a
+child, this one has no choice, so the construction is confined to one tested place.
+
+**The binary path is quoted unconditionally**, whether or not it currently contains a space. An
+unquoted `ImagePath` under a path with a space is the textbook Windows privilege-escalation finding,
+Novis's default install location is such a path, and the finding usually appears after somebody moves
+the installation. Arguments given to `sc start <name> arg` reach `ServiceMain` but are not persisted;
+nothing may depend on them, and `nvs service run` ignores them.
+
+<sub>See also [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`packaging/a-service-is-one-stored-argv`](packaging.md#packaging-a-service-is-one-stored-argv). Decided in [0093](../decisions/0093.md), [0044](../decisions/0044.md).</sub>
+
+<a id="packaging-a-service-runs-as-a-virtual-account"></a>
+
+## A service's default identity is the per-service virtual account `NT SERVICE\<name>`, and `LocalSystem` is never the default  *(designed — not yet in the compiler)*
+
+`rule:packaging/a-service-runs-as-a-virtual-account`
+
+The default identity is `NT SERVICE\<name>` — a virtual account the SCM creates and owns, with a
+per-service SID, no password to rotate or leak, and no interactive logon. Install grants that SID read
+on the config, read/write on the cache and log directories, and nothing further; the account can read
+its configuration and write its cache and log, and cannot write its own binary.
+
+`--account` takes a domain identity for a deployment that needs one, with the password prompted rather
+than taken from the command line ([`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink)). `LocalSystem` is never the
+default and must be written out as `--account SYSTEM`.
+
+<sub>See also [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink), [`packaging/a-service-answers-its-manager`](packaging.md#packaging-a-service-answers-its-manager). Decided in [0093](../decisions/0093.md).</sub>
+
+<a id="packaging-a-service-answers-its-manager"></a>
+
+## A stop drains, a `PARAMCHANGE` reloads, and lifecycle records go to the event log beside the configured log destination  *(designed — not yet in the compiler)*
+
+`rule:packaging/a-service-answers-its-manager`
+
+A hosted server answers its service manager with the operations it already has, rather than a shim
+reporting what it can see from outside:
+
+| Control | What the service does |
+|---|---|
+| stop (`SERVICE_CONTROL_STOP`, `systemctl stop`) | reports `STOP_PENDING` with a checkpoint that advances while requests drain, then `STOPPED` — a machine restart drains in-flight requests instead of killing them |
+| `SERVICE_CONTROL_PARAMCHANGE`, `systemctl reload` | performs the configuration reload in-process; the keys it could not apply are written to the event log **by name** ([`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply)) |
+| `SERVICE_CONTROL_PRESHUTDOWN` | requested at install, because plain `SHUTDOWN` allows roughly five seconds and a drain needs more |
+
+Failure actions are set at install — `--restart on-failure` by default, with a reset period — beside
+delayed auto-start (`--start`), dependencies (`--depends-on`, for a database that must come up first)
+and a description.
+
+**Output.** With no console handle the process's stderr goes nowhere, so `nvs service run` binds
+diagnostics and `Core\Log` to the destination the installer insisted on, and additionally writes a
+small, fixed set of lifecycle records — started, stopped, failed to start, reload applied — to the
+Windows event log, the first place an administrator looks. The event-log source is registered at
+install and removed at uninstall, and `uninstall` leaves nothing behind: no registry key, no source, no
+unit file, no granted ACL.
+
+<sub>See also [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly), [`packaging/a-service-runs-as-a-virtual-account`](packaging.md#packaging-a-service-runs-as-a-virtual-account), [`http-server/the-residue-is-one-named-fault-class`](http-server.md#http-server-the-residue-is-one-named-fault-class). Decided in [0093](../decisions/0093.md), [0078](../decisions/0078.md).</sub>
+
+<a id="packaging-the-unit-is-printed-and-install-is-the-opt-in"></a>
+
+## On Linux `nvs service unit` prints the systemd unit and touches nothing; writing it is an explicit `--install`
+
+`rule:packaging/the-unit-is-printed-and-install-is-the-opt-in`
+
+`nvs service unit <name> -- serve --config …` writes a systemd unit to stdout and touches nothing.
+`nvs service install` on Linux is that same generation followed by a write to the system unit
+directory and a `daemon-reload` — the explicit request, never the default.
+
+The asymmetry with Windows is deliberate. There, the SCM's own state is the only representation a
+service has, so there is no file to hand anyone and installing **is** the feature
+([`packaging/the-argv-lives-in-imagepath`](packaging.md#packaging-the-argv-lives-in-imagepath)). On Linux the representation is a text file, the
+operator's configuration management already owns the directory it belongs in, and a binary that writes
+there and reloads the daemon behind Ansible's back is a worse citizen than one that prints. The
+printed unit is also the artifact a change-management review actually wants, which is why `--print`
+exists on Windows too, emitting the equivalent `New-Service` invocation for review rather than
+execution.
+
+Nothing else is generated: no OpenRC, no SysV, no `rc.d`; `launchd` would take the same printing-only
+shape if it is ever added. What the printed unit contains is
+[`packaging/the-generated-unit-is-hardened`](packaging.md#packaging-the-generated-unit-is-hardened).
+
+<sub>See also [`packaging/the-generated-unit-is-hardened`](packaging.md#packaging-the-generated-unit-is-hardened), [`packaging/the-argv-lives-in-imagepath`](packaging.md#packaging-the-argv-lives-in-imagepath), [`packaging/a-service-is-one-stored-argv`](packaging.md#packaging-a-service-is-one-stored-argv). Decided in [0093](../decisions/0093.md).</sub>
+
+<a id="packaging-the-generated-unit-is-hardened"></a>
+
+## The generated unit carries the hardening block, `Type=notify`, `MemoryMax` from `[limits]`, and `AmbientCapabilities` only for a privileged port  *(designed — not yet in the compiler)*
+
+`rule:packaging/the-generated-unit-is-hardened`
+
+The generated unit carries what a hand-written one usually does not:
+
+```ini
+[Service]
+Type=notify
+ExecStart=/usr/bin/nvs serve --config /etc/nvs/nvs.toml
+ExecReload=/usr/bin/nvs ctl reload --socket /run/nvs/control.sock
+WatchdogSec=30
+User=nvs-web
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+CapabilityBoundingSet=
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallFilter=@system-service
+```
+
+`AmbientCapabilities` is emitted **only** when the configured `[server] listen` addresses include a
+privileged port, so the ordinary case grants nothing at all. `MemoryMax` is derived from the config's
+`[limits]` rather than invented. `Type=notify` means `READY=1` after the listener binds — so
+`systemctl start` does not return before the port accepts — plus `RELOADING=1`/`STOPPING=1` at the
+transitions and a watchdog ping from the accept loop. The `sd_notify` protocol is a datagram to
+`$NOTIFY_SOCKET` and needs no `libsystemd`, so this adds no C dependency and
+[`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions) does not arise.
+
+Socket activation — a privileged port with an empty capability set — is deferred rather than refused:
+it changes how `nvs serve` acquires its listener, which makes it a server change the unit generator
+would simply follow.
+
+<sub>See also [`packaging/the-unit-is-printed-and-install-is-the-opt-in`](packaging.md#packaging-the-unit-is-printed-and-install-is-the-opt-in), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions), [`config/three-changeability-classes`](config.md#config-three-changeability-classes). Decided in [0093](../decisions/0093.md), [0097](../decisions/0097.md), [0051](../decisions/0051.md).</sub>
+
+<a id="packaging-a-bundle-may-not-install-itself"></a>
+
+## A single-file bundle may not install itself as a service
+
+`rule:packaging/a-bundle-may-not-install-itself`
+
+`nvs service install` refuses when the running binary is a single-file bundle, with a diagnostic
+(`E0634`) naming the reason.
+
+A bundle is a single trust domain because the person who downloads and runs it is the only principal
+involved ([`programs/bundle-trust-domain`](programs.md#programs-bundle-trust-domain)). Installing a service creates a **second principal** — a
+privileged account executing that payload at every boot, with no operator having read what it
+contains. That is the operator-versus-app-author boundary the bundle declined to cross, arrived at from
+the other side, and the answer has to be the same one.
+
+The narrower rule — allow it for a non-`serve` payload — is rejected as a conditional a reader must
+carry in their head to serve a case nobody has asked for. Reopening this means arguing the trust-domain
+point directly.
+
+<sub>See also [`programs/bundle-trust-domain`](programs.md#programs-bundle-trust-domain), [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink). Decided in [0093](../decisions/0093.md), [0048](../decisions/0048.md).</sub>
+
+<a id="packaging-a-service-is-operator-surface"></a>
+
+## There is no `Core\Service`: only an operator installs a service, from the command line, and nothing about it is on the request path
+
+`rule:packaging/a-service-is-operator-surface`
+
+There is no `Core\Service`, no new grammar, no runtime change and nothing on the request path. A
+service manager is not a stdlib candidate under [`core-api/tier-placement`](core-api.md#core-api-tier-placement)'s tests at all: a Novis
+program cannot install itself as a service, only an operator can, from the command line. That keeps
+"an application can never grant itself rights" ([`security/no-runtime-grant`](security.md#security-no-runtime-grant)) intact rather than
+restating it.
+
+What the feature costs is paid at start and at stop: one control-handler thread with its stack plus a
+status structure per served process — kilobytes, O(1), attributable to no request because no request
+causes it — and nothing per request. Its dependencies are one Windows-only crate and one Linux-only
+crate for `sd_notify`, both behind `#[cfg]`, both pure Rust with no build script, and neither reachable
+from a served request.
+
+<sub>See also [`security/no-runtime-grant`](security.md#security-no-runtime-grant), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`packaging/a-service-is-one-stored-argv`](packaging.md#packaging-a-service-is-one-stored-argv). Decided in [0093](../decisions/0093.md), [0005](../decisions/0005.md).</sub>

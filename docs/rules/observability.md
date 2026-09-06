@@ -30,6 +30,81 @@ What it exports is [`observability/default-series`](observability.md#observabili
 
 <sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`observability/default-series`](observability.md#observability-default-series), [`observability/four-kinds-become-a-span`](observability.md#observability-four-kinds-become-a-span), [`observability/metrics-three-members`](observability.md#observability-metrics-three-members), [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind). Decided in [0076](../decisions/0076.md), [0018](../decisions/0018.md), [0041](../decisions/0041.md).</sub>
 
+<a id="observability-a-trace-id-exists-for-every-request"></a>
+
+## A trace id exists for every request whatever the sampling decision, and it is the only request identifier
+
+`rule:observability/a-trace-id-exists-for-every-request`
+
+A trace id is drawn for every request when its context is built, whatever the sampling decision.
+Sampling ([`observability/sampling-is-head-based`](observability.md#observability-sampling-is-head-based)) governs whether a trace is *exported*, never
+whether an id is generated — and that is what lets one id be Novis's only request identifier.
+`Core\Server::traceId()` reads it, every `[log]` record and every error rendering carries it as
+`request_id` ([`observability/a-log-record-carries-trace-ids-when-a-trace-is-active`](observability.md#observability-a-log-record-carries-trace-ids-when-a-trace-is-active)), and it is
+emitted on the response so a proxy can log it with one `log_format` line.
+
+There is deliberately **no second identifier and no inbound `X-Request-ID`**. Two identifiers for
+one request is two things that can disagree, and a subsystem minting an id of its own where a
+record is written would produce a line no backend could join to anything. The id is generated where
+the request's state lives, eagerly, rather than by whichever subsystem asks first.
+
+**A trace id never becomes a metric label.** It is unbounded by construction, and
+[`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted) would refuse it anyway.
+
+<sub>See also [`observability/an-inbound-traceparent-is-continued`](observability.md#observability-an-inbound-traceparent-is-continued), [`observability/a-log-record-carries-trace-ids-when-a-trace-is-active`](observability.md#observability-a-log-record-carries-trace-ids-when-a-trace-is-active), [`observability/sampling-is-head-based`](observability.md#observability-sampling-is-head-based), [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted). Decided in [0076](../decisions/0076.md), [0097](../decisions/0097.md).</sub>
+
+<a id="observability-a-log-record-carries-trace-ids-when-a-trace-is-active"></a>
+
+## A log record inside an active trace carries `trace_id` and `span_id`, and outside one omits both rather than writing them empty
+
+`rule:observability/a-log-record-carries-trace-ids-when-a-trace-is-active`
+
+The JSON-Lines record [`errors/log-write`](errors.md#errors-log-write) defines gains `trace_id` and `span_id` whenever a
+trace is active. Inside a sampled request both are present; outside one both are **omitted rather
+than written as empty strings**, and that omitted-not-empty rule applies to the whole envelope —
+a producer with no request to name does not invent one.
+
+`request_id` on the same record is the trace id, because
+[`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request) makes that the only identifier there is.
+It repeats in `trace_id` for a sampled trace on purpose: a log pipeline correlating by request and a
+tracing backend correlating by trace each read their own key, and neither has to know the other's
+rule. The id a record carries is the one the server's door decided from the inbound header
+([`observability/an-inbound-traceparent-is-continued`](observability.md#observability-an-inbound-traceparent-is-continued)), never a second one drawn where the
+record was written.
+
+Two fields added to a shape that already exists, and they are what lets an operator jump from a
+log line to the trace that produced it — the single highest-value thing an observability stack does.
+
+<sub>See also [`errors/log-write`](errors.md#errors-log-write), [`errors/log-fields`](errors.md#errors-log-fields), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request). Decided in [0076](../decisions/0076.md), [0020](../decisions/0020.md), [0092](../decisions/0092.md).</sub>
+
+<a id="observability-metrics-three-members"></a>
+
+## `Core\Metrics` is three verbs for three kinds, always present, and accumulates whether or not an exporter is built  *(designed — not yet in the compiler)*
+
+`rule:observability/metrics-three-members`
+
+```php
+Core\Metrics::increment(string $name, {by?: uint, labels?: array<string, string>}): void;
+Core\Metrics::observe(string $name, float $value, {labels?: array<string, string>}): void;
+Core\Metrics::gauge(string $name, float $value, {labels?: array<string, string>}): void;
+```
+
+`increment` for a counter, `observe` for a histogram, `gauge` for a point-in-time value — three
+verbs for three kinds, rather than one `record` with a kind enum, because the kind is a property of
+the series and not of the call ([`observability/a-name-is-fixed-to-one-kind`](observability.md#observability-a-name-is-fixed-to-one-kind)). A literal
+`$name` is validated at compile time against `[a-z][a-z0-9_]*`, by the same call-site literal
+inspection [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse) performs.
+
+The `labels` value position is a sink: [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted) is the rule a
+user id, a tenant name or an error message runs into, and `secret` is refused there too.
+
+**`Core\Metrics` is always present.** Whether anything leaves the process is the exporter's
+question ([`observability/the-exporter-is-a-feature-and-core-metrics-is-not`](observability.md#observability-the-exporter-is-a-feature-and-core-metrics-is-not)); a binary built
+without one still accumulates into the per-core registry, so behaviour is identical across builds
+except for the export path. A program that never calls it and serves no requests holds zero series.
+
+<sub>See also [`observability/a-name-is-fixed-to-one-kind`](observability.md#observability-a-name-is-fixed-to-one-kind), [`observability/the-exporter-is-a-feature-and-core-metrics-is-not`](observability.md#observability-the-exporter-is-a-feature-and-core-metrics-is-not), [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted), [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse). Decided in [0076](../decisions/0076.md), [0051](../decisions/0051.md).</sub>
+
 <a id="observability-default-series"></a>
 
 ## Nine series exist the moment an exporter is configured, with no application code written  *(designed — not yet in the compiler)*
@@ -62,6 +137,25 @@ quietly turn "present the moment an exporter is configured" into a different con
 
 <sub>See also [`observability/the-runtime-exports-what-it-already-measures`](observability.md#observability-the-runtime-exports-what-it-already-measures), [`observability/route-label-is-the-declared-name`](observability.md#observability-route-label-is-the-declared-name), [`observability/past-max-series-a-new-series-is-refused`](observability.md#observability-past-max-series-a-new-series-is-refused), [`concurrency/deferred-is-bounded-by-two-directives`](concurrency.md#concurrency-deferred-is-bounded-by-two-directives), [`config/scheduled-work-is-a-config-block`](config.md#config-scheduled-work-is-a-config-block), [`programs/memory-priority`](programs.md#programs-memory-priority), [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind). Decided in [0076](../decisions/0076.md), [0041](../decisions/0041.md).</sub>
 
+<a id="observability-a-name-is-fixed-to-one-kind"></a>
+
+## A metric name is fixed to one kind and one label set on first use, and a second kind throws naming both sites  *(designed — not yet in the compiler)*
+
+`rule:observability/a-name-is-fixed-to-one-kind`
+
+A metric name is fixed to one kind — counter, histogram or gauge — on its first use within a
+process, and its label *names* are fixed with it. A second kind for the same name is a runtime throw
+naming both call sites, because it is a mistake and not a mode: the exposition formats both
+exporters write have no way to say that two members of one family disagree about what they are, so
+a series recorded two ways is a bug the backend reports and the call site cannot see.
+
+A label-set mismatch is refused on the same footing. Label *order* is not a second series — the
+registry keys on the set, not the spelling. Both refusals are distinct from the cardinality
+refusal of [`observability/past-max-series-a-new-series-is-refused`](observability.md#observability-past-max-series-a-new-series-is-refused), which is a no-op rather
+than a throw.
+
+<sub>See also [`observability/metrics-three-members`](observability.md#observability-metrics-three-members), [`observability/past-max-series-a-new-series-is-refused`](observability.md#observability-past-max-series-a-new-series-is-refused). Decided in [0076](../decisions/0076.md).</sub>
+
 <a id="observability-route-label-is-the-declared-name"></a>
 
 ## The `route` label carries the route's declared name, never the request path, and a route without one has no label
@@ -85,6 +179,90 @@ been, which is why it passes [`security/metric-label-refuses-tainted`](security.
 
 <sub>See also [`observability/default-series`](observability.md#observability-default-series), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`routing/table-is-opt-in`](routing.md#routing-table-is-opt-in), [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted). Decided in [0076](../decisions/0076.md), [0077](../decisions/0077.md), [0102](../decisions/0102.md), [0110](../decisions/0110.md).</sub>
 
+<a id="observability-a-registry-is-per-core-and-nothing-reads-it"></a>
+
+## A metrics registry is per core, merged at scrape, and no program reads a metric
+
+`rule:observability/a-registry-is-per-core-and-nothing-reads-it`
+
+Each core holds its own metrics registry, and a scrape merges them. That is per-core mutable state
+outliving a request, which is the shape [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit) exists
+to constrain — and it passes that rule's own test rather than being an exception to it:
+
+- **Nothing reads it to make a decision.** No Novis program can read a metric at all; the only
+  reader is a scrape or a push, outside any request. A program that would be incorrect if a read
+  returned nothing is using the wrong tier, and no program can read this one.
+- **The values are approximate aggregates by design.** Per-core counters merged at scrape are the
+  correct implementation, not a compromise — the same reason a metric is not a rate limit
+  ([`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members)) — and the merge is arithmetic, never coordination.
+- **No request-derived value crosses**, because [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted) forbids
+  exactly that. What accumulates is a fixed set of series with bounded label sets.
+- **Memory is charged to the core and capped** — O(cores × series), bounded by
+  [`observability/past-max-series-a-new-series-is-refused`](observability.md#observability-past-max-series-a-new-series-is-refused), never O(requests served) — the same
+  accounting [`concurrency/cache-memory-is-charged-to-the-core`](concurrency.md#concurrency-cache-memory-is-charged-to-the-core) records.
+
+A shared, coherent store would be the cross-request coordination that rule closes, bought for a
+number that is approximate by definition.
+
+<sub>See also [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit), [`concurrency/cache-memory-is-charged-to-the-core`](concurrency.md#concurrency-cache-memory-is-charged-to-the-core), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`observability/past-max-series-a-new-series-is-refused`](observability.md#observability-past-max-series-a-new-series-is-refused), [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted). Decided in [0076](../decisions/0076.md), [0059](../decisions/0059.md).</sub>
+
+<a id="observability-past-max-series-a-new-series-is-refused"></a>
+
+## Past `max_series` a new series is refused and an existing one is never evicted
+
+`rule:observability/past-max-series-a-new-series-is-refused`
+
+`[metrics] max_series` bounds the number of distinct label combinations one **core** holds. Past
+it, a series that does not exist yet is **refused** — the call is a no-op, the refusal is counted
+against the metric's name, and one warning per window is written to `Core\Log` naming the metric.
+A series that already exists is untouched.
+
+An existing series is **never evicted**, and this is a deliberate correction to the obvious
+design. Evicting a counter and later recreating it makes its value appear to reset, which every
+backend reads as a process restart and which silently corrupts every `rate()` and `increase()`
+over it — a wrong number on a dashboard, which is worse than a missing one. Refusing the new loses
+the newest labels and keeps every existing series exactly correct; the assertion that distinguishes
+the two designs is that every value is unchanged across the boundary.
+
+What it spends: O(cores × series), bounded per core, a counter costing its key and eight bytes and
+a histogram its bucket array. Charged to the core, not to a request, exactly as
+[`concurrency/cache-memory-is-charged-to-the-core`](concurrency.md#concurrency-cache-memory-is-charged-to-the-core) charges the cache, and never O(requests
+served). The nine of [`observability/default-series`](observability.md#observability-default-series) are seeded ahead of the bound.
+
+<sub>See also [`observability/a-registry-is-per-core-and-nothing-reads-it`](observability.md#observability-a-registry-is-per-core-and-nothing-reads-it), [`observability/default-series`](observability.md#observability-default-series), [`concurrency/cache-memory-is-charged-to-the-core`](concurrency.md#concurrency-cache-memory-is-charged-to-the-core), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0076](../decisions/0076.md).</sub>
+
+<a id="observability-metrics-and-trace-blocks-are-system"></a>
+
+## `[metrics]` and `[trace]` are `System` blocks, and a value neither exporter accepts is refused at boot
+
+`rule:observability/metrics-and-trace-blocks-are-system`
+
+```toml
+[metrics]                       # System
+exporter   = false              # false | "prometheus" | "otlp"
+listen     = "127.0.0.1:9090"   # prometheus scrape endpoint
+endpoint   = ""                 # otlp collector URL
+max_series = 10000              # per core
+
+[trace]                         # System
+exporter  = false               # false | "otlp"
+endpoint  = ""
+sample    = 0.01                # head-based, 0.0–1.0
+propagate = true                # send traceparent on outbound Core\Http\Client calls
+```
+
+Both blocks are **`System`** ([`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it)): where a process
+ships telemetry, and how much it costs to do so, is a deployment decision, and a request able to
+turn tracing on for itself is the reconnaissance channel [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive) already
+refuses. A developer wanting a trace of their own request has `Core\Debug`, which is unaffected.
+
+The two blocks share a grammar and not a roster: `exporter` is `false` or one word naming a
+protocol, metrics take a scrape or a push, a trace takes only a push, and `sample` is a fraction of
+one. Anything else is **refused at boot, where it is written** — a wrong value here produces
+silence, a collector nothing writes to, and there is no later moment at which that reports itself.
+
+<sub>See also [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive), [`observability/sampling-is-head-based`](observability.md#observability-sampling-is-head-based), [`observability/past-max-series-a-new-series-is-refused`](observability.md#observability-past-max-series-a-new-series-is-refused), [`observability/the-exporter-is-a-feature-and-core-metrics-is-not`](observability.md#observability-the-exporter-is-a-feature-and-core-metrics-is-not). Decided in [0076](../decisions/0076.md), [0064](../decisions/0064.md), [0005](../decisions/0005.md).</sub>
+
 <a id="observability-four-kinds-become-a-span"></a>
 
 ## Exactly four things become a span, and a `call` event never does  *(designed — not yet in the compiler)*
@@ -105,28 +283,143 @@ A retried outbound call is one span carrying an attempt count, not one span per 
 
 <sub>See also [`observability/a-query-is-a-trace-event`](observability.md#observability-a-query-is-a-trace-event), [`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request), [`observability/sampling-is-head-based`](observability.md#observability-sampling-is-head-based), [`testing/debug-probes`](testing.md#testing-debug-probes), [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`observability/gc-pause-is-its-own-event`](observability.md#observability-gc-pause-is-its-own-event), [`observability/spawn-is-its-own-event`](observability.md#observability-spawn-is-its-own-event). Decided in [0076](../decisions/0076.md), [0041](../decisions/0041.md), [0067](../decisions/0067.md).</sub>
 
-<a id="observability-a-trace-id-exists-for-every-request"></a>
+<a id="observability-a-call-never-becomes-a-span"></a>
 
-## A trace id exists for every request whatever the sampling decision, and it is the only request identifier
+## A `call` event never becomes a span; the root, a `query`, an outbound HTTP call and a `spawn` do, and `gc` becomes a metric  *(designed — not yet in the compiler)*
 
-`rule:observability/a-trace-id-exists-for-every-request`
+`rule:observability/a-call-never-becomes-a-span`
 
-A trace id is drawn for every request when its context is built, whatever the sampling decision.
-Sampling ([`observability/sampling-is-head-based`](observability.md#observability-sampling-is-head-based)) governs whether a trace is *exported*, never
-whether an id is generated — and that is what lets one id be Novis's only request identifier.
-`Core\Server::traceId()` reads it, every `[log]` record and every error rendering carries it as
-`request_id` ([`observability/a-log-record-carries-trace-ids-when-a-trace-is-active`](observability.md#observability-a-log-record-carries-trace-ids-when-a-trace-is-active)), and it is
-emitted on the response so a proxy can log it with one `log_format` line.
+Production telemetry reads the same four event kinds the trace records and adds no instrumentation
+of its own — and it is bound by one rule the taxonomy owns: **a `call`-kind event never becomes a
+distributed-tracing span.** Exactly four things do: the request or scheduled-run root, a `query`, an
+outbound HTTP call, and a `spawn`. A `gc` event becomes a metric, not a span, because a collection
+pause is not a unit of work in a request's causal graph.
 
-There is deliberately **no second identifier and no inbound `X-Request-ID`**. Two identifiers for
-one request is two things that can disagree, and a subsystem minting an id of its own where a
-record is written would produce a line no backend could join to anything. The id is generated where
-the request's state lives, eagerly, rather than by whichever subsystem asks first.
+The set is closed for two reasons. A trace with one span per function call is unstorable by any
+backend. And admitting one would put export cost on the per-call path that
+[`testing/debug-probes`](testing.md#testing-debug-probes) keeps to a load and a predicted-not-taken branch — the cost class every
+other kind was placed off of on purpose ([`observability/gc-pause-is-its-own-event`](observability.md#observability-gc-pause-is-its-own-event),
+[`observability/spawn-is-its-own-event`](observability.md#observability-spawn-is-its-own-event)).
 
-**A trace id never becomes a metric label.** It is unbounded by construction, and
-[`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted) would refuse it anyway.
+<sub>See also [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`observability/gc-pause-is-its-own-event`](observability.md#observability-gc-pause-is-its-own-event), [`observability/spawn-is-its-own-event`](observability.md#observability-spawn-is-its-own-event), [`observability/default-series`](observability.md#observability-default-series), [`observability/a-registry-is-per-core-and-nothing-reads-it`](observability.md#observability-a-registry-is-per-core-and-nothing-reads-it). Decided in [0041](../decisions/0041.md), [0076](../decisions/0076.md).</sub>
 
-<sub>See also [`observability/an-inbound-traceparent-is-continued`](observability.md#observability-an-inbound-traceparent-is-continued), [`observability/a-log-record-carries-trace-ids-when-a-trace-is-active`](observability.md#observability-a-log-record-carries-trace-ids-when-a-trace-is-active), [`observability/sampling-is-head-based`](observability.md#observability-sampling-is-head-based), [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted). Decided in [0076](../decisions/0076.md), [0097](../decisions/0097.md).</sub>
+<a id="observability-trace-events-carry-a-kind"></a>
+
+## A trace event carries one of four kinds — `call`, `gc`, `spawn`, `query` — and a `call` keeps its probe shape
+
+`rule:observability/trace-events-carry-a-kind`
+
+Every trace event carries a `kind` tag, and the tag is one of exactly four: `call`, `gc`, `spawn`,
+`query`. A `call` event is [`testing/debug-probes`](testing.md#testing-debug-probes)'s probe pair unchanged — callee, arguments,
+entry and exit timestamp, checked-return status, result. The three other kinds are emitted from
+routines of their own, not from the per-statement or per-call probe: a `gc` from the collector's run
+routine ([`observability/gc-pause-is-its-own-event`](observability.md#observability-gc-pause-is-its-own-event)), a `spawn` from the three isolate-spawn
+routines ([`observability/spawn-is-its-own-event`](observability.md#observability-spawn-is-its-own-event)), and a `query` from inside `Core\Db`'s own
+statement routine.
+
+A `query` carries the duration, the driver, the connection name, the truncated SQL text, the rows
+returned and the rows affected — and **never a bound parameter value**, because a trace is a
+`secret` sink ([`security/secret-qualifier`](security.md#security-secret-qualifier)). Every one of the three sits in a routine that is
+already rare and already slow, so tracing costs nothing on the hot path the probes measure, and
+nothing at all when the flag is off.
+
+The tag is what lets one stream serve every consumer: the timeline export, the profiler's
+attribution, and production telemetry all read these four kinds and add no instrumentation of their
+own.
+
+<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`observability/a-query-is-a-trace-event`](observability.md#observability-a-query-is-a-trace-event). Decided in [0041](../decisions/0041.md), [0018](../decisions/0018.md), [0067](../decisions/0067.md).</sub>
+
+<a id="observability-a-query-is-a-trace-event"></a>
+
+## A statement is a `query` trace event that carries its duration, driver, connection, truncated SQL and row counts, and never a bound parameter
+
+`rule:observability/a-query-is-a-trace-event`
+
+A statement is a `query` trace event, beside `call`, `gc` and `spawn`, instrumented in the driver's
+own statement routine and off the hot path exactly as those two are. The event carries **duration,
+driver, connection name, truncated SQL text, rows returned and rows affected — and never a bound
+parameter.** The span type is handed the SQL and the clock and is never handed the values, so there
+is no parameter in scope for a later field, a later rendering or a later driver to leak; the SQL is
+safe to carry because no driver ever interpolates a value into it, so what the span holds is the
+statement as written, placeholders still placeholders. [`core-classes/db-error`](core-classes.md#core-classes-db-error) states the same
+rule for the error path.
+
+The driver is a field so the five backends contribute one event and a trace reads across them. The
+duration is measured from the moment the statement went out, not from its first row, so a span
+reports what the caller waited. The same span feeds
+[`observability/a-slow-query-is-logged-past-a-threshold`](observability.md#observability-a-slow-query-is-logged-past-a-threshold), rendered at most once however many
+readers there are, and it is what becomes a query span in
+[`observability/four-kinds-become-a-span`](observability.md#observability-four-kinds-become-a-span). Both outputs are inert unless asked for.
+
+<sub>See also [`observability/a-slow-query-is-logged-past-a-threshold`](observability.md#observability-a-slow-query-is-logged-past-a-threshold), [`observability/four-kinds-become-a-span`](observability.md#observability-four-kinds-become-a-span), [`core-classes/db-error`](core-classes.md#core-classes-db-error), [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named), [`testing/debug-probes`](testing.md#testing-debug-probes), [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind). Decided in [0067](../decisions/0067.md), [0041](../decisions/0041.md).</sub>
+
+<a id="observability-a-slow-query-is-logged-past-a-threshold"></a>
+
+## A `[db.<name>] slow_query` threshold writes a statement's span facts to `Core\Log`, and is off until a block writes one
+
+`rule:observability/a-slow-query-is-logged-past-a-threshold`
+
+A `[db.<name>]` block may write `slow_query`, a duration such as `"200ms"` or `"1s"`; a statement on
+that connection that runs longer writes the same facts its trace event carries — duration, driver,
+connection, truncated SQL, row counts, never a parameter — to `Core\Log`
+([`observability/a-query-is-a-trace-event`](observability.md#observability-a-query-is-a-trace-event)).
+
+**Unwritten is off**, and off is silent: a deployment gets no slow-query log it did not ask for. A
+written `0` is a threshold every statement passes, not a second spelling of off. A connection with
+no block at all — one opened by the program with settings no operator named
+([`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named)) — has no threshold either. A value that is not a
+duration is refused at boot, where it is written.
+
+The threshold and the trace are asked once, *before* a statement borrows the context, so a request
+that turns either on midway through a statement gets a whole event or none, never half of one.
+
+<sub>See also [`observability/a-query-is-a-trace-event`](observability.md#observability-a-query-is-a-trace-event), [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named), [`errors/log-write`](errors.md#errors-log-write). Decided in [0067](../decisions/0067.md).</sub>
+
+<a id="observability-gc-pause-is-its-own-event"></a>
+
+## A collector pause is a `gc` event recorded from the collector's run routine, never from the safepoint poll  *(designed — not yet in the compiler)*
+
+`rule:observability/gc-pause-is-its-own-event`
+
+A stop-the-world collection run is a trace event of its own, `kind: gc`, recorded from **inside the
+cycle collector's run routine** and gated by the same `TRACE`/`PROFILE` bits `Ctx` already carries.
+It records a start timestamp, a duration and the number of objects freed.
+
+It is emitted from the collector's routine and never from the safepoint poll, because the poll is
+checked on every loop back-edge and function entry — precisely the hot path tracing must not touch —
+while the collection run is already the rare, slow path where one more branch and a timestamp pair
+cost nothing relative to the run itself.
+
+What the event buys is honest attribution. Without it a pause is silently folded into the self time
+of whichever function happened to be executing, and `PROFILE`'s self/inclusive figures carry a cost
+that function did not cause. With it the pause is its own bar on the timeline, and in production
+telemetry it becomes a metric rather than a span ([`observability/a-call-never-becomes-a-span`](observability.md#observability-a-call-never-becomes-a-span)).
+
+<sub>See also [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`testing/debug-probes`](testing.md#testing-debug-probes), [`observability/a-registry-is-per-core-and-nothing-reads-it`](observability.md#observability-a-registry-is-per-core-and-nothing-reads-it). Decided in [0041](../decisions/0041.md), [0018](../decisions/0018.md).</sub>
+
+<a id="observability-spawn-is-its-own-event"></a>
+
+## An isolate spawn and its join are one `spawn` event with an overhead split, and the child's stream is stitched in at export time  *(designed — not yet in the compiler)*
+
+`rule:observability/spawn-is-its-own-event`
+
+Each of the three spawn constructs — `spawn`, `spawn worker`, `spawn script` — emits a `kind: spawn`
+event from its own runtime routine, and its join or result point closes it, gated by the same
+`TRACE`/`PROFILE` bits. The event records the start timestamp, which of the three forms it was, the
+join timestamp, and a computed overhead split: the parent-observed wall time minus the child-reported
+wall time that already arrives on `ScriptResult`. That gives "real child compute" and "isolate
+scheduling and copy-out cost" as two numbers instead of one opaque total.
+
+A spawn has its own instrumentation point because it is not a function call and does not flow
+through the call probe — [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing) rejects modelling it as one.
+
+The child's own trace or profile stream is **never merged live** into the parent's during the spawn;
+that would cross the arena boundary isolation exists to keep. Showing a child's events nested under
+its parent's `spawn` bar, anchored at the spawn's timestamp, is an export-time operation in the CLI's
+exporter over data that already crosses the boundary on `ScriptResult` — not a new live cross-arena
+mechanism.
+
+<sub>See also [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/isolate-failure-is-a-value`](security.md#security-isolate-failure-is-a-value). Decided in [0041](../decisions/0041.md), [0018](../decisions/0018.md).</sub>
 
 <a id="observability-an-inbound-traceparent-is-continued"></a>
 
@@ -188,136 +481,6 @@ a buffering exporter, and is deliberately not built.
 
 <sub>See also [`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request), [`observability/an-inbound-traceparent-is-continued`](observability.md#observability-an-inbound-traceparent-is-continued), [`observability/metrics-and-trace-blocks-are-system`](observability.md#observability-metrics-and-trace-blocks-are-system). Decided in [0076](../decisions/0076.md).</sub>
 
-<a id="observability-metrics-three-members"></a>
-
-## `Core\Metrics` is three verbs for three kinds, always present, and accumulates whether or not an exporter is built  *(designed — not yet in the compiler)*
-
-`rule:observability/metrics-three-members`
-
-```php
-Core\Metrics::increment(string $name, {by?: uint, labels?: array<string, string>}): void;
-Core\Metrics::observe(string $name, float $value, {labels?: array<string, string>}): void;
-Core\Metrics::gauge(string $name, float $value, {labels?: array<string, string>}): void;
-```
-
-`increment` for a counter, `observe` for a histogram, `gauge` for a point-in-time value — three
-verbs for three kinds, rather than one `record` with a kind enum, because the kind is a property of
-the series and not of the call ([`observability/a-name-is-fixed-to-one-kind`](observability.md#observability-a-name-is-fixed-to-one-kind)). A literal
-`$name` is validated at compile time against `[a-z][a-z0-9_]*`, by the same call-site literal
-inspection [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse) performs.
-
-The `labels` value position is a sink: [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted) is the rule a
-user id, a tenant name or an error message runs into, and `secret` is refused there too.
-
-**`Core\Metrics` is always present.** Whether anything leaves the process is the exporter's
-question ([`observability/the-exporter-is-a-feature-and-core-metrics-is-not`](observability.md#observability-the-exporter-is-a-feature-and-core-metrics-is-not)); a binary built
-without one still accumulates into the per-core registry, so behaviour is identical across builds
-except for the export path. A program that never calls it and serves no requests holds zero series.
-
-<sub>See also [`observability/a-name-is-fixed-to-one-kind`](observability.md#observability-a-name-is-fixed-to-one-kind), [`observability/the-exporter-is-a-feature-and-core-metrics-is-not`](observability.md#observability-the-exporter-is-a-feature-and-core-metrics-is-not), [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted), [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse). Decided in [0076](../decisions/0076.md), [0051](../decisions/0051.md).</sub>
-
-<a id="observability-a-name-is-fixed-to-one-kind"></a>
-
-## A metric name is fixed to one kind and one label set on first use, and a second kind throws naming both sites  *(designed — not yet in the compiler)*
-
-`rule:observability/a-name-is-fixed-to-one-kind`
-
-A metric name is fixed to one kind — counter, histogram or gauge — on its first use within a
-process, and its label *names* are fixed with it. A second kind for the same name is a runtime throw
-naming both call sites, because it is a mistake and not a mode: the exposition formats both
-exporters write have no way to say that two members of one family disagree about what they are, so
-a series recorded two ways is a bug the backend reports and the call site cannot see.
-
-A label-set mismatch is refused on the same footing. Label *order* is not a second series — the
-registry keys on the set, not the spelling. Both refusals are distinct from the cardinality
-refusal of [`observability/past-max-series-a-new-series-is-refused`](observability.md#observability-past-max-series-a-new-series-is-refused), which is a no-op rather
-than a throw.
-
-<sub>See also [`observability/metrics-three-members`](observability.md#observability-metrics-three-members), [`observability/past-max-series-a-new-series-is-refused`](observability.md#observability-past-max-series-a-new-series-is-refused). Decided in [0076](../decisions/0076.md).</sub>
-
-<a id="observability-a-registry-is-per-core-and-nothing-reads-it"></a>
-
-## A metrics registry is per core, merged at scrape, and no program reads a metric
-
-`rule:observability/a-registry-is-per-core-and-nothing-reads-it`
-
-Each core holds its own metrics registry, and a scrape merges them. That is per-core mutable state
-outliving a request, which is the shape [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit) exists
-to constrain — and it passes that rule's own test rather than being an exception to it:
-
-- **Nothing reads it to make a decision.** No Novis program can read a metric at all; the only
-  reader is a scrape or a push, outside any request. A program that would be incorrect if a read
-  returned nothing is using the wrong tier, and no program can read this one.
-- **The values are approximate aggregates by design.** Per-core counters merged at scrape are the
-  correct implementation, not a compromise — the same reason a metric is not a rate limit
-  ([`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members)) — and the merge is arithmetic, never coordination.
-- **No request-derived value crosses**, because [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted) forbids
-  exactly that. What accumulates is a fixed set of series with bounded label sets.
-- **Memory is charged to the core and capped** — O(cores × series), bounded by
-  [`observability/past-max-series-a-new-series-is-refused`](observability.md#observability-past-max-series-a-new-series-is-refused), never O(requests served) — the same
-  accounting [`concurrency/cache-memory-is-charged-to-the-core`](concurrency.md#concurrency-cache-memory-is-charged-to-the-core) records.
-
-A shared, coherent store would be the cross-request coordination that rule closes, bought for a
-number that is approximate by definition.
-
-<sub>See also [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit), [`concurrency/cache-memory-is-charged-to-the-core`](concurrency.md#concurrency-cache-memory-is-charged-to-the-core), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`observability/past-max-series-a-new-series-is-refused`](observability.md#observability-past-max-series-a-new-series-is-refused), [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted). Decided in [0076](../decisions/0076.md), [0059](../decisions/0059.md).</sub>
-
-<a id="observability-metrics-and-trace-blocks-are-system"></a>
-
-## `[metrics]` and `[trace]` are `System` blocks, and a value neither exporter accepts is refused at boot
-
-`rule:observability/metrics-and-trace-blocks-are-system`
-
-```toml
-[metrics]                       # System
-exporter   = false              # false | "prometheus" | "otlp"
-listen     = "127.0.0.1:9090"   # prometheus scrape endpoint
-endpoint   = ""                 # otlp collector URL
-max_series = 10000              # per core
-
-[trace]                         # System
-exporter  = false               # false | "otlp"
-endpoint  = ""
-sample    = 0.01                # head-based, 0.0–1.0
-propagate = true                # send traceparent on outbound Core\Http\Client calls
-```
-
-Both blocks are **`System`** ([`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it)): where a process
-ships telemetry, and how much it costs to do so, is a deployment decision, and a request able to
-turn tracing on for itself is the reconnaissance channel [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive) already
-refuses. A developer wanting a trace of their own request has `Core\Debug`, which is unaffected.
-
-The two blocks share a grammar and not a roster: `exporter` is `false` or one word naming a
-protocol, metrics take a scrape or a push, a trace takes only a push, and `sample` is a fraction of
-one. Anything else is **refused at boot, where it is written** — a wrong value here produces
-silence, a collector nothing writes to, and there is no later moment at which that reports itself.
-
-<sub>See also [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive), [`observability/sampling-is-head-based`](observability.md#observability-sampling-is-head-based), [`observability/past-max-series-a-new-series-is-refused`](observability.md#observability-past-max-series-a-new-series-is-refused), [`observability/the-exporter-is-a-feature-and-core-metrics-is-not`](observability.md#observability-the-exporter-is-a-feature-and-core-metrics-is-not). Decided in [0076](../decisions/0076.md), [0064](../decisions/0064.md), [0005](../decisions/0005.md).</sub>
-
-<a id="observability-a-log-record-carries-trace-ids-when-a-trace-is-active"></a>
-
-## A log record inside an active trace carries `trace_id` and `span_id`, and outside one omits both rather than writing them empty
-
-`rule:observability/a-log-record-carries-trace-ids-when-a-trace-is-active`
-
-The JSON-Lines record [`errors/log-write`](errors.md#errors-log-write) defines gains `trace_id` and `span_id` whenever a
-trace is active. Inside a sampled request both are present; outside one both are **omitted rather
-than written as empty strings**, and that omitted-not-empty rule applies to the whole envelope —
-a producer with no request to name does not invent one.
-
-`request_id` on the same record is the trace id, because
-[`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request) makes that the only identifier there is.
-It repeats in `trace_id` for a sampled trace on purpose: a log pipeline correlating by request and a
-tracing backend correlating by trace each read their own key, and neither has to know the other's
-rule. The id a record carries is the one the server's door decided from the inbound header
-([`observability/an-inbound-traceparent-is-continued`](observability.md#observability-an-inbound-traceparent-is-continued)), never a second one drawn where the
-record was written.
-
-Two fields added to a shape that already exists, and they are what lets an operator jump from a
-log line to the trace that produced it — the single highest-value thing an observability stack does.
-
-<sub>See also [`errors/log-write`](errors.md#errors-log-write), [`errors/log-fields`](errors.md#errors-log-fields), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request). Decided in [0076](../decisions/0076.md), [0020](../decisions/0020.md), [0092](../decisions/0092.md).</sub>
-
 <a id="observability-the-exporter-is-a-feature-and-core-metrics-is-not"></a>
 
 ## The exporter is a feature-gated Native subsystem, and `Core\Metrics` is Tier 0 in every build  *(designed — not yet in the compiler)*
@@ -339,31 +502,6 @@ the class is always there and the driver is a feature.
 
 <sub>See also [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`observability/metrics-three-members`](observability.md#observability-metrics-three-members), [`observability/the-exporters-are-crates`](observability.md#observability-the-exporters-are-crates). Decided in [0076](../decisions/0076.md), [0051](../decisions/0051.md), [0048](../decisions/0048.md).</sub>
 
-<a id="observability-past-max-series-a-new-series-is-refused"></a>
-
-## Past `max_series` a new series is refused and an existing one is never evicted
-
-`rule:observability/past-max-series-a-new-series-is-refused`
-
-`[metrics] max_series` bounds the number of distinct label combinations one **core** holds. Past
-it, a series that does not exist yet is **refused** — the call is a no-op, the refusal is counted
-against the metric's name, and one warning per window is written to `Core\Log` naming the metric.
-A series that already exists is untouched.
-
-An existing series is **never evicted**, and this is a deliberate correction to the obvious
-design. Evicting a counter and later recreating it makes its value appear to reset, which every
-backend reads as a process restart and which silently corrupts every `rate()` and `increase()`
-over it — a wrong number on a dashboard, which is worse than a missing one. Refusing the new loses
-the newest labels and keeps every existing series exactly correct; the assertion that distinguishes
-the two designs is that every value is unchanged across the boundary.
-
-What it spends: O(cores × series), bounded per core, a counter costing its key and eight bytes and
-a histogram its bucket array. Charged to the core, not to a request, exactly as
-[`concurrency/cache-memory-is-charged-to-the-core`](concurrency.md#concurrency-cache-memory-is-charged-to-the-core) charges the cache, and never O(requests
-served). The nine of [`observability/default-series`](observability.md#observability-default-series) are seeded ahead of the bound.
-
-<sub>See also [`observability/a-registry-is-per-core-and-nothing-reads-it`](observability.md#observability-a-registry-is-per-core-and-nothing-reads-it), [`observability/default-series`](observability.md#observability-default-series), [`concurrency/cache-memory-is-charged-to-the-core`](concurrency.md#concurrency-cache-memory-is-charged-to-the-core), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0076](../decisions/0076.md).</sub>
-
 <a id="observability-the-exporters-are-crates"></a>
 
 ## The OTLP and Prometheus paths are dependencies; the event-to-span wiring and the per-core registry are ours  *(designed — not yet in the compiler)*
@@ -383,124 +521,6 @@ changes nothing above it. StatsD is not a wire format here — no histogram sema
 and no trace story at all.
 
 <sub>See also [`observability/the-exporter-is-a-feature-and-core-metrics-is-not`](observability.md#observability-the-exporter-is-a-feature-and-core-metrics-is-not), [`observability/four-kinds-become-a-span`](observability.md#observability-four-kinds-become-a-span), [`observability/a-registry-is-per-core-and-nothing-reads-it`](observability.md#observability-a-registry-is-per-core-and-nothing-reads-it). Decided in [0076](../decisions/0076.md).</sub>
-
-<a id="observability-a-query-is-a-trace-event"></a>
-
-## A statement is a `query` trace event that carries its duration, driver, connection, truncated SQL and row counts, and never a bound parameter
-
-`rule:observability/a-query-is-a-trace-event`
-
-A statement is a `query` trace event, beside `call`, `gc` and `spawn`, instrumented in the driver's
-own statement routine and off the hot path exactly as those two are. The event carries **duration,
-driver, connection name, truncated SQL text, rows returned and rows affected — and never a bound
-parameter.** The span type is handed the SQL and the clock and is never handed the values, so there
-is no parameter in scope for a later field, a later rendering or a later driver to leak; the SQL is
-safe to carry because no driver ever interpolates a value into it, so what the span holds is the
-statement as written, placeholders still placeholders. [`core-classes/db-error`](core-classes.md#core-classes-db-error) states the same
-rule for the error path.
-
-The driver is a field so the five backends contribute one event and a trace reads across them. The
-duration is measured from the moment the statement went out, not from its first row, so a span
-reports what the caller waited. The same span feeds
-[`observability/a-slow-query-is-logged-past-a-threshold`](observability.md#observability-a-slow-query-is-logged-past-a-threshold), rendered at most once however many
-readers there are, and it is what becomes a query span in
-[`observability/four-kinds-become-a-span`](observability.md#observability-four-kinds-become-a-span). Both outputs are inert unless asked for.
-
-<sub>See also [`observability/a-slow-query-is-logged-past-a-threshold`](observability.md#observability-a-slow-query-is-logged-past-a-threshold), [`observability/four-kinds-become-a-span`](observability.md#observability-four-kinds-become-a-span), [`core-classes/db-error`](core-classes.md#core-classes-db-error), [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named), [`testing/debug-probes`](testing.md#testing-debug-probes), [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind). Decided in [0067](../decisions/0067.md), [0041](../decisions/0041.md).</sub>
-
-<a id="observability-a-slow-query-is-logged-past-a-threshold"></a>
-
-## A `[db.<name>] slow_query` threshold writes a statement's span facts to `Core\Log`, and is off until a block writes one
-
-`rule:observability/a-slow-query-is-logged-past-a-threshold`
-
-A `[db.<name>]` block may write `slow_query`, a duration such as `"200ms"` or `"1s"`; a statement on
-that connection that runs longer writes the same facts its trace event carries — duration, driver,
-connection, truncated SQL, row counts, never a parameter — to `Core\Log`
-([`observability/a-query-is-a-trace-event`](observability.md#observability-a-query-is-a-trace-event)).
-
-**Unwritten is off**, and off is silent: a deployment gets no slow-query log it did not ask for. A
-written `0` is a threshold every statement passes, not a second spelling of off. A connection with
-no block at all — one opened by the program with settings no operator named
-([`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named)) — has no threshold either. A value that is not a
-duration is refused at boot, where it is written.
-
-The threshold and the trace are asked once, *before* a statement borrows the context, so a request
-that turns either on midway through a statement gets a whole event or none, never half of one.
-
-<sub>See also [`observability/a-query-is-a-trace-event`](observability.md#observability-a-query-is-a-trace-event), [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named), [`errors/log-write`](errors.md#errors-log-write). Decided in [0067](../decisions/0067.md).</sub>
-
-<a id="observability-trace-events-carry-a-kind"></a>
-
-## A trace event carries one of four kinds — `call`, `gc`, `spawn`, `query` — and a `call` keeps its probe shape
-
-`rule:observability/trace-events-carry-a-kind`
-
-Every trace event carries a `kind` tag, and the tag is one of exactly four: `call`, `gc`, `spawn`,
-`query`. A `call` event is [`testing/debug-probes`](testing.md#testing-debug-probes)'s probe pair unchanged — callee, arguments,
-entry and exit timestamp, checked-return status, result. The three other kinds are emitted from
-routines of their own, not from the per-statement or per-call probe: a `gc` from the collector's run
-routine ([`observability/gc-pause-is-its-own-event`](observability.md#observability-gc-pause-is-its-own-event)), a `spawn` from the three isolate-spawn
-routines ([`observability/spawn-is-its-own-event`](observability.md#observability-spawn-is-its-own-event)), and a `query` from inside `Core\Db`'s own
-statement routine.
-
-A `query` carries the duration, the driver, the connection name, the truncated SQL text, the rows
-returned and the rows affected — and **never a bound parameter value**, because a trace is a
-`secret` sink ([`security/secret-qualifier`](security.md#security-secret-qualifier)). Every one of the three sits in a routine that is
-already rare and already slow, so tracing costs nothing on the hot path the probes measure, and
-nothing at all when the flag is off.
-
-The tag is what lets one stream serve every consumer: the timeline export, the profiler's
-attribution, and production telemetry all read these four kinds and add no instrumentation of their
-own.
-
-<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`observability/a-query-is-a-trace-event`](observability.md#observability-a-query-is-a-trace-event). Decided in [0041](../decisions/0041.md), [0018](../decisions/0018.md), [0067](../decisions/0067.md).</sub>
-
-<a id="observability-gc-pause-is-its-own-event"></a>
-
-## A collector pause is a `gc` event recorded from the collector's run routine, never from the safepoint poll  *(designed — not yet in the compiler)*
-
-`rule:observability/gc-pause-is-its-own-event`
-
-A stop-the-world collection run is a trace event of its own, `kind: gc`, recorded from **inside the
-cycle collector's run routine** and gated by the same `TRACE`/`PROFILE` bits `Ctx` already carries.
-It records a start timestamp, a duration and the number of objects freed.
-
-It is emitted from the collector's routine and never from the safepoint poll, because the poll is
-checked on every loop back-edge and function entry — precisely the hot path tracing must not touch —
-while the collection run is already the rare, slow path where one more branch and a timestamp pair
-cost nothing relative to the run itself.
-
-What the event buys is honest attribution. Without it a pause is silently folded into the self time
-of whichever function happened to be executing, and `PROFILE`'s self/inclusive figures carry a cost
-that function did not cause. With it the pause is its own bar on the timeline, and in production
-telemetry it becomes a metric rather than a span ([`observability/a-call-never-becomes-a-span`](observability.md#observability-a-call-never-becomes-a-span)).
-
-<sub>See also [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`testing/debug-probes`](testing.md#testing-debug-probes), [`observability/a-registry-is-per-core-and-nothing-reads-it`](observability.md#observability-a-registry-is-per-core-and-nothing-reads-it). Decided in [0041](../decisions/0041.md), [0018](../decisions/0018.md).</sub>
-
-<a id="observability-spawn-is-its-own-event"></a>
-
-## An isolate spawn and its join are one `spawn` event with an overhead split, and the child's stream is stitched in at export time  *(designed — not yet in the compiler)*
-
-`rule:observability/spawn-is-its-own-event`
-
-Each of the three spawn constructs — `spawn`, `spawn worker`, `spawn script` — emits a `kind: spawn`
-event from its own runtime routine, and its join or result point closes it, gated by the same
-`TRACE`/`PROFILE` bits. The event records the start timestamp, which of the three forms it was, the
-join timestamp, and a computed overhead split: the parent-observed wall time minus the child-reported
-wall time that already arrives on `ScriptResult`. That gives "real child compute" and "isolate
-scheduling and copy-out cost" as two numbers instead of one opaque total.
-
-A spawn has its own instrumentation point because it is not a function call and does not flow
-through the call probe — [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing) rejects modelling it as one.
-
-The child's own trace or profile stream is **never merged live** into the parent's during the spawn;
-that would cross the arena boundary isolation exists to keep. Showing a child's events nested under
-its parent's `spawn` bar, anchored at the spawn's timestamp, is an export-time operation in the CLI's
-exporter over data that already crosses the boundary on `ScriptResult` — not a new live cross-arena
-mechanism.
-
-<sub>See also [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/isolate-failure-is-a-value`](security.md#security-isolate-failure-is-a-value). Decided in [0041](../decisions/0041.md), [0018](../decisions/0018.md).</sub>
 
 <a id="observability-speedscope-timeline-export"></a>
 
@@ -523,26 +543,6 @@ visualisation, and for nothing else. The exact CLI flag that selects it is left 
 implementation, the same way the Clover and lcov shapes were.
 
 <sub>See also [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`testing/debug-surface`](testing.md#testing-debug-surface). Decided in [0041](../decisions/0041.md), [0040](../decisions/0040.md), [0018](../decisions/0018.md).</sub>
-
-<a id="observability-a-call-never-becomes-a-span"></a>
-
-## A `call` event never becomes a span; the root, a `query`, an outbound HTTP call and a `spawn` do, and `gc` becomes a metric  *(designed — not yet in the compiler)*
-
-`rule:observability/a-call-never-becomes-a-span`
-
-Production telemetry reads the same four event kinds the trace records and adds no instrumentation
-of its own — and it is bound by one rule the taxonomy owns: **a `call`-kind event never becomes a
-distributed-tracing span.** Exactly four things do: the request or scheduled-run root, a `query`, an
-outbound HTTP call, and a `spawn`. A `gc` event becomes a metric, not a span, because a collection
-pause is not a unit of work in a request's causal graph.
-
-The set is closed for two reasons. A trace with one span per function call is unstorable by any
-backend. And admitting one would put export cost on the per-call path that
-[`testing/debug-probes`](testing.md#testing-debug-probes) keeps to a load and a predicted-not-taken branch — the cost class every
-other kind was placed off of on purpose ([`observability/gc-pause-is-its-own-event`](observability.md#observability-gc-pause-is-its-own-event),
-[`observability/spawn-is-its-own-event`](observability.md#observability-spawn-is-its-own-event)).
-
-<sub>See also [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`observability/gc-pause-is-its-own-event`](observability.md#observability-gc-pause-is-its-own-event), [`observability/spawn-is-its-own-event`](observability.md#observability-spawn-is-its-own-event), [`observability/default-series`](observability.md#observability-default-series), [`observability/a-registry-is-per-core-and-nothing-reads-it`](observability.md#observability-a-registry-is-per-core-and-nothing-reads-it). Decided in [0041](../decisions/0041.md), [0076](../decisions/0076.md).</sub>
 
 <a id="observability-script-on-exit"></a>
 
@@ -606,6 +606,31 @@ case on this queue, decided on its own; a second queue is the wrong answer.
 
 <sub>See also [`observability/script-on-exit`](observability.md#observability-script-on-exit), [`observability/a-fatal-and-a-cancellation-run-no-exit-hook`](observability.md#observability-a-fatal-and-a-cancellation-run-no-exit-hook), [`observability/exit-hooks-run-after-the-ladder-before-teardown`](observability.md#observability-exit-hooks-run-after-the-ladder-before-teardown). Decided in [0127](../decisions/0127.md).</sub>
 
+<a id="observability-exit-hooks-run-after-the-ladder-before-teardown"></a>
+
+## Exit hooks run after every `finally` and after the failure hooks, and before native teardown, with the heap alive and output where it was
+
+`rule:observability/exit-hooks-run-after-the-ladder-before-teardown`
+
+On the throw path the order is fixed: the unwind's `finally` blocks, innermost first; then
+[`errors/on-uncaught-throw`](errors.md#errors-on-uncaught-throw)'s handler; then this queue; then native teardown. The failure hooks
+run first so a misbehaving queue cannot starve the failure report, and a faulting handler changes
+nothing — the queue runs either way. On the other two endings there is no ladder step: the last
+statement (or the `exit`), the queue, teardown.
+
+Under every hook the heap is fully alive and output goes wherever the script's output was already
+going. The temporary-directory sweep ([`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep)) runs after the queue,
+because a hook is user code that may still hold a path.
+
+On the request path the queue is ordinary request code and delays the end of the response by what it
+costs. Work that should not delay the response is `afterResponse`
+([`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection)), unchanged; on a CLI run the queue runs
+before the deferred work, for the same reason. The four mechanisms route by one line each: `finally`
+is scoped cleanup, `afterResponse` is post-response work, `Core\Fatal` observes a failure the request
+cannot survive, `onExit` is the end of the script.
+
+<sub>See also [`observability/three-endings-fire-the-exit-queue`](observability.md#observability-three-endings-fire-the-exit-queue), [`errors/on-uncaught-throw`](errors.md#errors-on-uncaught-throw), [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection), [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep). Decided in [0127](../decisions/0127.md), [0020](../decisions/0020.md), [0072](../decisions/0072.md), [0131](../decisions/0131.md).</sub>
+
 <a id="observability-a-fatal-and-a-cancellation-run-no-exit-hook"></a>
 
 ## A `FATAL` and a cancellation run no exit hook — `Core\Fatal::onLimit` is the one observer of a limit breach
@@ -631,31 +656,6 @@ The firing set is therefore narrower than PHP's. Someone who assumed "no matter 
 exceptions, and gets `Core\Fatal::onLimit` for the one that matters.
 
 <sub>See also [`observability/three-endings-fire-the-exit-queue`](observability.md#observability-three-endings-fire-the-exit-queue), [`errors/on-limit`](errors.md#errors-on-limit), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`concurrency/cancellation-runs-no-user-code`](concurrency.md#concurrency-cancellation-runs-no-user-code). Decided in [0127](../decisions/0127.md), [0020](../decisions/0020.md), [0072](../decisions/0072.md).</sub>
-
-<a id="observability-exit-hooks-run-after-the-ladder-before-teardown"></a>
-
-## Exit hooks run after every `finally` and after the failure hooks, and before native teardown, with the heap alive and output where it was
-
-`rule:observability/exit-hooks-run-after-the-ladder-before-teardown`
-
-On the throw path the order is fixed: the unwind's `finally` blocks, innermost first; then
-[`errors/on-uncaught-throw`](errors.md#errors-on-uncaught-throw)'s handler; then this queue; then native teardown. The failure hooks
-run first so a misbehaving queue cannot starve the failure report, and a faulting handler changes
-nothing — the queue runs either way. On the other two endings there is no ladder step: the last
-statement (or the `exit`), the queue, teardown.
-
-Under every hook the heap is fully alive and output goes wherever the script's output was already
-going. The temporary-directory sweep ([`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep)) runs after the queue,
-because a hook is user code that may still hold a path.
-
-On the request path the queue is ordinary request code and delays the end of the response by what it
-costs. Work that should not delay the response is `afterResponse`
-([`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection)), unchanged; on a CLI run the queue runs
-before the deferred work, for the same reason. The four mechanisms route by one line each: `finally`
-is scoped cleanup, `afterResponse` is post-response work, `Core\Fatal` observes a failure the request
-cannot survive, `onExit` is the end of the script.
-
-<sub>See also [`observability/three-endings-fire-the-exit-queue`](observability.md#observability-three-endings-fire-the-exit-queue), [`errors/on-uncaught-throw`](errors.md#errors-on-uncaught-throw), [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection), [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep). Decided in [0127](../decisions/0127.md), [0020](../decisions/0020.md), [0072](../decisions/0072.md), [0131](../decisions/0131.md).</sub>
 
 <a id="observability-a-hook-observes-and-never-steers"></a>
 

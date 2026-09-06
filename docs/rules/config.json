@@ -1,423 +1,8 @@
 {
   "topic": "config",
   "title": "Configuration",
-  "order": 160,
+  "order": 200,
   "rules": [
-    {
-      "id": "config/three-changeability-classes",
-      "title": "`nvs.toml` states defaults, not ceilings, and every directive carries one of three changeability classes",
-      "status": "shipped",
-      "because": [
-        "0005",
-        "0078",
-        "0064"
-      ],
-      "divergesFromPhp": "`ini_set` may widen `memory_limit` here too, but only up to a ceiling the file states in its own block, and a `System` directive has no `ini_set` at all",
-      "seeAlso": [
-        "config/ceilings-are-their-own-directives",
-        "config/a-refused-set-returns-false",
-        "config/a-runtime-set-is-request-local",
-        "config/system-means-a-request-may-not-set-it",
-        "config/reloadability-is-its-own-field",
-        "config/an-app-block-may-widen-bounded-by-the-global-ceiling"
-      ],
-      "guardedBy": [
-        "crates/nvs-config/tests/request.rs",
-        "crates/nvs-config/tests/directives.rs"
-      ]
-    },
-    {
-      "id": "config/ceilings-are-their-own-directives",
-      "title": "A ceiling is a `System` directive with the default's key name, and `false` removes it",
-      "status": "shipped",
-      "because": [
-        "0005",
-        "0091",
-        "0004"
-      ],
-      "divergesFromPhp": "there is no `-1` meaning unlimited; a ceiling is removed with `false` in a root-owned block, and never from a script",
-      "seeAlso": [
-        "config/three-changeability-classes",
-        "config/a-refused-set-returns-false",
-        "errors/on-limit",
-        "programs/memory-priority",
-        "config/an-app-block-may-widen-bounded-by-the-global-ceiling"
-      ],
-      "guardedBy": [
-        "tests/conformance/core/config-set-memory-above-the-hard-ceiling-is-refused-and-the-ceiling-in-force-stands.nvst",
-        "tests/conformance/core/config-set-memory-above-the-default-moves-the-ceiling-the-runtime-enforces.nvst",
-        "tests/conformance/reject/config-set-above-the-hard-ceiling-returns-false.nvst"
-      ]
-    },
-    {
-      "id": "config/a-refused-set-returns-false",
-      "title": "A refused `Core\\Config::set` returns `false` and leaves the value unchanged; it is never clamped",
-      "status": "shipped",
-      "because": [
-        "0005",
-        "0064"
-      ],
-      "divergesFromPhp": "`false` is what PHP returns too, but a value above the ceiling is refused whole rather than run at some other number",
-      "seeAlso": [
-        "config/three-changeability-classes",
-        "config/ceilings-are-their-own-directives",
-        "config/ini-set-is-core-config-set"
-      ],
-      "guardedBy": [
-        "tests/conformance/core/config-every-set-refusal-answers-false-and-moves-nothing.nvst",
-        "tests/conformance/reject/config-set-above-the-hard-ceiling-returns-false.nvst",
-        "crates/nvs-config/tests/request.rs"
-      ]
-    },
-    {
-      "id": "config/a-runtime-set-is-request-local",
-      "title": "Every runtime change lives in the request's own overlay and dies with the request",
-      "status": "shipped",
-      "because": [
-        "0005",
-        "0078",
-        "0064"
-      ],
-      "divergesFromPhp": "an `ini_set` never outlives the request even under a long-running process, and no other request can observe it",
-      "seeAlso": [
-        "config/three-changeability-classes",
-        "config/the-config-is-an-immutable-snapshot",
-        "security/isolate-shares-nothing",
-        "config/ini-set-is-core-config-set"
-      ],
-      "guardedBy": [
-        "tests/conformance/config/config-set-is-invisible-to-the-next-request.nvst",
-        "crates/nvs-config/tests/request.rs"
-      ]
-    },
-    {
-      "id": "config/system-means-a-request-may-not-set-it",
-      "title": "A directive is `System` when changing it from inside a request would affect something other than that request, and that is all `System` means",
-      "status": "shipped",
-      "because": [
-        "0005",
-        "0078"
-      ],
-      "seeAlso": [
-        "config/three-changeability-classes",
-        "config/reloadability-is-its-own-field",
-        "config/opcache-revalidation-is-system-class"
-      ],
-      "guardedBy": [
-        "crates/nvs-config/tests/directives.rs",
-        "crates/nvs-config/tests/request.rs"
-      ]
-    },
-    {
-      "id": "config/an-edit-reaches-the-next-request-without-a-restart",
-      "title": "An edited source file reaches the next request that resolves it, through lazy revalidation and one pointer swap, never a watcher or a restart",
-      "status": "shipped",
-      "because": [
-        "0017",
-        "0078",
-        "0042"
-      ],
-      "divergesFromPhp": "`opcache.validate_timestamps` shape, but the cache key is the file's content hash rather than its path, so a stale `mtime` never serves stale code, and there is no `opcache_reset()`",
-      "seeAlso": [
-        "config/a-request-keeps-the-unit-it-resolved",
-        "config/a-broken-edit-fails-the-requests-that-resolve-it",
-        "config/opcache-revalidation-is-system-class",
-        "config/the-extension-set-is-in-every-unit-key",
-        "concurrency/a-connection-keeps-its-compiled-unit"
-      ],
-      "guardedBy": [
-        "crates/nvs-cli/src/script.rs"
-      ]
-    },
-    {
-      "id": "config/a-request-keeps-the-unit-it-resolved",
-      "title": "A file is resolved once per isolate, so an edit is invisible to a request already running",
-      "status": "shipped",
-      "because": [
-        "0017",
-        "0006"
-      ],
-      "seeAlso": [
-        "config/an-edit-reaches-the-next-request-without-a-restart",
-        "security/isolate-shares-nothing",
-        "concurrency/a-connection-keeps-its-compiled-unit"
-      ],
-      "guardedBy": [
-        "crates/nvs-cli/src/script.rs"
-      ]
-    },
-    {
-      "id": "config/a-broken-edit-fails-the-requests-that-resolve-it",
-      "title": "A revalidated file that no longer compiles fails the requests that resolve it afterwards, loudly, and the last good version is never served in its place",
-      "status": "shipped",
-      "because": [
-        "0017",
-        "0078"
-      ],
-      "divergesFromPhp": "the same behaviour as `validate_timestamps`, chosen over the more forgiving keep-serving policy some caches adopt",
-      "seeAlso": [
-        "config/an-edit-reaches-the-next-request-without-a-restart",
-        "config/a-request-keeps-the-unit-it-resolved"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "config/opcache-revalidation-is-system-class",
-      "title": "`opcache.validate` and its rate cap are `System`, and `validate`'s startup default is chosen by the run mode",
-      "status": "shipped",
-      "because": [
-        "0017",
-        "0091",
-        "0005"
-      ],
-      "divergesFromPhp": "`opcache.validate_timestamps` and `revalidate_freq` are `PHP_INI_ALL` in PHP; here no request may touch either",
-      "seeAlso": [
-        "config/system-means-a-request-may-not-set-it",
-        "config/a-startup-default-is-never-flipped",
-        "config/an-edit-reaches-the-next-request-without-a-restart"
-      ],
-      "guardedBy": [
-        "crates/nvs-config/tests/directives.rs",
-        "crates/nvs-config/tests/snapshot.rs"
-      ]
-    },
-    {
-      "id": "config/the-config-is-an-immutable-snapshot",
-      "title": "The configuration is one immutable snapshot a request clones at start, and a reload replaces it whole after validating everything",
-      "status": "shipped",
-      "because": [
-        "0078",
-        "0005",
-        "0103"
-      ],
-      "divergesFromPhp": "nothing is re-read on the request path — no `.user.ini` scan, no per-directory override — and a reload that fails leaves the old configuration serving rather than half of each",
-      "seeAlso": [
-        "config/a-runtime-set-is-request-local",
-        "config/reloadability-is-its-own-field",
-        "config/one-local-control-socket",
-        "config/a-reload-names-what-it-could-not-apply",
-        "config/later-wins-and-every-override-is-recorded",
-        "config/ownership-is-the-trust-boundary"
-      ],
-      "guardedBy": [
-        "crates/nvs-config/tests/snapshot.rs",
-        "tests/conformance/config/config-set-is-invisible-to-the-next-request.nvst"
-      ]
-    },
-    {
-      "id": "config/reloadability-is-its-own-field",
-      "title": "Reloadability is a second registry field, `Reload` or `Boot`, orthogonal to the changeability class",
-      "status": "shipped",
-      "because": [
-        "0078",
-        "0005"
-      ],
-      "divergesFromPhp": "there is no `PHP_INI_SYSTEM` bundle meaning both \"the file only\" and \"read once at boot\"; the two questions are two fields",
-      "seeAlso": [
-        "config/three-changeability-classes",
-        "config/system-means-a-request-may-not-set-it",
-        "config/a-reload-names-what-it-could-not-apply",
-        "config/every-schedule-key-is-system",
-        "config/opcache-file-cache-directives-are-system"
-      ],
-      "guardedBy": [
-        "crates/nvs-config/tests/directives.rs",
-        "crates/nvs-config/tests/snapshot.rs"
-      ]
-    },
-    {
-      "id": "config/one-local-control-socket",
-      "title": "The server is controlled over one local socket whose owner and mode are the authentication, and `nvs ctl` is its client",
-      "status": "designed",
-      "because": [
-        "0078",
-        "0103",
-        "0042"
-      ],
-      "divergesFromPhp": "there is no `SIGUSR2`, no `php-fpm reload` and no signal at all; the operator speaks HTTP to a local socket and gets a report back",
-      "seeAlso": [
-        "config/the-config-is-an-immutable-snapshot",
-        "config/a-reload-names-what-it-could-not-apply",
-        "config/no-network-control-surface",
-        "security/no-eval",
-        "config/ctl-config-reports-the-live-snapshot",
-        "config/ownership-is-the-trust-boundary"
-      ],
-      "guardedBy": [
-        "crates/nvs-server/src/control.rs"
-      ]
-    },
-    {
-      "id": "config/the-extension-set-is-in-every-unit-key",
-      "title": "The extension set is folded into one `env_hash` that both compiled-unit cache keys carry, so an extension change is an ordinary cache miss",
-      "status": "shipped",
-      "because": [
-        "0078",
-        "0017",
-        "0042"
-      ],
-      "seeAlso": [
-        "config/an-edit-reaches-the-next-request-without-a-restart",
-        "config/a-reload-names-what-it-could-not-apply",
-        "programs/no-runtime-autoload",
-        "config/opcache-file-cache-directives-are-system"
-      ],
-      "guardedBy": [
-        "crates/nvs-config/tests/snapshot.rs"
-      ]
-    },
-    {
-      "id": "config/a-reload-names-what-it-could-not-apply",
-      "title": "A reload reports what it applied, names every changed `Boot` key it could not apply, and counts the units it invalidated",
-      "status": "shipped",
-      "because": [
-        "0078"
-      ],
-      "divergesFromPhp": "a changed listen address is named in the reply rather than silently ignored until the next restart",
-      "seeAlso": [
-        "config/reloadability-is-its-own-field",
-        "config/the-config-is-an-immutable-snapshot",
-        "config/one-local-control-socket"
-      ],
-      "guardedBy": [
-        "crates/nvs-server/src/control.rs",
-        "crates/nvs-config/tests/snapshot.rs"
-      ]
-    },
-    {
-      "id": "config/no-network-control-surface",
-      "title": "There is no network-reachable control surface, in either direction of configuration",
-      "status": "shipped",
-      "because": [
-        "0078"
-      ],
-      "seeAlso": [
-        "config/one-local-control-socket"
-      ],
-      "guardedBy": [
-        "crates/nvs-server/src/control.rs"
-      ]
-    },
-    {
-      "id": "config/two-modes-and-the-default-is-production",
-      "title": "A run mode is one of exactly two closed values, and with nothing configured it is `production`",
-      "status": "shipped",
-      "because": [
-        "0091",
-        "0005"
-      ],
-      "divergesFromPhp": "there is no `php.ini-development`/`php.ini-production` pair to copy and no `APP_ENV`; staging is `production` with different configuration, not a third value",
-      "seeAlso": [
-        "config/a-mode-is-five-defaults",
-        "config/a-program-may-read-and-flip-its-mode",
-        "config/no-environment-variable-selects-the-mode",
-        "enums/closed-integer-type"
-      ],
-      "guardedBy": [
-        "tests/conformance/core/env-the-run-mode-is-production-until-a-file-says-otherwise.nvst"
-      ]
-    },
-    {
-      "id": "config/the-mode-flag-wins-over-the-file",
-      "title": "The mode a server starts in comes from `nvs.toml` or from `nvs serve --mode=`, and the flag is the last word",
-      "status": "designed",
-      "because": [
-        "0091",
-        "0103"
-      ],
-      "seeAlso": [
-        "config/two-modes-and-the-default-is-production",
-        "config/no-environment-variable-selects-the-mode",
-        "config/a-directive-flag-is-a-closed-list-at-the-global-layer",
-        "config/an-application-is-its-entry-file-path",
-        "config/a-mount-routes-and-an-app-block-sets-policy"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "config/no-environment-variable-selects-the-mode",
-      "title": "No environment variable selects the run mode — not `NVS_MODE`, not `APP_ENV`, not `NODE_ENV`",
-      "status": "shipped",
-      "because": [
-        "0091",
-        "0012"
-      ],
-      "divergesFromPhp": "`APP_ENV` and its kind are ordinary `Core\\Env::get` values with no effect on the runtime; the operator's switch is a reload of the root-owned file",
-      "seeAlso": [
-        "config/two-modes-and-the-default-is-production",
-        "config/the-mode-flag-wins-over-the-file",
-        "config/one-local-control-socket"
-      ],
-      "guardedBy": [
-        "tests/conformance/core/env-no-environment-variable-selects-the-run-mode.nvst"
-      ]
-    },
-    {
-      "id": "config/a-mode-is-five-defaults",
-      "title": "A mode is a shorthand for the defaults of five `Runtime` directives, and governs nothing else",
-      "status": "shipped",
-      "because": [
-        "0091",
-        "0092",
-        "0020",
-        "0097",
-        "0005"
-      ],
-      "divergesFromPhp": "\"what does development mode change?\" has a closed, printable answer, which no `APP_ENV` or `NODE_ENV` convention can give",
-      "seeAlso": [
-        "config/two-modes-and-the-default-is-production",
-        "config/a-startup-default-is-never-flipped",
-        "config/a-program-may-read-and-flip-its-mode",
-        "errors/log-level",
-        "config/check-and-dump-audit-the-tree-offline",
-        "config/a-mount-routes-and-an-app-block-sets-policy"
-      ],
-      "guardedBy": [
-        "crates/nvs-config/tests/request.rs",
-        "tests/conformance/core/config-a-mode-flip-re-derives-the-mode-table.nvst"
-      ]
-    },
-    {
-      "id": "config/a-startup-default-is-never-flipped",
-      "title": "A mode also selects three startup defaults that are fixed at boot, never re-derived, and never flippable from code",
-      "status": "designed",
-      "because": [
-        "0091",
-        "0017",
-        "0097"
-      ],
-      "seeAlso": [
-        "config/a-mode-is-five-defaults",
-        "config/opcache-revalidation-is-system-class",
-        "config/a-program-may-read-and-flip-its-mode"
-      ],
-      "guardedBy": [
-        "crates/nvs-config/tests/snapshot.rs"
-      ]
-    },
-    {
-      "id": "config/a-program-may-read-and-flip-its-mode",
-      "title": "A program may read the mode and may flip it for its own request, bounded by a `System` ceiling",
-      "status": "shipped",
-      "because": [
-        "0091",
-        "0005"
-      ],
-      "divergesFromPhp": "a script can turn development defaults on for itself only where the operator opened a ceiling, and the flip never reaches another request",
-      "seeAlso": [
-        "config/a-mode-is-five-defaults",
-        "config/a-runtime-set-is-request-local",
-        "config/a-refused-set-returns-false",
-        "config/ceilings-are-their-own-directives",
-        "config/a-mount-routes-and-an-app-block-sets-policy"
-      ],
-      "guardedBy": [
-        "tests/conformance/core/env-a-mode-flip-moves-the-member-and-a-refused-one-moves-nothing.nvst",
-        "tests/conformance/core/mode-default-is-read-and-set.nvst",
-        "tests/conformance/core/config-a-mode-flip-above-the-ceiling-is-refused.nvst",
-        "crates/nvs-config/tests/request.rs"
-      ]
-    },
     {
       "id": "config/the-file-is-nvs-toml-and-it-is-toml",
       "title": "The configuration file is `nvs.toml`, and it is TOML",
@@ -477,22 +62,6 @@
       ]
     },
     {
-      "id": "config/every-block-is-argued-where-it-is-added",
-      "title": "The block roster is closed, and each block's directives are argued by the rule that adds it",
-      "status": "shipped",
-      "because": [
-        "0064",
-        "0103",
-        "0104"
-      ],
-      "seeAlso": [
-        "config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one"
-      ],
-      "guardedBy": [
-        "crates/nvs-config/tests/tree.rs"
-      ]
-    },
-    {
       "id": "config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one",
       "title": "A duplicate key is an error, and so is an unknown one — per file",
       "status": "shipped",
@@ -514,6 +83,22 @@
       ]
     },
     {
+      "id": "config/every-block-is-argued-where-it-is-added",
+      "title": "The block roster is closed, and each block's directives are argued by the rule that adds it",
+      "status": "shipped",
+      "because": [
+        "0064",
+        "0103",
+        "0104"
+      ],
+      "seeAlso": [
+        "config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one"
+      ],
+      "guardedBy": [
+        "crates/nvs-config/tests/tree.rs"
+      ]
+    },
+    {
       "id": "config/nvs-toml-is-not-a-project-manifest",
       "title": "`nvs.toml` is a deployment file, never a project manifest, and it is never found by walking up",
       "status": "shipped",
@@ -530,47 +115,6 @@
       ],
       "guardedBy": [
         "crates/nvs-config/tests/resolve.rs"
-      ]
-    },
-    {
-      "id": "config/ini-set-is-core-config-set",
-      "title": "`ini_set` is `Core\\Config::set`, and the whole family crosses as strings",
-      "status": "shipped",
-      "because": [
-        "0064",
-        "0005",
-        "0011"
-      ],
-      "divergesFromPhp": "`ini_set`, `ini_get`, `ini_restore` and `ini_get_all` are static members of `Core\\Config`, a refused set answers `false` and moves nothing, and an accepted one is request-local",
-      "seeAlso": [
-        "config/one-parser-for-the-boot-path-and-config-set",
-        "classes/no-free-functions-or-constants",
-        "config/three-changeability-classes",
-        "config/ceilings-are-their-own-directives"
-      ],
-      "guardedBy": [
-        "tests/conformance/core/config-every-set-refusal-answers-false-and-moves-nothing.nvst",
-        "tests/conformance/core/config-a-bare-limit-name-and-its-dotted-spelling-are-one-key.nvst",
-        "crates/nvs-config/tests/request.rs"
-      ]
-    },
-    {
-      "id": "config/one-parser-for-the-boot-path-and-config-set",
-      "title": "The boot path and `Core\\Config::set` parse a value through one implementation",
-      "status": "shipped",
-      "because": [
-        "0064",
-        "0057"
-      ],
-      "seeAlso": [
-        "config/ini-set-is-core-config-set",
-        "config/a-size-or-duration-is-a-quoted-string-with-its-suffix",
-        "expressions/preparation-preserves-behaviour"
-      ],
-      "guardedBy": [
-        "crates/nvs-config/tests/value.rs",
-        "crates/nvs-config/tests/request.rs",
-        "crates/nvs-runtime/tests/configured_limits.rs"
       ]
     },
     {
@@ -721,6 +265,25 @@
       ]
     },
     {
+      "id": "config/any-file-in-the-tree-may-set-any-directive",
+      "title": "Any file in the tree may set any directive, `System` class included",
+      "status": "shipped",
+      "because": [
+        "0103",
+        "0005"
+      ],
+      "divergesFromPhp": "there is no `PHP_INI_SYSTEM` versus `PHP_INI_PERDIR` split between files: an included file clears the same ownership bar as the root file and may grant a capability, set `[limits.hard]` or add an `[[extension]]`",
+      "seeAlso": [
+        "config/ownership-is-the-trust-boundary",
+        "config/later-wins-and-every-override-is-recorded",
+        "config/system-means-a-request-may-not-set-it"
+      ],
+      "guardedBy": [
+        "tests/conformance/config/a-value-array-replaces-where-a-table-appends.nvst",
+        "crates/nvs-config/tests/resolve.rs"
+      ]
+    },
+    {
       "id": "config/ownership-is-the-trust-boundary",
       "title": "Every file the configuration reads, and its directory, must be owned by the runtime account or root and writable by nobody else",
       "status": "shipped",
@@ -743,40 +306,6 @@
       ]
     },
     {
-      "id": "config/optional-covers-absence-and-moves-the-check-to-the-directory",
-      "title": "`optional = true` covers absence and nothing else, and an absent include is checked at the directory that would hold it",
-      "status": "shipped",
-      "because": [
-        "0103"
-      ],
-      "seeAlso": [
-        "config/ownership-is-the-trust-boundary",
-        "config/include-takes-a-path-or-a-dir"
-      ],
-      "guardedBy": [
-        "crates/nvs-config/tests/resolve.rs"
-      ]
-    },
-    {
-      "id": "config/any-file-in-the-tree-may-set-any-directive",
-      "title": "Any file in the tree may set any directive, `System` class included",
-      "status": "shipped",
-      "because": [
-        "0103",
-        "0005"
-      ],
-      "divergesFromPhp": "there is no `PHP_INI_SYSTEM` versus `PHP_INI_PERDIR` split between files: an included file clears the same ownership bar as the root file and may grant a capability, set `[limits.hard]` or add an `[[extension]]`",
-      "seeAlso": [
-        "config/ownership-is-the-trust-boundary",
-        "config/later-wins-and-every-override-is-recorded",
-        "config/system-means-a-request-may-not-set-it"
-      ],
-      "guardedBy": [
-        "tests/conformance/config/a-value-array-replaces-where-a-table-appends.nvst",
-        "crates/nvs-config/tests/resolve.rs"
-      ]
-    },
-    {
       "id": "config/the-ownership-check-runs-where-it-can-be-answered",
       "title": "The ownership check runs on `nvs serve` and on reload; `nvs run`, `config check` and `config dump` read without it, and an unchecked file can grant nothing",
       "status": "shipped",
@@ -791,6 +320,21 @@
       ],
       "guardedBy": [
         "crates/nvs-cli/tests/check_grants.rs"
+      ]
+    },
+    {
+      "id": "config/optional-covers-absence-and-moves-the-check-to-the-directory",
+      "title": "`optional = true` covers absence and nothing else, and an absent include is checked at the directory that would hold it",
+      "status": "shipped",
+      "because": [
+        "0103"
+      ],
+      "seeAlso": [
+        "config/ownership-is-the-trust-boundary",
+        "config/include-takes-a-path-or-a-dir"
+      ],
+      "guardedBy": [
+        "crates/nvs-config/tests/resolve.rs"
       ]
     },
     {
@@ -834,6 +378,71 @@
       ]
     },
     {
+      "id": "config/one-parser-for-the-boot-path-and-config-set",
+      "title": "The boot path and `Core\\Config::set` parse a value through one implementation",
+      "status": "shipped",
+      "because": [
+        "0064",
+        "0057"
+      ],
+      "seeAlso": [
+        "config/ini-set-is-core-config-set",
+        "config/a-size-or-duration-is-a-quoted-string-with-its-suffix",
+        "expressions/preparation-preserves-behaviour"
+      ],
+      "guardedBy": [
+        "crates/nvs-config/tests/value.rs",
+        "crates/nvs-config/tests/request.rs",
+        "crates/nvs-runtime/tests/configured_limits.rs"
+      ]
+    },
+    {
+      "id": "config/the-config-is-an-immutable-snapshot",
+      "title": "The configuration is one immutable snapshot a request clones at start, and a reload replaces it whole after validating everything",
+      "status": "shipped",
+      "because": [
+        "0078",
+        "0005",
+        "0103"
+      ],
+      "divergesFromPhp": "nothing is re-read on the request path — no `.user.ini` scan, no per-directory override — and a reload that fails leaves the old configuration serving rather than half of each",
+      "seeAlso": [
+        "config/a-runtime-set-is-request-local",
+        "config/reloadability-is-its-own-field",
+        "config/one-local-control-socket",
+        "config/a-reload-names-what-it-could-not-apply",
+        "config/later-wins-and-every-override-is-recorded",
+        "config/ownership-is-the-trust-boundary"
+      ],
+      "guardedBy": [
+        "crates/nvs-config/tests/snapshot.rs",
+        "tests/conformance/config/config-set-is-invisible-to-the-next-request.nvst"
+      ]
+    },
+    {
+      "id": "config/three-changeability-classes",
+      "title": "`nvs.toml` states defaults, not ceilings, and every directive carries one of three changeability classes",
+      "status": "shipped",
+      "because": [
+        "0005",
+        "0078",
+        "0064"
+      ],
+      "divergesFromPhp": "`ini_set` may widen `memory_limit` here too, but only up to a ceiling the file states in its own block, and a `System` directive has no `ini_set` at all",
+      "seeAlso": [
+        "config/ceilings-are-their-own-directives",
+        "config/a-refused-set-returns-false",
+        "config/a-runtime-set-is-request-local",
+        "config/system-means-a-request-may-not-set-it",
+        "config/reloadability-is-its-own-field",
+        "config/an-app-block-may-widen-bounded-by-the-global-ceiling"
+      ],
+      "guardedBy": [
+        "crates/nvs-config/tests/request.rs",
+        "crates/nvs-config/tests/directives.rs"
+      ]
+    },
+    {
       "id": "config/a-directive-flag-is-a-closed-list-at-the-global-layer",
       "title": "A CLI flag that sets a directive is one of a closed list, wins over every file, and there is no `--set`",
       "status": "designed",
@@ -850,6 +459,254 @@
         "config/ini-set-is-core-config-set",
         "config/the-mode-flag-wins-over-the-file",
         "config/a-startup-default-is-never-flipped"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "config/reloadability-is-its-own-field",
+      "title": "Reloadability is a second registry field, `Reload` or `Boot`, orthogonal to the changeability class",
+      "status": "shipped",
+      "because": [
+        "0078",
+        "0005"
+      ],
+      "divergesFromPhp": "there is no `PHP_INI_SYSTEM` bundle meaning both \"the file only\" and \"read once at boot\"; the two questions are two fields",
+      "seeAlso": [
+        "config/three-changeability-classes",
+        "config/system-means-a-request-may-not-set-it",
+        "config/a-reload-names-what-it-could-not-apply",
+        "config/every-schedule-key-is-system",
+        "config/opcache-file-cache-directives-are-system"
+      ],
+      "guardedBy": [
+        "crates/nvs-config/tests/directives.rs",
+        "crates/nvs-config/tests/snapshot.rs"
+      ]
+    },
+    {
+      "id": "config/ceilings-are-their-own-directives",
+      "title": "A ceiling is a `System` directive with the default's key name, and `false` removes it",
+      "status": "shipped",
+      "because": [
+        "0005",
+        "0091",
+        "0004"
+      ],
+      "divergesFromPhp": "there is no `-1` meaning unlimited; a ceiling is removed with `false` in a root-owned block, and never from a script",
+      "seeAlso": [
+        "config/three-changeability-classes",
+        "config/a-refused-set-returns-false",
+        "errors/on-limit",
+        "programs/memory-priority",
+        "config/an-app-block-may-widen-bounded-by-the-global-ceiling"
+      ],
+      "guardedBy": [
+        "tests/conformance/core/config-set-memory-above-the-hard-ceiling-is-refused-and-the-ceiling-in-force-stands.nvst",
+        "tests/conformance/core/config-set-memory-above-the-default-moves-the-ceiling-the-runtime-enforces.nvst",
+        "tests/conformance/reject/config-set-above-the-hard-ceiling-returns-false.nvst"
+      ]
+    },
+    {
+      "id": "config/system-means-a-request-may-not-set-it",
+      "title": "A directive is `System` when changing it from inside a request would affect something other than that request, and that is all `System` means",
+      "status": "shipped",
+      "because": [
+        "0005",
+        "0078"
+      ],
+      "seeAlso": [
+        "config/three-changeability-classes",
+        "config/reloadability-is-its-own-field",
+        "config/opcache-revalidation-is-system-class"
+      ],
+      "guardedBy": [
+        "crates/nvs-config/tests/directives.rs",
+        "crates/nvs-config/tests/request.rs"
+      ]
+    },
+    {
+      "id": "config/a-runtime-set-is-request-local",
+      "title": "Every runtime change lives in the request's own overlay and dies with the request",
+      "status": "shipped",
+      "because": [
+        "0005",
+        "0078",
+        "0064"
+      ],
+      "divergesFromPhp": "an `ini_set` never outlives the request even under a long-running process, and no other request can observe it",
+      "seeAlso": [
+        "config/three-changeability-classes",
+        "config/the-config-is-an-immutable-snapshot",
+        "security/isolate-shares-nothing",
+        "config/ini-set-is-core-config-set"
+      ],
+      "guardedBy": [
+        "tests/conformance/config/config-set-is-invisible-to-the-next-request.nvst",
+        "crates/nvs-config/tests/request.rs"
+      ]
+    },
+    {
+      "id": "config/a-refused-set-returns-false",
+      "title": "A refused `Core\\Config::set` returns `false` and leaves the value unchanged; it is never clamped",
+      "status": "shipped",
+      "because": [
+        "0005",
+        "0064"
+      ],
+      "divergesFromPhp": "`false` is what PHP returns too, but a value above the ceiling is refused whole rather than run at some other number",
+      "seeAlso": [
+        "config/three-changeability-classes",
+        "config/ceilings-are-their-own-directives",
+        "config/ini-set-is-core-config-set"
+      ],
+      "guardedBy": [
+        "tests/conformance/core/config-every-set-refusal-answers-false-and-moves-nothing.nvst",
+        "tests/conformance/reject/config-set-above-the-hard-ceiling-returns-false.nvst",
+        "crates/nvs-config/tests/request.rs"
+      ]
+    },
+    {
+      "id": "config/ini-set-is-core-config-set",
+      "title": "`ini_set` is `Core\\Config::set`, and the whole family crosses as strings",
+      "status": "shipped",
+      "because": [
+        "0064",
+        "0005",
+        "0011"
+      ],
+      "divergesFromPhp": "`ini_set`, `ini_get`, `ini_restore` and `ini_get_all` are static members of `Core\\Config`, a refused set answers `false` and moves nothing, and an accepted one is request-local",
+      "seeAlso": [
+        "config/one-parser-for-the-boot-path-and-config-set",
+        "classes/no-free-functions-or-constants",
+        "config/three-changeability-classes",
+        "config/ceilings-are-their-own-directives"
+      ],
+      "guardedBy": [
+        "tests/conformance/core/config-every-set-refusal-answers-false-and-moves-nothing.nvst",
+        "tests/conformance/core/config-a-bare-limit-name-and-its-dotted-spelling-are-one-key.nvst",
+        "crates/nvs-config/tests/request.rs"
+      ]
+    },
+    {
+      "id": "config/an-edit-reaches-the-next-request-without-a-restart",
+      "title": "An edited source file reaches the next request that resolves it, through lazy revalidation and one pointer swap, never a watcher or a restart",
+      "status": "shipped",
+      "because": [
+        "0017",
+        "0078",
+        "0042"
+      ],
+      "divergesFromPhp": "`opcache.validate_timestamps` shape, but the cache key is the file's content hash rather than its path, so a stale `mtime` never serves stale code, and there is no `opcache_reset()`",
+      "seeAlso": [
+        "config/a-request-keeps-the-unit-it-resolved",
+        "config/a-broken-edit-fails-the-requests-that-resolve-it",
+        "config/opcache-revalidation-is-system-class",
+        "config/the-extension-set-is-in-every-unit-key",
+        "concurrency/a-connection-keeps-its-compiled-unit"
+      ],
+      "guardedBy": [
+        "crates/nvs-cli/src/script.rs"
+      ]
+    },
+    {
+      "id": "config/a-request-keeps-the-unit-it-resolved",
+      "title": "A file is resolved once per isolate, so an edit is invisible to a request already running",
+      "status": "shipped",
+      "because": [
+        "0017",
+        "0006"
+      ],
+      "seeAlso": [
+        "config/an-edit-reaches-the-next-request-without-a-restart",
+        "security/isolate-shares-nothing",
+        "concurrency/a-connection-keeps-its-compiled-unit"
+      ],
+      "guardedBy": [
+        "crates/nvs-cli/src/script.rs"
+      ]
+    },
+    {
+      "id": "config/a-broken-edit-fails-the-requests-that-resolve-it",
+      "title": "A revalidated file that no longer compiles fails the requests that resolve it afterwards, loudly, and the last good version is never served in its place",
+      "status": "shipped",
+      "because": [
+        "0017",
+        "0078"
+      ],
+      "divergesFromPhp": "the same behaviour as `validate_timestamps`, chosen over the more forgiving keep-serving policy some caches adopt",
+      "seeAlso": [
+        "config/an-edit-reaches-the-next-request-without-a-restart",
+        "config/a-request-keeps-the-unit-it-resolved"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "config/a-reload-names-what-it-could-not-apply",
+      "title": "A reload reports what it applied, names every changed `Boot` key it could not apply, and counts the units it invalidated",
+      "status": "shipped",
+      "because": [
+        "0078"
+      ],
+      "divergesFromPhp": "a changed listen address is named in the reply rather than silently ignored until the next restart",
+      "seeAlso": [
+        "config/reloadability-is-its-own-field",
+        "config/the-config-is-an-immutable-snapshot",
+        "config/one-local-control-socket"
+      ],
+      "guardedBy": [
+        "crates/nvs-server/src/control.rs",
+        "crates/nvs-config/tests/snapshot.rs"
+      ]
+    },
+    {
+      "id": "config/one-local-control-socket",
+      "title": "The server is controlled over one local socket whose owner and mode are the authentication, and `nvs ctl` is its client",
+      "status": "designed",
+      "because": [
+        "0078",
+        "0103",
+        "0042"
+      ],
+      "divergesFromPhp": "there is no `SIGUSR2`, no `php-fpm reload` and no signal at all; the operator speaks HTTP to a local socket and gets a report back",
+      "seeAlso": [
+        "config/the-config-is-an-immutable-snapshot",
+        "config/a-reload-names-what-it-could-not-apply",
+        "config/no-network-control-surface",
+        "security/no-eval",
+        "config/ctl-config-reports-the-live-snapshot",
+        "config/ownership-is-the-trust-boundary"
+      ],
+      "guardedBy": [
+        "crates/nvs-server/src/control.rs"
+      ]
+    },
+    {
+      "id": "config/no-network-control-surface",
+      "title": "There is no network-reachable control surface, in either direction of configuration",
+      "status": "shipped",
+      "because": [
+        "0078"
+      ],
+      "seeAlso": [
+        "config/one-local-control-socket"
+      ],
+      "guardedBy": [
+        "crates/nvs-server/src/control.rs"
+      ]
+    },
+    {
+      "id": "config/ctl-config-reports-the-live-snapshot",
+      "title": "`nvs ctl config` reports what the running process actually holds, including an optional include that appeared after boot",
+      "status": "designed",
+      "because": [
+        "0103",
+        "0078"
+      ],
+      "seeAlso": [
+        "config/check-and-dump-audit-the-tree-offline",
+        "config/the-resolved-root-is-announced-and-stored",
+        "config/one-local-control-socket",
+        "config/a-reload-names-what-it-could-not-apply"
       ],
       "guardedBy": []
     },
@@ -875,20 +732,124 @@
       ]
     },
     {
-      "id": "config/ctl-config-reports-the-live-snapshot",
-      "title": "`nvs ctl config` reports what the running process actually holds, including an optional include that appeared after boot",
+      "id": "config/two-modes-and-the-default-is-production",
+      "title": "A run mode is one of exactly two closed values, and with nothing configured it is `production`",
+      "status": "shipped",
+      "because": [
+        "0091",
+        "0005"
+      ],
+      "divergesFromPhp": "there is no `php.ini-development`/`php.ini-production` pair to copy and no `APP_ENV`; staging is `production` with different configuration, not a third value",
+      "seeAlso": [
+        "config/a-mode-is-five-defaults",
+        "config/a-program-may-read-and-flip-its-mode",
+        "config/no-environment-variable-selects-the-mode",
+        "enums/closed-integer-type"
+      ],
+      "guardedBy": [
+        "tests/conformance/core/env-the-run-mode-is-production-until-a-file-says-otherwise.nvst"
+      ]
+    },
+    {
+      "id": "config/the-mode-flag-wins-over-the-file",
+      "title": "The mode a server starts in comes from `nvs.toml` or from `nvs serve --mode=`, and the flag is the last word",
       "status": "designed",
       "because": [
-        "0103",
-        "0078"
+        "0091",
+        "0103"
       ],
       "seeAlso": [
-        "config/check-and-dump-audit-the-tree-offline",
-        "config/the-resolved-root-is-announced-and-stored",
-        "config/one-local-control-socket",
-        "config/a-reload-names-what-it-could-not-apply"
+        "config/two-modes-and-the-default-is-production",
+        "config/no-environment-variable-selects-the-mode",
+        "config/a-directive-flag-is-a-closed-list-at-the-global-layer",
+        "config/an-application-is-its-entry-file-path",
+        "config/a-mount-routes-and-an-app-block-sets-policy"
       ],
       "guardedBy": []
+    },
+    {
+      "id": "config/no-environment-variable-selects-the-mode",
+      "title": "No environment variable selects the run mode — not `NVS_MODE`, not `APP_ENV`, not `NODE_ENV`",
+      "status": "shipped",
+      "because": [
+        "0091",
+        "0012"
+      ],
+      "divergesFromPhp": "`APP_ENV` and its kind are ordinary `Core\\Env::get` values with no effect on the runtime; the operator's switch is a reload of the root-owned file",
+      "seeAlso": [
+        "config/two-modes-and-the-default-is-production",
+        "config/the-mode-flag-wins-over-the-file",
+        "config/one-local-control-socket"
+      ],
+      "guardedBy": [
+        "tests/conformance/core/env-no-environment-variable-selects-the-run-mode.nvst"
+      ]
+    },
+    {
+      "id": "config/a-mode-is-five-defaults",
+      "title": "A mode is a shorthand for the defaults of five `Runtime` directives, and governs nothing else",
+      "status": "shipped",
+      "because": [
+        "0091",
+        "0092",
+        "0020",
+        "0097",
+        "0005"
+      ],
+      "divergesFromPhp": "\"what does development mode change?\" has a closed, printable answer, which no `APP_ENV` or `NODE_ENV` convention can give",
+      "seeAlso": [
+        "config/two-modes-and-the-default-is-production",
+        "config/a-startup-default-is-never-flipped",
+        "config/a-program-may-read-and-flip-its-mode",
+        "errors/log-level",
+        "config/check-and-dump-audit-the-tree-offline",
+        "config/a-mount-routes-and-an-app-block-sets-policy"
+      ],
+      "guardedBy": [
+        "crates/nvs-config/tests/request.rs",
+        "tests/conformance/core/config-a-mode-flip-re-derives-the-mode-table.nvst"
+      ]
+    },
+    {
+      "id": "config/a-startup-default-is-never-flipped",
+      "title": "A mode also selects three startup defaults that are fixed at boot, never re-derived, and never flippable from code",
+      "status": "designed",
+      "because": [
+        "0091",
+        "0017",
+        "0097"
+      ],
+      "seeAlso": [
+        "config/a-mode-is-five-defaults",
+        "config/opcache-revalidation-is-system-class",
+        "config/a-program-may-read-and-flip-its-mode"
+      ],
+      "guardedBy": [
+        "crates/nvs-config/tests/snapshot.rs"
+      ]
+    },
+    {
+      "id": "config/a-program-may-read-and-flip-its-mode",
+      "title": "A program may read the mode and may flip it for its own request, bounded by a `System` ceiling",
+      "status": "shipped",
+      "because": [
+        "0091",
+        "0005"
+      ],
+      "divergesFromPhp": "a script can turn development defaults on for itself only where the operator opened a ceiling, and the flip never reaches another request",
+      "seeAlso": [
+        "config/a-mode-is-five-defaults",
+        "config/a-runtime-set-is-request-local",
+        "config/a-refused-set-returns-false",
+        "config/ceilings-are-their-own-directives",
+        "config/a-mount-routes-and-an-app-block-sets-policy"
+      ],
+      "guardedBy": [
+        "tests/conformance/core/env-a-mode-flip-moves-the-member-and-a-refused-one-moves-nothing.nvst",
+        "tests/conformance/core/mode-default-is-read-and-set.nvst",
+        "tests/conformance/core/config-a-mode-flip-above-the-ceiling-is-refused.nvst",
+        "crates/nvs-config/tests/request.rs"
+      ]
     },
     {
       "id": "config/an-application-is-its-entry-file-path",
@@ -1068,24 +1029,6 @@
       ]
     },
     {
-      "id": "config/a-fleet-entry-fires-at-most-once-under-a-lease",
-      "title": "A `fleet` entry fires once per interval across the deployment under a lease in the shared store — at most once, never exactly once",
-      "status": "designed",
-      "because": [
-        "0073",
-        "0059"
-      ],
-      "seeAlso": [
-        "config/scope-has-no-default",
-        "config/a-missed-fire-is-skipped-and-a-dst-edge-fires-once",
-        "concurrency/a-cached-value-is-copied-across-the-boundary",
-        "concurrency/cross-request-state-is-explicit"
-      ],
-      "guardedBy": [
-        "crates/nvs-server/src/schedule.rs"
-      ]
-    },
-    {
       "id": "config/every-schedule-key-is-system",
       "title": "Every `[[schedule]]` key is `System`, and not even `RuntimeTighten` reaches one",
       "status": "shipped",
@@ -1104,6 +1047,21 @@
       "guardedBy": [
         "crates/nvs-config/tests/directives.rs"
       ]
+    },
+    {
+      "id": "config/a-schedule-entry-narrows-only",
+      "title": "An entry's `limits` and `grants` narrow the deployment's, and can never widen them",
+      "status": "designed",
+      "because": [
+        "0073",
+        "0005"
+      ],
+      "seeAlso": [
+        "config/a-scheduled-run-is-a-root-isolate",
+        "security/no-runtime-grant",
+        "config/ceilings-are-their-own-directives"
+      ],
+      "guardedBy": []
     },
     {
       "id": "config/a-scheduled-run-is-a-root-isolate",
@@ -1128,19 +1086,22 @@
       ]
     },
     {
-      "id": "config/a-schedule-entry-narrows-only",
-      "title": "An entry's `limits` and `grants` narrow the deployment's, and can never widen them",
+      "id": "config/a-fleet-entry-fires-at-most-once-under-a-lease",
+      "title": "A `fleet` entry fires once per interval across the deployment under a lease in the shared store — at most once, never exactly once",
       "status": "designed",
       "because": [
         "0073",
-        "0005"
+        "0059"
       ],
       "seeAlso": [
-        "config/a-scheduled-run-is-a-root-isolate",
-        "security/no-runtime-grant",
-        "config/ceilings-are-their-own-directives"
+        "config/scope-has-no-default",
+        "config/a-missed-fire-is-skipped-and-a-dst-edge-fires-once",
+        "concurrency/a-cached-value-is-copied-across-the-boundary",
+        "concurrency/cross-request-state-is-explicit"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-server/src/schedule.rs"
+      ]
     },
     {
       "id": "config/overlap-is-skip-queue-or-kill",
@@ -1261,6 +1222,45 @@
         "security/net-address-policy"
       ],
       "guardedBy": []
+    },
+    {
+      "id": "config/the-extension-set-is-in-every-unit-key",
+      "title": "The extension set is folded into one `env_hash` that both compiled-unit cache keys carry, so an extension change is an ordinary cache miss",
+      "status": "shipped",
+      "because": [
+        "0078",
+        "0017",
+        "0042"
+      ],
+      "seeAlso": [
+        "config/an-edit-reaches-the-next-request-without-a-restart",
+        "config/a-reload-names-what-it-could-not-apply",
+        "programs/no-runtime-autoload",
+        "config/opcache-file-cache-directives-are-system"
+      ],
+      "guardedBy": [
+        "crates/nvs-config/tests/snapshot.rs"
+      ]
+    },
+    {
+      "id": "config/opcache-revalidation-is-system-class",
+      "title": "`opcache.validate` and its rate cap are `System`, and `validate`'s startup default is chosen by the run mode",
+      "status": "shipped",
+      "because": [
+        "0017",
+        "0091",
+        "0005"
+      ],
+      "divergesFromPhp": "`opcache.validate_timestamps` and `revalidate_freq` are `PHP_INI_ALL` in PHP; here no request may touch either",
+      "seeAlso": [
+        "config/system-means-a-request-may-not-set-it",
+        "config/a-startup-default-is-never-flipped",
+        "config/an-edit-reaches-the-next-request-without-a-restart"
+      ],
+      "guardedBy": [
+        "crates/nvs-config/tests/directives.rs",
+        "crates/nvs-config/tests/snapshot.rs"
+      ]
     },
     {
       "id": "config/opcache-file-cache-directives-are-system",

@@ -108,6 +108,27 @@ that needs exactly one attachment says so itself and refuses the second where it
 
 <sub>See also [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval), [`attributes/retrieval-folds-while-checking`](attributes.md#attributes-retrieval-folds-while-checking), [`attributes/access-payload`](attributes.md#attributes-access-payload). Decided in [0046](../decisions/0046.md).</sub>
 
+<a id="attributes-call-site-type-argument"></a>
+
+## An explicit `<T>` at a call site is written for compiler-owned members only
+
+`rule:attributes/call-site-type-argument`
+
+`Core\Attributes::get<T>` needs `T` supplied at the call site: no argument has a type it could be
+inferred from. An explicit `<T, U>` list written between a member name and the `(` of a call is
+therefore grammar, and it is reserved to members the compiler owns — these two retrievals,
+`Core\Json::decodeAs<User>($body)`, [`programs/implementing`](programs.md#programs-implementing) and their kind. It **does not open
+user-defined generics**: a type variable stays available only to declarations the compiler owns.
+
+The list is genuinely ambiguous with comparison, since `Foo::BAR < X > ($y)` is also two comparisons,
+so it is resolved by a checkpointed trial parse. The `<` opens a type-argument list only when
+everything up to a matching `>` parses as a type list with no diagnostic **and** the very next token is
+`(`; anything else rewinds and stays an expression. The residue is a `SCREAMING_CASE` constant compared
+against a class-shaped name and immediately followed by a parenthesized operand — parentheses say the
+other thing.
+
+<sub>See also [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval), [`programs/implementing`](programs.md#programs-implementing). Decided in [0046](../decisions/0046.md), [0071](../decisions/0071.md), [0007](../decisions/0007.md).</sub>
+
 <a id="attributes-structural-retrieval"></a>
 
 ## A retrieval matches a payload by the shape it satisfies, never by the name it was attached under
@@ -160,27 +181,6 @@ through the scope the payload was written in — a class constant whose own decl
 is `E0731`. A `T` that is not a shape is `E0729`, and a `$target` that names no declaration is `E0730`.
 
 <sub>See also [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/repeatable`](attributes.md#attributes-repeatable). Decided in [0046](../decisions/0046.md), [0036](../decisions/0036.md).</sub>
-
-<a id="attributes-call-site-type-argument"></a>
-
-## An explicit `<T>` at a call site is written for compiler-owned members only
-
-`rule:attributes/call-site-type-argument`
-
-`Core\Attributes::get<T>` needs `T` supplied at the call site: no argument has a type it could be
-inferred from. An explicit `<T, U>` list written between a member name and the `(` of a call is
-therefore grammar, and it is reserved to members the compiler owns — these two retrievals,
-`Core\Json::decodeAs<User>($body)`, [`programs/implementing`](programs.md#programs-implementing) and their kind. It **does not open
-user-defined generics**: a type variable stays available only to declarations the compiler owns.
-
-The list is genuinely ambiguous with comparison, since `Foo::BAR < X > ($y)` is also two comparisons,
-so it is resolved by a checkpointed trial parse. The `<` opens a type-argument list only when
-everything up to a matching `>` parses as a type list with no diagnostic **and** the very next token is
-`(`; anything else rewinds and stays an expression. The residue is a `SCREAMING_CASE` constant compared
-against a class-shaped name and immediately followed by a parenthesized operand — parentheses say the
-other thing.
-
-<sub>See also [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval), [`programs/implementing`](programs.md#programs-implementing). Decided in [0046](../decisions/0046.md), [0071](../decisions/0071.md), [0007](../decisions/0007.md).</sub>
 
 <a id="attributes-api-adds-and-cannot-contradict"></a>
 

@@ -1,106 +1,19 @@
 {
   "topic": "statements",
   "title": "Statements",
-  "order": 30,
+  "order": 40,
   "rules": [
     {
-      "id": "statements/static-is-a-member-modifier",
-      "title": "`static` marks a class member and names a class-relative type, and nothing else",
+      "id": "statements/nvs-is-the-only-open-tag",
+      "title": "`<?nvs` is the only code-mode open tag; `<?php` is refused",
       "status": "shipped",
-      "because": ["0008", "0007", "0144"],
-      "seeAlso": [
-        "statements/no-function-static-and-no-global",
-        "statements/a-closure-binds-this-only-where-it-uses-it",
-        "statements/storage-that-outlives-a-call"
-      ],
+      "because": ["0049", "0100", "0015"],
+      "divergesFromPhp": "a file opening with `<?php` reports a diagnostic, though the code after the tag still parses",
+      "seeAlso": ["statements/exit-is-the-only-termination-keyword"],
       "guardedBy": [
-        "tests/conformance/lang/new-static-through-two-levels-returns-the-called-class.nvst",
-        "tests/conformance/class/a-static-return-must-be-the-called-class.nvst",
-        "tests/conformance/reject/this-is-not-read-in-a-static-method.nvst",
-        "tests/conformance/reject/an-instance-method-is-not-called-statically.nvst"
+        "tests/conformance/reject/the-php-open-tag-is-refused.nvst",
+        "tests/conformance/core/a-shebang-line-opens-code.nvst"
       ]
-    },
-    {
-      "id": "statements/no-function-static-and-no-global",
-      "title": "A function holds no state of its own, and `global` does not exist",
-      "status": "shipped",
-      "because": ["0008", "0007", "0006"],
-      "divergesFromPhp": "`static int $calls = 0;` inside a function and `global $x;` are both parse-time refusals, each naming a class static, a constant or a parameter as the replacement",
-      "seeAlso": [
-        "statements/static-is-a-member-modifier",
-        "statements/storage-that-outlives-a-call"
-      ],
-      "guardedBy": [
-        "tests/conformance/reject/a-function-scope-static-is-refused.nvst",
-        "tests/conformance/reject/global-does-not-reach-outside-a-frame.nvst"
-      ]
-    },
-    {
-      "id": "statements/storage-that-outlives-a-call",
-      "title": "A program holds state in five declared places, and the list is closed",
-      "status": "shipped",
-      "because": ["0008", "0011", "0010", "0012", "0006"],
-      "divergesFromPhp": "there is no global constant and no superglobal, so nothing holds state without a declaration a reader can find",
-      "seeAlso": [
-        "statements/no-function-static-and-no-global",
-        "statements/no-host-populated-variables",
-        "statements/a-required-file-shares-declarations-not-locals"
-      ],
-      "guardedBy": [
-        "tests/conformance/reject/a-top-level-constant-must-belong-to-a-class.nvst",
-        "tests/conformance/reject/a-top-level-function-must-be-a-method.nvst",
-        "tests/conformance/lang/a-bare-global-name-is-a-compile-error.nvst",
-        "tests/conformance/lang/a-nullable-static-property-starts-each-request-at-null.nvst"
-      ]
-    },
-    {
-      "id": "statements/a-closure-binds-this-only-where-it-uses-it",
-      "title": "A closure binds `$this` only when its body names it, so `static fn` has nothing left to assert",
-      "status": "shipped",
-      "because": ["0008", "0031"],
-      "divergesFromPhp": "a closure that never names `$this` is unbound, and `bindTo()`/`bind()` on it return an equivalent closure rather than rebinding anything",
-      "seeAlso": ["statements/static-is-a-member-modifier"],
-      "guardedBy": ["tests/conformance/class/a-closure-returned-from-a-method-keeps-this.nvst"]
-    },
-    {
-      "id": "statements/no-host-populated-variables",
-      "title": "No variable is ever populated by the host; every superglobal is a `Core` class member",
-      "status": "shipped",
-      "because": ["0012", "0011", "0007", "0009", "0006"],
-      "divergesFromPhp": "`$_SERVER`, `$_GET`, `$_POST`, `$_COOKIE`, `$_FILES`, `$_SESSION`, `$_ENV`, `$argv` and `$argc` do not exist as variables at all",
-      "seeAlso": [
-        "statements/globals-and-request-are-dropped-outright",
-        "statements/storage-that-outlives-a-call",
-        "errors/cookie-name-bytes"
-      ],
-      "guardedBy": [
-        "tests/conformance/reject/a-superglobal-is-refused-and-names-its-core-class.nvst",
-        "tests/conformance/core/env-get-answers-a-set-variable-and-null-for-everything-else.nvst"
-      ]
-    },
-    {
-      "id": "statements/globals-and-request-are-dropped-outright",
-      "title": "`$GLOBALS` and `$_REQUEST` have no replacement of any kind",
-      "status": "shipped",
-      "because": ["0012", "0008", "0007"],
-      "divergesFromPhp": "neither gets a `Core` class, so `extract($_GET)`-shaped code has no straight-line conversion",
-      "seeAlso": [
-        "statements/no-host-populated-variables",
-        "statements/storage-that-outlives-a-call"
-      ],
-      "guardedBy": ["tests/conformance/reject/a-superglobal-is-refused-and-names-its-core-class.nvst"]
-    },
-    {
-      "id": "statements/nothing-gets-a-second-name",
-      "title": "A declaration is reachable under exactly the name it was declared with",
-      "status": "shipped",
-      "because": ["0015", "0011", "0113", "0043"],
-      "divergesFromPhp": "`use Foo\\Bar as Baz;` is a diagnostic, and no function anywhere registers a second name for a class",
-      "seeAlso": [
-        "statements/a-qualified-name-is-absolute",
-        "statements/no-fallback-to-the-root-namespace"
-      ],
-      "guardedBy": ["crates/nvs-syntax/src/parser/tests/decl.rs"]
     },
     {
       "id": "statements/a-qualified-name-is-absolute",
@@ -152,6 +65,30 @@
       "guardedBy": []
     },
     {
+      "id": "statements/nothing-gets-a-second-name",
+      "title": "A declaration is reachable under exactly the name it was declared with",
+      "status": "shipped",
+      "because": ["0015", "0011", "0113", "0043"],
+      "divergesFromPhp": "`use Foo\\Bar as Baz;` is a diagnostic, and no function anywhere registers a second name for a class",
+      "seeAlso": [
+        "statements/a-qualified-name-is-absolute",
+        "statements/no-fallback-to-the-root-namespace"
+      ],
+      "guardedBy": ["crates/nvs-syntax/src/parser/tests/decl.rs"]
+    },
+    {
+      "id": "statements/an-enum-name-is-a-type-everywhere",
+      "title": "An enum's name is an ordinary type, usable at every binding site a class name is",
+      "status": "shipped",
+      "because": ["0010", "0007"],
+      "seeAlso": ["statements/storage-that-outlives-a-call"],
+      "guardedBy": [
+        "tests/conformance/enum/an-enum-typed-property-round-trips.nvst",
+        "tests/conformance/enum/an-enum-crosses-a-method-boundary.nvst",
+        "tests/conformance/enum/an-enum-is-returned-and-stored-in-an-array.nvst"
+      ]
+    },
+    {
       "id": "statements/require-is-the-only-inclusion-construct",
       "title": "`require` is the only file-inclusion construct, and it runs every time it is reached",
       "status": "shipped",
@@ -192,29 +129,102 @@
       ]
     },
     {
-      "id": "statements/exit-is-the-only-termination-keyword",
-      "title": "`exit` is the only process-termination keyword; `die` is refused",
+      "id": "statements/static-is-a-member-modifier",
+      "title": "`static` marks a class member and names a class-relative type, and nothing else",
       "status": "shipped",
-      "because": ["0049", "0015"],
-      "divergesFromPhp": "`die` and `die('bye')` do not compile; `exit` is the exact replacement",
-      "seeAlso": ["statements/nvs-is-the-only-open-tag"],
+      "because": ["0008", "0007", "0144"],
+      "seeAlso": [
+        "statements/no-function-static-and-no-global",
+        "statements/a-closure-binds-this-only-where-it-uses-it",
+        "statements/storage-that-outlives-a-call"
+      ],
       "guardedBy": [
-        "tests/conformance/reject/die-is-refused-in-favour-of-exit.nvst",
-        "tests/conformance/lang/exit-stops-the-program-where-it-stands.nvst",
-        "tests/conformance/lang/exit-takes-a-status-or-a-message.nvst"
+        "tests/conformance/lang/new-static-through-two-levels-returns-the-called-class.nvst",
+        "tests/conformance/class/a-static-return-must-be-the-called-class.nvst",
+        "tests/conformance/reject/this-is-not-read-in-a-static-method.nvst",
+        "tests/conformance/reject/an-instance-method-is-not-called-statically.nvst"
       ]
     },
     {
-      "id": "statements/nvs-is-the-only-open-tag",
-      "title": "`<?nvs` is the only code-mode open tag; `<?php` is refused",
+      "id": "statements/no-function-static-and-no-global",
+      "title": "A function holds no state of its own, and `global` does not exist",
       "status": "shipped",
-      "because": ["0049", "0100", "0015"],
-      "divergesFromPhp": "a file opening with `<?php` reports a diagnostic, though the code after the tag still parses",
-      "seeAlso": ["statements/exit-is-the-only-termination-keyword"],
+      "because": ["0008", "0007", "0006"],
+      "divergesFromPhp": "`static int $calls = 0;` inside a function and `global $x;` are both parse-time refusals, each naming a class static, a constant or a parameter as the replacement",
+      "seeAlso": [
+        "statements/static-is-a-member-modifier",
+        "statements/storage-that-outlives-a-call"
+      ],
       "guardedBy": [
-        "tests/conformance/reject/the-php-open-tag-is-refused.nvst",
-        "tests/conformance/core/a-shebang-line-opens-code.nvst"
+        "tests/conformance/reject/a-function-scope-static-is-refused.nvst",
+        "tests/conformance/reject/global-does-not-reach-outside-a-frame.nvst"
       ]
+    },
+    {
+      "id": "statements/storage-that-outlives-a-call",
+      "title": "A program holds state in five declared places, and the list is closed",
+      "status": "shipped",
+      "because": ["0008", "0011", "0010", "0012", "0006"],
+      "divergesFromPhp": "there is no global constant and no superglobal, so nothing holds state without a declaration a reader can find",
+      "seeAlso": [
+        "statements/no-function-static-and-no-global",
+        "statements/no-host-populated-variables",
+        "statements/a-required-file-shares-declarations-not-locals"
+      ],
+      "guardedBy": [
+        "tests/conformance/reject/a-top-level-constant-must-belong-to-a-class.nvst",
+        "tests/conformance/reject/a-top-level-function-must-be-a-method.nvst",
+        "tests/conformance/lang/a-bare-global-name-is-a-compile-error.nvst",
+        "tests/conformance/lang/a-nullable-static-property-starts-each-request-at-null.nvst"
+      ]
+    },
+    {
+      "id": "statements/an-isolate-has-its-own-statics",
+      "title": "An isolate's class statics are its own, and a child cannot reach its parent's",
+      "status": "shipped",
+      "because": ["0116", "0006", "0072"],
+      "seeAlso": [
+        "statements/storage-that-outlives-a-call",
+        "statements/no-host-populated-variables"
+      ],
+      "guardedBy": ["tests/conformance/isolate/a-child-shares-nothing-with-its-parent.nvst"]
+    },
+    {
+      "id": "statements/no-host-populated-variables",
+      "title": "No variable is ever populated by the host; every superglobal is a `Core` class member",
+      "status": "shipped",
+      "because": ["0012", "0011", "0007", "0009", "0006"],
+      "divergesFromPhp": "`$_SERVER`, `$_GET`, `$_POST`, `$_COOKIE`, `$_FILES`, `$_SESSION`, `$_ENV`, `$argv` and `$argc` do not exist as variables at all",
+      "seeAlso": [
+        "statements/globals-and-request-are-dropped-outright",
+        "statements/storage-that-outlives-a-call",
+        "errors/cookie-name-bytes"
+      ],
+      "guardedBy": [
+        "tests/conformance/reject/a-superglobal-is-refused-and-names-its-core-class.nvst",
+        "tests/conformance/core/env-get-answers-a-set-variable-and-null-for-everything-else.nvst"
+      ]
+    },
+    {
+      "id": "statements/globals-and-request-are-dropped-outright",
+      "title": "`$GLOBALS` and `$_REQUEST` have no replacement of any kind",
+      "status": "shipped",
+      "because": ["0012", "0008", "0007"],
+      "divergesFromPhp": "neither gets a `Core` class, so `extract($_GET)`-shaped code has no straight-line conversion",
+      "seeAlso": [
+        "statements/no-host-populated-variables",
+        "statements/storage-that-outlives-a-call"
+      ],
+      "guardedBy": ["tests/conformance/reject/a-superglobal-is-refused-and-names-its-core-class.nvst"]
+    },
+    {
+      "id": "statements/a-closure-binds-this-only-where-it-uses-it",
+      "title": "A closure binds `$this` only when its body names it, so `static fn` has nothing left to assert",
+      "status": "shipped",
+      "because": ["0008", "0031"],
+      "divergesFromPhp": "a closure that never names `$this` is unbound, and `bindTo()`/`bind()` on it return an equivalent closure rather than rebinding anything",
+      "seeAlso": ["statements/static-is-a-member-modifier"],
+      "guardedBy": ["tests/conformance/class/a-closure-returned-from-a-method-keeps-this.nvst"]
     },
     {
       "id": "statements/inout-is-the-by-reference-spelling",
@@ -249,22 +259,6 @@
       ]
     },
     {
-      "id": "statements/ampersand-is-not-a-by-reference-marker",
-      "title": "`&` in a by-reference position is refused at parse time",
-      "status": "shipped",
-      "because": ["0107", "0031", "0045", "0034"],
-      "divergesFromPhp": "`&` keeps only bitwise AND, logical AND and the intersection type; every by-reference spelling of it is a diagnostic",
-      "seeAlso": [
-        "statements/inout-is-the-by-reference-spelling",
-        "statements/inout-is-written-at-the-call"
-      ],
-      "guardedBy": [
-        "tests/conformance/lang/the-inout-marker-is-required-at-both-ends-and-replaces-every-ampersand.nvst",
-        "tests/conformance/lang/a-reference-assignment-is-a-compile-error.nvst",
-        "tests/conformance/lang/a-closure-refuses-a-by-reference-parameter.nvst"
-      ]
-    },
-    {
       "id": "statements/an-inout-argument-is-a-local",
       "title": "An `inout` argument is a local, and never an element or a property",
       "status": "shipped",
@@ -287,27 +281,33 @@
       "guardedBy": []
     },
     {
-      "id": "statements/an-enum-name-is-a-type-everywhere",
-      "title": "An enum's name is an ordinary type, usable at every binding site a class name is",
+      "id": "statements/ampersand-is-not-a-by-reference-marker",
+      "title": "`&` in a by-reference position is refused at parse time",
       "status": "shipped",
-      "because": ["0010", "0007"],
-      "seeAlso": ["statements/storage-that-outlives-a-call"],
+      "because": ["0107", "0031", "0045", "0034"],
+      "divergesFromPhp": "`&` keeps only bitwise AND, logical AND and the intersection type; every by-reference spelling of it is a diagnostic",
+      "seeAlso": [
+        "statements/inout-is-the-by-reference-spelling",
+        "statements/inout-is-written-at-the-call"
+      ],
       "guardedBy": [
-        "tests/conformance/enum/an-enum-typed-property-round-trips.nvst",
-        "tests/conformance/enum/an-enum-crosses-a-method-boundary.nvst",
-        "tests/conformance/enum/an-enum-is-returned-and-stored-in-an-array.nvst"
+        "tests/conformance/lang/the-inout-marker-is-required-at-both-ends-and-replaces-every-ampersand.nvst",
+        "tests/conformance/lang/a-reference-assignment-is-a-compile-error.nvst",
+        "tests/conformance/lang/a-closure-refuses-a-by-reference-parameter.nvst"
       ]
     },
     {
-      "id": "statements/an-isolate-has-its-own-statics",
-      "title": "An isolate's class statics are its own, and a child cannot reach its parent's",
+      "id": "statements/exit-is-the-only-termination-keyword",
+      "title": "`exit` is the only process-termination keyword; `die` is refused",
       "status": "shipped",
-      "because": ["0116", "0006", "0072"],
-      "seeAlso": [
-        "statements/storage-that-outlives-a-call",
-        "statements/no-host-populated-variables"
-      ],
-      "guardedBy": ["tests/conformance/isolate/a-child-shares-nothing-with-its-parent.nvst"]
+      "because": ["0049", "0015"],
+      "divergesFromPhp": "`die` and `die('bye')` do not compile; `exit` is the exact replacement",
+      "seeAlso": ["statements/nvs-is-the-only-open-tag"],
+      "guardedBy": [
+        "tests/conformance/reject/die-is-refused-in-favour-of-exit.nvst",
+        "tests/conformance/lang/exit-stops-the-program-where-it-stands.nvst",
+        "tests/conformance/lang/exit-takes-a-status-or-a-message.nvst"
+      ]
     }
   ]
 }

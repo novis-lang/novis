@@ -5,6 +5,26 @@
 
 *2 of 26 rules below are **designed** rather than shipped, and are marked where they appear.*
 
+<a id="errors-throwable-hierarchy"></a>
+
+## A limit report is not a Throwable, and the type checker knows it
+
+`rule:errors/throwable-hierarchy`
+
+The `Throwable` classes are global and are the ordinary `catch` target. They include `ParseError`,
+thrown when a file pulled in mid-execution fails to compile — see [`errors/compile-failure`](errors.md#errors-compile-failure).
+
+The value a resource-limit `FATAL` carries **does not implement `Throwable`**. That is not a
+runtime check some future `catch` site could forget: it is a type-checker fact, so `catch
+(Throwable $e)` around code that hits a memory or CPU limit provably cannot see the report, the
+same way `int + uint` provably cannot compile.
+
+This is what makes "a fatal is not catchable" hold at the ABI level without every call site
+cooperating, and it is why no catch-loop can be written for a resource limit at all — not merely
+why one is unlikely.
+
+<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/on-limit`](errors.md#errors-on-limit), [`errors/compile-failure`](errors.md#errors-compile-failure). Decided in [0020](../decisions/0020.md).</sub>
+
 <a id="errors-propagation"></a>
 
 ## An error propagates as a checked return, never by unwinding
@@ -32,29 +52,6 @@ not a special case.
 
 <sub>See also [`errors/helper-abi`](errors.md#errors-helper-abi), [`errors/throw-is-not-slower`](errors.md#errors-throw-is-not-slower), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder). Decided in [0002](../decisions/0002.md).</sub>
 
-<a id="errors-helper-abi"></a>
-
-## A runtime helper never unwinds, and a panic dies inside one request
-
-`rule:errors/helper-abi`
-
-Because nothing may unwind through a JIT frame, a runtime helper is declared `extern "C"` — never
-`extern "C-unwind"` — and wraps its body in `catch_unwind`, turning a panic into `FATAL` with the
-message recorded in `Ctx`. The `nvs_helper!` macro generates the wrapper, so it cannot be forgotten
-one helper at a time, and `catch_unwind` costs nothing when no panic occurs.
-
-`panic = "unwind"` is therefore load-bearing rather than a preference, and is set explicitly in
-every workspace profile: `panic = "abort"` would turn every containable runtime bug into a process
-kill, which is request isolation lost.
-
-The wrapper does not stop at the helper. Code with no request beneath it — the accept loop, the
-HTTP reader, the compiled-unit cache index — runs outside `nvs_helper!`, so a worker task's own
-root carries a `catch_unwind` as well. And a panic raised while a panic is unwinding aborts the
-process whatever the profile says, so nothing on a teardown path may panic and teardown does not
-recurse.
-
-<sub>See also [`errors/propagation`](errors.md#errors-propagation), [`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code). Decided in [0002](../decisions/0002.md), [0106](../decisions/0106.md).</sub>
-
 <a id="errors-throw-is-not-slower"></a>
 
 ## A throw costs no more than a return, and allocates nothing
@@ -77,78 +74,28 @@ a `Cow<'static, str>` and a static exception message allocates nothing.
 
 <sub>See also [`errors/propagation`](errors.md#errors-propagation). Decided in [0002](../decisions/0002.md).</sub>
 
-<a id="errors-throwable-hierarchy"></a>
+<a id="errors-helper-abi"></a>
 
-## A limit report is not a Throwable, and the type checker knows it
+## A runtime helper never unwinds, and a panic dies inside one request
 
-`rule:errors/throwable-hierarchy`
+`rule:errors/helper-abi`
 
-The `Throwable` classes are global and are the ordinary `catch` target. They include `ParseError`,
-thrown when a file pulled in mid-execution fails to compile — see [`errors/compile-failure`](errors.md#errors-compile-failure).
+Because nothing may unwind through a JIT frame, a runtime helper is declared `extern "C"` — never
+`extern "C-unwind"` — and wraps its body in `catch_unwind`, turning a panic into `FATAL` with the
+message recorded in `Ctx`. The `nvs_helper!` macro generates the wrapper, so it cannot be forgotten
+one helper at a time, and `catch_unwind` costs nothing when no panic occurs.
 
-The value a resource-limit `FATAL` carries **does not implement `Throwable`**. That is not a
-runtime check some future `catch` site could forget: it is a type-checker fact, so `catch
-(Throwable $e)` around code that hits a memory or CPU limit provably cannot see the report, the
-same way `int + uint` provably cannot compile.
+`panic = "unwind"` is therefore load-bearing rather than a preference, and is set explicitly in
+every workspace profile: `panic = "abort"` would turn every containable runtime bug into a process
+kill, which is request isolation lost.
 
-This is what makes "a fatal is not catchable" hold at the ABI level without every call site
-cooperating, and it is why no catch-loop can be written for a resource limit at all — not merely
-why one is unlikely.
+The wrapper does not stop at the helper. Code with no request beneath it — the accept loop, the
+HTTP reader, the compiled-unit cache index — runs outside `nvs_helper!`, so a worker task's own
+root carries a `catch_unwind` as well. And a panic raised while a panic is unwinding aborts the
+process whatever the profile says, so nothing on a teardown path may panic and teardown does not
+recurse.
 
-<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/on-limit`](errors.md#errors-on-limit), [`errors/compile-failure`](errors.md#errors-compile-failure). Decided in [0020](../decisions/0020.md).</sub>
-
-<a id="errors-escalation-ladder"></a>
-
-## A failure escalates through four tiers, and no tier is retried
-
-`rule:errors/escalation-ladder`
-
-Nothing Novis runs is silently dropped, but not everything is *caught* — those are different
-guarantees. A `FATAL`, or a `THROWN` that reached the request root uncaught, escalates through up
-to four tiers, each with a fixed budget, before falling to the next:
-
-| Tier | What runs | Rule |
-|---|---|---|
-| 1 | the request's own limit handler | [`errors/on-limit`](errors.md#errors-on-limit) |
-| 2 | the request's own uncaught-throw handler | [`errors/on-uncaught-throw`](errors.md#errors-on-uncaught-throw) |
-| 3 | the operator's configured `.nvs` handler | [`errors/handler-script`](errors.md#errors-handler-script) |
-| 4 | the hardcoded engine floor | [`errors/engine-floor`](errors.md#errors-engine-floor) |
-
-**No tier is retried.** A handler that throws, panics, or exceeds its own budget is abandoned where
-it stands and the failure drops to the next tier — never to the same one again. A second attempt is
-how "catch and log" becomes an infinite loop, so there is no bounded-N knob to size either.
-
-Every tier that writes a log line writes the same record through the same native serialiser
-([`errors/log-write`](errors.md#errors-log-write)), so a dashboard never reconciles two shapes depending on which tier
-produced a line.
-
-<sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`errors/on-uncaught-throw`](errors.md#errors-on-uncaught-throw), [`errors/handler-script`](errors.md#errors-handler-script), [`errors/engine-floor`](errors.md#errors-engine-floor). Decided in [0020](../decisions/0020.md).</sub>
-
-<a id="errors-on-limit"></a>
-
-## Tier 1 — a resource limit reaches the request that spent it
-
-`rule:errors/on-limit`
-
-`Core\Fatal::onLimit(closure(LimitReport): void $handler): void` fires only for a resource-limit
-`FATAL` — memory, CPU time, `max_output`, wall time, `max_script_depth` and call-stack depth. An
-internal panic never reaches it ([`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code)).
-
-Registration is request-local, living beside the pending-error slot in `Ctx`, and dies with the
-request like every other per-request slot. The handler runs on a **reserve carved out of the
-request's own budget at request start** and unavailable to ordinary execution — otherwise a request
-that exhausted its memory would have nothing left to report with.
-
-There are **two reserves, memory and time, not one per limit**, because those are the only two
-resources a handler cannot run without spending; a `max_output` breach refuses the handler nothing.
-Sizing them is a `System`-class decision, not the script's: a program choosing the size of its own
-safety net is exactly the case where the choice should belong to someone else.
-
-`LimitReport` is an array rather than a class. The report is built where the breach happens, in
-`nvs-runtime`, which holds no `Core` class descriptor to instantiate one from — and a keyed array
-takes a later field without changing the signature of a handler already written.
-
-<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/stack-depth`](errors.md#errors-stack-depth), [`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code). Decided in [0020](../decisions/0020.md).</sub>
+<sub>See also [`errors/propagation`](errors.md#errors-propagation), [`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code). Decided in [0002](../decisions/0002.md), [0106](../decisions/0106.md).</sub>
 
 <a id="errors-stack-depth"></a>
 
@@ -179,6 +126,59 @@ value graph in teardown — which are bounded separately by an explicit depth co
 iterative teardown.
 
 <sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`errors/propagation`](errors.md#errors-propagation). Decided in [0020](../decisions/0020.md), [0106](../decisions/0106.md).</sub>
+
+<a id="errors-on-limit"></a>
+
+## Tier 1 — a resource limit reaches the request that spent it
+
+`rule:errors/on-limit`
+
+`Core\Fatal::onLimit(closure(LimitReport): void $handler): void` fires only for a resource-limit
+`FATAL` — memory, CPU time, `max_output`, wall time, `max_script_depth` and call-stack depth. An
+internal panic never reaches it ([`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code)).
+
+Registration is request-local, living beside the pending-error slot in `Ctx`, and dies with the
+request like every other per-request slot. The handler runs on a **reserve carved out of the
+request's own budget at request start** and unavailable to ordinary execution — otherwise a request
+that exhausted its memory would have nothing left to report with.
+
+There are **two reserves, memory and time, not one per limit**, because those are the only two
+resources a handler cannot run without spending; a `max_output` breach refuses the handler nothing.
+Sizing them is a `System`-class decision, not the script's: a program choosing the size of its own
+safety net is exactly the case where the choice should belong to someone else.
+
+`LimitReport` is an array rather than a class. The report is built where the breach happens, in
+`nvs-runtime`, which holds no `Core` class descriptor to instantiate one from — and a keyed array
+takes a later field without changing the signature of a handler already written.
+
+<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/stack-depth`](errors.md#errors-stack-depth), [`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code). Decided in [0020](../decisions/0020.md).</sub>
+
+<a id="errors-escalation-ladder"></a>
+
+## A failure escalates through four tiers, and no tier is retried
+
+`rule:errors/escalation-ladder`
+
+Nothing Novis runs is silently dropped, but not everything is *caught* — those are different
+guarantees. A `FATAL`, or a `THROWN` that reached the request root uncaught, escalates through up
+to four tiers, each with a fixed budget, before falling to the next:
+
+| Tier | What runs | Rule |
+|---|---|---|
+| 1 | the request's own limit handler | [`errors/on-limit`](errors.md#errors-on-limit) |
+| 2 | the request's own uncaught-throw handler | [`errors/on-uncaught-throw`](errors.md#errors-on-uncaught-throw) |
+| 3 | the operator's configured `.nvs` handler | [`errors/handler-script`](errors.md#errors-handler-script) |
+| 4 | the hardcoded engine floor | [`errors/engine-floor`](errors.md#errors-engine-floor) |
+
+**No tier is retried.** A handler that throws, panics, or exceeds its own budget is abandoned where
+it stands and the failure drops to the next tier — never to the same one again. A second attempt is
+how "catch and log" becomes an infinite loop, so there is no bounded-N knob to size either.
+
+Every tier that writes a log line writes the same record through the same native serialiser
+([`errors/log-write`](errors.md#errors-log-write)), so a dashboard never reconciles two shapes depending on which tier
+produced a line.
+
+<sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`errors/on-uncaught-throw`](errors.md#errors-on-uncaught-throw), [`errors/handler-script`](errors.md#errors-handler-script), [`errors/engine-floor`](errors.md#errors-engine-floor). Decided in [0020](../decisions/0020.md).</sub>
 
 <a id="errors-on-uncaught-throw"></a>
 
@@ -297,32 +297,6 @@ rides the normal [`errors/on-uncaught-throw`](errors.md#errors-on-uncaught-throw
 
 <sub>See also [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder). Decided in [0020](../decisions/0020.md), [0091](../decisions/0091.md).</sub>
 
-<a id="errors-log-write"></a>
-
-## One write path, and the engine floor is its other caller
-
-`rule:errors/log-write`
-
-```
-Core\Log::write(Log\Level $level, string $message, array<string, mixed> $fields = []): void
-```
-
-Application code and [`errors/handler-script`](errors.md#errors-handler-script) call this; it is a thin binding over the **same
-native record-and-write helper** [`errors/engine-floor`](errors.md#errors-engine-floor) calls directly when it has no script to
-run at all. One implementation, two callers.
-
-What the two share is the **record** ([`errors/diagnostic-record`](errors.md#errors-diagnostic-record)), not the bytes. JSON Lines is
-the log target's default rendering of it — one JSON object per line carrying `ts`, `level`,
-`message`, `request_id`, `trace_id` and `span_id` when a trace is active, and `fields`. `[log]
-format = "text"` renders the same record for a human, and keeps that target unforgeable through
-[`errors/record-transformations`](errors.md#errors-record-transformations) rather than through concatenation.
-
-JSON was chosen over `logfmt` because an arbitrary error message or a multi-line stack trace needs
-escaping that is correct on the first and only attempt at the floor, and JSON's escaping is a
-solved, mechanical problem where `logfmt`'s quoting of embedded quotes, newlines and spaces is not.
-
-<sub>See also [`errors/log-level`](errors.md#errors-log-level), [`errors/log-fields`](errors.md#errors-log-fields), [`errors/engine-floor`](errors.md#errors-engine-floor), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record). Decided in [0020](../decisions/0020.md), [0092](../decisions/0092.md).</sub>
-
 <a id="errors-diagnostic-record"></a>
 
 ## Every developer-facing output is one closed record
@@ -349,55 +323,32 @@ compiler front end depend on it.
 
 <sub>See also [`errors/renderings`](errors.md#errors-renderings), [`errors/record-transformations`](errors.md#errors-record-transformations), [`errors/record-producers`](errors.md#errors-record-producers), [`errors/log-fields`](errors.md#errors-log-fields). Decided in [0092](../decisions/0092.md), [0106](../decisions/0106.md).</sub>
 
-<a id="errors-log-level"></a>
+<a id="errors-record-producers"></a>
 
-## Five levels, and the mapping to syslog is fixed
+## Five producers build the one record  *(designed — not yet in the compiler)*
 
-`rule:errors/log-level`
+`rule:errors/record-producers`
 
-```
-Log\Level::Debug   Log\Level::Info   Log\Level::Warn   Log\Level::Error   Log\Level::Critical
-```
+Five producers build [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), and none of them implements a format:
 
-An ordinary enum, and the syslog mapping is fixed — 7, 6, 4, 3, 2 — because `syslog` is a
-[`errors/engine-floor`](errors.md#errors-engine-floor) target and a severity is not optional there.
+| Producer | What it builds |
+|---|---|
+| `Core\Log::write` | a record with the caller's fields |
+| `Core\Debug::dump` | a record at `Debug`, one node per argument |
+| a `Throwable` and its trace | a record at `Error`, frames as Sequence-of-Object nodes |
+| a test result | a record per assertion, expected and actual as sibling nodes |
+| a compiler diagnostic | Span nodes over a source map |
 
-`Critical` exists so [`errors/escalation-ladder`](errors.md#errors-escalation-ladder) has a level of its own rather than a parallel
-channel: a resource-limit fatal and a failed third-party call are not the same alerting decision,
-and a level is where an alerting rule can read that difference. There is no `Trace` case, because
-spans and sampling belong to tracing and a trace *level* would be a second home for that fact.
+Two of them buy something concrete beyond consistency, and they are why the scope is five rather
+than two. A test failure renders as a coloured diff locally, as JSON in CI and as HTML in a web
+runner with no reporter written for any of them; and `nvs check` gains a JSON rendering the language
+server consumes.
 
-`[log] level` sets the minimum level written.
+The `Throwable` case is the one that would have leaked had the scope been narrower. It is the
+most-read diagnostic output in any language, and leaving it outside would have meant a second
+implementation of [`errors/record-transformations`](errors.md#errors-record-transformations).
 
-<sub>See also [`errors/log-write`](errors.md#errors-log-write), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record). Decided in [0092](../decisions/0092.md).</sub>
-
-<a id="errors-renderings"></a>
-
-## The sink in force picks the rendering, and no call site may name one  *(designed — not yet in the compiler)*
-
-`rule:errors/renderings`
-
-A record is rendered as **plaintext**, **HTML** or **JSON**, and the sink already in force picks
-which. **There is no format argument on any producer** — not on `dump`, not on `write`, not on
-`render` — which is what keeps five producers from each growing a `$format` parameter and three
-renderings from becoming fifteen.
-
-| Sink in force | Rendering | Carrier |
-|---|---|---|
-| the terminal | plaintext, indented, coloured iff the terminal has colour | `Cli\Text` |
-| an HTTP request writing an HTML body | a collapsible, typed, class-aware block | `Core\Html\Markup` |
-| an HTTP request writing a JSON body | JSON | `mixed` |
-| the log target | `[log] format`: `"json"` or `"text"` | bytes |
-
-**Zero new carrier types.** Every one already existed, which is what lets a capture around a dump
-return something that re-emits correctly instead of being escaped twice.
-
-Colour is the only thing that varies with a tty; structure, substitution and redaction never do.
-`[log] format` has two values rather than three because HTML is not a log *target* rendering — a
-web-facing log viewer is an HTTP response, and reaches the HTML rendering through the response sink
-like everything else.
-
-<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/debug-dump`](errors.md#errors-debug-dump), [`errors/no-render-hook`](errors.md#errors-no-render-hook). Decided in [0092](../decisions/0092.md), [0088](../decisions/0088.md).</sub>
+<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/log-write`](errors.md#errors-log-write), [`errors/debug-dump`](errors.md#errors-debug-dump). Decided in [0092](../decisions/0092.md), [0079](../decisions/0079.md).</sub>
 
 <a id="errors-record-transformations"></a>
 
@@ -433,32 +384,52 @@ makes it safe**. There is no raw escape hatch, and no rendering may be selected 
 
 <sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/renderings`](errors.md#errors-renderings), [`errors/log-write`](errors.md#errors-log-write). Decided in [0092](../decisions/0092.md), [0033](../decisions/0033.md), [0086](../decisions/0086.md), [0087](../decisions/0087.md).</sub>
 
-<a id="errors-record-producers"></a>
+<a id="errors-renderings"></a>
 
-## Five producers build the one record  *(designed — not yet in the compiler)*
+## The sink in force picks the rendering, and no call site may name one  *(designed — not yet in the compiler)*
 
-`rule:errors/record-producers`
+`rule:errors/renderings`
 
-Five producers build [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), and none of them implements a format:
+A record is rendered as **plaintext**, **HTML** or **JSON**, and the sink already in force picks
+which. **There is no format argument on any producer** — not on `dump`, not on `write`, not on
+`render` — which is what keeps five producers from each growing a `$format` parameter and three
+renderings from becoming fifteen.
 
-| Producer | What it builds |
-|---|---|
-| `Core\Log::write` | a record with the caller's fields |
-| `Core\Debug::dump` | a record at `Debug`, one node per argument |
-| a `Throwable` and its trace | a record at `Error`, frames as Sequence-of-Object nodes |
-| a test result | a record per assertion, expected and actual as sibling nodes |
-| a compiler diagnostic | Span nodes over a source map |
+| Sink in force | Rendering | Carrier |
+|---|---|---|
+| the terminal | plaintext, indented, coloured iff the terminal has colour | `Cli\Text` |
+| an HTTP request writing an HTML body | a collapsible, typed, class-aware block | `Core\Html\Markup` |
+| an HTTP request writing a JSON body | JSON | `mixed` |
+| the log target | `[log] format`: `"json"` or `"text"` | bytes |
 
-Two of them buy something concrete beyond consistency, and they are why the scope is five rather
-than two. A test failure renders as a coloured diff locally, as JSON in CI and as HTML in a web
-runner with no reporter written for any of them; and `nvs check` gains a JSON rendering the language
-server consumes.
+**Zero new carrier types.** Every one already existed, which is what lets a capture around a dump
+return something that re-emits correctly instead of being escaped twice.
 
-The `Throwable` case is the one that would have leaked had the scope been narrower. It is the
-most-read diagnostic output in any language, and leaving it outside would have meant a second
-implementation of [`errors/record-transformations`](errors.md#errors-record-transformations).
+Colour is the only thing that varies with a tty; structure, substitution and redaction never do.
+`[log] format` has two values rather than three because HTML is not a log *target* rendering — a
+web-facing log viewer is an HTTP response, and reaches the HTML rendering through the response sink
+like everything else.
 
-<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/log-write`](errors.md#errors-log-write), [`errors/debug-dump`](errors.md#errors-debug-dump). Decided in [0092](../decisions/0092.md), [0079](../decisions/0079.md).</sub>
+<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/debug-dump`](errors.md#errors-debug-dump), [`errors/no-render-hook`](errors.md#errors-no-render-hook). Decided in [0092](../decisions/0092.md), [0088](../decisions/0088.md).</sub>
+
+<a id="errors-no-render-hook"></a>
+
+## A class cannot change how it is dumped
+
+`rule:errors/no-render-hook`
+
+There is **no customization hook**: no `DebugRepresentable`, no `__debugInfo`, no per-class
+renderer. [`errors/diagnostic-record`](errors.md#errors-diagnostic-record) being a closed model is that refusal expressed as a data
+type. A dump shows a class's real declared properties and their real current values, with
+[`errors/record-transformations`](errors.md#errors-record-transformations) and nothing else.
+
+**A dump does not call `Stringable`.** A `toString` result would be a second, prettier, possibly
+lying view of the state a dump exists to show.
+
+Adding a fourth rendering later is a change to one crate, not to any call site — which is the
+property that makes refusing one now cheap to revisit.
+
+<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/debug-dump`](errors.md#errors-debug-dump). Decided in [0092](../decisions/0092.md), [0028](../decisions/0028.md).</sub>
 
 <a id="errors-debug-dump"></a>
 
@@ -496,24 +467,53 @@ in a response does not exist outside a mode whose ceiling is closed by default.
 
 <sub>See also [`errors/renderings`](errors.md#errors-renderings), [`errors/record-transformations`](errors.md#errors-record-transformations), [`errors/no-render-hook`](errors.md#errors-no-render-hook). Decided in [0092](../decisions/0092.md), [0091](../decisions/0091.md), [0085](../decisions/0085.md).</sub>
 
-<a id="errors-no-render-hook"></a>
+<a id="errors-log-write"></a>
 
-## A class cannot change how it is dumped
+## One write path, and the engine floor is its other caller
 
-`rule:errors/no-render-hook`
+`rule:errors/log-write`
 
-There is **no customization hook**: no `DebugRepresentable`, no `__debugInfo`, no per-class
-renderer. [`errors/diagnostic-record`](errors.md#errors-diagnostic-record) being a closed model is that refusal expressed as a data
-type. A dump shows a class's real declared properties and their real current values, with
-[`errors/record-transformations`](errors.md#errors-record-transformations) and nothing else.
+```
+Core\Log::write(Log\Level $level, string $message, array<string, mixed> $fields = []): void
+```
 
-**A dump does not call `Stringable`.** A `toString` result would be a second, prettier, possibly
-lying view of the state a dump exists to show.
+Application code and [`errors/handler-script`](errors.md#errors-handler-script) call this; it is a thin binding over the **same
+native record-and-write helper** [`errors/engine-floor`](errors.md#errors-engine-floor) calls directly when it has no script to
+run at all. One implementation, two callers.
 
-Adding a fourth rendering later is a change to one crate, not to any call site — which is the
-property that makes refusing one now cheap to revisit.
+What the two share is the **record** ([`errors/diagnostic-record`](errors.md#errors-diagnostic-record)), not the bytes. JSON Lines is
+the log target's default rendering of it — one JSON object per line carrying `ts`, `level`,
+`message`, `request_id`, `trace_id` and `span_id` when a trace is active, and `fields`. `[log]
+format = "text"` renders the same record for a human, and keeps that target unforgeable through
+[`errors/record-transformations`](errors.md#errors-record-transformations) rather than through concatenation.
 
-<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/debug-dump`](errors.md#errors-debug-dump). Decided in [0092](../decisions/0092.md), [0028](../decisions/0028.md).</sub>
+JSON was chosen over `logfmt` because an arbitrary error message or a multi-line stack trace needs
+escaping that is correct on the first and only attempt at the floor, and JSON's escaping is a
+solved, mechanical problem where `logfmt`'s quoting of embedded quotes, newlines and spaces is not.
+
+<sub>See also [`errors/log-level`](errors.md#errors-log-level), [`errors/log-fields`](errors.md#errors-log-fields), [`errors/engine-floor`](errors.md#errors-engine-floor), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record). Decided in [0020](../decisions/0020.md), [0092](../decisions/0092.md).</sub>
+
+<a id="errors-log-level"></a>
+
+## Five levels, and the mapping to syslog is fixed
+
+`rule:errors/log-level`
+
+```
+Log\Level::Debug   Log\Level::Info   Log\Level::Warn   Log\Level::Error   Log\Level::Critical
+```
+
+An ordinary enum, and the syslog mapping is fixed — 7, 6, 4, 3, 2 — because `syslog` is a
+[`errors/engine-floor`](errors.md#errors-engine-floor) target and a severity is not optional there.
+
+`Critical` exists so [`errors/escalation-ladder`](errors.md#errors-escalation-ladder) has a level of its own rather than a parallel
+channel: a resource-limit fatal and a failed third-party call are not the same alerting decision,
+and a level is where an alerting rule can read that difference. There is no `Trace` case, because
+spans and sampling belong to tracing and a trace *level* would be a second home for that fact.
+
+`[log] level` sets the minimum level written.
+
+<sub>See also [`errors/log-write`](errors.md#errors-log-write), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record). Decided in [0092](../decisions/0092.md).</sub>
 
 <a id="errors-log-fields"></a>
 

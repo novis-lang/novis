@@ -33,6 +33,24 @@ so a single `use Core\Test;` places both.
 
 <sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/fixtures`](testing.md#testing-fixtures), [`testing/data-rows`](testing.md#testing-data-rows), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict). Decided in [0079](../decisions/0079.md), [0077](../decisions/0077.md), [0046](../decisions/0046.md), [0063](../decisions/0063.md), [0071](../decisions/0071.md), [0011](../decisions/0011.md), [0029](../decisions/0029.md).</sub>
 
+<a id="testing-tests-never-reach-a-build"></a>
+
+## `nvs run` and `nvs build` lower no test, and `nvs check` type-checks every one  *(designed — not yet in the compiler)*
+
+`rule:testing/tests-never-reach-a-build`
+
+A `#[Test]` method may be declared in any file — beside the class it tests, or in a separate tree.
+What makes a method a test is the attribute, never the path.
+
+`nvs test` compiles and runs them. `nvs run` and `nvs build` do not lower them at all: a test
+method, its fixtures, its data rows, its assertion messages and its doubles are absent from a built
+artifact. Production pays nothing for them, and no test surface is reachable at run time.
+
+`nvs check` does type-check test code. That is the one place tests and non-tests are treated alike,
+and deliberately so: a test cannot rot silently while the code around it changes.
+
+<sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/determinism-declared-on-the-test`](testing.md#testing-determinism-declared-on-the-test). Decided in [0079](../decisions/0079.md).</sub>
+
 <a id="testing-isolate-per-test"></a>
 
 ## Every test runs in its own isolate and shares nothing but compiled code with its siblings
@@ -56,23 +74,20 @@ machine.
 
 <sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/fixtures`](testing.md#testing-fixtures), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`statements/an-isolate-has-its-own-statics`](statements.md#statements-an-isolate-has-its-own-statics). Decided in [0079](../decisions/0079.md), [0006](../decisions/0006.md), [0004](../decisions/0004.md).</sub>
 
-<a id="testing-tests-never-reach-a-build"></a>
+<a id="testing-private-in-the-same-file"></a>
 
-## `nvs run` and `nvs build` lower no test, and `nvs check` type-checks every one  *(designed — not yet in the compiler)*
+## A test reaches `private` members of classes declared in its own file, and nowhere else  *(designed — not yet in the compiler)*
 
-`rule:testing/tests-never-reach-a-build`
+`rule:testing/private-in-the-same-file`
 
-A `#[Test]` method may be declared in any file — beside the class it tests, or in a separate tree.
-What makes a method a test is the attribute, never the path.
+A test method may reach `private` and `protected` members of classes declared **in the same file**.
+A test in a separate file is held to the public contract.
 
-`nvs test` compiles and runs them. `nvs run` and `nvs build` do not lower them at all: a test
-method, its fixtures, its data rows, its assertion messages and its doubles are absent from a built
-artifact. Production pays nothing for them, and no test surface is reachable at run time.
+This is the narrowest rule that avoids the failure it exists to prevent: a `public` method that
+exists only because a test needed to reach it. White-box testing stays possible where the author has
+already chosen to put the test next to the code; everything at a distance tests behaviour.
 
-`nvs check` does type-check test code. That is the one place tests and non-tests are treated alike,
-and deliberately so: a test cannot rot silently while the code around it changes.
-
-<sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/determinism-declared-on-the-test`](testing.md#testing-determinism-declared-on-the-test). Decided in [0079](../decisions/0079.md).</sub>
+<sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/tests-never-reach-a-build`](testing.md#testing-tests-never-reach-a-build). Decided in [0079](../decisions/0079.md).</sub>
 
 <a id="testing-assertions-are-typed"></a>
 
@@ -260,74 +275,6 @@ even in principle.
 
 <sub>See also [`testing/task-tree-and-virtual-clock`](testing.md#testing-task-tree-and-virtual-clock), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/tests-never-reach-a-build`](testing.md#testing-tests-never-reach-a-build). Decided in [0079](../decisions/0079.md), [0008](../decisions/0008.md).</sub>
 
-<a id="testing-property-testing"></a>
-
-## `#[Property]` derives its generators from the parameters' declared types  *(designed — not yet in the compiler)*
-
-`rule:testing/property-testing`
-
-`#[Property]` runs a method against generated inputs, and the generators are **derived from the
-parameters' declared types** by the same declaration walk a codec is derived from, user classes
-included. That is why this belongs to the compiler rather than to a package: only a compiler can
-walk a declared type, and a userland version needs a hand-written generator per type, which is the
-boilerplate that keeps property testing rare.
-
-A failure shrinks to a minimal counterexample and reports the seed that reproduces it exactly. A
-`gen:` option narrows one parameter where its declared type is wider than the domain. A generated
-`string` is valid UTF-8 including combining marks and grapheme clusters, because that is what a
-`string` is — a property that only holds for ASCII is a property that is not true.
-
-<sub>See also [`testing/data-rows`](testing.md#testing-data-rows), [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed). Decided in [0079](../decisions/0079.md), [0071](../decisions/0071.md), [0009](../decisions/0009.md).</sub>
-
-<a id="testing-inline-snapshots"></a>
-
-## A snapshot is a literal in the test body, and the updater rewrites that literal and nothing else
-
-`rule:testing/inline-snapshots`
-
-`Core\Test::assertMatchesInline($value, "...")` holds the expectation in the source file, and
-`nvs test --update` splices the produced value into that literal. Inline rather than a separate
-snapshot file, because the failure mode of snapshot testing is a reviewer approving a diff they did
-not read, and a diff inside the test body is one they will.
-
-The updater is the one thing in `nvs test` that writes to a source file, and what it writes is the
-expected literal and nothing else. The literal's span comes from a compile-time row per **written**
-call, joined to the run by the test the mismatch happened in — the method is load-bearing, because
-this workflow starts every snapshot empty and two of them would otherwise share one key. Where that
-join is not a single site, nothing is written and the run names it: a rendering placed under a
-snapshot nobody asserted is worse than the failing test it replaced.
-
-What is written is a single-quoted literal, so a multi-line rendering stays multi-line and reads as
-a diff. A run that rewrote a snapshot still reports the test as failed; the re-run is what says the
-new text is the one the author meant. The rendering is canonical, ordered, and redacts a `secret`,
-so a snapshot cannot become the place secrets get committed.
-
-<sub>See also [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed), [`testing/report-formats`](testing.md#testing-report-formats). Decided in [0079](../decisions/0079.md), [0033](../decisions/0033.md).</sub>
-
-<a id="testing-bench-counters"></a>
-
-## `#[Bench]` reports counted semantic work, and CI may gate on the counts but never on wall-clock  *(designed — not yet in the compiler)*
-
-`rule:testing/bench-counters`
-
-`#[Bench]` reports counted semantic work — statements executed, calls made, allocations, bytes
-attributed, GC cycles — read off the same probe sites coverage and tracing use, in a counting mode
-beside their timing one ([`testing/debug-probes`](testing.md#testing-debug-probes)). Those numbers are **bit-identical across
-machines, operating systems and architectures**, because they count what the program did rather than
-what a CPU did. `bytes` costs no new instrument: memory is already attributable to a request under
-an enforceable cap, and this reads that accounting.
-
-CI may gate on the exact rows. It may not gate on wall-clock, which is printed beside them and
-labelled advisory on every run.
-
-The counters are comparable across machines and **not** across releases: an optimising tier
-eliminates work, so one program's statement count falls between them. "Did my algorithm improve" is
-this rule's question; "did Novis get faster" is [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms)'s, and the two do
-not overlap. There is no per-member cost table and there will not be one — a hand-written claim
-about what a `Core` member costs is a number with no guard test.
-
-<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger). Decided in [0079](../decisions/0079.md), [0018](../decisions/0018.md), [0041](../decisions/0041.md), [0026](../decisions/0026.md), [0004](../decisions/0004.md).</sub>
-
 <a id="testing-task-tree-and-virtual-clock"></a>
 
 ## A task still running when a test returns fails that test
@@ -395,20 +342,71 @@ reading a deployment's configuration would make the test's subject the deploymen
 
 <sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/task-tree-and-virtual-clock`](testing.md#testing-task-tree-and-virtual-clock). Decided in [0079](../decisions/0079.md), [0077](../decisions/0077.md), [0102](../decisions/0102.md), [0024](../decisions/0024.md), [0074](../decisions/0074.md), [0058](../decisions/0058.md), [0051](../decisions/0051.md).</sub>
 
-<a id="testing-private-in-the-same-file"></a>
+<a id="testing-property-testing"></a>
 
-## A test reaches `private` members of classes declared in its own file, and nowhere else  *(designed — not yet in the compiler)*
+## `#[Property]` derives its generators from the parameters' declared types  *(designed — not yet in the compiler)*
 
-`rule:testing/private-in-the-same-file`
+`rule:testing/property-testing`
 
-A test method may reach `private` and `protected` members of classes declared **in the same file**.
-A test in a separate file is held to the public contract.
+`#[Property]` runs a method against generated inputs, and the generators are **derived from the
+parameters' declared types** by the same declaration walk a codec is derived from, user classes
+included. That is why this belongs to the compiler rather than to a package: only a compiler can
+walk a declared type, and a userland version needs a hand-written generator per type, which is the
+boilerplate that keeps property testing rare.
 
-This is the narrowest rule that avoids the failure it exists to prevent: a `public` method that
-exists only because a test needed to reach it. White-box testing stays possible where the author has
-already chosen to put the test next to the code; everything at a distance tests behaviour.
+A failure shrinks to a minimal counterexample and reports the seed that reproduces it exactly. A
+`gen:` option narrows one parameter where its declared type is wider than the domain. A generated
+`string` is valid UTF-8 including combining marks and grapheme clusters, because that is what a
+`string` is — a property that only holds for ASCII is a property that is not true.
 
-<sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/tests-never-reach-a-build`](testing.md#testing-tests-never-reach-a-build). Decided in [0079](../decisions/0079.md).</sub>
+<sub>See also [`testing/data-rows`](testing.md#testing-data-rows), [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed). Decided in [0079](../decisions/0079.md), [0071](../decisions/0071.md), [0009](../decisions/0009.md).</sub>
+
+<a id="testing-inline-snapshots"></a>
+
+## A snapshot is a literal in the test body, and the updater rewrites that literal and nothing else
+
+`rule:testing/inline-snapshots`
+
+`Core\Test::assertMatchesInline($value, "...")` holds the expectation in the source file, and
+`nvs test --update` splices the produced value into that literal. Inline rather than a separate
+snapshot file, because the failure mode of snapshot testing is a reviewer approving a diff they did
+not read, and a diff inside the test body is one they will.
+
+The updater is the one thing in `nvs test` that writes to a source file, and what it writes is the
+expected literal and nothing else. The literal's span comes from a compile-time row per **written**
+call, joined to the run by the test the mismatch happened in — the method is load-bearing, because
+this workflow starts every snapshot empty and two of them would otherwise share one key. Where that
+join is not a single site, nothing is written and the run names it: a rendering placed under a
+snapshot nobody asserted is worse than the failing test it replaced.
+
+What is written is a single-quoted literal, so a multi-line rendering stays multi-line and reads as
+a diff. A run that rewrote a snapshot still reports the test as failed; the re-run is what says the
+new text is the one the author meant. The rendering is canonical, ordered, and redacts a `secret`,
+so a snapshot cannot become the place secrets get committed.
+
+<sub>See also [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed), [`testing/report-formats`](testing.md#testing-report-formats). Decided in [0079](../decisions/0079.md), [0033](../decisions/0033.md).</sub>
+
+<a id="testing-mutation-testing"></a>
+
+## A mutation run asks whether any test would have noticed the code being wrong  *(designed — not yet in the compiler)*
+
+`rule:testing/mutation-testing`
+
+A mutation run makes a small, deliberate change to the code, re-runs the tests, and records whether
+anything failed. It is the measurement that closes the gap coverage leaves: a line having run says
+nothing about whether an assertion would have objected had it been wrong, and a suite at full line
+coverage routinely misses most introduced defects.
+
+Two things make the built-in version categorically better than an external one, and neither is
+available outside the compiler. Mutants are generated from typed IR, so every one is type-valid and
+compiles, where a tool mutating a syntax tree pays a compile to discover that many do not. And
+mutant runs are **coverage-directed**: the probe data says which tests touch the mutated line, so a
+mutant runs against those rather than against the whole suite. On two thousand tests and five
+hundred mutants that is the difference between minutes and most of a day.
+
+The operator set is enumerated where it is implemented, so adding an operator changes no rule.
+
+<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/four-proofs`](testing.md#testing-four-proofs). Decided in [0079](../decisions/0079.md), [0018](../decisions/0018.md), [0042](../decisions/0042.md).</sub>
 
 <a id="testing-runner-is-strict"></a>
 
@@ -433,28 +431,6 @@ execution order semantically irrelevant, so nothing is bought by randomizing it 
 worth a great deal.
 
 <sub>See also [`testing/failure-ledger`](testing.md#testing-failure-ledger), [`testing/report-formats`](testing.md#testing-report-formats), [`testing/task-tree-and-virtual-clock`](testing.md#testing-task-tree-and-virtual-clock), [`testing/db-transaction`](testing.md#testing-db-transaction). Decided in [0079](../decisions/0079.md), [0020](../decisions/0020.md).</sub>
-
-<a id="testing-mutation-testing"></a>
-
-## A mutation run asks whether any test would have noticed the code being wrong  *(designed — not yet in the compiler)*
-
-`rule:testing/mutation-testing`
-
-A mutation run makes a small, deliberate change to the code, re-runs the tests, and records whether
-anything failed. It is the measurement that closes the gap coverage leaves: a line having run says
-nothing about whether an assertion would have objected had it been wrong, and a suite at full line
-coverage routinely misses most introduced defects.
-
-Two things make the built-in version categorically better than an external one, and neither is
-available outside the compiler. Mutants are generated from typed IR, so every one is type-valid and
-compiles, where a tool mutating a syntax tree pays a compile to discover that many do not. And
-mutant runs are **coverage-directed**: the probe data says which tests touch the mutated line, so a
-mutant runs against those rather than against the whole suite. On two thousand tests and five
-hundred mutants that is the difference between minutes and most of a day.
-
-The operator set is enumerated where it is implemented, so adding an operator changes no rule.
-
-<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/four-proofs`](testing.md#testing-four-proofs). Decided in [0079](../decisions/0079.md), [0018](../decisions/0018.md), [0042](../decisions/0042.md).</sub>
 
 <a id="testing-report-formats"></a>
 
@@ -497,6 +473,211 @@ both — a path of `.nvst` files, or a program's compiled test table — and rep
 that fits it.
 
 <sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/report-formats`](testing.md#testing-report-formats), [`testing/four-proofs`](testing.md#testing-four-proofs). Decided in [0079](../decisions/0079.md).</sub>
+
+<a id="testing-one-slice-is-one-feature"></a>
+
+## One slice writes all four of a feature's proofs together
+
+`rule:testing/one-slice-is-one-feature`
+
+One slice takes one feature and writes **all four of its proofs together**. The expensive thing a
+session buys is understanding what the feature does at its edges, and the test, the examples, the
+bench and the attack all spend that same understanding; split across four sessions it is bought four
+times, against a fixed per-session cost that does not shrink with the size of the work.
+
+The generated work chain is one goal per group of features sharing an implementing file set, each
+carrying a context manifest naming that file set and each gated by a command that exits non-zero.
+Regenerating the chain is how it stays current: a group that owes nothing is left out, so a second
+emission writes the chain that is *left*.
+
+<sub>See also [`testing/four-proofs`](testing.md#testing-four-proofs), [`testing/a-failing-proof-is-fixed-or-recorded`](testing.md#testing-a-failing-proof-is-fixed-or-recorded), [`testing/roster-is-derived`](testing.md#testing-roster-is-derived). Decided in [0134](../decisions/0134.md).</sub>
+
+<a id="testing-examples-live-in-the-repository"></a>
+
+## `docs/examples/` is authoritative and the website mirrors it
+
+`rule:testing/examples-live-in-the-repository`
+
+`docs/examples/` is authoritative, and the website's example tree is a mirror rebuilt from it. The
+site's own rule is unchanged — tool-owned files are regenerated, human-owned files are never
+overwritten — and this simply makes the example tree one of the tool-owned ones.
+
+They live in the repository because the same sweep that tests a feature writes its examples, and a
+sweep cannot write into a tree it is not allowed to touch.
+
+<sub>See also [`testing/four-proofs`](testing.md#testing-four-proofs), [`testing/proof-attribution`](testing.md#testing-proof-attribution). Decided in [0134](../decisions/0134.md).</sub>
+
+<a id="testing-hostile-case-contract"></a>
+
+## A hostile case passes when nothing came apart, and a compile diagnostic is never a pass
+
+`rule:testing/hostile-case-contract`
+
+A hostile case is judged by a contract, never by frozen output. Its assertion is that nothing came
+apart: a program that throws, one a limit stops, one that runs out of memory and says so, and one
+that simply works are all passes. A panic, an abort, a hang past its timeout, a crash-shaped exit
+status and a definite leak under valgrind are not.
+
+The one failure that would otherwise look like a pass is a **compile diagnostic**, and it is checked
+for by name — an attack that does not compile was never delivered, and a typo would otherwise
+survive every sweep for the rest of this repository's life. Where the refusal *is* the assertion — a
+sink handed a tainted value, a capability used without being granted — the case says so, and
+compiling cleanly is then what fails it.
+
+Freezing the output instead is refused: every one of these programs is written to produce output
+nobody can predict, and a suite whose expectations must be maintained is a suite that gets weakened
+until it passes.
+
+<sub>See also [`testing/four-proofs`](testing.md#testing-four-proofs), [`testing/a-failing-proof-is-fixed-or-recorded`](testing.md#testing-a-failing-proof-is-fixed-or-recorded), [`testing/capability-closure-test`](testing.md#testing-capability-closure-test). Decided in [0134](../decisions/0134.md).</sub>
+
+<a id="testing-four-proofs"></a>
+
+## A feature is finished when it has a test from both sides, three examples, a measured figure and an attack
+
+`rule:testing/four-proofs`
+
+A feature is finished when four artefacts exist for it, not when it works.
+
+**Tests** — its behaviour pinned from Novis *and* from Rust; a `Core` member owes at least one of
+each. **Examples** — three small, self-contained, plainly-commented programs a reader learns from.
+**Perf** — one measured figure, so a change can be re-measured against it. **Hostile** — one program
+written to break it, which passes when the runtime is still standing.
+
+Each tree's own README owns what a file in it *is*, and this rule restates none of them.
+
+Not every kind of feature owes all four: an enum is not attacked and a directive is not benchmarked.
+What each kind owes is **data**, overridable per feature, because a policy stated only in prose is a
+policy nothing can check. A single feature excused from a single proof is a skip entry carrying
+**the reason as its value**, so "this cannot be measured" and "nobody wrote one" never look the same
+in the audit.
+
+<sub>See also [`testing/roster-is-derived`](testing.md#testing-roster-is-derived), [`testing/proof-attribution`](testing.md#testing-proof-attribution), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger), [`testing/hostile-case-contract`](testing.md#testing-hostile-case-contract), [`testing/one-slice-is-one-feature`](testing.md#testing-one-slice-is-one-feature). Decided in [0134](../decisions/0134.md), [0079](../decisions/0079.md), [0117](../decisions/0117.md).</sub>
+
+<a id="testing-roster-is-derived"></a>
+
+## The roster of features is read from the registry and the reference chapters, never kept as a list
+
+`rule:testing/roster-is-derived`
+
+The roster of features is read from live sources and kept nowhere. The registry's own machine-
+readable answer names every registered class, member, exception, enum, interface and directive, so a
+member that is not implemented is owed no proofs and one that lands is owed them at once. Every `#`
+heading of the language and tool reference chapters names one language or tool feature, and those
+chapters already state every rule the shipped compiler has, which makes their headings a roster that
+maintains itself.
+
+A source that stops naming a feature stops owing proofs for it; one that starts naming a new feature
+owes them on the next sweep. Nobody edits a list, so no list is ever stale — a hand-kept roster is
+wrong within a day of an unattended run, and it under-reports silently, which is the failure mode
+that looks like success.
+
+<sub>See also [`testing/four-proofs`](testing.md#testing-four-proofs), [`testing/proof-attribution`](testing.md#testing-proof-attribution). Decided in [0134](../decisions/0134.md), [0117](../decisions/0117.md).</sub>
+
+<a id="testing-proof-attribution"></a>
+
+## An example, an attack and a bench are attributed by path; a test is attributed by a marker
+
+`rule:testing/proof-attribution`
+
+An example, an attack and a bench are attributed by **where they sit**: the trees share one relative
+path per feature, so nothing has to be registered anywhere.
+
+A test cannot work that way — a case lives where its suite wants it, and one case often pins several
+features — so a test is attributed by a comment naming what it covers, written in a `.nvst` case's
+file block or above a Rust test function. For a `Core` member the scan additionally credits a case
+that plainly calls it by its written `::` spelling, which is what lets the cases written before this
+rule count without being rewritten.
+
+That written spelling is the only inference made. Crediting a bare `->method(` call to every class a
+case happens to name is unsound rather than merely loose, and no tightening fixes it without a type
+checker.
+
+<sub>See also [`testing/four-proofs`](testing.md#testing-four-proofs), [`testing/roster-is-derived`](testing.md#testing-roster-is-derived), [`testing/examples-live-in-the-repository`](testing.md#testing-examples-live-in-the-repository). Decided in [0134](../decisions/0134.md).</sub>
+
+<a id="testing-a-failing-proof-is-fixed-or-recorded"></a>
+
+## A proof that fails is fixed or recorded as a known gap, and never weakened
+
+`rule:testing/a-failing-proof-is-fixed-or-recorded`
+
+An attack that breaks the member it was written against, and an example that disagrees with the
+binary, are the program working. There are two answers and no third.
+
+**Fix it**, in the slice that found it, with a case pinning the corrected behaviour. This is the
+default, and most findings are small. **Record it**, when the fix is genuinely larger than a slice:
+an entry in the owning crate's `# Known gaps` section, plus a marker on the proof naming that file.
+
+A marked proof counts as a known gap rather than a failure, so a long unattended run is not stopped
+by one bug it cannot fix. Two rules keep that from becoming a way to make anything green: the marker
+must name a file that really carries such a section, so recording a bug means writing it where the
+crate's own readers will find it; and **a marked proof that passes fails the sweep**, so removing
+the marker is part of whatever fix eventually lands.
+
+**Weakening the proof is not one of the two.** Softening the attack, re-blessing the example or
+skipping the feature each turn a finding into a green check, which is the single outcome this rule
+exists to prevent. A skip is for a proof that *cannot exist*, never for one that fails.
+
+<sub>See also [`testing/four-proofs`](testing.md#testing-four-proofs), [`testing/hostile-case-contract`](testing.md#testing-hostile-case-contract), [`testing/one-slice-is-one-feature`](testing.md#testing-one-slice-is-one-feature). Decided in [0134](../decisions/0134.md).</sub>
+
+<a id="testing-capability-closure-test"></a>
+
+## Every member of a capability-bearing class declares a capability or declares none, and there is no allowlist
+
+`rule:testing/capability-closure-test`
+
+A class is **capability-bearing** when any of its members has a row in the capability table. For
+such a class **every member owes exactly one row**, and a member that genuinely needs no
+capability — one that manipulates a string and touches no disk — declares that by entering the table
+with *no capability*, rather than by staying out of it.
+
+There is no allowlist, and that is the point. A member that is hard to classify is a member whose
+capability has not been thought about, and the answer is to think about it, not to exempt it — so
+the one move this design forbids is the one an exception list makes cheapest. The claim is about the
+whole *set*, and a set with a growable exception list makes no claim at all. Declaring "nothing"
+costs what declaring a real capability costs, is reviewed in the same table beside its reason, and
+grants nothing, because no row grants anything.
+
+A second closure test covers the other half: nothing in the standard library reaches the operating
+system except through a door. Neither test subsumes the other — one catches a member that goes
+through a door undeclared, the other a member that reaches the OS with no door at all.
+
+<sub>See also [`testing/four-proofs`](testing.md#testing-four-proofs), [`testing/hostile-case-contract`](testing.md#testing-hostile-case-contract). Decided in [0118](../decisions/0118.md).</sub>
+
+<a id="testing-attribution-is-diffed-in-ci"></a>
+
+## The third-party notice is committed, and a check fails when the lockfile moved without it
+
+`rule:testing/attribution-is-diffed-in-ci`
+
+`python tools/gen-attribution.py --check` regenerates the third-party notice and compares it,
+failing when the lockfile has moved and the notice has not. It runs beside the dependency-policy
+job, which it completes: one decides what may be linked, this decides what must be shipped.
+
+Committing a generated file is deliberate. It makes the notice reviewable in a diff at the moment a
+dependency changes, and it keeps the build from depending on network access or on Python.
+
+<sub>See also [`testing/lane-table`](testing.md#testing-lane-table), [`testing/ci-lanes`](testing.md#testing-ci-lanes). Decided in [0065](../decisions/0065.md), [0143](../decisions/0143.md).</sub>
+
+<a id="testing-debug-mode-directive"></a>
+
+## `[debug] mode` is the ceiling as well as the default, and writing a trace or a profile is its own capability
+
+`rule:testing/debug-mode-directive`
+
+`[debug] mode` in `nvs.toml` states the default **and** the ceiling in one value: `[]` is off, and
+any subset of `coverage`, `branch`, `trace` and `profile` is a ceiling a request may narrow and can
+never widen. A production tree sets `mode = []` and no request-side call can turn any bit on.
+
+Whether a running request's internals are observable is not a request-local decision. An
+attacker-controlled request that could turn tracing on for itself in production would gain a
+reconnaissance channel over call arguments and timing, which is not a trade this language makes.
+
+Writing a trace or a profile is its own capability — `debug.trace` and `debug.profile`, each granted
+to named roots, deny-by-default, and **separate from the grant to write a file**. Being able to
+write an ordinary file is not permission to persist a continuous log of every call's arguments,
+which can carry request data a coverage-only deployment never needed to expose.
+
+<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/debug-surface`](testing.md#testing-debug-surface). Decided in [0018](../decisions/0018.md), [0005](../decisions/0005.md), [0006](../decisions/0006.md).</sub>
 
 <a id="testing-debug-probes"></a>
 
@@ -550,27 +731,6 @@ copy-out rule a value, an error and a usage figure already use.
 
 <sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive), [`testing/report-formats`](testing.md#testing-report-formats). Decided in [0018](../decisions/0018.md), [0006](../decisions/0006.md), [0011](../decisions/0011.md).</sub>
 
-<a id="testing-debug-mode-directive"></a>
-
-## `[debug] mode` is the ceiling as well as the default, and writing a trace or a profile is its own capability
-
-`rule:testing/debug-mode-directive`
-
-`[debug] mode` in `nvs.toml` states the default **and** the ceiling in one value: `[]` is off, and
-any subset of `coverage`, `branch`, `trace` and `profile` is a ceiling a request may narrow and can
-never widen. A production tree sets `mode = []` and no request-side call can turn any bit on.
-
-Whether a running request's internals are observable is not a request-local decision. An
-attacker-controlled request that could turn tracing on for itself in production would gain a
-reconnaissance channel over call arguments and timing, which is not a trade this language makes.
-
-Writing a trace or a profile is its own capability — `debug.trace` and `debug.profile`, each granted
-to named roots, deny-by-default, and **separate from the grant to write a file**. Being able to
-write an ordinary file is not permission to persist a continuous log of every call's arguments,
-which can carry request data a coverage-only deployment never needed to expose.
-
-<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/debug-surface`](testing.md#testing-debug-surface). Decided in [0018](../decisions/0018.md), [0005](../decisions/0005.md), [0006](../decisions/0006.md).</sub>
-
 <a id="testing-probes-on-is-a-tested-configuration"></a>
 
 ## The conformance suite runs with the probes on, and once per optimisation level  *(designed — not yet in the compiler)*
@@ -590,6 +750,30 @@ agrees with **itself** under different codegen, and a probe-attached run and an 
 both Novis. The cost is CI wall-clock proportional to the added axes, and nothing at all at run time.
 
 <sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/the-deep-lane`](testing.md#testing-the-deep-lane), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate). Decided in [0018](../decisions/0018.md).</sub>
+
+<a id="testing-bench-counters"></a>
+
+## `#[Bench]` reports counted semantic work, and CI may gate on the counts but never on wall-clock  *(designed — not yet in the compiler)*
+
+`rule:testing/bench-counters`
+
+`#[Bench]` reports counted semantic work — statements executed, calls made, allocations, bytes
+attributed, GC cycles — read off the same probe sites coverage and tracing use, in a counting mode
+beside their timing one ([`testing/debug-probes`](testing.md#testing-debug-probes)). Those numbers are **bit-identical across
+machines, operating systems and architectures**, because they count what the program did rather than
+what a CPU did. `bytes` costs no new instrument: memory is already attributable to a request under
+an enforceable cap, and this reads that accounting.
+
+CI may gate on the exact rows. It may not gate on wall-clock, which is printed beside them and
+labelled advisory on every run.
+
+The counters are comparable across machines and **not** across releases: an optimising tier
+eliminates work, so one program's statement count falls between them. "Did my algorithm improve" is
+this rule's question; "did Novis get faster" is [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms)'s, and the two do
+not overlap. There is no per-member cost table and there will not be one — a hand-written claim
+about what a `Core` member costs is a number with no guard test.
+
+<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger). Decided in [0079](../decisions/0079.md), [0018](../decisions/0018.md), [0041](../decisions/0041.md), [0026](../decisions/0026.md), [0004](../decisions/0004.md).</sub>
 
 <a id="testing-perf-two-mechanisms"></a>
 
@@ -656,146 +840,6 @@ guard asserting equality between two runs would not, so no such guard exists.
 
 <sub>See also [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/perf-secondary-figures`](testing.md#testing-perf-secondary-figures), [`testing/valgrind-on-wsl`](testing.md#testing-valgrind-on-wsl). Decided in [0026](../decisions/0026.md).</sub>
 
-<a id="testing-valgrind-on-wsl"></a>
-
-## The historical leg runs under callgrind on Linux or WSL, and nowhere else
-
-`rule:testing/valgrind-on-wsl`
-
-The historical leg runs under `valgrind --tool=callgrind`, which has no native Windows build, so it
-runs on Linux or WSL and nowhere else. `valgrind` is part of the one-time WSL setup this repository
-already documents for its fuzzing tools — the same shape of dependency, added for the same reason.
-
-Windows and macOS machines and CI legs never run that leg. They keep the wall-clock guards, which
-need no Linux-only tooling and run everywhere.
-
-Per-function attribution inside JIT-compiled code is unavailable through callgrind, which sees no
-symbols for frames the backend registered none for; the aggregate total is unaffected, being a raw
-instruction count either way, and root-causing falls back to platform-native profiling on whichever
-machine reproduces the regression.
-
-<sub>See also [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/perf-history-file`](testing.md#testing-perf-history-file), [`testing/the-deep-lane`](testing.md#testing-the-deep-lane). Decided in [0026](../decisions/0026.md).</sub>
-
-<a id="testing-userland-benchmarks"></a>
-
-## A cross-engine comparison is a `benches/userland/` case with one twin per engine
-
-`rule:testing/userland-benchmarks`
-
-`benches/userland/` holds ordinary web-and-CLI programs written once per engine — Novis, PHP and
-Python — and `python tools/bench.py` runs whichever engines a case has twins for and prints the
-same-host ratios. That is where a comparison against another engine is made, and it is the only
-place one is made.
-
-It changes nothing about the historical dashboard, whose headline metric stays the instruction
-count. Which workloads populate that dashboard is a benchmark-design question rather than a language
-decision, and it grows as real compiled programs exist to measure.
-
-<sub>See also [`testing/perf-secondary-figures`](testing.md#testing-perf-secondary-figures), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms). Decided in [0026](../decisions/0026.md), [0100](../decisions/0100.md).</sub>
-
-<a id="testing-attribution-is-diffed-in-ci"></a>
-
-## The third-party notice is committed, and a check fails when the lockfile moved without it
-
-`rule:testing/attribution-is-diffed-in-ci`
-
-`python tools/gen-attribution.py --check` regenerates the third-party notice and compares it,
-failing when the lockfile has moved and the notice has not. It runs beside the dependency-policy
-job, which it completes: one decides what may be linked, this decides what must be shipped.
-
-Committing a generated file is deliberate. It makes the notice reviewable in a diff at the moment a
-dependency changes, and it keeps the build from depending on network access or on Python.
-
-<sub>See also [`testing/lane-table`](testing.md#testing-lane-table), [`testing/ci-lanes`](testing.md#testing-ci-lanes). Decided in [0065](../decisions/0065.md), [0143](../decisions/0143.md).</sub>
-
-<a id="testing-capability-closure-test"></a>
-
-## Every member of a capability-bearing class declares a capability or declares none, and there is no allowlist
-
-`rule:testing/capability-closure-test`
-
-A class is **capability-bearing** when any of its members has a row in the capability table. For
-such a class **every member owes exactly one row**, and a member that genuinely needs no
-capability — one that manipulates a string and touches no disk — declares that by entering the table
-with *no capability*, rather than by staying out of it.
-
-There is no allowlist, and that is the point. A member that is hard to classify is a member whose
-capability has not been thought about, and the answer is to think about it, not to exempt it — so
-the one move this design forbids is the one an exception list makes cheapest. The claim is about the
-whole *set*, and a set with a growable exception list makes no claim at all. Declaring "nothing"
-costs what declaring a real capability costs, is reviewed in the same table beside its reason, and
-grants nothing, because no row grants anything.
-
-A second closure test covers the other half: nothing in the standard library reaches the operating
-system except through a door. Neither test subsumes the other — one catches a member that goes
-through a door undeclared, the other a member that reaches the OS with no door at all.
-
-<sub>See also [`testing/four-proofs`](testing.md#testing-four-proofs), [`testing/hostile-case-contract`](testing.md#testing-hostile-case-contract). Decided in [0118](../decisions/0118.md).</sub>
-
-<a id="testing-four-proofs"></a>
-
-## A feature is finished when it has a test from both sides, three examples, a measured figure and an attack
-
-`rule:testing/four-proofs`
-
-A feature is finished when four artefacts exist for it, not when it works.
-
-**Tests** — its behaviour pinned from Novis *and* from Rust; a `Core` member owes at least one of
-each. **Examples** — three small, self-contained, plainly-commented programs a reader learns from.
-**Perf** — one measured figure, so a change can be re-measured against it. **Hostile** — one program
-written to break it, which passes when the runtime is still standing.
-
-Each tree's own README owns what a file in it *is*, and this rule restates none of them.
-
-Not every kind of feature owes all four: an enum is not attacked and a directive is not benchmarked.
-What each kind owes is **data**, overridable per feature, because a policy stated only in prose is a
-policy nothing can check. A single feature excused from a single proof is a skip entry carrying
-**the reason as its value**, so "this cannot be measured" and "nobody wrote one" never look the same
-in the audit.
-
-<sub>See also [`testing/roster-is-derived`](testing.md#testing-roster-is-derived), [`testing/proof-attribution`](testing.md#testing-proof-attribution), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger), [`testing/hostile-case-contract`](testing.md#testing-hostile-case-contract), [`testing/one-slice-is-one-feature`](testing.md#testing-one-slice-is-one-feature). Decided in [0134](../decisions/0134.md), [0079](../decisions/0079.md), [0117](../decisions/0117.md).</sub>
-
-<a id="testing-roster-is-derived"></a>
-
-## The roster of features is read from the registry and the reference chapters, never kept as a list
-
-`rule:testing/roster-is-derived`
-
-The roster of features is read from live sources and kept nowhere. The registry's own machine-
-readable answer names every registered class, member, exception, enum, interface and directive, so a
-member that is not implemented is owed no proofs and one that lands is owed them at once. Every `#`
-heading of the language and tool reference chapters names one language or tool feature, and those
-chapters already state every rule the shipped compiler has, which makes their headings a roster that
-maintains itself.
-
-A source that stops naming a feature stops owing proofs for it; one that starts naming a new feature
-owes them on the next sweep. Nobody edits a list, so no list is ever stale — a hand-kept roster is
-wrong within a day of an unattended run, and it under-reports silently, which is the failure mode
-that looks like success.
-
-<sub>See also [`testing/four-proofs`](testing.md#testing-four-proofs), [`testing/proof-attribution`](testing.md#testing-proof-attribution). Decided in [0134](../decisions/0134.md), [0117](../decisions/0117.md).</sub>
-
-<a id="testing-proof-attribution"></a>
-
-## An example, an attack and a bench are attributed by path; a test is attributed by a marker
-
-`rule:testing/proof-attribution`
-
-An example, an attack and a bench are attributed by **where they sit**: the trees share one relative
-path per feature, so nothing has to be registered anywhere.
-
-A test cannot work that way — a case lives where its suite wants it, and one case often pins several
-features — so a test is attributed by a comment naming what it covers, written in a `.nvst` case's
-file block or above a Rust test function. For a `Core` member the scan additionally credits a case
-that plainly calls it by its written `::` spelling, which is what lets the cases written before this
-rule count without being rewritten.
-
-That written spelling is the only inference made. Crediting a bare `->method(` call to every class a
-case happens to name is unsound rather than merely loose, and no tightening fixes it without a type
-checker.
-
-<sub>See also [`testing/four-proofs`](testing.md#testing-four-proofs), [`testing/roster-is-derived`](testing.md#testing-roster-is-derived), [`testing/examples-live-in-the-repository`](testing.md#testing-examples-live-in-the-repository). Decided in [0134](../decisions/0134.md).</sub>
-
 <a id="testing-member-perf-ledger"></a>
 
 ## A member's figure is Novis against Novis, fingerprinted, and re-measured only when its implementing file moves
@@ -820,86 +864,42 @@ Nothing here gates a build. A regression is a row with a delta on it.
 
 <sub>See also [`testing/four-proofs`](testing.md#testing-four-proofs), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/userland-benchmarks`](testing.md#testing-userland-benchmarks). Decided in [0134](../decisions/0134.md), [0026](../decisions/0026.md).</sub>
 
-<a id="testing-hostile-case-contract"></a>
+<a id="testing-userland-benchmarks"></a>
 
-## A hostile case passes when nothing came apart, and a compile diagnostic is never a pass
+## A cross-engine comparison is a `benches/userland/` case with one twin per engine
 
-`rule:testing/hostile-case-contract`
+`rule:testing/userland-benchmarks`
 
-A hostile case is judged by a contract, never by frozen output. Its assertion is that nothing came
-apart: a program that throws, one a limit stops, one that runs out of memory and says so, and one
-that simply works are all passes. A panic, an abort, a hang past its timeout, a crash-shaped exit
-status and a definite leak under valgrind are not.
+`benches/userland/` holds ordinary web-and-CLI programs written once per engine — Novis, PHP and
+Python — and `python tools/bench.py` runs whichever engines a case has twins for and prints the
+same-host ratios. That is where a comparison against another engine is made, and it is the only
+place one is made.
 
-The one failure that would otherwise look like a pass is a **compile diagnostic**, and it is checked
-for by name — an attack that does not compile was never delivered, and a typo would otherwise
-survive every sweep for the rest of this repository's life. Where the refusal *is* the assertion — a
-sink handed a tainted value, a capability used without being granted — the case says so, and
-compiling cleanly is then what fails it.
+It changes nothing about the historical dashboard, whose headline metric stays the instruction
+count. Which workloads populate that dashboard is a benchmark-design question rather than a language
+decision, and it grows as real compiled programs exist to measure.
 
-Freezing the output instead is refused: every one of these programs is written to produce output
-nobody can predict, and a suite whose expectations must be maintained is a suite that gets weakened
-until it passes.
+<sub>See also [`testing/perf-secondary-figures`](testing.md#testing-perf-secondary-figures), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms). Decided in [0026](../decisions/0026.md), [0100](../decisions/0100.md).</sub>
 
-<sub>See also [`testing/four-proofs`](testing.md#testing-four-proofs), [`testing/a-failing-proof-is-fixed-or-recorded`](testing.md#testing-a-failing-proof-is-fixed-or-recorded), [`testing/capability-closure-test`](testing.md#testing-capability-closure-test). Decided in [0134](../decisions/0134.md).</sub>
+<a id="testing-valgrind-on-wsl"></a>
 
-<a id="testing-a-failing-proof-is-fixed-or-recorded"></a>
+## The historical leg runs under callgrind on Linux or WSL, and nowhere else
 
-## A proof that fails is fixed or recorded as a known gap, and never weakened
+`rule:testing/valgrind-on-wsl`
 
-`rule:testing/a-failing-proof-is-fixed-or-recorded`
+The historical leg runs under `valgrind --tool=callgrind`, which has no native Windows build, so it
+runs on Linux or WSL and nowhere else. `valgrind` is part of the one-time WSL setup this repository
+already documents for its fuzzing tools — the same shape of dependency, added for the same reason.
 
-An attack that breaks the member it was written against, and an example that disagrees with the
-binary, are the program working. There are two answers and no third.
+Windows and macOS machines and CI legs never run that leg. They keep the wall-clock guards, which
+need no Linux-only tooling and run everywhere.
 
-**Fix it**, in the slice that found it, with a case pinning the corrected behaviour. This is the
-default, and most findings are small. **Record it**, when the fix is genuinely larger than a slice:
-an entry in the owning crate's `# Known gaps` section, plus a marker on the proof naming that file.
+Per-function attribution inside JIT-compiled code is unavailable through callgrind, which sees no
+symbols for frames the backend registered none for; the aggregate total is unaffected, being a raw
+instruction count either way, and root-causing falls back to platform-native profiling on whichever
+machine reproduces the regression.
 
-A marked proof counts as a known gap rather than a failure, so a long unattended run is not stopped
-by one bug it cannot fix. Two rules keep that from becoming a way to make anything green: the marker
-must name a file that really carries such a section, so recording a bug means writing it where the
-crate's own readers will find it; and **a marked proof that passes fails the sweep**, so removing
-the marker is part of whatever fix eventually lands.
-
-**Weakening the proof is not one of the two.** Softening the attack, re-blessing the example or
-skipping the feature each turn a finding into a green check, which is the single outcome this rule
-exists to prevent. A skip is for a proof that *cannot exist*, never for one that fails.
-
-<sub>See also [`testing/four-proofs`](testing.md#testing-four-proofs), [`testing/hostile-case-contract`](testing.md#testing-hostile-case-contract), [`testing/one-slice-is-one-feature`](testing.md#testing-one-slice-is-one-feature). Decided in [0134](../decisions/0134.md).</sub>
-
-<a id="testing-one-slice-is-one-feature"></a>
-
-## One slice writes all four of a feature's proofs together
-
-`rule:testing/one-slice-is-one-feature`
-
-One slice takes one feature and writes **all four of its proofs together**. The expensive thing a
-session buys is understanding what the feature does at its edges, and the test, the examples, the
-bench and the attack all spend that same understanding; split across four sessions it is bought four
-times, against a fixed per-session cost that does not shrink with the size of the work.
-
-The generated work chain is one goal per group of features sharing an implementing file set, each
-carrying a context manifest naming that file set and each gated by a command that exits non-zero.
-Regenerating the chain is how it stays current: a group that owes nothing is left out, so a second
-emission writes the chain that is *left*.
-
-<sub>See also [`testing/four-proofs`](testing.md#testing-four-proofs), [`testing/a-failing-proof-is-fixed-or-recorded`](testing.md#testing-a-failing-proof-is-fixed-or-recorded), [`testing/roster-is-derived`](testing.md#testing-roster-is-derived). Decided in [0134](../decisions/0134.md).</sub>
-
-<a id="testing-examples-live-in-the-repository"></a>
-
-## `docs/examples/` is authoritative and the website mirrors it
-
-`rule:testing/examples-live-in-the-repository`
-
-`docs/examples/` is authoritative, and the website's example tree is a mirror rebuilt from it. The
-site's own rule is unchanged — tool-owned files are regenerated, human-owned files are never
-overwritten — and this simply makes the example tree one of the tool-owned ones.
-
-They live in the repository because the same sweep that tests a feature writes its examples, and a
-sweep cannot write into a tree it is not allowed to touch.
-
-<sub>See also [`testing/four-proofs`](testing.md#testing-four-proofs), [`testing/proof-attribution`](testing.md#testing-proof-attribution). Decided in [0134](../decisions/0134.md).</sub>
+<sub>See also [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/perf-history-file`](testing.md#testing-perf-history-file), [`testing/the-deep-lane`](testing.md#testing-the-deep-lane). Decided in [0026](../decisions/0026.md).</sub>
 
 <a id="testing-ci-lanes"></a>
 
@@ -963,21 +963,6 @@ there is no version of this that is worth one of those.
 
 <sub>See also [`testing/lane-table`](testing.md#testing-lane-table), [`testing/ci-lanes`](testing.md#testing-ci-lanes). Decided in [0143](../decisions/0143.md).</sub>
 
-<a id="testing-a-deferred-job-is-skipped-never-absent"></a>
-
-## A job a lane defers is skipped by its own `if:`, never filtered out of the workflow
-
-`rule:testing/a-deferred-job-is-skipped-never-absent`
-
-Every lane gate is a job-level `if:`, never a workflow-level path filter.
-
-The difference matters exactly once and then permanently. A job skipped by `if:` reports success to
-a required status check; a workflow filtered out by a path rule never reports at all, and a required
-check on it waits forever. The second is a branch that cannot be merged, discovered by whoever turns
-branch protection on months from now.
-
-<sub>See also [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`testing/lane-table`](testing.md#testing-lane-table). Decided in [0143](../decisions/0143.md).</sub>
-
 <a id="testing-the-deep-lane"></a>
 
 ## Miri, the fuzzers and the unsafe audit run nightly and at release, and the fuzz corpus persists
@@ -995,6 +980,21 @@ could afford. A run that starts from what every previous night found is strictly
 a per-push run that starts from nothing, and it costs the push lane nothing at all.
 
 <sub>See also [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`testing/probes-on-is-a-tested-configuration`](testing.md#testing-probes-on-is-a-tested-configuration), [`testing/valgrind-on-wsl`](testing.md#testing-valgrind-on-wsl). Decided in [0143](../decisions/0143.md).</sub>
+
+<a id="testing-a-deferred-job-is-skipped-never-absent"></a>
+
+## A job a lane defers is skipped by its own `if:`, never filtered out of the workflow
+
+`rule:testing/a-deferred-job-is-skipped-never-absent`
+
+Every lane gate is a job-level `if:`, never a workflow-level path filter.
+
+The difference matters exactly once and then permanently. A job skipped by `if:` reports success to
+a required status check; a workflow filtered out by a path rule never reports at all, and a required
+check on it waits forever. The second is a branch that cannot be merged, discovered by whoever turns
+branch protection on months from now.
+
+<sub>See also [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`testing/lane-table`](testing.md#testing-lane-table). Decided in [0143](../decisions/0143.md).</sub>
 
 <a id="testing-every-push-gets-a-verdict"></a>
 

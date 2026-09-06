@@ -1,8 +1,20 @@
 {
   "topic": "errors",
   "title": "Errors",
-  "order": 10,
+  "order": 90,
   "rules": [
+    {
+      "id": "errors/throwable-hierarchy",
+      "title": "A limit report is not a Throwable, and the type checker knows it",
+      "status": "shipped",
+      "because": ["0020"],
+      "divergesFromPhp": "`catch (Throwable)` provably cannot see a resource-limit fatal; `Exception` and `Error` are not class names",
+      "seeAlso": ["errors/escalation-ladder", "errors/on-limit", "errors/compile-failure"],
+      "guardedBy": [
+        "tests/conformance/error/a-limit-fatal-is-not-catchable.nvst",
+        "tests/conformance/error/a-parse-error-carries-an-issue-list.nvst"
+      ]
+    },
     {
       "id": "errors/propagation",
       "title": "An error propagates as a checked return, never by unwinding",
@@ -19,14 +31,6 @@
       ]
     },
     {
-      "id": "errors/helper-abi",
-      "title": "A runtime helper never unwinds, and a panic dies inside one request",
-      "status": "shipped",
-      "because": ["0002", "0106"],
-      "seeAlso": ["errors/propagation", "errors/panics-bypass-user-code"],
-      "guardedBy": ["benches/abi-probe/tests/unwind_unavailable.rs"]
-    },
-    {
       "id": "errors/throw-is-not-slower",
       "title": "A throw costs no more than a return, and allocates nothing",
       "status": "shipped",
@@ -36,15 +40,33 @@
       "guardedBy": ["benches/abi-probe/tests/perf_guards.rs"]
     },
     {
-      "id": "errors/throwable-hierarchy",
-      "title": "A limit report is not a Throwable, and the type checker knows it",
+      "id": "errors/helper-abi",
+      "title": "A runtime helper never unwinds, and a panic dies inside one request",
+      "status": "shipped",
+      "because": ["0002", "0106"],
+      "seeAlso": ["errors/propagation", "errors/panics-bypass-user-code"],
+      "guardedBy": ["benches/abi-probe/tests/unwind_unavailable.rs"]
+    },
+    {
+      "id": "errors/stack-depth",
+      "title": "Recursion is bounded twice: a catchable error, then a fatal",
+      "status": "shipped",
+      "because": ["0020", "0106"],
+      "divergesFromPhp": "recursion is bounded by an 8 MB native stack rather than by `memory_limit`, so deep PHP recursion needs a rewrite",
+      "seeAlso": ["errors/on-limit", "errors/propagation"],
+      "guardedBy": ["crates/nvs-codegen/tests/stack_limit.rs"]
+    },
+    {
+      "id": "errors/on-limit",
+      "title": "Tier 1 — a resource limit reaches the request that spent it",
       "status": "shipped",
       "because": ["0020"],
-      "divergesFromPhp": "`catch (Throwable)` provably cannot see a resource-limit fatal; `Exception` and `Error` are not class names",
-      "seeAlso": ["errors/escalation-ladder", "errors/on-limit", "errors/compile-failure"],
+      "divergesFromPhp": "the handler is request-local rather than global, and runs on a reserve carved out before execution started",
+      "seeAlso": ["errors/escalation-ladder", "errors/stack-depth", "errors/panics-bypass-user-code"],
       "guardedBy": [
-        "tests/conformance/error/a-limit-fatal-is-not-catchable.nvst",
-        "tests/conformance/error/a-parse-error-carries-an-issue-list.nvst"
+        "tests/conformance/core/fatal-on-limit-registers-a-handler-without-running-it.nvst",
+        "tests/conformance/core/fatal-on-uncaught-throw-and-on-limit-are-two-independent-slots.nvst",
+        "crates/nvs-runtime/tests/configured_limits.rs"
       ]
     },
     {
@@ -63,28 +85,6 @@
         "tests/conformance/error/the-floor-and-core-log-write-record-the-same-error-the-same-way.nvst",
         "tests/conformance/error/a-limit-breach-inside-finally-is-a-clean-fatal.nvst"
       ]
-    },
-    {
-      "id": "errors/on-limit",
-      "title": "Tier 1 — a resource limit reaches the request that spent it",
-      "status": "shipped",
-      "because": ["0020"],
-      "divergesFromPhp": "the handler is request-local rather than global, and runs on a reserve carved out before execution started",
-      "seeAlso": ["errors/escalation-ladder", "errors/stack-depth", "errors/panics-bypass-user-code"],
-      "guardedBy": [
-        "tests/conformance/core/fatal-on-limit-registers-a-handler-without-running-it.nvst",
-        "tests/conformance/core/fatal-on-uncaught-throw-and-on-limit-are-two-independent-slots.nvst",
-        "crates/nvs-runtime/tests/configured_limits.rs"
-      ]
-    },
-    {
-      "id": "errors/stack-depth",
-      "title": "Recursion is bounded twice: a catchable error, then a fatal",
-      "status": "shipped",
-      "because": ["0020", "0106"],
-      "divergesFromPhp": "recursion is bounded by an 8 MB native stack rather than by `memory_limit`, so deep PHP recursion needs a rewrite",
-      "seeAlso": ["errors/on-limit", "errors/propagation"],
-      "guardedBy": ["crates/nvs-codegen/tests/stack_limit.rs"]
     },
     {
       "id": "errors/on-uncaught-throw",
@@ -134,17 +134,6 @@
       "guardedBy": ["tests/conformance/error/a-parse-error-carries-an-issue-list.nvst"]
     },
     {
-      "id": "errors/log-write",
-      "title": "One write path, and the engine floor is its other caller",
-      "status": "shipped",
-      "because": ["0020", "0092"],
-      "seeAlso": ["errors/log-level", "errors/log-fields", "errors/engine-floor", "errors/diagnostic-record"],
-      "guardedBy": [
-        "tests/conformance/core/log-write-renders-one-json-line-per-record.nvst",
-        "tests/conformance/error/the-floor-and-core-log-write-record-the-same-error-the-same-way.nvst"
-      ]
-    },
-    {
       "id": "errors/diagnostic-record",
       "title": "Every developer-facing output is one closed record",
       "status": "shipped",
@@ -157,22 +146,12 @@
       ]
     },
     {
-      "id": "errors/log-level",
-      "title": "Five levels, and the mapping to syslog is fixed",
-      "status": "shipped",
-      "because": ["0092"],
-      "divergesFromPhp": "five levels rather than PSR-3's eight, because nobody has a rule for choosing `notice` over `info`",
-      "seeAlso": ["errors/log-write", "errors/diagnostic-record"],
-      "guardedBy": ["tests/conformance/core/log-level-is-the-minimum-level-written.nvst"]
-    },
-    {
-      "id": "errors/renderings",
-      "title": "The sink in force picks the rendering, and no call site may name one",
+      "id": "errors/record-producers",
+      "title": "Five producers build the one record",
       "status": "designed",
-      "because": ["0092", "0088"],
-      "divergesFromPhp": "one member replaces `var_dump`, `print_r`, `var_export` and `json_encode`, and reads correctly in every medium",
-      "seeAlso": ["errors/diagnostic-record", "errors/debug-dump", "errors/no-render-hook"],
-      "guardedBy": ["tests/conformance/core/log-format-text-selects-the-plaintext-rendering.nvst"]
+      "because": ["0092", "0079"],
+      "seeAlso": ["errors/diagnostic-record", "errors/log-write", "errors/debug-dump"],
+      "guardedBy": []
     },
     {
       "id": "errors/record-transformations",
@@ -188,11 +167,21 @@
       ]
     },
     {
-      "id": "errors/record-producers",
-      "title": "Five producers build the one record",
+      "id": "errors/renderings",
+      "title": "The sink in force picks the rendering, and no call site may name one",
       "status": "designed",
-      "because": ["0092", "0079"],
-      "seeAlso": ["errors/diagnostic-record", "errors/log-write", "errors/debug-dump"],
+      "because": ["0092", "0088"],
+      "divergesFromPhp": "one member replaces `var_dump`, `print_r`, `var_export` and `json_encode`, and reads correctly in every medium",
+      "seeAlso": ["errors/diagnostic-record", "errors/debug-dump", "errors/no-render-hook"],
+      "guardedBy": ["tests/conformance/core/log-format-text-selects-the-plaintext-rendering.nvst"]
+    },
+    {
+      "id": "errors/no-render-hook",
+      "title": "A class cannot change how it is dumped",
+      "status": "shipped",
+      "because": ["0092", "0028"],
+      "divergesFromPhp": "no `__debugInfo` and no `__toString` in a dump — a dump shows declared state and never a prettier view of it",
+      "seeAlso": ["errors/diagnostic-record", "errors/debug-dump"],
       "guardedBy": []
     },
     {
@@ -208,13 +197,24 @@
       ]
     },
     {
-      "id": "errors/no-render-hook",
-      "title": "A class cannot change how it is dumped",
+      "id": "errors/log-write",
+      "title": "One write path, and the engine floor is its other caller",
       "status": "shipped",
-      "because": ["0092", "0028"],
-      "divergesFromPhp": "no `__debugInfo` and no `__toString` in a dump — a dump shows declared state and never a prettier view of it",
-      "seeAlso": ["errors/diagnostic-record", "errors/debug-dump"],
-      "guardedBy": []
+      "because": ["0020", "0092"],
+      "seeAlso": ["errors/log-level", "errors/log-fields", "errors/engine-floor", "errors/diagnostic-record"],
+      "guardedBy": [
+        "tests/conformance/core/log-write-renders-one-json-line-per-record.nvst",
+        "tests/conformance/error/the-floor-and-core-log-write-record-the-same-error-the-same-way.nvst"
+      ]
+    },
+    {
+      "id": "errors/log-level",
+      "title": "Five levels, and the mapping to syslog is fixed",
+      "status": "shipped",
+      "because": ["0092"],
+      "divergesFromPhp": "five levels rather than PSR-3's eight, because nobody has a rule for choosing `notice` over `info`",
+      "seeAlso": ["errors/log-write", "errors/diagnostic-record"],
+      "guardedBy": ["tests/conformance/core/log-level-is-the-minimum-level-written.nvst"]
     },
     {
       "id": "errors/log-fields",

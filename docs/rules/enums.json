@@ -1,27 +1,8 @@
 {
   "topic": "enums",
   "title": "Enums",
-  "order": 20,
+  "order": 60,
   "rules": [
-    {
-      "id": "enums/closed-integer-type",
-      "title": "An enum declares a new, closed, named integer type",
-      "status": "shipped",
-      "because": ["0010", "0007", "0008"],
-      "divergesFromPhp": "an enum is not a class in disguise — a case is a compile-time constant, with no singleton, no allocation and no identity",
-      "seeAlso": [
-        "enums/declaration",
-        "enums/one-backing-type",
-        "enums/no-class-machinery",
-        "enums/representation"
-      ],
-      "guardedBy": [
-        "tests/conformance/enum/an-enum-case-is-its-integer.nvst",
-        "tests/conformance/enum/an-enum-crosses-a-method-boundary.nvst",
-        "tests/conformance/enum/an-enum-typed-property-round-trips.nvst",
-        "tests/conformance/enum/an-enum-is-returned-and-stored-in-an-array.nvst"
-      ]
-    },
     {
       "id": "enums/declaration",
       "title": "A case with no written value counts on from the one before it, starting at zero",
@@ -45,6 +26,25 @@
       "guardedBy": ["crates/nvs-syntax/src/parser/tests/decl.rs"]
     },
     {
+      "id": "enums/closed-integer-type",
+      "title": "An enum declares a new, closed, named integer type",
+      "status": "shipped",
+      "because": ["0010", "0007", "0008"],
+      "divergesFromPhp": "an enum is not a class in disguise — a case is a compile-time constant, with no singleton, no allocation and no identity",
+      "seeAlso": [
+        "enums/declaration",
+        "enums/one-backing-type",
+        "enums/no-class-machinery",
+        "enums/representation"
+      ],
+      "guardedBy": [
+        "tests/conformance/enum/an-enum-case-is-its-integer.nvst",
+        "tests/conformance/enum/an-enum-crosses-a-method-boundary.nvst",
+        "tests/conformance/enum/an-enum-typed-property-round-trips.nvst",
+        "tests/conformance/enum/an-enum-is-returned-and-stored-in-an-array.nvst"
+      ]
+    },
+    {
       "id": "enums/one-backing-type",
       "title": "Every enum is backed by exactly one integer type, and nothing else backs one",
       "status": "shipped",
@@ -56,6 +56,27 @@
         "crates/nvs-codegen/tests/arithmetic.rs",
         "tests/conformance/core/json-decodes-an-enum-field.nvst"
       ]
+    },
+    {
+      "id": "enums/representation",
+      "title": "An enum value costs nothing beyond the integer it is",
+      "status": "shipped",
+      "because": ["0010", "0007", "0006", "0004"],
+      "divergesFromPhp": "a case is a scalar, so it copies across an isolate boundary like an `int` and has no identity to preserve",
+      "seeAlso": ["enums/no-class-machinery", "enums/one-backing-type", "enums/closed-integer-type"],
+      "guardedBy": [
+        "tests/conformance/core/json-decodes-an-enum-field.nvst",
+        "tests/conformance/enum/an-enum-fills-an-array-and-survives-a-sort.nvst",
+        "tests/conformance/enum/an-enum-flows-through-a-generator.nvst"
+      ]
+    },
+    {
+      "id": "enums/truthiness",
+      "title": "An enum case is always truthy, whatever integer backs it",
+      "status": "shipped",
+      "because": ["0035", "0010"],
+      "seeAlso": ["enums/representation", "enums/no-class-machinery", "enums/closed-integer-type"],
+      "guardedBy": ["crates/nvs-codegen/tests/arithmetic.rs"]
     },
     {
       "id": "enums/no-class-machinery",
@@ -77,19 +98,6 @@
       ]
     },
     {
-      "id": "enums/representation",
-      "title": "An enum value costs nothing beyond the integer it is",
-      "status": "shipped",
-      "because": ["0010", "0007", "0006", "0004"],
-      "divergesFromPhp": "a case is a scalar, so it copies across an isolate boundary like an `int` and has no identity to preserve",
-      "seeAlso": ["enums/no-class-machinery", "enums/one-backing-type", "enums/closed-integer-type"],
-      "guardedBy": [
-        "tests/conformance/core/json-decodes-an-enum-field.nvst",
-        "tests/conformance/enum/an-enum-fills-an-array-and-survives-a-sort.nvst",
-        "tests/conformance/enum/an-enum-flows-through-a-generator.nvst"
-      ]
-    },
-    {
       "id": "enums/reflection",
       "title": "Reflection describes an enum's shape and grants it nothing a class has",
       "status": "designed",
@@ -97,14 +105,6 @@
       "divergesFromPhp": "there are no case instances for a description to hand back — it carries the type's name and its case list, and nothing that acts",
       "seeAlso": ["enums/no-class-machinery", "enums/closed-integer-type"],
       "guardedBy": []
-    },
-    {
-      "id": "enums/truthiness",
-      "title": "An enum case is always truthy, whatever integer backs it",
-      "status": "shipped",
-      "because": ["0035", "0010"],
-      "seeAlso": ["enums/representation", "enums/no-class-machinery", "enums/closed-integer-type"],
-      "guardedBy": ["crates/nvs-codegen/tests/arithmetic.rs"]
     }
   ]
 }

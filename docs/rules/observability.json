@@ -1,7 +1,7 @@
 {
   "topic": "observability",
   "title": "Observability",
-  "order": 180,
+  "order": 170,
   "rules": [
     {
       "id": "observability/the-runtime-exports-what-it-already-measures",
@@ -25,6 +25,65 @@
       ]
     },
     {
+      "id": "observability/a-trace-id-exists-for-every-request",
+      "title": "A trace id exists for every request whatever the sampling decision, and it is the only request identifier",
+      "status": "shipped",
+      "because": [
+        "0076",
+        "0097"
+      ],
+      "divergesFromPhp": "there is no `X-Request-ID` read or minted; the W3C trace id is the request identifier a log line, an error rendering and a proxy all share",
+      "seeAlso": [
+        "observability/an-inbound-traceparent-is-continued",
+        "observability/a-log-record-carries-trace-ids-when-a-trace-is-active",
+        "observability/sampling-is-head-based",
+        "security/metric-label-refuses-tainted"
+      ],
+      "guardedBy": [
+        "crates/nvs-runtime/src/trace_context.rs",
+        "crates/nvs-server/src/trace.rs"
+      ]
+    },
+    {
+      "id": "observability/a-log-record-carries-trace-ids-when-a-trace-is-active",
+      "title": "A log record inside an active trace carries `trace_id` and `span_id`, and outside one omits both rather than writing them empty",
+      "status": "shipped",
+      "because": [
+        "0076",
+        "0020",
+        "0092"
+      ],
+      "divergesFromPhp": "`error_log` writes no correlation id; every JSON-Lines record written inside a traced request can be joined to its trace from the line alone",
+      "seeAlso": [
+        "errors/log-write",
+        "errors/log-fields",
+        "errors/diagnostic-record",
+        "observability/a-trace-id-exists-for-every-request"
+      ],
+      "guardedBy": [
+        "crates/nvs-stdlib/src/log.rs",
+        "crates/nvs-server/src/trace.rs"
+      ]
+    },
+    {
+      "id": "observability/metrics-three-members",
+      "title": "`Core\\Metrics` is three verbs for three kinds, always present, and accumulates whether or not an exporter is built",
+      "status": "designed",
+      "because": [
+        "0076",
+        "0051"
+      ],
+      "divergesFromPhp": "there is no client library to install and no `record(name, value, kind)`; a counter, a histogram and a gauge are three members, and a name is validated at a literal call site",
+      "seeAlso": [
+        "observability/a-name-is-fixed-to-one-kind",
+        "observability/the-exporter-is-a-feature-and-core-metrics-is-not",
+        "security/metric-label-refuses-tainted",
+        "core-api/core-means-always-present",
+        "security/secret-sinks-refuse"
+      ],
+      "guardedBy": []
+    },
+    {
       "id": "observability/default-series",
       "title": "Nine series exist the moment an exporter is configured, with no application code written",
       "status": "designed",
@@ -41,6 +100,22 @@
         "config/scheduled-work-is-a-config-block",
         "programs/memory-priority",
         "observability/trace-events-carry-a-kind"
+      ],
+      "guardedBy": [
+        "crates/nvs-server/src/metrics.rs"
+      ]
+    },
+    {
+      "id": "observability/a-name-is-fixed-to-one-kind",
+      "title": "A metric name is fixed to one kind and one label set on first use, and a second kind throws naming both sites",
+      "status": "designed",
+      "because": [
+        "0076"
+      ],
+      "divergesFromPhp": "recording one name as a counter here and a gauge there is a throw at the second call, not a series the backend quietly reports twice",
+      "seeAlso": [
+        "observability/metrics-three-members",
+        "observability/past-max-series-a-new-series-is-refused"
       ],
       "guardedBy": [
         "crates/nvs-server/src/metrics.rs"
@@ -69,6 +144,67 @@
       ]
     },
     {
+      "id": "observability/a-registry-is-per-core-and-nothing-reads-it",
+      "title": "A metrics registry is per core, merged at scrape, and no program reads a metric",
+      "status": "shipped",
+      "because": [
+        "0076",
+        "0059"
+      ],
+      "divergesFromPhp": "there is no APCu-style shared counter store; every core keeps its own approximate aggregate and the merge is arithmetic at scrape time",
+      "seeAlso": [
+        "concurrency/cross-request-state-is-explicit",
+        "concurrency/cache-memory-is-charged-to-the-core",
+        "core-classes/ratelimit-two-members",
+        "observability/past-max-series-a-new-series-is-refused",
+        "security/metric-label-refuses-tainted"
+      ],
+      "guardedBy": [
+        "crates/nvs-server/src/metrics.rs"
+      ]
+    },
+    {
+      "id": "observability/past-max-series-a-new-series-is-refused",
+      "title": "Past `max_series` a new series is refused and an existing one is never evicted",
+      "status": "shipped",
+      "because": [
+        "0076"
+      ],
+      "divergesFromPhp": "past the cap the newest label set is dropped with a warning, not the oldest evicted; a counter never appears to reset",
+      "seeAlso": [
+        "observability/a-registry-is-per-core-and-nothing-reads-it",
+        "observability/default-series",
+        "concurrency/cache-memory-is-charged-to-the-core",
+        "programs/memory-priority"
+      ],
+      "guardedBy": [
+        "crates/nvs-server/src/metrics.rs"
+      ]
+    },
+    {
+      "id": "observability/metrics-and-trace-blocks-are-system",
+      "title": "`[metrics]` and `[trace]` are `System` blocks, and a value neither exporter accepts is refused at boot",
+      "status": "shipped",
+      "because": [
+        "0076",
+        "0064",
+        "0005"
+      ],
+      "divergesFromPhp": "a request cannot switch tracing on for itself the way `xdebug_start_trace()` or an `ini_set` can; where telemetry ships is the deployment's decision",
+      "seeAlso": [
+        "config/system-means-a-request-may-not-set-it",
+        "config/three-changeability-classes",
+        "testing/debug-mode-directive",
+        "observability/sampling-is-head-based",
+        "observability/past-max-series-a-new-series-is-refused",
+        "observability/the-exporter-is-a-feature-and-core-metrics-is-not"
+      ],
+      "guardedBy": [
+        "crates/nvs-config/src/export.rs",
+        "crates/nvs-config/tests/tree.rs"
+      ]
+    },
+    {
       "id": "observability/four-kinds-become-a-span",
       "title": "Exactly four things become a span, and a `call` event never does",
       "status": "designed",
@@ -90,24 +226,110 @@
       "guardedBy": []
     },
     {
-      "id": "observability/a-trace-id-exists-for-every-request",
-      "title": "A trace id exists for every request whatever the sampling decision, and it is the only request identifier",
+      "id": "observability/a-call-never-becomes-a-span",
+      "title": "A `call` event never becomes a span; the root, a `query`, an outbound HTTP call and a `spawn` do, and `gc` becomes a metric",
+      "status": "designed",
+      "because": [
+        "0041",
+        "0076"
+      ],
+      "divergesFromPhp": "an OpenTelemetry SDK installed as a library lets a program open a span around any function; here the set of things that become a span is closed and a function call is not in it",
+      "seeAlso": [
+        "observability/trace-events-carry-a-kind",
+        "observability/gc-pause-is-its-own-event",
+        "observability/spawn-is-its-own-event",
+        "observability/default-series",
+        "observability/a-registry-is-per-core-and-nothing-reads-it"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "observability/trace-events-carry-a-kind",
+      "title": "A trace event carries one of four kinds — `call`, `gc`, `spawn`, `query` — and a `call` keeps its probe shape",
       "status": "shipped",
       "because": [
-        "0076",
-        "0097"
+        "0041",
+        "0018",
+        "0067"
       ],
-      "divergesFromPhp": "there is no `X-Request-ID` read or minted; the W3C trace id is the request identifier a log line, an error rendering and a proxy all share",
+      "divergesFromPhp": "Xdebug's trace is a log of function calls; here a collector pause, an isolate spawn and a database statement are events of their own on the same stream, tagged so a viewer can tell them apart",
       "seeAlso": [
-        "observability/an-inbound-traceparent-is-continued",
-        "observability/a-log-record-carries-trace-ids-when-a-trace-is-active",
-        "observability/sampling-is-head-based",
-        "security/metric-label-refuses-tainted"
+        "testing/debug-probes",
+        "security/secret-qualifier",
+        "observability/a-query-is-a-trace-event"
       ],
       "guardedBy": [
-        "crates/nvs-runtime/src/trace_context.rs",
-        "crates/nvs-server/src/trace.rs"
+        "crates/nvs-runtime/src/ctx/trace.rs"
       ]
+    },
+    {
+      "id": "observability/a-query-is-a-trace-event",
+      "title": "A statement is a `query` trace event that carries its duration, driver, connection, truncated SQL and row counts, and never a bound parameter",
+      "status": "shipped",
+      "because": [
+        "0067",
+        "0041"
+      ],
+      "divergesFromPhp": "there are no mysqlnd statistics and no general query log; a statement is a trace event, filed in the driver and off the hot path, and it never carries a bound value",
+      "seeAlso": [
+        "observability/a-slow-query-is-logged-past-a-threshold",
+        "observability/four-kinds-become-a-span",
+        "core-classes/db-error",
+        "core-classes/db-connection-is-named",
+        "testing/debug-probes",
+        "observability/trace-events-carry-a-kind"
+      ],
+      "guardedBy": [
+        "crates/nvs-runtime/src/ctx/trace.rs",
+        "crates/nvs-db/src/span.rs"
+      ]
+    },
+    {
+      "id": "observability/a-slow-query-is-logged-past-a-threshold",
+      "title": "A `[db.<name>] slow_query` threshold writes a statement's span facts to `Core\\Log`, and is off until a block writes one",
+      "status": "shipped",
+      "because": [
+        "0067"
+      ],
+      "divergesFromPhp": "the slow-query log is a per-connection threshold in `nvs.toml` written by the application's operator, not the server's `slow_query_log`, and it reports the same facts the trace does",
+      "seeAlso": [
+        "observability/a-query-is-a-trace-event",
+        "core-classes/db-connection-is-named",
+        "errors/log-write"
+      ],
+      "guardedBy": [
+        "crates/nvs-config/tests/db.rs"
+      ]
+    },
+    {
+      "id": "observability/gc-pause-is-its-own-event",
+      "title": "A collector pause is a `gc` event recorded from the collector's run routine, never from the safepoint poll",
+      "status": "designed",
+      "because": [
+        "0041",
+        "0018"
+      ],
+      "seeAlso": [
+        "observability/trace-events-carry-a-kind",
+        "testing/debug-probes",
+        "observability/a-registry-is-per-core-and-nothing-reads-it"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "observability/spawn-is-its-own-event",
+      "title": "An isolate spawn and its join are one `spawn` event with an overhead split, and the child's stream is stitched in at export time",
+      "status": "designed",
+      "because": [
+        "0041",
+        "0018"
+      ],
+      "seeAlso": [
+        "observability/trace-events-carry-a-kind",
+        "security/isolate-shares-nothing",
+        "security/isolate-failure-is-a-value"
+      ],
+      "guardedBy": []
     },
     {
       "id": "observability/an-inbound-traceparent-is-continued",
@@ -159,104 +381,6 @@
       "guardedBy": []
     },
     {
-      "id": "observability/metrics-three-members",
-      "title": "`Core\\Metrics` is three verbs for three kinds, always present, and accumulates whether or not an exporter is built",
-      "status": "designed",
-      "because": [
-        "0076",
-        "0051"
-      ],
-      "divergesFromPhp": "there is no client library to install and no `record(name, value, kind)`; a counter, a histogram and a gauge are three members, and a name is validated at a literal call site",
-      "seeAlso": [
-        "observability/a-name-is-fixed-to-one-kind",
-        "observability/the-exporter-is-a-feature-and-core-metrics-is-not",
-        "security/metric-label-refuses-tainted",
-        "core-api/core-means-always-present",
-        "security/secret-sinks-refuse"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "observability/a-name-is-fixed-to-one-kind",
-      "title": "A metric name is fixed to one kind and one label set on first use, and a second kind throws naming both sites",
-      "status": "designed",
-      "because": [
-        "0076"
-      ],
-      "divergesFromPhp": "recording one name as a counter here and a gauge there is a throw at the second call, not a series the backend quietly reports twice",
-      "seeAlso": [
-        "observability/metrics-three-members",
-        "observability/past-max-series-a-new-series-is-refused"
-      ],
-      "guardedBy": [
-        "crates/nvs-server/src/metrics.rs"
-      ]
-    },
-    {
-      "id": "observability/a-registry-is-per-core-and-nothing-reads-it",
-      "title": "A metrics registry is per core, merged at scrape, and no program reads a metric",
-      "status": "shipped",
-      "because": [
-        "0076",
-        "0059"
-      ],
-      "divergesFromPhp": "there is no APCu-style shared counter store; every core keeps its own approximate aggregate and the merge is arithmetic at scrape time",
-      "seeAlso": [
-        "concurrency/cross-request-state-is-explicit",
-        "concurrency/cache-memory-is-charged-to-the-core",
-        "core-classes/ratelimit-two-members",
-        "observability/past-max-series-a-new-series-is-refused",
-        "security/metric-label-refuses-tainted"
-      ],
-      "guardedBy": [
-        "crates/nvs-server/src/metrics.rs"
-      ]
-    },
-    {
-      "id": "observability/metrics-and-trace-blocks-are-system",
-      "title": "`[metrics]` and `[trace]` are `System` blocks, and a value neither exporter accepts is refused at boot",
-      "status": "shipped",
-      "because": [
-        "0076",
-        "0064",
-        "0005"
-      ],
-      "divergesFromPhp": "a request cannot switch tracing on for itself the way `xdebug_start_trace()` or an `ini_set` can; where telemetry ships is the deployment's decision",
-      "seeAlso": [
-        "config/system-means-a-request-may-not-set-it",
-        "config/three-changeability-classes",
-        "testing/debug-mode-directive",
-        "observability/sampling-is-head-based",
-        "observability/past-max-series-a-new-series-is-refused",
-        "observability/the-exporter-is-a-feature-and-core-metrics-is-not"
-      ],
-      "guardedBy": [
-        "crates/nvs-config/src/export.rs",
-        "crates/nvs-config/tests/tree.rs"
-      ]
-    },
-    {
-      "id": "observability/a-log-record-carries-trace-ids-when-a-trace-is-active",
-      "title": "A log record inside an active trace carries `trace_id` and `span_id`, and outside one omits both rather than writing them empty",
-      "status": "shipped",
-      "because": [
-        "0076",
-        "0020",
-        "0092"
-      ],
-      "divergesFromPhp": "`error_log` writes no correlation id; every JSON-Lines record written inside a traced request can be joined to its trace from the line alone",
-      "seeAlso": [
-        "errors/log-write",
-        "errors/log-fields",
-        "errors/diagnostic-record",
-        "observability/a-trace-id-exists-for-every-request"
-      ],
-      "guardedBy": [
-        "crates/nvs-stdlib/src/log.rs",
-        "crates/nvs-server/src/trace.rs"
-      ]
-    },
-    {
       "id": "observability/the-exporter-is-a-feature-and-core-metrics-is-not",
       "title": "The exporter is a feature-gated Native subsystem, and `Core\\Metrics` is Tier 0 in every build",
       "status": "designed",
@@ -275,24 +399,6 @@
       "guardedBy": []
     },
     {
-      "id": "observability/past-max-series-a-new-series-is-refused",
-      "title": "Past `max_series` a new series is refused and an existing one is never evicted",
-      "status": "shipped",
-      "because": [
-        "0076"
-      ],
-      "divergesFromPhp": "past the cap the newest label set is dropped with a warning, not the oldest evicted; a counter never appears to reset",
-      "seeAlso": [
-        "observability/a-registry-is-per-core-and-nothing-reads-it",
-        "observability/default-series",
-        "concurrency/cache-memory-is-charged-to-the-core",
-        "programs/memory-priority"
-      ],
-      "guardedBy": [
-        "crates/nvs-server/src/metrics.rs"
-      ]
-    },
-    {
       "id": "observability/the-exporters-are-crates",
       "title": "The OTLP and Prometheus paths are dependencies; the event-to-span wiring and the per-core registry are ours",
       "status": "designed",
@@ -303,94 +409,6 @@
         "observability/the-exporter-is-a-feature-and-core-metrics-is-not",
         "observability/four-kinds-become-a-span",
         "observability/a-registry-is-per-core-and-nothing-reads-it"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "observability/a-query-is-a-trace-event",
-      "title": "A statement is a `query` trace event that carries its duration, driver, connection, truncated SQL and row counts, and never a bound parameter",
-      "status": "shipped",
-      "because": [
-        "0067",
-        "0041"
-      ],
-      "divergesFromPhp": "there are no mysqlnd statistics and no general query log; a statement is a trace event, filed in the driver and off the hot path, and it never carries a bound value",
-      "seeAlso": [
-        "observability/a-slow-query-is-logged-past-a-threshold",
-        "observability/four-kinds-become-a-span",
-        "core-classes/db-error",
-        "core-classes/db-connection-is-named",
-        "testing/debug-probes",
-        "observability/trace-events-carry-a-kind"
-      ],
-      "guardedBy": [
-        "crates/nvs-runtime/src/ctx/trace.rs",
-        "crates/nvs-db/src/span.rs"
-      ]
-    },
-    {
-      "id": "observability/a-slow-query-is-logged-past-a-threshold",
-      "title": "A `[db.<name>] slow_query` threshold writes a statement's span facts to `Core\\Log`, and is off until a block writes one",
-      "status": "shipped",
-      "because": [
-        "0067"
-      ],
-      "divergesFromPhp": "the slow-query log is a per-connection threshold in `nvs.toml` written by the application's operator, not the server's `slow_query_log`, and it reports the same facts the trace does",
-      "seeAlso": [
-        "observability/a-query-is-a-trace-event",
-        "core-classes/db-connection-is-named",
-        "errors/log-write"
-      ],
-      "guardedBy": [
-        "crates/nvs-config/tests/db.rs"
-      ]
-    },
-    {
-      "id": "observability/trace-events-carry-a-kind",
-      "title": "A trace event carries one of four kinds — `call`, `gc`, `spawn`, `query` — and a `call` keeps its probe shape",
-      "status": "shipped",
-      "because": [
-        "0041",
-        "0018",
-        "0067"
-      ],
-      "divergesFromPhp": "Xdebug's trace is a log of function calls; here a collector pause, an isolate spawn and a database statement are events of their own on the same stream, tagged so a viewer can tell them apart",
-      "seeAlso": [
-        "testing/debug-probes",
-        "security/secret-qualifier",
-        "observability/a-query-is-a-trace-event"
-      ],
-      "guardedBy": [
-        "crates/nvs-runtime/src/ctx/trace.rs"
-      ]
-    },
-    {
-      "id": "observability/gc-pause-is-its-own-event",
-      "title": "A collector pause is a `gc` event recorded from the collector's run routine, never from the safepoint poll",
-      "status": "designed",
-      "because": [
-        "0041",
-        "0018"
-      ],
-      "seeAlso": [
-        "observability/trace-events-carry-a-kind",
-        "testing/debug-probes",
-        "observability/a-registry-is-per-core-and-nothing-reads-it"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "observability/spawn-is-its-own-event",
-      "title": "An isolate spawn and its join are one `spawn` event with an overhead split, and the child's stream is stitched in at export time",
-      "status": "designed",
-      "because": [
-        "0041",
-        "0018"
-      ],
-      "seeAlso": [
-        "observability/trace-events-carry-a-kind",
-        "security/isolate-shares-nothing",
-        "security/isolate-failure-is-a-value"
       ],
       "guardedBy": []
     },
@@ -407,24 +425,6 @@
       "seeAlso": [
         "observability/trace-events-carry-a-kind",
         "testing/debug-surface"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "observability/a-call-never-becomes-a-span",
-      "title": "A `call` event never becomes a span; the root, a `query`, an outbound HTTP call and a `spawn` do, and `gc` becomes a metric",
-      "status": "designed",
-      "because": [
-        "0041",
-        "0076"
-      ],
-      "divergesFromPhp": "an OpenTelemetry SDK installed as a library lets a program open a span around any function; here the set of things that become a span is closed and a function call is not in it",
-      "seeAlso": [
-        "observability/trace-events-carry-a-kind",
-        "observability/gc-pause-is-its-own-event",
-        "observability/spawn-is-its-own-event",
-        "observability/default-series",
-        "observability/a-registry-is-per-core-and-nothing-reads-it"
       ],
       "guardedBy": []
     },
@@ -468,26 +468,6 @@
       ]
     },
     {
-      "id": "observability/a-fatal-and-a-cancellation-run-no-exit-hook",
-      "title": "A `FATAL` and a cancellation run no exit hook — `Core\\Fatal::onLimit` is the one observer of a limit breach",
-      "status": "shipped",
-      "because": [
-        "0127",
-        "0020",
-        "0072"
-      ],
-      "divergesFromPhp": "PHP's shutdown functions fire on most fatals; here a resource-limit `FATAL` reaches only `Core\\Fatal::onLimit`, and a migrator moves that one use there",
-      "seeAlso": [
-        "observability/three-endings-fire-the-exit-queue",
-        "errors/on-limit",
-        "errors/escalation-ladder",
-        "concurrency/cancellation-runs-no-user-code"
-      ],
-      "guardedBy": [
-        "crates/nvs-stdlib/src/script.rs"
-      ]
-    },
-    {
       "id": "observability/exit-hooks-run-after-the-ladder-before-teardown",
       "title": "Exit hooks run after every `finally` and after the failure hooks, and before native teardown, with the heap alive and output where it was",
       "status": "shipped",
@@ -507,6 +487,26 @@
         "tests/conformance/core/script-on-exit-carries-the-live-throwable-of-an-uncaught-throw.nvst",
         "tests/conformance/core/script-on-exit-sees-the-exit-no-finally-can-see.nvst",
         "crates/nvs-cli/src/main.rs"
+      ]
+    },
+    {
+      "id": "observability/a-fatal-and-a-cancellation-run-no-exit-hook",
+      "title": "A `FATAL` and a cancellation run no exit hook — `Core\\Fatal::onLimit` is the one observer of a limit breach",
+      "status": "shipped",
+      "because": [
+        "0127",
+        "0020",
+        "0072"
+      ],
+      "divergesFromPhp": "PHP's shutdown functions fire on most fatals; here a resource-limit `FATAL` reaches only `Core\\Fatal::onLimit`, and a migrator moves that one use there",
+      "seeAlso": [
+        "observability/three-endings-fire-the-exit-queue",
+        "errors/on-limit",
+        "errors/escalation-ladder",
+        "concurrency/cancellation-runs-no-user-code"
+      ],
+      "guardedBy": [
+        "crates/nvs-stdlib/src/script.rs"
       ]
     },
     {

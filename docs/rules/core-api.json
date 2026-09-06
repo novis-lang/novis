@@ -1,281 +1,16 @@
 {
   "topic": "core-api",
   "title": "The Core API",
-  "order": 110,
+  "order": 150,
   "rules": [
     {
-      "id": "core-api/shape-rules",
-      "title": "Every `Core` member obeys the same twenty shape rules, R1–R20",
+      "id": "core-api/core-means-always-present",
+      "title": "`Core` means always present, so nothing outside Tier 0 may register a name under it",
       "status": "shipped",
-      "because": ["0063", "0011", "0051", "0135", "0147"],
-      "divergesFromPhp": "PHP's built-ins have no API at all — argument order, failure signalling and option encoding vary between neighbouring functions in the same extension",
-      "seeAlso": ["core-api/subject-first", "core-api/options-bag", "core-api/nothing-mutates", "core-api/failure-throws", "core-api/one-paradigm-per-operation"],
+      "because": ["0051", "0011", "0003"],
+      "seeAlso": ["core-api/reserved-namespace", "core-api/tier-placement", "core-api/five-placements"],
       "guardedBy": [
-        "crates/nvs-stdlib/src/registry.rs",
-        "crates/nvs-stdlib/tests/spec_registry_coverage.rs"
-      ]
-    },
-    {
-      "id": "core-api/subject-first",
-      "title": "The subject is parameter 1 of every `Core` member, with no exceptions",
-      "status": "shipped",
-      "because": ["0063"],
-      "divergesFromPhp": "`array_map(f, a)` beside `array_filter(a, f)`, and `in_array`, `str_replace` and `preg_match` disagreeing about haystack-before-needle, all become one order",
-      "seeAlso": ["core-api/shape-rules", "core-api/one-name-one-signature"],
-      "guardedBy": [
-        "tests/conformance/core/arr-map-and-filter.nvst",
-        "crates/nvs-stdlib/src/registry.rs"
-      ]
-    },
-    {
-      "id": "core-api/options-bag",
-      "title": "A member's optional knobs are one trailing shape literal, never a flag or a bitmask",
-      "status": "shipped",
-      "because": ["0063", "0147", "0135"],
-      "divergesFromPhp": "there are no `bool` flag parameters, no `int` bitmask constants and no positional optional tail longer than one",
-      "seeAlso": ["core-api/parameters-are-callable-by-name", "core-api/shape-parameter", "core-api/omission-is-not-a-written-null", "types/object-top"],
-      "guardedBy": [
-        "crates/nvs-types/tests/core_members.rs",
-        "crates/nvs-codegen/tests/core_str.rs",
-        "tests/conformance/core/command-run-fills-an-unwritten-option-from-its-declared-default.nvst"
-      ]
-    },
-    {
-      "id": "core-api/parameters-are-callable-by-name",
-      "title": "Every `Core` parameter is callable by the name the spec writes, and that name is compatibility surface",
-      "status": "shipped",
-      "because": ["0063", "0117"],
-      "seeAlso": ["core-api/options-bag", "core-api/reference-card", "types/arrays"],
-      "guardedBy": [
-        "tests/conformance/reject/a-misspelled-name-at-a-core-member-is-unknown.nvst",
-        "crates/nvs-stdlib/tests/spec_registry_coverage.rs",
-        "crates/nvs-stdlib/src/registry.rs"
-      ]
-    },
-    {
-      "id": "core-api/nothing-mutates",
-      "title": "No `Core` member mutates its argument and none takes a reference",
-      "status": "shipped",
-      "because": ["0063"],
-      "divergesFromPhp": "`sort($a)` becomes `$a = Arr::sort($a)`; there are no by-reference mutators, no out-parameters and no in-place variants",
-      "seeAlso": ["core-api/shape-rules", "core-api/no-mutable-immutable-twins", "statements/inout-is-the-by-reference-spelling"],
-      "guardedBy": [
-        "tests/conformance/core/arr-map-and-filter-keep-their-keys.nvst",
-        "crates/nvs-stdlib/src/arr.rs"
-      ]
-    },
-    {
-      "id": "core-api/failure-throws",
-      "title": "A `Core` member throws on failure and returns `?T` for absence; `false` is never an answer",
-      "status": "shipped",
-      "because": ["0063"],
-      "divergesFromPhp": "no member returns `false` to signal failure, no member returns an error code, and there is no `json_last_error` or `error_get_last`",
-      "seeAlso": ["core-api/verb-lexicon", "core-api/one-refusal-except-expiry", "errors/throwable-hierarchy", "expressions/nullable-conversion-availability"],
-      "guardedBy": [
-        "crates/nvs-stdlib/src/registry.rs",
-        "tests/conformance/core/json-encode-refuses-exactly-the-values-json-cannot-spell.nvst"
-      ]
-    },
-    {
-      "id": "core-api/verb-lexicon",
-      "title": "A member's verb predicts its return type, and `…OrNull`, `…Safe`, `…Ex` and every `try…` but `tryParse` are banned",
-      "status": "shipped",
-      "because": ["0063", "0145"],
-      "seeAlso": ["core-api/failure-throws", "core-api/symmetric-names", "expressions/try-parse"],
-      "guardedBy": [
-        "crates/nvs-stdlib/src/registry.rs"
-      ]
-    },
-    {
-      "id": "core-api/symmetric-names",
-      "title": "A symmetric operation gets a symmetric name, and which pair to reach for is a rule rather than taste",
-      "status": "shipped",
-      "because": ["0063"],
-      "seeAlso": ["core-api/verb-lexicon", "core-api/members-are-full-words"],
-      "guardedBy": [
-        "crates/nvs-stdlib/src/registry.rs"
-      ]
-    },
-    {
-      "id": "core-api/members-are-full-words",
-      "title": "A member name is a full word; only a class name may abbreviate, and only from a closed list",
-      "status": "shipped",
-      "because": ["0063", "0011"],
-      "divergesFromPhp": "`strlen` is `Core\\Str::length`, not `Core\\Str::len`",
-      "seeAlso": ["core-api/identifier-casing", "core-api/a-domain-class-is-a-singular-noun"],
-      "guardedBy": [
-        "crates/nvs-stdlib/src/registry.rs"
-      ]
-    },
-    {
-      "id": "core-api/one-range-convention",
-      "title": "Every range is `(offset, ?length)`, and a negative counts from the end",
-      "status": "shipped",
-      "because": ["0063"],
-      "seeAlso": ["core-api/shape-rules", "types/preserve-keys"],
-      "guardedBy": [
-        "crates/nvs-stdlib/src/arr.rs",
-        "crates/nvs-stdlib/src/str.rs"
-      ]
-    },
-    {
-      "id": "core-api/callback-receives-value-and-key",
-      "title": "A callback always receives `($value, $key)`, and may declare fewer parameters than the call site passes",
-      "status": "shipped",
-      "because": ["0063"],
-      "divergesFromPhp": "`ARRAY_FILTER_USE_KEY` and `ARRAY_FILTER_USE_BOTH` have nothing to select, and there is no `map`/`mapWithKey` pair",
-      "seeAlso": ["core-api/no-mode-strings", "types/callable-arity", "types/callable-is-a-closure"],
-      "guardedBy": [
-        "tests/conformance/core/arr-map-and-filter.nvst",
-        "tests/conformance/core/arr-map-keys-rekeys-and-group-by-partitions.nvst"
-      ]
-    },
-    {
-      "id": "core-api/no-mode-strings",
-      "title": "A mode is an enum, never a string or an integer constant, and only four grammars are exempt",
-      "status": "shipped",
-      "because": ["0063"],
-      "divergesFromPhp": "`fopen($p, \"r+b\")`, `hash(\"sha256\", …)` and `MB_CASE_TITLE` have no spelling; a closed enum, or a subset of one, takes their place",
-      "seeAlso": ["core-api/units-are-types", "enums/closed-integer-type", "types/literal-types", "expressions/intrinsic-literals"],
-      "guardedBy": [
-        "crates/nvs-stdlib/src/registry.rs",
-        "tests/conformance/core/regex-split-honours-its-options.nvst"
-      ]
-    },
-    {
-      "id": "core-api/units-are-types",
-      "title": "A unit is a type: a duration is a `Duration` and a size is `uint` bytes",
-      "status": "shipped",
-      "because": ["0063"],
-      "divergesFromPhp": "the `sleep`/`usleep`/`time_nanosleep` split does not exist — one parameter takes one `Duration`",
-      "seeAlso": ["core-api/no-mode-strings", "types/duration-literal"],
-      "guardedBy": [
-        "tests/conformance/core/time-duration-constructors-and-readers-are-one-scale.nvst"
-      ]
-    },
-    {
-      "id": "core-api/no-encoding-argument",
-      "title": "A `string` member never takes an encoding argument",
-      "status": "shipped",
-      "because": ["0063", "0051"],
-      "seeAlso": ["types/string-is-utf8", "types/bytes"],
-      "guardedBy": [
-        "crates/nvs-stdlib/src/encoding.rs",
-        "crates/nvs-stdlib/src/str.rs"
-      ]
-    },
-    {
-      "id": "core-api/a-lifetime-is-an-object",
-      "title": "Anything with a lifetime is an object, and `Core` never hands back a handle",
-      "status": "shipped",
-      "because": ["0063", "0003"],
-      "divergesFromPhp": "there is no `resource`, no integer handle and no `$link`-first convention anywhere in `Core`",
-      "seeAlso": ["core-api/one-paradigm-per-operation", "classes/no-destructors", "types/grammar"],
-      "guardedBy": [
-        "crates/nvs-stdlib/src/registry.rs"
-      ]
-    },
-    {
-      "id": "core-api/one-name-one-signature",
-      "title": "One name has one signature, and two behaviours need two names",
-      "status": "shipped",
-      "because": ["0063", "0051"],
-      "seeAlso": ["core-api/verb-lexicon", "core-api/two-cache-tiers", "statements/nothing-gets-a-second-name"],
-      "guardedBy": [
-        "crates/nvs-stdlib/src/registry.rs"
-      ]
-    },
-    {
-      "id": "core-api/a-domain-class-is-a-singular-noun",
-      "title": "A domain class is a singular noun and its object types nest under it",
-      "status": "shipped",
-      "because": ["0063", "0011"],
-      "seeAlso": ["core-api/members-are-full-words", "core-api/reserved-namespace", "classes/no-free-functions-or-constants"],
-      "guardedBy": [
-        "crates/nvs-stdlib/src/registry.rs"
-      ]
-    },
-    {
-      "id": "core-api/one-paradigm-per-operation",
-      "title": "No operation is reachable two ways, and a domain class's statics never mirror an object's own methods",
-      "status": "shipped",
-      "because": ["0063", "0051", "0122"],
-      "divergesFromPhp": "the procedural twin of every OOP subsystem is gone — `date_*`, `collator_*`, the `fopen` family beside `SplFileObject`, `mysqli` twice",
-      "seeAlso": ["core-api/no-methods-on-scalars-or-arrays", "core-api/no-mutable-immutable-twins", "core-api/each-door-takes-a-different-thing", "classes/no-call-magic", "expressions/pipeline-substitution"],
-      "guardedBy": [
-        "tests/conformance/reject/a-core-instance-member-has-one-spelling.nvst",
-        "crates/nvs-stdlib/src/registry.rs"
-      ]
-    },
-    {
-      "id": "core-api/no-methods-on-scalars-or-arrays",
-      "title": "A scalar and an `array<T>` never gain methods",
-      "status": "shipped",
-      "because": ["0063"],
-      "divergesFromPhp": "there is no `$s->length()` and no `$a->map()` — `Core\\Str` and `Core\\Arr` are the one spelling",
-      "seeAlso": ["core-api/one-paradigm-per-operation", "types/erased-member-access"],
-      "guardedBy": [
-        "crates/nvs-types/src/expr/calls.rs"
-      ]
-    },
-    {
-      "id": "core-api/no-mutable-immutable-twins",
-      "title": "Every `Core` value type is immutable, so no mutable twin exists to choose between",
-      "status": "shipped",
-      "because": ["0063"],
-      "divergesFromPhp": "there is no `DateTime`/`DateTimeImmutable` pair — one type, immutable",
-      "seeAlso": ["core-api/nothing-mutates", "core-api/one-paradigm-per-operation", "classes/two-copy-depths"],
-      "guardedBy": [
-        "crates/nvs-stdlib/src/time.rs",
-        "crates/nvs-stdlib/src/registry.rs"
-      ]
-    },
-    {
-      "id": "core-api/removals",
-      "title": "A PHP built-in is absent for one of four standing reasons, and every removed name is accounted for by name",
-      "status": "shipped",
-      "because": ["0063", "0051"],
-      "divergesFromPhp": "roughly 1,900 built-ins become about 450 members covering strictly more ground",
-      "seeAlso": ["core-api/no-ambient-state", "core-api/one-paradigm-per-operation", "types/no-legacy-cast", "types/array-combination"],
-      "guardedBy": [
-        "docs/spec/02-php-migration.md",
-        "tools/check-migration.py"
-      ]
-    },
-    {
-      "id": "core-api/no-ambient-state",
-      "title": "No `Core` member reads ambient state: there is no default timezone, locale, array pointer or error global",
-      "status": "shipped",
-      "because": ["0063", "0051"],
-      "divergesFromPhp": "`setlocale`, `date_default_timezone_set`, the internal array pointer and every error global are absent; a `Zone` is an argument at every instant↔calendar conversion",
-      "seeAlso": ["core-api/removals", "core-api/tier-placement", "statements/no-function-static-and-no-global"],
-      "guardedBy": [
-        "crates/nvs-stdlib/src/cldr.rs",
-        "crates/nvs-config/src/schedule.rs"
-      ]
-    },
-    {
-      "id": "core-api/written-participation",
-      "title": "A class participates in a wire format only where it writes so, never structurally",
-      "status": "shipped",
-      "because": ["0063", "0071", "0028", "0033"],
-      "divergesFromPhp": "there is no `JsonSerializable`-style magic hook and no structural encoding of public properties",
-      "seeAlso": ["core-api/required-optional-and-nullable", "classes/no-magic-methods", "classes/serialize-is-a-closed-format", "attributes/inert-metadata", "types/object-top"],
-      "guardedBy": [
-        "tests/conformance/core/json-encode-decode-and-validate.nvst",
-        "tests/conformance/core/json-encodes-a-shape-as-an-object.nvst",
-        "tests/conformance/core/json-derive-encodes-declared-fields.nvst"
-      ]
-    },
-    {
-      "id": "core-api/qualifier-behaviour-is-declared",
-      "title": "Every `Core` member declares whether it is a sink, a launderer, contagious or neutral",
-      "status": "shipped",
-      "because": ["0063", "0024", "0055", "0135"],
-      "seeAlso": ["core-api/shape-flattens-at-the-abi", "core-api/tier-placement"],
-      "guardedBy": [
-        "crates/nvs-stdlib/src/registry.rs",
-        "tests/conformance/reject/a-core-io-path-refuses-a-tainted-argument.nvst"
+        "crates/nvs-stdlib/tests/tier_boundary.rs"
       ]
     },
     {
@@ -311,16 +46,6 @@
       ]
     },
     {
-      "id": "core-api/core-means-always-present",
-      "title": "`Core` means always present, so nothing outside Tier 0 may register a name under it",
-      "status": "shipped",
-      "because": ["0051", "0011", "0003"],
-      "seeAlso": ["core-api/reserved-namespace", "core-api/tier-placement", "core-api/five-placements"],
-      "guardedBy": [
-        "crates/nvs-stdlib/tests/tier_boundary.rs"
-      ]
-    },
-    {
       "id": "core-api/reserved-namespace",
       "title": "The `Core` namespace is the compiler's: nothing may declare under it and its rosters are closed while compiling",
       "status": "shipped",
@@ -332,6 +57,81 @@
         "tests/conformance/reject/an-unknown-core-constant-is-a-compile-error.nvst",
         "tests/conformance/reject/an-unregistered-core-member-is-unknown.nvst",
         "crates/nvs-syntax/src/parser/decl.rs"
+      ]
+    },
+    {
+      "id": "core-api/a-domain-class-is-a-singular-noun",
+      "title": "A domain class is a singular noun and its object types nest under it",
+      "status": "shipped",
+      "because": ["0063", "0011"],
+      "seeAlso": ["core-api/members-are-full-words", "core-api/reserved-namespace", "classes/no-free-functions-or-constants"],
+      "guardedBy": [
+        "crates/nvs-stdlib/src/registry.rs"
+      ]
+    },
+    {
+      "id": "core-api/shape-rules",
+      "title": "Every `Core` member obeys the same twenty shape rules, R1–R20",
+      "status": "shipped",
+      "because": ["0063", "0011", "0051", "0135", "0147"],
+      "divergesFromPhp": "PHP's built-ins have no API at all — argument order, failure signalling and option encoding vary between neighbouring functions in the same extension",
+      "seeAlso": ["core-api/subject-first", "core-api/options-bag", "core-api/nothing-mutates", "core-api/failure-throws", "core-api/one-paradigm-per-operation"],
+      "guardedBy": [
+        "crates/nvs-stdlib/src/registry.rs",
+        "crates/nvs-stdlib/tests/spec_registry_coverage.rs"
+      ]
+    },
+    {
+      "id": "core-api/subject-first",
+      "title": "The subject is parameter 1 of every `Core` member, with no exceptions",
+      "status": "shipped",
+      "because": ["0063"],
+      "divergesFromPhp": "`array_map(f, a)` beside `array_filter(a, f)`, and `in_array`, `str_replace` and `preg_match` disagreeing about haystack-before-needle, all become one order",
+      "seeAlso": ["core-api/shape-rules", "core-api/one-name-one-signature"],
+      "guardedBy": [
+        "tests/conformance/core/arr-map-and-filter.nvst",
+        "crates/nvs-stdlib/src/registry.rs"
+      ]
+    },
+    {
+      "id": "core-api/verb-lexicon",
+      "title": "A member's verb predicts its return type, and `…OrNull`, `…Safe`, `…Ex` and every `try…` but `tryParse` are banned",
+      "status": "shipped",
+      "because": ["0063", "0145"],
+      "seeAlso": ["core-api/failure-throws", "core-api/symmetric-names", "expressions/try-parse"],
+      "guardedBy": [
+        "crates/nvs-stdlib/src/registry.rs"
+      ]
+    },
+    {
+      "id": "core-api/symmetric-names",
+      "title": "A symmetric operation gets a symmetric name, and which pair to reach for is a rule rather than taste",
+      "status": "shipped",
+      "because": ["0063"],
+      "seeAlso": ["core-api/verb-lexicon", "core-api/members-are-full-words"],
+      "guardedBy": [
+        "crates/nvs-stdlib/src/registry.rs"
+      ]
+    },
+    {
+      "id": "core-api/one-name-one-signature",
+      "title": "One name has one signature, and two behaviours need two names",
+      "status": "shipped",
+      "because": ["0063", "0051"],
+      "seeAlso": ["core-api/verb-lexicon", "core-api/two-cache-tiers", "statements/nothing-gets-a-second-name"],
+      "guardedBy": [
+        "crates/nvs-stdlib/src/registry.rs"
+      ]
+    },
+    {
+      "id": "core-api/members-are-full-words",
+      "title": "A member name is a full word; only a class name may abbreviate, and only from a closed list",
+      "status": "shipped",
+      "because": ["0063", "0011"],
+      "divergesFromPhp": "`strlen` is `Core\\Str::length`, not `Core\\Str::len`",
+      "seeAlso": ["core-api/identifier-casing", "core-api/a-domain-class-is-a-singular-noun"],
+      "guardedBy": [
+        "crates/nvs-stdlib/src/registry.rs"
       ]
     },
     {
@@ -389,17 +189,6 @@
       ]
     },
     {
-      "id": "core-api/a-parameter-is-not-a-member",
-      "title": "A constructor parameter is not a member, because visibility is what promotes one",
-      "status": "shipped",
-      "because": ["0094"],
-      "seeAlso": ["core-api/written-visibility", "classes/promotion-is-constructor-only"],
-      "guardedBy": [
-        "crates/nvs-syntax/src/casing.rs",
-        "tests/conformance/class/a-promoted-constructor-parameter-is-a-property.nvst"
-      ]
-    },
-    {
       "id": "core-api/asymmetric-visibility-is-a-pair",
       "title": "An asymmetric property writes both halves, so a bare `private(set)` does not compile",
       "status": "shipped",
@@ -423,14 +212,254 @@
       ]
     },
     {
-      "id": "core-api/reference-card",
-      "title": "An implemented `Core` member carries its reference card in the registry declaration beside its code",
+      "id": "core-api/a-parameter-is-not-a-member",
+      "title": "A constructor parameter is not a member, because visibility is what promotes one",
       "status": "shipped",
-      "because": ["0117", "0011", "0051", "0063"],
-      "seeAlso": ["core-api/field-wise-precedence", "core-api/parameters-are-callable-by-name", "core-api/shape-parameter"],
+      "because": ["0094"],
+      "seeAlso": ["core-api/written-visibility", "classes/promotion-is-constructor-only"],
+      "guardedBy": [
+        "crates/nvs-syntax/src/casing.rs",
+        "tests/conformance/class/a-promoted-constructor-parameter-is-a-property.nvst"
+      ]
+    },
+    {
+      "id": "core-api/written-participation",
+      "title": "A class participates in a wire format only where it writes so, never structurally",
+      "status": "shipped",
+      "because": ["0063", "0071", "0028", "0033"],
+      "divergesFromPhp": "there is no `JsonSerializable`-style magic hook and no structural encoding of public properties",
+      "seeAlso": ["core-api/required-optional-and-nullable", "classes/no-magic-methods", "classes/serialize-is-a-closed-format", "attributes/inert-metadata", "types/object-top"],
+      "guardedBy": [
+        "tests/conformance/core/json-encode-decode-and-validate.nvst",
+        "tests/conformance/core/json-encodes-a-shape-as-an-object.nvst",
+        "tests/conformance/core/json-derive-encodes-declared-fields.nvst"
+      ]
+    },
+    {
+      "id": "core-api/qualifier-behaviour-is-declared",
+      "title": "Every `Core` member declares whether it is a sink, a launderer, contagious or neutral",
+      "status": "shipped",
+      "because": ["0063", "0024", "0055", "0135"],
+      "seeAlso": ["core-api/shape-flattens-at-the-abi", "core-api/tier-placement"],
       "guardedBy": [
         "crates/nvs-stdlib/src/registry.rs",
-        "crates/nvs-cli/tests/meta.rs"
+        "tests/conformance/reject/a-core-io-path-refuses-a-tainted-argument.nvst"
+      ]
+    },
+    {
+      "id": "core-api/nothing-mutates",
+      "title": "No `Core` member mutates its argument and none takes a reference",
+      "status": "shipped",
+      "because": ["0063"],
+      "divergesFromPhp": "`sort($a)` becomes `$a = Arr::sort($a)`; there are no by-reference mutators, no out-parameters and no in-place variants",
+      "seeAlso": ["core-api/shape-rules", "core-api/no-mutable-immutable-twins", "statements/inout-is-the-by-reference-spelling"],
+      "guardedBy": [
+        "tests/conformance/core/arr-map-and-filter-keep-their-keys.nvst",
+        "crates/nvs-stdlib/src/arr.rs"
+      ]
+    },
+    {
+      "id": "core-api/no-mutable-immutable-twins",
+      "title": "Every `Core` value type is immutable, so no mutable twin exists to choose between",
+      "status": "shipped",
+      "because": ["0063"],
+      "divergesFromPhp": "there is no `DateTime`/`DateTimeImmutable` pair — one type, immutable",
+      "seeAlso": ["core-api/nothing-mutates", "core-api/one-paradigm-per-operation", "classes/two-copy-depths"],
+      "guardedBy": [
+        "crates/nvs-stdlib/src/time.rs",
+        "crates/nvs-stdlib/src/registry.rs"
+      ]
+    },
+    {
+      "id": "core-api/no-ambient-state",
+      "title": "No `Core` member reads ambient state: there is no default timezone, locale, array pointer or error global",
+      "status": "shipped",
+      "because": ["0063", "0051"],
+      "divergesFromPhp": "`setlocale`, `date_default_timezone_set`, the internal array pointer and every error global are absent; a `Zone` is an argument at every instant↔calendar conversion",
+      "seeAlso": ["core-api/removals", "core-api/tier-placement", "statements/no-function-static-and-no-global"],
+      "guardedBy": [
+        "crates/nvs-stdlib/src/cldr.rs",
+        "crates/nvs-config/src/schedule.rs"
+      ]
+    },
+    {
+      "id": "core-api/failure-throws",
+      "title": "A `Core` member throws on failure and returns `?T` for absence; `false` is never an answer",
+      "status": "shipped",
+      "because": ["0063"],
+      "divergesFromPhp": "no member returns `false` to signal failure, no member returns an error code, and there is no `json_last_error` or `error_get_last`",
+      "seeAlso": ["core-api/verb-lexicon", "core-api/one-refusal-except-expiry", "errors/throwable-hierarchy", "expressions/nullable-conversion-availability"],
+      "guardedBy": [
+        "crates/nvs-stdlib/src/registry.rs",
+        "tests/conformance/core/json-encode-refuses-exactly-the-values-json-cannot-spell.nvst"
+      ]
+    },
+    {
+      "id": "core-api/one-paradigm-per-operation",
+      "title": "No operation is reachable two ways, and a domain class's statics never mirror an object's own methods",
+      "status": "shipped",
+      "because": ["0063", "0051", "0122"],
+      "divergesFromPhp": "the procedural twin of every OOP subsystem is gone — `date_*`, `collator_*`, the `fopen` family beside `SplFileObject`, `mysqli` twice",
+      "seeAlso": ["core-api/no-methods-on-scalars-or-arrays", "core-api/no-mutable-immutable-twins", "core-api/each-door-takes-a-different-thing", "classes/no-call-magic", "expressions/pipeline-substitution"],
+      "guardedBy": [
+        "tests/conformance/reject/a-core-instance-member-has-one-spelling.nvst",
+        "crates/nvs-stdlib/src/registry.rs"
+      ]
+    },
+    {
+      "id": "core-api/no-methods-on-scalars-or-arrays",
+      "title": "A scalar and an `array<T>` never gain methods",
+      "status": "shipped",
+      "because": ["0063"],
+      "divergesFromPhp": "there is no `$s->length()` and no `$a->map()` — `Core\\Str` and `Core\\Arr` are the one spelling",
+      "seeAlso": ["core-api/one-paradigm-per-operation", "types/erased-member-access"],
+      "guardedBy": [
+        "crates/nvs-types/src/expr/calls.rs"
+      ]
+    },
+    {
+      "id": "core-api/no-mode-strings",
+      "title": "A mode is an enum, never a string or an integer constant, and only four grammars are exempt",
+      "status": "shipped",
+      "because": ["0063"],
+      "divergesFromPhp": "`fopen($p, \"r+b\")`, `hash(\"sha256\", …)` and `MB_CASE_TITLE` have no spelling; a closed enum, or a subset of one, takes their place",
+      "seeAlso": ["core-api/units-are-types", "enums/closed-integer-type", "types/literal-types", "expressions/intrinsic-literals"],
+      "guardedBy": [
+        "crates/nvs-stdlib/src/registry.rs",
+        "tests/conformance/core/regex-split-honours-its-options.nvst"
+      ]
+    },
+    {
+      "id": "core-api/units-are-types",
+      "title": "A unit is a type: a duration is a `Duration` and a size is `uint` bytes",
+      "status": "shipped",
+      "because": ["0063"],
+      "divergesFromPhp": "the `sleep`/`usleep`/`time_nanosleep` split does not exist — one parameter takes one `Duration`",
+      "seeAlso": ["core-api/no-mode-strings", "types/duration-literal"],
+      "guardedBy": [
+        "tests/conformance/core/time-duration-constructors-and-readers-are-one-scale.nvst"
+      ]
+    },
+    {
+      "id": "core-api/no-encoding-argument",
+      "title": "A `string` member never takes an encoding argument",
+      "status": "shipped",
+      "because": ["0063", "0051"],
+      "seeAlso": ["types/string-is-utf8", "types/bytes"],
+      "guardedBy": [
+        "crates/nvs-stdlib/src/encoding.rs",
+        "crates/nvs-stdlib/src/str.rs"
+      ]
+    },
+    {
+      "id": "core-api/one-range-convention",
+      "title": "Every range is `(offset, ?length)`, and a negative counts from the end",
+      "status": "shipped",
+      "because": ["0063"],
+      "seeAlso": ["core-api/shape-rules", "types/preserve-keys"],
+      "guardedBy": [
+        "crates/nvs-stdlib/src/arr.rs",
+        "crates/nvs-stdlib/src/str.rs"
+      ]
+    },
+    {
+      "id": "core-api/callback-receives-value-and-key",
+      "title": "A callback always receives `($value, $key)`, and may declare fewer parameters than the call site passes",
+      "status": "shipped",
+      "because": ["0063"],
+      "divergesFromPhp": "`ARRAY_FILTER_USE_KEY` and `ARRAY_FILTER_USE_BOTH` have nothing to select, and there is no `map`/`mapWithKey` pair",
+      "seeAlso": ["core-api/no-mode-strings", "types/callable-arity", "types/callable-is-a-closure"],
+      "guardedBy": [
+        "tests/conformance/core/arr-map-and-filter.nvst",
+        "tests/conformance/core/arr-map-keys-rekeys-and-group-by-partitions.nvst"
+      ]
+    },
+    {
+      "id": "core-api/parameters-are-callable-by-name",
+      "title": "Every `Core` parameter is callable by the name the spec writes, and that name is compatibility surface",
+      "status": "shipped",
+      "because": ["0063", "0117"],
+      "seeAlso": ["core-api/options-bag", "core-api/reference-card", "types/arrays"],
+      "guardedBy": [
+        "tests/conformance/reject/a-misspelled-name-at-a-core-member-is-unknown.nvst",
+        "crates/nvs-stdlib/tests/spec_registry_coverage.rs",
+        "crates/nvs-stdlib/src/registry.rs"
+      ]
+    },
+    {
+      "id": "core-api/options-bag",
+      "title": "A member's optional knobs are one trailing shape literal, never a flag or a bitmask",
+      "status": "shipped",
+      "because": ["0063", "0147", "0135"],
+      "divergesFromPhp": "there are no `bool` flag parameters, no `int` bitmask constants and no positional optional tail longer than one",
+      "seeAlso": ["core-api/parameters-are-callable-by-name", "core-api/shape-parameter", "core-api/omission-is-not-a-written-null", "types/object-top"],
+      "guardedBy": [
+        "crates/nvs-types/tests/core_members.rs",
+        "crates/nvs-codegen/tests/core_str.rs",
+        "tests/conformance/core/command-run-fills-an-unwritten-option-from-its-declared-default.nvst"
+      ]
+    },
+    {
+      "id": "core-api/required-optional-and-nullable",
+      "title": "Required, optional and nullable are three separate questions: nullability belongs to the type and optionality to the default",
+      "status": "designed",
+      "because": ["0071", "0063"],
+      "divergesFromPhp": "`?T` never means \"the key may be absent\", and there is no omit-when-null encoding option",
+      "seeAlso": ["core-api/written-participation", "core-api/omission-is-not-a-written-null", "core-api/the-marker-never-reaches-a-program", "types/unions-and-mixed"],
+      "guardedBy": [
+        "tests/conformance/core/json-decode-as-admits-exactly-its-declared-type.nvst",
+        "tests/conformance/core/json-derive-decodes-and-reports-every-field.nvst",
+        "crates/nvs-stdlib/src/json.rs"
+      ]
+    },
+    {
+      "id": "core-api/omission-is-not-a-written-null",
+      "title": "An options bag tells an omitted key from a written `null`",
+      "status": "designed",
+      "because": ["0147", "0063", "0135", "0022"],
+      "divergesFromPhp": "PHP has no way to ask either question of an argument; here the two are different requests at every `Core` member",
+      "seeAlso": ["core-api/a-nullable-field-omits-as-the-never-written-marker", "core-api/a-written-null-removes", "core-api/the-bag-abi-is-unchanged", "core-api/options-bag"],
+      "guardedBy": []
+    },
+    {
+      "id": "core-api/a-nullable-field-omits-as-the-never-written-marker",
+      "title": "A bag or shape field is nullable exactly when its omission fills the never-written marker",
+      "status": "designed",
+      "because": ["0147", "0135", "0022"],
+      "seeAlso": ["core-api/omission-is-not-a-written-null", "core-api/the-marker-never-reaches-a-program", "core-api/shape-flattens-at-the-abi"],
+      "guardedBy": [
+        "crates/nvs-stdlib/src/registry.rs"
+      ]
+    },
+    {
+      "id": "core-api/a-written-null-removes",
+      "title": "Wherever a `Core` member admits a written `null` it means remove, and `\"\"` is never a removal spelling",
+      "status": "designed",
+      "because": ["0147", "0063"],
+      "divergesFromPhp": "PHP spreads clearing across `unset`, `\"\"`, `false` and per-function sentinels; here one spelling means one thing at every member",
+      "seeAlso": ["core-api/omission-is-not-a-written-null", "core-api/a-lifetime-is-written", "core-api/no-mode-strings"],
+      "guardedBy": [
+        "crates/nvs-stdlib/src/uri.rs"
+      ]
+    },
+    {
+      "id": "core-api/the-marker-never-reaches-a-program",
+      "title": "The never-written marker is not in the type system and is never handed to user code",
+      "status": "designed",
+      "because": ["0147", "0022"],
+      "seeAlso": ["core-api/a-nullable-field-omits-as-the-never-written-marker", "core-api/the-bag-abi-is-unchanged", "core-api/required-optional-and-nullable"],
+      "guardedBy": [
+        "crates/nvs-runtime/src/value.rs"
+      ]
+    },
+    {
+      "id": "core-api/the-bag-abi-is-unchanged",
+      "title": "The three-state bag changes which constant fills a slot and nothing else about the ABI",
+      "status": "designed",
+      "because": ["0147", "0135", "0022"],
+      "seeAlso": ["core-api/shape-flattens-at-the-abi", "core-api/a-nullable-field-omits-as-the-never-written-marker", "programs/memory-priority"],
+      "guardedBy": [
+        "crates/nvs-runtime/src/value.rs"
       ]
     },
     {
@@ -470,6 +499,17 @@
       ]
     },
     {
+      "id": "core-api/one-checked-shape-type",
+      "title": "The options bag and the shape parameter are two registry spellings of one checked type",
+      "status": "shipped",
+      "because": ["0135", "0063"],
+      "seeAlso": ["core-api/shape-parameter", "core-api/options-bag", "core-api/reference-card"],
+      "guardedBy": [
+        "crates/nvs-types/src/ty.rs",
+        "crates/nvs-types/src/core_lib.rs"
+      ]
+    },
+    {
       "id": "core-api/shape-flattens-at-the-abi",
       "title": "A shape argument flattens into one argument per field of the merged list, so no shape exists at run time",
       "status": "shipped",
@@ -479,17 +519,6 @@
         "crates/nvs-types/src/core_lib.rs",
         "crates/nvs-ir/src/lower/call.rs",
         "crates/nvs-stdlib/src/db/open.rs"
-      ]
-    },
-    {
-      "id": "core-api/one-checked-shape-type",
-      "title": "The options bag and the shape parameter are two registry spellings of one checked type",
-      "status": "shipped",
-      "because": ["0135", "0063"],
-      "seeAlso": ["core-api/shape-parameter", "core-api/options-bag", "core-api/reference-card"],
-      "guardedBy": [
-        "crates/nvs-types/src/ty.rs",
-        "crates/nvs-types/src/core_lib.rs"
       ]
     },
     {
@@ -504,54 +533,23 @@
       ]
     },
     {
-      "id": "core-api/omission-is-not-a-written-null",
-      "title": "An options bag tells an omitted key from a written `null`",
-      "status": "designed",
-      "because": ["0147", "0063", "0135", "0022"],
-      "divergesFromPhp": "PHP has no way to ask either question of an argument; here the two are different requests at every `Core` member",
-      "seeAlso": ["core-api/a-nullable-field-omits-as-the-never-written-marker", "core-api/a-written-null-removes", "core-api/the-bag-abi-is-unchanged", "core-api/options-bag"],
-      "guardedBy": []
-    },
-    {
-      "id": "core-api/a-nullable-field-omits-as-the-never-written-marker",
-      "title": "A bag or shape field is nullable exactly when its omission fills the never-written marker",
-      "status": "designed",
-      "because": ["0147", "0135", "0022"],
-      "seeAlso": ["core-api/omission-is-not-a-written-null", "core-api/the-marker-never-reaches-a-program", "core-api/shape-flattens-at-the-abi"],
+      "id": "core-api/a-lifetime-is-an-object",
+      "title": "Anything with a lifetime is an object, and `Core` never hands back a handle",
+      "status": "shipped",
+      "because": ["0063", "0003"],
+      "divergesFromPhp": "there is no `resource`, no integer handle and no `$link`-first convention anywhere in `Core`",
+      "seeAlso": ["core-api/one-paradigm-per-operation", "classes/no-destructors", "types/grammar"],
       "guardedBy": [
         "crates/nvs-stdlib/src/registry.rs"
       ]
     },
     {
-      "id": "core-api/the-bag-abi-is-unchanged",
-      "title": "The three-state bag changes which constant fills a slot and nothing else about the ABI",
+      "id": "core-api/a-lifetime-is-written",
+      "title": "A signature's lifetime is a required key and `null` is the forever spelling",
       "status": "designed",
-      "because": ["0147", "0135", "0022"],
-      "seeAlso": ["core-api/shape-flattens-at-the-abi", "core-api/a-nullable-field-omits-as-the-never-written-marker", "programs/memory-priority"],
-      "guardedBy": [
-        "crates/nvs-runtime/src/value.rs"
-      ]
-    },
-    {
-      "id": "core-api/the-marker-never-reaches-a-program",
-      "title": "The never-written marker is not in the type system and is never handed to user code",
-      "status": "designed",
-      "because": ["0147", "0022"],
-      "seeAlso": ["core-api/a-nullable-field-omits-as-the-never-written-marker", "core-api/the-bag-abi-is-unchanged", "core-api/required-optional-and-nullable"],
-      "guardedBy": [
-        "crates/nvs-runtime/src/value.rs"
-      ]
-    },
-    {
-      "id": "core-api/a-written-null-removes",
-      "title": "Wherever a `Core` member admits a written `null` it means remove, and `\"\"` is never a removal spelling",
-      "status": "designed",
-      "because": ["0147", "0063"],
-      "divergesFromPhp": "PHP spreads clearing across `unset`, `\"\"`, `false` and per-function sentinels; here one spelling means one thing at every member",
-      "seeAlso": ["core-api/omission-is-not-a-written-null", "core-api/a-lifetime-is-written", "core-api/no-mode-strings"],
-      "guardedBy": [
-        "crates/nvs-stdlib/src/uri.rs"
-      ]
+      "because": ["0146", "0096", "0060"],
+      "seeAlso": ["core-api/signing-is-over-a-payload", "core-api/a-written-null-removes", "core-api/omission-is-not-a-written-null"],
+      "guardedBy": []
     },
     {
       "id": "core-api/signing-is-over-a-payload",
@@ -562,14 +560,6 @@
       "guardedBy": [
         "crates/nvs-stdlib/src/uri.rs"
       ]
-    },
-    {
-      "id": "core-api/a-lifetime-is-written",
-      "title": "A signature's lifetime is a required key and `null` is the forever spelling",
-      "status": "designed",
-      "because": ["0146", "0096", "0060"],
-      "seeAlso": ["core-api/signing-is-over-a-payload", "core-api/a-written-null-removes", "core-api/omission-is-not-a-written-null"],
-      "guardedBy": []
     },
     {
       "id": "core-api/one-refusal-except-expiry",
@@ -606,19 +596,6 @@
       ]
     },
     {
-      "id": "core-api/required-optional-and-nullable",
-      "title": "Required, optional and nullable are three separate questions: nullability belongs to the type and optionality to the default",
-      "status": "designed",
-      "because": ["0071", "0063"],
-      "divergesFromPhp": "`?T` never means \"the key may be absent\", and there is no omit-when-null encoding option",
-      "seeAlso": ["core-api/written-participation", "core-api/omission-is-not-a-written-null", "core-api/the-marker-never-reaches-a-program", "types/unions-and-mixed"],
-      "guardedBy": [
-        "tests/conformance/core/json-decode-as-admits-exactly-its-declared-type.nvst",
-        "tests/conformance/core/json-derive-decodes-and-reports-every-field.nvst",
-        "crates/nvs-stdlib/src/json.rs"
-      ]
-    },
-    {
       "id": "core-api/one-temporary-directory-member",
       "title": "The whole temporary-file surface is one member handing out an owned directory",
       "status": "shipped",
@@ -642,6 +619,29 @@
         "tests/conformance/core/session-every-member-refuses-a-record-nobody-opened.nvst",
         "tests/conformance/core/session-the-refusal-before-start-is-catchable-at-the-root.nvst",
         "crates/nvs-stdlib/src/session.rs"
+      ]
+    },
+    {
+      "id": "core-api/reference-card",
+      "title": "An implemented `Core` member carries its reference card in the registry declaration beside its code",
+      "status": "shipped",
+      "because": ["0117", "0011", "0051", "0063"],
+      "seeAlso": ["core-api/field-wise-precedence", "core-api/parameters-are-callable-by-name", "core-api/shape-parameter"],
+      "guardedBy": [
+        "crates/nvs-stdlib/src/registry.rs",
+        "crates/nvs-cli/tests/meta.rs"
+      ]
+    },
+    {
+      "id": "core-api/removals",
+      "title": "A PHP built-in is absent for one of four standing reasons, and every removed name is accounted for by name",
+      "status": "shipped",
+      "because": ["0063", "0051"],
+      "divergesFromPhp": "roughly 1,900 built-ins become about 450 members covering strictly more ground",
+      "seeAlso": ["core-api/no-ambient-state", "core-api/one-paradigm-per-operation", "types/no-legacy-cast", "types/array-combination"],
+      "guardedBy": [
+        "docs/spec/02-php-migration.md",
+        "tools/check-migration.py"
       ]
     }
   ]

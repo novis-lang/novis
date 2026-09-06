@@ -3,175 +3,30 @@
 
 # Statements
 
-<a id="statements-static-is-a-member-modifier"></a>
+<a id="statements-nvs-is-the-only-open-tag"></a>
 
-## `static` marks a class member and names a class-relative type, and nothing else
+## `<?nvs` is the only code-mode open tag; `<?php` is refused
 
-`rule:statements/static-is-a-member-modifier`
+`rule:statements/nvs-is-the-only-open-tag`
 
-`static` is a class-member modifier and a class-relative type. Static methods, static properties,
-`static::`, `static::$prop`, `new static()` and `: static` all carry their PHP meanings unchanged: late
-static binding is load-bearing in the OO code Novis converts, and `new static()` compiled as `new self()`
-would return the wrong class rather than fail to compile. `static::class` is the called class's own name,
-read at run time off the descriptor the frame already holds.
+`<?nvs` is the only code-mode open tag. The lexer still recognises `<?php` and switches to code mode on it,
+purely so the parser can name the fix instead of misreading the rest of the file as inline HTML: the parser
+reports `E0229` every time it consumes that token — at file start or at a mid-file reopen alike — and then
+parses the code that follows normally, so nothing after the tag is swallowed.
 
-A `static` member declares its type like every other member — `public static int $n = 0;` — and a body
-declaring `static` as its return type may not return the declaring class, since a subclass call site is
-promised its own.
+```php
+<?php echo 1; ?>          // tag rejected, `echo 1;` still parses as code
+<?nvs echo 1; ?>          // unaffected
+if ($x) { ?>html<?nvs }   // unaffected — reopening mid-block was always legal
+```
 
-The keyword therefore has one meaning per position: a modifier before a member, a type or a scope in an
-expression. Nothing about it depends on whether it appears inside a function body, because inside a
-function body it is not a declaration at all — see [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global).
+`<?=` is untouched: it was never a spelling of `<?nvs`, it is sugar for `<?nvs echo`.
 
-<sub>See also [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global), [`statements/a-closure-binds-this-only-where-it-uses-it`](statements.md#statements-a-closure-binds-this-only-where-it-uses-it), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0008](../decisions/0008.md), [0007](../decisions/0007.md), [0144](../decisions/0144.md).</sub>
+One file shape reaches code mode without a tag, and it is not a second spelling of one. A file whose first
+two bytes are `#!` continues in code mode as if `<?nvs` stood there; writing the tag in a shebang file
+before any `?>` is `E0009`.
 
-<a id="statements-no-function-static-and-no-global"></a>
-
-## A function holds no state of its own, and `global` does not exist
-
-`rule:statements/no-function-static-and-no-global`
-
-Two spellings are refused, and each diagnostic names its replacement:
-
-- `static int $calls = 0;` in a function — *function-scope `static` is not supported; declare a
-  `private static` property on a class, or pass the value as a parameter*.
-- `global $x;` — *`global` is not supported; pass `$x` as a parameter, or make it a `static` property or a
-  `const`*.
-
-A diagnostic that says only "not supported" is a bug against this rule, not a faithful implementation of
-it.
-
-A function static is the one binding whose definite assignment cannot be checked: its initialiser runs on
-the first call and on no later one, so on every call after the first the binding is live while its
-initialiser is not on the executed path. It is also a third storage class for one keyword — a per-function
-slot, per isolate, with a run-once flag the JIT cannot fold away — and it hides from the signature that a
-function's result depends on how often it has been called. Nothing is lost that PHP was providing: a PHP
-function static resets per request too.
-
-<sub>See also [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0008](../decisions/0008.md), [0007](../decisions/0007.md), [0006](../decisions/0006.md).</sub>
-
-<a id="statements-storage-that-outlives-a-call"></a>
-
-## A program holds state in five declared places, and the list is closed
-
-`rule:statements/storage-that-outlives-a-call`
-
-Exhaustive by construction. A design that needs a slot not on this list changes this rule; it is not an
-implementation detail:
-
-| storage | lifetime | declared |
-|---|---|---|
-| local variable, parameter | the call | `int $n = 0;` |
-| class static property | the isolate | `private static int $calls = 0;` |
-| class constant | the isolate, immutable | `public const int MAX = 10;` |
-| object property | the object | `public readonly uint $id;` |
-| top-level script variable | the script's own frame, unreachable from a function | `int $n = 0;` at file scope |
-
-There is no global constant: a constant is never declared outside a class, so "class constant, global
-constant" is one row rather than two, and the free-floating half has nothing left to name. There is no
-superglobal row either — host-populated request, session and CLI state is the class-static row, filled by
-the host at isolate construction instead of by a user initialiser
-([`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables)). An enum case needs no row: it is a compile-time constant
-of its enum's integer type, inlined at every use site like any other literal.
-
-The last row is the one to read twice. A top-level `$x` in a `.nvs` file is a local of the script's own
-frame and nothing more, so the shared-nothing story holds at file scope for the same reason it holds
-everywhere else.
-
-<sub>See also [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`statements/a-required-file-shares-declarations-not-locals`](statements.md#statements-a-required-file-shares-declarations-not-locals). Decided in [0008](../decisions/0008.md), [0011](../decisions/0011.md), [0010](../decisions/0010.md), [0012](../decisions/0012.md), [0006](../decisions/0006.md).</sub>
-
-<a id="statements-a-closure-binds-this-only-where-it-uses-it"></a>
-
-## A closure binds `$this` only when its body names it, so `static fn` has nothing left to assert
-
-`rule:statements/a-closure-binds-this-only-where-it-uses-it`
-
-A closure binds `$this` only when its body uses it, decided by the compiler. `static function () {}` and
-`static fn() => …` are refused: *`static` is not a closure modifier; a closure captures `$this` only if it
-uses it, so drop the keyword.*
-
-`static fn` is an **assertion** that a closure does not capture `$this`, and there is no assertion syntax
-here — everything else in the language is a declaration the compiler enforces. The property it asserted is
-obtained by making it true instead.
-
-The effect is the one the keyword existed to produce: a closure that never mentions `$this` cannot extend
-the enclosing object's lifetime. The cost is the corner — a `$this`-free closure built inside a method and
-then bound to a *different* object gets a closure that ignores the binding, because `bindTo()` and `bind()`
-return an equivalent closure rather than rebinding anything.
-
-<sub>See also [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier). Decided in [0008](../decisions/0008.md), [0031](../decisions/0031.md).</sub>
-
-<a id="statements-no-host-populated-variables"></a>
-
-## No variable is ever populated by the host; every superglobal is a `Core` class member
-
-`rule:statements/no-host-populated-variables`
-
-No variable is ever populated by the host. Every fact PHP hands a script through a superglobal is returned
-by a `static` method on a reserved `Core` class, populated per isolate:
-
-| PHP | replacement |
-|---|---|
-| `$_SERVER` | `Core\Server` — server metadata and request headers |
-| `$_GET`, `$_POST`, `$_COOKIE`, `$_FILES` | `Core\Request` — query, body, cookie and upload input |
-| `$_SESSION` | `Core\Session`, after an explicit `Core\Session::start()`; there is no auto-start |
-| `$_ENV`, `getenv()` | `Core\Env` |
-| `$argv`, `$argc` | `Core\Cli` — the CLI entry point only |
-| `$_ARGS` | `Core\Script::args()` |
-
-`Core\Server` and `Core\Request` are two classes rather than one, matching the split between facts about
-the server and input the client sent. The value handed back keeps the shape any other boundary value has —
-structured input as `array<mixed>`, a scalar payload not yet asserted to be text as `bytes` — so it needs
-an explicit `as` before it populates a typed binding.
-
-Each rejected spelling is diagnosed by name and names the `Core` class that replaces it.
-
-<sub>See also [`statements/globals-and-request-are-dropped-outright`](statements.md#statements-globals-and-request-are-dropped-outright), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call), [`errors/cookie-name-bytes`](errors.md#errors-cookie-name-bytes). Decided in [0012](../decisions/0012.md), [0011](../decisions/0011.md), [0007](../decisions/0007.md), [0009](../decisions/0009.md), [0006](../decisions/0006.md).</sub>
-
-<a id="statements-globals-and-request-are-dropped-outright"></a>
-
-## `$GLOBALS` and `$_REQUEST` have no replacement of any kind
-
-`rule:statements/globals-and-request-are-dropped-outright`
-
-`$GLOBALS` and `$_REQUEST` are dropped with no replacement of any kind: no `Core` class, no method, no
-later addition under a different name.
-
-`$GLOBALS` is not data the host hands a script — it is a reflective view onto the script's *own* variable
-table, keyed by name and mutable in both directions. A top-level variable is a local of the script's own
-frame ([`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call)), so there is nothing left for it to expose that a
-`static` property, a constant, an object property or a parameter does not already reach the declared way. A
-replacement would have to enumerate a frame's locals reflectively, which nothing else here does, or become
-a second informally-scoped static bag.
-
-`$_REQUEST`'s only job is merging three sources whose read-site names — `Core\Request::query()`, `::post()`
-and `::cookie()` — already say which one a value came from. A merged accessor would either fix an order,
-re-deriving the `request_order` footgun, or take the order as an argument, at which point it is no shorter
-than naming the source.
-
-<sub>See also [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0012](../decisions/0012.md), [0008](../decisions/0008.md), [0007](../decisions/0007.md).</sub>
-
-<a id="statements-nothing-gets-a-second-name"></a>
-
-## A declaration is reachable under exactly the name it was declared with
-
-`rule:statements/nothing-gets-a-second-name`
-
-A class, interface, enum, method or constant is reachable under exactly the name it was declared with — its
-own short name, or a fully-qualified path to it — and under no other.
-
-`use Path\To\Name;` imports under the declared short name, full stop. Renaming an import is a diagnostic:
-*imports cannot be renamed; refer to `Name` by its declared short name, or use the fully-qualified path
-directly.* Nothing registers a second runtime-reachable name for a class either, and no such member is
-coming later under another spelling.
-
-The one real cost — two unrelated libraries choosing the same short class name — is paid at the call site
-with the fully-qualified path: strictly more to type and strictly less to keep track of. Because no `as`
-survives, making a bare `Str` resolve to an unrelated class is structurally unreachable rather than merely
-refused, and the symbol table keeps exactly one entry per declared name, with no code path anywhere asking
-whether a name was resolved directly or through an alias.
-
-<sub>See also [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute), [`statements/no-fallback-to-the-root-namespace`](statements.md#statements-no-fallback-to-the-root-namespace). Decided in [0015](../decisions/0015.md), [0011](../decisions/0011.md), [0113](../decisions/0113.md), [0043](../decisions/0043.md).</sub>
+<sub>See also [`statements/exit-is-the-only-termination-keyword`](statements.md#statements-exit-is-the-only-termination-keyword). Decided in [0049](../decisions/0049.md), [0100](../decisions/0100.md), [0015](../decisions/0015.md).</sub>
 
 <a id="statements-a-qualified-name-is-absolute"></a>
 
@@ -282,6 +137,57 @@ is a grant lookup with two homes.
 
 <sub>See also [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute), [`statements/no-fallback-to-the-root-namespace`](statements.md#statements-no-fallback-to-the-root-namespace). Decided in [0113](../decisions/0113.md), [0112](../decisions/0112.md).</sub>
 
+<a id="statements-nothing-gets-a-second-name"></a>
+
+## A declaration is reachable under exactly the name it was declared with
+
+`rule:statements/nothing-gets-a-second-name`
+
+A class, interface, enum, method or constant is reachable under exactly the name it was declared with — its
+own short name, or a fully-qualified path to it — and under no other.
+
+`use Path\To\Name;` imports under the declared short name, full stop. Renaming an import is a diagnostic:
+*imports cannot be renamed; refer to `Name` by its declared short name, or use the fully-qualified path
+directly.* Nothing registers a second runtime-reachable name for a class either, and no such member is
+coming later under another spelling.
+
+The one real cost — two unrelated libraries choosing the same short class name — is paid at the call site
+with the fully-qualified path: strictly more to type and strictly less to keep track of. Because no `as`
+survives, making a bare `Str` resolve to an unrelated class is structurally unreachable rather than merely
+refused, and the symbol table keeps exactly one entry per declared name, with no code path anywhere asking
+whether a name was resolved directly or through an alias.
+
+<sub>See also [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute), [`statements/no-fallback-to-the-root-namespace`](statements.md#statements-no-fallback-to-the-root-namespace). Decided in [0015](../decisions/0015.md), [0011](../decisions/0011.md), [0113](../decisions/0113.md), [0043](../decisions/0043.md).</sub>
+
+<a id="statements-an-enum-name-is-a-type-everywhere"></a>
+
+## An enum's name is an ordinary type, usable at every binding site a class name is
+
+`rule:statements/an-enum-name-is-a-type-everywhere`
+
+The `enum` keyword appears only at the *declaration*. Everywhere a type is used, an enum is spelled with
+its own name, exactly like a class:
+
+```php
+enum Status { Active, Banned }
+
+class Account {
+    public Status $status = Status::Active;                // property
+    public const Status DEFAULT_STATUS = Status::Active;   // class constant
+    public static function ban(Status $s): Status { ... }  // parameter and return
+}
+
+Status $s = Status::Active;                                // local
+foreach ($accounts as Status $status => $account) { ... }  // foreach binding
+```
+
+An enum name is an atom in the type grammar beside a class name — lexically identical to a class reference,
+distinguished by what the name resolves to, the way `self`, `static` and `parent` are already contextual
+there. Every binding site that requires a type takes one, with no position that admits a class name and
+refuses an enum's.
+
+<sub>See also [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0010](../decisions/0010.md), [0007](../decisions/0007.md).</sub>
+
 <a id="statements-require-is-the-only-inclusion-construct"></a>
 
 ## `require` is the only file-inclusion construct, and it runs every time it is reached
@@ -348,48 +254,174 @@ position.
 
 <sub>See also [`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct). Decided in [0021](../decisions/0021.md), [0007](../decisions/0007.md).</sub>
 
-<a id="statements-exit-is-the-only-termination-keyword"></a>
+<a id="statements-static-is-a-member-modifier"></a>
 
-## `exit` is the only process-termination keyword; `die` is refused
+## `static` marks a class member and names a class-relative type, and nothing else
 
-`rule:statements/exit-is-the-only-termination-keyword`
+`rule:statements/static-is-a-member-modifier`
 
-`exit` is the only process-termination keyword. `die`, `die()` and `die('bye')` are still recognised — with
-the optional `(status)`/`(message)` argument parsed identically — solely so the diagnostic can point at the
-fix, and they produce an error node rather than an exit node: *use `exit` instead — it is the only
-process-termination keyword Novis keeps.* The code is `E0228`.
+`static` is a class-member modifier and a class-relative type. Static methods, static properties,
+`static::`, `static::$prop`, `new static()` and `: static` all carry their PHP meanings unchanged: late
+static binding is load-bearing in the OO code Novis converts, and `new static()` compiled as `new self()`
+would return the wrong class rather than fail to compile. `static::class` is the called class's own name,
+read at run time off the descriptor the frame already holds.
 
-The pair had no behavioural difference to preserve: both parsed to one shape with one argument, and both
-were type-checked and lowered identically. Of ten other languages with a termination primitive, every one
-keeps at most one plain spelling of it; where a second primitive exists it is a genuinely different
-behaviour — skips cleanup, cannot be caught, crashes instead of exiting — never a bare synonym.
+A `static` member declares its type like every other member — `public static int $n = 0;` — and a body
+declaring `static` as its return type may not return the declaring class, since a subclass call site is
+promised its own.
 
-<sub>See also [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag). Decided in [0049](../decisions/0049.md), [0015](../decisions/0015.md).</sub>
+The keyword therefore has one meaning per position: a modifier before a member, a type or a scope in an
+expression. Nothing about it depends on whether it appears inside a function body, because inside a
+function body it is not a declaration at all — see [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global).
 
-<a id="statements-nvs-is-the-only-open-tag"></a>
+<sub>See also [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global), [`statements/a-closure-binds-this-only-where-it-uses-it`](statements.md#statements-a-closure-binds-this-only-where-it-uses-it), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0008](../decisions/0008.md), [0007](../decisions/0007.md), [0144](../decisions/0144.md).</sub>
 
-## `<?nvs` is the only code-mode open tag; `<?php` is refused
+<a id="statements-no-function-static-and-no-global"></a>
 
-`rule:statements/nvs-is-the-only-open-tag`
+## A function holds no state of its own, and `global` does not exist
 
-`<?nvs` is the only code-mode open tag. The lexer still recognises `<?php` and switches to code mode on it,
-purely so the parser can name the fix instead of misreading the rest of the file as inline HTML: the parser
-reports `E0229` every time it consumes that token — at file start or at a mid-file reopen alike — and then
-parses the code that follows normally, so nothing after the tag is swallowed.
+`rule:statements/no-function-static-and-no-global`
 
-```php
-<?php echo 1; ?>          // tag rejected, `echo 1;` still parses as code
-<?nvs echo 1; ?>          // unaffected
-if ($x) { ?>html<?nvs }   // unaffected — reopening mid-block was always legal
-```
+Two spellings are refused, and each diagnostic names its replacement:
 
-`<?=` is untouched: it was never a spelling of `<?nvs`, it is sugar for `<?nvs echo`.
+- `static int $calls = 0;` in a function — *function-scope `static` is not supported; declare a
+  `private static` property on a class, or pass the value as a parameter*.
+- `global $x;` — *`global` is not supported; pass `$x` as a parameter, or make it a `static` property or a
+  `const`*.
 
-One file shape reaches code mode without a tag, and it is not a second spelling of one. A file whose first
-two bytes are `#!` continues in code mode as if `<?nvs` stood there; writing the tag in a shebang file
-before any `?>` is `E0009`.
+A diagnostic that says only "not supported" is a bug against this rule, not a faithful implementation of
+it.
 
-<sub>See also [`statements/exit-is-the-only-termination-keyword`](statements.md#statements-exit-is-the-only-termination-keyword). Decided in [0049](../decisions/0049.md), [0100](../decisions/0100.md), [0015](../decisions/0015.md).</sub>
+A function static is the one binding whose definite assignment cannot be checked: its initialiser runs on
+the first call and on no later one, so on every call after the first the binding is live while its
+initialiser is not on the executed path. It is also a third storage class for one keyword — a per-function
+slot, per isolate, with a run-once flag the JIT cannot fold away — and it hides from the signature that a
+function's result depends on how often it has been called. Nothing is lost that PHP was providing: a PHP
+function static resets per request too.
+
+<sub>See also [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0008](../decisions/0008.md), [0007](../decisions/0007.md), [0006](../decisions/0006.md).</sub>
+
+<a id="statements-storage-that-outlives-a-call"></a>
+
+## A program holds state in five declared places, and the list is closed
+
+`rule:statements/storage-that-outlives-a-call`
+
+Exhaustive by construction. A design that needs a slot not on this list changes this rule; it is not an
+implementation detail:
+
+| storage | lifetime | declared |
+|---|---|---|
+| local variable, parameter | the call | `int $n = 0;` |
+| class static property | the isolate | `private static int $calls = 0;` |
+| class constant | the isolate, immutable | `public const int MAX = 10;` |
+| object property | the object | `public readonly uint $id;` |
+| top-level script variable | the script's own frame, unreachable from a function | `int $n = 0;` at file scope |
+
+There is no global constant: a constant is never declared outside a class, so "class constant, global
+constant" is one row rather than two, and the free-floating half has nothing left to name. There is no
+superglobal row either — host-populated request, session and CLI state is the class-static row, filled by
+the host at isolate construction instead of by a user initialiser
+([`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables)). An enum case needs no row: it is a compile-time constant
+of its enum's integer type, inlined at every use site like any other literal.
+
+The last row is the one to read twice. A top-level `$x` in a `.nvs` file is a local of the script's own
+frame and nothing more, so the shared-nothing story holds at file scope for the same reason it holds
+everywhere else.
+
+<sub>See also [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`statements/a-required-file-shares-declarations-not-locals`](statements.md#statements-a-required-file-shares-declarations-not-locals). Decided in [0008](../decisions/0008.md), [0011](../decisions/0011.md), [0010](../decisions/0010.md), [0012](../decisions/0012.md), [0006](../decisions/0006.md).</sub>
+
+<a id="statements-an-isolate-has-its-own-statics"></a>
+
+## An isolate's class statics are its own, and a child cannot reach its parent's
+
+`rule:statements/an-isolate-has-its-own-statics`
+
+An isolate's context is built with a **statics base of its own**, and that single word is the whole of "a
+child cannot read or write a parent static". Globals, class statics and runtime-defined constants are fresh
+per isolate.
+
+Compiled code loads a static inline through that base, so the same compiled function reads a different
+store depending only on which context it runs under — which is why sharing compiled code between isolates
+costs nothing and needs no per-isolate compilation.
+
+A task is the other construction, and deliberately not the same one: a task shares the request, so it
+aliases the request's static-property base rather than freshening it, and a child with a store of its own
+would give one request two copies of every static. Collapsing both into one helper with a flag would leave
+the next field added to the context classified by whoever adds it rather than by whoever needs it fresh.
+
+<sub>See also [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables). Decided in [0116](../decisions/0116.md), [0006](../decisions/0006.md), [0072](../decisions/0072.md).</sub>
+
+<a id="statements-no-host-populated-variables"></a>
+
+## No variable is ever populated by the host; every superglobal is a `Core` class member
+
+`rule:statements/no-host-populated-variables`
+
+No variable is ever populated by the host. Every fact PHP hands a script through a superglobal is returned
+by a `static` method on a reserved `Core` class, populated per isolate:
+
+| PHP | replacement |
+|---|---|
+| `$_SERVER` | `Core\Server` — server metadata and request headers |
+| `$_GET`, `$_POST`, `$_COOKIE`, `$_FILES` | `Core\Request` — query, body, cookie and upload input |
+| `$_SESSION` | `Core\Session`, after an explicit `Core\Session::start()`; there is no auto-start |
+| `$_ENV`, `getenv()` | `Core\Env` |
+| `$argv`, `$argc` | `Core\Cli` — the CLI entry point only |
+| `$_ARGS` | `Core\Script::args()` |
+
+`Core\Server` and `Core\Request` are two classes rather than one, matching the split between facts about
+the server and input the client sent. The value handed back keeps the shape any other boundary value has —
+structured input as `array<mixed>`, a scalar payload not yet asserted to be text as `bytes` — so it needs
+an explicit `as` before it populates a typed binding.
+
+Each rejected spelling is diagnosed by name and names the `Core` class that replaces it.
+
+<sub>See also [`statements/globals-and-request-are-dropped-outright`](statements.md#statements-globals-and-request-are-dropped-outright), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call), [`errors/cookie-name-bytes`](errors.md#errors-cookie-name-bytes). Decided in [0012](../decisions/0012.md), [0011](../decisions/0011.md), [0007](../decisions/0007.md), [0009](../decisions/0009.md), [0006](../decisions/0006.md).</sub>
+
+<a id="statements-globals-and-request-are-dropped-outright"></a>
+
+## `$GLOBALS` and `$_REQUEST` have no replacement of any kind
+
+`rule:statements/globals-and-request-are-dropped-outright`
+
+`$GLOBALS` and `$_REQUEST` are dropped with no replacement of any kind: no `Core` class, no method, no
+later addition under a different name.
+
+`$GLOBALS` is not data the host hands a script — it is a reflective view onto the script's *own* variable
+table, keyed by name and mutable in both directions. A top-level variable is a local of the script's own
+frame ([`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call)), so there is nothing left for it to expose that a
+`static` property, a constant, an object property or a parameter does not already reach the declared way. A
+replacement would have to enumerate a frame's locals reflectively, which nothing else here does, or become
+a second informally-scoped static bag.
+
+`$_REQUEST`'s only job is merging three sources whose read-site names — `Core\Request::query()`, `::post()`
+and `::cookie()` — already say which one a value came from. A merged accessor would either fix an order,
+re-deriving the `request_order` footgun, or take the order as an argument, at which point it is no shorter
+than naming the source.
+
+<sub>See also [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0012](../decisions/0012.md), [0008](../decisions/0008.md), [0007](../decisions/0007.md).</sub>
+
+<a id="statements-a-closure-binds-this-only-where-it-uses-it"></a>
+
+## A closure binds `$this` only when its body names it, so `static fn` has nothing left to assert
+
+`rule:statements/a-closure-binds-this-only-where-it-uses-it`
+
+A closure binds `$this` only when its body uses it, decided by the compiler. `static function () {}` and
+`static fn() => …` are refused: *`static` is not a closure modifier; a closure captures `$this` only if it
+uses it, so drop the keyword.*
+
+`static fn` is an **assertion** that a closure does not capture `$this`, and there is no assertion syntax
+here — everything else in the language is a declaration the compiler enforces. The property it asserted is
+obtained by making it true instead.
+
+The effect is the one the keyword existed to produce: a closure that never mentions `$this` cannot extend
+the enclosing object's lifetime. The cost is the corner — a `$this`-free closure built inside a method and
+then bound to a *different* object gets a closure that ignores the binding, because `bindTo()` and `bind()`
+return an equivalent closure rather than rebinding anything.
+
+<sub>See also [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier). Decided in [0008](../decisions/0008.md), [0031](../decisions/0031.md).</sub>
 
 <a id="statements-inout-is-the-by-reference-spelling"></a>
 
@@ -442,27 +474,6 @@ says so where nothing binds it — including a call through a `callable`.
 
 <sub>See also [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling), [`statements/an-inout-argument-is-a-local`](statements.md#statements-an-inout-argument-is-a-local). Decided in [0107](../decisions/0107.md), [0080](../decisions/0080.md).</sub>
 
-<a id="statements-ampersand-is-not-a-by-reference-marker"></a>
-
-## `&` in a by-reference position is refused at parse time
-
-`rule:statements/ampersand-is-not-a-by-reference-marker`
-
-`&` where a by-reference marker would go is still recognised, so the diagnostic can name the exact fix, and
-produces an error node — the AST keeps no variant for it. `E0237`: *`&` is not a by-reference marker in
-Novis — write `inout` before the type.*
-
-`&` keeps its other three jobs unchanged: `$a & $b` is bitwise AND, `$a && $b` is logical AND, and `A&B` is
-an intersection type. The one-token lookahead that told `int &$x` apart from an intersection continuation
-survives the removal of the meaning it was written for, because meaning it and parsing it are two different
-questions: the type parser reaches that `&` first, and consuming it as an intersection member would leave
-the site above it nothing to report but a malformed intersection.
-
-The already-refused spellings keep their own codes and gain the new word in their help text: `$a = &$b` is
-`E0701`, a closure parameter `E0493`, a generator's `E0492`.
-
-<sub>See also [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling), [`statements/inout-is-written-at-the-call`](statements.md#statements-inout-is-written-at-the-call). Decided in [0107](../decisions/0107.md), [0031](../decisions/0031.md), [0045](../decisions/0045.md), [0034](../decisions/0034.md).</sub>
-
 <a id="statements-an-inout-argument-is-a-local"></a>
 
 ## An `inout` argument is a local, and never an element or a property
@@ -497,52 +508,41 @@ spelling.
 
 <sub>See also [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling). Decided in [0107](../decisions/0107.md), [0022](../decisions/0022.md).</sub>
 
-<a id="statements-an-enum-name-is-a-type-everywhere"></a>
+<a id="statements-ampersand-is-not-a-by-reference-marker"></a>
 
-## An enum's name is an ordinary type, usable at every binding site a class name is
+## `&` in a by-reference position is refused at parse time
 
-`rule:statements/an-enum-name-is-a-type-everywhere`
+`rule:statements/ampersand-is-not-a-by-reference-marker`
 
-The `enum` keyword appears only at the *declaration*. Everywhere a type is used, an enum is spelled with
-its own name, exactly like a class:
+`&` where a by-reference marker would go is still recognised, so the diagnostic can name the exact fix, and
+produces an error node — the AST keeps no variant for it. `E0237`: *`&` is not a by-reference marker in
+Novis — write `inout` before the type.*
 
-```php
-enum Status { Active, Banned }
+`&` keeps its other three jobs unchanged: `$a & $b` is bitwise AND, `$a && $b` is logical AND, and `A&B` is
+an intersection type. The one-token lookahead that told `int &$x` apart from an intersection continuation
+survives the removal of the meaning it was written for, because meaning it and parsing it are two different
+questions: the type parser reaches that `&` first, and consuming it as an intersection member would leave
+the site above it nothing to report but a malformed intersection.
 
-class Account {
-    public Status $status = Status::Active;                // property
-    public const Status DEFAULT_STATUS = Status::Active;   // class constant
-    public static function ban(Status $s): Status { ... }  // parameter and return
-}
+The already-refused spellings keep their own codes and gain the new word in their help text: `$a = &$b` is
+`E0701`, a closure parameter `E0493`, a generator's `E0492`.
 
-Status $s = Status::Active;                                // local
-foreach ($accounts as Status $status => $account) { ... }  // foreach binding
-```
+<sub>See also [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling), [`statements/inout-is-written-at-the-call`](statements.md#statements-inout-is-written-at-the-call). Decided in [0107](../decisions/0107.md), [0031](../decisions/0031.md), [0045](../decisions/0045.md), [0034](../decisions/0034.md).</sub>
 
-An enum name is an atom in the type grammar beside a class name — lexically identical to a class reference,
-distinguished by what the name resolves to, the way `self`, `static` and `parent` are already contextual
-there. Every binding site that requires a type takes one, with no position that admits a class name and
-refuses an enum's.
+<a id="statements-exit-is-the-only-termination-keyword"></a>
 
-<sub>See also [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0010](../decisions/0010.md), [0007](../decisions/0007.md).</sub>
+## `exit` is the only process-termination keyword; `die` is refused
 
-<a id="statements-an-isolate-has-its-own-statics"></a>
+`rule:statements/exit-is-the-only-termination-keyword`
 
-## An isolate's class statics are its own, and a child cannot reach its parent's
+`exit` is the only process-termination keyword. `die`, `die()` and `die('bye')` are still recognised — with
+the optional `(status)`/`(message)` argument parsed identically — solely so the diagnostic can point at the
+fix, and they produce an error node rather than an exit node: *use `exit` instead — it is the only
+process-termination keyword Novis keeps.* The code is `E0228`.
 
-`rule:statements/an-isolate-has-its-own-statics`
+The pair had no behavioural difference to preserve: both parsed to one shape with one argument, and both
+were type-checked and lowered identically. Of ten other languages with a termination primitive, every one
+keeps at most one plain spelling of it; where a second primitive exists it is a genuinely different
+behaviour — skips cleanup, cannot be caught, crashes instead of exiting — never a bare synonym.
 
-An isolate's context is built with a **statics base of its own**, and that single word is the whole of "a
-child cannot read or write a parent static". Globals, class statics and runtime-defined constants are fresh
-per isolate.
-
-Compiled code loads a static inline through that base, so the same compiled function reads a different
-store depending only on which context it runs under — which is why sharing compiled code between isolates
-costs nothing and needs no per-isolate compilation.
-
-A task is the other construction, and deliberately not the same one: a task shares the request, so it
-aliases the request's static-property base rather than freshening it, and a child with a store of its own
-would give one request two copies of every static. Collapsing both into one helper with a flag would leave
-the next field added to the context classified by whoever adds it rather than by whoever needs it fresh.
-
-<sub>See also [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables). Decided in [0116](../decisions/0116.md), [0006](../decisions/0006.md), [0072](../decisions/0072.md).</sub>
+<sub>See also [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag). Decided in [0049](../decisions/0049.md), [0015](../decisions/0015.md).</sub>

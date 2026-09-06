@@ -1,7 +1,7 @@
 {
   "topic": "types",
   "title": "Types",
-  "order": 60,
+  "order": 20,
   "rules": [
     {
       "id": "types/declaration",
@@ -30,46 +30,6 @@
       ]
     },
     {
-      "id": "types/conversion",
-      "title": "`expr as T` is the only conversion, and it produces a `T` or throws",
-      "status": "shipped",
-      "because": ["0007", "0009", "0010", "0024", "0028", "0033", "0034", "0047", "0054", "0066", "0125", "0126", "0144"],
-      "divergesFromPhp": "nothing converts silently — `(int)\"abc\"` is not `0`, `PHP_INT_MAX + 1` is not a `float`, and `settype` does not exist; every conversion is written, checked, and throws rather than substituting",
-      "seeAlso": ["types/no-legacy-cast", "types/implicit-widening", "types/arithmetic", "types/unions-and-mixed"],
-      "guardedBy": [
-        "tests/conformance/lang/conversions-that-succeed.nvst",
-        "tests/conformance/lang/the-conversion-table-is-closed.nvst",
-        "tests/conformance/lang/the-nullable-conversion-table-is-closed-at-both-ends.nvst",
-        "tests/conformance/lang/a-lossy-conversion-throws.nvst",
-        "tests/conformance/lang/every-remaining-conversion-row-runs-or-throws.nvst",
-        "tests/conformance/lang/a-string-that-is-not-a-number-refuses-to-convert.nvst"
-      ]
-    },
-    {
-      "id": "types/no-legacy-cast",
-      "title": "PHP's `(T)expr` cast does not parse, and the diagnostic names the `as` that replaces it",
-      "status": "shipped",
-      "because": ["0034", "0007", "0049"],
-      "divergesFromPhp": "`(int)`, `(uint)`, `(float)`, `(string)`, `(bool)`, `(array)` and `(object)` are all parse errors rather than a second spelling of `as`",
-      "seeAlso": ["types/conversion"],
-      "guardedBy": [
-        "tests/conformance/reject/a-legacy-cast-does-not-parse.nvst",
-        "crates/nvs-syntax/src/parser/tests/expr.rs"
-      ]
-    },
-    {
-      "id": "types/implicit-widening",
-      "title": "An `int` or `uint` widening into a `float` position is the only implicit conversion in the language",
-      "status": "shipped",
-      "because": ["0007", "0054"],
-      "divergesFromPhp": "the widening throws above 2^53 instead of rounding, and no other implicit coercion survives",
-      "seeAlso": ["types/conversion", "types/arithmetic", "types/numeric-literal-placement"],
-      "guardedBy": [
-        "tests/conformance/lang/every-arithmetic-row-promotes-the-narrower-operand.nvst",
-        "tests/conformance/core/arr-a-callback-float-parameter-widens-an-int-and-stops-at-2-53.nvst"
-      ]
-    },
-    {
       "id": "types/grammar",
       "title": "The type grammar is a closed set of atoms under unions and intersections",
       "status": "shipped",
@@ -83,18 +43,6 @@
       ]
     },
     {
-      "id": "types/uint",
-      "title": "`uint` is a distinct unsigned 64-bit integer, and it costs no bytes a value did not already hold",
-      "status": "shipped",
-      "because": ["0007", "0004"],
-      "divergesFromPhp": "PHP has one integer type; Novis has two, reported distinctly by `Core\\Reflect::typeOf`, and the whole 64-bit range is representable",
-      "seeAlso": ["types/arithmetic", "types/integer-literals", "types/conversion"],
-      "guardedBy": [
-        "tests/conformance/lang/uint-spans-its-whole-range.nvst",
-        "tests/conformance/lang/uint-arithmetic-reaches-the-top-of-its-range.nvst"
-      ]
-    },
-    {
       "id": "types/integer-literals",
       "title": "An integer literal is decimal, `0x`, `0o` or `0b`, and a leading zero is not a radix",
       "status": "shipped",
@@ -104,6 +52,31 @@
       "guardedBy": [
         "tests/conformance/lang/an-integer-literal-takes-uint-from-the-operand-beside-it.nvst",
         "crates/nvs-syntax/src/lexer.rs"
+      ]
+    },
+    {
+      "id": "types/numeric-literal-placement",
+      "title": "A numeric literal is untyped until it is placed, and `as T` is a placing position",
+      "status": "shipped",
+      "because": ["0054", "0007", "0037"],
+      "divergesFromPhp": "a fractional literal is not born a `float` — `decimal $price = 19.99;` is exact — and there is no literal suffix for any numeric type",
+      "seeAlso": ["types/decimal", "types/integer-literals", "types/var-inference", "types/implicit-widening"],
+      "guardedBy": [
+        "tests/conformance/lang/an-integer-literal-takes-uint-from-the-operand-beside-it.nvst",
+        "tests/conformance/core/a-literal-adapts-to-a-generic-uint.nvst",
+        "crates/nvs-types/tests/decimal.rs"
+      ]
+    },
+    {
+      "id": "types/uint",
+      "title": "`uint` is a distinct unsigned 64-bit integer, and it costs no bytes a value did not already hold",
+      "status": "shipped",
+      "because": ["0007", "0004"],
+      "divergesFromPhp": "PHP has one integer type; Novis has two, reported distinctly by `Core\\Reflect::typeOf`, and the whole 64-bit range is representable",
+      "seeAlso": ["types/arithmetic", "types/integer-literals", "types/conversion"],
+      "guardedBy": [
+        "tests/conformance/lang/uint-spans-its-whole-range.nvst",
+        "tests/conformance/lang/uint-arithmetic-reaches-the-top-of-its-range.nvst"
       ]
     },
     {
@@ -123,6 +96,32 @@
       ]
     },
     {
+      "id": "types/implicit-widening",
+      "title": "An `int` or `uint` widening into a `float` position is the only implicit conversion in the language",
+      "status": "shipped",
+      "because": ["0007", "0054"],
+      "divergesFromPhp": "the widening throws above 2^53 instead of rounding, and no other implicit coercion survives",
+      "seeAlso": ["types/conversion", "types/arithmetic", "types/numeric-literal-placement"],
+      "guardedBy": [
+        "tests/conformance/lang/every-arithmetic-row-promotes-the-narrower-operand.nvst",
+        "tests/conformance/core/arr-a-callback-float-parameter-widens-an-int-and-stops-at-2-53.nvst"
+      ]
+    },
+    {
+      "id": "types/decimal",
+      "title": "`decimal` is an exact scalar of 96 mantissa bits and a scale of 0 to 28",
+      "status": "shipped",
+      "because": ["0054", "0007", "0051", "0004"],
+      "divergesFromPhp": "`bcmath` and `gmp` are retired rather than ported — exact fractional arithmetic is a register-sized scalar, and arbitrary-magnitude integers are `Core\\BigInt`",
+      "seeAlso": ["types/numeric-literal-placement", "types/arithmetic", "types/conversion"],
+      "guardedBy": [
+        "tests/conformance/lang/decimal-arithmetic-is-exact-and-keeps-its-scale.nvst",
+        "tests/conformance/lang/decimal-conversions-are-checked-in-both-directions.nvst",
+        "tests/conformance/core/decimal-division-refuses-a-zero-divisor-and-a-scale-it-cannot-hold.nvst",
+        "crates/nvs-types/tests/decimal.rs"
+      ]
+    },
+    {
       "id": "types/ordering",
       "title": "Only the types the table orders may be ordered, and two objects need `Comparable`",
       "status": "shipped",
@@ -133,6 +132,85 @@
         "tests/conformance/lang/an-ordering-over-a-mixed-operand-is-decided-by-its-tag.nvst",
         "tests/conformance/lang/an-operator-agrees-whether-its-operand-is-typed-or-tagged.nvst",
         "crates/nvs-types/tests/comparable_and_stringable.rs"
+      ]
+    },
+    {
+      "id": "types/string-is-utf8",
+      "title": "A `string` is valid UTF-8 for its whole lifetime, and its unmarked unit is the grapheme cluster",
+      "status": "shipped",
+      "because": ["0009", "0007"],
+      "divergesFromPhp": "`strlen` counts bytes and needs `mb_strlen` plus a correct ambient encoding to count characters; a Novis `string` has one encoding and one length, counting extended grapheme clusters unconditionally",
+      "seeAlso": ["types/bytes", "types/conversion"],
+      "guardedBy": [
+        "tests/conformance/core/str-length-counts-graphemes.nvst",
+        "tests/conformance/core/str-graphemes-partitions-the-subject-the-other-two-members-measure.nvst",
+        "tests/conformance/core/str-graphemes-and-code-points-count-different-units.nvst",
+        "tests/conformance/lang/an-interpolated-string-keeps-its-grapheme-clusters.nvst"
+      ]
+    },
+    {
+      "id": "types/bytes",
+      "title": "`bytes` is a primitive peer to `string` for data that carries no encoding",
+      "status": "shipped",
+      "because": ["0009", "0007", "0006", "0012"],
+      "divergesFromPhp": "PHP has one type for text and for a buffer and never says which a value is; a request body, a socket read, a file's contents and a digest all arrive as `bytes` and become text only by a conversion that can throw",
+      "seeAlso": ["types/string-is-utf8", "types/conversion", "types/grammar"],
+      "guardedBy": [
+        "tests/conformance/core/bytes-indexes-and-orders-by-byte-offset.nvst",
+        "tests/conformance/core/bytes-predicates-search-octets-where-core-str-searches-characters.nvst",
+        "tests/conformance/lang/string-and-bytes-convert-both-ways.nvst",
+        "tests/conformance/lang/a-bytes-in-a-condition-is-falsy-only-when-empty.nvst",
+        "tests/conformance/core/a-body-stream-chunk-is-tainted-and-a-plain-bytes-binding-refuses-it.nvst"
+      ]
+    },
+    {
+      "id": "types/duration-literal",
+      "title": "`1h30m` is a `Core\\Time\\Duration` constant, in one grammar shared by source, `parse` and `nvs.toml`",
+      "status": "shipped",
+      "because": ["0070", "0046", "0057", "0062", "0039"],
+      "seeAlso": ["types/numeric-literal-placement", "types/integer-literals"],
+      "guardedBy": [
+        "tests/conformance/lang/duration-literal-and-parse-share-one-grammar.nvst",
+        "tests/conformance/reject/a-duration-literal-follows-one-grammar.nvst",
+        "tests/conformance/reject/a-duration-unit-is-lower-case-only.nvst",
+        "tests/conformance/core/time-duration-round-trips-through-parse-exactly-where-the-grammar-has-a-spelling.nvst"
+      ]
+    },
+    {
+      "id": "types/literal-types",
+      "title": "A `string` or `int` literal is its own type, and a union of them is a closed set",
+      "status": "shipped",
+      "because": ["0047", "0007", "0024", "0033", "0066"],
+      "seeAlso": ["types/constant-in-type-position", "types/enum-case-type", "types/conversion", "types/narrowing"],
+      "guardedBy": [
+        "tests/conformance/lang/a-conversion-into-a-closed-set-of-literals-is-checked-at-run-time.nvst",
+        "tests/conformance/lang/a-conversion-into-a-set-of-mixed-literal-kinds-tags-its-operand.nvst",
+        "tests/conformance/lang/a-conversion-the-operand-disproves-is-a-compile-error.nvst",
+        "tests/conformance/lang/a-true-or-false-target-is-a-literal-type-of-bool.nvst",
+        "crates/nvs-types/tests/literal_types.rs"
+      ]
+    },
+    {
+      "id": "types/constant-in-type-position",
+      "title": "A scalar class constant used as a type folds to its own literal type",
+      "status": "shipped",
+      "because": ["0047", "0046"],
+      "seeAlso": ["types/literal-types", "types/enum-case-type"],
+      "guardedBy": [
+        "crates/nvs-types/tests/literal_types.rs",
+        "crates/nvs-syntax/src/parser/tests/ty.rs"
+      ]
+    },
+    {
+      "id": "types/enum-case-type",
+      "title": "An enum case used as a type is a narrowed subtype of its enum, never its backing integer",
+      "status": "shipped",
+      "because": ["0047", "0010", "0007"],
+      "seeAlso": ["types/literal-types", "types/conversion", "types/narrowing"],
+      "guardedBy": [
+        "tests/conformance/lang/a-conversion-into-a-closed-set-of-enum-cases-is-checked-at-run-time.nvst",
+        "tests/conformance/lang/an-enum-case-comparison-narrows-its-subject.nvst",
+        "crates/nvs-types/tests/literal_types.rs"
       ]
     },
     {
@@ -152,6 +230,34 @@
       ]
     },
     {
+      "id": "types/array-combination",
+      "title": "Three combining members treat every key alike, and `array + array` does not compile",
+      "status": "shipped",
+      "because": ["0069", "0007", "0063"],
+      "divergesFromPhp": "there is no `merge` under any spelling and no array `+` operator; `array_merge`'s rule chosen by a key's type does not survive a language where every key is a `string`",
+      "seeAlso": ["types/arrays", "types/preserve-keys"],
+      "guardedBy": [
+        "tests/conformance/core/arr-combination-members-treat-every-key-alike.nvst",
+        "tests/conformance/core/arr-combination-members-share-one-key-order-rule.nvst",
+        "tests/conformance/core/arr-diff-and-intersect-are-twelve-php-functions.nvst",
+        "tests/conformance/core/arr-flip-collapses-duplicates-last-wins.nvst"
+      ]
+    },
+    {
+      "id": "types/preserve-keys",
+      "title": "`{preserveKeys: false}` discards every key, whatever shape the key has",
+      "status": "shipped",
+      "because": ["0069", "0007"],
+      "divergesFromPhp": "PHP renumbers integer keys and silently keeps string ones; `false` means the result is a list, and nothing else",
+      "seeAlso": ["types/array-combination", "types/arrays"],
+      "guardedBy": [
+        "tests/conformance/core/arr-reverse-discards-every-key-by-default.nvst",
+        "tests/conformance/core/arr-sort-preserves-keys-on-request.nvst",
+        "tests/conformance/core/arr-slice-and-chunk-window-by-position.nvst",
+        "tests/conformance/core/arr-is-list-is-one-question-asked-twice.nvst"
+      ]
+    },
+    {
       "id": "types/mixed-subscript",
       "title": "A subscript through a `mixed` is the tag's question; every other base answers it where it is written",
       "status": "shipped",
@@ -162,6 +268,41 @@
         "tests/conformance/lang/a-subscript-through-a-mixed-base-is-decided-by-its-tag.nvst",
         "tests/conformance/lang/reading-an-absent-array-key-throws.nvst",
         "tests/conformance/array/a-subscript-needs-an-array-to-read-from.nvst"
+      ]
+    },
+    {
+      "id": "types/property-key",
+      "title": "`property<T>` is a type whose values are `T`'s public property names, and `as` is its only source",
+      "status": "shipped",
+      "because": ["0126", "0007", "0090", "0019", "0066", "0024", "0033"],
+      "seeAlso": ["types/property-key-variance", "types/property-key-access", "types/class-reference", "types/conversion"],
+      "guardedBy": [
+        "tests/conformance/class/a-property-key-is-checked-where-the-name-arrives.nvst",
+        "tests/conformance/class/a-name-outside-the-public-set-throws-at-the-conversion.nvst",
+        "tests/conformance/reject/a-private-property-is-not-a-property-key.nvst"
+      ]
+    },
+    {
+      "id": "types/property-key-variance",
+      "title": "`property<T>` widens as `T` narrows, because the argument bounds the receiver",
+      "status": "shipped",
+      "because": ["0126", "0125"],
+      "seeAlso": ["types/property-key", "types/class-reference-variance", "types/property-key-access"],
+      "guardedBy": [
+        "tests/conformance/class/a-property-key-reads-and-writes-the-field-it-names.nvst",
+        "crates/nvs-types/tests/subtyping.rs"
+      ]
+    },
+    {
+      "id": "types/property-key-access",
+      "title": "`$obj->$key` accepts a `property<T>` and nothing else; a read is the union and a write is checked",
+      "status": "shipped",
+      "because": ["0126", "0036", "0014", "0038"],
+      "divergesFromPhp": "a computed property name is not a string at the site — every other operand is refused, dispatch through a computed *method* name stays refused, and a `readonly` field in the set is refused at the write",
+      "seeAlso": ["types/property-key", "types/erased-member-access", "types/property-key-variance"],
+      "guardedBy": [
+        "tests/conformance/class/a-property-key-reads-and-writes-the-field-it-names.nvst",
+        "tests/conformance/lang/a-computed-member-name-is-a-diagnostic.nvst"
       ]
     },
     {
@@ -193,32 +334,31 @@
       ]
     },
     {
-      "id": "types/string-is-utf8",
-      "title": "A `string` is valid UTF-8 for its whole lifetime, and its unmarked unit is the grapheme cluster",
+      "id": "types/conversion",
+      "title": "`expr as T` is the only conversion, and it produces a `T` or throws",
       "status": "shipped",
-      "because": ["0009", "0007"],
-      "divergesFromPhp": "`strlen` counts bytes and needs `mb_strlen` plus a correct ambient encoding to count characters; a Novis `string` has one encoding and one length, counting extended grapheme clusters unconditionally",
-      "seeAlso": ["types/bytes", "types/conversion"],
+      "because": ["0007", "0009", "0010", "0024", "0028", "0033", "0034", "0047", "0054", "0066", "0125", "0126", "0144"],
+      "divergesFromPhp": "nothing converts silently — `(int)\"abc\"` is not `0`, `PHP_INT_MAX + 1` is not a `float`, and `settype` does not exist; every conversion is written, checked, and throws rather than substituting",
+      "seeAlso": ["types/no-legacy-cast", "types/implicit-widening", "types/arithmetic", "types/unions-and-mixed"],
       "guardedBy": [
-        "tests/conformance/core/str-length-counts-graphemes.nvst",
-        "tests/conformance/core/str-graphemes-partitions-the-subject-the-other-two-members-measure.nvst",
-        "tests/conformance/core/str-graphemes-and-code-points-count-different-units.nvst",
-        "tests/conformance/lang/an-interpolated-string-keeps-its-grapheme-clusters.nvst"
+        "tests/conformance/lang/conversions-that-succeed.nvst",
+        "tests/conformance/lang/the-conversion-table-is-closed.nvst",
+        "tests/conformance/lang/the-nullable-conversion-table-is-closed-at-both-ends.nvst",
+        "tests/conformance/lang/a-lossy-conversion-throws.nvst",
+        "tests/conformance/lang/every-remaining-conversion-row-runs-or-throws.nvst",
+        "tests/conformance/lang/a-string-that-is-not-a-number-refuses-to-convert.nvst"
       ]
     },
     {
-      "id": "types/bytes",
-      "title": "`bytes` is a primitive peer to `string` for data that carries no encoding",
+      "id": "types/no-legacy-cast",
+      "title": "PHP's `(T)expr` cast does not parse, and the diagnostic names the `as` that replaces it",
       "status": "shipped",
-      "because": ["0009", "0007", "0006", "0012"],
-      "divergesFromPhp": "PHP has one type for text and for a buffer and never says which a value is; a request body, a socket read, a file's contents and a digest all arrive as `bytes` and become text only by a conversion that can throw",
-      "seeAlso": ["types/string-is-utf8", "types/conversion", "types/grammar"],
+      "because": ["0034", "0007", "0049"],
+      "divergesFromPhp": "`(int)`, `(uint)`, `(float)`, `(string)`, `(bool)`, `(array)` and `(object)` are all parse errors rather than a second spelling of `as`",
+      "seeAlso": ["types/conversion"],
       "guardedBy": [
-        "tests/conformance/core/bytes-indexes-and-orders-by-byte-offset.nvst",
-        "tests/conformance/core/bytes-predicates-search-octets-where-core-str-searches-characters.nvst",
-        "tests/conformance/lang/string-and-bytes-convert-both-ways.nvst",
-        "tests/conformance/lang/a-bytes-in-a-condition-is-falsy-only-when-empty.nvst",
-        "tests/conformance/core/a-body-stream-chunk-is-tainted-and-a-plain-bytes-binding-refuses-it.nvst"
+        "tests/conformance/reject/a-legacy-cast-does-not-parse.nvst",
+        "crates/nvs-syntax/src/parser/tests/expr.rs"
       ]
     },
     {
@@ -268,39 +408,6 @@
       ]
     },
     {
-      "id": "types/implicit-capture",
-      "title": "A closure captures by value exactly the outer names its body reads, and there is no `use` clause",
-      "status": "shipped",
-      "because": ["0031", "0008"],
-      "divergesFromPhp": "capture is never written, and `use (&$y)` has no replacement — a shared mutable cell is an ordinary object in user code",
-      "seeAlso": ["types/closure-literal", "types/closure-self-name", "types/object-literal"],
-      "guardedBy": [
-        "crates/nvs-types/tests/closures.rs",
-        "crates/nvs-syntax/src/parser/tests/expr.rs",
-        "tests/conformance/class/a-closure-returned-from-a-method-keeps-this.nvst"
-      ]
-    },
-    {
-      "id": "types/closure-self-name",
-      "title": "A closure may carry a self-name, visible only inside its own body",
-      "status": "shipped",
-      "because": ["0031", "0011"],
-      "seeAlso": ["types/closure-literal", "types/implicit-capture"],
-      "guardedBy": ["tests/conformance/core/a-named-closure-recurses.nvst"]
-    },
-    {
-      "id": "types/callable-absorbs-closure",
-      "title": "`callable` is the only closure type name, and a callable value is invoked directly",
-      "status": "shipped",
-      "because": ["0031", "0027", "0007"],
-      "divergesFromPhp": "there is no `Closure` type, no `Closure::fromCallable`, and no `call_user_func`/`call_user_func_array`",
-      "seeAlso": ["types/callable-is-a-closure", "types/closure-literal", "types/grammar"],
-      "guardedBy": [
-        "crates/nvs-types/tests/callable.rs",
-        "crates/nvs-syntax/src/parser/tests/expr.rs"
-      ]
-    },
-    {
       "id": "types/callable-signature",
       "title": "A `callable` type may name its parameters, and must then name its return type",
       "status": "designed",
@@ -331,6 +438,39 @@
       "because": ["0136", "0036", "0031"],
       "seeAlso": ["types/callable-signature", "types/closure-literal", "types/erased-member-access"],
       "guardedBy": []
+    },
+    {
+      "id": "types/callable-absorbs-closure",
+      "title": "`callable` is the only closure type name, and a callable value is invoked directly",
+      "status": "shipped",
+      "because": ["0031", "0027", "0007"],
+      "divergesFromPhp": "there is no `Closure` type, no `Closure::fromCallable`, and no `call_user_func`/`call_user_func_array`",
+      "seeAlso": ["types/callable-is-a-closure", "types/closure-literal", "types/grammar"],
+      "guardedBy": [
+        "crates/nvs-types/tests/callable.rs",
+        "crates/nvs-syntax/src/parser/tests/expr.rs"
+      ]
+    },
+    {
+      "id": "types/implicit-capture",
+      "title": "A closure captures by value exactly the outer names its body reads, and there is no `use` clause",
+      "status": "shipped",
+      "because": ["0031", "0008"],
+      "divergesFromPhp": "capture is never written, and `use (&$y)` has no replacement — a shared mutable cell is an ordinary object in user code",
+      "seeAlso": ["types/closure-literal", "types/closure-self-name", "types/object-literal"],
+      "guardedBy": [
+        "crates/nvs-types/tests/closures.rs",
+        "crates/nvs-syntax/src/parser/tests/expr.rs",
+        "tests/conformance/class/a-closure-returned-from-a-method-keeps-this.nvst"
+      ]
+    },
+    {
+      "id": "types/closure-self-name",
+      "title": "A closure may carry a self-name, visible only inside its own body",
+      "status": "shipped",
+      "because": ["0031", "0011"],
+      "seeAlso": ["types/closure-literal", "types/implicit-capture"],
+      "guardedBy": ["tests/conformance/core/a-named-closure-recurses.nvst"]
     },
     {
       "id": "types/object-top",
@@ -385,111 +525,6 @@
       ]
     },
     {
-      "id": "types/literal-types",
-      "title": "A `string` or `int` literal is its own type, and a union of them is a closed set",
-      "status": "shipped",
-      "because": ["0047", "0007", "0024", "0033", "0066"],
-      "seeAlso": ["types/constant-in-type-position", "types/enum-case-type", "types/conversion", "types/narrowing"],
-      "guardedBy": [
-        "tests/conformance/lang/a-conversion-into-a-closed-set-of-literals-is-checked-at-run-time.nvst",
-        "tests/conformance/lang/a-conversion-into-a-set-of-mixed-literal-kinds-tags-its-operand.nvst",
-        "tests/conformance/lang/a-conversion-the-operand-disproves-is-a-compile-error.nvst",
-        "tests/conformance/lang/a-true-or-false-target-is-a-literal-type-of-bool.nvst",
-        "crates/nvs-types/tests/literal_types.rs"
-      ]
-    },
-    {
-      "id": "types/constant-in-type-position",
-      "title": "A scalar class constant used as a type folds to its own literal type",
-      "status": "shipped",
-      "because": ["0047", "0046"],
-      "seeAlso": ["types/literal-types", "types/enum-case-type"],
-      "guardedBy": [
-        "crates/nvs-types/tests/literal_types.rs",
-        "crates/nvs-syntax/src/parser/tests/ty.rs"
-      ]
-    },
-    {
-      "id": "types/enum-case-type",
-      "title": "An enum case used as a type is a narrowed subtype of its enum, never its backing integer",
-      "status": "shipped",
-      "because": ["0047", "0010", "0007"],
-      "seeAlso": ["types/literal-types", "types/conversion", "types/narrowing"],
-      "guardedBy": [
-        "tests/conformance/lang/a-conversion-into-a-closed-set-of-enum-cases-is-checked-at-run-time.nvst",
-        "tests/conformance/lang/an-enum-case-comparison-narrows-its-subject.nvst",
-        "crates/nvs-types/tests/literal_types.rs"
-      ]
-    },
-    {
-      "id": "types/decimal",
-      "title": "`decimal` is an exact scalar of 96 mantissa bits and a scale of 0 to 28",
-      "status": "shipped",
-      "because": ["0054", "0007", "0051", "0004"],
-      "divergesFromPhp": "`bcmath` and `gmp` are retired rather than ported — exact fractional arithmetic is a register-sized scalar, and arbitrary-magnitude integers are `Core\\BigInt`",
-      "seeAlso": ["types/numeric-literal-placement", "types/arithmetic", "types/conversion"],
-      "guardedBy": [
-        "tests/conformance/lang/decimal-arithmetic-is-exact-and-keeps-its-scale.nvst",
-        "tests/conformance/lang/decimal-conversions-are-checked-in-both-directions.nvst",
-        "tests/conformance/core/decimal-division-refuses-a-zero-divisor-and-a-scale-it-cannot-hold.nvst",
-        "crates/nvs-types/tests/decimal.rs"
-      ]
-    },
-    {
-      "id": "types/numeric-literal-placement",
-      "title": "A numeric literal is untyped until it is placed, and `as T` is a placing position",
-      "status": "shipped",
-      "because": ["0054", "0007", "0037"],
-      "divergesFromPhp": "a fractional literal is not born a `float` — `decimal $price = 19.99;` is exact — and there is no literal suffix for any numeric type",
-      "seeAlso": ["types/decimal", "types/integer-literals", "types/var-inference", "types/implicit-widening"],
-      "guardedBy": [
-        "tests/conformance/lang/an-integer-literal-takes-uint-from-the-operand-beside-it.nvst",
-        "tests/conformance/core/a-literal-adapts-to-a-generic-uint.nvst",
-        "crates/nvs-types/tests/decimal.rs"
-      ]
-    },
-    {
-      "id": "types/array-combination",
-      "title": "Three combining members treat every key alike, and `array + array` does not compile",
-      "status": "shipped",
-      "because": ["0069", "0007", "0063"],
-      "divergesFromPhp": "there is no `merge` under any spelling and no array `+` operator; `array_merge`'s rule chosen by a key's type does not survive a language where every key is a `string`",
-      "seeAlso": ["types/arrays", "types/preserve-keys"],
-      "guardedBy": [
-        "tests/conformance/core/arr-combination-members-treat-every-key-alike.nvst",
-        "tests/conformance/core/arr-combination-members-share-one-key-order-rule.nvst",
-        "tests/conformance/core/arr-diff-and-intersect-are-twelve-php-functions.nvst",
-        "tests/conformance/core/arr-flip-collapses-duplicates-last-wins.nvst"
-      ]
-    },
-    {
-      "id": "types/preserve-keys",
-      "title": "`{preserveKeys: false}` discards every key, whatever shape the key has",
-      "status": "shipped",
-      "because": ["0069", "0007"],
-      "divergesFromPhp": "PHP renumbers integer keys and silently keeps string ones; `false` means the result is a list, and nothing else",
-      "seeAlso": ["types/array-combination", "types/arrays"],
-      "guardedBy": [
-        "tests/conformance/core/arr-reverse-discards-every-key-by-default.nvst",
-        "tests/conformance/core/arr-sort-preserves-keys-on-request.nvst",
-        "tests/conformance/core/arr-slice-and-chunk-window-by-position.nvst",
-        "tests/conformance/core/arr-is-list-is-one-question-asked-twice.nvst"
-      ]
-    },
-    {
-      "id": "types/duration-literal",
-      "title": "`1h30m` is a `Core\\Time\\Duration` constant, in one grammar shared by source, `parse` and `nvs.toml`",
-      "status": "shipped",
-      "because": ["0070", "0046", "0057", "0062", "0039"],
-      "seeAlso": ["types/numeric-literal-placement", "types/integer-literals"],
-      "guardedBy": [
-        "tests/conformance/lang/duration-literal-and-parse-share-one-grammar.nvst",
-        "tests/conformance/reject/a-duration-literal-follows-one-grammar.nvst",
-        "tests/conformance/reject/a-duration-unit-is-lower-case-only.nvst",
-        "tests/conformance/core/time-duration-round-trips-through-parse-exactly-where-the-grammar-has-a-spelling.nvst"
-      ]
-    },
-    {
       "id": "types/class-reference",
       "title": "`class<T>` is a type whose value is a class descriptor, and `as` is its only source",
       "status": "shipped",
@@ -524,41 +559,6 @@
         "tests/conformance/class/a-class-reference-carries-a-static-call-and-an-instanceof.nvst",
         "tests/conformance/reject/a-subclass-with-another-constructor-refuses-a-dynamic-new.nvst",
         "crates/nvs-ir/tests/class_reference.rs"
-      ]
-    },
-    {
-      "id": "types/property-key",
-      "title": "`property<T>` is a type whose values are `T`'s public property names, and `as` is its only source",
-      "status": "shipped",
-      "because": ["0126", "0007", "0090", "0019", "0066", "0024", "0033"],
-      "seeAlso": ["types/property-key-variance", "types/property-key-access", "types/class-reference", "types/conversion"],
-      "guardedBy": [
-        "tests/conformance/class/a-property-key-is-checked-where-the-name-arrives.nvst",
-        "tests/conformance/class/a-name-outside-the-public-set-throws-at-the-conversion.nvst",
-        "tests/conformance/reject/a-private-property-is-not-a-property-key.nvst"
-      ]
-    },
-    {
-      "id": "types/property-key-variance",
-      "title": "`property<T>` widens as `T` narrows, because the argument bounds the receiver",
-      "status": "shipped",
-      "because": ["0126", "0125"],
-      "seeAlso": ["types/property-key", "types/class-reference-variance", "types/property-key-access"],
-      "guardedBy": [
-        "tests/conformance/class/a-property-key-reads-and-writes-the-field-it-names.nvst",
-        "crates/nvs-types/tests/subtyping.rs"
-      ]
-    },
-    {
-      "id": "types/property-key-access",
-      "title": "`$obj->$key` accepts a `property<T>` and nothing else; a read is the union and a write is checked",
-      "status": "shipped",
-      "because": ["0126", "0036", "0014", "0038"],
-      "divergesFromPhp": "a computed property name is not a string at the site — every other operand is refused, dispatch through a computed *method* name stays refused, and a `readonly` field in the set is refused at the write",
-      "seeAlso": ["types/property-key", "types/erased-member-access", "types/property-key-variance"],
-      "guardedBy": [
-        "tests/conformance/class/a-property-key-reads-and-writes-the-field-it-names.nvst",
-        "tests/conformance/lang/a-computed-member-name-is-a-diagnostic.nvst"
       ]
     },
     {

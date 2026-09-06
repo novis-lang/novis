@@ -21,6 +21,25 @@
       ]
     },
     {
+      "id": "concurrency/a-child-belongs-to-the-calling-task",
+      "title": "Every task is a child of the task that started it, shares that request's accounting, and dies with it",
+      "status": "shipped",
+      "because": [
+        "0072",
+        "0006"
+      ],
+      "divergesFromPhp": "PHP has no task, so it has no orphan either; here an unparented task is impossible rather than discouraged",
+      "seeAlso": [
+        "security/isolate-shares-nothing",
+        "security/isolate-budget-is-the-trees",
+        "programs/memory-priority"
+      ],
+      "guardedBy": [
+        "tests/conformance/task/a-task-tree-dies-with-its-parent.nvst",
+        "tests/conformance/task/a-spawned-task-runs-and-its-value-is-awaited.nvst"
+      ]
+    },
+    {
       "id": "concurrency/all-answers-a-typed-shape",
       "title": "`Core\\Task::all` answers a shape with the argument's own field names, each field keeping its own type",
       "status": "shipped",
@@ -53,25 +72,6 @@
       "guardedBy": [
         "tests/conformance/core/a-task-all-field-binds-from-a-written-fn-literal-and-nothing-else.nvst",
         "tests/conformance/reject/a-task-all-field-holding-a-callable-variable-is-refused.nvst"
-      ]
-    },
-    {
-      "id": "concurrency/a-child-belongs-to-the-calling-task",
-      "title": "Every task is a child of the task that started it, shares that request's accounting, and dies with it",
-      "status": "shipped",
-      "because": [
-        "0072",
-        "0006"
-      ],
-      "divergesFromPhp": "PHP has no task, so it has no orphan either; here an unparented task is impossible rather than discouraged",
-      "seeAlso": [
-        "security/isolate-shares-nothing",
-        "security/isolate-budget-is-the-trees",
-        "programs/memory-priority"
-      ],
-      "guardedBy": [
-        "tests/conformance/task/a-task-tree-dies-with-its-parent.nvst",
-        "tests/conformance/task/a-spawned-task-runs-and-its-value-is-awaited.nvst"
       ]
     },
     {
@@ -129,20 +129,6 @@
       ]
     },
     {
-      "id": "concurrency/a-deadline-bounds-the-cancel-not-the-return",
-      "title": "A deadline bounds when cancellation is asked for, not when the call returns",
-      "status": "designed",
-      "because": [
-        "0072"
-      ],
-      "seeAlso": [
-        "concurrency/nothing-is-still-running-when-a-call-returns",
-        "core-classes/db-one-api",
-        "core-classes/db-connection-busy-state"
-      ],
-      "guardedBy": []
-    },
-    {
       "id": "concurrency/cancellation-runs-no-user-code",
       "title": "A cancelled task runs no `catch`, no cleanup and no handler, and cancellation is not a `Throwable`",
       "status": "shipped",
@@ -161,6 +147,20 @@
         "tests/conformance/core/a-cancelled-task-dies-where-it-sleeps.nvst",
         "crates/nvs-stdlib/tests/deadline_poll.rs"
       ]
+    },
+    {
+      "id": "concurrency/a-deadline-bounds-the-cancel-not-the-return",
+      "title": "A deadline bounds when cancellation is asked for, not when the call returns",
+      "status": "designed",
+      "because": [
+        "0072"
+      ],
+      "seeAlso": [
+        "concurrency/nothing-is-still-running-when-a-call-returns",
+        "core-classes/db-one-api",
+        "core-classes/db-connection-busy-state"
+      ],
+      "guardedBy": []
     },
     {
       "id": "concurrency/after-response-outlives-the-connection",
@@ -269,6 +269,23 @@
       ]
     },
     {
+      "id": "concurrency/put-and-get-are-the-whole-boundary",
+      "title": "The cache boundary is a copy in and a copy out, so nothing across it is read-modify-write",
+      "status": "shipped",
+      "because": [
+        "0059"
+      ],
+      "divergesFromPhp": "`apcu_add`, `apcu_cas` and `apcu_inc` have no counterpart, so a lock or a counter is not built on the cache at all",
+      "seeAlso": [
+        "concurrency/a-cached-value-is-copied-across-the-boundary",
+        "core-classes/ratelimit-two-members",
+        "core-api/two-cache-tiers"
+      ],
+      "guardedBy": [
+        "tests/conformance/core/cache-a-rewrite-replaces-the-entry-rather-than-adding-one.nvst"
+      ]
+    },
+    {
       "id": "concurrency/a-cached-value-is-copied-across-the-boundary",
       "title": "A value is copied into the cache and copied back out, by the same graph copy the isolate boundary uses",
       "status": "shipped",
@@ -286,23 +303,6 @@
       "guardedBy": [
         "tests/conformance/core/cache-an-entry-is-a-copy-that-shares-nothing-with-the-request.nvst",
         "tests/conformance/reject/a-secret-value-cannot-cross-the-graph-copy.nvst"
-      ]
-    },
-    {
-      "id": "concurrency/put-and-get-are-the-whole-boundary",
-      "title": "The cache boundary is a copy in and a copy out, so nothing across it is read-modify-write",
-      "status": "shipped",
-      "because": [
-        "0059"
-      ],
-      "divergesFromPhp": "`apcu_add`, `apcu_cas` and `apcu_inc` have no counterpart, so a lock or a counter is not built on the cache at all",
-      "seeAlso": [
-        "concurrency/a-cached-value-is-copied-across-the-boundary",
-        "core-classes/ratelimit-two-members",
-        "core-api/two-cache-tiers"
-      ],
-      "guardedBy": [
-        "tests/conformance/core/cache-a-rewrite-replaces-the-entry-rather-than-adding-one.nvst"
       ]
     },
     {
@@ -553,6 +553,273 @@
       ]
     },
     {
+      "id": "concurrency/enqueue-commits-with-your-write",
+      "title": "A `push` on the queue's connection commits with the write that caused it, or neither happens",
+      "status": "shipped",
+      "because": [
+        "0084",
+        "0067"
+      ],
+      "divergesFromPhp": "a queued job and the database write that justified it commit together, where an application on a broker writes an outbox row and relays it afterwards",
+      "seeAlso": [
+        "core-classes/queue-storage-is-a-table",
+        "concurrency/foreign-connection-enqueue-is-counted",
+        "concurrency/no-broker-and-no-driver-interface"
+      ],
+      "guardedBy": [
+        "crates/nvs-stdlib/tests/queue.rs"
+      ]
+    },
+    {
+      "id": "concurrency/queue-four-members",
+      "title": "`Core\\Queue` is four members, and each is asked about a job or about a queue, never about a row number",
+      "status": "shipped",
+      "because": [
+        "0084",
+        "0063"
+      ],
+      "divergesFromPhp": "the queue is four members of the runtime rather than a framework façade, and what `push` answers is a handle rather than an integer id",
+      "seeAlso": [
+        "core-api/shape-rules",
+        "concurrency/a-job-between-attempts-is-pending",
+        "concurrency/cancel-is-a-race-it-can-lose"
+      ],
+      "guardedBy": [
+        "tests/conformance/core/queue-push-answers-an-id-and-not-a-number.nvst",
+        "tests/conformance/core/queue-cancel-and-status-are-asked-the-same-way.nvst",
+        "tests/conformance/core/queue-status-is-asked-with-the-receipt-and-not-the-row.nvst",
+        "tests/conformance/core/queue-stats-is-asked-about-a-queue-and-not-a-job.nvst",
+        "tests/conformance/core/queue-stats-answers-a-record-of-counters.nvst"
+      ]
+    },
+    {
+      "id": "concurrency/a-job-names-a-file",
+      "title": "A job names a script file, and its payload crosses as a copied value",
+      "status": "shipped",
+      "because": [
+        "0084",
+        "0006",
+        "0023",
+        "0071"
+      ],
+      "divergesFromPhp": "a job is a file rather than a class implementing an interface, and nothing about it is a serialized object graph waiting to be reconstructed",
+      "seeAlso": [
+        "concurrency/a-job-runs-as-a-root-isolate",
+        "concurrency/a-payload-refuses-secret-and-keeps-its-qualifiers"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue",
+      "title": "A job's budget and grants are recorded when it is enqueued, and narrowed from that context rather than widened",
+      "status": "designed",
+      "because": [
+        "0084",
+        "0005"
+      ],
+      "divergesFromPhp": "background work carries its own memory, CPU and time budget, and its permissions can only shrink from those of the code that enqueued it",
+      "seeAlso": [
+        "security/capability-check-at-the-door",
+        "concurrency/a-job-runs-as-a-root-isolate"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "concurrency/claiming-is-one-statement",
+      "title": "A worker claims a job with one statement the database arbitrates, so a fleet needs no lease protocol",
+      "status": "shipped",
+      "because": [
+        "0084",
+        "0073",
+        "0067"
+      ],
+      "divergesFromPhp": "a fleet needs no supervisor, no heartbeat and no coordinator process — the database provides the mutual exclusion",
+      "seeAlso": [
+        "core-classes/db-one-api",
+        "concurrency/delivery-is-at-least-once"
+      ],
+      "guardedBy": [
+        "crates/nvs-stdlib/tests/queue.rs"
+      ]
+    },
+    {
+      "id": "concurrency/a-job-between-attempts-is-pending",
+      "title": "A job between attempts is `Pending`, and there is no `Failed` state to ask about",
+      "status": "shipped",
+      "because": [
+        "0084"
+      ],
+      "divergesFromPhp": "there is no failed state to poll for — a job waiting out its backoff is indistinguishable from one that has not run yet, and \"did it fail\" is a question about the dead-letter table",
+      "seeAlso": [
+        "enums/closed-integer-type",
+        "concurrency/attempts-are-finite-and-a-dead-letter-is-kept"
+      ],
+      "guardedBy": [
+        "tests/conformance/core/queue-state-is-its-own-closed-type.nvst",
+        "tests/conformance/core/queue-status-answers-a-state-and-not-a-number.nvst"
+      ]
+    },
+    {
+      "id": "concurrency/delivery-is-at-least-once",
+      "title": "Delivery is at-least-once, and idempotency is the job's own obligation",
+      "status": "shipped",
+      "because": [
+        "0084"
+      ],
+      "divergesFromPhp": "the guarantee is stated rather than implied, so a job is written to tolerate running twice instead of assuming it will not",
+      "seeAlso": [
+        "concurrency/claiming-is-one-statement",
+        "concurrency/attempts-are-finite-and-a-dead-letter-is-kept"
+      ],
+      "guardedBy": [
+        "crates/nvs-stdlib/tests/queue.rs"
+      ]
+    },
+    {
+      "id": "concurrency/attempts-are-finite-and-a-dead-letter-is-kept",
+      "title": "Attempts are finite, backoff is exponential and jittered, and an exhausted job is kept rather than discarded",
+      "status": "shipped",
+      "because": [
+        "0084",
+        "0074",
+        "0076"
+      ],
+      "divergesFromPhp": "nothing is discarded silently and nothing retries forever — an exhausted job is a row in a dead-letter table rather than a line in a log",
+      "seeAlso": [
+        "concurrency/delivery-is-at-least-once",
+        "concurrency/a-budget-overrun-is-a-failed-attempt",
+        "core-classes/queue-storage-is-a-table"
+      ],
+      "guardedBy": [
+        "crates/nvs-stdlib/src/queue.rs",
+        "crates/nvs-stdlib/tests/queue.rs",
+        "tests/conformance/core/queue-push-judges-its-options-before-it-opens-anything.nvst"
+      ]
+    },
+    {
+      "id": "concurrency/a-budget-overrun-is-a-failed-attempt",
+      "title": "A job that exceeds its budget is a failed attempt, reported as that and retried like any other",
+      "status": "shipped",
+      "because": [
+        "0084",
+        "0005"
+      ],
+      "divergesFromPhp": "exhausting memory in background work is a bounded failed attempt rather than a fatal that takes the process with it",
+      "seeAlso": [
+        "errors/escalation-ladder",
+        "concurrency/attempts-are-finite-and-a-dead-letter-is-kept"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "concurrency/cancel-is-a-race-it-can-lose",
+      "title": "`cancel` answers whether it won the race, and it changes the job's state rather than deleting the row",
+      "status": "shipped",
+      "because": [
+        "0084"
+      ],
+      "divergesFromPhp": "cancelling is a race against a worker rather than a command, and the answer says which side won it",
+      "seeAlso": [
+        "concurrency/claiming-is-one-statement",
+        "concurrency/queue-four-members"
+      ],
+      "guardedBy": [
+        "tests/conformance/core/queue-cancel-answers-whether-it-won-the-race.nvst",
+        "tests/conformance/core/queue-a-cancelled-job-is-still-one-status-answers-about.nvst"
+      ]
+    },
+    {
+      "id": "concurrency/a-job-runs-as-a-root-isolate",
+      "title": "A job runs as a root isolate, and there is no second execution path",
+      "status": "shipped",
+      "because": [
+        "0084",
+        "0006",
+        "0017"
+      ],
+      "divergesFromPhp": "a job shares nothing with the request that enqueued it — no statics, no session, no superglobals — because it is a fresh isolate rather than the same process continuing",
+      "seeAlso": [
+        "concurrency/a-job-names-a-file",
+        "concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "concurrency/who-runs-a-job-is-configuration",
+      "title": "Which process runs a job is configuration, and every spelling drives the identical isolate",
+      "status": "designed",
+      "because": [
+        "0084"
+      ],
+      "divergesFromPhp": "workers are the runtime's own and start from configuration — there is no separate daemon or process manager to install beside the server",
+      "seeAlso": [
+        "core-classes/queue-storage-is-a-table",
+        "concurrency/a-job-runs-as-a-root-isolate"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "concurrency/a-payload-refuses-secret-and-keeps-its-qualifiers",
+      "title": "A durable payload refuses `secret`, and a `tainted` value comes back `tainted`",
+      "status": "designed",
+      "because": [
+        "0084",
+        "0033",
+        "0024",
+        "0023"
+      ],
+      "divergesFromPhp": "a credential cannot enter a job payload at all, and taint survives the round trip through the database instead of being laundered by it",
+      "seeAlso": [
+        "security/secret-qualifier",
+        "security/tainted-qualifier",
+        "concurrency/a-job-names-a-file"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "concurrency/foreign-connection-enqueue-is-counted",
+      "title": "A `push` on a connection other than the queue's is not transactional, and is counted rather than assumed away",
+      "status": "designed",
+      "because": [
+        "0084"
+      ],
+      "divergesFromPhp": "losing atomicity between a write and its job is a measured deployment fact rather than an unstated one",
+      "seeAlso": [
+        "concurrency/enqueue-commits-with-your-write",
+        "concurrency/queue-four-members"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "concurrency/queued-work-is-not-scheduled-work",
+      "title": "Queued work is durable, retried and declared by the application; scheduled work is a clock tick and none of those",
+      "status": "shipped",
+      "because": [
+        "0084",
+        "0073"
+      ],
+      "divergesFromPhp": "cron-style entries and background jobs are two mechanisms with two guarantees, rather than one worker loop doing both",
+      "seeAlso": [
+        "concurrency/delivery-is-at-least-once",
+        "concurrency/attempts-are-finite-and-a-dead-letter-is-kept"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "concurrency/no-broker-and-no-driver-interface",
+      "title": "There is no broker backend and no pluggable driver, because a driver makes transactional enqueue optional",
+      "status": "shipped",
+      "because": [
+        "0084"
+      ],
+      "divergesFromPhp": "there is no Redis, SQS or AMQP backend to choose and nothing to configure between the application and its jobs",
+      "seeAlso": [
+        "concurrency/enqueue-commits-with-your-write",
+        "core-classes/queue-storage-is-a-table"
+      ],
+      "guardedBy": []
+    },
+    {
       "id": "concurrency/one-future-per-connection",
       "title": "A connection is one future, driven to completion by the coroutine that owns it",
       "status": "shipped",
@@ -654,291 +921,6 @@
       ]
     },
     {
-      "id": "concurrency/enqueue-commits-with-your-write",
-      "title": "A `push` on the queue's connection commits with the write that caused it, or neither happens",
-      "status": "shipped",
-      "because": [
-        "0084",
-        "0067"
-      ],
-      "divergesFromPhp": "a queued job and the database write that justified it commit together, where an application on a broker writes an outbox row and relays it afterwards",
-      "seeAlso": [
-        "core-classes/queue-storage-is-a-table",
-        "concurrency/foreign-connection-enqueue-is-counted",
-        "concurrency/no-broker-and-no-driver-interface"
-      ],
-      "guardedBy": [
-        "crates/nvs-stdlib/tests/queue.rs"
-      ]
-    },
-    {
-      "id": "concurrency/queue-four-members",
-      "title": "`Core\\Queue` is four members, and each is asked about a job or about a queue, never about a row number",
-      "status": "shipped",
-      "because": [
-        "0084",
-        "0063"
-      ],
-      "divergesFromPhp": "the queue is four members of the runtime rather than a framework façade, and what `push` answers is a handle rather than an integer id",
-      "seeAlso": [
-        "core-api/shape-rules",
-        "concurrency/a-job-between-attempts-is-pending",
-        "concurrency/cancel-is-a-race-it-can-lose"
-      ],
-      "guardedBy": [
-        "tests/conformance/core/queue-push-answers-an-id-and-not-a-number.nvst",
-        "tests/conformance/core/queue-cancel-and-status-are-asked-the-same-way.nvst",
-        "tests/conformance/core/queue-status-is-asked-with-the-receipt-and-not-the-row.nvst",
-        "tests/conformance/core/queue-stats-is-asked-about-a-queue-and-not-a-job.nvst",
-        "tests/conformance/core/queue-stats-answers-a-record-of-counters.nvst"
-      ]
-    },
-    {
-      "id": "concurrency/a-job-between-attempts-is-pending",
-      "title": "A job between attempts is `Pending`, and there is no `Failed` state to ask about",
-      "status": "shipped",
-      "because": [
-        "0084"
-      ],
-      "divergesFromPhp": "there is no failed state to poll for — a job waiting out its backoff is indistinguishable from one that has not run yet, and \"did it fail\" is a question about the dead-letter table",
-      "seeAlso": [
-        "enums/closed-integer-type",
-        "concurrency/attempts-are-finite-and-a-dead-letter-is-kept"
-      ],
-      "guardedBy": [
-        "tests/conformance/core/queue-state-is-its-own-closed-type.nvst",
-        "tests/conformance/core/queue-status-answers-a-state-and-not-a-number.nvst"
-      ]
-    },
-    {
-      "id": "concurrency/cancel-is-a-race-it-can-lose",
-      "title": "`cancel` answers whether it won the race, and it changes the job's state rather than deleting the row",
-      "status": "shipped",
-      "because": [
-        "0084"
-      ],
-      "divergesFromPhp": "cancelling is a race against a worker rather than a command, and the answer says which side won it",
-      "seeAlso": [
-        "concurrency/claiming-is-one-statement",
-        "concurrency/queue-four-members"
-      ],
-      "guardedBy": [
-        "tests/conformance/core/queue-cancel-answers-whether-it-won-the-race.nvst",
-        "tests/conformance/core/queue-a-cancelled-job-is-still-one-status-answers-about.nvst"
-      ]
-    },
-    {
-      "id": "concurrency/a-job-names-a-file",
-      "title": "A job names a script file, and its payload crosses as a copied value",
-      "status": "shipped",
-      "because": [
-        "0084",
-        "0006",
-        "0023",
-        "0071"
-      ],
-      "divergesFromPhp": "a job is a file rather than a class implementing an interface, and nothing about it is a serialized object graph waiting to be reconstructed",
-      "seeAlso": [
-        "concurrency/a-job-runs-as-a-root-isolate",
-        "concurrency/a-payload-refuses-secret-and-keeps-its-qualifiers"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue",
-      "title": "A job's budget and grants are recorded when it is enqueued, and narrowed from that context rather than widened",
-      "status": "designed",
-      "because": [
-        "0084",
-        "0005"
-      ],
-      "divergesFromPhp": "background work carries its own memory, CPU and time budget, and its permissions can only shrink from those of the code that enqueued it",
-      "seeAlso": [
-        "security/capability-check-at-the-door",
-        "concurrency/a-job-runs-as-a-root-isolate"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "concurrency/claiming-is-one-statement",
-      "title": "A worker claims a job with one statement the database arbitrates, so a fleet needs no lease protocol",
-      "status": "shipped",
-      "because": [
-        "0084",
-        "0073",
-        "0067"
-      ],
-      "divergesFromPhp": "a fleet needs no supervisor, no heartbeat and no coordinator process — the database provides the mutual exclusion",
-      "seeAlso": [
-        "core-classes/db-one-api",
-        "concurrency/delivery-is-at-least-once"
-      ],
-      "guardedBy": [
-        "crates/nvs-stdlib/tests/queue.rs"
-      ]
-    },
-    {
-      "id": "concurrency/delivery-is-at-least-once",
-      "title": "Delivery is at-least-once, and idempotency is the job's own obligation",
-      "status": "shipped",
-      "because": [
-        "0084"
-      ],
-      "divergesFromPhp": "the guarantee is stated rather than implied, so a job is written to tolerate running twice instead of assuming it will not",
-      "seeAlso": [
-        "concurrency/claiming-is-one-statement",
-        "concurrency/attempts-are-finite-and-a-dead-letter-is-kept"
-      ],
-      "guardedBy": [
-        "crates/nvs-stdlib/tests/queue.rs"
-      ]
-    },
-    {
-      "id": "concurrency/attempts-are-finite-and-a-dead-letter-is-kept",
-      "title": "Attempts are finite, backoff is exponential and jittered, and an exhausted job is kept rather than discarded",
-      "status": "shipped",
-      "because": [
-        "0084",
-        "0074",
-        "0076"
-      ],
-      "divergesFromPhp": "nothing is discarded silently and nothing retries forever — an exhausted job is a row in a dead-letter table rather than a line in a log",
-      "seeAlso": [
-        "concurrency/delivery-is-at-least-once",
-        "concurrency/a-budget-overrun-is-a-failed-attempt",
-        "core-classes/queue-storage-is-a-table"
-      ],
-      "guardedBy": [
-        "crates/nvs-stdlib/src/queue.rs",
-        "crates/nvs-stdlib/tests/queue.rs",
-        "tests/conformance/core/queue-push-judges-its-options-before-it-opens-anything.nvst"
-      ]
-    },
-    {
-      "id": "concurrency/a-budget-overrun-is-a-failed-attempt",
-      "title": "A job that exceeds its budget is a failed attempt, reported as that and retried like any other",
-      "status": "shipped",
-      "because": [
-        "0084",
-        "0005"
-      ],
-      "divergesFromPhp": "exhausting memory in background work is a bounded failed attempt rather than a fatal that takes the process with it",
-      "seeAlso": [
-        "errors/escalation-ladder",
-        "concurrency/attempts-are-finite-and-a-dead-letter-is-kept"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "concurrency/a-job-runs-as-a-root-isolate",
-      "title": "A job runs as a root isolate, and there is no second execution path",
-      "status": "shipped",
-      "because": [
-        "0084",
-        "0006",
-        "0017"
-      ],
-      "divergesFromPhp": "a job shares nothing with the request that enqueued it — no statics, no session, no superglobals — because it is a fresh isolate rather than the same process continuing",
-      "seeAlso": [
-        "concurrency/a-job-names-a-file",
-        "concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "concurrency/who-runs-a-job-is-configuration",
-      "title": "Which process runs a job is configuration, and every spelling drives the identical isolate",
-      "status": "designed",
-      "because": [
-        "0084"
-      ],
-      "divergesFromPhp": "workers are the runtime's own and start from configuration — there is no separate daemon or process manager to install beside the server",
-      "seeAlso": [
-        "core-classes/queue-storage-is-a-table",
-        "concurrency/a-job-runs-as-a-root-isolate"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "concurrency/a-payload-refuses-secret-and-keeps-its-qualifiers",
-      "title": "A durable payload refuses `secret`, and a `tainted` value comes back `tainted`",
-      "status": "designed",
-      "because": [
-        "0084",
-        "0033",
-        "0024",
-        "0023"
-      ],
-      "divergesFromPhp": "a credential cannot enter a job payload at all, and taint survives the round trip through the database instead of being laundered by it",
-      "seeAlso": [
-        "security/secret-qualifier",
-        "security/tainted-qualifier",
-        "concurrency/a-job-names-a-file"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "concurrency/foreign-connection-enqueue-is-counted",
-      "title": "A `push` on a connection other than the queue's is not transactional, and is counted rather than assumed away",
-      "status": "designed",
-      "because": [
-        "0084"
-      ],
-      "divergesFromPhp": "losing atomicity between a write and its job is a measured deployment fact rather than an unstated one",
-      "seeAlso": [
-        "concurrency/enqueue-commits-with-your-write",
-        "concurrency/queue-four-members"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "concurrency/queued-work-is-not-scheduled-work",
-      "title": "Queued work is durable, retried and declared by the application; scheduled work is a clock tick and none of those",
-      "status": "shipped",
-      "because": [
-        "0084",
-        "0073"
-      ],
-      "divergesFromPhp": "cron-style entries and background jobs are two mechanisms with two guarantees, rather than one worker loop doing both",
-      "seeAlso": [
-        "concurrency/delivery-is-at-least-once",
-        "concurrency/attempts-are-finite-and-a-dead-letter-is-kept"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "concurrency/no-broker-and-no-driver-interface",
-      "title": "There is no broker backend and no pluggable driver, because a driver makes transactional enqueue optional",
-      "status": "shipped",
-      "because": [
-        "0084"
-      ],
-      "divergesFromPhp": "there is no Redis, SQS or AMQP backend to choose and nothing to configure between the application and its jobs",
-      "seeAlso": [
-        "concurrency/enqueue-commits-with-your-write",
-        "core-classes/queue-storage-is-a-table"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "concurrency/the-reactor-reports-readiness",
-      "title": "The reactor reports readiness on every platform, Windows included, so a stream is written once",
-      "status": "shipped",
-      "because": [
-        "0115",
-        "0106",
-        "0051"
-      ],
-      "divergesFromPhp": "there is no event loop to install and no extension to pick — readiness is the runtime's own and behaves the same on all three platforms",
-      "seeAlso": [
-        "concurrency/the-parking-contract",
-        "concurrency/try-the-syscall-then-park"
-      ],
-      "guardedBy": [
-        "crates/nvs-host/src/reactor.rs"
-      ]
-    },
-    {
       "id": "concurrency/the-parking-contract",
       "title": "A task registers before it suspends, treats a wake as a hint, and leaves the reactor holding nothing when it ends",
       "status": "shipped",
@@ -971,6 +953,24 @@
       ],
       "guardedBy": [
         "crates/nvs-host/src/net.rs"
+      ]
+    },
+    {
+      "id": "concurrency/the-reactor-reports-readiness",
+      "title": "The reactor reports readiness on every platform, Windows included, so a stream is written once",
+      "status": "shipped",
+      "because": [
+        "0115",
+        "0106",
+        "0051"
+      ],
+      "divergesFromPhp": "there is no event loop to install and no extension to pick — readiness is the runtime's own and behaves the same on all three platforms",
+      "seeAlso": [
+        "concurrency/the-parking-contract",
+        "concurrency/try-the-syscall-then-park"
+      ],
+      "guardedBy": [
+        "crates/nvs-host/src/reactor.rs"
       ]
     },
     {

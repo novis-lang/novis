@@ -5,205 +5,6 @@
 
 *1 of 12 rules below are **designed** rather than shipped, and are marked where they appear.*
 
-<a id="iteration-two-interfaces"></a>
-
-## Two interfaces carry every iteration, and a cursor is `advance()` then `current()`
-
-`rule:iteration/two-interfaces`
-
-Iteration has exactly two interfaces, both reserved names the compiler owns:
-
-```
-interface Iterator<T> {
-    public function advance(): bool;   // move to the next element; false once exhausted
-    public function current(): T;      // the element advance() just moved to
-}
-
-interface Iterable<T> {
-    public function iterate(): Iterator<T>;
-}
-```
-
-`Iterator<T>` is a **single-pass cursor**; `Iterable<T>` is a thing that can hand out a fresh one, so
-draining an `Iterable<T>` twice walks it twice and draining an `Iterator<T>` twice does not. The pair
-is `advance`-then-`current` rather than one `next(): ?T`, because a single method cannot tell "the
-sequence ended" from "the next element is `null`", and Novis has nullable types.
-
-Both members are declared without a body, and a class is held to every one of them. A cursor carries
-**no key half** — nothing in `Iterator<T>` produces one — which is why a `foreach` over a cursor may
-bind a value and not a key ([`iteration/foreach-subjects`](iteration.md#iteration-foreach-subjects)).
-
-<sub>See also [`iteration/foreach-subjects`](iteration.md#iteration-foreach-subjects), [`iteration/concrete-generic-implements`](iteration.md#iteration-concrete-generic-implements), [`iteration/cursor-out-of-range`](iteration.md#iteration-cursor-out-of-range), [`iteration/generators`](iteration.md#iteration-generators). Decided in [0053](../decisions/0053.md), [0007](../decisions/0007.md), [0028](../decisions/0028.md).</sub>
-
-<a id="iteration-cursor-out-of-range"></a>
-
-## `current()` outside the protocol throws rather than answering
-
-`rule:iteration/cursor-out-of-range`
-
-`current()` throws a `LogicError` when it is called before the first `advance()`, and when it is
-called after an `advance()` returned `false`. It answers only between those two points:
-
-```
-current() outside the iteration protocol: it answers only after advance() returned true
-```
-
-There is no sentinel for "outside the sequence" and no third member to ask first — `advance()`'s
-`bool` is the whole of the liveness answer ([`iteration/two-interfaces`](iteration.md#iteration-two-interfaces)), so a consumer that
-ignores it is asking for an element the cursor does not have. Both points need the guard for the
-same reason and neither is the harmless one: before the first `advance()` the slot holds the element
-type's null payload, and after the last it still holds the final element, which looks like an answer.
-
-A `foreach` advances and reads in lockstep, so it never stands outside the protocol. A generator's
-cursor is guarded at the same two points, and a generator that yields nothing makes them one point.
-
-<sub>See also [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces), [`iteration/generators`](iteration.md#iteration-generators). Decided in [0053](../decisions/0053.md).</sub>
-
-<a id="iteration-concrete-generic-implements"></a>
-
-## A class implements a compiler-owned generic interface at a concrete type, and declares no type variable of its own
-
-`rule:iteration/concrete-generic-implements`
-
-Type variables belong to declarations the compiler owns. A user class gets one narrow door onto
-them: it may **implement a compiler-owned generic interface at a concrete type** —
-`implements Iterator<User>`, `implements Iterable<int>` — fixing `T` at the declaration site, where
-the argument is recorded on the class's signature and checked against every member body.
-
-That is substitution of one concrete type into a known interface, and nothing more. A class may not
-declare a type variable of its own, there is no inference, no variance, and no type-parameter scope
-inside the class body. The door exists so a collection can be iterated
-([`iteration/two-interfaces`](iteration.md#iteration-two-interfaces)) without opening user-defined generics.
-
-<sub>See also [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces), [`iteration/foreach-subjects`](iteration.md#iteration-foreach-subjects). Decided in [0053](../decisions/0053.md), [0007](../decisions/0007.md).</sub>
-
-<a id="iteration-foreach-subjects"></a>
-
-## `foreach` drives exactly three subjects, and a fourth is refused where it is written
-
-`rule:iteration/foreach-subjects`
-
-`foreach` accepts three subjects and refuses a fourth where it is written:
-
-- an **`array<T>`**, iterated directly by the IR with no interface call and no allocation;
-- an **`Iterable<T>`**, whose `iterate()` is called once and whose returned cursor the loop drives;
-- an **`Iterator<T>`**, driven directly.
-
-Anything else is a compile error at the subject. Only the array form binds a key — a cursor has no
-key to give ([`iteration/two-interfaces`](iteration.md#iteration-two-interfaces)), so a key binding over one is refused rather than
-filled with a counter, and an array's key binds as a string.
-
-An object becomes iterable by declaring one of the two interfaces at a concrete type
-([`iteration/concrete-generic-implements`](iteration.md#iteration-concrete-generic-implements)). There is no other way in: no property walk, and no
-interface that turns a subscript or a count into a method call
-([`iteration/no-magic-collection-interfaces`](iteration.md#iteration-no-magic-collection-interfaces)).
-
-<sub>See also [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces), [`iteration/no-magic-collection-interfaces`](iteration.md#iteration-no-magic-collection-interfaces), [`iteration/generators`](iteration.md#iteration-generators). Decided in [0053](../decisions/0053.md), [0007](../decisions/0007.md).</sub>
-
-<a id="iteration-no-magic-collection-interfaces"></a>
-
-## A class cannot make `$obj[$k]` or a count into a method call
-
-`rule:iteration/no-magic-collection-interfaces`
-
-`ArrayAccess` and `Countable` do not exist, and no other interface makes a syntactic form dispatch to
-a method. `$obj[$k]` on anything that is not an array does not compile.
-
-A collection exposes ordinary members instead: `->get($k)`, `->set($k, $v)` and `->count()`. Each of
-those buys notation at the cost of a call that does not look like one, which is the same implicit
-dispatch already rejected for `$obj->prop`; and reading as an array while none of `Core\Arr` applies
-is a second cost with no offsetting capability. Iteration is the one place a capability is bought —
-streaming a cursor without materialising it — and it has its own interfaces
-([`iteration/two-interfaces`](iteration.md#iteration-two-interfaces)).
-
-`nvs convert` has no mechanical path for either interface: each becomes a diagnostic naming the
-member that replaces it.
-
-<sub>See also [`iteration/foreach-subjects`](iteration.md#iteration-foreach-subjects), [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces). Decided in [0053](../decisions/0053.md), [0028](../decisions/0028.md), [0014](../decisions/0014.md), [0011](../decisions/0011.md).</sub>
-
-<a id="iteration-generators"></a>
-
-## A body that yields is a generator, and calling one returns a state object without running a line of it
-
-`rule:iteration/generators`
-
-A function whose body contains `yield` is a **generator**. Its declared return type must be
-`Iterator<T>`, and every `yield` operand is checked against that `T`. Calling it runs no user code:
-it allocates and returns the state object, which implements `Iterator<T>`, and the body then runs one
-segment per `advance()`. Two calls to the same method give two cursors that advance independently.
-
-The body is compiled by an explicit **state-machine transform** — split at each `yield` into
-resumption states reached through an N-way switch, with every local live across a `yield` parked in
-the state object rather than on a stack. A generator is therefore an ordinary object: ten thousand
-live ones cost ten thousand small objects, not ten thousand stacks, and suspension stays a property
-of I/O rather than of ordinary control flow.
-
-A `finally` the generator is suspended inside still runs when the consumer abandons it, and
-definite assignment reasons across resumption edges exactly as it does across a linear body.
-
-<sub>See also [`iteration/yield-lexical-confinement`](iteration.md#iteration-yield-lexical-confinement), [`iteration/one-way-only`](iteration.md#iteration-one-way-only), [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces), [`iteration/generator-stays-in-one-isolate`](iteration.md#iteration-generator-stays-in-one-isolate). Decided in [0053](../decisions/0053.md).</sub>
-
-<a id="iteration-yield-lexical-confinement"></a>
-
-## `yield` appears only in the generator's own body
-
-`rule:iteration/yield-lexical-confinement`
-
-`yield` is confined to the generator's own body. A helper function called from a generator cannot
-yield into it, and neither can a closure written inside one — a closure has its own body, so a
-`yield` there does not make the enclosing method a generator; it is refused.
-
-Where PHP would delegate to a helper, Novis writes the loop out:
-
-```
-foreach ($inner as $v) { yield $v; }
-```
-
-This is the price of the state-machine lowering ([`iteration/generators`](iteration.md#iteration-generators)): the transform can
-split the body it compiles and nothing else, so a suspension point in a frame it did not generate has
-nowhere to be recorded.
-
-<sub>See also [`iteration/generators`](iteration.md#iteration-generators), [`iteration/one-way-only`](iteration.md#iteration-one-way-only). Decided in [0053](../decisions/0053.md).</sub>
-
-<a id="iteration-one-way-only"></a>
-
-## A generator is a lazy sequence and nothing more
-
-`rule:iteration/one-way-only`
-
-A generator is a lazy sequence in one direction. There is no `yield from`, no `send()` into a
-generator, no `throw()` into one, and no generator return value to retrieve — a `return expr;` in a
-generator body is refused, and so is a keyed `yield`.
-
-`yield from` is a second spelling of the re-yielding loop in
-[`iteration/yield-lexical-confinement`](iteration.md#iteration-yield-lexical-confinement), and it costs O(nesting depth) per element where the loop
-costs O(1) — a real if small loss, recorded rather than hidden. `send()` and `throw()` make a
-generator a bidirectional coroutine, which is a different feature wearing the same syntax; Novis has
-coroutines already and they are not spelled `yield`.
-
-`yield` is a statement, so it produces no value to consume.
-
-<sub>See also [`iteration/generators`](iteration.md#iteration-generators), [`iteration/yield-lexical-confinement`](iteration.md#iteration-yield-lexical-confinement). Decided in [0053](../decisions/0053.md), [0051](../decisions/0051.md).</sub>
-
-<a id="iteration-generator-stays-in-one-isolate"></a>
-
-## A generator does not cross a boundary and does not clone  *(designed — not yet in the compiler)*
-
-`rule:iteration/generator-stays-in-one-isolate`
-
-A generator object is not serializable, does not cross a `spawn`, `spawn worker` or `spawn script`
-boundary, and does not `clone`. Each attempt is the same refusal any value that cannot be copied
-soundly already gets.
-
-The state-machine lowering ([`iteration/generators`](iteration.md#iteration-generators)) makes a generator an ordinary object with
-ordinary fields, so the refusal is not a representation limit: those fields are a compiler-chosen
-encoding of a suspended program point, and resuming that point in another isolate — or in a second
-copy inside this one — has no meaning to give.
-
-Not yet enforced: nothing in the runtime's copy or spawn paths refuses a generator today.
-
-<sub>See also [`iteration/generators`](iteration.md#iteration-generators). Decided in [0053](../decisions/0053.md), [0023](../decisions/0023.md).</sub>
-
 <a id="iteration-for-init-clause"></a>
 
 ## A `for` init clause is one typed declaration or a list of expressions, never both
@@ -266,3 +67,202 @@ Each refused header reports **one** diagnostic and no second one, and keeps what
 held so no later phase reports an undeclared counter on top of it.
 
 <sub>See also [`iteration/for-init-clause`](iteration.md#iteration-for-init-clause), [`iteration/for-counter-scope`](iteration.md#iteration-for-counter-scope). Decided in [0109](../decisions/0109.md).</sub>
+
+<a id="iteration-foreach-subjects"></a>
+
+## `foreach` drives exactly three subjects, and a fourth is refused where it is written
+
+`rule:iteration/foreach-subjects`
+
+`foreach` accepts three subjects and refuses a fourth where it is written:
+
+- an **`array<T>`**, iterated directly by the IR with no interface call and no allocation;
+- an **`Iterable<T>`**, whose `iterate()` is called once and whose returned cursor the loop drives;
+- an **`Iterator<T>`**, driven directly.
+
+Anything else is a compile error at the subject. Only the array form binds a key — a cursor has no
+key to give ([`iteration/two-interfaces`](iteration.md#iteration-two-interfaces)), so a key binding over one is refused rather than
+filled with a counter, and an array's key binds as a string.
+
+An object becomes iterable by declaring one of the two interfaces at a concrete type
+([`iteration/concrete-generic-implements`](iteration.md#iteration-concrete-generic-implements)). There is no other way in: no property walk, and no
+interface that turns a subscript or a count into a method call
+([`iteration/no-magic-collection-interfaces`](iteration.md#iteration-no-magic-collection-interfaces)).
+
+<sub>See also [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces), [`iteration/no-magic-collection-interfaces`](iteration.md#iteration-no-magic-collection-interfaces), [`iteration/generators`](iteration.md#iteration-generators). Decided in [0053](../decisions/0053.md), [0007](../decisions/0007.md).</sub>
+
+<a id="iteration-two-interfaces"></a>
+
+## Two interfaces carry every iteration, and a cursor is `advance()` then `current()`
+
+`rule:iteration/two-interfaces`
+
+Iteration has exactly two interfaces, both reserved names the compiler owns:
+
+```
+interface Iterator<T> {
+    public function advance(): bool;   // move to the next element; false once exhausted
+    public function current(): T;      // the element advance() just moved to
+}
+
+interface Iterable<T> {
+    public function iterate(): Iterator<T>;
+}
+```
+
+`Iterator<T>` is a **single-pass cursor**; `Iterable<T>` is a thing that can hand out a fresh one, so
+draining an `Iterable<T>` twice walks it twice and draining an `Iterator<T>` twice does not. The pair
+is `advance`-then-`current` rather than one `next(): ?T`, because a single method cannot tell "the
+sequence ended" from "the next element is `null`", and Novis has nullable types.
+
+Both members are declared without a body, and a class is held to every one of them. A cursor carries
+**no key half** — nothing in `Iterator<T>` produces one — which is why a `foreach` over a cursor may
+bind a value and not a key ([`iteration/foreach-subjects`](iteration.md#iteration-foreach-subjects)).
+
+<sub>See also [`iteration/foreach-subjects`](iteration.md#iteration-foreach-subjects), [`iteration/concrete-generic-implements`](iteration.md#iteration-concrete-generic-implements), [`iteration/cursor-out-of-range`](iteration.md#iteration-cursor-out-of-range), [`iteration/generators`](iteration.md#iteration-generators). Decided in [0053](../decisions/0053.md), [0007](../decisions/0007.md), [0028](../decisions/0028.md).</sub>
+
+<a id="iteration-concrete-generic-implements"></a>
+
+## A class implements a compiler-owned generic interface at a concrete type, and declares no type variable of its own
+
+`rule:iteration/concrete-generic-implements`
+
+Type variables belong to declarations the compiler owns. A user class gets one narrow door onto
+them: it may **implement a compiler-owned generic interface at a concrete type** —
+`implements Iterator<User>`, `implements Iterable<int>` — fixing `T` at the declaration site, where
+the argument is recorded on the class's signature and checked against every member body.
+
+That is substitution of one concrete type into a known interface, and nothing more. A class may not
+declare a type variable of its own, there is no inference, no variance, and no type-parameter scope
+inside the class body. The door exists so a collection can be iterated
+([`iteration/two-interfaces`](iteration.md#iteration-two-interfaces)) without opening user-defined generics.
+
+<sub>See also [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces), [`iteration/foreach-subjects`](iteration.md#iteration-foreach-subjects). Decided in [0053](../decisions/0053.md), [0007](../decisions/0007.md).</sub>
+
+<a id="iteration-no-magic-collection-interfaces"></a>
+
+## A class cannot make `$obj[$k]` or a count into a method call
+
+`rule:iteration/no-magic-collection-interfaces`
+
+`ArrayAccess` and `Countable` do not exist, and no other interface makes a syntactic form dispatch to
+a method. `$obj[$k]` on anything that is not an array does not compile.
+
+A collection exposes ordinary members instead: `->get($k)`, `->set($k, $v)` and `->count()`. Each of
+those buys notation at the cost of a call that does not look like one, which is the same implicit
+dispatch already rejected for `$obj->prop`; and reading as an array while none of `Core\Arr` applies
+is a second cost with no offsetting capability. Iteration is the one place a capability is bought —
+streaming a cursor without materialising it — and it has its own interfaces
+([`iteration/two-interfaces`](iteration.md#iteration-two-interfaces)).
+
+`nvs convert` has no mechanical path for either interface: each becomes a diagnostic naming the
+member that replaces it.
+
+<sub>See also [`iteration/foreach-subjects`](iteration.md#iteration-foreach-subjects), [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces). Decided in [0053](../decisions/0053.md), [0028](../decisions/0028.md), [0014](../decisions/0014.md), [0011](../decisions/0011.md).</sub>
+
+<a id="iteration-cursor-out-of-range"></a>
+
+## `current()` outside the protocol throws rather than answering
+
+`rule:iteration/cursor-out-of-range`
+
+`current()` throws a `LogicError` when it is called before the first `advance()`, and when it is
+called after an `advance()` returned `false`. It answers only between those two points:
+
+```
+current() outside the iteration protocol: it answers only after advance() returned true
+```
+
+There is no sentinel for "outside the sequence" and no third member to ask first — `advance()`'s
+`bool` is the whole of the liveness answer ([`iteration/two-interfaces`](iteration.md#iteration-two-interfaces)), so a consumer that
+ignores it is asking for an element the cursor does not have. Both points need the guard for the
+same reason and neither is the harmless one: before the first `advance()` the slot holds the element
+type's null payload, and after the last it still holds the final element, which looks like an answer.
+
+A `foreach` advances and reads in lockstep, so it never stands outside the protocol. A generator's
+cursor is guarded at the same two points, and a generator that yields nothing makes them one point.
+
+<sub>See also [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces), [`iteration/generators`](iteration.md#iteration-generators). Decided in [0053](../decisions/0053.md).</sub>
+
+<a id="iteration-generators"></a>
+
+## A body that yields is a generator, and calling one returns a state object without running a line of it
+
+`rule:iteration/generators`
+
+A function whose body contains `yield` is a **generator**. Its declared return type must be
+`Iterator<T>`, and every `yield` operand is checked against that `T`. Calling it runs no user code:
+it allocates and returns the state object, which implements `Iterator<T>`, and the body then runs one
+segment per `advance()`. Two calls to the same method give two cursors that advance independently.
+
+The body is compiled by an explicit **state-machine transform** — split at each `yield` into
+resumption states reached through an N-way switch, with every local live across a `yield` parked in
+the state object rather than on a stack. A generator is therefore an ordinary object: ten thousand
+live ones cost ten thousand small objects, not ten thousand stacks, and suspension stays a property
+of I/O rather than of ordinary control flow.
+
+A `finally` the generator is suspended inside still runs when the consumer abandons it, and
+definite assignment reasons across resumption edges exactly as it does across a linear body.
+
+<sub>See also [`iteration/yield-lexical-confinement`](iteration.md#iteration-yield-lexical-confinement), [`iteration/one-way-only`](iteration.md#iteration-one-way-only), [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces), [`iteration/generator-stays-in-one-isolate`](iteration.md#iteration-generator-stays-in-one-isolate). Decided in [0053](../decisions/0053.md).</sub>
+
+<a id="iteration-one-way-only"></a>
+
+## A generator is a lazy sequence and nothing more
+
+`rule:iteration/one-way-only`
+
+A generator is a lazy sequence in one direction. There is no `yield from`, no `send()` into a
+generator, no `throw()` into one, and no generator return value to retrieve — a `return expr;` in a
+generator body is refused, and so is a keyed `yield`.
+
+`yield from` is a second spelling of the re-yielding loop in
+[`iteration/yield-lexical-confinement`](iteration.md#iteration-yield-lexical-confinement), and it costs O(nesting depth) per element where the loop
+costs O(1) — a real if small loss, recorded rather than hidden. `send()` and `throw()` make a
+generator a bidirectional coroutine, which is a different feature wearing the same syntax; Novis has
+coroutines already and they are not spelled `yield`.
+
+`yield` is a statement, so it produces no value to consume.
+
+<sub>See also [`iteration/generators`](iteration.md#iteration-generators), [`iteration/yield-lexical-confinement`](iteration.md#iteration-yield-lexical-confinement). Decided in [0053](../decisions/0053.md), [0051](../decisions/0051.md).</sub>
+
+<a id="iteration-yield-lexical-confinement"></a>
+
+## `yield` appears only in the generator's own body
+
+`rule:iteration/yield-lexical-confinement`
+
+`yield` is confined to the generator's own body. A helper function called from a generator cannot
+yield into it, and neither can a closure written inside one — a closure has its own body, so a
+`yield` there does not make the enclosing method a generator; it is refused.
+
+Where PHP would delegate to a helper, Novis writes the loop out:
+
+```
+foreach ($inner as $v) { yield $v; }
+```
+
+This is the price of the state-machine lowering ([`iteration/generators`](iteration.md#iteration-generators)): the transform can
+split the body it compiles and nothing else, so a suspension point in a frame it did not generate has
+nowhere to be recorded.
+
+<sub>See also [`iteration/generators`](iteration.md#iteration-generators), [`iteration/one-way-only`](iteration.md#iteration-one-way-only). Decided in [0053](../decisions/0053.md).</sub>
+
+<a id="iteration-generator-stays-in-one-isolate"></a>
+
+## A generator does not cross a boundary and does not clone  *(designed — not yet in the compiler)*
+
+`rule:iteration/generator-stays-in-one-isolate`
+
+A generator object is not serializable, does not cross a `spawn`, `spawn worker` or `spawn script`
+boundary, and does not `clone`. Each attempt is the same refusal any value that cannot be copied
+soundly already gets.
+
+The state-machine lowering ([`iteration/generators`](iteration.md#iteration-generators)) makes a generator an ordinary object with
+ordinary fields, so the refusal is not a representation limit: those fields are a compiler-chosen
+encoding of a suspended program point, and resuming that point in another isolate — or in a second
+copy inside this one — has no meaning to give.
+
+Not yet enforced: nothing in the runtime's copy or spawn paths refuses a generator today.
+
+<sub>See also [`iteration/generators`](iteration.md#iteration-generators). Decided in [0053](../decisions/0053.md), [0023](../decisions/0023.md).</sub>

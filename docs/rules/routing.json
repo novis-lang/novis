@@ -1,7 +1,7 @@
 {
   "topic": "routing",
   "title": "Routing",
-  "order": 150,
+  "order": 190,
   "rules": [
     {
       "id": "routing/routes-are-compiled-not-registered",
@@ -77,6 +77,29 @@
       ]
     },
     {
+      "id": "routing/no-wildcard-verb",
+      "title": "There is no wildcard verb: `method` is required, singular, and one case of a closed enum",
+      "status": "shipped",
+      "because": [
+        "0110",
+        "0077",
+        "0102",
+        "0096",
+        "0010"
+      ],
+      "divergesFromPhp": "`Route::any()` and `methods: ['*']` have no spelling — each verb a route answers is its own `#[Route]` line, because `Allow:` and the CSRF classification read the exact set",
+      "seeAlso": [
+        "routing/repeated-routes-share-a-name-when-they-share-a-path",
+        "security/csrf-is-on-by-default",
+        "enums/closed-integer-type",
+        "routing/a-refused-verb-is-not-a-missing-path"
+      ],
+      "guardedBy": [
+        "crates/nvs-types/tests/routes.rs",
+        "tests/conformance/core/a-paths-verbs-are-answered-once-each-as-http-method-cases.nvst"
+      ]
+    },
+    {
       "id": "routing/precedence-is-structural",
       "title": "Precedence is structural — a literal beats a capture beats an optional beats a catch-all — never declaration order",
       "status": "shipped",
@@ -93,6 +116,138 @@
       "guardedBy": [
         "crates/nvs-runtime/src/routes.rs"
       ]
+    },
+    {
+      "id": "routing/a-capture-narrows-to-a-closed-set",
+      "title": "A capture narrows to a closed set with a literal-union or enum-subset type, never with a regex",
+      "status": "shipped",
+      "because": [
+        "0102",
+        "0077",
+        "0047",
+        "0075"
+      ],
+      "divergesFromPhp": "there is no `->where('lang', 'en|de|fr')`; the constraint is the parameter's type, and a regex on a route is refused outright",
+      "seeAlso": [
+        "security/route-capture-is-laundered-by-its-type",
+        "types/literal-types",
+        "core-classes/validate-has-no-type-predicates",
+        "programs/memory-priority",
+        "routing/a-leftover-link-key-is-a-query-string",
+        "routing/path-grammar",
+        "routing/api-document-is-generated-from-the-route-table"
+      ],
+      "guardedBy": [
+        "tests/conformance/core/router-url-builds-every-value-of-a-captures-closed-set.nvst",
+        "tests/conformance/reject/a-route-link-refuses-a-capture-value-outside-its-closed-set.nvst",
+        "tests/conformance/core/a-route-capture-is-the-value-the-match-converted-not-the-segment-text.nvst",
+        "crates/nvs-runtime/src/routes.rs"
+      ]
+    },
+    {
+      "id": "routing/a-trailing-segment-may-be-absent",
+      "title": "`{name?}` captures one trailing segment or none, and its parameter's default is what makes the absent case well-typed",
+      "status": "shipped",
+      "because": [
+        "0102",
+        "0077",
+        "0095",
+        "0097"
+      ],
+      "divergesFromPhp": "an optional segment is declared by the parameter's default, not by a second route or an optional regex group, and `/posts/` does not match `/posts/{page?}`",
+      "seeAlso": [
+        "routing/a-refused-verb-is-not-a-missing-path",
+        "errors/ambiguous-input-refused",
+        "routing/path-grammar",
+        "routing/repeated-routes-share-a-name-when-they-share-a-path"
+      ],
+      "guardedBy": [
+        "tests/conformance/reject/a-route-table-refuses-its-seven-contradictions.nvst",
+        "tests/conformance/core/router-url-drops-an-optional-capture-left-out-of-params.nvst",
+        "tests/conformance/core/both-forms-of-an-optional-capture-claim-the-same-verbs.nvst",
+        "crates/nvs-types/tests/routes.rs"
+      ]
+    },
+    {
+      "id": "routing/a-query-parameter-is-declared-like-a-capture",
+      "title": "A `#[Query]` parameter is declared with a capture's type list, and a default is what makes it optional",
+      "status": "shipped",
+      "because": [
+        "0102",
+        "0085",
+        "0071"
+      ],
+      "divergesFromPhp": "a query key is declared on the handler's parameter with a type, matched nominally as `Core\\Query`, rather than read out of `$_GET` and validated by hand",
+      "seeAlso": [
+        "routing/a-bad-query-value-is-a-400",
+        "routing/a-capture-narrows-to-a-closed-set",
+        "routing/a-leftover-link-key-is-a-query-string",
+        "security/route-capture-is-laundered-by-its-type",
+        "core-classes/derive-attribute",
+        "attributes/api-adds-and-cannot-contradict",
+        "routing/api-document-is-generated-from-the-route-table"
+      ],
+      "guardedBy": [
+        "tests/conformance/reject/a-query-marker-outside-a-route-method-binds-nothing.nvst",
+        "tests/conformance/reject/a-route-link-refuses-a-capture-value-outside-its-closed-set.nvst",
+        "crates/nvs-types/tests/routes.rs",
+        "crates/nvs-cli/tests/openapi.rs"
+      ]
+    },
+    {
+      "id": "routing/a-bad-query-value-is-a-400",
+      "title": "A query value that fails to convert is a `400`, where a path capture that fails is a `404`",
+      "status": "designed",
+      "because": [
+        "0102",
+        "0077"
+      ],
+      "divergesFromPhp": "a bad query value is refused with a 400 before the handler sees it, instead of arriving as a string the handler casts and checks",
+      "seeAlso": [
+        "routing/a-query-parameter-is-declared-like-a-capture",
+        "security/route-capture-is-laundered-by-its-type"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "routing/repeated-routes-share-a-name-when-they-share-a-path",
+      "title": "One method's repeated routes may share a `name` only when they share a `path`; every other duplicate name is a compile error",
+      "status": "shipped",
+      "because": [
+        "0110",
+        "0077",
+        "0046"
+      ],
+      "divergesFromPhp": "a framework's `methods: ['POST', 'PUT']` on one named route becomes one `#[Route]` line per verb, each carrying the same `name` and the same `path`",
+      "seeAlso": [
+        "routing/a-shared-name-is-one-endpoint-everywhere",
+        "routing/no-wildcard-verb",
+        "attributes/repeatable",
+        "routing/route-attribute",
+        "routing/routes-are-compiled-not-registered"
+      ],
+      "guardedBy": [
+        "crates/nvs-types/tests/routes.rs"
+      ]
+    },
+    {
+      "id": "routing/a-shared-name-is-one-endpoint-everywhere",
+      "title": "A shared name is one `url()` target, one `Match::name` for every verb, and one `operationId` per verb",
+      "status": "shipped",
+      "because": [
+        "0110",
+        "0085",
+        "0102",
+        "0076"
+      ],
+      "divergesFromPhp": "the generated `operationId` is the route name, suffixed with the lowercased verb only where two operations share it — never a counter",
+      "seeAlso": [
+        "routing/repeated-routes-share-a-name-when-they-share-a-path",
+        "routing/api-document-is-generated-from-the-route-table",
+        "routing/an-absolute-link-takes-a-configured-origin",
+        "routing/link-name-and-params-are-checked"
+      ],
+      "guardedBy": []
     },
     {
       "id": "routing/matching-is-not-dispatching",
@@ -120,67 +275,23 @@
       ]
     },
     {
-      "id": "routing/link-name-and-params-are-checked",
-      "title": "`Core\\Router::url` is a launderer whose literal name and `$params` are checked against the compiled table",
+      "id": "routing/a-match-is-not-invocable",
+      "title": "A match carries a name and typed parameters and nothing invocable, and typed `callable` would not change that",
       "status": "shipped",
       "because": [
+        "0102",
         "0077",
-        "0102"
+        "0007"
       ],
-      "divergesFromPhp": "a link is built from the route's name and checked while compiling, never assembled by hand — a renamed route fails the build at every stale `url()` rather than in a sent email",
+      "divergesFromPhp": "there is no `$route->getCallable()`; the handler is reached by a `switch` the framework generates or the application writes",
       "seeAlso": [
-        "routing/route-attribute",
-        "routing/link-carries-the-mount-prefix",
-        "routing/path-grammar",
-        "security/launderers-are-sink-named",
-        "routing/an-absolute-link-takes-a-configured-origin",
-        "routing/a-leftover-link-key-is-a-query-string",
-        "routing/a-query-parameter-is-declared-like-a-capture"
-      ],
-      "guardedBy": [
-        "tests/conformance/reject/a-route-link-refuses-an-unknown-name-and-an-uncovered-capture.nvst",
-        "tests/conformance/core/router-url-and-url-absolute-refuse-the-same-unknown-names.nvst",
-        "tests/conformance/core/router-url-encodes-a-capture-into-its-own-segment.nvst",
-        "tests/conformance/core/router-url-drops-an-optional-capture-left-out-of-params.nvst"
-      ]
-    },
-    {
-      "id": "routing/link-carries-the-mount-prefix",
-      "title": "A link carries the mount prefix the request arrived under, so one table serves at any mount",
-      "status": "designed",
-      "because": [
-        "0077",
-        "0097",
-        "0102"
-      ],
-      "divergesFromPhp": "a link is never the declared path concatenated by hand, because the path a route is declared against is the mount-stripped one and the prefix is known only where the request is",
-      "seeAlso": [
-        "routing/link-name-and-params-are-checked"
+        "routing/the-servers-match-dispatches-nothing",
+        "types/grammar",
+        "programs/framework-web-package",
+        "core-classes/derive-attribute",
+        "routing/matching-is-not-dispatching"
       ],
       "guardedBy": []
-    },
-    {
-      "id": "routing/table-is-opt-in",
-      "title": "The table is built by the program enumeration, and a program with no `#[Route]` builds none and pays nothing",
-      "status": "shipped",
-      "because": [
-        "0077",
-        "0102"
-      ],
-      "divergesFromPhp": "there is no route cache to warm or to go stale — the scan is compile-time work keyed and invalidated with the compiled unit",
-      "seeAlso": [
-        "programs/implementing",
-        "programs/no-runtime-autoload",
-        "routing/routes-are-compiled-not-registered",
-        "routing/matching-is-not-dispatching",
-        "routing/api-document-is-generated-from-the-route-table"
-      ],
-      "guardedBy": [
-        "tests/conformance/core/an-in-process-request-to-an-unclaimed-path-is-answered-by-the-program.nvst",
-        "tests/conformance/core/a-route-table-answers-a-url-for-every-route-it-holds.nvst",
-        "crates/nvs-types/tests/routes.rs",
-        "crates/nvs-hir/src/requires.rs"
-      ]
     },
     {
       "id": "routing/matched-once-before-the-handler",
@@ -249,96 +360,65 @@
       ]
     },
     {
-      "id": "routing/a-query-parameter-is-declared-like-a-capture",
-      "title": "A `#[Query]` parameter is declared with a capture's type list, and a default is what makes it optional",
+      "id": "routing/a-request-reads-its-mount",
+      "title": "`Core\\Request::mount()` answers the prefix the door stripped and the tainted host captures, and it is never `null`",
       "status": "shipped",
       "because": [
         "0102",
-        "0085",
-        "0071"
-      ],
-      "divergesFromPhp": "a query key is declared on the handler's parameter with a type, matched nominally as `Core\\Query`, rather than read out of `$_GET` and validated by hand",
-      "seeAlso": [
-        "routing/a-bad-query-value-is-a-400",
-        "routing/a-capture-narrows-to-a-closed-set",
-        "routing/a-leftover-link-key-is-a-query-string",
-        "security/route-capture-is-laundered-by-its-type",
-        "core-classes/derive-attribute",
-        "attributes/api-adds-and-cannot-contradict",
-        "routing/api-document-is-generated-from-the-route-table"
-      ],
-      "guardedBy": [
-        "tests/conformance/reject/a-query-marker-outside-a-route-method-binds-nothing.nvst",
-        "tests/conformance/reject/a-route-link-refuses-a-capture-value-outside-its-closed-set.nvst",
-        "crates/nvs-types/tests/routes.rs",
-        "crates/nvs-cli/tests/openapi.rs"
-      ]
-    },
-    {
-      "id": "routing/a-bad-query-value-is-a-400",
-      "title": "A query value that fails to convert is a `400`, where a path capture that fails is a `404`",
-      "status": "designed",
-      "because": [
-        "0102",
-        "0077"
-      ],
-      "divergesFromPhp": "a bad query value is refused with a 400 before the handler sees it, instead of arriving as a string the handler casts and checks",
-      "seeAlso": [
-        "routing/a-query-parameter-is-declared-like-a-capture",
-        "security/route-capture-is-laundered-by-its-type"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "routing/a-trailing-segment-may-be-absent",
-      "title": "`{name?}` captures one trailing segment or none, and its parameter's default is what makes the absent case well-typed",
-      "status": "shipped",
-      "because": [
-        "0102",
-        "0077",
-        "0095",
         "0097"
       ],
-      "divergesFromPhp": "an optional segment is declared by the parameter's default, not by a second route or an optional regex group, and `/posts/` does not match `/posts/{page?}`",
+      "divergesFromPhp": "the deployment prefix is never derived from `REQUEST_URI` or `SCRIPT_NAME`; the server hands it over, and a tenant is a mount capture rather than a `host` field on the route",
       "seeAlso": [
-        "routing/a-refused-verb-is-not-a-missing-path",
-        "errors/ambiguous-input-refused",
-        "routing/path-grammar",
-        "routing/repeated-routes-share-a-name-when-they-share-a-path"
+        "routing/matched-once-before-the-handler",
+        "routing/an-origin-is-per-mount-and-checked-at-boot",
+        "security/tainted-qualifier",
+        "security/request-state-throws-in-an-isolate",
+        "routing/link-carries-the-mount-prefix"
       ],
       "guardedBy": [
-        "tests/conformance/reject/a-route-table-refuses-its-seven-contradictions.nvst",
-        "tests/conformance/core/router-url-drops-an-optional-capture-left-out-of-params.nvst",
-        "tests/conformance/core/both-forms-of-an-optional-capture-claim-the-same-verbs.nvst",
-        "crates/nvs-types/tests/routes.rs"
+        "tests/conformance/core/a-mount-is-one-member-for-the-pair-and-it-is-never-absent.nvst",
+        "tests/conformance/core/a-mounts-captures-carry-the-mark-and-its-prefix-does-not.nvst"
       ]
     },
     {
-      "id": "routing/a-capture-narrows-to-a-closed-set",
-      "title": "A capture narrows to a closed set with a literal-union or enum-subset type, never with a regex",
+      "id": "routing/link-name-and-params-are-checked",
+      "title": "`Core\\Router::url` is a launderer whose literal name and `$params` are checked against the compiled table",
       "status": "shipped",
       "because": [
-        "0102",
         "0077",
-        "0047",
-        "0075"
+        "0102"
       ],
-      "divergesFromPhp": "there is no `->where('lang', 'en|de|fr')`; the constraint is the parameter's type, and a regex on a route is refused outright",
+      "divergesFromPhp": "a link is built from the route's name and checked while compiling, never assembled by hand — a renamed route fails the build at every stale `url()` rather than in a sent email",
       "seeAlso": [
-        "security/route-capture-is-laundered-by-its-type",
-        "types/literal-types",
-        "core-classes/validate-has-no-type-predicates",
-        "programs/memory-priority",
-        "routing/a-leftover-link-key-is-a-query-string",
+        "routing/route-attribute",
+        "routing/link-carries-the-mount-prefix",
         "routing/path-grammar",
-        "routing/api-document-is-generated-from-the-route-table"
+        "security/launderers-are-sink-named",
+        "routing/an-absolute-link-takes-a-configured-origin",
+        "routing/a-leftover-link-key-is-a-query-string",
+        "routing/a-query-parameter-is-declared-like-a-capture"
       ],
       "guardedBy": [
-        "tests/conformance/core/router-url-builds-every-value-of-a-captures-closed-set.nvst",
-        "tests/conformance/reject/a-route-link-refuses-a-capture-value-outside-its-closed-set.nvst",
-        "tests/conformance/core/a-route-capture-is-the-value-the-match-converted-not-the-segment-text.nvst",
-        "crates/nvs-runtime/src/routes.rs"
+        "tests/conformance/reject/a-route-link-refuses-an-unknown-name-and-an-uncovered-capture.nvst",
+        "tests/conformance/core/router-url-and-url-absolute-refuse-the-same-unknown-names.nvst",
+        "tests/conformance/core/router-url-encodes-a-capture-into-its-own-segment.nvst",
+        "tests/conformance/core/router-url-drops-an-optional-capture-left-out-of-params.nvst"
       ]
+    },
+    {
+      "id": "routing/link-carries-the-mount-prefix",
+      "title": "A link carries the mount prefix the request arrived under, so one table serves at any mount",
+      "status": "designed",
+      "because": [
+        "0077",
+        "0097",
+        "0102"
+      ],
+      "divergesFromPhp": "a link is never the declared path concatenated by hand, because the path a route is declared against is the mount-stripped one and the prefix is known only where the request is",
+      "seeAlso": [
+        "routing/link-name-and-params-are-checked"
+      ],
+      "guardedBy": []
     },
     {
       "id": "routing/a-leftover-link-key-is-a-query-string",
@@ -402,44 +482,27 @@
       "guardedBy": []
     },
     {
-      "id": "routing/a-request-reads-its-mount",
-      "title": "`Core\\Request::mount()` answers the prefix the door stripped and the tainted host captures, and it is never `null`",
+      "id": "routing/table-is-opt-in",
+      "title": "The table is built by the program enumeration, and a program with no `#[Route]` builds none and pays nothing",
       "status": "shipped",
       "because": [
-        "0102",
-        "0097"
+        "0077",
+        "0102"
       ],
-      "divergesFromPhp": "the deployment prefix is never derived from `REQUEST_URI` or `SCRIPT_NAME`; the server hands it over, and a tenant is a mount capture rather than a `host` field on the route",
+      "divergesFromPhp": "there is no route cache to warm or to go stale — the scan is compile-time work keyed and invalidated with the compiled unit",
       "seeAlso": [
-        "routing/matched-once-before-the-handler",
-        "routing/an-origin-is-per-mount-and-checked-at-boot",
-        "security/tainted-qualifier",
-        "security/request-state-throws-in-an-isolate",
-        "routing/link-carries-the-mount-prefix"
+        "programs/implementing",
+        "programs/no-runtime-autoload",
+        "routing/routes-are-compiled-not-registered",
+        "routing/matching-is-not-dispatching",
+        "routing/api-document-is-generated-from-the-route-table"
       ],
       "guardedBy": [
-        "tests/conformance/core/a-mount-is-one-member-for-the-pair-and-it-is-never-absent.nvst",
-        "tests/conformance/core/a-mounts-captures-carry-the-mark-and-its-prefix-does-not.nvst"
+        "tests/conformance/core/an-in-process-request-to-an-unclaimed-path-is-answered-by-the-program.nvst",
+        "tests/conformance/core/a-route-table-answers-a-url-for-every-route-it-holds.nvst",
+        "crates/nvs-types/tests/routes.rs",
+        "crates/nvs-hir/src/requires.rs"
       ]
-    },
-    {
-      "id": "routing/a-match-is-not-invocable",
-      "title": "A match carries a name and typed parameters and nothing invocable, and typed `callable` would not change that",
-      "status": "shipped",
-      "because": [
-        "0102",
-        "0077",
-        "0007"
-      ],
-      "divergesFromPhp": "there is no `$route->getCallable()`; the handler is reached by a `switch` the framework generates or the application writes",
-      "seeAlso": [
-        "routing/the-servers-match-dispatches-nothing",
-        "types/grammar",
-        "programs/framework-web-package",
-        "core-classes/derive-attribute",
-        "routing/matching-is-not-dispatching"
-      ],
-      "guardedBy": []
     },
     {
       "id": "routing/api-document-is-generated-from-the-route-table",
@@ -499,69 +562,6 @@
       "guardedBy": [
         "crates/nvs-cli/tests/openapi.rs"
       ]
-    },
-    {
-      "id": "routing/repeated-routes-share-a-name-when-they-share-a-path",
-      "title": "One method's repeated routes may share a `name` only when they share a `path`; every other duplicate name is a compile error",
-      "status": "shipped",
-      "because": [
-        "0110",
-        "0077",
-        "0046"
-      ],
-      "divergesFromPhp": "a framework's `methods: ['POST', 'PUT']` on one named route becomes one `#[Route]` line per verb, each carrying the same `name` and the same `path`",
-      "seeAlso": [
-        "routing/a-shared-name-is-one-endpoint-everywhere",
-        "routing/no-wildcard-verb",
-        "attributes/repeatable",
-        "routing/route-attribute",
-        "routing/routes-are-compiled-not-registered"
-      ],
-      "guardedBy": [
-        "crates/nvs-types/tests/routes.rs"
-      ]
-    },
-    {
-      "id": "routing/no-wildcard-verb",
-      "title": "There is no wildcard verb: `method` is required, singular, and one case of a closed enum",
-      "status": "shipped",
-      "because": [
-        "0110",
-        "0077",
-        "0102",
-        "0096",
-        "0010"
-      ],
-      "divergesFromPhp": "`Route::any()` and `methods: ['*']` have no spelling — each verb a route answers is its own `#[Route]` line, because `Allow:` and the CSRF classification read the exact set",
-      "seeAlso": [
-        "routing/repeated-routes-share-a-name-when-they-share-a-path",
-        "security/csrf-is-on-by-default",
-        "enums/closed-integer-type",
-        "routing/a-refused-verb-is-not-a-missing-path"
-      ],
-      "guardedBy": [
-        "crates/nvs-types/tests/routes.rs",
-        "tests/conformance/core/a-paths-verbs-are-answered-once-each-as-http-method-cases.nvst"
-      ]
-    },
-    {
-      "id": "routing/a-shared-name-is-one-endpoint-everywhere",
-      "title": "A shared name is one `url()` target, one `Match::name` for every verb, and one `operationId` per verb",
-      "status": "shipped",
-      "because": [
-        "0110",
-        "0085",
-        "0102",
-        "0076"
-      ],
-      "divergesFromPhp": "the generated `operationId` is the route name, suffixed with the lowercased verb only where two operations share it — never a counter",
-      "seeAlso": [
-        "routing/repeated-routes-share-a-name-when-they-share-a-path",
-        "routing/api-document-is-generated-from-the-route-table",
-        "routing/an-absolute-link-takes-a-configured-origin",
-        "routing/link-name-and-params-are-checked"
-      ],
-      "guardedBy": []
     },
     {
       "id": "routing/a-quick-fix-writes-a-derived-path",

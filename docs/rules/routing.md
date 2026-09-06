@@ -94,6 +94,36 @@ reader arrives with.
 
 <sub>See also [`routing/precedence-is-structural`](routing.md#routing-precedence-is-structural), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`classes/names-resolve-case-sensitively`](classes.md#classes-names-resolve-case-sensitively), [`routing/a-trailing-segment-may-be-absent`](routing.md#routing-a-trailing-segment-may-be-absent). Decided in [0077](../decisions/0077.md), [0102](../decisions/0102.md).</sub>
 
+<a id="routing-no-wildcard-verb"></a>
+
+## There is no wildcard verb: `method` is required, singular, and one case of a closed enum
+
+`rule:routing/no-wildcard-verb`
+
+There is no `Method::Any`, no omitted `method` and no multi-valued `method`. `method` is required,
+singular, and one case of the closed enum `Core\Http\Method`; a `#[Route]` written without one is
+`E0747`. This is a decision, not a deferral, because two mechanisms read the exact verb set a
+wildcard would erase:
+
+- **`Core\Router::methodsFor`** answers the verbs a path serves — an empty list is a `404`, a
+  non-empty one is a `405` with an `Allow:` header naming them. A wildcard makes that header either
+  unanswerable or a dump of the whole enum, and `405` stops being reachable.
+- **CSRF is classified per verb** ([`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default)) — on for `POST`, `PUT`,
+  `PATCH` and `DELETE`, off for the safe verbs — from the declaration, not from the request. A
+  wildcard declares a route that is half unsafe.
+
+A wildcard could not even mean *any* verb honestly: `Core\Http\Method` is closed
+([`enums/closed-integer-type`](enums.md#enums-closed-integer-type)), so it would mean the cases this version of `Core` happens to
+name, silently changing meaning when one is added.
+
+[`routing/repeated-routes-share-a-name-when-they-share-a-path`](routing.md#routing-repeated-routes-share-a-name-when-they-share-a-path) gives the ergonomics a wildcard
+was wanted for — one name, one `url()` target, one metrics series. What it does not give is one
+*line*, and that is the point: each verb a route answers stays visible at the declaration, where
+`methodsFor` and the CSRF classification read it. A method serving a safe and an unsafe verb carries
+one `#[Access]` for both, and the CSRF check is still per verb from that one declaration.
+
+<sub>See also [`routing/repeated-routes-share-a-name-when-they-share-a-path`](routing.md#routing-repeated-routes-share-a-name-when-they-share-a-path), [`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`routing/a-refused-verb-is-not-a-missing-path`](routing.md#routing-a-refused-verb-is-not-a-missing-path). Decided in [0110](../decisions/0110.md), [0077](../decisions/0077.md), [0102](../decisions/0102.md), [0096](../decisions/0096.md), [0010](../decisions/0010.md).</sub>
+
 <a id="routing-precedence-is-structural"></a>
 
 ## Precedence is structural — a literal beats a capture beats an optional beats a catch-all — never declaration order
@@ -116,6 +146,165 @@ The model is the radix-trie rule `matchit` implements — the rule is the preced
 structure, and a matcher is free to compute the same answer by ranking rows.
 
 <sub>See also [`routing/path-grammar`](routing.md#routing-path-grammar), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type). Decided in [0077](../decisions/0077.md), [0102](../decisions/0102.md).</sub>
+
+<a id="routing-a-capture-narrows-to-a-closed-set"></a>
+
+## A capture narrows to a closed set with a literal-union or enum-subset type, never with a regex
+
+`rule:routing/a-capture-narrows-to-a-closed-set`
+
+A capture's type may be a **union of `string` or `int` literal types**, or a **subset of an enum's
+cases** ([`types/literal-types`](types.md#types-literal-types)), beside the scalar and enum types a capture already converts to.
+`show("en"|"de"|"fr" $lang)` narrows the segment to a closed set with no grammar of its own: `/fr/docs/intro`
+matches, `/xx/docs/intro` does not and falls through to a `404` by the failed-conversion rule
+([`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type)) rather than reaching the handler. The narrowing
+is a property of the table, not a check the handler was trusted to write, and the generated API document
+emits the set as `enum: [en, de, fr]`.
+
+The constraint is written where the type is written. The inline `{id:uint}` grammar room is deliberately
+not taken — the same fact in two places that can disagree — and **a regex constraint is refused
+outright, as a security decision**: an application-authored pattern over the request path runs before
+any rate limiting, so catastrophic backtracking is a denial of service open to any unauthenticated
+client, which is priority 1 spent to buy priority 4 ([`programs/memory-priority`](programs.md#programs-memory-priority)). A shape a type
+cannot express — a `[a-z0-9-]+` slug — stays a `Core\Validate` check inside the handler, answering `400`.
+
+`Core\Router::url` builds a link for every member of the set and refuses a literal value outside it at
+compile time; a computed value is substituted and encoded. The enum-case-subset half is not yet
+converted at match time: an enum capture matches and hands over its segment text, because a case's
+segment spelling is still undecided.
+
+<sub>See also [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type), [`types/literal-types`](types.md#types-literal-types), [`core-classes/validate-has-no-type-predicates`](core-classes.md#core-classes-validate-has-no-type-predicates), [`programs/memory-priority`](programs.md#programs-memory-priority), [`routing/a-leftover-link-key-is-a-query-string`](routing.md#routing-a-leftover-link-key-is-a-query-string), [`routing/path-grammar`](routing.md#routing-path-grammar), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table). Decided in [0102](../decisions/0102.md), [0077](../decisions/0077.md), [0047](../decisions/0047.md), [0075](../decisions/0075.md).</sub>
+
+<a id="routing-a-trailing-segment-may-be-absent"></a>
+
+## `{name?}` captures one trailing segment or none, and its parameter's default is what makes the absent case well-typed
+
+`rule:routing/a-trailing-segment-may-be-absent`
+
+`{name?}` captures one whole segment or none. It is permitted only in the last position, at most once,
+and never in the same path as a `{name...}`. **The method parameter it binds must have a default** —
+that is what makes the absent case well-typed rather than nullable by accident — and a `{name?}` whose
+parameter has none is a compile error naming both sites, as is one in any other position.
+
+Precedence slots it below `{name}` and above `{name...}`, so the structural rule extends with no
+ordering to remember; in the trie it is one node marked terminal, costing a static hit's walk rather
+than a second one. `/posts` matches `/posts/{page?}` with the parameter's default and `/posts/3` with
+`3`. **`/posts/` matches neither**: an empty final segment is not an absent one, and repairing the
+difference is what [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused) refuses.
+
+It replaces the two-attribute spelling for one endpoint, which is legal but carries two paths — so the
+two forms could not share a name, one of them lost reverse-URL generation, and metrics saw one endpoint
+as two series. A link built with the optional capture left out of `$params` simply drops the segment.
+
+<sub>See also [`routing/a-refused-verb-is-not-a-missing-path`](routing.md#routing-a-refused-verb-is-not-a-missing-path), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`routing/path-grammar`](routing.md#routing-path-grammar), [`routing/repeated-routes-share-a-name-when-they-share-a-path`](routing.md#routing-repeated-routes-share-a-name-when-they-share-a-path). Decided in [0102](../decisions/0102.md), [0077](../decisions/0077.md), [0095](../decisions/0095.md), [0097](../decisions/0097.md).</sub>
+
+<a id="routing-a-query-parameter-is-declared-like-a-capture"></a>
+
+## A `#[Query]` parameter is declared with a capture's type list, and a default is what makes it optional
+
+`rule:routing/a-query-parameter-is-declared-like-a-capture`
+
+`#[Query]` on a parameter of a `#[Route]` method declares that the parameter is bound from the request's
+query string, by the parameter's own name — the attribute carries nothing that could give it another
+key. It is one of the compiler-recognised attributes and is matched nominally
+([`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute)): a userland `type Query = {...};` binds nothing, and a `#[Query]`
+on a method that declares no route is refused rather than ignored.
+
+The parameter takes the same type list as a path capture and launders the same way
+([`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type)): `string`, `int`, `uint`, `decimal`,
+`Core\Uuid`, an enum, or a closed set ([`routing/a-capture-narrows-to-a-closed-set`](routing.md#routing-a-capture-narrows-to-a-closed-set)); anything else
+is a compile error at the parameter. **A default is what makes the key optional**; a parameter without
+one is required. Both facts are what the generated API document reads
+([`attributes/api-adds-and-cannot-contradict`](attributes.md#attributes-api-adds-and-cannot-contradict)), and a declared `#[Query]` key is what
+`Core\Router::url` accepts beyond the captures ([`routing/a-leftover-link-key-is-a-query-string`](routing.md#routing-a-leftover-link-key-is-a-query-string)).
+
+A query value takes no part in choosing a route, so it can never reintroduce the declaration-order
+dependence structural precedence exists to prevent — which is what makes the binding safe to add at
+all. How a bad value fails is [`routing/a-bad-query-value-is-a-400`](routing.md#routing-a-bad-query-value-is-a-400).
+
+<sub>See also [`routing/a-bad-query-value-is-a-400`](routing.md#routing-a-bad-query-value-is-a-400), [`routing/a-capture-narrows-to-a-closed-set`](routing.md#routing-a-capture-narrows-to-a-closed-set), [`routing/a-leftover-link-key-is-a-query-string`](routing.md#routing-a-leftover-link-key-is-a-query-string), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type), [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`attributes/api-adds-and-cannot-contradict`](attributes.md#attributes-api-adds-and-cannot-contradict), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table). Decided in [0102](../decisions/0102.md), [0085](../decisions/0085.md), [0071](../decisions/0071.md).</sub>
+
+<a id="routing-a-bad-query-value-is-a-400"></a>
+
+## A query value that fails to convert is a `400`, where a path capture that fails is a `404`  *(designed — not yet in the compiler)*
+
+`rule:routing/a-bad-query-value-is-a-400`
+
+A `#[Query]` parameter's value converts to its declared type and arrives unqualified, exactly as a path
+capture does — and fails differently. A path capture that does not convert means *this route is not the
+one*: matching continues, and a miss is a `404`. A query value cannot select a route, so there is
+nothing to continue to: the route matched and the input is bad, which is what `400` means. A required
+key that is absent is a `400` for the same reason.
+
+The divergence is the point rather than an inconsistency, and it is pinned as one: the two failures are
+asserted side by side on one route, so a reader holding two adjacent lines of one signature knows they
+fail two ways.
+
+**Not shipped.** The declaration half — the marker, its type list, its optional bit
+([`routing/a-query-parameter-is-declared-like-a-capture`](routing.md#routing-a-query-parameter-is-declared-like-a-capture)) — compiles today; nothing in the tree yet
+converts a query value into a bound parameter or answers `400` for one. `Core\Router\Match::params`
+carries the path captures alone, and a program reads `Core\Request::query()` raw.
+
+<sub>See also [`routing/a-query-parameter-is-declared-like-a-capture`](routing.md#routing-a-query-parameter-is-declared-like-a-capture), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type). Decided in [0102](../decisions/0102.md), [0077](../decisions/0077.md).</sub>
+
+<a id="routing-repeated-routes-share-a-name-when-they-share-a-path"></a>
+
+## One method's repeated routes may share a `name` only when they share a `path`; every other duplicate name is a compile error
+
+`rule:routing/repeated-routes-share-a-name-when-they-share-a-path`
+
+`#[Route]` is repeatable ([`attributes/repeatable`](attributes.md#attributes-repeatable)), and repeating it is how one method serves
+several verbs. Repeated `#[Route]` attributes on **one method** may carry the same `name`, provided
+every one of them carries the same `path`:
+
+```php
+#[Route(path: "/webhook", method: Http\Method::Post, name: "webhook")]
+#[Route(path: "/webhook", method: Http\Method::Put,  name: "webhook")]
+#[Access(allow: Audience::Public)]
+public function receive(): Response { … }
+```
+
+One path per name is the whole of the safety argument: it keeps `Core\Router::url` a function, so
+no rule is needed to choose between two declarations. Every other duplicate `name` is `E0749`,
+naming both sites — the same name on two different methods, which is the copy-paste that gives two
+endpoints one identity; and the same name on one method whose repetitions carry different paths,
+where `url()` would have two answers and no ground to prefer one.
+
+**The duplicate-*route* rule is untouched.** Two attributes sharing both `path` and `method` remain
+an error however they are grouped, so nothing enters through the door a shared name opens. The name
+is written on each line rather than inherited from the first: the attributes are independent
+literals, and an inheritance rule would make their order matter, which the route table's precedence
+rules exist to avoid.
+
+<sub>See also [`routing/a-shared-name-is-one-endpoint-everywhere`](routing.md#routing-a-shared-name-is-one-endpoint-everywhere), [`routing/no-wildcard-verb`](routing.md#routing-no-wildcard-verb), [`attributes/repeatable`](attributes.md#attributes-repeatable), [`routing/route-attribute`](routing.md#routing-route-attribute), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered). Decided in [0110](../decisions/0110.md), [0077](../decisions/0077.md), [0046](../decisions/0046.md).</sub>
+
+<a id="routing-a-shared-name-is-one-endpoint-everywhere"></a>
+
+## A shared name is one `url()` target, one `Match::name` for every verb, and one `operationId` per verb
+
+`rule:routing/a-shared-name-is-one-endpoint-everywhere`
+
+A route whose repeated attributes share a `name` is one thing everywhere it is observed:
+
+- **`Core\Router::url("webhook", […])` returns the one path**, because the shared-name condition
+  ([`routing/repeated-routes-share-a-name-when-they-share-a-path`](routing.md#routing-repeated-routes-share-a-name-when-they-share-a-path)) makes name-to-path a
+  function. No verb argument is added to `url` or `urlAbsolute`; a caller that needs to know which
+  verb to send already knows.
+- **`Core\Router\Match::name` carries the shared name for every verb**, so the observability
+  `route` label reports one series per endpoint rather than one named series plus a heap of
+  unlabelled requests, which looks like a working dashboard and is not one.
+- **The generated `operationId` is the `name`, with the lowercased verb appended when two
+  operations share it** — `webhook.post`, `webhook.put`. OpenAPI requires the id to be unique per
+  operation, and `(path, method)` is unique by the shared-name condition, so the suffix is
+  deterministic and needs no counter. A name carried by exactly one operation is emitted bare, so no
+  existing document moves; a route that declared no name falls back to its `Class::method` handler
+  label, which is unique by construction.
+
+The route table's shape does not change: one row per `(path, method)`, with `name` a column on each
+row rather than a key into them, and the reverse index `url()` reads is built from that column.
+Runtime cost is zero and memory cost is one `?string` column's worth of repeats.
+
+<sub>See also [`routing/repeated-routes-share-a-name-when-they-share-a-path`](routing.md#routing-repeated-routes-share-a-name-when-they-share-a-path), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table), [`routing/an-absolute-link-takes-a-configured-origin`](routing.md#routing-an-absolute-link-takes-a-configured-origin), [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked). Decided in [0110](../decisions/0110.md), [0085](../decisions/0085.md), [0102](../decisions/0102.md), [0076](../decisions/0076.md).</sub>
 
 <a id="routing-matching-is-not-dispatching"></a>
 
@@ -155,85 +344,31 @@ routing is not a case that forces [`types/grammar`](types.md#types-grammar)'s de
 
 <sub>See also [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`core-classes/router-signed-url`](core-classes.md#core-classes-router-signed-url), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`types/grammar`](types.md#types-grammar), [`security/access-is-checked-for-presence-not-meaning`](security.md#security-access-is-checked-for-presence-not-meaning), [`routing/matched-once-before-the-handler`](routing.md#routing-matched-once-before-the-handler), [`routing/a-refused-verb-is-not-a-missing-path`](routing.md#routing-a-refused-verb-is-not-a-missing-path), [`routing/a-match-is-not-invocable`](routing.md#routing-a-match-is-not-invocable). Decided in [0077](../decisions/0077.md), [0102](../decisions/0102.md).</sub>
 
-<a id="routing-link-name-and-params-are-checked"></a>
+<a id="routing-a-match-is-not-invocable"></a>
 
-## `Core\Router::url` is a launderer whose literal name and `$params` are checked against the compiled table
+## A match carries a name and typed parameters and nothing invocable, and typed `callable` would not change that
 
-`rule:routing/link-name-and-params-are-checked`
+`rule:routing/a-match-is-not-invocable`
 
-`Core\Router::url(string $name, array<string, mixed> $params): string` reverses the table by name,
-and the compiler resolves the call against the whole program's table after every file has been
-walked — the route may be declared in a file the scan reaches later.
+`Core\Router\Match` carries a declared name and the typed captures the path filled, and nothing
+invocable: no `->invoke()`, no callable, no class-and-method strings. A first-class reference to the
+matched method would need `callable` to carry a signature, which [`types/grammar`](types.md#types-grammar) defers — but
+routing is not a forcing case for that deferral, and typed `callable` would not remove the dispatch
+`switch`, for three independent reasons.
 
-Two failures are compile errors, reported at the argument: **a literal `$name` no `#[Route]`
-declares**, and **a `$params` literal that does not cover the route's captures** — every `{name}` and
-`{name...}` the path writes needs a key of that name, and only a `{name?}` may be left out, whose
-whole segment is then dropped. A literal key that is neither a capture nor one of the route's declared
-`#[Query]` parameters is refused in the same shape, so a typo cannot silently become a query
-parameter. A **computed** `$name` throws instead, and a computed `$params` is not checked at all —
-there are no keys to read.
+Routes do not share a signature: `show(uint $id)`, `index()` and `blog(uint $y, uint $m, string $slug)`
+cannot inhabit one `handler` field, and pre-binding the converted parameters into a zero-argument closure
+is dispatch. Handlers have no common return type, and a `callable(): Response` would force one, which is
+a framework opinion `Core` refuses to hold. And the boundary ground survives regardless: invoking would
+be dispatch, which the table refuses on its own account
+([`routing/the-servers-match-dispatches-nothing`](routing.md#routing-the-servers-match-dispatches-nothing)).
 
-The result is a laundered URL path ([`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named)): each substituted
-value is percent-encoded into its own segment under RFC 3986's component rules, so a `tainted`
-parameter produces a plain `string` that is safe *as a path* and for nothing else. `urlAbsolute` is
-the same link with a configured origin in front, and refuses exactly the same names. A route with no
-`name` cannot be linked to at all ([`routing/route-attribute`](routing.md#routing-route-attribute)), and the path a link is built on is
-the mount-relative one ([`routing/link-carries-the-mount-prefix`](routing.md#routing-link-carries-the-mount-prefix)).
+The ergonomic cost is paid where the framework layer already sits: `Web\Controller` generates the
+`switch` from the route table while compiling ([`programs/framework-web-package`](programs.md#programs-framework-web-package)), and an application
+declining the framework writes it itself, permanently. The roster of compiler-recognised attributes this
+table draws on has one home ([`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute)), and no rule restates its size.
 
-<sub>See also [`routing/route-attribute`](routing.md#routing-route-attribute), [`routing/link-carries-the-mount-prefix`](routing.md#routing-link-carries-the-mount-prefix), [`routing/path-grammar`](routing.md#routing-path-grammar), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`routing/an-absolute-link-takes-a-configured-origin`](routing.md#routing-an-absolute-link-takes-a-configured-origin), [`routing/a-leftover-link-key-is-a-query-string`](routing.md#routing-a-leftover-link-key-is-a-query-string), [`routing/a-query-parameter-is-declared-like-a-capture`](routing.md#routing-a-query-parameter-is-declared-like-a-capture). Decided in [0077](../decisions/0077.md), [0102](../decisions/0102.md).</sub>
-
-<a id="routing-link-carries-the-mount-prefix"></a>
-
-## A link carries the mount prefix the request arrived under, so one table serves at any mount  *(designed — not yet in the compiler)*
-
-`rule:routing/link-carries-the-mount-prefix`
-
-`Core\Router::url` prepends the prefix of the mount the request arrived through, in front of the
-substituted path. One compiled table then serves the same module at `/ModuleA`, at `/ModuleB` or at
-`/` with no recompile — a path is source state and a mount is deployment state, so the prefix is
-known only where the request is — and it is why link generation goes through this member rather than
-concatenating a declared path: a link assembled from the declaration is wrong the day the module is
-mounted anywhere but the root.
-
-A program run off the command line is mounted nowhere and the prefix is empty; nothing else about the
-link changes ([`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked)). `urlAbsolute`'s configured origin
-is the other half of an absolute link, and is read from the resolved unit rather than from any header.
-
-**Not shipped.** `crates/nvs-stdlib/src/router.rs` substitutes and percent-encodes but joins no
-prefix in front, and the server hands it none: the prefix `crates/nvs-server/src/mount.rs` strips
-from the request path does not reach the link.
-
-<sub>See also [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked). Decided in [0077](../decisions/0077.md), [0097](../decisions/0097.md), [0102](../decisions/0102.md).</sub>
-
-<a id="routing-table-is-opt-in"></a>
-
-## The table is built by the program enumeration, and a program with no `#[Route]` builds none and pays nothing
-
-`rule:routing/table-is-opt-in`
-
-Finding routes is the question the program enumeration was built for — *what exists that nothing
-names* — and the route table is that enumeration filtered by `#[Route]`, reused wholesale with its
-consequences ([`programs/implementing`](programs.md#programs-implementing)):
-
-- **A program containing no `Core\Router::match`/`::url` call performs no scan and builds no table**,
-  the identical opt-in rule a discovery query has; a program with no `#[Route]` anywhere pays nothing,
-  including no pass. A running program with no table matches nothing — `Core\Request::route()` is
-  `null`, `methodsFor` answers empty — and serves the request however it likes.
-- **The scan makes the compiled unit depend on directory contents**, so every listed directory joins
-  the revalidation set: no new dependency kind and no new directive. Zero under `validate = never`,
-  which is what production runs.
-- Routes in files reached by an ordinary `require` are included too; they are already in the graph.
-  Rows accumulate across every file into one program-wide table, which is where a duplicate between
-  two files is caught ([`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered)).
-
-The table is a compile product carried by the unit and installed before the program runs, beside the
-command table and the configuration snapshot; the match against it is taken once at the door and
-nothing dispatches ([`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching)). Its cost is O(routes in compiled
-code) in the artifact, not per request and not per object. A link to a route declared in another
-module needs that module compiled — the consequence [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload) already
-records for a hard cross-module reference, arriving in a second place.
-
-<sub>See also [`programs/implementing`](programs.md#programs-implementing), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table). Decided in [0077](../decisions/0077.md), [0102](../decisions/0102.md).</sub>
+<sub>See also [`routing/the-servers-match-dispatches-nothing`](routing.md#routing-the-servers-match-dispatches-nothing), [`types/grammar`](types.md#types-grammar), [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching). Decided in [0102](../decisions/0102.md), [0077](../decisions/0077.md), [0007](../decisions/0007.md).</sub>
 
 <a id="routing-matched-once-before-the-handler"></a>
 
@@ -307,105 +442,81 @@ this list; the server still answers none on its behalf, because which to answer 
 
 <sub>See also [`routing/matched-once-before-the-handler`](routing.md#routing-matched-once-before-the-handler), [`routing/a-trailing-segment-may-be-absent`](routing.md#routing-a-trailing-segment-may-be-absent), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching). Decided in [0102](../decisions/0102.md), [0097](../decisions/0097.md).</sub>
 
-<a id="routing-a-query-parameter-is-declared-like-a-capture"></a>
+<a id="routing-a-request-reads-its-mount"></a>
 
-## A `#[Query]` parameter is declared with a capture's type list, and a default is what makes it optional
+## `Core\Request::mount()` answers the prefix the door stripped and the tainted host captures, and it is never `null`
 
-`rule:routing/a-query-parameter-is-declared-like-a-capture`
+`rule:routing/a-request-reads-its-mount`
 
-`#[Query]` on a parameter of a `#[Route]` method declares that the parameter is bound from the request's
-query string, by the parameter's own name — the attribute carries nothing that could give it another
-key. It is one of the compiler-recognised attributes and is matched nominally
-([`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute)): a userland `type Query = {...};` binds nothing, and a `#[Query]`
-on a method that declares no route is refused rather than ignored.
+`Core\Request::mount(): Core\Request\Mount` answers the two facts about the door a request came through:
+`prefix(): string` is what the mount stripped from the path before the program saw it, and
+`captures(): array<tainted string>` are the mount's glob captures in order — `{1}` is `captures[0]`.
+The captures are `tainted` because they came off the wire ([`security/tainted-qualifier`](security.md#security-tainted-qualifier)), so
+feeding one to a query launders normally; the prefix is the deployment's own plain text. One member for
+the pair, because a request holding one mount's prefix and another's captures is a bug the shape rules
+out.
 
-The parameter takes the same type list as a path capture and launders the same way
-([`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type)): `string`, `int`, `uint`, `decimal`,
-`Core\Uuid`, an enum, or a closed set ([`routing/a-capture-narrows-to-a-closed-set`](routing.md#routing-a-capture-narrows-to-a-closed-set)); anything else
-is a compile error at the parameter. **A default is what makes the key optional**; a parameter without
-one is required. Both facts are what the generated API document reads
-([`attributes/api-adds-and-cannot-contradict`](attributes.md#attributes-api-adds-and-cannot-contradict)), and a declared `#[Query]` key is what
-`Core\Router::url` accepts beyond the captures ([`routing/a-leftover-link-key-is-a-query-string`](routing.md#routing-a-leftover-link-key-is-a-query-string)).
+**`mount()` is never `null`**, where `route()` is. A request the table does not claim is an ordinary
+served request, but every request that reached a program reached it *through* a mount, and a door that
+strips nothing answers `""` and an empty array rather than an absence. With no request at all it
+refuses, like every other reader of the class ([`security/request-state-throws-in-an-isolate`](security.md#security-request-state-throws-in-an-isolate)).
 
-A query value takes no part in choosing a route, so it can never reintroduce the declaration-order
-dependence structural precedence exists to prevent — which is what makes the binding safe to add at
-all. How a bad value fails is [`routing/a-bad-query-value-is-a-400`](routing.md#routing-a-bad-query-value-is-a-400).
+This is how one compiled table serves many tenants, and why `#[Route]` gains no `host` field: a path is
+source state and a hostname is deployment state, so each lives where it changes, and the table stays
+relocatable to `/ModuleA`, `/ModuleB` or `/` with no recompile. A program never derives its own prefix
+from the request target.
 
-<sub>See also [`routing/a-bad-query-value-is-a-400`](routing.md#routing-a-bad-query-value-is-a-400), [`routing/a-capture-narrows-to-a-closed-set`](routing.md#routing-a-capture-narrows-to-a-closed-set), [`routing/a-leftover-link-key-is-a-query-string`](routing.md#routing-a-leftover-link-key-is-a-query-string), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type), [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`attributes/api-adds-and-cannot-contradict`](attributes.md#attributes-api-adds-and-cannot-contradict), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table). Decided in [0102](../decisions/0102.md), [0085](../decisions/0085.md), [0071](../decisions/0071.md).</sub>
+<sub>See also [`routing/matched-once-before-the-handler`](routing.md#routing-matched-once-before-the-handler), [`routing/an-origin-is-per-mount-and-checked-at-boot`](routing.md#routing-an-origin-is-per-mount-and-checked-at-boot), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/request-state-throws-in-an-isolate`](security.md#security-request-state-throws-in-an-isolate), [`routing/link-carries-the-mount-prefix`](routing.md#routing-link-carries-the-mount-prefix). Decided in [0102](../decisions/0102.md), [0097](../decisions/0097.md).</sub>
 
-<a id="routing-a-bad-query-value-is-a-400"></a>
+<a id="routing-link-name-and-params-are-checked"></a>
 
-## A query value that fails to convert is a `400`, where a path capture that fails is a `404`  *(designed — not yet in the compiler)*
+## `Core\Router::url` is a launderer whose literal name and `$params` are checked against the compiled table
 
-`rule:routing/a-bad-query-value-is-a-400`
+`rule:routing/link-name-and-params-are-checked`
 
-A `#[Query]` parameter's value converts to its declared type and arrives unqualified, exactly as a path
-capture does — and fails differently. A path capture that does not convert means *this route is not the
-one*: matching continues, and a miss is a `404`. A query value cannot select a route, so there is
-nothing to continue to: the route matched and the input is bad, which is what `400` means. A required
-key that is absent is a `400` for the same reason.
+`Core\Router::url(string $name, array<string, mixed> $params): string` reverses the table by name,
+and the compiler resolves the call against the whole program's table after every file has been
+walked — the route may be declared in a file the scan reaches later.
 
-The divergence is the point rather than an inconsistency, and it is pinned as one: the two failures are
-asserted side by side on one route, so a reader holding two adjacent lines of one signature knows they
-fail two ways.
+Two failures are compile errors, reported at the argument: **a literal `$name` no `#[Route]`
+declares**, and **a `$params` literal that does not cover the route's captures** — every `{name}` and
+`{name...}` the path writes needs a key of that name, and only a `{name?}` may be left out, whose
+whole segment is then dropped. A literal key that is neither a capture nor one of the route's declared
+`#[Query]` parameters is refused in the same shape, so a typo cannot silently become a query
+parameter. A **computed** `$name` throws instead, and a computed `$params` is not checked at all —
+there are no keys to read.
 
-**Not shipped.** The declaration half — the marker, its type list, its optional bit
-([`routing/a-query-parameter-is-declared-like-a-capture`](routing.md#routing-a-query-parameter-is-declared-like-a-capture)) — compiles today; nothing in the tree yet
-converts a query value into a bound parameter or answers `400` for one. `Core\Router\Match::params`
-carries the path captures alone, and a program reads `Core\Request::query()` raw.
+The result is a laundered URL path ([`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named)): each substituted
+value is percent-encoded into its own segment under RFC 3986's component rules, so a `tainted`
+parameter produces a plain `string` that is safe *as a path* and for nothing else. `urlAbsolute` is
+the same link with a configured origin in front, and refuses exactly the same names. A route with no
+`name` cannot be linked to at all ([`routing/route-attribute`](routing.md#routing-route-attribute)), and the path a link is built on is
+the mount-relative one ([`routing/link-carries-the-mount-prefix`](routing.md#routing-link-carries-the-mount-prefix)).
 
-<sub>See also [`routing/a-query-parameter-is-declared-like-a-capture`](routing.md#routing-a-query-parameter-is-declared-like-a-capture), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type). Decided in [0102](../decisions/0102.md), [0077](../decisions/0077.md).</sub>
+<sub>See also [`routing/route-attribute`](routing.md#routing-route-attribute), [`routing/link-carries-the-mount-prefix`](routing.md#routing-link-carries-the-mount-prefix), [`routing/path-grammar`](routing.md#routing-path-grammar), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`routing/an-absolute-link-takes-a-configured-origin`](routing.md#routing-an-absolute-link-takes-a-configured-origin), [`routing/a-leftover-link-key-is-a-query-string`](routing.md#routing-a-leftover-link-key-is-a-query-string), [`routing/a-query-parameter-is-declared-like-a-capture`](routing.md#routing-a-query-parameter-is-declared-like-a-capture). Decided in [0077](../decisions/0077.md), [0102](../decisions/0102.md).</sub>
 
-<a id="routing-a-trailing-segment-may-be-absent"></a>
+<a id="routing-link-carries-the-mount-prefix"></a>
 
-## `{name?}` captures one trailing segment or none, and its parameter's default is what makes the absent case well-typed
+## A link carries the mount prefix the request arrived under, so one table serves at any mount  *(designed — not yet in the compiler)*
 
-`rule:routing/a-trailing-segment-may-be-absent`
+`rule:routing/link-carries-the-mount-prefix`
 
-`{name?}` captures one whole segment or none. It is permitted only in the last position, at most once,
-and never in the same path as a `{name...}`. **The method parameter it binds must have a default** —
-that is what makes the absent case well-typed rather than nullable by accident — and a `{name?}` whose
-parameter has none is a compile error naming both sites, as is one in any other position.
+`Core\Router::url` prepends the prefix of the mount the request arrived through, in front of the
+substituted path. One compiled table then serves the same module at `/ModuleA`, at `/ModuleB` or at
+`/` with no recompile — a path is source state and a mount is deployment state, so the prefix is
+known only where the request is — and it is why link generation goes through this member rather than
+concatenating a declared path: a link assembled from the declaration is wrong the day the module is
+mounted anywhere but the root.
 
-Precedence slots it below `{name}` and above `{name...}`, so the structural rule extends with no
-ordering to remember; in the trie it is one node marked terminal, costing a static hit's walk rather
-than a second one. `/posts` matches `/posts/{page?}` with the parameter's default and `/posts/3` with
-`3`. **`/posts/` matches neither**: an empty final segment is not an absent one, and repairing the
-difference is what [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused) refuses.
+A program run off the command line is mounted nowhere and the prefix is empty; nothing else about the
+link changes ([`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked)). `urlAbsolute`'s configured origin
+is the other half of an absolute link, and is read from the resolved unit rather than from any header.
 
-It replaces the two-attribute spelling for one endpoint, which is legal but carries two paths — so the
-two forms could not share a name, one of them lost reverse-URL generation, and metrics saw one endpoint
-as two series. A link built with the optional capture left out of `$params` simply drops the segment.
+**Not shipped.** `crates/nvs-stdlib/src/router.rs` substitutes and percent-encodes but joins no
+prefix in front, and the server hands it none: the prefix `crates/nvs-server/src/mount.rs` strips
+from the request path does not reach the link.
 
-<sub>See also [`routing/a-refused-verb-is-not-a-missing-path`](routing.md#routing-a-refused-verb-is-not-a-missing-path), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`routing/path-grammar`](routing.md#routing-path-grammar), [`routing/repeated-routes-share-a-name-when-they-share-a-path`](routing.md#routing-repeated-routes-share-a-name-when-they-share-a-path). Decided in [0102](../decisions/0102.md), [0077](../decisions/0077.md), [0095](../decisions/0095.md), [0097](../decisions/0097.md).</sub>
-
-<a id="routing-a-capture-narrows-to-a-closed-set"></a>
-
-## A capture narrows to a closed set with a literal-union or enum-subset type, never with a regex
-
-`rule:routing/a-capture-narrows-to-a-closed-set`
-
-A capture's type may be a **union of `string` or `int` literal types**, or a **subset of an enum's
-cases** ([`types/literal-types`](types.md#types-literal-types)), beside the scalar and enum types a capture already converts to.
-`show("en"|"de"|"fr" $lang)` narrows the segment to a closed set with no grammar of its own: `/fr/docs/intro`
-matches, `/xx/docs/intro` does not and falls through to a `404` by the failed-conversion rule
-([`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type)) rather than reaching the handler. The narrowing
-is a property of the table, not a check the handler was trusted to write, and the generated API document
-emits the set as `enum: [en, de, fr]`.
-
-The constraint is written where the type is written. The inline `{id:uint}` grammar room is deliberately
-not taken — the same fact in two places that can disagree — and **a regex constraint is refused
-outright, as a security decision**: an application-authored pattern over the request path runs before
-any rate limiting, so catastrophic backtracking is a denial of service open to any unauthenticated
-client, which is priority 1 spent to buy priority 4 ([`programs/memory-priority`](programs.md#programs-memory-priority)). A shape a type
-cannot express — a `[a-z0-9-]+` slug — stays a `Core\Validate` check inside the handler, answering `400`.
-
-`Core\Router::url` builds a link for every member of the set and refuses a literal value outside it at
-compile time; a computed value is substituted and encoded. The enum-case-subset half is not yet
-converted at match time: an enum capture matches and hands over its segment text, because a case's
-segment spelling is still undecided.
-
-<sub>See also [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type), [`types/literal-types`](types.md#types-literal-types), [`core-classes/validate-has-no-type-predicates`](core-classes.md#core-classes-validate-has-no-type-predicates), [`programs/memory-priority`](programs.md#programs-memory-priority), [`routing/a-leftover-link-key-is-a-query-string`](routing.md#routing-a-leftover-link-key-is-a-query-string), [`routing/path-grammar`](routing.md#routing-path-grammar), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table). Decided in [0102](../decisions/0102.md), [0077](../decisions/0077.md), [0047](../decisions/0047.md), [0075](../decisions/0075.md).</sub>
+<sub>See also [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked). Decided in [0077](../decisions/0077.md), [0097](../decisions/0097.md), [0102](../decisions/0102.md).</sub>
 
 <a id="routing-a-leftover-link-key-is-a-query-string"></a>
 
@@ -479,57 +590,35 @@ boot check is recorded as not yet built beside the mount expander.
 
 <sub>See also [`routing/an-absolute-link-takes-a-configured-origin`](routing.md#routing-an-absolute-link-takes-a-configured-origin), [`routing/a-request-reads-its-mount`](routing.md#routing-a-request-reads-its-mount). Decided in [0102](../decisions/0102.md), [0097](../decisions/0097.md), [0005](../decisions/0005.md), [0078](../decisions/0078.md).</sub>
 
-<a id="routing-a-request-reads-its-mount"></a>
+<a id="routing-table-is-opt-in"></a>
 
-## `Core\Request::mount()` answers the prefix the door stripped and the tainted host captures, and it is never `null`
+## The table is built by the program enumeration, and a program with no `#[Route]` builds none and pays nothing
 
-`rule:routing/a-request-reads-its-mount`
+`rule:routing/table-is-opt-in`
 
-`Core\Request::mount(): Core\Request\Mount` answers the two facts about the door a request came through:
-`prefix(): string` is what the mount stripped from the path before the program saw it, and
-`captures(): array<tainted string>` are the mount's glob captures in order — `{1}` is `captures[0]`.
-The captures are `tainted` because they came off the wire ([`security/tainted-qualifier`](security.md#security-tainted-qualifier)), so
-feeding one to a query launders normally; the prefix is the deployment's own plain text. One member for
-the pair, because a request holding one mount's prefix and another's captures is a bug the shape rules
-out.
+Finding routes is the question the program enumeration was built for — *what exists that nothing
+names* — and the route table is that enumeration filtered by `#[Route]`, reused wholesale with its
+consequences ([`programs/implementing`](programs.md#programs-implementing)):
 
-**`mount()` is never `null`**, where `route()` is. A request the table does not claim is an ordinary
-served request, but every request that reached a program reached it *through* a mount, and a door that
-strips nothing answers `""` and an empty array rather than an absence. With no request at all it
-refuses, like every other reader of the class ([`security/request-state-throws-in-an-isolate`](security.md#security-request-state-throws-in-an-isolate)).
+- **A program containing no `Core\Router::match`/`::url` call performs no scan and builds no table**,
+  the identical opt-in rule a discovery query has; a program with no `#[Route]` anywhere pays nothing,
+  including no pass. A running program with no table matches nothing — `Core\Request::route()` is
+  `null`, `methodsFor` answers empty — and serves the request however it likes.
+- **The scan makes the compiled unit depend on directory contents**, so every listed directory joins
+  the revalidation set: no new dependency kind and no new directive. Zero under `validate = never`,
+  which is what production runs.
+- Routes in files reached by an ordinary `require` are included too; they are already in the graph.
+  Rows accumulate across every file into one program-wide table, which is where a duplicate between
+  two files is caught ([`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered)).
 
-This is how one compiled table serves many tenants, and why `#[Route]` gains no `host` field: a path is
-source state and a hostname is deployment state, so each lives where it changes, and the table stays
-relocatable to `/ModuleA`, `/ModuleB` or `/` with no recompile. A program never derives its own prefix
-from the request target.
+The table is a compile product carried by the unit and installed before the program runs, beside the
+command table and the configuration snapshot; the match against it is taken once at the door and
+nothing dispatches ([`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching)). Its cost is O(routes in compiled
+code) in the artifact, not per request and not per object. A link to a route declared in another
+module needs that module compiled — the consequence [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload) already
+records for a hard cross-module reference, arriving in a second place.
 
-<sub>See also [`routing/matched-once-before-the-handler`](routing.md#routing-matched-once-before-the-handler), [`routing/an-origin-is-per-mount-and-checked-at-boot`](routing.md#routing-an-origin-is-per-mount-and-checked-at-boot), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/request-state-throws-in-an-isolate`](security.md#security-request-state-throws-in-an-isolate), [`routing/link-carries-the-mount-prefix`](routing.md#routing-link-carries-the-mount-prefix). Decided in [0102](../decisions/0102.md), [0097](../decisions/0097.md).</sub>
-
-<a id="routing-a-match-is-not-invocable"></a>
-
-## A match carries a name and typed parameters and nothing invocable, and typed `callable` would not change that
-
-`rule:routing/a-match-is-not-invocable`
-
-`Core\Router\Match` carries a declared name and the typed captures the path filled, and nothing
-invocable: no `->invoke()`, no callable, no class-and-method strings. A first-class reference to the
-matched method would need `callable` to carry a signature, which [`types/grammar`](types.md#types-grammar) defers — but
-routing is not a forcing case for that deferral, and typed `callable` would not remove the dispatch
-`switch`, for three independent reasons.
-
-Routes do not share a signature: `show(uint $id)`, `index()` and `blog(uint $y, uint $m, string $slug)`
-cannot inhabit one `handler` field, and pre-binding the converted parameters into a zero-argument closure
-is dispatch. Handlers have no common return type, and a `callable(): Response` would force one, which is
-a framework opinion `Core` refuses to hold. And the boundary ground survives regardless: invoking would
-be dispatch, which the table refuses on its own account
-([`routing/the-servers-match-dispatches-nothing`](routing.md#routing-the-servers-match-dispatches-nothing)).
-
-The ergonomic cost is paid where the framework layer already sits: `Web\Controller` generates the
-`switch` from the route table while compiling ([`programs/framework-web-package`](programs.md#programs-framework-web-package)), and an application
-declining the framework writes it itself, permanently. The roster of compiler-recognised attributes this
-table draws on has one home ([`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute)), and no rule restates its size.
-
-<sub>See also [`routing/the-servers-match-dispatches-nothing`](routing.md#routing-the-servers-match-dispatches-nothing), [`types/grammar`](types.md#types-grammar), [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching). Decided in [0102](../decisions/0102.md), [0077](../decisions/0077.md), [0007](../decisions/0007.md).</sub>
+<sub>See also [`programs/implementing`](programs.md#programs-implementing), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table). Decided in [0077](../decisions/0077.md), [0102](../decisions/0102.md).</sub>
 
 <a id="routing-api-document-is-generated-from-the-route-table"></a>
 
@@ -608,95 +697,6 @@ A document that cannot be read or is not JSON is a failure naming the file, neve
 against the last release's document and a broken client turns from an incident into a red pipeline.
 
 <sub>See also [`routing/api-document-is-a-deterministic-build-artifact`](routing.md#routing-api-document-is-a-deterministic-build-artifact), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table). Decided in [0085](../decisions/0085.md).</sub>
-
-<a id="routing-repeated-routes-share-a-name-when-they-share-a-path"></a>
-
-## One method's repeated routes may share a `name` only when they share a `path`; every other duplicate name is a compile error
-
-`rule:routing/repeated-routes-share-a-name-when-they-share-a-path`
-
-`#[Route]` is repeatable ([`attributes/repeatable`](attributes.md#attributes-repeatable)), and repeating it is how one method serves
-several verbs. Repeated `#[Route]` attributes on **one method** may carry the same `name`, provided
-every one of them carries the same `path`:
-
-```php
-#[Route(path: "/webhook", method: Http\Method::Post, name: "webhook")]
-#[Route(path: "/webhook", method: Http\Method::Put,  name: "webhook")]
-#[Access(allow: Audience::Public)]
-public function receive(): Response { … }
-```
-
-One path per name is the whole of the safety argument: it keeps `Core\Router::url` a function, so
-no rule is needed to choose between two declarations. Every other duplicate `name` is `E0749`,
-naming both sites — the same name on two different methods, which is the copy-paste that gives two
-endpoints one identity; and the same name on one method whose repetitions carry different paths,
-where `url()` would have two answers and no ground to prefer one.
-
-**The duplicate-*route* rule is untouched.** Two attributes sharing both `path` and `method` remain
-an error however they are grouped, so nothing enters through the door a shared name opens. The name
-is written on each line rather than inherited from the first: the attributes are independent
-literals, and an inheritance rule would make their order matter, which the route table's precedence
-rules exist to avoid.
-
-<sub>See also [`routing/a-shared-name-is-one-endpoint-everywhere`](routing.md#routing-a-shared-name-is-one-endpoint-everywhere), [`routing/no-wildcard-verb`](routing.md#routing-no-wildcard-verb), [`attributes/repeatable`](attributes.md#attributes-repeatable), [`routing/route-attribute`](routing.md#routing-route-attribute), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered). Decided in [0110](../decisions/0110.md), [0077](../decisions/0077.md), [0046](../decisions/0046.md).</sub>
-
-<a id="routing-no-wildcard-verb"></a>
-
-## There is no wildcard verb: `method` is required, singular, and one case of a closed enum
-
-`rule:routing/no-wildcard-verb`
-
-There is no `Method::Any`, no omitted `method` and no multi-valued `method`. `method` is required,
-singular, and one case of the closed enum `Core\Http\Method`; a `#[Route]` written without one is
-`E0747`. This is a decision, not a deferral, because two mechanisms read the exact verb set a
-wildcard would erase:
-
-- **`Core\Router::methodsFor`** answers the verbs a path serves — an empty list is a `404`, a
-  non-empty one is a `405` with an `Allow:` header naming them. A wildcard makes that header either
-  unanswerable or a dump of the whole enum, and `405` stops being reachable.
-- **CSRF is classified per verb** ([`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default)) — on for `POST`, `PUT`,
-  `PATCH` and `DELETE`, off for the safe verbs — from the declaration, not from the request. A
-  wildcard declares a route that is half unsafe.
-
-A wildcard could not even mean *any* verb honestly: `Core\Http\Method` is closed
-([`enums/closed-integer-type`](enums.md#enums-closed-integer-type)), so it would mean the cases this version of `Core` happens to
-name, silently changing meaning when one is added.
-
-[`routing/repeated-routes-share-a-name-when-they-share-a-path`](routing.md#routing-repeated-routes-share-a-name-when-they-share-a-path) gives the ergonomics a wildcard
-was wanted for — one name, one `url()` target, one metrics series. What it does not give is one
-*line*, and that is the point: each verb a route answers stays visible at the declaration, where
-`methodsFor` and the CSRF classification read it. A method serving a safe and an unsafe verb carries
-one `#[Access]` for both, and the CSRF check is still per verb from that one declaration.
-
-<sub>See also [`routing/repeated-routes-share-a-name-when-they-share-a-path`](routing.md#routing-repeated-routes-share-a-name-when-they-share-a-path), [`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`routing/a-refused-verb-is-not-a-missing-path`](routing.md#routing-a-refused-verb-is-not-a-missing-path). Decided in [0110](../decisions/0110.md), [0077](../decisions/0077.md), [0102](../decisions/0102.md), [0096](../decisions/0096.md), [0010](../decisions/0010.md).</sub>
-
-<a id="routing-a-shared-name-is-one-endpoint-everywhere"></a>
-
-## A shared name is one `url()` target, one `Match::name` for every verb, and one `operationId` per verb
-
-`rule:routing/a-shared-name-is-one-endpoint-everywhere`
-
-A route whose repeated attributes share a `name` is one thing everywhere it is observed:
-
-- **`Core\Router::url("webhook", […])` returns the one path**, because the shared-name condition
-  ([`routing/repeated-routes-share-a-name-when-they-share-a-path`](routing.md#routing-repeated-routes-share-a-name-when-they-share-a-path)) makes name-to-path a
-  function. No verb argument is added to `url` or `urlAbsolute`; a caller that needs to know which
-  verb to send already knows.
-- **`Core\Router\Match::name` carries the shared name for every verb**, so the observability
-  `route` label reports one series per endpoint rather than one named series plus a heap of
-  unlabelled requests, which looks like a working dashboard and is not one.
-- **The generated `operationId` is the `name`, with the lowercased verb appended when two
-  operations share it** — `webhook.post`, `webhook.put`. OpenAPI requires the id to be unique per
-  operation, and `(path, method)` is unique by the shared-name condition, so the suffix is
-  deterministic and needs no counter. A name carried by exactly one operation is emitted bare, so no
-  existing document moves; a route that declared no name falls back to its `Class::method` handler
-  label, which is unique by construction.
-
-The route table's shape does not change: one row per `(path, method)`, with `name` a column on each
-row rather than a key into them, and the reverse index `url()` reads is built from that column.
-Runtime cost is zero and memory cost is one `?string` column's worth of repeats.
-
-<sub>See also [`routing/repeated-routes-share-a-name-when-they-share-a-path`](routing.md#routing-repeated-routes-share-a-name-when-they-share-a-path), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table), [`routing/an-absolute-link-takes-a-configured-origin`](routing.md#routing-an-absolute-link-takes-a-configured-origin), [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked). Decided in [0110](../decisions/0110.md), [0085](../decisions/0085.md), [0102](../decisions/0102.md), [0076](../decisions/0076.md).</sub>
 
 <a id="routing-a-quick-fix-writes-a-derived-path"></a>
 

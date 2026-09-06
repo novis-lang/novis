@@ -5,6 +5,568 @@
 
 *26 of 74 rules below are **designed** rather than shipped, and are marked where they appear.*
 
+<a id="core-classes-cli-arguments"></a>
+
+## `Core\Cli::arguments` is how a program reads the words it was started with, at every depth
+
+`rule:core-classes/cli-arguments`
+
+`Core\Cli::arguments()` answers the words the program was started with, as an
+`array<tainted string>`. It replaces `$argv` and `$argc` in one place: a count is the array's length,
+so there is nothing for two spellings to disagree about.
+
+The elements are `tainted`, because a word typed at a shell is user-derived data like any other, and
+a sink refuses one. A word that looks like syntax comes back as the value it is, unsplit and
+uninterpreted.
+
+Within a request tree the answer is the same at every depth: it reflects how the **process** was
+invoked, which is a process-wide fact rather than a per-isolate one, so a spawned isolate neither
+fakes nor suppresses it the way it does for request state. A program reading arguments a *request*
+supplied wants [`core-classes/script-args`](core-classes.md#core-classes-script-args) instead.
+
+The record this rule comes from specified `args()`/`argc()` and a throw when called while serving
+HTTP. The shipped member is `arguments()`, and inside a request it answers empty rather than throwing
+— the launcher writes the command line and only the CLI entry point writes one.
+
+<sub>See also [`core-classes/script-args`](core-classes.md#core-classes-script-args), [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables). Decided in [0012](../decisions/0012.md), [0086](../decisions/0086.md), [0118](../decisions/0118.md).</sub>
+
+<a id="core-classes-script-args"></a>
+
+## `Core\Script::args` is the value the current isolate was spawned with, and `null` where there was none
+
+`rule:core-classes/script-args`
+
+`Core\Script::args(): mixed` is the deep-copied value the current isolate was spawned with, and
+`null` where there was none — a child spawned without the option, and the root script, which nothing
+spawned.
+
+The type is `mixed` rather than `array<mixed>` because a spawn's argument accepts any value that can
+cross the boundary, decided at run time, so nothing narrows the option at the call site. The answer
+is `null` rather than an empty array because a program that wrote `args: []` said something a program
+that wrote no option did not.
+
+This is Novis's own superglobal being retired for the same reason PHP's were, and consistency is the
+whole of the reason: an ambient, undeclared variable is the shape being closed, and one the project
+introduced itself is no better for having been introduced deliberately. Each isolate's arguments are
+its own.
+
+<sub>See also [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`statements/an-isolate-has-its-own-statics`](statements.md#statements-an-isolate-has-its-own-statics). Decided in [0012](../decisions/0012.md), [0006](../decisions/0006.md), [0023](../decisions/0023.md).</sub>
+
+<a id="core-classes-process-is-argv-only"></a>
+
+## `Core\Process` is the one way to run another program, and there is no shell string anywhere in it
+
+`rule:core-classes/process-is-argv-only`
+
+`Core\Process` is the one way to run another program, and it is argv-only. There is no shell-string
+form anywhere in it and no flag that turns one on, so `exec`, `system`, `shell_exec`, `passthru`,
+`popen`, `proc_open` and backticks all reach one of two members taking a path and an array of
+arguments.
+
+The path and every element of the argument array are plain `string`: a `tainted` value needs a
+checked conversion or an explicit launderer first, exactly like any other sink. A name the program
+did not choose is the whole of what a command injection is, and the array carries no nesting mark of
+its own because `array<tainted string>` is simply not `array<string>`.
+
+Running anything at all takes the deny-by-default `process.exec` capability, asked before the target
+is looked at, so an ungranted program cannot even learn whether a binary exists.
+
+What this costs is the one case where a shell genuinely was the feature — a pipeline, a glob, a
+redirect. Those are written in Novis, or by spawning the shell explicitly and owning the quoting at
+that call site.
+
+<sub>See also [`core-classes/process-run`](core-classes.md#core-classes-process-run), [`core-classes/process-refuses-a-shell-target`](core-classes.md#core-classes-process-refuses-a-shell-target), [`core-classes/process-spawn`](core-classes.md#core-classes-process-spawn). Decided in [0044](../decisions/0044.md), [0024](../decisions/0024.md), [0118](../decisions/0118.md).</sub>
+
+<a id="core-classes-process-run"></a>
+
+## `run` waits by suspending the coroutine, and hands back the exit code with both captures as `bytes`
+
+`rule:core-classes/process-run`
+
+`Core\Process::run(string $path, array<string> $argv, ProcessOptions $options)` spawns the process,
+waits for it to exit, and answers a result carrying the exit code and both captures. Waiting is an
+ordinary suspension point on the runtime's stackful coroutines — the same mechanism that lets any
+function perform I/O without being marked async — so a slow child ties up one coroutine's stack and
+not the worker thread it started on, and other requests on the same core keep making progress.
+
+**Captured stdout and stderr are `bytes`, never `string`.** An arbitrary child's output cannot be
+assumed valid UTF-8, so a caller who knows it is text writes `as string`, which throws on invalid
+input rather than mangling it into replacement characters. The two captures stay apart, a non-zero
+exit keeps both, and a result answers the same thing every time it is asked.
+
+What it spends, per call: the child's whole stdout and stderr, once each, held for as long as the
+program holds the result, plus one object allocation — charged to the request that asked. The record
+reuses the request's existing `max_output` directive to bound that capture; nothing reads it in the
+tree today, so what bounds a capture is the request's memory limit, which the buffers are charged
+against like any other allocation (`crates/nvs-stdlib/src/process.rs`, gap 1).
+
+<sub>See also [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`core-classes/process-options`](core-classes.md#core-classes-process-options), [`types/bytes`](types.md#types-bytes), [`types/conversion`](types.md#types-conversion). Decided in [0044](../decisions/0044.md), [0009](../decisions/0009.md), [0005](../decisions/0005.md).</sub>
+
+<a id="core-classes-process-options"></a>
+
+## `ProcessOptions` carries a working directory, a replaced environment and a timeout, and nothing else  *(designed — not yet in the compiler)*
+
+`rule:core-classes/process-options`
+
+`ProcessOptions` carries three fields and no more: a working directory, an environment, and a
+timeout.
+
+`env`, when given, **replaces** the child's environment entirely rather than merging with the
+parent's — explicit replacement is simpler to reason about than merge semantics. Every key and value
+is plain `string`, so an API key held as a `secret` needs [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal) first;
+this is a new sink reusing an existing escape hatch, not a new mechanism.
+
+`timeout` reuses the existing safepoint-driven cancellation — the same poll that already cancels a
+request — rather than a bespoke process-only timer. On expiry the child is killed and the suspended
+coroutine resumes into a throw naming the timeout.
+
+**Not shipped.** `crates/nvs-stdlib/src/process.rs` registers `run` with a path and an argument array
+and nothing else; there is no options type, so a child inherits the environment, runs in the calling
+process's directory, and is bounded only by the request's own wall-clock deadline.
+
+<sub>See also [`core-classes/process-run`](core-classes.md#core-classes-process-run), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0044](../decisions/0044.md), [0033](../decisions/0033.md), [0005](../decisions/0005.md).</sub>
+
+<a id="core-classes-process-spawn"></a>
+
+## `spawn` answers a handle whose reads and writes suspend, covering `proc_open` and `passthru` in one type  *(designed — not yet in the compiler)*
+
+`rule:core-classes/process-spawn`
+
+`Core\Process::spawn` takes the same path, argument array and options as `run` and answers a handle
+instead of waiting: read stdout, read stderr, write stdin, wait, kill. Every read and write suspends
+the calling coroutine exactly as `run`'s wait does, so streaming a child's output into a response
+costs one coroutine and no worker thread.
+
+One handle covers what PHP splits between `passthru` (stream straight through) and `proc_open` (full
+pipe control), because the difference between them is which members a caller happens to use, not two
+kinds of process.
+
+**Not shipped.** `crates/nvs-stdlib/src/process.rs` registers `run` alone; there is no handle type,
+so a program that needs to interleave with a child's output has no member to reach for.
+
+<sub>See also [`core-classes/process-run`](core-classes.md#core-classes-process-run), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only). Decided in [0044](../decisions/0044.md).</sub>
+
+<a id="core-classes-process-refuses-a-shell-target"></a>
+
+## A target only a second command-line parser could run is refused, on every platform
+
+`rule:core-classes/process-refuses-a-shell-target`
+
+A target the platform can only run by handing it to a second command-line parser — `.bat` and `.cmd`
+to `cmd.exe`, `.ps1` to `powershell.exe` — is refused before spawning, with a diagnostic naming the
+extension and the reason.
+
+The check runs on **every platform build**, not only on Windows, even though the underlying risk (a
+second parser re-reading an already-quoted argument) is real only there. Behaviour that silently
+diverges by platform is the failure this refusal exists to prevent, and a case that passes on the
+developer's machine and refuses in production is worth more than one that does the reverse.
+
+Unix needs no equivalent. A shebang script is launched by `execve` reading the interpreter line and
+invoking it in the same kernel call that receives the original, already-split argument vector — no
+second program re-parses a command line, because there never was one. The asymmetry is the honest
+shape of the underlying problem.
+
+There is no convenience for the case where a batch file really is the target: a caller spawns
+`cmd.exe` explicitly, through the same argv API, and takes the quoting risk visibly rather than
+through a flag that looks as safe as every other call.
+
+<sub>See also [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`core-classes/process-run`](core-classes.md#core-classes-process-run). Decided in [0044](../decisions/0044.md).</sub>
+
+<a id="core-classes-io-write-stream"></a>
+
+## `Core\IO::writeStream` is where every stream reaches disk, and a failed write removes its partial file
+
+`rule:core-classes/io-write-stream`
+
+`Core\IO::writeStream(string $path, Iterable<bytes> $src, {max?, overwrite?})` is where a stream
+reaches disk, and every convenience that writes one delegates to it. Path first, because the subject
+is parameter one and the plain write already reads that way.
+
+It is an ordinary `Core\IO` member and therefore an ordinary **path sink** requiring `fs.write`, with
+no exemption for arriving by way of an upload: a `tainted` filename reaching it is a compile error
+exactly as it is everywhere else, and the containment check is the launderer.
+
+Two rules are its own. **`overwrite` defaults to false**, because a destination chosen from a
+client's claimed filename is the case this member exists to serve. **A write that fails mid-stream
+removes the partial file**, because a truncated file the application believes it wrote is a worse
+failure than an error — the caller learns from the throw, not from a later reader.
+
+It is general on purpose: a request body, a decompressed archive, an outbound response body and an
+upload part all reach disk through this one implementation, so the partial-write cleanup lives in one
+place rather than in every call site that hand-wrote the loop.
+
+<sub>See also [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep), [`core-classes/process-run`](core-classes.md#core-classes-process-run). Decided in [0105](../decisions/0105.md), [0063](../decisions/0063.md), [0024](../decisions/0024.md).</sub>
+
+<a id="core-classes-temporary-dir-sweep"></a>
+
+## A temporary directory lives under a Novis-owned root and is deleted when its script ends, and the sweep never throws
+
+`rule:core-classes/temporary-dir-sweep`
+
+`Core\IO::temporaryDir()` is the whole temporary-file surface: it hands out an **owned directory**
+and the program names files inside it. There is no `temporaryFile`, because a program needing one
+temporary file needs somewhere to put the second.
+
+Every directory is created under one root the runtime owns — a configured path, else a private
+subdirectory of the platform temporary directory. Exclusive ownership of that root is the entire
+safety argument for the sweeps: the runtime never deletes anything it did not create, because nothing
+else writes there. Sweeping a shared `/tmp`, with anyone's symlinks and anyone's names, is the
+classic TOCTOU surface this forbids.
+
+The runtime keeps a per-script list of the paths it handed out and deletes each surviving entry when
+the script ends — after the exit queue on a CLI ending, after the after-response work on a request,
+and off the request path, so a response never waits on a deletion. It covers normal end, `exit`, an
+uncaught throw, and a request that died mid-flight.
+
+**The sweep never throws and never alters a response.** A path already gone is the goal state reached
+early. A deletion the OS refuses is one log line, and the directory waits for the next sweep. An
+operator may set `[debug] keep_temporary` to keep everything *visibly* — each kept path is logged —
+and there is no in-language setter, because a program that can exempt its own files can be made to
+hoard them. The program's own `remove` and `removeDir` are unchanged and still throw: a deliberate
+action's failure is the program's to hear about.
+
+<sub>See also [`core-classes/temporary-dir-orphan-sweep`](core-classes.md#core-classes-temporary-dir-orphan-sweep), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`errors/propagation`](errors.md#errors-propagation). Decided in [0131](../decisions/0131.md), [0127](../decisions/0127.md), [0072](../decisions/0072.md), [0106](../decisions/0106.md), [0078](../decisions/0078.md), [0059](../decisions/0059.md), [0004](../decisions/0004.md).</sub>
+
+<a id="core-classes-temporary-dir-orphan-sweep"></a>
+
+## The orphan sweep is keyed on the owner being alive, never on age, and runs in exactly two places
+
+`rule:core-classes/temporary-dir-orphan-sweep`
+
+A process killed outright ran no end-of-script sweep. Its leftovers are reclaimed by the orphan
+sweep, which walks the owned root and deletes each entry **whose owning pid is not alive**.
+
+It runs in exactly two places: once at server boot, before traffic, and whenever an operator runs the
+cleanup command, which prints each path it removes and supports a dry run. It runs on no other
+invocation — taxing every CLI start with a root walk to insure against a rare hard kill prices the
+common case for the exceptional one. The deliberate consequence is that on a machine where the server
+never runs and nobody runs the command, a hard-killed script's directory persists: bounded by crash
+frequency, confined to one visible root, one command to clear.
+
+The predicate is owner liveness, **never age**. An age rule is precisely what deletes a long-running
+process's files out from under it; liveness cannot, because a live owner's entries are skipped no
+matter how old. Every failure mode falls the safe way — a recycled pid makes a dead owner's entry
+look alive and it leaks until a later sweep, never the reverse — so the sweep may under-delete and
+can never over-delete. There is no force flag that overrides liveness.
+
+<sub>See also [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep). Decided in [0131](../decisions/0131.md).</sub>
+
+<a id="core-classes-regex-two-tiers"></a>
+
+## A pattern runs on the linear engine unless it cannot, and the backtracking tier's step budget throws when exhausted
+
+`rule:core-classes/regex-two-tiers`
+
+Every pattern compiles to the **linear tier** if the linear engine can express it, and to the
+**backtracking tier** otherwise. The choice is made by the engine, never by the developer and never
+by a modifier: there is no way to ask for backtracking, only to write a pattern that requires it.
+
+The backtracking tier runs under a bounded step count. Exhausting it throws an ordinary catchable
+`Throwable` naming the pattern and the budget. It never returns "no match", never returns a falsy
+value, and never truncates the search — a search that stopped early and a search that found nothing
+are different facts, and PHP's `preg_*` conflates them into `false`. Per
+[`errors/escalation-ladder`](errors.md#errors-escalation-ladder) this is an ordinary throw rather than a resource-limit fatal, so the
+request may catch it and answer 400. The linear tier has no budget, because it needs none.
+
+What this costs is that a pattern's performance class is a property of the pattern rather than
+something a caller can override. That is the trade taken deliberately: an engine choice a developer
+cannot see is the failure mode the whole design exists to avoid.
+
+The budget's default is a stated constant today rather than a configuration key, because there is no
+configuration subsystem in front of it yet — `crates/nvs-stdlib/src/regex.rs` names it and records
+the gap.
+
+<sub>See also [`core-classes/regex-literal-tiering`](core-classes.md#core-classes-regex-literal-tiering), [`core-classes/regex-syntax`](core-classes.md#core-classes-regex-syntax), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder). Decided in [0056](../decisions/0056.md), [0005](../decisions/0005.md), [0020](../decisions/0020.md).</sub>
+
+<a id="core-classes-regex-literal-tiering"></a>
+
+## A literal pattern is validated and tiered while checking, and a malformed one is a compile error
+
+`rule:core-classes/regex-literal-tiering`
+
+A literal pattern argument is validated and compiled while checking, under
+[`expressions/intrinsic-literals`](expressions.md#expressions-intrinsic-literals), and the tier it landed in is written down where later stages
+read it back. The tier is settleable there because it is a property of the pattern text alone —
+decided by which engine's parser refused a construct — so a checking run and a request cannot
+disagree about it.
+
+Three consequences follow, none of which costs anything at run time. **A malformed pattern is a
+compile error**, not a run-time throw on the first request that reaches it. **The tier is known
+statically**, so a check run can report which patterns require backtracking. And **an operator can
+refuse them**: `[regex] backtracking = "allow" | "warn" | "deny"` makes a backtracking pattern
+respectively silent, a warning, or a compile-time error, so a deployment running untrusted or
+high-volume code can know no request can be made to backtrack at all.
+
+A pattern assembled at run time is compiled at run time and gets the same tiering and the same
+budget, with none of the three benefits. That is a reason to write patterns as literals, stated here
+rather than discovered.
+
+The third consequence is not built: there is no `[regex]` block, so `deny` cannot be written yet.
+
+<sub>See also [`core-classes/regex-two-tiers`](core-classes.md#core-classes-regex-two-tiers), [`expressions/intrinsic-literals`](expressions.md#expressions-intrinsic-literals), [`expressions/intrinsic-list-is-closed`](expressions.md#expressions-intrinsic-list-is-closed). Decided in [0056](../decisions/0056.md), [0057](../decisions/0057.md), [0005](../decisions/0005.md).</sub>
+
+<a id="core-classes-regex-syntax"></a>
+
+## Regex syntax is PCRE's with no `u` modifier, and a construct neither engine supports is diagnosed by name
+
+`rule:core-classes/regex-syntax`
+
+The accepted syntax is PCRE's, across both tiers, with three fixed points.
+
+**There is no `u` modifier.** [`types/string-is-utf8`](types.md#types-string-is-utf8) guarantees a `string` is UTF-8, so Unicode
+mode is not optional and not a flag, and `.` is a code point. Matching over `bytes` is a separate,
+explicitly byte-oriented entry point rather than the same members under a switch.
+
+**A construct neither engine supports is a compile-time diagnostic naming it** — recursion,
+subroutine calls and callouts among them. It is never silently ignored and never approximated,
+because a behaviour difference the developer cannot see is precisely what the two-tier design exists
+to avoid.
+
+`/e` and the other spellings PHP has already removed are not reintroduced.
+
+<sub>See also [`core-classes/regex-two-tiers`](core-classes.md#core-classes-regex-two-tiers), [`types/string-is-utf8`](types.md#types-string-is-utf8), [`types/bytes`](types.md#types-bytes). Decided in [0056](../decisions/0056.md), [0009](../decisions/0009.md).</sub>
+
+<a id="core-classes-html-auto-escape"></a>
+
+## `echo` in an HTTP request escapes everything it is given, and `Core\Html\Markup` is the only raw-write bypass
+
+`rule:core-classes/html-auto-escape`
+
+`echo` inside an HTTP request is an escaping sink. It accepts only `Core\Html\Markup`, implies
+`Content-Type: text/html`, and auto-escapes any non-`Markup` value interpolated into a
+`Markup`-building position, lifting the result. It never distinguishes tainted from untainted,
+because escaping neutralizes either one structurally. Every other body shape is a typed response
+member — `json`, `text`, `bytes`, `sendFile` — each framing its own content, and mixing `echo` with
+one of them on a single response is a compile error.
+
+This is a deliberate exception to the standing rule that nothing happens by position, only by
+declaration. Security ranks above simplicity, and an omitted escape call is the single most common
+real-world XSS root cause, so the priority is spent explicitly rather than holding the no-magic line
+for its own sake. It is one of only two such exceptions.
+
+`Markup` is a small value type, peer to `string` the way `bytes` is. A **source-literal** string
+converted with `as Markup` is trusted — it is exactly what the developer wrote. A runtime-computed or
+`tainted` string can never become `Markup` that way, which closes the obvious bypass.
+`Markup + Markup` is `Markup`, so composing trusted fragments stays cheap; `.` has no row for a
+carrier, and a mixed `$markup + "x"` is refused rather than escaped, because `+` is not a sink.
+
+<sub>See also [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0024](../decisions/0024.md), [0133](../decisions/0133.md), [0087](../decisions/0087.md), [0088](../decisions/0088.md), [0086](../decisions/0086.md).</sub>
+
+<a id="core-classes-html-escape-answers-markup"></a>
+
+## `Core\Html::escape` answers a `Markup`, so the eager-escape habit stops compiling
+
+`rule:core-classes/html-escape-answers-markup`
+
+`Core\Html::escape(tainted string $text): Core\Html\Markup` answers the carrier its sink accepts, not
+a `string`. The bytes it produces are unchanged; only the wrapper is new.
+
+**The eager-escape habit stops compiling**, which is the point. A developer arriving from
+`htmlspecialchars()` writes the escape call, then finds the result cannot be concatenated back into
+the surrounding string, because `.` has no row for a carrier. They are corrected at the call site
+instead of shipping `&amp;amp;`, and for most code the correction is to delete the escape call
+entirely — the sink was always going to do it ([`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape)).
+
+`escape` additionally **neutralizes an unterminated bidirectional control**, substituting a
+replacement character. Escaping `<`, `>`, `&` and quotes does nothing about display order, so without
+that rule a bidi payload would survive the auto-escape sink intact. A balanced control is legitimate
+mixed-direction text and passes through.
+
+<sub>See also [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize). Decided in [0133](../decisions/0133.md), [0024](../decisions/0024.md), [0087](../decisions/0087.md).</sub>
+
+<a id="core-classes-html-to-source"></a>
+
+## `Core\Html::toSource` is the one way out of a `Markup`, and it takes a written reason
+
+`rule:core-classes/html-to-source`
+
+`Core\Html::toSource(Core\Html\Markup $markup, string $reason): string` hands back the markup's
+source text, and it is the only way out. There is **no `Markup as string` conversion**, because one
+would reopen the hole in a keystroke: an escape whose result is immediately cast back to `string` and
+concatenated with tainted text is the original bug with an extra word in it.
+
+The shape is the project's standing escape-hatch form — rare, greppable, and carrying a written
+reason at the site rather than a silent cast, the same shape [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal) takes.
+`$reason` is a source literal and an empty one is refused: a reason that can be computed is a reason
+nobody wrote.
+
+Its legitimate callers are the ones that need the bytes and not the guarantee — caching a rendered
+fragment, storing one in a column, writing one to a file, handing one to a sink that is not this one.
+
+The name is deliberate. `to…` is the conversion verb, `source` is spelled out, and it is neither
+`raw` — which in every template language means the opposite direction — nor `unescape`, which is
+reserved for the operation that actually inverts `escape` and which this is not.
+
+<sub>See also [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0133](../decisions/0133.md), [0024](../decisions/0024.md), [0063](../decisions/0063.md).</sub>
+
+<a id="core-classes-html-sanitize"></a>
+
+## `Core\Html::sanitize` answers a `Markup` by rebuilding the document, never by filtering it  *(designed — not yet in the compiler)*
+
+`rule:core-classes/html-sanitize`
+
+`Core\Html::sanitize` answers `Core\Html\Markup`, which makes it the fourth way to obtain one and the
+only one that takes a runtime-computed string.
+
+That is exactly why it must be a parser that **rebuilds the document from a known-good grammar**, and
+never a filter that deletes what looks dangerous. A filter answering a carrier would be a generic
+sanitizer wearing a type — it would claim a guarantee it cannot establish, because "what looks
+dangerous" is a list an attacker gets to extend.
+
+**Not shipped.** `crates/nvs-stdlib/src/html.rs` carries `escape` and `toSource` and no sanitizer.
+The member waits on the WHATWG tree ([`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing)), which is what it would parse
+into.
+
+<sub>See also [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape). Decided in [0133](../decisions/0133.md), [0024](../decisions/0024.md), [0051](../decisions/0051.md), [0122](../decisions/0122.md).</sub>
+
+<a id="core-classes-html-parsing"></a>
+
+## HTML parses by the WHATWG algorithm onto `Core\Xml`'s own tree, and that parse never fails  *(designed — not yet in the compiler)*
+
+`rule:core-classes/html-parsing`
+
+HTML parses through `Core\Html`, by the WHATWG parsing algorithm, and the parse **never fails**:
+implied tags, error recovery and foster parenting are the specified output every conforming parser
+produces, so recovering here does not violate the refuse-never-repair rule — nothing is guessed,
+because the specification fixes the answer. `Core\Xml` keeps the opposite contract: malformed XML
+throws. One API flipping between refuse-hard and recover-always under a flag is the ambiguity being
+retired, and it is what PHP's libxml2 surface is.
+
+Both parsers materialise **the same node family**. Queries, traversal and the tree's memory story are
+written once, and which door parsed a document does not change what a program can do with it.
+Serialization follows the door: WHATWG rules through one, XML rules through the other. The engine is
+`html5ever` driving a tree builder we own, so it builds request-attributed nodes directly rather than
+through its sample DOM, and the same crate is compiled into the PDF component — the language and its
+PDF renderer parse HTML identically: one behaviour to document, one parser to fuzz.
+
+What it spends, per parse: the materialised tree, proportional to the document, attributed to the
+request and gone with it.
+
+**Not shipped**, and neither half may land alone: the milestone that schedules `Core\Xml`'s tree API
+builds this parse in the same milestone, because the tree and the builder interface are one
+implementation and the second one built would otherwise be shaped by whichever landed first.
+
+<sub>See also [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0122](../decisions/0122.md), [0095](../decisions/0095.md), [0063](../decisions/0063.md), [0121](../decisions/0121.md).</sub>
+
+<a id="core-classes-validate-has-no-type-predicates"></a>
+
+## `Core\Validate` carries no predicate that names a type, because `as ?T` already is one
+
+`rule:core-classes/validate-has-no-type-predicates`
+
+`Core\Validate` carries no predicate whose job is to ask whether a string names a value of some type.
+`Validate::isInteger($s)` and `$s as ?int != null` are the same predicate, and one operation gets one
+spelling — so `isInteger`, `isFloat` and `isBoolean` do not exist, and neither does a `ctype_digit`
+equivalent, which is `$s as ?uint != null`.
+
+One implementation now exists because there is one operation, not because two were required to agree.
+The conversion table is the definition of what parses; a second table maintained beside it is a
+second table to drift.
+
+What survives is the roster that names no type: `isEmail`, `isIp`, `isMac`, `isDomain`, `isAscii` and
+`isPrintable`. None has an `as` equivalent, because none names a type
+([`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion)).
+
+<sub>See also [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`expressions/try-parse`](expressions.md#expressions-try-parse), [`types/conversion`](types.md#types-conversion). Decided in [0066](../decisions/0066.md), [0063](../decisions/0063.md).</sub>
+
+<a id="core-classes-secret-reveal"></a>
+
+## `Core\Secret::reveal` is the one named way out of `secret`, and it carries a written reason
+
+`rule:core-classes/secret-reveal`
+
+`Core\Secret::reveal(secret string $value, string $reason): string`, with a `bytes` overload, is the
+one narrow way out of the `secret` qualifier outside a checked conversion. It is forbidden by
+default, rare, greppable, and carries a written reason at the call site, and the reason reaches no
+byte of the answer.
+
+There is deliberately no generic `unwrap()` or `expose()`. A catch-all invites false confidence, and
+the whole value of a qualifier is that removing it is visible where it happens.
+
+A second, more common removal path is a **purpose-built function that consumes a `secret` and returns
+a genuinely non-secret derivative** — password hashing is the canonical case: it takes a
+`secret string` and its output is not confidential in the same way, so it may declare a plain
+`string` return. That is not a loophole; it is the ordinary shape of "the secret goes in, something
+safe to keep comes out", and each such function's author carries responsibility for it being true.
+
+`reveal` removes `secret` and nothing else: a value that was also `tainted` stays `tainted`.
+
+<sub>See also [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/process-options`](core-classes.md#core-classes-process-options), [`core-classes/ratelimit-gcra`](core-classes.md#core-classes-ratelimit-gcra). Decided in [0033](../decisions/0033.md), [0024](../decisions/0024.md).</sub>
+
+<a id="core-classes-reflect"></a>
+
+## `Core\Reflect` is read-only structural introspection, and it is a first-class feature rather than an extension
+
+`rule:core-classes/reflect`
+
+`Core\Reflect` is read-only structural introspection, and it is a first-class feature rather than an
+extension a deployment might not have compiled in. It reaches classes, interfaces, enums, methods,
+properties, constants, parameters and attributes, from a value or from a class name, and it reports
+which methods an interface declares as part of its contract versus as an internal helper. Traits are
+absent because they do not exist.
+
+Reflective access **enforces the same checks ordinary code would**: there is no
+`setAccessible(true)`, so a private property is not readable through this door either, and a
+reflective write runs the property observer an ordinary write would run. The refusal is
+distinguishable from a misspelling, which is what makes the answer useful rather than merely safe.
+
+What it costs is that a serializer or a container cannot reach state its author did not expose. That
+is the trade: the alternative is that every access modifier in the language is advisory, which is
+what PHP's reflection makes them.
+
+<sub>See also [`core-classes/ast-is-inert`](core-classes.md#core-classes-ast-is-inert), [`enums/reflection`](enums.md#enums-reflection), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0019](../decisions/0019.md), [0043](../decisions/0043.md).</sub>
+
+<a id="core-classes-ast-is-inert"></a>
+
+## `Core\Ast` runs the compiler's own parser and hands back typed, inert nodes
+
+`rule:core-classes/ast-is-inert`
+
+`Core\Ast::parse` and `::parseFile` call directly into the same lexer and parser the compiler itself
+runs, so a construct that parses when a file is compiled parses identically when a running program
+parses the same text, and a rejected construct is rejected identically in both places. There is no
+second grammar implementation anywhere in the project.
+
+The return value is a **typed** node tree — one type per production — never an untyped array or a
+stringly-keyed structure. Handing back the parse tree as untyped data would be exactly the shortcut
+`token_get_all()` takes, reintroduced at the one place a fully-typed alternative is easiest to give.
+
+**A parsed tree is inert. There is no path from an AST value back into execution.** `eval` does not
+exist and stays rejected: a string has no stable identity, no cache key, and no capability-grantable
+path. A program can walk a tree, print it, or rewrite it into a new source string to hand to a human
+or a file — never a way to run what it describes. Shipping this is therefore not `eval` under a
+different name; it is the same refusal restated.
+
+<sub>See also [`core-classes/reflect`](core-classes.md#core-classes-reflect), [`types/declaration`](types.md#types-declaration), [`programs/compile-target`](programs.md#programs-compile-target). Decided in [0019](../decisions/0019.md), [0006](../decisions/0006.md).</sub>
+
+<a id="core-classes-topic"></a>
+
+## `Core\Topic` is the only way two connections meet, and a slow subscriber is closed rather than tolerated
+
+`rule:core-classes/topic`
+
+`Core\Topic` is the only way two persistent connections meet: `subscribe`, `publish` and
+`unsubscribe`, runtime-owned, in-process, and reaching across every core. This is the one place the
+thread-per-core design is crossed on purpose, and it is a bounded message hand-off rather than shared
+state. A published value is graph-copied, so subscribers share nothing with the publisher or with
+each other.
+
+**A slow subscriber is closed, never tolerated.** Each subscriber has a bounded queue, drained by its
+own connection and by nothing else; on overflow *that subscriber's connection* is closed with a
+defined code and a metric increments. The publisher is never blocked and no queue grows without
+bound — a fan-out to ten thousand clients must not become a way for one of them to stall the other
+nine thousand nine hundred and ninety-nine.
+
+A topic name **refuses `tainted`**, for the reason a metric label does: a name derived from user input
+is how one tenant subscribes to another's stream. All three members refuse it in the same words, and
+before the connection is consulted. A `secret` may never be published.
+
+It is **not** built on the shared cache, which is deliberately lossy — right for a cache and wrong
+for a message a subscriber is waiting on. Cross-machine fan-out is not the runtime's: a fleet bridges
+topics to a broker in application code.
+
+<sub>See also [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0083](../decisions/0083.md), [0023](../decisions/0023.md), [0033](../decisions/0033.md), [0059](../decisions/0059.md), [0051](../decisions/0051.md), [0076](../decisions/0076.md).</sub>
+
 <a id="core-classes-db-one-api"></a>
 
 ## `Core\Db` is the only database API, and every statement it runs is prepared
@@ -108,6 +670,84 @@ default that can be restored is an unsafe default a misconfigured deployment sti
 
 <sub>See also [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types), [`types/bytes`](types.md#types-bytes). Decided in [0067](../decisions/0067.md), [0009](../decisions/0009.md).</sub>
 
+<a id="core-classes-db-drivers-are-an-enum"></a>
+
+## The five drivers are an enum with one `match` per entry point, not a `Driver` trait
+
+`rule:core-classes/db-drivers-are-an-enum`
+
+The five drivers are one enum — PostgreSQL, MySQL, MariaDB, SQL Server, SQLite — each variant owning
+its own state machine, error-code table and reset. `Core\Db`'s entry points `match` once.
+
+Three reasons, in priority order. **The set is closed**: a new backend is a decision record, not a
+plugin, and a sandboxed extension cannot host one anyway, since a pool is the thing a sandbox
+boundary cannot hold — open-set extensibility is the one property a trait buys and this design does
+not want it. **A trait wide enough for all five would be half unimplemented**: `executeMany` is one
+prepare and N executions on four drivers and a bulk protocol message on the fifth, a prepare is a
+round trip on two and free on one, and a reset is four command sequences and a rollback on the fifth.
+A trait method four drivers implement by returning an error is a lie the type system helped tell.
+**Static dispatch on the request path** costs no allocation and no indirect call.
+
+Where a signature repeats five times, it repeats. What keeps the five honest is not a type but one
+assertion set run against five real servers. What is shared is the half with no driver in it — the
+placeholder rewriter, the statement cache, the pool, the Novis side of the type map, and error-kind
+normalisation, whose per-driver code tables are *data* each driver supplies rather than behaviour it
+overrides.
+
+<sub>See also [`core-classes/db-crate-boundary`](core-classes.md#core-classes-db-crate-boundary), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`core-classes/db-unix-socket-path`](core-classes.md#core-classes-db-unix-socket-path). Decided in [0132](../decisions/0132.md), [0067](../decisions/0067.md), [0003](../decisions/0003.md).</sub>
+
+<a id="core-classes-db-unix-socket-path"></a>
+
+## A Unix-socket host is the string that deployment already holds, and MSSQL refuses one  *(designed — not yet in the compiler)*
+
+`rule:core-classes/db-unix-socket-path`
+
+Where an operator wrote a local endpoint, the string they write is the one their deployment already
+holds. For `driver = "postgres"` the `host` names the **directory** and the socket is derived —
+`/var/run/postgresql` with `port = 5432` is `/var/run/postgresql/.s.PGSQL.5432` — because that is
+what libpq, `psql`, PDO and every Postgres tool take. MySQL and MariaDB take the socket **file**,
+because their socket has no naming convention to derive one from, and that too is the string those
+deployments already hold.
+
+**MSSQL refuses a path.** TDS has no `AF_UNIX` transport, so the driver reports it as a target it
+does not speak rather than as a file it could not open. SQLite is untouched: its path *is* the
+database.
+
+The cost is one piece of protocol trivia per driver, encoded where that driver's trivia belongs.
+
+**Not shipped.** No driver in `crates/nvs-db/` opens a Unix socket yet — `crates/nvs-db/src/pg.rs`
+holds neither the derivation nor the transport, and `crates/nvs-db/src/tds/mod.rs` has no refusal to
+report.
+
+<sub>See also [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum). Decided in [0142](../decisions/0142.md), [0067](../decisions/0067.md), [0132](../decisions/0132.md).</sub>
+
+<a id="core-classes-db-connection-busy-state"></a>
+
+## Busy state is a field on the connection, and a wire not at a message boundary is closed rather than reset
+
+`rule:core-classes/db-connection-busy-state`
+
+Whether a connection may take a new statement is a field on the connection, not on the stream: a
+connection is busy whether or not its socket is readable, and SQLite must answer the same
+`LogicError` with no stream underneath it at all. The four states are `Idle` (the wire is at a
+message boundary), `Executing` (a buffered statement is in flight), `Streaming` (rows remain unread,
+so a second statement is [`core-classes/db-streaming`](core-classes.md#core-classes-db-streaming)'s refusal) and `Poisoned` (the wire is
+*not* at a known message boundary). It is a plain cell with no atomic and no lock, because a task
+never migrates and a connection is owned by one request at a time.
+
+**A poisoned connection is closed, never reset, and never returned to the pool.** The reset is a
+security boundary because a connection carrying one request's state into another's is a cross-tenant
+leak; a `RESET ALL` written into the middle of an unfinished message is not a reset but a fragment of
+one request's protocol stream that the next request will read as its own. Draining first would mean
+trusting a length prefix that has already proven untrustworthy. Closing costs one handshake and is
+the only answer that is provable.
+
+An abandoned stream is not automatically poison: a driver that can cancel and drain deterministically
+returns to `Idle` and pools the connection, and one that cannot poisons it. That choice is per
+driver, in the driver.
+
+<sub>See also [`core-classes/db-streaming`](core-classes.md#core-classes-db-streaming), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum). Decided in [0132](../decisions/0132.md), [0067](../decisions/0067.md).</sub>
+
 <a id="core-classes-db-statement-members"></a>
 
 ## Five members run a statement, results are buffered by default, and only one of them streams
@@ -132,30 +772,6 @@ would do, and it is recorded here rather than hidden.
 
 <sub>See also [`core-classes/db-streaming`](core-classes.md#core-classes-db-streaming), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state). Decided in [0067](../decisions/0067.md), [0004](../decisions/0004.md), [0063](../decisions/0063.md).</sub>
 
-<a id="core-classes-db-streaming"></a>
-
-## A streaming result holds its connection until it is drained, and a second statement on it throws  *(designed — not yet in the compiler)*
-
-`rule:core-classes/db-streaming`
-
-`stream` and `streamAs<T>` read a result set in constant memory, and they **hold the connection until
-drained**. A second statement attempted on a streaming connection throws `LogicError` naming both
-fixes: `->all()`, or a `{shared: false}` connection.
-
-There is no `{chunk?: uint}` option, and its absence is a refusal rather than an unlanded feature.
-The PostgreSQL portal is opened with a row count of *every row* and one `DataRow` is read per step, so
-a streamed result already crosses on a single round trip while the client holds one row — the memory
-a chunk size exists to bound is already one row, and the option could only spend latency to buy
-nothing.
-
-**Not shipped whole.** `stream` lands on PostgreSQL alone: the read needs the portal left open with
-its state parked off the borrow, and the other four drivers have no such state, so the member throws
-a `RuntimeError` naming `query` on each of them rather than buffering behind the caller's back.
-`streamAs` is owed entirely. `crates/nvs-stdlib/src/db/mod.rs` is where that gap is recorded, and
-`crates/nvs-db/src/pg.rs` holds the one driver that has it.
-
-<sub>See also [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state). Decided in [0067](../decisions/0067.md), [0132](../decisions/0132.md).</sub>
-
 <a id="core-classes-db-parameters"></a>
 
 ## One placeholder is one value, and expanding a list into `IN` is written with `Core\Db::inList`
@@ -179,6 +795,28 @@ type, so a `mixed` that turned out to be a list would reshape the query instead 
 caller branch. Expansion changes the statement's arity, so the statement cache keys on it.
 
 <sub>See also [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members). Decided in [0067](../decisions/0067.md), [0007](../decisions/0007.md), [0024](../decisions/0024.md).</sub>
+
+<a id="core-classes-db-literal-query-checking"></a>
+
+## A literal query is checked while compiling, and no vendor's SQL grammar is ever parsed
+
+`rule:core-classes/db-literal-query-checking`
+
+A literal SQL argument is validated while checking, under the closed intrinsic-literal list:
+placeholder count against a literal params array, positional-versus-named consistency, an
+unterminated string literal, and a refused second statement. A literal `Db::open` host matching no
+`db.open` grant is likewise a check-time diagnostic, since configuration is read at boot on the
+machine that compiles.
+
+Full per-dialect SQL parsing is **not** done, and never will be: it would mean maintaining four
+vendors' grammars in the front end forever. That refusal covers DDL as well as queries, which is why
+[`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection) reads an existing database by catalog query rather than by
+parsing the `CREATE TABLE` a server prints.
+
+What this costs is that a column name typo survives to run time. What it buys is that the compiler
+never has to be right about a dialect it does not own.
+
+<sub>See also [`core-classes/db-parameters`](core-classes.md#core-classes-db-parameters), [`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection), [`expressions/intrinsic-literals`](expressions.md#expressions-intrinsic-literals). Decided in [0067](../decisions/0067.md), [0057](../decisions/0057.md), [0145](../decisions/0145.md).</sub>
 
 <a id="core-classes-db-column-types"></a>
 
@@ -206,6 +844,30 @@ yields is `tainted` where its type can carry it, which closes stored injection b
 as reflected. The same table is read the other way by [`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed).
 
 <sub>See also [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed), [`types/decimal`](types.md#types-decimal), [`types/uint`](types.md#types-uint), [`types/conversion`](types.md#types-conversion). Decided in [0067](../decisions/0067.md), [0054](../decisions/0054.md), [0009](../decisions/0009.md), [0024](../decisions/0024.md), [0036](../decisions/0036.md), [0063](../decisions/0063.md), [0071](../decisions/0071.md), [0145](../decisions/0145.md).</sub>
+
+<a id="core-classes-db-streaming"></a>
+
+## A streaming result holds its connection until it is drained, and a second statement on it throws  *(designed — not yet in the compiler)*
+
+`rule:core-classes/db-streaming`
+
+`stream` and `streamAs<T>` read a result set in constant memory, and they **hold the connection until
+drained**. A second statement attempted on a streaming connection throws `LogicError` naming both
+fixes: `->all()`, or a `{shared: false}` connection.
+
+There is no `{chunk?: uint}` option, and its absence is a refusal rather than an unlanded feature.
+The PostgreSQL portal is opened with a row count of *every row* and one `DataRow` is read per step, so
+a streamed result already crosses on a single round trip while the client holds one row — the memory
+a chunk size exists to bound is already one row, and the option could only spend latency to buy
+nothing.
+
+**Not shipped whole.** `stream` lands on PostgreSQL alone: the read needs the portal left open with
+its state parked off the borrow, and the other four drivers have no such state, so the member throws
+a `RuntimeError` naming `query` on each of them rather than buffering behind the caller's back.
+`streamAs` is owed entirely. `crates/nvs-stdlib/src/db/mod.rs` is where that gap is recorded, and
+`crates/nvs-db/src/pg.rs` holds the one driver that has it.
+
+<sub>See also [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state). Decided in [0067](../decisions/0067.md), [0132](../decisions/0132.md).</sub>
 
 <a id="core-classes-db-transactions"></a>
 
@@ -259,28 +921,6 @@ allocation on a path that is already allocating the object, the message and the 
 
 <sub>See also [`core-classes/db-transactions`](core-classes.md#core-classes-db-transactions), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record). Decided in [0067](../decisions/0067.md), [0033](../decisions/0033.md), [0063](../decisions/0063.md), [0002](../decisions/0002.md).</sub>
 
-<a id="core-classes-db-literal-query-checking"></a>
-
-## A literal query is checked while compiling, and no vendor's SQL grammar is ever parsed
-
-`rule:core-classes/db-literal-query-checking`
-
-A literal SQL argument is validated while checking, under the closed intrinsic-literal list:
-placeholder count against a literal params array, positional-versus-named consistency, an
-unterminated string literal, and a refused second statement. A literal `Db::open` host matching no
-`db.open` grant is likewise a check-time diagnostic, since configuration is read at boot on the
-machine that compiles.
-
-Full per-dialect SQL parsing is **not** done, and never will be: it would mean maintaining four
-vendors' grammars in the front end forever. That refusal covers DDL as well as queries, which is why
-[`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection) reads an existing database by catalog query rather than by
-parsing the `CREATE TABLE` a server prints.
-
-What this costs is that a column name typo survives to run time. What it buys is that the compiler
-never has to be right about a dialect it does not own.
-
-<sub>See also [`core-classes/db-parameters`](core-classes.md#core-classes-db-parameters), [`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection), [`expressions/intrinsic-literals`](expressions.md#expressions-intrinsic-literals). Decided in [0067](../decisions/0067.md), [0057](../decisions/0057.md), [0145](../decisions/0145.md).</sub>
-
 <a id="core-classes-db-crate-boundary"></a>
 
 ## The wire lives in `nvs-db` below the standard library, where a codec is borrowed and a state machine is written
@@ -306,107 +946,6 @@ means, when the connection is reusable — is where this project's own decisions
 is what would have dragged an async runtime in. TDS has no such crate and is written by hand.
 
 <sub>See also [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state), [`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection). Decided in [0132](../decisions/0132.md), [0067](../decisions/0067.md), [0051](../decisions/0051.md).</sub>
-
-<a id="core-classes-db-drivers-are-an-enum"></a>
-
-## The five drivers are an enum with one `match` per entry point, not a `Driver` trait
-
-`rule:core-classes/db-drivers-are-an-enum`
-
-The five drivers are one enum — PostgreSQL, MySQL, MariaDB, SQL Server, SQLite — each variant owning
-its own state machine, error-code table and reset. `Core\Db`'s entry points `match` once.
-
-Three reasons, in priority order. **The set is closed**: a new backend is a decision record, not a
-plugin, and a sandboxed extension cannot host one anyway, since a pool is the thing a sandbox
-boundary cannot hold — open-set extensibility is the one property a trait buys and this design does
-not want it. **A trait wide enough for all five would be half unimplemented**: `executeMany` is one
-prepare and N executions on four drivers and a bulk protocol message on the fifth, a prepare is a
-round trip on two and free on one, and a reset is four command sequences and a rollback on the fifth.
-A trait method four drivers implement by returning an error is a lie the type system helped tell.
-**Static dispatch on the request path** costs no allocation and no indirect call.
-
-Where a signature repeats five times, it repeats. What keeps the five honest is not a type but one
-assertion set run against five real servers. What is shared is the half with no driver in it — the
-placeholder rewriter, the statement cache, the pool, the Novis side of the type map, and error-kind
-normalisation, whose per-driver code tables are *data* each driver supplies rather than behaviour it
-overrides.
-
-<sub>See also [`core-classes/db-crate-boundary`](core-classes.md#core-classes-db-crate-boundary), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`core-classes/db-unix-socket-path`](core-classes.md#core-classes-db-unix-socket-path). Decided in [0132](../decisions/0132.md), [0067](../decisions/0067.md), [0003](../decisions/0003.md).</sub>
-
-<a id="core-classes-db-connection-busy-state"></a>
-
-## Busy state is a field on the connection, and a wire not at a message boundary is closed rather than reset
-
-`rule:core-classes/db-connection-busy-state`
-
-Whether a connection may take a new statement is a field on the connection, not on the stream: a
-connection is busy whether or not its socket is readable, and SQLite must answer the same
-`LogicError` with no stream underneath it at all. The four states are `Idle` (the wire is at a
-message boundary), `Executing` (a buffered statement is in flight), `Streaming` (rows remain unread,
-so a second statement is [`core-classes/db-streaming`](core-classes.md#core-classes-db-streaming)'s refusal) and `Poisoned` (the wire is
-*not* at a known message boundary). It is a plain cell with no atomic and no lock, because a task
-never migrates and a connection is owned by one request at a time.
-
-**A poisoned connection is closed, never reset, and never returned to the pool.** The reset is a
-security boundary because a connection carrying one request's state into another's is a cross-tenant
-leak; a `RESET ALL` written into the middle of an unfinished message is not a reset but a fragment of
-one request's protocol stream that the next request will read as its own. Draining first would mean
-trusting a length prefix that has already proven untrustworthy. Closing costs one handshake and is
-the only answer that is provable.
-
-An abandoned stream is not automatically poison: a driver that can cancel and drain deterministically
-returns to `Idle` and pools the connection, and one that cannot poisons it. That choice is per
-driver, in the driver.
-
-<sub>See also [`core-classes/db-streaming`](core-classes.md#core-classes-db-streaming), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum). Decided in [0132](../decisions/0132.md), [0067](../decisions/0067.md).</sub>
-
-<a id="core-classes-db-unix-socket-path"></a>
-
-## A Unix-socket host is the string that deployment already holds, and MSSQL refuses one  *(designed — not yet in the compiler)*
-
-`rule:core-classes/db-unix-socket-path`
-
-Where an operator wrote a local endpoint, the string they write is the one their deployment already
-holds. For `driver = "postgres"` the `host` names the **directory** and the socket is derived —
-`/var/run/postgresql` with `port = 5432` is `/var/run/postgresql/.s.PGSQL.5432` — because that is
-what libpq, `psql`, PDO and every Postgres tool take. MySQL and MariaDB take the socket **file**,
-because their socket has no naming convention to derive one from, and that too is the string those
-deployments already hold.
-
-**MSSQL refuses a path.** TDS has no `AF_UNIX` transport, so the driver reports it as a target it
-does not speak rather than as a file it could not open. SQLite is untouched: its path *is* the
-database.
-
-The cost is one piece of protocol trivia per driver, encoded where that driver's trivia belongs.
-
-**Not shipped.** No driver in `crates/nvs-db/` opens a Unix socket yet — `crates/nvs-db/src/pg.rs`
-holds neither the derivation nor the transport, and `crates/nvs-db/src/tds/mod.rs` has no refusal to
-report.
-
-<sub>See also [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum). Decided in [0142](../decisions/0142.md), [0067](../decisions/0067.md), [0132](../decisions/0132.md).</sub>
-
-<a id="core-classes-queue-storage-is-a-table"></a>
-
-## The job queue is two tables in a connection the operator names, converged by an explicit command
-
-`rule:core-classes/queue-storage-is-a-table`
-
-Durable background jobs live in one jobs table and one dead-letter table, in a connection the
-operator names in `[queue]`. The runtime owns that schema **as a value** — a `Core\Db\Schema`
-converged by `nvs queue migrate`, an explicit operator command — which is one description of the two
-tables rather than one per dialect. A hand-written DDL list per backend is one chance to drift per
-backend, and the backend nobody wrote is indistinguishable from one nobody supports.
-
-DDL is an injection sink and a privileged act, so **the runtime never issues it implicitly**, not at
-boot and not from a request; applying the plan takes `db.schema` like any other DDL
-([`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability)).
-
-It may be the application's own database, and that is the recommended configuration, because a
-transactional enqueue — the property the whole design rests on — requires it. A separate queue
-database is permitted and silently gives up that property, which is why the documentation says so at
-the point the option is offered.
-
-<sub>See also [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges), [`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability), [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities). Decided in [0084](../decisions/0084.md), [0145](../decisions/0145.md), [0067](../decisions/0067.md), [0024](../decisions/0024.md).</sub>
 
 <a id="core-classes-schema-is-a-value"></a>
 
@@ -690,413 +1229,28 @@ derive attribute pays nothing at all, including no pass.
 
 <sub>See also [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`types/object-literal`](types.md#types-object-literal), [`types/shape-type`](types.md#types-shape-type). Decided in [0071](../decisions/0071.md), [0023](../decisions/0023.md), [0029](../decisions/0029.md), [0042](../decisions/0042.md), [0063](../decisions/0063.md).</sub>
 
-<a id="core-classes-process-is-argv-only"></a>
+<a id="core-classes-queue-storage-is-a-table"></a>
 
-## `Core\Process` is the one way to run another program, and there is no shell string anywhere in it
+## The job queue is two tables in a connection the operator names, converged by an explicit command
 
-`rule:core-classes/process-is-argv-only`
+`rule:core-classes/queue-storage-is-a-table`
 
-`Core\Process` is the one way to run another program, and it is argv-only. There is no shell-string
-form anywhere in it and no flag that turns one on, so `exec`, `system`, `shell_exec`, `passthru`,
-`popen`, `proc_open` and backticks all reach one of two members taking a path and an array of
-arguments.
+Durable background jobs live in one jobs table and one dead-letter table, in a connection the
+operator names in `[queue]`. The runtime owns that schema **as a value** — a `Core\Db\Schema`
+converged by `nvs queue migrate`, an explicit operator command — which is one description of the two
+tables rather than one per dialect. A hand-written DDL list per backend is one chance to drift per
+backend, and the backend nobody wrote is indistinguishable from one nobody supports.
 
-The path and every element of the argument array are plain `string`: a `tainted` value needs a
-checked conversion or an explicit launderer first, exactly like any other sink. A name the program
-did not choose is the whole of what a command injection is, and the array carries no nesting mark of
-its own because `array<tainted string>` is simply not `array<string>`.
+DDL is an injection sink and a privileged act, so **the runtime never issues it implicitly**, not at
+boot and not from a request; applying the plan takes `db.schema` like any other DDL
+([`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability)).
 
-Running anything at all takes the deny-by-default `process.exec` capability, asked before the target
-is looked at, so an ungranted program cannot even learn whether a binary exists.
+It may be the application's own database, and that is the recommended configuration, because a
+transactional enqueue — the property the whole design rests on — requires it. A separate queue
+database is permitted and silently gives up that property, which is why the documentation says so at
+the point the option is offered.
 
-What this costs is the one case where a shell genuinely was the feature — a pipeline, a glob, a
-redirect. Those are written in Novis, or by spawning the shell explicitly and owning the quoting at
-that call site.
-
-<sub>See also [`core-classes/process-run`](core-classes.md#core-classes-process-run), [`core-classes/process-refuses-a-shell-target`](core-classes.md#core-classes-process-refuses-a-shell-target), [`core-classes/process-spawn`](core-classes.md#core-classes-process-spawn). Decided in [0044](../decisions/0044.md), [0024](../decisions/0024.md), [0118](../decisions/0118.md).</sub>
-
-<a id="core-classes-process-run"></a>
-
-## `run` waits by suspending the coroutine, and hands back the exit code with both captures as `bytes`
-
-`rule:core-classes/process-run`
-
-`Core\Process::run(string $path, array<string> $argv, ProcessOptions $options)` spawns the process,
-waits for it to exit, and answers a result carrying the exit code and both captures. Waiting is an
-ordinary suspension point on the runtime's stackful coroutines — the same mechanism that lets any
-function perform I/O without being marked async — so a slow child ties up one coroutine's stack and
-not the worker thread it started on, and other requests on the same core keep making progress.
-
-**Captured stdout and stderr are `bytes`, never `string`.** An arbitrary child's output cannot be
-assumed valid UTF-8, so a caller who knows it is text writes `as string`, which throws on invalid
-input rather than mangling it into replacement characters. The two captures stay apart, a non-zero
-exit keeps both, and a result answers the same thing every time it is asked.
-
-What it spends, per call: the child's whole stdout and stderr, once each, held for as long as the
-program holds the result, plus one object allocation — charged to the request that asked. The record
-reuses the request's existing `max_output` directive to bound that capture; nothing reads it in the
-tree today, so what bounds a capture is the request's memory limit, which the buffers are charged
-against like any other allocation (`crates/nvs-stdlib/src/process.rs`, gap 1).
-
-<sub>See also [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`core-classes/process-options`](core-classes.md#core-classes-process-options), [`types/bytes`](types.md#types-bytes), [`types/conversion`](types.md#types-conversion). Decided in [0044](../decisions/0044.md), [0009](../decisions/0009.md), [0005](../decisions/0005.md).</sub>
-
-<a id="core-classes-process-options"></a>
-
-## `ProcessOptions` carries a working directory, a replaced environment and a timeout, and nothing else  *(designed — not yet in the compiler)*
-
-`rule:core-classes/process-options`
-
-`ProcessOptions` carries three fields and no more: a working directory, an environment, and a
-timeout.
-
-`env`, when given, **replaces** the child's environment entirely rather than merging with the
-parent's — explicit replacement is simpler to reason about than merge semantics. Every key and value
-is plain `string`, so an API key held as a `secret` needs [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal) first;
-this is a new sink reusing an existing escape hatch, not a new mechanism.
-
-`timeout` reuses the existing safepoint-driven cancellation — the same poll that already cancels a
-request — rather than a bespoke process-only timer. On expiry the child is killed and the suspended
-coroutine resumes into a throw naming the timeout.
-
-**Not shipped.** `crates/nvs-stdlib/src/process.rs` registers `run` with a path and an argument array
-and nothing else; there is no options type, so a child inherits the environment, runs in the calling
-process's directory, and is bounded only by the request's own wall-clock deadline.
-
-<sub>See also [`core-classes/process-run`](core-classes.md#core-classes-process-run), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0044](../decisions/0044.md), [0033](../decisions/0033.md), [0005](../decisions/0005.md).</sub>
-
-<a id="core-classes-process-spawn"></a>
-
-## `spawn` answers a handle whose reads and writes suspend, covering `proc_open` and `passthru` in one type  *(designed — not yet in the compiler)*
-
-`rule:core-classes/process-spawn`
-
-`Core\Process::spawn` takes the same path, argument array and options as `run` and answers a handle
-instead of waiting: read stdout, read stderr, write stdin, wait, kill. Every read and write suspends
-the calling coroutine exactly as `run`'s wait does, so streaming a child's output into a response
-costs one coroutine and no worker thread.
-
-One handle covers what PHP splits between `passthru` (stream straight through) and `proc_open` (full
-pipe control), because the difference between them is which members a caller happens to use, not two
-kinds of process.
-
-**Not shipped.** `crates/nvs-stdlib/src/process.rs` registers `run` alone; there is no handle type,
-so a program that needs to interleave with a child's output has no member to reach for.
-
-<sub>See also [`core-classes/process-run`](core-classes.md#core-classes-process-run), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only). Decided in [0044](../decisions/0044.md).</sub>
-
-<a id="core-classes-process-refuses-a-shell-target"></a>
-
-## A target only a second command-line parser could run is refused, on every platform
-
-`rule:core-classes/process-refuses-a-shell-target`
-
-A target the platform can only run by handing it to a second command-line parser — `.bat` and `.cmd`
-to `cmd.exe`, `.ps1` to `powershell.exe` — is refused before spawning, with a diagnostic naming the
-extension and the reason.
-
-The check runs on **every platform build**, not only on Windows, even though the underlying risk (a
-second parser re-reading an already-quoted argument) is real only there. Behaviour that silently
-diverges by platform is the failure this refusal exists to prevent, and a case that passes on the
-developer's machine and refuses in production is worth more than one that does the reverse.
-
-Unix needs no equivalent. A shebang script is launched by `execve` reading the interpreter line and
-invoking it in the same kernel call that receives the original, already-split argument vector — no
-second program re-parses a command line, because there never was one. The asymmetry is the honest
-shape of the underlying problem.
-
-There is no convenience for the case where a batch file really is the target: a caller spawns
-`cmd.exe` explicitly, through the same argv API, and takes the quoting risk visibly rather than
-through a flag that looks as safe as every other call.
-
-<sub>See also [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`core-classes/process-run`](core-classes.md#core-classes-process-run). Decided in [0044](../decisions/0044.md).</sub>
-
-<a id="core-classes-regex-two-tiers"></a>
-
-## A pattern runs on the linear engine unless it cannot, and the backtracking tier's step budget throws when exhausted
-
-`rule:core-classes/regex-two-tiers`
-
-Every pattern compiles to the **linear tier** if the linear engine can express it, and to the
-**backtracking tier** otherwise. The choice is made by the engine, never by the developer and never
-by a modifier: there is no way to ask for backtracking, only to write a pattern that requires it.
-
-The backtracking tier runs under a bounded step count. Exhausting it throws an ordinary catchable
-`Throwable` naming the pattern and the budget. It never returns "no match", never returns a falsy
-value, and never truncates the search — a search that stopped early and a search that found nothing
-are different facts, and PHP's `preg_*` conflates them into `false`. Per
-[`errors/escalation-ladder`](errors.md#errors-escalation-ladder) this is an ordinary throw rather than a resource-limit fatal, so the
-request may catch it and answer 400. The linear tier has no budget, because it needs none.
-
-What this costs is that a pattern's performance class is a property of the pattern rather than
-something a caller can override. That is the trade taken deliberately: an engine choice a developer
-cannot see is the failure mode the whole design exists to avoid.
-
-The budget's default is a stated constant today rather than a configuration key, because there is no
-configuration subsystem in front of it yet — `crates/nvs-stdlib/src/regex.rs` names it and records
-the gap.
-
-<sub>See also [`core-classes/regex-literal-tiering`](core-classes.md#core-classes-regex-literal-tiering), [`core-classes/regex-syntax`](core-classes.md#core-classes-regex-syntax), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder). Decided in [0056](../decisions/0056.md), [0005](../decisions/0005.md), [0020](../decisions/0020.md).</sub>
-
-<a id="core-classes-regex-literal-tiering"></a>
-
-## A literal pattern is validated and tiered while checking, and a malformed one is a compile error
-
-`rule:core-classes/regex-literal-tiering`
-
-A literal pattern argument is validated and compiled while checking, under
-[`expressions/intrinsic-literals`](expressions.md#expressions-intrinsic-literals), and the tier it landed in is written down where later stages
-read it back. The tier is settleable there because it is a property of the pattern text alone —
-decided by which engine's parser refused a construct — so a checking run and a request cannot
-disagree about it.
-
-Three consequences follow, none of which costs anything at run time. **A malformed pattern is a
-compile error**, not a run-time throw on the first request that reaches it. **The tier is known
-statically**, so a check run can report which patterns require backtracking. And **an operator can
-refuse them**: `[regex] backtracking = "allow" | "warn" | "deny"` makes a backtracking pattern
-respectively silent, a warning, or a compile-time error, so a deployment running untrusted or
-high-volume code can know no request can be made to backtrack at all.
-
-A pattern assembled at run time is compiled at run time and gets the same tiering and the same
-budget, with none of the three benefits. That is a reason to write patterns as literals, stated here
-rather than discovered.
-
-The third consequence is not built: there is no `[regex]` block, so `deny` cannot be written yet.
-
-<sub>See also [`core-classes/regex-two-tiers`](core-classes.md#core-classes-regex-two-tiers), [`expressions/intrinsic-literals`](expressions.md#expressions-intrinsic-literals), [`expressions/intrinsic-list-is-closed`](expressions.md#expressions-intrinsic-list-is-closed). Decided in [0056](../decisions/0056.md), [0057](../decisions/0057.md), [0005](../decisions/0005.md).</sub>
-
-<a id="core-classes-regex-syntax"></a>
-
-## Regex syntax is PCRE's with no `u` modifier, and a construct neither engine supports is diagnosed by name
-
-`rule:core-classes/regex-syntax`
-
-The accepted syntax is PCRE's, across both tiers, with three fixed points.
-
-**There is no `u` modifier.** [`types/string-is-utf8`](types.md#types-string-is-utf8) guarantees a `string` is UTF-8, so Unicode
-mode is not optional and not a flag, and `.` is a code point. Matching over `bytes` is a separate,
-explicitly byte-oriented entry point rather than the same members under a switch.
-
-**A construct neither engine supports is a compile-time diagnostic naming it** — recursion,
-subroutine calls and callouts among them. It is never silently ignored and never approximated,
-because a behaviour difference the developer cannot see is precisely what the two-tier design exists
-to avoid.
-
-`/e` and the other spellings PHP has already removed are not reintroduced.
-
-<sub>See also [`core-classes/regex-two-tiers`](core-classes.md#core-classes-regex-two-tiers), [`types/string-is-utf8`](types.md#types-string-is-utf8), [`types/bytes`](types.md#types-bytes). Decided in [0056](../decisions/0056.md), [0009](../decisions/0009.md).</sub>
-
-<a id="core-classes-html-auto-escape"></a>
-
-## `echo` in an HTTP request escapes everything it is given, and `Core\Html\Markup` is the only raw-write bypass
-
-`rule:core-classes/html-auto-escape`
-
-`echo` inside an HTTP request is an escaping sink. It accepts only `Core\Html\Markup`, implies
-`Content-Type: text/html`, and auto-escapes any non-`Markup` value interpolated into a
-`Markup`-building position, lifting the result. It never distinguishes tainted from untainted,
-because escaping neutralizes either one structurally. Every other body shape is a typed response
-member — `json`, `text`, `bytes`, `sendFile` — each framing its own content, and mixing `echo` with
-one of them on a single response is a compile error.
-
-This is a deliberate exception to the standing rule that nothing happens by position, only by
-declaration. Security ranks above simplicity, and an omitted escape call is the single most common
-real-world XSS root cause, so the priority is spent explicitly rather than holding the no-magic line
-for its own sake. It is one of only two such exceptions.
-
-`Markup` is a small value type, peer to `string` the way `bytes` is. A **source-literal** string
-converted with `as Markup` is trusted — it is exactly what the developer wrote. A runtime-computed or
-`tainted` string can never become `Markup` that way, which closes the obvious bypass.
-`Markup + Markup` is `Markup`, so composing trusted fragments stays cheap; `.` has no row for a
-carrier, and a mixed `$markup + "x"` is refused rather than escaped, because `+` is not a sink.
-
-<sub>See also [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0024](../decisions/0024.md), [0133](../decisions/0133.md), [0087](../decisions/0087.md), [0088](../decisions/0088.md), [0086](../decisions/0086.md).</sub>
-
-<a id="core-classes-html-escape-answers-markup"></a>
-
-## `Core\Html::escape` answers a `Markup`, so the eager-escape habit stops compiling
-
-`rule:core-classes/html-escape-answers-markup`
-
-`Core\Html::escape(tainted string $text): Core\Html\Markup` answers the carrier its sink accepts, not
-a `string`. The bytes it produces are unchanged; only the wrapper is new.
-
-**The eager-escape habit stops compiling**, which is the point. A developer arriving from
-`htmlspecialchars()` writes the escape call, then finds the result cannot be concatenated back into
-the surrounding string, because `.` has no row for a carrier. They are corrected at the call site
-instead of shipping `&amp;amp;`, and for most code the correction is to delete the escape call
-entirely — the sink was always going to do it ([`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape)).
-
-`escape` additionally **neutralizes an unterminated bidirectional control**, substituting a
-replacement character. Escaping `<`, `>`, `&` and quotes does nothing about display order, so without
-that rule a bidi payload would survive the auto-escape sink intact. A balanced control is legitimate
-mixed-direction text and passes through.
-
-<sub>See also [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize). Decided in [0133](../decisions/0133.md), [0024](../decisions/0024.md), [0087](../decisions/0087.md).</sub>
-
-<a id="core-classes-html-to-source"></a>
-
-## `Core\Html::toSource` is the one way out of a `Markup`, and it takes a written reason
-
-`rule:core-classes/html-to-source`
-
-`Core\Html::toSource(Core\Html\Markup $markup, string $reason): string` hands back the markup's
-source text, and it is the only way out. There is **no `Markup as string` conversion**, because one
-would reopen the hole in a keystroke: an escape whose result is immediately cast back to `string` and
-concatenated with tainted text is the original bug with an extra word in it.
-
-The shape is the project's standing escape-hatch form — rare, greppable, and carrying a written
-reason at the site rather than a silent cast, the same shape [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal) takes.
-`$reason` is a source literal and an empty one is refused: a reason that can be computed is a reason
-nobody wrote.
-
-Its legitimate callers are the ones that need the bytes and not the guarantee — caching a rendered
-fragment, storing one in a column, writing one to a file, handing one to a sink that is not this one.
-
-The name is deliberate. `to…` is the conversion verb, `source` is spelled out, and it is neither
-`raw` — which in every template language means the opposite direction — nor `unescape`, which is
-reserved for the operation that actually inverts `escape` and which this is not.
-
-<sub>See also [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0133](../decisions/0133.md), [0024](../decisions/0024.md), [0063](../decisions/0063.md).</sub>
-
-<a id="core-classes-html-sanitize"></a>
-
-## `Core\Html::sanitize` answers a `Markup` by rebuilding the document, never by filtering it  *(designed — not yet in the compiler)*
-
-`rule:core-classes/html-sanitize`
-
-`Core\Html::sanitize` answers `Core\Html\Markup`, which makes it the fourth way to obtain one and the
-only one that takes a runtime-computed string.
-
-That is exactly why it must be a parser that **rebuilds the document from a known-good grammar**, and
-never a filter that deletes what looks dangerous. A filter answering a carrier would be a generic
-sanitizer wearing a type — it would claim a guarantee it cannot establish, because "what looks
-dangerous" is a list an attacker gets to extend.
-
-**Not shipped.** `crates/nvs-stdlib/src/html.rs` carries `escape` and `toSource` and no sanitizer.
-The member waits on the WHATWG tree ([`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing)), which is what it would parse
-into.
-
-<sub>See also [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape). Decided in [0133](../decisions/0133.md), [0024](../decisions/0024.md), [0051](../decisions/0051.md), [0122](../decisions/0122.md).</sub>
-
-<a id="core-classes-html-parsing"></a>
-
-## HTML parses by the WHATWG algorithm onto `Core\Xml`'s own tree, and that parse never fails  *(designed — not yet in the compiler)*
-
-`rule:core-classes/html-parsing`
-
-HTML parses through `Core\Html`, by the WHATWG parsing algorithm, and the parse **never fails**:
-implied tags, error recovery and foster parenting are the specified output every conforming parser
-produces, so recovering here does not violate the refuse-never-repair rule — nothing is guessed,
-because the specification fixes the answer. `Core\Xml` keeps the opposite contract: malformed XML
-throws. One API flipping between refuse-hard and recover-always under a flag is the ambiguity being
-retired, and it is what PHP's libxml2 surface is.
-
-Both parsers materialise **the same node family**. Queries, traversal and the tree's memory story are
-written once, and which door parsed a document does not change what a program can do with it.
-Serialization follows the door: WHATWG rules through one, XML rules through the other. The engine is
-`html5ever` driving a tree builder we own, so it builds request-attributed nodes directly rather than
-through its sample DOM, and the same crate is compiled into the PDF component — the language and its
-PDF renderer parse HTML identically: one behaviour to document, one parser to fuzz.
-
-What it spends, per parse: the materialised tree, proportional to the document, attributed to the
-request and gone with it.
-
-**Not shipped**, and neither half may land alone: the milestone that schedules `Core\Xml`'s tree API
-builds this parse in the same milestone, because the tree and the builder interface are one
-implementation and the second one built would otherwise be shaped by whichever landed first.
-
-<sub>See also [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0122](../decisions/0122.md), [0095](../decisions/0095.md), [0063](../decisions/0063.md), [0121](../decisions/0121.md).</sub>
-
-<a id="core-classes-secret-reveal"></a>
-
-## `Core\Secret::reveal` is the one named way out of `secret`, and it carries a written reason
-
-`rule:core-classes/secret-reveal`
-
-`Core\Secret::reveal(secret string $value, string $reason): string`, with a `bytes` overload, is the
-one narrow way out of the `secret` qualifier outside a checked conversion. It is forbidden by
-default, rare, greppable, and carries a written reason at the call site, and the reason reaches no
-byte of the answer.
-
-There is deliberately no generic `unwrap()` or `expose()`. A catch-all invites false confidence, and
-the whole value of a qualifier is that removing it is visible where it happens.
-
-A second, more common removal path is a **purpose-built function that consumes a `secret` and returns
-a genuinely non-secret derivative** — password hashing is the canonical case: it takes a
-`secret string` and its output is not confidential in the same way, so it may declare a plain
-`string` return. That is not a loophole; it is the ordinary shape of "the secret goes in, something
-safe to keep comes out", and each such function's author carries responsibility for it being true.
-
-`reveal` removes `secret` and nothing else: a value that was also `tainted` stays `tainted`.
-
-<sub>See also [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/process-options`](core-classes.md#core-classes-process-options), [`core-classes/ratelimit-gcra`](core-classes.md#core-classes-ratelimit-gcra). Decided in [0033](../decisions/0033.md), [0024](../decisions/0024.md).</sub>
-
-<a id="core-classes-validate-has-no-type-predicates"></a>
-
-## `Core\Validate` carries no predicate that names a type, because `as ?T` already is one
-
-`rule:core-classes/validate-has-no-type-predicates`
-
-`Core\Validate` carries no predicate whose job is to ask whether a string names a value of some type.
-`Validate::isInteger($s)` and `$s as ?int != null` are the same predicate, and one operation gets one
-spelling — so `isInteger`, `isFloat` and `isBoolean` do not exist, and neither does a `ctype_digit`
-equivalent, which is `$s as ?uint != null`.
-
-One implementation now exists because there is one operation, not because two were required to agree.
-The conversion table is the definition of what parses; a second table maintained beside it is a
-second table to drift.
-
-What survives is the roster that names no type: `isEmail`, `isIp`, `isMac`, `isDomain`, `isAscii` and
-`isPrintable`. None has an `as` equivalent, because none names a type
-([`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion)).
-
-<sub>See also [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`expressions/try-parse`](expressions.md#expressions-try-parse), [`types/conversion`](types.md#types-conversion). Decided in [0066](../decisions/0066.md), [0063](../decisions/0063.md).</sub>
-
-<a id="core-classes-reflect"></a>
-
-## `Core\Reflect` is read-only structural introspection, and it is a first-class feature rather than an extension
-
-`rule:core-classes/reflect`
-
-`Core\Reflect` is read-only structural introspection, and it is a first-class feature rather than an
-extension a deployment might not have compiled in. It reaches classes, interfaces, enums, methods,
-properties, constants, parameters and attributes, from a value or from a class name, and it reports
-which methods an interface declares as part of its contract versus as an internal helper. Traits are
-absent because they do not exist.
-
-Reflective access **enforces the same checks ordinary code would**: there is no
-`setAccessible(true)`, so a private property is not readable through this door either, and a
-reflective write runs the property observer an ordinary write would run. The refusal is
-distinguishable from a misspelling, which is what makes the answer useful rather than merely safe.
-
-What it costs is that a serializer or a container cannot reach state its author did not expose. That
-is the trade: the alternative is that every access modifier in the language is advisory, which is
-what PHP's reflection makes them.
-
-<sub>See also [`core-classes/ast-is-inert`](core-classes.md#core-classes-ast-is-inert), [`enums/reflection`](enums.md#enums-reflection), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0019](../decisions/0019.md), [0043](../decisions/0043.md).</sub>
-
-<a id="core-classes-ast-is-inert"></a>
-
-## `Core\Ast` runs the compiler's own parser and hands back typed, inert nodes
-
-`rule:core-classes/ast-is-inert`
-
-`Core\Ast::parse` and `::parseFile` call directly into the same lexer and parser the compiler itself
-runs, so a construct that parses when a file is compiled parses identically when a running program
-parses the same text, and a rejected construct is rejected identically in both places. There is no
-second grammar implementation anywhere in the project.
-
-The return value is a **typed** node tree — one type per production — never an untyped array or a
-stringly-keyed structure. Handing back the parse tree as untyped data would be exactly the shortcut
-`token_get_all()` takes, reintroduced at the one place a fully-typed alternative is easiest to give.
-
-**A parsed tree is inert. There is no path from an AST value back into execution.** `eval` does not
-exist and stays rejected: a string has no stable identity, no cache key, and no capability-grantable
-path. A program can walk a tree, print it, or rewrite it into a new source string to hand to a human
-or a file — never a way to run what it describes. Shipping this is therefore not `eval` under a
-different name; it is the same refusal restated.
-
-<sub>See also [`core-classes/reflect`](core-classes.md#core-classes-reflect), [`types/declaration`](types.md#types-declaration), [`programs/compile-target`](programs.md#programs-compile-target). Decided in [0019](../decisions/0019.md), [0006](../decisions/0006.md).</sub>
+<sub>See also [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges), [`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability), [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities). Decided in [0084](../decisions/0084.md), [0145](../decisions/0145.md), [0067](../decisions/0067.md), [0024](../decisions/0024.md).</sub>
 
 <a id="core-classes-session-is-started-explicitly"></a>
 
@@ -1119,81 +1273,6 @@ What this costs is one line per request that uses sessions. What it buys is that
 not use them pays nothing, which the ambient version could never promise.
 
 <sub>See also [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments), [`core-classes/script-args`](core-classes.md#core-classes-script-args). Decided in [0012](../decisions/0012.md), [0139](../decisions/0139.md), [0059](../decisions/0059.md), [0008](../decisions/0008.md).</sub>
-
-<a id="core-classes-cli-arguments"></a>
-
-## `Core\Cli::arguments` is how a program reads the words it was started with, at every depth
-
-`rule:core-classes/cli-arguments`
-
-`Core\Cli::arguments()` answers the words the program was started with, as an
-`array<tainted string>`. It replaces `$argv` and `$argc` in one place: a count is the array's length,
-so there is nothing for two spellings to disagree about.
-
-The elements are `tainted`, because a word typed at a shell is user-derived data like any other, and
-a sink refuses one. A word that looks like syntax comes back as the value it is, unsplit and
-uninterpreted.
-
-Within a request tree the answer is the same at every depth: it reflects how the **process** was
-invoked, which is a process-wide fact rather than a per-isolate one, so a spawned isolate neither
-fakes nor suppresses it the way it does for request state. A program reading arguments a *request*
-supplied wants [`core-classes/script-args`](core-classes.md#core-classes-script-args) instead.
-
-The record this rule comes from specified `args()`/`argc()` and a throw when called while serving
-HTTP. The shipped member is `arguments()`, and inside a request it answers empty rather than throwing
-— the launcher writes the command line and only the CLI entry point writes one.
-
-<sub>See also [`core-classes/script-args`](core-classes.md#core-classes-script-args), [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables). Decided in [0012](../decisions/0012.md), [0086](../decisions/0086.md), [0118](../decisions/0118.md).</sub>
-
-<a id="core-classes-script-args"></a>
-
-## `Core\Script::args` is the value the current isolate was spawned with, and `null` where there was none
-
-`rule:core-classes/script-args`
-
-`Core\Script::args(): mixed` is the deep-copied value the current isolate was spawned with, and
-`null` where there was none — a child spawned without the option, and the root script, which nothing
-spawned.
-
-The type is `mixed` rather than `array<mixed>` because a spawn's argument accepts any value that can
-cross the boundary, decided at run time, so nothing narrows the option at the call site. The answer
-is `null` rather than an empty array because a program that wrote `args: []` said something a program
-that wrote no option did not.
-
-This is Novis's own superglobal being retired for the same reason PHP's were, and consistency is the
-whole of the reason: an ambient, undeclared variable is the shape being closed, and one the project
-introduced itself is no better for having been introduced deliberately. Each isolate's arguments are
-its own.
-
-<sub>See also [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`statements/an-isolate-has-its-own-statics`](statements.md#statements-an-isolate-has-its-own-statics). Decided in [0012](../decisions/0012.md), [0006](../decisions/0006.md), [0023](../decisions/0023.md).</sub>
-
-<a id="core-classes-topic"></a>
-
-## `Core\Topic` is the only way two connections meet, and a slow subscriber is closed rather than tolerated
-
-`rule:core-classes/topic`
-
-`Core\Topic` is the only way two persistent connections meet: `subscribe`, `publish` and
-`unsubscribe`, runtime-owned, in-process, and reaching across every core. This is the one place the
-thread-per-core design is crossed on purpose, and it is a bounded message hand-off rather than shared
-state. A published value is graph-copied, so subscribers share nothing with the publisher or with
-each other.
-
-**A slow subscriber is closed, never tolerated.** Each subscriber has a bounded queue, drained by its
-own connection and by nothing else; on overflow *that subscriber's connection* is closed with a
-defined code and a metric increments. The publisher is never blocked and no queue grows without
-bound — a fan-out to ten thousand clients must not become a way for one of them to stall the other
-nine thousand nine hundred and ninety-nine.
-
-A topic name **refuses `tainted`**, for the reason a metric label does: a name derived from user input
-is how one tenant subscribes to another's stream. All three members refuse it in the same words, and
-before the connection is consulted. A `secret` may never be published.
-
-It is **not** built on the shared cache, which is deliberately lossy — right for a cache and wrong
-for a message a subscriber is waiting on. Cross-machine fan-out is not the runtime's: a fleet bridges
-topics to a broker in application code.
-
-<sub>See also [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0083](../decisions/0083.md), [0023](../decisions/0023.md), [0033](../decisions/0033.md), [0059](../decisions/0059.md), [0051](../decisions/0051.md), [0076](../decisions/0076.md).</sub>
 
 <a id="core-classes-ratelimit-two-members"></a>
 
@@ -1267,85 +1346,6 @@ can question.
 two are different members rather than one with a flag.
 
 <sub>See also [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-classes/ratelimit-gcra`](core-classes.md#core-classes-ratelimit-gcra), [`errors/propagation`](errors.md#errors-propagation). Decided in [0075](../decisions/0075.md), [0063](../decisions/0063.md), [0002](../decisions/0002.md).</sub>
-
-<a id="core-classes-io-write-stream"></a>
-
-## `Core\IO::writeStream` is where every stream reaches disk, and a failed write removes its partial file
-
-`rule:core-classes/io-write-stream`
-
-`Core\IO::writeStream(string $path, Iterable<bytes> $src, {max?, overwrite?})` is where a stream
-reaches disk, and every convenience that writes one delegates to it. Path first, because the subject
-is parameter one and the plain write already reads that way.
-
-It is an ordinary `Core\IO` member and therefore an ordinary **path sink** requiring `fs.write`, with
-no exemption for arriving by way of an upload: a `tainted` filename reaching it is a compile error
-exactly as it is everywhere else, and the containment check is the launderer.
-
-Two rules are its own. **`overwrite` defaults to false**, because a destination chosen from a
-client's claimed filename is the case this member exists to serve. **A write that fails mid-stream
-removes the partial file**, because a truncated file the application believes it wrote is a worse
-failure than an error — the caller learns from the throw, not from a later reader.
-
-It is general on purpose: a request body, a decompressed archive, an outbound response body and an
-upload part all reach disk through this one implementation, so the partial-write cleanup lives in one
-place rather than in every call site that hand-wrote the loop.
-
-<sub>See also [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep), [`core-classes/process-run`](core-classes.md#core-classes-process-run). Decided in [0105](../decisions/0105.md), [0063](../decisions/0063.md), [0024](../decisions/0024.md).</sub>
-
-<a id="core-classes-temporary-dir-sweep"></a>
-
-## A temporary directory lives under a Novis-owned root and is deleted when its script ends, and the sweep never throws
-
-`rule:core-classes/temporary-dir-sweep`
-
-`Core\IO::temporaryDir()` is the whole temporary-file surface: it hands out an **owned directory**
-and the program names files inside it. There is no `temporaryFile`, because a program needing one
-temporary file needs somewhere to put the second.
-
-Every directory is created under one root the runtime owns — a configured path, else a private
-subdirectory of the platform temporary directory. Exclusive ownership of that root is the entire
-safety argument for the sweeps: the runtime never deletes anything it did not create, because nothing
-else writes there. Sweeping a shared `/tmp`, with anyone's symlinks and anyone's names, is the
-classic TOCTOU surface this forbids.
-
-The runtime keeps a per-script list of the paths it handed out and deletes each surviving entry when
-the script ends — after the exit queue on a CLI ending, after the after-response work on a request,
-and off the request path, so a response never waits on a deletion. It covers normal end, `exit`, an
-uncaught throw, and a request that died mid-flight.
-
-**The sweep never throws and never alters a response.** A path already gone is the goal state reached
-early. A deletion the OS refuses is one log line, and the directory waits for the next sweep. An
-operator may set `[debug] keep_temporary` to keep everything *visibly* — each kept path is logged —
-and there is no in-language setter, because a program that can exempt its own files can be made to
-hoard them. The program's own `remove` and `removeDir` are unchanged and still throw: a deliberate
-action's failure is the program's to hear about.
-
-<sub>See also [`core-classes/temporary-dir-orphan-sweep`](core-classes.md#core-classes-temporary-dir-orphan-sweep), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`errors/propagation`](errors.md#errors-propagation). Decided in [0131](../decisions/0131.md), [0127](../decisions/0127.md), [0072](../decisions/0072.md), [0106](../decisions/0106.md), [0078](../decisions/0078.md), [0059](../decisions/0059.md), [0004](../decisions/0004.md).</sub>
-
-<a id="core-classes-temporary-dir-orphan-sweep"></a>
-
-## The orphan sweep is keyed on the owner being alive, never on age, and runs in exactly two places
-
-`rule:core-classes/temporary-dir-orphan-sweep`
-
-A process killed outright ran no end-of-script sweep. Its leftovers are reclaimed by the orphan
-sweep, which walks the owned root and deletes each entry **whose owning pid is not alive**.
-
-It runs in exactly two places: once at server boot, before traffic, and whenever an operator runs the
-cleanup command, which prints each path it removes and supports a dry run. It runs on no other
-invocation — taxing every CLI start with a root walk to insure against a rare hard kill prices the
-common case for the exceptional one. The deliberate consequence is that on a machine where the server
-never runs and nobody runs the command, a hard-killed script's directory persists: bounded by crash
-frequency, confined to one visible root, one command to clear.
-
-The predicate is owner liveness, **never age**. An age rule is precisely what deletes a long-running
-process's files out from under it; liveness cannot, because a live owner's entries are skipped no
-matter how old. Every failure mode falls the safe way — a recycled pid makes a dead owner's entry
-look alive and it leaks until a later sweep, never the reverse — so the sweep may under-delete and
-can never over-delete. There is no force flag that overrides liveness.
-
-<sub>See also [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep). Decided in [0131](../decisions/0131.md).</sub>
 
 <a id="core-classes-signature"></a>
 

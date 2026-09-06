@@ -5,516 +5,25 @@
 
 *10 of 56 rules below are **designed** rather than shipped, and are marked where they appear.*
 
-<a id="core-api-shape-rules"></a>
+<a id="core-api-core-means-always-present"></a>
 
-## Every `Core` member obeys the same twenty shape rules, R1–R20
+## `Core` means always present, so nothing outside Tier 0 may register a name under it
 
-`rule:core-api/shape-rules`
+`rule:core-api/core-means-always-present`
 
-Every member of every `Core` class obeys all twenty shape rules below. A proposed member that cannot is a
-design bug rather than an exception, and the rules are decided before the library is written because a
-surface of ~450 members is only learnable if the eleventh member is predictable from the first ten.
+Nothing outside Tier 0 may register a class under the `Core` namespace, and nothing whose presence a build
+flag can remove is registered there at all. A first-party sandboxed component is named like any other
+component, under its own namespace, so its tier is visible at the use site.
 
-| # | The rule |
-|---|---|
-| R1 | The subject is parameter 1, always ([`core-api/subject-first`](core-api.md#core-api-subject-first)) |
-| R2 | Then required arguments in dataflow order, then at most one trailing optional shape literal ([`core-api/options-bag`](core-api.md#core-api-options-bag)), every parameter callable by name ([`core-api/parameters-are-callable-by-name`](core-api.md#core-api-parameters-are-callable-by-name)) |
-| R3 | Nothing mutates and nothing takes a reference ([`core-api/nothing-mutates`](core-api.md#core-api-nothing-mutates)) |
-| R4 | Failure throws; absence is `?T` ([`core-api/failure-throws`](core-api.md#core-api-failure-throws)) |
-| R5 | A fixed verb lexicon, and a closed ban list ([`core-api/verb-lexicon`](core-api.md#core-api-verb-lexicon)) |
-| R6 | Symmetric operations get symmetric names ([`core-api/symmetric-names`](core-api.md#core-api-symmetric-names)) |
-| R7 | Members are full words ([`core-api/members-are-full-words`](core-api.md#core-api-members-are-full-words)) |
-| R8 | One range convention, `(offset, ?length)` ([`core-api/one-range-convention`](core-api.md#core-api-one-range-convention)) |
-| R9 | Callbacks receive `($value, $key)` ([`core-api/callback-receives-value-and-key`](core-api.md#core-api-callback-receives-value-and-key)) |
-| R10 | Haystack before needle, subject before pattern — R1's corollary |
-| R11 | No mode strings; an enum instead ([`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings)) |
-| R12 | Units are types ([`core-api/units-are-types`](core-api.md#core-api-units-are-types)) |
-| R13 | A `string` member never takes an encoding argument ([`core-api/no-encoding-argument`](core-api.md#core-api-no-encoding-argument)) |
-| R14 | Anything with a lifetime is an object ([`core-api/a-lifetime-is-an-object`](core-api.md#core-api-a-lifetime-is-an-object)) |
-| R15 | One name, one signature ([`core-api/one-name-one-signature`](core-api.md#core-api-one-name-one-signature)) |
-| R16 | A domain class is a singular noun ([`core-api/a-domain-class-is-a-singular-noun`](core-api.md#core-api-a-domain-class-is-a-singular-noun)) |
-| R17 | One paradigm per operation; nothing is reachable two ways ([`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation)) |
-| R18 | A domain class's statics never mirror an object's own methods ([`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation)) |
-| R19 | Scalars and `array<T>` never gain methods ([`core-api/no-methods-on-scalars-or-arrays`](core-api.md#core-api-no-methods-on-scalars-or-arrays)) |
-| R20 | No mutable/immutable twin types ([`core-api/no-mutable-immutable-twins`](core-api.md#core-api-no-mutable-immutable-twins)) |
+The failure this prevents is a program that compiles in development and fails to load in production because
+an optional subsystem was not built. That would make the reserved namespace
+([`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace)) *conditional*, which is a worse outcome than an unfamiliar namespace:
+`Core\X` would stop meaning "always there" and start meaning "there if someone installed it", and every
+`use` of it would become a deployment question.
 
-Three properties of the language are what make PHP's conventions unavailable rather than merely ugly:
-arrays are copy-on-write values, so a by-reference mutator has no performance argument left; types are
-declared and checked, so a `false` return and an `int` flag mask throw away what the compiler already
-knows; and there is no ambient state for a member to read ([`core-api/no-ambient-state`](core-api.md#core-api-no-ambient-state)).
+Attempting it is a load-time diagnostic naming the class, not a silently missing symbol.
 
-What this costs is familiarity. A PHP developer knows `sort($a)`, `strtotime` and `ob_start`, and none of
-them survives in that spelling — each is named with its replacement so a diagnostic can point at one.
-
-<sub>See also [`core-api/subject-first`](core-api.md#core-api-subject-first), [`core-api/options-bag`](core-api.md#core-api-options-bag), [`core-api/nothing-mutates`](core-api.md#core-api-nothing-mutates), [`core-api/failure-throws`](core-api.md#core-api-failure-throws), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation). Decided in [0063](../decisions/0063.md), [0011](../decisions/0011.md), [0051](../decisions/0051.md), [0135](../decisions/0135.md), [0147](../decisions/0147.md).</sub>
-
-<a id="core-api-subject-first"></a>
-
-## The subject is parameter 1 of every `Core` member, with no exceptions
-
-`rule:core-api/subject-first`
-
-The thing a member operates on is its first parameter, including where the member also takes a callback or
-a needle: `Arr::map($array, $fn)`, `Str::replace($subject, $search, $replacement)`,
-`Arr::contains($haystack, $needle)`. Haystack comes before needle and subject before pattern, which is the
-same rule stated for the two places PHP violates it most visibly.
-
-A rule with no exceptions is learnable in one sentence, and the alternative is what PHP has: `array_map`
-takes the callback first and `array_filter` takes the array first, so every call site is a lookup. The cost
-is that a converted program's argument order changes at nearly every built-in call, which `nvs convert`
-rewrites by pattern rather than by table.
-
-<sub>See also [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`core-api/one-name-one-signature`](core-api.md#core-api-one-name-one-signature). Decided in [0063](../decisions/0063.md).</sub>
-
-<a id="core-api-options-bag"></a>
-
-## A member's optional knobs are one trailing shape literal, never a flag or a bitmask
-
-`rule:core-api/options-bag`
-
-After the subject come the required arguments in dataflow order, and then **at most one** trailing optional
-shape literal — an object literal ([`types/object-top`](types.md#types-object-top)) declared as a `type` alias. There are no `bool`
-flag parameters, no `int` bitmasks, and no positional optional tail longer than one.
-
-The bag is the home of every optional knob because it is named, order-free and structurally checked, and a
-bag written entirely from compile-time constants folds to a constant. It also flattens at the call site
-into one argument per declared field ([`core-api/shape-flattens-at-the-abi`](core-api.md#core-api-shape-flattens-at-the-abi)), so nothing is allocated
-to carry it. A bag field may be nullable, and where it is, leaving the key out and writing `null` into it
-are two different requests ([`core-api/omission-is-not-a-written-null`](core-api.md#core-api-omission-is-not-a-written-null)).
-
-The cost is that a bag's keys are declared and fixed: a member that must take a key whose *name* is chosen
-at run time needs a second member taking a `string`, which is why `Core\Uri` carries both `with` and a
-query-parameter pair rather than one member doing both.
-
-<sub>See also [`core-api/parameters-are-callable-by-name`](core-api.md#core-api-parameters-are-callable-by-name), [`core-api/shape-parameter`](core-api.md#core-api-shape-parameter), [`core-api/omission-is-not-a-written-null`](core-api.md#core-api-omission-is-not-a-written-null), [`types/object-top`](types.md#types-object-top). Decided in [0063](../decisions/0063.md), [0147](../decisions/0147.md), [0135](../decisions/0135.md).</sub>
-
-<a id="core-api-parameters-are-callable-by-name"></a>
-
-## Every `Core` parameter is callable by the name the spec writes, and that name is compatibility surface
-
-`rule:core-api/parameters-are-callable-by-name`
-
-Every parameter of every `Core` member may be written by name at the call site — the `$name` the spec's
-signature column writes, and the trailing bag under the one name `options` — under exactly the rules a
-user-declared method's parameters follow ([`types/arrays`](types.md#types-arrays)): written order is evaluation order, a name
-fills its own slot, a defaulted parameter may be skipped, a positional after a name is refused, and a name
-never reaches a variadic tail.
-
-A parameter's **name is compatibility surface**, versioned where its type is, so renaming one is a
-breaking change. That is the price of the feature and it is paid deliberately: the spec has published
-every parameter name since it was written, so the surface was already public, and a surface a user's own
-method has that a `Core` member lacks is one more rule to learn. The name lives once, on the registry row
-beside the type, and the reference card looks it up rather than repeating it
-([`core-api/reference-card`](core-api.md#core-api-reference-card)). Nothing on the request path changes — a `name:` resolves while checking
-and the helper ABI is untouched.
-
-<sub>See also [`core-api/options-bag`](core-api.md#core-api-options-bag), [`core-api/reference-card`](core-api.md#core-api-reference-card), [`types/arrays`](types.md#types-arrays). Decided in [0063](../decisions/0063.md), [0117](../decisions/0117.md).</sub>
-
-<a id="core-api-nothing-mutates"></a>
-
-## No `Core` member mutates its argument and none takes a reference
-
-`rule:core-api/nothing-mutates`
-
-No `Core` member mutates an argument and none takes a reference. There is no `inout $out`, no
-out-parameter and no in-place variant of anything; the result is the return value.
-
-Copy-on-write makes this free rather than expensive: an argument whose refcount is 1 is mutated in place by
-the implementation, which is exactly what PHP's own `sort()` does after its own copy-on-write check. What a
-second, by-reference spelling would buy is the aliasing rules this removes, and it would cost a second name
-for one operation ([`core-api/one-name-one-signature`](core-api.md#core-api-one-name-one-signature)).
-
-The cost is real and is paid at every mutation site: `$a = Arr::sort($a);` is three characters longer than
-`sort($a);` and reads as a copy even though it is not one. A program that genuinely wants by-reference
-argument passing has `inout` ([`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling)), which no `Core` member
-uses.
-
-<sub>See also [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`core-api/no-mutable-immutable-twins`](core-api.md#core-api-no-mutable-immutable-twins), [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling). Decided in [0063](../decisions/0063.md).</sub>
-
-<a id="core-api-failure-throws"></a>
-
-## A `Core` member throws on failure and returns `?T` for absence; `false` is never an answer
-
-`rule:core-api/failure-throws`
-
-A `Core` member signals failure by throwing. `false` is never returned to mean failure, no member returns
-an error code, and there are no error globals — no `json_last_error`, no `error_get_last`. A `?T` return
-means something else entirely: that the absence is an ordinary, expected outcome the caller should handle,
-not that something went wrong.
-
-`strpos()` returning `0|false` is PHP's most productive single bug source, and the union types that make it
-expressible here also make it unnecessary: the two outcomes are already two different things in the type,
-so collapsing them into one return value buys nothing. A member's verb tells the caller which of the two it
-is ([`core-api/verb-lexicon`](core-api.md#core-api-verb-lexicon)) before the signature is read.
-
-The cost is that a converted program's error handling has to be rewritten rather than translated: a
-`if ($r === false)` has no mechanical equivalent, because the information it tested for now arrives as a
-throw the caller must decide where to catch.
-
-<sub>See also [`core-api/verb-lexicon`](core-api.md#core-api-verb-lexicon), [`core-api/one-refusal-except-expiry`](core-api.md#core-api-one-refusal-except-expiry), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy), [`expressions/nullable-conversion-availability`](expressions.md#expressions-nullable-conversion-availability). Decided in [0063](../decisions/0063.md).</sub>
-
-<a id="core-api-verb-lexicon"></a>
-
-## A member's verb predicts its return type, and `…OrNull`, `…Safe`, `…Ex` and every `try…` but `tryParse` are banned
-
-`rule:core-api/verb-lexicon`
-
-One verb means one thing, so a member's name predicts its return type. `is…`, `has…`, `contains` and
-`startsWith` answer `bool`; `find…` answers `?T`; `indexOf` and `keyOf` answer `?uint` or `?K`; `count…`
-answers `uint`; `to…` and `from…` convert and construct. Two constructor spellings join them: the unit or
-component a value is built from (`Duration::seconds`, `TimeOfDay::at`), and `of` for a canonical identifier
-(`Zone::of`, `Hash::of`). A **stateful** object — a response, a session, a config overlay — may use `set…`
-and `add…`, which is not a mutation of a value and so not a question for
-[`core-api/nothing-mutates`](core-api.md#core-api-nothing-mutates).
-
-`…OrNull`, `…Safe` and `…Ex` are banned, and so is `try…` on every verb but one. The exception is
-`tryParse` ([`expressions/try-parse`](expressions.md#expressions-try-parse)), for a class whose `parse` takes exactly one `string` and can
-fail: a malformed string is a *failure*, not the absence `?T` means, and `as ?T` never targets a class, so
-without it `Core\Uri` and `Core\Uuid` would have no non-throwing spelling at all. The `…Safe` half of the
-ban reads the suffix as a claim about failure; a suffix that is an ordinary adjective of the subject is
-untouched, which is how `Core\Db\Schema::applySafe` is admitted — it is named for the grade of the steps it
-will run and is the more refusing of the two, not the quiet one.
-
-<sub>See also [`core-api/failure-throws`](core-api.md#core-api-failure-throws), [`core-api/symmetric-names`](core-api.md#core-api-symmetric-names), [`expressions/try-parse`](expressions.md#expressions-try-parse). Decided in [0063](../decisions/0063.md), [0145](../decisions/0145.md).</sub>
-
-<a id="core-api-symmetric-names"></a>
-
-## A symmetric operation gets a symmetric name, and which pair to reach for is a rule rather than taste
-
-`rule:core-api/symmetric-names`
-
-A symmetric operation gets a symmetric name: `encode`/`decode`, `split`/`join`, `pack`/`unpack`,
-`escape`/`unescape`, `trimStart`/`trimEnd`, `startsWith`/`endsWith`, `indexOf`/`lastIndexOf`,
-`first`/`last`. If one half exists, the other half's spelling is decided by rule rather than chosen.
-
-Which *pair* to reach for is also a rule: `encode`/`decode` when the other side is a machine format —
-JSON, serialization, base64 — and `parse`/`format` when a human writes or reads it, as with time, CSV and
-URIs. That removes the per-member judgement call PHP made differently every time, and it means a reader who
-has found one half knows the other's name without looking.
-
-<sub>See also [`core-api/verb-lexicon`](core-api.md#core-api-verb-lexicon), [`core-api/members-are-full-words`](core-api.md#core-api-members-are-full-words). Decided in [0063](../decisions/0063.md).</sub>
-
-<a id="core-api-members-are-full-words"></a>
-
-## A member name is a full word; only a class name may abbreviate, and only from a closed list
-
-`rule:core-api/members-are-full-words`
-
-A member name is a full word. Class names may abbreviate, but only from a closed list — `Str`, `Arr`, `Fs`,
-`Io`, `Uri`, `Db`, `Id` — and members may not, except the conventional mathematical spellings `abs`, `min`,
-`max` and `sqrt`. So `Core\Str::length`, never `Core\Str::len`.
-
-Abbreviation is where a naming convention stops being mechanical: PHP resolved it separately for every
-function and produced `strlen` beside `str_word_count`. A closed list at the class level and no discretion
-at the member level removes the judgement call entirely, at the cost of a few extra characters at every
-call site.
-
-<sub>See also [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`core-api/a-domain-class-is-a-singular-noun`](core-api.md#core-api-a-domain-class-is-a-singular-noun). Decided in [0063](../decisions/0063.md), [0011](../decisions/0011.md).</sub>
-
-<a id="core-api-one-range-convention"></a>
-
-## Every range is `(offset, ?length)`, and a negative counts from the end
-
-`rule:core-api/one-range-convention`
-
-Every member taking a range takes `(offset, ?length)`, and `Core\Str` and `Core\Arr` share the convention
-exactly. A negative offset counts from the end; a negative length stops that many elements from the end; a
-`null` length runs to the end.
-
-Stated once and never varied, this is one thing to learn instead of one per member. It is also what lets a
-reader move between the string and the array class without re-checking whether a second argument is a
-length or an end position — the question `substr` and `array_slice` answer the same way and `str_split`
-does not.
-
-<sub>See also [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`types/preserve-keys`](types.md#types-preserve-keys). Decided in [0063](../decisions/0063.md).</sub>
-
-<a id="core-api-callback-receives-value-and-key"></a>
-
-## A callback always receives `($value, $key)`, and may declare fewer parameters than the call site passes
-
-`rule:core-api/callback-receives-value-and-key`
-
-A callback a `Core` member invokes always receives `($value, $key)`, in that order, and a closure may
-declare fewer parameters than the call site passes ([`types/callable-arity`](types.md#types-callable-arity)). A closure wanting only
-the value writes one parameter and never sees the key.
-
-This kills the whole `ARRAY_FILTER_USE_KEY`/`ARRAY_FILTER_USE_BOTH` flag family, which exists in PHP only
-because its callbacks have a fixed arity, and it removes the need for `map`/`mapWithKey` pairs that would
-otherwise violate [`core-api/one-name-one-signature`](core-api.md#core-api-one-name-one-signature). The order is value-first because that is the
-argument almost every callback uses, so the common closure is `fn($v)` with nothing to skip.
-
-<sub>See also [`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings), [`types/callable-arity`](types.md#types-callable-arity), [`types/callable-is-a-closure`](types.md#types-callable-is-a-closure). Decided in [0063](../decisions/0063.md).</sub>
-
-<a id="core-api-no-mode-strings"></a>
-
-## A mode is an enum, never a string or an integer constant, and only four grammars are exempt
-
-`rule:core-api/no-mode-strings`
-
-A member never takes a mode as a string or as an integer constant. There is no `fopen($p, "r+b")`, no
-`hash("sha256", …)`, no `MB_CASE_TITLE`. A mode is an enum ([`enums/closed-integer-type`](enums.md#enums-closed-integer-type)), always, and
-where a member accepts only some of an enum's cases it declares that closed subset in the signature
-([`types/literal-types`](types.md#types-literal-types)) so an unsafe case is a compile error naming the reason.
-
-A **grammar** is not a mode string and is not covered. A regex pattern, a `printf` template, a CLDR date
-pattern and a `pack` format each express something no enum can, and all four are compile-time-checked
-intrinsics ([`expressions/intrinsic-literals`](expressions.md#expressions-intrinsic-literals)). There are exactly four, and the list is closed.
-
-The gain is that every mode is typo-proof, completable in an editor and exhaustively matchable. The cost is
-one enum declaration per mode family, which is also what makes them documentable one case at a time
-([`core-api/reference-card`](core-api.md#core-api-reference-card)).
-
-<sub>See also [`core-api/units-are-types`](core-api.md#core-api-units-are-types), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`types/literal-types`](types.md#types-literal-types), [`expressions/intrinsic-literals`](expressions.md#expressions-intrinsic-literals). Decided in [0063](../decisions/0063.md).</sub>
-
-<a id="core-api-units-are-types"></a>
-
-## A unit is a type: a duration is a `Duration` and a size is `uint` bytes
-
-`rule:core-api/units-are-types`
-
-A quantity carrying a unit is a type, not a number with a convention attached. A duration is a `Duration`,
-never "seconds here and microseconds there"; a byte size is a `uint` count of bytes and says so.
-
-PHP's `sleep`/`usleep`/`time_nanosleep` split is a units bug waiting for a refactor to find it, and a
-signature that takes an `int` cannot tell a caller which scale it wanted. A `Duration` takes the question
-out of the call site: it is constructed from the unit it is written in (`Duration::seconds`), it parses
-from a written grammar ([`types/duration-literal`](types.md#types-duration-literal)), and every member taking a timeout takes exactly
-that type. The cost is one construction at each call site that would otherwise have passed a bare integer.
-
-<sub>See also [`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings), [`types/duration-literal`](types.md#types-duration-literal). Decided in [0063](../decisions/0063.md).</sub>
-
-<a id="core-api-no-encoding-argument"></a>
-
-## A `string` member never takes an encoding argument
-
-`rule:core-api/no-encoding-argument`
-
-No member taking a `string` takes an encoding argument. UTF-8 is the type's guarantee
-([`types/string-is-utf8`](types.md#types-string-is-utf8)), so there is nothing for such an argument to select.
-
-All conversion happens at the `bytes`↔`string` boundary, in `Core\Encoding`, where it can fail honestly:
-decoding arbitrary bytes into a `string` is the operation that can go wrong, and it is the one that says
-so. This is what removes PHP's entire `mb_*` twin set — every function that exists twice because the
-single-byte version cannot be trusted — rather than reproducing it under new names.
-
-The cost lands on programs that genuinely handle non-UTF-8 text: they hold `bytes`
-([`types/bytes`](types.md#types-bytes)) until they have decided what the encoding is, and the decision is written where it is
-made instead of defaulted per call.
-
-<sub>See also [`types/string-is-utf8`](types.md#types-string-is-utf8), [`types/bytes`](types.md#types-bytes). Decided in [0063](../decisions/0063.md), [0051](../decisions/0051.md).</sub>
-
-<a id="core-api-a-lifetime-is-an-object"></a>
-
-## Anything with a lifetime is an object, and `Core` never hands back a handle
-
-`rule:core-api/a-lifetime-is-an-object`
-
-Anything with a lifetime is an object. There is no `resource` atom in any `Core` signature, no integer
-handle, and no `$link`-first calling convention; a file, a connection, a compression stream and a hash
-context are all objects with methods.
-
-A handle has nowhere to enforce a capability and nothing to hang an API on, so every operation on it
-becomes a free function taking the handle first — which is how PHP ended up with `fopen` beside
-`SplFileObject` beside `DirectoryIterator` ([`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation)). An object has both
-a place for the capability check and a place for the methods. The `resource` atom survives in the type
-grammar ([`types/grammar`](types.md#types-grammar)) only for opaque handles an extension supplies, and `Core` never produces
-one.
-
-<sub>See also [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation), [`classes/no-destructors`](classes.md#classes-no-destructors), [`types/grammar`](types.md#types-grammar). Decided in [0063](../decisions/0063.md), [0003](../decisions/0003.md).</sub>
-
-<a id="core-api-one-name-one-signature"></a>
-
-## One name has one signature, and two behaviours need two names
-
-`rule:core-api/one-name-one-signature`
-
-One name has one signature. There is no overloading, and optional arguments are the only variance a
-member's parameter list may have. Two behaviours therefore need two names, and which two is decided by the
-verb lexicon ([`core-api/verb-lexicon`](core-api.md#core-api-verb-lexicon)) and the symmetric-name rule
-([`core-api/symmetric-names`](core-api.md#core-api-symmetric-names)) rather than by whoever writes the second one.
-
-This is the rule that keeps a family from regrowing. PHP has eleven sort functions and twelve `strpos`
-variants because each new behaviour could be a new name in the same shape; here it has to be a name that
-predicts its own return type, or an enum-typed option on the member that already exists
-([`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings)). Where two members genuinely take different things and answer different
-things, that is not a second spelling ([`core-api/each-door-takes-a-different-thing`](core-api.md#core-api-each-door-takes-a-different-thing)).
-
-<sub>See also [`core-api/verb-lexicon`](core-api.md#core-api-verb-lexicon), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name). Decided in [0063](../decisions/0063.md), [0051](../decisions/0051.md).</sub>
-
-<a id="core-api-a-domain-class-is-a-singular-noun"></a>
-
-## A domain class is a singular noun and its object types nest under it
-
-`rule:core-api/a-domain-class-is-a-singular-noun`
-
-A domain class is named with a singular noun, and the object types it constructs nest under it:
-`Core\Time`, `Core\Time\Instant`, `Core\Time\Duration`. Never `Core\Times`, never `Core\TimeUtils`, never
-`Core\TimeHelper`.
-
-The plural and the `Utils`/`Helper` suffixes are the two ways a static-method class announces that nobody
-decided what it was for, and both invite a second class beside the first. A singular noun names a domain,
-and nesting puts the domain's own types where a reader looking at the class already is. It also composes
-with the reserved namespace ([`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace)), since a nested name is reserved by the
-same rule as its parent.
-
-<sub>See also [`core-api/members-are-full-words`](core-api.md#core-api-members-are-full-words), [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace), [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants). Decided in [0063](../decisions/0063.md), [0011](../decisions/0011.md).</sub>
-
-<a id="core-api-one-paradigm-per-operation"></a>
-
-## No operation is reachable two ways, and a domain class's statics never mirror an object's own methods
-
-`rule:core-api/one-paradigm-per-operation`
-
-One operation is reachable exactly one way. A stateless operation is a static method on a domain class;
-anything with identity or a lifetime is an object ([`core-api/a-lifetime-is-an-object`](core-api.md#core-api-a-lifetime-is-an-object)). Nothing is
-reachable both ways — there is no procedural twin of a class API and no class wrapper around a static one —
-and a domain class's static members never mirror an object's own methods: `Time::format($instant, $fmt)`
-may not exist beside `$instant->format($fmt)`.
-
-This is what closes PHP's second and less visible duplication axis, the one a function list cannot show:
-every `date_*` function aliasing a `DateTime` method, every `intl` class with a procedural twin, `mysqli`
-existing entirely twice. A tree API and a streaming reader over the same data are *different jobs* rather
-than twins, and the spec says so explicitly where that could be misread.
-
-**An operator is syntax, not a second API, and is never counted here** — `instanceof`, `as ?T` and the
-pipeline ([`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution)) reach the same member through the same call and add
-nothing to reach. The one genuinely reachable two-spellings case is a compile error: a `Core` *instance*
-member written as a static call is refused, because such a member's receiver travels in argument slot 0 and
-would otherwise pass the same arity check the instance call passes.
-
-<sub>See also [`core-api/no-methods-on-scalars-or-arrays`](core-api.md#core-api-no-methods-on-scalars-or-arrays), [`core-api/no-mutable-immutable-twins`](core-api.md#core-api-no-mutable-immutable-twins), [`core-api/each-door-takes-a-different-thing`](core-api.md#core-api-each-door-takes-a-different-thing), [`classes/no-call-magic`](classes.md#classes-no-call-magic), [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution). Decided in [0063](../decisions/0063.md), [0051](../decisions/0051.md), [0122](../decisions/0122.md).</sub>
-
-<a id="core-api-no-methods-on-scalars-or-arrays"></a>
-
-## A scalar and an `array<T>` never gain methods
-
-`rule:core-api/no-methods-on-scalars-or-arrays`
-
-A scalar and an `array<T>` never gain methods. There is no `$s->length()` and no `$a->map()`; `Core\Str`
-and `Core\Arr` are the one spelling for both.
-
-The alternative is a second surface that grows in parallel with the first forever, which is how the twin
-problem regrows after it has been removed once. Keeping the operations on the domain class also keeps them
-where the subject-first rule ([`core-api/subject-first`](core-api.md#core-api-subject-first)) puts them, so a reader learns one call shape
-rather than two. Member access on a value that has no members is refused where it is written
-([`types/erased-member-access`](types.md#types-erased-member-access)).
-
-<sub>See also [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0063](../decisions/0063.md).</sub>
-
-<a id="core-api-no-mutable-immutable-twins"></a>
-
-## Every `Core` value type is immutable, so no mutable twin exists to choose between
-
-`rule:core-api/no-mutable-immutable-twins`
-
-Every `Core` value type is immutable, so there is no mutable twin to choose between. There is no
-`DateTime`/`DateTimeImmutable` pair, and no member returns a mutable view of a value type.
-
-PHP's pair exists because its original type was mutable and the fix could not remove it; a language writing
-its library once does not inherit that. Immutability also removes the question [`core-api/nothing-mutates`](core-api.md#core-api-nothing-mutates)
-would otherwise have to answer twice — a value type with no mutator has no in-place variant to argue about
-— and it means a value handed to another request-scoped object cannot be changed underneath it.
-
-The cost is that every derivation allocates a new value, which copy-on-write makes cheap for the array-
-and string-shaped ones and genuinely a copy for the small structs, where it is a few words.
-
-<sub>See also [`core-api/nothing-mutates`](core-api.md#core-api-nothing-mutates), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation), [`classes/two-copy-depths`](classes.md#classes-two-copy-depths). Decided in [0063](../decisions/0063.md).</sub>
-
-<a id="core-api-removals"></a>
-
-## A PHP built-in is absent for one of four standing reasons, and every removed name is accounted for by name
-
-`rule:core-api/removals`
-
-A PHP built-in that has no successor here is absent for one of four standing reasons, and every removed
-name is accounted for individually rather than by category:
-
-1. **A pure alias** — `sizeof`, `join`, `chop`, `key_exists`, `pos`, `fputs`, `is_integer`, `doubleval`.
-2. **Dead or dying in PHP itself** — `ereg*`, `mysql_*`, `mcrypt`, `create_function`, `each`,
-   `money_format`, `utf8_encode`, `strptime`, `get_browser`.
-3. **Already closed by another rule** — about 120 functions whose removal follows from declared types, from
-   closures being the only callable, from the closed doors, from the escalation ladder
-   ([`errors/escalation-ladder`](errors.md#errors-escalation-ladder)), from having no superglobals
-   ([`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables)), or from having no cross-request ambient state.
-4. **Structurally wrong here** — the internal array pointer, because a mutable cursor inside a
-   copy-on-write value is incoherent; every by-reference mutator ([`core-api/nothing-mutates`](core-api.md#core-api-nothing-mutates));
-   `array_merge` and the `+` operator over two arrays, whose rule is chosen by a key's *type* in a language
-   with one key type ([`types/array-combination`](types.md#types-array-combination)); the half-escapers, whose false confidence taint
-   tracking exists to prevent; and `settype`/`gettype`/`strval` ([`types/no-legacy-cast`](types.md#types-no-legacy-cast)).
-
-The reason is not the record. A prose reason cannot be audited — "about 120 functions follow from declared
-types" leaves no way to notice the twelfth one nobody thought about — so every PHP name gets a row naming
-its outcome, and a CI check asserts the vendored built-in list has no name without one. That file is also
-where `nvs convert` gets its diagnostic, so a removed name produces a message naming the replacement rather
-than an unresolved call.
-
-<sub>See also [`core-api/no-ambient-state`](core-api.md#core-api-no-ambient-state), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/array-combination`](types.md#types-array-combination). Decided in [0063](../decisions/0063.md), [0051](../decisions/0051.md).</sub>
-
-<a id="core-api-no-ambient-state"></a>
-
-## No `Core` member reads ambient state: there is no default timezone, locale, array pointer or error global
-
-`rule:core-api/no-ambient-state`
-
-No `Core` member reads state the call site did not give it. There is no process or per-request default
-timezone, no locale, no internal array pointer and no error global; a thread-per-core runtime cannot have
-any of them without leaking one request's setting into the next.
-
-So a `Zone` is an explicit argument at every instant↔calendar conversion, translation takes its locale as
-an argument, and the members that would have read a global read a parameter instead. The same argument that
-refuses `setlocale` — process-wide C state that silently changes what a later call answers — refuses every
-smaller version of it.
-
-The cost is stated rather than hidden: every date formatting call names a zone, which is correct and is more
-typing than PHP for the common case. What it buys is that a member's answer is a function of its arguments,
-which is also what makes a call reviewable and a compile-time fold possible.
-
-<sub>See also [`core-api/removals`](core-api.md#core-api-removals), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global). Decided in [0063](../decisions/0063.md), [0051](../decisions/0051.md).</sub>
-
-<a id="core-api-written-participation"></a>
-
-## A class participates in a wire format only where it writes so, never structurally
-
-`rule:core-api/written-participation`
-
-A class takes part in a wire format only where it says so. JSON encoding and decoding go through one
-explicit interface declaring both halves — an instance method that produces the document and a static that
-reconstructs the class from one — or through a written `#[Json\Derive]` that generates both from the
-class's declared properties. There is no magic hook.
-
-**Structural** encoding of a class's public properties is refused. It makes the public shape an implicit
-wire contract that a rename breaks with no diagnostic, and it needs an opt-out mechanism, which is a magic
-hook under another name. A written attribute is not that: the participation is visible at the declaration,
-and a `secret` property is refused there rather than silently omitted from the output. An inline shape
-([`types/object-top`](types.md#types-object-top)) is the one value that needs neither, because it has no declaration to carry
-either — it encodes as an object keyed by its field names.
-
-The decode half is part of the same contract, which is what `JsonSerializable` lacks and why every PHP
-project hand-writes hydration.
-
-<sub>See also [`core-api/required-optional-and-nullable`](core-api.md#core-api-required-optional-and-nullable), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`classes/serialize-is-a-closed-format`](classes.md#classes-serialize-is-a-closed-format), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`types/object-top`](types.md#types-object-top). Decided in [0063](../decisions/0063.md), [0071](../decisions/0071.md), [0028](../decisions/0028.md), [0033](../decisions/0033.md).</sub>
-
-<a id="core-api-qualifier-behaviour-is-declared"></a>
-
-## Every `Core` member declares whether it is a sink, a launderer, contagious or neutral
-
-`rule:core-api/qualifier-behaviour-is-declared`
-
-Every `Core` member states, as a column of its signature rather than as a footnote, whether it is a
-**sink** — it refuses `tainted` or `secret` — a **launderer**, whose contract names the sink it launders
-for, **contagious**, where a qualified argument produces a qualified result, or **neutral**.
-
-Taint tracking and the extension qualifier declarations both rest on that classification being *total*: a
-member added without one is an incomplete member, not a member with a default. The classification lands on
-the narrowest thing that has one, so for a shape parameter it is on the individual field rather than on the
-parameter — a settings shape whose `host` is a sink classifies that field, while the parameter as a whole
-classifies nothing ([`core-api/shape-flattens-at-the-abi`](core-api.md#core-api-shape-flattens-at-the-abi)).
-
-What this buys is that a reviewer reads authority off the call site: whether an argument may carry
-attacker-controlled data is a property of the member being called, visible in its entry, and a member with
-no answer fails the build rather than being assumed neutral.
-
-<sub>See also [`core-api/shape-flattens-at-the-abi`](core-api.md#core-api-shape-flattens-at-the-abi), [`core-api/tier-placement`](core-api.md#core-api-tier-placement). Decided in [0063](../decisions/0063.md), [0024](../decisions/0024.md), [0055](../decisions/0055.md), [0135](../decisions/0135.md).</sub>
+<sub>See also [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/five-placements`](core-api.md#core-api-five-placements). Decided in [0051](../decisions/0051.md), [0011](../decisions/0011.md), [0003](../decisions/0003.md).</sub>
 
 <a id="core-api-tier-placement"></a>
 
@@ -596,26 +105,6 @@ sections the current milestone owns.
 
 <sub>See also [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present). Decided in [0051](../decisions/0051.md), [0067](../decisions/0067.md), [0076](../decisions/0076.md), [0086](../decisions/0086.md), [0120](../decisions/0120.md), [0121](../decisions/0121.md), [0122](../decisions/0122.md), [0123](../decisions/0123.md).</sub>
 
-<a id="core-api-core-means-always-present"></a>
-
-## `Core` means always present, so nothing outside Tier 0 may register a name under it
-
-`rule:core-api/core-means-always-present`
-
-Nothing outside Tier 0 may register a class under the `Core` namespace, and nothing whose presence a build
-flag can remove is registered there at all. A first-party sandboxed component is named like any other
-component, under its own namespace, so its tier is visible at the use site.
-
-The failure this prevents is a program that compiles in development and fails to load in production because
-an optional subsystem was not built. That would make the reserved namespace
-([`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace)) *conditional*, which is a worse outcome than an unfamiliar namespace:
-`Core\X` would stop meaning "always there" and start meaning "there if someone installed it", and every
-`use` of it would become a deployment question.
-
-Attempting it is a load-time diagnostic naming the class, not a silently missing symbol.
-
-<sub>See also [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/five-placements`](core-api.md#core-api-five-placements). Decided in [0051](../decisions/0051.md), [0011](../decisions/0011.md), [0003](../decisions/0003.md).</sub>
-
 <a id="core-api-reserved-namespace"></a>
 
 ## The `Core` namespace is the compiler's: nothing may declare under it and its rosters are closed while compiling
@@ -638,6 +127,162 @@ The array domain class is spelled `Core\Arr` rather than `Core\Array`, because `
 ([`types/grammar`](types.md#types-grammar)) and a class of that name would collide with it exactly where a type is expected.
 
 <sub>See also [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present), [`core-api/a-domain-class-is-a-singular-noun`](core-api.md#core-api-a-domain-class-is-a-singular-noun), [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`classes/no-class-alias`](classes.md#classes-no-class-alias), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name). Decided in [0011](../decisions/0011.md), [0015](../decisions/0015.md), [0051](../decisions/0051.md).</sub>
+
+<a id="core-api-a-domain-class-is-a-singular-noun"></a>
+
+## A domain class is a singular noun and its object types nest under it
+
+`rule:core-api/a-domain-class-is-a-singular-noun`
+
+A domain class is named with a singular noun, and the object types it constructs nest under it:
+`Core\Time`, `Core\Time\Instant`, `Core\Time\Duration`. Never `Core\Times`, never `Core\TimeUtils`, never
+`Core\TimeHelper`.
+
+The plural and the `Utils`/`Helper` suffixes are the two ways a static-method class announces that nobody
+decided what it was for, and both invite a second class beside the first. A singular noun names a domain,
+and nesting puts the domain's own types where a reader looking at the class already is. It also composes
+with the reserved namespace ([`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace)), since a nested name is reserved by the
+same rule as its parent.
+
+<sub>See also [`core-api/members-are-full-words`](core-api.md#core-api-members-are-full-words), [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace), [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants). Decided in [0063](../decisions/0063.md), [0011](../decisions/0011.md).</sub>
+
+<a id="core-api-shape-rules"></a>
+
+## Every `Core` member obeys the same twenty shape rules, R1–R20
+
+`rule:core-api/shape-rules`
+
+Every member of every `Core` class obeys all twenty shape rules below. A proposed member that cannot is a
+design bug rather than an exception, and the rules are decided before the library is written because a
+surface of ~450 members is only learnable if the eleventh member is predictable from the first ten.
+
+| # | The rule |
+|---|---|
+| R1 | The subject is parameter 1, always ([`core-api/subject-first`](core-api.md#core-api-subject-first)) |
+| R2 | Then required arguments in dataflow order, then at most one trailing optional shape literal ([`core-api/options-bag`](core-api.md#core-api-options-bag)), every parameter callable by name ([`core-api/parameters-are-callable-by-name`](core-api.md#core-api-parameters-are-callable-by-name)) |
+| R3 | Nothing mutates and nothing takes a reference ([`core-api/nothing-mutates`](core-api.md#core-api-nothing-mutates)) |
+| R4 | Failure throws; absence is `?T` ([`core-api/failure-throws`](core-api.md#core-api-failure-throws)) |
+| R5 | A fixed verb lexicon, and a closed ban list ([`core-api/verb-lexicon`](core-api.md#core-api-verb-lexicon)) |
+| R6 | Symmetric operations get symmetric names ([`core-api/symmetric-names`](core-api.md#core-api-symmetric-names)) |
+| R7 | Members are full words ([`core-api/members-are-full-words`](core-api.md#core-api-members-are-full-words)) |
+| R8 | One range convention, `(offset, ?length)` ([`core-api/one-range-convention`](core-api.md#core-api-one-range-convention)) |
+| R9 | Callbacks receive `($value, $key)` ([`core-api/callback-receives-value-and-key`](core-api.md#core-api-callback-receives-value-and-key)) |
+| R10 | Haystack before needle, subject before pattern — R1's corollary |
+| R11 | No mode strings; an enum instead ([`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings)) |
+| R12 | Units are types ([`core-api/units-are-types`](core-api.md#core-api-units-are-types)) |
+| R13 | A `string` member never takes an encoding argument ([`core-api/no-encoding-argument`](core-api.md#core-api-no-encoding-argument)) |
+| R14 | Anything with a lifetime is an object ([`core-api/a-lifetime-is-an-object`](core-api.md#core-api-a-lifetime-is-an-object)) |
+| R15 | One name, one signature ([`core-api/one-name-one-signature`](core-api.md#core-api-one-name-one-signature)) |
+| R16 | A domain class is a singular noun ([`core-api/a-domain-class-is-a-singular-noun`](core-api.md#core-api-a-domain-class-is-a-singular-noun)) |
+| R17 | One paradigm per operation; nothing is reachable two ways ([`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation)) |
+| R18 | A domain class's statics never mirror an object's own methods ([`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation)) |
+| R19 | Scalars and `array<T>` never gain methods ([`core-api/no-methods-on-scalars-or-arrays`](core-api.md#core-api-no-methods-on-scalars-or-arrays)) |
+| R20 | No mutable/immutable twin types ([`core-api/no-mutable-immutable-twins`](core-api.md#core-api-no-mutable-immutable-twins)) |
+
+Three properties of the language are what make PHP's conventions unavailable rather than merely ugly:
+arrays are copy-on-write values, so a by-reference mutator has no performance argument left; types are
+declared and checked, so a `false` return and an `int` flag mask throw away what the compiler already
+knows; and there is no ambient state for a member to read ([`core-api/no-ambient-state`](core-api.md#core-api-no-ambient-state)).
+
+What this costs is familiarity. A PHP developer knows `sort($a)`, `strtotime` and `ob_start`, and none of
+them survives in that spelling — each is named with its replacement so a diagnostic can point at one.
+
+<sub>See also [`core-api/subject-first`](core-api.md#core-api-subject-first), [`core-api/options-bag`](core-api.md#core-api-options-bag), [`core-api/nothing-mutates`](core-api.md#core-api-nothing-mutates), [`core-api/failure-throws`](core-api.md#core-api-failure-throws), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation). Decided in [0063](../decisions/0063.md), [0011](../decisions/0011.md), [0051](../decisions/0051.md), [0135](../decisions/0135.md), [0147](../decisions/0147.md).</sub>
+
+<a id="core-api-subject-first"></a>
+
+## The subject is parameter 1 of every `Core` member, with no exceptions
+
+`rule:core-api/subject-first`
+
+The thing a member operates on is its first parameter, including where the member also takes a callback or
+a needle: `Arr::map($array, $fn)`, `Str::replace($subject, $search, $replacement)`,
+`Arr::contains($haystack, $needle)`. Haystack comes before needle and subject before pattern, which is the
+same rule stated for the two places PHP violates it most visibly.
+
+A rule with no exceptions is learnable in one sentence, and the alternative is what PHP has: `array_map`
+takes the callback first and `array_filter` takes the array first, so every call site is a lookup. The cost
+is that a converted program's argument order changes at nearly every built-in call, which `nvs convert`
+rewrites by pattern rather than by table.
+
+<sub>See also [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`core-api/one-name-one-signature`](core-api.md#core-api-one-name-one-signature). Decided in [0063](../decisions/0063.md).</sub>
+
+<a id="core-api-verb-lexicon"></a>
+
+## A member's verb predicts its return type, and `…OrNull`, `…Safe`, `…Ex` and every `try…` but `tryParse` are banned
+
+`rule:core-api/verb-lexicon`
+
+One verb means one thing, so a member's name predicts its return type. `is…`, `has…`, `contains` and
+`startsWith` answer `bool`; `find…` answers `?T`; `indexOf` and `keyOf` answer `?uint` or `?K`; `count…`
+answers `uint`; `to…` and `from…` convert and construct. Two constructor spellings join them: the unit or
+component a value is built from (`Duration::seconds`, `TimeOfDay::at`), and `of` for a canonical identifier
+(`Zone::of`, `Hash::of`). A **stateful** object — a response, a session, a config overlay — may use `set…`
+and `add…`, which is not a mutation of a value and so not a question for
+[`core-api/nothing-mutates`](core-api.md#core-api-nothing-mutates).
+
+`…OrNull`, `…Safe` and `…Ex` are banned, and so is `try…` on every verb but one. The exception is
+`tryParse` ([`expressions/try-parse`](expressions.md#expressions-try-parse)), for a class whose `parse` takes exactly one `string` and can
+fail: a malformed string is a *failure*, not the absence `?T` means, and `as ?T` never targets a class, so
+without it `Core\Uri` and `Core\Uuid` would have no non-throwing spelling at all. The `…Safe` half of the
+ban reads the suffix as a claim about failure; a suffix that is an ordinary adjective of the subject is
+untouched, which is how `Core\Db\Schema::applySafe` is admitted — it is named for the grade of the steps it
+will run and is the more refusing of the two, not the quiet one.
+
+<sub>See also [`core-api/failure-throws`](core-api.md#core-api-failure-throws), [`core-api/symmetric-names`](core-api.md#core-api-symmetric-names), [`expressions/try-parse`](expressions.md#expressions-try-parse). Decided in [0063](../decisions/0063.md), [0145](../decisions/0145.md).</sub>
+
+<a id="core-api-symmetric-names"></a>
+
+## A symmetric operation gets a symmetric name, and which pair to reach for is a rule rather than taste
+
+`rule:core-api/symmetric-names`
+
+A symmetric operation gets a symmetric name: `encode`/`decode`, `split`/`join`, `pack`/`unpack`,
+`escape`/`unescape`, `trimStart`/`trimEnd`, `startsWith`/`endsWith`, `indexOf`/`lastIndexOf`,
+`first`/`last`. If one half exists, the other half's spelling is decided by rule rather than chosen.
+
+Which *pair* to reach for is also a rule: `encode`/`decode` when the other side is a machine format —
+JSON, serialization, base64 — and `parse`/`format` when a human writes or reads it, as with time, CSV and
+URIs. That removes the per-member judgement call PHP made differently every time, and it means a reader who
+has found one half knows the other's name without looking.
+
+<sub>See also [`core-api/verb-lexicon`](core-api.md#core-api-verb-lexicon), [`core-api/members-are-full-words`](core-api.md#core-api-members-are-full-words). Decided in [0063](../decisions/0063.md).</sub>
+
+<a id="core-api-one-name-one-signature"></a>
+
+## One name has one signature, and two behaviours need two names
+
+`rule:core-api/one-name-one-signature`
+
+One name has one signature. There is no overloading, and optional arguments are the only variance a
+member's parameter list may have. Two behaviours therefore need two names, and which two is decided by the
+verb lexicon ([`core-api/verb-lexicon`](core-api.md#core-api-verb-lexicon)) and the symmetric-name rule
+([`core-api/symmetric-names`](core-api.md#core-api-symmetric-names)) rather than by whoever writes the second one.
+
+This is the rule that keeps a family from regrowing. PHP has eleven sort functions and twelve `strpos`
+variants because each new behaviour could be a new name in the same shape; here it has to be a name that
+predicts its own return type, or an enum-typed option on the member that already exists
+([`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings)). Where two members genuinely take different things and answer different
+things, that is not a second spelling ([`core-api/each-door-takes-a-different-thing`](core-api.md#core-api-each-door-takes-a-different-thing)).
+
+<sub>See also [`core-api/verb-lexicon`](core-api.md#core-api-verb-lexicon), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name). Decided in [0063](../decisions/0063.md), [0051](../decisions/0051.md).</sub>
+
+<a id="core-api-members-are-full-words"></a>
+
+## A member name is a full word; only a class name may abbreviate, and only from a closed list
+
+`rule:core-api/members-are-full-words`
+
+A member name is a full word. Class names may abbreviate, but only from a closed list — `Str`, `Arr`, `Fs`,
+`Io`, `Uri`, `Db`, `Id` — and members may not, except the conventional mathematical spellings `abs`, `min`,
+`max` and `sqrt`. So `Core\Str::length`, never `Core\Str::len`.
+
+Abbreviation is where a naming convention stops being mechanical: PHP resolved it separately for every
+function and produced `strlen` beside `str_word_count`. A closed list at the class level and no discretion
+at the member level removes the judgement call entirely, at the cost of a few extra characters at every
+call site.
+
+<sub>See also [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`core-api/a-domain-class-is-a-singular-noun`](core-api.md#core-api-a-domain-class-is-a-singular-noun). Decided in [0063](../decisions/0063.md), [0011](../decisions/0011.md).</sub>
 
 <a id="core-api-identifier-casing"></a>
 
@@ -740,26 +385,6 @@ PHP's omission provably means `public`.
 
 <sub>See also [`core-api/a-parameter-is-not-a-member`](core-api.md#core-api-a-parameter-is-not-a-member), [`core-api/asymmetric-visibility-is-a-pair`](core-api.md#core-api-asymmetric-visibility-is-a-pair), [`core-api/legacy-property-shapes-name-the-visibility`](core-api.md#core-api-legacy-property-shapes-name-the-visibility), [`classes/interface-private-methods`](classes.md#classes-interface-private-methods), [`classes/property-hooks`](classes.md#classes-property-hooks), [`types/declaration`](types.md#types-declaration). Decided in [0094](../decisions/0094.md), [0043](../decisions/0043.md), [0029](../decisions/0029.md).</sub>
 
-<a id="core-api-a-parameter-is-not-a-member"></a>
-
-## A constructor parameter is not a member, because visibility is what promotes one
-
-`rule:core-api/a-parameter-is-not-a-member`
-
-A constructor parameter carrying no visibility is a plain parameter, complete and correct, and the
-missing-visibility error does not fire on it.
-
-Visibility on a constructor parameter is not decoration — it *is* the promotion syntax. `function
-constructor(int $n)` declares a parameter; `function constructor(public int $n)` declares a property.
-Requiring a keyword on every parameter would delete the distinction, so the rule
-([`core-api/written-visibility`](core-api.md#core-api-written-visibility)) is scoped to members. A promoted parameter is a member and is
-therefore already written.
-
-This is the negative case the rule could most plausibly break, which is why it is stated rather than left
-to follow from the word "member".
-
-<sub>See also [`core-api/written-visibility`](core-api.md#core-api-written-visibility), [`classes/promotion-is-constructor-only`](classes.md#classes-promotion-is-constructor-only). Decided in [0094](../decisions/0094.md).</sub>
-
 <a id="core-api-asymmetric-visibility-is-a-pair"></a>
 
 ## An asymmetric property writes both halves, so a bare `private(set)` does not compile
@@ -798,31 +423,489 @@ one thing they need to change.
 
 <sub>See also [`core-api/written-visibility`](core-api.md#core-api-written-visibility), [`classes/no-dynamic-properties`](classes.md#classes-no-dynamic-properties), [`types/var-inference`](types.md#types-var-inference). Decided in [0094](../decisions/0094.md), [0037](../decisions/0037.md).</sub>
 
-<a id="core-api-reference-card"></a>
+<a id="core-api-a-parameter-is-not-a-member"></a>
 
-## An implemented `Core` member carries its reference card in the registry declaration beside its code
+## A constructor parameter is not a member, because visibility is what promotes one
 
-`rule:core-api/reference-card`
+`rule:core-api/a-parameter-is-not-a-member`
 
-An implemented `Core` member's reference documentation lives in its registry declaration, next to the code
-it documents: a short description of one or two sentences, a name and description per parameter — and for a
-shape-typed parameter, each key's type and description — a return description, and a list of thrown errors,
-each described. An enum carries a card of its own with one line per case, and a constant carries one
-sentence, since a constant has a value and no signature.
+A constructor parameter carrying no visibility is a plain parameter, complete and correct, and the
+missing-visibility error does not fire on it.
 
-The registry is the one artifact that provably matches shipped behaviour, because it is the data the
-runtime dispatches on; and it already has to carry every parameter's name
-([`core-api/parameters-are-callable-by-name`](core-api.md#core-api-parameters-are-callable-by-name)), so a documentation scheme that put descriptions anywhere
-else would create the duplicate that name guard exists to prevent. **Every row carries its card** — a
-member without one fails the crate's tests, so a member lands documented or does not land.
+Visibility on a constructor parameter is not decoration — it *is* the promotion syntax. `function
+constructor(int $n)` declares a parameter; `function constructor(public int $n)` declares a property.
+Requiring a keyword on every parameter would delete the distinction, so the rule
+([`core-api/written-visibility`](core-api.md#core-api-written-visibility)) is scoped to members. A promoted parameter is a member and is
+therefore already written.
 
-Extended prose is deliberately excluded. Long-form text inside Rust string literals is the worst reading
-surface available, so anything beyond the reference card stays in the website's pages. The cost is static
-strings in the binary — per process, not per request, on the order of a few hundred bytes per documented
-member — which is the cheap side of the trade and strippable behind a build feature if a deployment ever
-cares.
+This is the negative case the rule could most plausibly break, which is why it is stated rather than left
+to follow from the word "member".
 
-<sub>See also [`core-api/field-wise-precedence`](core-api.md#core-api-field-wise-precedence), [`core-api/parameters-are-callable-by-name`](core-api.md#core-api-parameters-are-callable-by-name), [`core-api/shape-parameter`](core-api.md#core-api-shape-parameter). Decided in [0117](../decisions/0117.md), [0011](../decisions/0011.md), [0051](../decisions/0051.md), [0063](../decisions/0063.md).</sub>
+<sub>See also [`core-api/written-visibility`](core-api.md#core-api-written-visibility), [`classes/promotion-is-constructor-only`](classes.md#classes-promotion-is-constructor-only). Decided in [0094](../decisions/0094.md).</sub>
+
+<a id="core-api-written-participation"></a>
+
+## A class participates in a wire format only where it writes so, never structurally
+
+`rule:core-api/written-participation`
+
+A class takes part in a wire format only where it says so. JSON encoding and decoding go through one
+explicit interface declaring both halves — an instance method that produces the document and a static that
+reconstructs the class from one — or through a written `#[Json\Derive]` that generates both from the
+class's declared properties. There is no magic hook.
+
+**Structural** encoding of a class's public properties is refused. It makes the public shape an implicit
+wire contract that a rename breaks with no diagnostic, and it needs an opt-out mechanism, which is a magic
+hook under another name. A written attribute is not that: the participation is visible at the declaration,
+and a `secret` property is refused there rather than silently omitted from the output. An inline shape
+([`types/object-top`](types.md#types-object-top)) is the one value that needs neither, because it has no declaration to carry
+either — it encodes as an object keyed by its field names.
+
+The decode half is part of the same contract, which is what `JsonSerializable` lacks and why every PHP
+project hand-writes hydration.
+
+<sub>See also [`core-api/required-optional-and-nullable`](core-api.md#core-api-required-optional-and-nullable), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`classes/serialize-is-a-closed-format`](classes.md#classes-serialize-is-a-closed-format), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`types/object-top`](types.md#types-object-top). Decided in [0063](../decisions/0063.md), [0071](../decisions/0071.md), [0028](../decisions/0028.md), [0033](../decisions/0033.md).</sub>
+
+<a id="core-api-qualifier-behaviour-is-declared"></a>
+
+## Every `Core` member declares whether it is a sink, a launderer, contagious or neutral
+
+`rule:core-api/qualifier-behaviour-is-declared`
+
+Every `Core` member states, as a column of its signature rather than as a footnote, whether it is a
+**sink** — it refuses `tainted` or `secret` — a **launderer**, whose contract names the sink it launders
+for, **contagious**, where a qualified argument produces a qualified result, or **neutral**.
+
+Taint tracking and the extension qualifier declarations both rest on that classification being *total*: a
+member added without one is an incomplete member, not a member with a default. The classification lands on
+the narrowest thing that has one, so for a shape parameter it is on the individual field rather than on the
+parameter — a settings shape whose `host` is a sink classifies that field, while the parameter as a whole
+classifies nothing ([`core-api/shape-flattens-at-the-abi`](core-api.md#core-api-shape-flattens-at-the-abi)).
+
+What this buys is that a reviewer reads authority off the call site: whether an argument may carry
+attacker-controlled data is a property of the member being called, visible in its entry, and a member with
+no answer fails the build rather than being assumed neutral.
+
+<sub>See also [`core-api/shape-flattens-at-the-abi`](core-api.md#core-api-shape-flattens-at-the-abi), [`core-api/tier-placement`](core-api.md#core-api-tier-placement). Decided in [0063](../decisions/0063.md), [0024](../decisions/0024.md), [0055](../decisions/0055.md), [0135](../decisions/0135.md).</sub>
+
+<a id="core-api-nothing-mutates"></a>
+
+## No `Core` member mutates its argument and none takes a reference
+
+`rule:core-api/nothing-mutates`
+
+No `Core` member mutates an argument and none takes a reference. There is no `inout $out`, no
+out-parameter and no in-place variant of anything; the result is the return value.
+
+Copy-on-write makes this free rather than expensive: an argument whose refcount is 1 is mutated in place by
+the implementation, which is exactly what PHP's own `sort()` does after its own copy-on-write check. What a
+second, by-reference spelling would buy is the aliasing rules this removes, and it would cost a second name
+for one operation ([`core-api/one-name-one-signature`](core-api.md#core-api-one-name-one-signature)).
+
+The cost is real and is paid at every mutation site: `$a = Arr::sort($a);` is three characters longer than
+`sort($a);` and reads as a copy even though it is not one. A program that genuinely wants by-reference
+argument passing has `inout` ([`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling)), which no `Core` member
+uses.
+
+<sub>See also [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`core-api/no-mutable-immutable-twins`](core-api.md#core-api-no-mutable-immutable-twins), [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling). Decided in [0063](../decisions/0063.md).</sub>
+
+<a id="core-api-no-mutable-immutable-twins"></a>
+
+## Every `Core` value type is immutable, so no mutable twin exists to choose between
+
+`rule:core-api/no-mutable-immutable-twins`
+
+Every `Core` value type is immutable, so there is no mutable twin to choose between. There is no
+`DateTime`/`DateTimeImmutable` pair, and no member returns a mutable view of a value type.
+
+PHP's pair exists because its original type was mutable and the fix could not remove it; a language writing
+its library once does not inherit that. Immutability also removes the question [`core-api/nothing-mutates`](core-api.md#core-api-nothing-mutates)
+would otherwise have to answer twice — a value type with no mutator has no in-place variant to argue about
+— and it means a value handed to another request-scoped object cannot be changed underneath it.
+
+The cost is that every derivation allocates a new value, which copy-on-write makes cheap for the array-
+and string-shaped ones and genuinely a copy for the small structs, where it is a few words.
+
+<sub>See also [`core-api/nothing-mutates`](core-api.md#core-api-nothing-mutates), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation), [`classes/two-copy-depths`](classes.md#classes-two-copy-depths). Decided in [0063](../decisions/0063.md).</sub>
+
+<a id="core-api-no-ambient-state"></a>
+
+## No `Core` member reads ambient state: there is no default timezone, locale, array pointer or error global
+
+`rule:core-api/no-ambient-state`
+
+No `Core` member reads state the call site did not give it. There is no process or per-request default
+timezone, no locale, no internal array pointer and no error global; a thread-per-core runtime cannot have
+any of them without leaking one request's setting into the next.
+
+So a `Zone` is an explicit argument at every instant↔calendar conversion, translation takes its locale as
+an argument, and the members that would have read a global read a parameter instead. The same argument that
+refuses `setlocale` — process-wide C state that silently changes what a later call answers — refuses every
+smaller version of it.
+
+The cost is stated rather than hidden: every date formatting call names a zone, which is correct and is more
+typing than PHP for the common case. What it buys is that a member's answer is a function of its arguments,
+which is also what makes a call reviewable and a compile-time fold possible.
+
+<sub>See also [`core-api/removals`](core-api.md#core-api-removals), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global). Decided in [0063](../decisions/0063.md), [0051](../decisions/0051.md).</sub>
+
+<a id="core-api-failure-throws"></a>
+
+## A `Core` member throws on failure and returns `?T` for absence; `false` is never an answer
+
+`rule:core-api/failure-throws`
+
+A `Core` member signals failure by throwing. `false` is never returned to mean failure, no member returns
+an error code, and there are no error globals — no `json_last_error`, no `error_get_last`. A `?T` return
+means something else entirely: that the absence is an ordinary, expected outcome the caller should handle,
+not that something went wrong.
+
+`strpos()` returning `0|false` is PHP's most productive single bug source, and the union types that make it
+expressible here also make it unnecessary: the two outcomes are already two different things in the type,
+so collapsing them into one return value buys nothing. A member's verb tells the caller which of the two it
+is ([`core-api/verb-lexicon`](core-api.md#core-api-verb-lexicon)) before the signature is read.
+
+The cost is that a converted program's error handling has to be rewritten rather than translated: a
+`if ($r === false)` has no mechanical equivalent, because the information it tested for now arrives as a
+throw the caller must decide where to catch.
+
+<sub>See also [`core-api/verb-lexicon`](core-api.md#core-api-verb-lexicon), [`core-api/one-refusal-except-expiry`](core-api.md#core-api-one-refusal-except-expiry), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy), [`expressions/nullable-conversion-availability`](expressions.md#expressions-nullable-conversion-availability). Decided in [0063](../decisions/0063.md).</sub>
+
+<a id="core-api-one-paradigm-per-operation"></a>
+
+## No operation is reachable two ways, and a domain class's statics never mirror an object's own methods
+
+`rule:core-api/one-paradigm-per-operation`
+
+One operation is reachable exactly one way. A stateless operation is a static method on a domain class;
+anything with identity or a lifetime is an object ([`core-api/a-lifetime-is-an-object`](core-api.md#core-api-a-lifetime-is-an-object)). Nothing is
+reachable both ways — there is no procedural twin of a class API and no class wrapper around a static one —
+and a domain class's static members never mirror an object's own methods: `Time::format($instant, $fmt)`
+may not exist beside `$instant->format($fmt)`.
+
+This is what closes PHP's second and less visible duplication axis, the one a function list cannot show:
+every `date_*` function aliasing a `DateTime` method, every `intl` class with a procedural twin, `mysqli`
+existing entirely twice. A tree API and a streaming reader over the same data are *different jobs* rather
+than twins, and the spec says so explicitly where that could be misread.
+
+**An operator is syntax, not a second API, and is never counted here** — `instanceof`, `as ?T` and the
+pipeline ([`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution)) reach the same member through the same call and add
+nothing to reach. The one genuinely reachable two-spellings case is a compile error: a `Core` *instance*
+member written as a static call is refused, because such a member's receiver travels in argument slot 0 and
+would otherwise pass the same arity check the instance call passes.
+
+<sub>See also [`core-api/no-methods-on-scalars-or-arrays`](core-api.md#core-api-no-methods-on-scalars-or-arrays), [`core-api/no-mutable-immutable-twins`](core-api.md#core-api-no-mutable-immutable-twins), [`core-api/each-door-takes-a-different-thing`](core-api.md#core-api-each-door-takes-a-different-thing), [`classes/no-call-magic`](classes.md#classes-no-call-magic), [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution). Decided in [0063](../decisions/0063.md), [0051](../decisions/0051.md), [0122](../decisions/0122.md).</sub>
+
+<a id="core-api-no-methods-on-scalars-or-arrays"></a>
+
+## A scalar and an `array<T>` never gain methods
+
+`rule:core-api/no-methods-on-scalars-or-arrays`
+
+A scalar and an `array<T>` never gain methods. There is no `$s->length()` and no `$a->map()`; `Core\Str`
+and `Core\Arr` are the one spelling for both.
+
+The alternative is a second surface that grows in parallel with the first forever, which is how the twin
+problem regrows after it has been removed once. Keeping the operations on the domain class also keeps them
+where the subject-first rule ([`core-api/subject-first`](core-api.md#core-api-subject-first)) puts them, so a reader learns one call shape
+rather than two. Member access on a value that has no members is refused where it is written
+([`types/erased-member-access`](types.md#types-erased-member-access)).
+
+<sub>See also [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0063](../decisions/0063.md).</sub>
+
+<a id="core-api-no-mode-strings"></a>
+
+## A mode is an enum, never a string or an integer constant, and only four grammars are exempt
+
+`rule:core-api/no-mode-strings`
+
+A member never takes a mode as a string or as an integer constant. There is no `fopen($p, "r+b")`, no
+`hash("sha256", …)`, no `MB_CASE_TITLE`. A mode is an enum ([`enums/closed-integer-type`](enums.md#enums-closed-integer-type)), always, and
+where a member accepts only some of an enum's cases it declares that closed subset in the signature
+([`types/literal-types`](types.md#types-literal-types)) so an unsafe case is a compile error naming the reason.
+
+A **grammar** is not a mode string and is not covered. A regex pattern, a `printf` template, a CLDR date
+pattern and a `pack` format each express something no enum can, and all four are compile-time-checked
+intrinsics ([`expressions/intrinsic-literals`](expressions.md#expressions-intrinsic-literals)). There are exactly four, and the list is closed.
+
+The gain is that every mode is typo-proof, completable in an editor and exhaustively matchable. The cost is
+one enum declaration per mode family, which is also what makes them documentable one case at a time
+([`core-api/reference-card`](core-api.md#core-api-reference-card)).
+
+<sub>See also [`core-api/units-are-types`](core-api.md#core-api-units-are-types), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`types/literal-types`](types.md#types-literal-types), [`expressions/intrinsic-literals`](expressions.md#expressions-intrinsic-literals). Decided in [0063](../decisions/0063.md).</sub>
+
+<a id="core-api-units-are-types"></a>
+
+## A unit is a type: a duration is a `Duration` and a size is `uint` bytes
+
+`rule:core-api/units-are-types`
+
+A quantity carrying a unit is a type, not a number with a convention attached. A duration is a `Duration`,
+never "seconds here and microseconds there"; a byte size is a `uint` count of bytes and says so.
+
+PHP's `sleep`/`usleep`/`time_nanosleep` split is a units bug waiting for a refactor to find it, and a
+signature that takes an `int` cannot tell a caller which scale it wanted. A `Duration` takes the question
+out of the call site: it is constructed from the unit it is written in (`Duration::seconds`), it parses
+from a written grammar ([`types/duration-literal`](types.md#types-duration-literal)), and every member taking a timeout takes exactly
+that type. The cost is one construction at each call site that would otherwise have passed a bare integer.
+
+<sub>See also [`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings), [`types/duration-literal`](types.md#types-duration-literal). Decided in [0063](../decisions/0063.md).</sub>
+
+<a id="core-api-no-encoding-argument"></a>
+
+## A `string` member never takes an encoding argument
+
+`rule:core-api/no-encoding-argument`
+
+No member taking a `string` takes an encoding argument. UTF-8 is the type's guarantee
+([`types/string-is-utf8`](types.md#types-string-is-utf8)), so there is nothing for such an argument to select.
+
+All conversion happens at the `bytes`↔`string` boundary, in `Core\Encoding`, where it can fail honestly:
+decoding arbitrary bytes into a `string` is the operation that can go wrong, and it is the one that says
+so. This is what removes PHP's entire `mb_*` twin set — every function that exists twice because the
+single-byte version cannot be trusted — rather than reproducing it under new names.
+
+The cost lands on programs that genuinely handle non-UTF-8 text: they hold `bytes`
+([`types/bytes`](types.md#types-bytes)) until they have decided what the encoding is, and the decision is written where it is
+made instead of defaulted per call.
+
+<sub>See also [`types/string-is-utf8`](types.md#types-string-is-utf8), [`types/bytes`](types.md#types-bytes). Decided in [0063](../decisions/0063.md), [0051](../decisions/0051.md).</sub>
+
+<a id="core-api-one-range-convention"></a>
+
+## Every range is `(offset, ?length)`, and a negative counts from the end
+
+`rule:core-api/one-range-convention`
+
+Every member taking a range takes `(offset, ?length)`, and `Core\Str` and `Core\Arr` share the convention
+exactly. A negative offset counts from the end; a negative length stops that many elements from the end; a
+`null` length runs to the end.
+
+Stated once and never varied, this is one thing to learn instead of one per member. It is also what lets a
+reader move between the string and the array class without re-checking whether a second argument is a
+length or an end position — the question `substr` and `array_slice` answer the same way and `str_split`
+does not.
+
+<sub>See also [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`types/preserve-keys`](types.md#types-preserve-keys). Decided in [0063](../decisions/0063.md).</sub>
+
+<a id="core-api-callback-receives-value-and-key"></a>
+
+## A callback always receives `($value, $key)`, and may declare fewer parameters than the call site passes
+
+`rule:core-api/callback-receives-value-and-key`
+
+A callback a `Core` member invokes always receives `($value, $key)`, in that order, and a closure may
+declare fewer parameters than the call site passes ([`types/callable-arity`](types.md#types-callable-arity)). A closure wanting only
+the value writes one parameter and never sees the key.
+
+This kills the whole `ARRAY_FILTER_USE_KEY`/`ARRAY_FILTER_USE_BOTH` flag family, which exists in PHP only
+because its callbacks have a fixed arity, and it removes the need for `map`/`mapWithKey` pairs that would
+otherwise violate [`core-api/one-name-one-signature`](core-api.md#core-api-one-name-one-signature). The order is value-first because that is the
+argument almost every callback uses, so the common closure is `fn($v)` with nothing to skip.
+
+<sub>See also [`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings), [`types/callable-arity`](types.md#types-callable-arity), [`types/callable-is-a-closure`](types.md#types-callable-is-a-closure). Decided in [0063](../decisions/0063.md).</sub>
+
+<a id="core-api-parameters-are-callable-by-name"></a>
+
+## Every `Core` parameter is callable by the name the spec writes, and that name is compatibility surface
+
+`rule:core-api/parameters-are-callable-by-name`
+
+Every parameter of every `Core` member may be written by name at the call site — the `$name` the spec's
+signature column writes, and the trailing bag under the one name `options` — under exactly the rules a
+user-declared method's parameters follow ([`types/arrays`](types.md#types-arrays)): written order is evaluation order, a name
+fills its own slot, a defaulted parameter may be skipped, a positional after a name is refused, and a name
+never reaches a variadic tail.
+
+A parameter's **name is compatibility surface**, versioned where its type is, so renaming one is a
+breaking change. That is the price of the feature and it is paid deliberately: the spec has published
+every parameter name since it was written, so the surface was already public, and a surface a user's own
+method has that a `Core` member lacks is one more rule to learn. The name lives once, on the registry row
+beside the type, and the reference card looks it up rather than repeating it
+([`core-api/reference-card`](core-api.md#core-api-reference-card)). Nothing on the request path changes — a `name:` resolves while checking
+and the helper ABI is untouched.
+
+<sub>See also [`core-api/options-bag`](core-api.md#core-api-options-bag), [`core-api/reference-card`](core-api.md#core-api-reference-card), [`types/arrays`](types.md#types-arrays). Decided in [0063](../decisions/0063.md), [0117](../decisions/0117.md).</sub>
+
+<a id="core-api-options-bag"></a>
+
+## A member's optional knobs are one trailing shape literal, never a flag or a bitmask
+
+`rule:core-api/options-bag`
+
+After the subject come the required arguments in dataflow order, and then **at most one** trailing optional
+shape literal — an object literal ([`types/object-top`](types.md#types-object-top)) declared as a `type` alias. There are no `bool`
+flag parameters, no `int` bitmasks, and no positional optional tail longer than one.
+
+The bag is the home of every optional knob because it is named, order-free and structurally checked, and a
+bag written entirely from compile-time constants folds to a constant. It also flattens at the call site
+into one argument per declared field ([`core-api/shape-flattens-at-the-abi`](core-api.md#core-api-shape-flattens-at-the-abi)), so nothing is allocated
+to carry it. A bag field may be nullable, and where it is, leaving the key out and writing `null` into it
+are two different requests ([`core-api/omission-is-not-a-written-null`](core-api.md#core-api-omission-is-not-a-written-null)).
+
+The cost is that a bag's keys are declared and fixed: a member that must take a key whose *name* is chosen
+at run time needs a second member taking a `string`, which is why `Core\Uri` carries both `with` and a
+query-parameter pair rather than one member doing both.
+
+<sub>See also [`core-api/parameters-are-callable-by-name`](core-api.md#core-api-parameters-are-callable-by-name), [`core-api/shape-parameter`](core-api.md#core-api-shape-parameter), [`core-api/omission-is-not-a-written-null`](core-api.md#core-api-omission-is-not-a-written-null), [`types/object-top`](types.md#types-object-top). Decided in [0063](../decisions/0063.md), [0147](../decisions/0147.md), [0135](../decisions/0135.md).</sub>
+
+<a id="core-api-required-optional-and-nullable"></a>
+
+## Required, optional and nullable are three separate questions: nullability belongs to the type and optionality to the default  *(designed — not yet in the compiler)*
+
+`rule:core-api/required-optional-and-nullable`
+
+"Does `?T` mean the key may be absent, or that `null` is a legal value?" has a better answer than choosing:
+they are separate questions, and both already have a spelling.
+
+| Declaration | Key absent | Key present as `null` |
+|---|---|---|
+| `T $x` | an issue: required field missing | an issue: `null` is not permitted |
+| `?T $x` | an issue: required field missing | accepted, decodes to `null` |
+| `T $x = <default>` | accepted, the default is used | an issue: `null` is not permitted |
+| `?T $x = null` | accepted, `null` is used | accepted, decodes to `null` |
+
+Nullability is a property of the **type** and optionality is a property of the constructor parameter's
+**default**; neither borrows the other's meaning. Encoding is the plain inverse: every field is always
+emitted, including a `null` one. There is no omit-when-null option, because an asymmetric encoder is a
+round-trip bug that only shows up in the value that happens to be absent — and adding one later, conditioned
+on the field having a default, is purely additive.
+
+**Designed, not shipped.** `crates/nvs-stdlib/src/json.rs` records that the two default-bearing rows are
+unimplemented: an absent key is always *required field missing*, because a default is evaluated into a
+constant the *call site* emits and a native decoder is not a call site.
+
+<sub>See also [`core-api/written-participation`](core-api.md#core-api-written-participation), [`core-api/omission-is-not-a-written-null`](core-api.md#core-api-omission-is-not-a-written-null), [`core-api/the-marker-never-reaches-a-program`](core-api.md#core-api-the-marker-never-reaches-a-program), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0071](../decisions/0071.md), [0063](../decisions/0063.md).</sub>
+
+<a id="core-api-omission-is-not-a-written-null"></a>
+
+## An options bag tells an omitted key from a written `null`  *(designed — not yet in the compiler)*
+
+`rule:core-api/omission-is-not-a-written-null`
+
+A call site's two ways of not giving an options-bag field a value are two different requests. `{}` leaves a
+component alone; `{fragment: null}` removes it ([`core-api/a-written-null-removes`](core-api.md#core-api-a-written-null-removes)). Before this, an
+omitted field arrived at the helper as a null and a written null arrived as the same null, so a field that
+could itself hold one was unusable and every bag field had to be non-nullable.
+
+The mechanism is a constant rather than a sentinel: an omitted **nullable** field materializes a
+never-written marker instead of a null ([`core-api/a-nullable-field-omits-as-the-never-written-marker`](core-api.md#core-api-a-nullable-field-omits-as-the-never-written-marker)),
+so the helper reads three states out of one argument and the flattening is untouched
+([`core-api/the-bag-abi-is-unchanged`](core-api.md#core-api-the-bag-abi-is-unchanged)). An in-band marker — `""`, a magic string, a reserved constant —
+is a value the field's own type admits, so user data can arrive as one by accident; that is the bug class
+this removes rather than relocates.
+
+**Designed, not shipped.** `crates/nvs-stdlib/src/registry.rs` still holds the old invariant, under the
+guards `a_shape_field_is_never_nullable` and `a_union_option_excludes_null`, so no bag field is nullable
+today and `Core\Uri::with` still has no clearing spelling.
+
+<sub>See also [`core-api/a-nullable-field-omits-as-the-never-written-marker`](core-api.md#core-api-a-nullable-field-omits-as-the-never-written-marker), [`core-api/a-written-null-removes`](core-api.md#core-api-a-written-null-removes), [`core-api/the-bag-abi-is-unchanged`](core-api.md#core-api-the-bag-abi-is-unchanged), [`core-api/options-bag`](core-api.md#core-api-options-bag). Decided in [0147](../decisions/0147.md), [0063](../decisions/0063.md), [0135](../decisions/0135.md), [0022](../decisions/0022.md).</sub>
+
+<a id="core-api-a-nullable-field-omits-as-the-never-written-marker"></a>
+
+## A bag or shape field is nullable exactly when its omission fills the never-written marker  *(designed — not yet in the compiler)*
+
+`rule:core-api/a-nullable-field-omits-as-the-never-written-marker`
+
+A field of an options bag or of a shape arm carries a default, and that default is what an omitting call
+site materializes. Three declarations, three behaviours:
+
+| Declaration | Key absent | Key present as `null` |
+|---|---|---|
+| no default | a compile error: required key missing | a compile error: `null` is not of the field's type |
+| a default, non-nullable type | the default is materialized | a compile error: `null` is not of the field's type |
+| a default, **nullable** type | the never-written marker is materialized | `null` is materialized |
+
+Only the third row is new, and the rule that holds it is a **pairing**: a field admitting `null` — a
+nullable, a union with a null arm, or a `mixed`, which admits one without spelling it — is admitted exactly
+when its default is the never-written marker, and a field not admitting `null` is admitted exactly when its
+default is a null or a literal. A registry row getting the pairing wrong fails the build.
+
+The pairing is what makes "filled" readable at all: the constant standing for *omitted* has to be one no
+written value can also be, or the two states collapse again.
+
+**Designed, not shipped.** The guards in `crates/nvs-stdlib/src/registry.rs` still assert the old, stronger
+invariant that no such field is ever nullable.
+
+<sub>See also [`core-api/omission-is-not-a-written-null`](core-api.md#core-api-omission-is-not-a-written-null), [`core-api/the-marker-never-reaches-a-program`](core-api.md#core-api-the-marker-never-reaches-a-program), [`core-api/shape-flattens-at-the-abi`](core-api.md#core-api-shape-flattens-at-the-abi). Decided in [0147](../decisions/0147.md), [0135](../decisions/0135.md), [0022](../decisions/0022.md).</sub>
+
+<a id="core-api-a-written-null-removes"></a>
+
+## Wherever a `Core` member admits a written `null` it means remove, and `""` is never a removal spelling  *(designed — not yet in the compiler)*
+
+`rule:core-api/a-written-null-removes`
+
+Wherever a `Core` member admits a written `null` — a bag field or an ordinary argument — it means
+**remove**. Clear, delete, not present in the result. It never means "restore a default", never selects an
+alternative behaviour, and is never a flag under another name. An **omitted** key means the receiver's
+existing value is carried through unchanged.
+
+The position the `null` arrives in is incidental to what it means, which is why the rule is stated over a
+member rather than over a bag field. A query builder that drops a pair whose value is `null` already
+behaved this way before the rule existed — the only behaviour that round-trips, since a query string cannot
+spell an absent value — and that it was arrived at independently is the best evidence it is right.
+
+The rule's teeth are that **an input is made nullable only where removal is something the member can
+actually do.** A member with no removal to offer keeps its non-nullable field, and writing `null` into it
+stays the compile error it is today, so the nullability in a signature *is* the announcement that the thing
+can be cleared and a caller reads it off the type rather than off prose. `""` is never a removal spelling
+on any member: it is a legal value of most of these fields and is already distinguishable — an empty query
+is not an absent one — so overloading it would reinstate the in-band sentinel this removes.
+
+**Designed, not shipped.** `crates/nvs-stdlib/src/uri.rs`'s `written` helper still records the opposite:
+with no second null to spend, `with` replaces and never removes.
+
+<sub>See also [`core-api/omission-is-not-a-written-null`](core-api.md#core-api-omission-is-not-a-written-null), [`core-api/a-lifetime-is-written`](core-api.md#core-api-a-lifetime-is-written), [`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings). Decided in [0147](../decisions/0147.md), [0063](../decisions/0063.md).</sub>
+
+<a id="core-api-the-marker-never-reaches-a-program"></a>
+
+## The never-written marker is not in the type system and is never handed to user code  *(designed — not yet in the compiler)*
+
+`rule:core-api/the-marker-never-reaches-a-program`
+
+The never-written marker is not a value a program can hold, observe or name. It is **not in the type
+system** — a nullable field's declared type does not contain it, no expression evaluates to one, and the
+call site that "writes" it writes nothing at all while the compiler materializes the fill. It is **never
+handed to user code**: its only reader is the native helper behind the member, which turns it into the
+member's own behaviour before anything returns, and a helper that fails to handle it is a contract
+violation in this repository's own code rather than a wrong answer given to a program. And it is
+**transient**: it exists for the duration of the call that materialized it, is consumed by the helper, and
+is never stored, returned or reachable from a value a program holds.
+
+A **user-declared** function's optional parameter is unchanged, deliberately. `?int $x = null` in program
+source still cannot tell an omitted argument from a written `null`, because closing that would need a
+spelling for asking the question — an `isset` on a parameter, or a third state a program can observe — and
+that is a language-surface decision this one does not open. A native helper can be held to reading three
+states by a test; a user's function body cannot be, and giving it a state it has no way to name would be
+exactly the observable marker this rule refuses.
+
+<sub>See also [`core-api/a-nullable-field-omits-as-the-never-written-marker`](core-api.md#core-api-a-nullable-field-omits-as-the-never-written-marker), [`core-api/the-bag-abi-is-unchanged`](core-api.md#core-api-the-bag-abi-is-unchanged), [`core-api/required-optional-and-nullable`](core-api.md#core-api-required-optional-and-nullable). Decided in [0147](../decisions/0147.md), [0022](../decisions/0022.md).</sub>
+
+<a id="core-api-the-bag-abi-is-unchanged"></a>
+
+## The three-state bag changes which constant fills a slot and nothing else about the ABI  *(designed — not yet in the compiler)*
+
+`rule:core-api/the-bag-abi-is-unchanged`
+
+The three-state bag changes *which constant fills one slot, for one kind of field*, and nothing else. A bag
+is still one ABI argument per declared field, no runtime representation of a shape exists, and no helper
+learns a new calling convention ([`core-api/shape-flattens-at-the-abi`](core-api.md#core-api-shape-flattens-at-the-abi)).
+
+The marker reused is the never-written storage state that already exists for definite-initialization
+analysis: already defined as distinct from every legal value including null, already costing **zero
+additional bytes** because it is one more discriminant on a representation that carries one, and already
+non-refcounted, so it raises no ownership question at a call boundary. Reaching it from a call site costs
+one constant-argument variant, one instruction constant beside the null one, and the codegen arm that
+writes the tag byte.
+
+What it spends ([`programs/memory-priority`](programs.md#programs-memory-priority)): **nothing per request and nothing per call** — the
+omitting call site emits one constant either way. A non-nullable field is unaffected in every respect, so
+every member registered today lowers to the same instructions and nothing needs migrating.
+
+**Designed, not shipped.** `crates/nvs-runtime/src/value.rs` carries the marker tag; no call site
+materializes it.
+
+<sub>See also [`core-api/shape-flattens-at-the-abi`](core-api.md#core-api-shape-flattens-at-the-abi), [`core-api/a-nullable-field-omits-as-the-never-written-marker`](core-api.md#core-api-a-nullable-field-omits-as-the-never-written-marker), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0147](../decisions/0147.md), [0135](../decisions/0135.md), [0022](../decisions/0022.md).</sub>
 
 <a id="core-api-field-wise-precedence"></a>
 
@@ -894,6 +977,27 @@ is written, naming the arm's own key set rather than the merged one.
 
 <sub>See also [`core-api/shape-parameter`](core-api.md#core-api-shape-parameter), [`core-api/shape-reuses-the-option-diagnostics`](core-api.md#core-api-shape-reuses-the-option-diagnostics), [`types/literal-types`](types.md#types-literal-types), [`types/enum-case-type`](types.md#types-enum-case-type). Decided in [0135](../decisions/0135.md), [0047](../decisions/0047.md), [0067](../decisions/0067.md).</sub>
 
+<a id="core-api-one-checked-shape-type"></a>
+
+## The options bag and the shape parameter are two registry spellings of one checked type
+
+`rule:core-api/one-checked-shape-type`
+
+The trailing options bag and the fixed-key shape parameter are two registry spellings that intern into
+**one** checked type — a per-field required flag over an ordered field list — so the exact-key check, the
+flatten and the diagnostics are written once and every existing behaviour of the bag is the all-optional
+special case of the general one.
+
+The variant is named for the general use rather than the narrower one, because a name taken from half of
+what a type does is wrong in the other half. The reference card needs no widening either: it is already one
+entry per key, and for a union it lists the merged key set in ABI order with each key's description saying
+which arm it belongs to ([`core-api/reference-card`](core-api.md#core-api-reference-card)).
+
+The cost was a rename touching the interner, the checker, the lowering and the metadata command, and that
+was the whole of the churn.
+
+<sub>See also [`core-api/shape-parameter`](core-api.md#core-api-shape-parameter), [`core-api/options-bag`](core-api.md#core-api-options-bag), [`core-api/reference-card`](core-api.md#core-api-reference-card). Decided in [0135](../decisions/0135.md), [0063](../decisions/0063.md).</sub>
+
 <a id="core-api-shape-flattens-at-the-abi"></a>
 
 ## A shape argument flattens into one argument per field of the merged list, so no shape exists at run time
@@ -921,27 +1025,6 @@ A qualifier classification lands on the **field**, not the parameter
 
 <sub>See also [`core-api/shape-parameter`](core-api.md#core-api-shape-parameter), [`core-api/the-bag-abi-is-unchanged`](core-api.md#core-api-the-bag-abi-is-unchanged), [`core-api/qualifier-behaviour-is-declared`](core-api.md#core-api-qualifier-behaviour-is-declared), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0135](../decisions/0135.md), [0063](../decisions/0063.md), [0067](../decisions/0067.md), [0024](../decisions/0024.md).</sub>
 
-<a id="core-api-one-checked-shape-type"></a>
-
-## The options bag and the shape parameter are two registry spellings of one checked type
-
-`rule:core-api/one-checked-shape-type`
-
-The trailing options bag and the fixed-key shape parameter are two registry spellings that intern into
-**one** checked type — a per-field required flag over an ordered field list — so the exact-key check, the
-flatten and the diagnostics are written once and every existing behaviour of the bag is the all-optional
-special case of the general one.
-
-The variant is named for the general use rather than the narrower one, because a name taken from half of
-what a type does is wrong in the other half. The reference card needs no widening either: it is already one
-entry per key, and for a union it lists the merged key set in ABI order with each key's description saying
-which arm it belongs to ([`core-api/reference-card`](core-api.md#core-api-reference-card)).
-
-The cost was a rename touching the interner, the checker, the lowering and the metadata command, and that
-was the whole of the churn.
-
-<sub>See also [`core-api/shape-parameter`](core-api.md#core-api-shape-parameter), [`core-api/options-bag`](core-api.md#core-api-options-bag), [`core-api/reference-card`](core-api.md#core-api-reference-card). Decided in [0135](../decisions/0135.md), [0063](../decisions/0063.md).</sub>
-
 <a id="core-api-shape-reuses-the-option-diagnostics"></a>
 
 ## A shape key reuses the options bag's two diagnostics, and a missing required key is an ordinary type mismatch
@@ -963,135 +1046,47 @@ decision.
 
 <sub>See also [`core-api/shape-arms-are-disjoint`](core-api.md#core-api-shape-arms-are-disjoint), [`core-api/one-checked-shape-type`](core-api.md#core-api-one-checked-shape-type), [`types/shape-type`](types.md#types-shape-type). Decided in [0135](../decisions/0135.md), [0036](../decisions/0036.md).</sub>
 
-<a id="core-api-omission-is-not-a-written-null"></a>
+<a id="core-api-a-lifetime-is-an-object"></a>
 
-## An options bag tells an omitted key from a written `null`  *(designed — not yet in the compiler)*
+## Anything with a lifetime is an object, and `Core` never hands back a handle
 
-`rule:core-api/omission-is-not-a-written-null`
+`rule:core-api/a-lifetime-is-an-object`
 
-A call site's two ways of not giving an options-bag field a value are two different requests. `{}` leaves a
-component alone; `{fragment: null}` removes it ([`core-api/a-written-null-removes`](core-api.md#core-api-a-written-null-removes)). Before this, an
-omitted field arrived at the helper as a null and a written null arrived as the same null, so a field that
-could itself hold one was unusable and every bag field had to be non-nullable.
+Anything with a lifetime is an object. There is no `resource` atom in any `Core` signature, no integer
+handle, and no `$link`-first calling convention; a file, a connection, a compression stream and a hash
+context are all objects with methods.
 
-The mechanism is a constant rather than a sentinel: an omitted **nullable** field materializes a
-never-written marker instead of a null ([`core-api/a-nullable-field-omits-as-the-never-written-marker`](core-api.md#core-api-a-nullable-field-omits-as-the-never-written-marker)),
-so the helper reads three states out of one argument and the flattening is untouched
-([`core-api/the-bag-abi-is-unchanged`](core-api.md#core-api-the-bag-abi-is-unchanged)). An in-band marker — `""`, a magic string, a reserved constant —
-is a value the field's own type admits, so user data can arrive as one by accident; that is the bug class
-this removes rather than relocates.
+A handle has nowhere to enforce a capability and nothing to hang an API on, so every operation on it
+becomes a free function taking the handle first — which is how PHP ended up with `fopen` beside
+`SplFileObject` beside `DirectoryIterator` ([`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation)). An object has both
+a place for the capability check and a place for the methods. The `resource` atom survives in the type
+grammar ([`types/grammar`](types.md#types-grammar)) only for opaque handles an extension supplies, and `Core` never produces
+one.
 
-**Designed, not shipped.** `crates/nvs-stdlib/src/registry.rs` still holds the old invariant, under the
-guards `a_shape_field_is_never_nullable` and `a_union_option_excludes_null`, so no bag field is nullable
-today and `Core\Uri::with` still has no clearing spelling.
+<sub>See also [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation), [`classes/no-destructors`](classes.md#classes-no-destructors), [`types/grammar`](types.md#types-grammar). Decided in [0063](../decisions/0063.md), [0003](../decisions/0003.md).</sub>
 
-<sub>See also [`core-api/a-nullable-field-omits-as-the-never-written-marker`](core-api.md#core-api-a-nullable-field-omits-as-the-never-written-marker), [`core-api/a-written-null-removes`](core-api.md#core-api-a-written-null-removes), [`core-api/the-bag-abi-is-unchanged`](core-api.md#core-api-the-bag-abi-is-unchanged), [`core-api/options-bag`](core-api.md#core-api-options-bag). Decided in [0147](../decisions/0147.md), [0063](../decisions/0063.md), [0135](../decisions/0135.md), [0022](../decisions/0022.md).</sub>
+<a id="core-api-a-lifetime-is-written"></a>
 
-<a id="core-api-a-nullable-field-omits-as-the-never-written-marker"></a>
+## A signature's lifetime is a required key and `null` is the forever spelling  *(designed — not yet in the compiler)*
 
-## A bag or shape field is nullable exactly when its omission fills the never-written marker  *(designed — not yet in the compiler)*
+`rule:core-api/a-lifetime-is-written`
 
-`rule:core-api/a-nullable-field-omits-as-the-never-written-marker`
+A signature's lifetime is a **required key holding a nullable value**: both a written instant and a written
+`null` are spellings, and omitting the key does not compile. `null` is the forever spelling.
 
-A field of an options bag or of a shape arm carries a default, and that default is what an omitting call
-site materializes. Three declarations, three behaviours:
+An omission is not a default. A permanent signed link is a permanent bearer credential — written into
+browser history, `Referer` headers, proxy logs and chat unfurls, and it never stops being one — so
+"forever" should be something a person typed rather than something a missing key chose. Making expiry
+mandatory would be the other answer, and it is rejected here as belonging to a specific token format rather
+than to the general operation.
 
-| Declaration | Key absent | Key present as `null` |
-|---|---|---|
-| no default | a compile error: required key missing | a compile error: `null` is not of the field's type |
-| a default, non-nullable type | the default is materialized | a compile error: `null` is not of the field's type |
-| a default, **nullable** type | the never-written marker is materialized | `null` is materialized |
+This is the one place a required key deliberately holds a nullable value, and it reads differently from
+[`core-api/a-written-null-removes`](core-api.md#core-api-a-written-null-removes): there `null` clears an optional field, here it selects the
+unbounded lifetime on a field that must be written either way.
 
-Only the third row is new, and the rule that holds it is a **pairing**: a field admitting `null` — a
-nullable, a union with a null arm, or a `mixed`, which admits one without spelling it — is admitted exactly
-when its default is the never-written marker, and a field not admitting `null` is admitted exactly when its
-default is a null or a literal. A registry row getting the pairing wrong fails the build.
+**Designed, not shipped.**
 
-The pairing is what makes "filled" readable at all: the constant standing for *omitted* has to be one no
-written value can also be, or the two states collapse again.
-
-**Designed, not shipped.** The guards in `crates/nvs-stdlib/src/registry.rs` still assert the old, stronger
-invariant that no such field is ever nullable.
-
-<sub>See also [`core-api/omission-is-not-a-written-null`](core-api.md#core-api-omission-is-not-a-written-null), [`core-api/the-marker-never-reaches-a-program`](core-api.md#core-api-the-marker-never-reaches-a-program), [`core-api/shape-flattens-at-the-abi`](core-api.md#core-api-shape-flattens-at-the-abi). Decided in [0147](../decisions/0147.md), [0135](../decisions/0135.md), [0022](../decisions/0022.md).</sub>
-
-<a id="core-api-the-bag-abi-is-unchanged"></a>
-
-## The three-state bag changes which constant fills a slot and nothing else about the ABI  *(designed — not yet in the compiler)*
-
-`rule:core-api/the-bag-abi-is-unchanged`
-
-The three-state bag changes *which constant fills one slot, for one kind of field*, and nothing else. A bag
-is still one ABI argument per declared field, no runtime representation of a shape exists, and no helper
-learns a new calling convention ([`core-api/shape-flattens-at-the-abi`](core-api.md#core-api-shape-flattens-at-the-abi)).
-
-The marker reused is the never-written storage state that already exists for definite-initialization
-analysis: already defined as distinct from every legal value including null, already costing **zero
-additional bytes** because it is one more discriminant on a representation that carries one, and already
-non-refcounted, so it raises no ownership question at a call boundary. Reaching it from a call site costs
-one constant-argument variant, one instruction constant beside the null one, and the codegen arm that
-writes the tag byte.
-
-What it spends ([`programs/memory-priority`](programs.md#programs-memory-priority)): **nothing per request and nothing per call** — the
-omitting call site emits one constant either way. A non-nullable field is unaffected in every respect, so
-every member registered today lowers to the same instructions and nothing needs migrating.
-
-**Designed, not shipped.** `crates/nvs-runtime/src/value.rs` carries the marker tag; no call site
-materializes it.
-
-<sub>See also [`core-api/shape-flattens-at-the-abi`](core-api.md#core-api-shape-flattens-at-the-abi), [`core-api/a-nullable-field-omits-as-the-never-written-marker`](core-api.md#core-api-a-nullable-field-omits-as-the-never-written-marker), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0147](../decisions/0147.md), [0135](../decisions/0135.md), [0022](../decisions/0022.md).</sub>
-
-<a id="core-api-the-marker-never-reaches-a-program"></a>
-
-## The never-written marker is not in the type system and is never handed to user code  *(designed — not yet in the compiler)*
-
-`rule:core-api/the-marker-never-reaches-a-program`
-
-The never-written marker is not a value a program can hold, observe or name. It is **not in the type
-system** — a nullable field's declared type does not contain it, no expression evaluates to one, and the
-call site that "writes" it writes nothing at all while the compiler materializes the fill. It is **never
-handed to user code**: its only reader is the native helper behind the member, which turns it into the
-member's own behaviour before anything returns, and a helper that fails to handle it is a contract
-violation in this repository's own code rather than a wrong answer given to a program. And it is
-**transient**: it exists for the duration of the call that materialized it, is consumed by the helper, and
-is never stored, returned or reachable from a value a program holds.
-
-A **user-declared** function's optional parameter is unchanged, deliberately. `?int $x = null` in program
-source still cannot tell an omitted argument from a written `null`, because closing that would need a
-spelling for asking the question — an `isset` on a parameter, or a third state a program can observe — and
-that is a language-surface decision this one does not open. A native helper can be held to reading three
-states by a test; a user's function body cannot be, and giving it a state it has no way to name would be
-exactly the observable marker this rule refuses.
-
-<sub>See also [`core-api/a-nullable-field-omits-as-the-never-written-marker`](core-api.md#core-api-a-nullable-field-omits-as-the-never-written-marker), [`core-api/the-bag-abi-is-unchanged`](core-api.md#core-api-the-bag-abi-is-unchanged), [`core-api/required-optional-and-nullable`](core-api.md#core-api-required-optional-and-nullable). Decided in [0147](../decisions/0147.md), [0022](../decisions/0022.md).</sub>
-
-<a id="core-api-a-written-null-removes"></a>
-
-## Wherever a `Core` member admits a written `null` it means remove, and `""` is never a removal spelling  *(designed — not yet in the compiler)*
-
-`rule:core-api/a-written-null-removes`
-
-Wherever a `Core` member admits a written `null` — a bag field or an ordinary argument — it means
-**remove**. Clear, delete, not present in the result. It never means "restore a default", never selects an
-alternative behaviour, and is never a flag under another name. An **omitted** key means the receiver's
-existing value is carried through unchanged.
-
-The position the `null` arrives in is incidental to what it means, which is why the rule is stated over a
-member rather than over a bag field. A query builder that drops a pair whose value is `null` already
-behaved this way before the rule existed — the only behaviour that round-trips, since a query string cannot
-spell an absent value — and that it was arrived at independently is the best evidence it is right.
-
-The rule's teeth are that **an input is made nullable only where removal is something the member can
-actually do.** A member with no removal to offer keeps its non-nullable field, and writing `null` into it
-stays the compile error it is today, so the nullability in a signature *is* the announcement that the thing
-can be cleared and a caller reads it off the type rather than off prose. `""` is never a removal spelling
-on any member: it is a legal value of most of these fields and is already distinguishable — an empty query
-is not an absent one — so overloading it would reinstate the in-band sentinel this removes.
-
-**Designed, not shipped.** `crates/nvs-stdlib/src/uri.rs`'s `written` helper still records the opposite:
-with no second null to spend, `with` replaces and never removes.
-
-<sub>See also [`core-api/omission-is-not-a-written-null`](core-api.md#core-api-omission-is-not-a-written-null), [`core-api/a-lifetime-is-written`](core-api.md#core-api-a-lifetime-is-written), [`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings). Decided in [0147](../decisions/0147.md), [0063](../decisions/0063.md).</sub>
+<sub>See also [`core-api/signing-is-over-a-payload`](core-api.md#core-api-signing-is-over-a-payload), [`core-api/a-written-null-removes`](core-api.md#core-api-a-written-null-removes), [`core-api/omission-is-not-a-written-null`](core-api.md#core-api-omission-is-not-a-written-null). Decided in [0146](../decisions/0146.md), [0096](../decisions/0096.md), [0060](../decisions/0060.md).</sub>
 
 <a id="core-api-signing-is-over-a-payload"></a>
 
@@ -1120,29 +1115,6 @@ The fragment is never signed, since it is not sent to the server.
 `crates/nvs-stdlib/src/uri.rs` carries the canonical form with only its comparison caller.
 
 <sub>See also [`core-api/a-lifetime-is-written`](core-api.md#core-api-a-lifetime-is-written), [`core-api/one-refusal-except-expiry`](core-api.md#core-api-one-refusal-except-expiry), [`core-api/each-door-takes-a-different-thing`](core-api.md#core-api-each-door-takes-a-different-thing). Decided in [0146](../decisions/0146.md), [0060](../decisions/0060.md), [0058](../decisions/0058.md), [0097](../decisions/0097.md).</sub>
-
-<a id="core-api-a-lifetime-is-written"></a>
-
-## A signature's lifetime is a required key and `null` is the forever spelling  *(designed — not yet in the compiler)*
-
-`rule:core-api/a-lifetime-is-written`
-
-A signature's lifetime is a **required key holding a nullable value**: both a written instant and a written
-`null` are spellings, and omitting the key does not compile. `null` is the forever spelling.
-
-An omission is not a default. A permanent signed link is a permanent bearer credential — written into
-browser history, `Referer` headers, proxy logs and chat unfurls, and it never stops being one — so
-"forever" should be something a person typed rather than something a missing key chose. Making expiry
-mandatory would be the other answer, and it is rejected here as belonging to a specific token format rather
-than to the general operation.
-
-This is the one place a required key deliberately holds a nullable value, and it reads differently from
-[`core-api/a-written-null-removes`](core-api.md#core-api-a-written-null-removes): there `null` clears an optional field, here it selects the
-unbounded lifetime on a field that must be written either way.
-
-**Designed, not shipped.**
-
-<sub>See also [`core-api/signing-is-over-a-payload`](core-api.md#core-api-signing-is-over-a-payload), [`core-api/a-written-null-removes`](core-api.md#core-api-a-written-null-removes), [`core-api/omission-is-not-a-written-null`](core-api.md#core-api-omission-is-not-a-written-null). Decided in [0146](../decisions/0146.md), [0096](../decisions/0096.md), [0060](../decisions/0060.md).</sub>
 
 <a id="core-api-one-refusal-except-expiry"></a>
 
@@ -1212,34 +1184,6 @@ would price the tier as an authority question every deployment then has to answe
 
 <sub>See also [`core-api/one-name-one-signature`](core-api.md#core-api-one-name-one-signature), [`core-api/each-door-takes-a-different-thing`](core-api.md#core-api-each-door-takes-a-different-thing), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation). Decided in [0059](../decisions/0059.md), [0024](../decisions/0024.md), [0142](../decisions/0142.md), [0118](../decisions/0118.md).</sub>
 
-<a id="core-api-required-optional-and-nullable"></a>
-
-## Required, optional and nullable are three separate questions: nullability belongs to the type and optionality to the default  *(designed — not yet in the compiler)*
-
-`rule:core-api/required-optional-and-nullable`
-
-"Does `?T` mean the key may be absent, or that `null` is a legal value?" has a better answer than choosing:
-they are separate questions, and both already have a spelling.
-
-| Declaration | Key absent | Key present as `null` |
-|---|---|---|
-| `T $x` | an issue: required field missing | an issue: `null` is not permitted |
-| `?T $x` | an issue: required field missing | accepted, decodes to `null` |
-| `T $x = <default>` | accepted, the default is used | an issue: `null` is not permitted |
-| `?T $x = null` | accepted, `null` is used | accepted, decodes to `null` |
-
-Nullability is a property of the **type** and optionality is a property of the constructor parameter's
-**default**; neither borrows the other's meaning. Encoding is the plain inverse: every field is always
-emitted, including a `null` one. There is no omit-when-null option, because an asymmetric encoder is a
-round-trip bug that only shows up in the value that happens to be absent — and adding one later, conditioned
-on the field having a default, is purely additive.
-
-**Designed, not shipped.** `crates/nvs-stdlib/src/json.rs` records that the two default-bearing rows are
-unimplemented: an absent key is always *required field missing*, because a default is evaluated into a
-constant the *call site* emits and a native decoder is not a call site.
-
-<sub>See also [`core-api/written-participation`](core-api.md#core-api-written-participation), [`core-api/omission-is-not-a-written-null`](core-api.md#core-api-omission-is-not-a-written-null), [`core-api/the-marker-never-reaches-a-program`](core-api.md#core-api-the-marker-never-reaches-a-program), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0071](../decisions/0071.md), [0063](../decisions/0063.md).</sub>
-
 <a id="core-api-one-temporary-directory-member"></a>
 
 ## The whole temporary-file surface is one member handing out an owned directory
@@ -1280,3 +1224,59 @@ takes no argument: PHP's delete-old-session flag chose between a fixation window
 only one of those is correct.
 
 <sub>See also [`core-api/failure-throws`](core-api.md#core-api-failure-throws), [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables). Decided in [0139](../decisions/0139.md), [0012](../decisions/0012.md), [0124](../decisions/0124.md).</sub>
+
+<a id="core-api-reference-card"></a>
+
+## An implemented `Core` member carries its reference card in the registry declaration beside its code
+
+`rule:core-api/reference-card`
+
+An implemented `Core` member's reference documentation lives in its registry declaration, next to the code
+it documents: a short description of one or two sentences, a name and description per parameter — and for a
+shape-typed parameter, each key's type and description — a return description, and a list of thrown errors,
+each described. An enum carries a card of its own with one line per case, and a constant carries one
+sentence, since a constant has a value and no signature.
+
+The registry is the one artifact that provably matches shipped behaviour, because it is the data the
+runtime dispatches on; and it already has to carry every parameter's name
+([`core-api/parameters-are-callable-by-name`](core-api.md#core-api-parameters-are-callable-by-name)), so a documentation scheme that put descriptions anywhere
+else would create the duplicate that name guard exists to prevent. **Every row carries its card** — a
+member without one fails the crate's tests, so a member lands documented or does not land.
+
+Extended prose is deliberately excluded. Long-form text inside Rust string literals is the worst reading
+surface available, so anything beyond the reference card stays in the website's pages. The cost is static
+strings in the binary — per process, not per request, on the order of a few hundred bytes per documented
+member — which is the cheap side of the trade and strippable behind a build feature if a deployment ever
+cares.
+
+<sub>See also [`core-api/field-wise-precedence`](core-api.md#core-api-field-wise-precedence), [`core-api/parameters-are-callable-by-name`](core-api.md#core-api-parameters-are-callable-by-name), [`core-api/shape-parameter`](core-api.md#core-api-shape-parameter). Decided in [0117](../decisions/0117.md), [0011](../decisions/0011.md), [0051](../decisions/0051.md), [0063](../decisions/0063.md).</sub>
+
+<a id="core-api-removals"></a>
+
+## A PHP built-in is absent for one of four standing reasons, and every removed name is accounted for by name
+
+`rule:core-api/removals`
+
+A PHP built-in that has no successor here is absent for one of four standing reasons, and every removed
+name is accounted for individually rather than by category:
+
+1. **A pure alias** — `sizeof`, `join`, `chop`, `key_exists`, `pos`, `fputs`, `is_integer`, `doubleval`.
+2. **Dead or dying in PHP itself** — `ereg*`, `mysql_*`, `mcrypt`, `create_function`, `each`,
+   `money_format`, `utf8_encode`, `strptime`, `get_browser`.
+3. **Already closed by another rule** — about 120 functions whose removal follows from declared types, from
+   closures being the only callable, from the closed doors, from the escalation ladder
+   ([`errors/escalation-ladder`](errors.md#errors-escalation-ladder)), from having no superglobals
+   ([`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables)), or from having no cross-request ambient state.
+4. **Structurally wrong here** — the internal array pointer, because a mutable cursor inside a
+   copy-on-write value is incoherent; every by-reference mutator ([`core-api/nothing-mutates`](core-api.md#core-api-nothing-mutates));
+   `array_merge` and the `+` operator over two arrays, whose rule is chosen by a key's *type* in a language
+   with one key type ([`types/array-combination`](types.md#types-array-combination)); the half-escapers, whose false confidence taint
+   tracking exists to prevent; and `settype`/`gettype`/`strval` ([`types/no-legacy-cast`](types.md#types-no-legacy-cast)).
+
+The reason is not the record. A prose reason cannot be audited — "about 120 functions follow from declared
+types" leaves no way to notice the twelfth one nobody thought about — so every PHP name gets a row naming
+its outcome, and a CI check asserts the vendored built-in list has no name without one. That file is also
+where `nvs convert` gets its diagnostic, so a removed name produces a message naming the replacement rather
+than an unresolved call.
+
+<sub>See also [`core-api/no-ambient-state`](core-api.md#core-api-no-ambient-state), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/array-combination`](types.md#types-array-combination). Decided in [0063](../decisions/0063.md), [0051](../decisions/0051.md).</sub>

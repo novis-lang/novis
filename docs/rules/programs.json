@@ -1,7 +1,7 @@
 {
   "topic": "programs",
   "title": "Programs",
-  "order": 20,
+  "order": 10,
   "rules": [
     {
       "id": "programs/audience",
@@ -48,6 +48,19 @@
       "because": ["0004"],
       "seeAlso": ["programs/program-id", "programs/three-claims", "errors/propagation"],
       "guardedBy": []
+    },
+    {
+      "id": "programs/implementing",
+      "title": "`Core\\Program::implementing<T>()` is the one enumeration, and it expands while compiling",
+      "status": "shipped",
+      "because": ["0061"],
+      "divergesFromPhp": "a plugin roster is a compile-time array literal, not a `foreach` over `new $className`",
+      "seeAlso": ["programs/no-runtime-autoload", "programs/autoload", "programs/framework-refusals"],
+      "guardedBy": [
+        "tests/conformance/core/program-implementing-enumerates-every-implementor.nvst",
+        "tests/conformance/core/program-implementing-expands-to-new-expressions-at-the-call-site.nvst",
+        "tests/conformance/lang/a-class-named-only-by-an-attribute-is-autoloaded.nvst"
+      ]
     },
     {
       "id": "programs/compile-target",
@@ -110,19 +123,6 @@
       "guardedBy": [
         "crates/nvs-hir/src/requires.rs",
         "tests/conformance/lang/an-autoload-probe-compares-the-on-disk-spelling-exactly.nvst"
-      ]
-    },
-    {
-      "id": "programs/implementing",
-      "title": "`Core\\Program::implementing<T>()` is the one enumeration, and it expands while compiling",
-      "status": "shipped",
-      "because": ["0061"],
-      "divergesFromPhp": "a plugin roster is a compile-time array literal, not a `foreach` over `new $className`",
-      "seeAlso": ["programs/no-runtime-autoload", "programs/autoload", "programs/framework-refusals"],
-      "guardedBy": [
-        "tests/conformance/core/program-implementing-enumerates-every-implementor.nvst",
-        "tests/conformance/core/program-implementing-expands-to-new-expressions-at-the-call-site.nvst",
-        "tests/conformance/lang/a-class-named-only-by-an-attribute-is-autoloaded.nvst"
       ]
     },
     {
@@ -199,6 +199,14 @@
       "guardedBy": []
     },
     {
+      "id": "programs/no-migration-runner",
+      "title": "No migration runner ships until migration semantics are decided",
+      "status": "designed",
+      "because": ["0082"],
+      "seeAlso": ["programs/framework-web-package", "programs/first-party-framework"],
+      "guardedBy": []
+    },
+    {
       "id": "programs/nvs-new",
       "title": "`nvs new` writes an application that runs before it is edited",
       "status": "designed",
@@ -208,14 +216,6 @@
         "programs/framework-web-package",
         "programs/audience"
       ],
-      "guardedBy": []
-    },
-    {
-      "id": "programs/no-migration-runner",
-      "title": "No migration runner ships until migration semantics are decided",
-      "status": "designed",
-      "because": ["0082"],
-      "seeAlso": ["programs/framework-web-package", "programs/first-party-framework"],
       "guardedBy": []
     }
   ]

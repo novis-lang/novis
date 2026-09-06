@@ -82,29 +82,182 @@ the diagnostic fire at all.
 
 <sub>See also [`expressions/truthy-positions`](expressions.md#expressions-truthy-positions), [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator). Decided in [0045](../decisions/0045.md), [0035](../decisions/0035.md), [0021](../decisions/0021.md).</sub>
 
-<a id="expressions-bracket-destructuring"></a>
+<a id="expressions-nullable-condition-lint"></a>
 
-## `list(...)` does not parse; `[...]` is the only destructuring target
+## A `?T` used directly as a condition is warned about, not refused  *(designed — not yet in the compiler)*
 
-`rule:expressions/bracket-destructuring`
+`rule:expressions/nullable-condition-lint`
 
-`list(...)` as a destructuring target does not parse. It is `E0230`, naming `[...]`, whose element
-grammar is identical in every position — key, nesting depth, skipped slot, reference marker.
+`nvs check` warns when a `?T` is used directly as a condition, naming `!= null` as the fix.
+
+Both `null` and `0` are falsy, so `if ($s as ?int)` is false for an invalid value *and* for a valid
+zero — reconstructing precisely the `(int)$x > 0` defect that nullable conversion exists to remove.
+
+It is a warning and not a diagnostic because **the hazard is not new and not specific to the
+operator**: any `?int` in an `if` has always had it. Refusing it would narrow
+[`expressions/truthy-positions`](expressions.md#expressions-truthy-positions) for every nullable value in the language, which is a larger change
+than this one.
+
+No warning code is allocated yet, and `nvs check` does not emit this today.
+
+<sub>See also [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`expressions/truthy-table`](expressions.md#expressions-truthy-table), [`expressions/bare-throwable-arm-warns`](expressions.md#expressions-bare-throwable-arm-warns). Decided in [0066](../decisions/0066.md), [0035](../decisions/0035.md).</sub>
+
+<a id="expressions-one-equality-operator"></a>
+
+## `==` and `!=` are the whole of equality, and `===`, `!==` and `<>` do not parse
+
+`rule:expressions/one-equality-operator`
+
+There is **one** equality operator, `==`, and its negation `!=`. `===` and `!==` do not parse
+(`E0232`); PHP's `<>` does not parse either (`E0241`), and each diagnostic names the edit. There is no
+suppression and no dialect flag: a construct that parses in one project and not another is two
+languages.
+
+`!=` is exactly `!( … == … )`. There is no third relation.
+
+Nothing for a second spelling to distinguish survives, because there is no loose comparison to escape
+from. `==` never converts either operand; both operands must be able to hold the same value
+([`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused)); each type's answer is the strict one
+([`expressions/equality-semantics`](expressions.md#expressions-equality-semantics)), objects compare by identity
+([`expressions/object-identity-equality`](expressions.md#expressions-object-identity-equality)), and only a `mixed` or union pairing is decided at run
+time ([`expressions/mixed-equality`](expressions.md#expressions-mixed-equality)).
+
+Ordering — `<`, `<=`, `>`, `>=`, `<=>` — is a separate question with its own rule, and this operator
+says nothing about it.
+
+<sub>See also [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics), [`expressions/object-identity-equality`](expressions.md#expressions-object-identity-equality), [`expressions/mixed-equality`](expressions.md#expressions-mixed-equality), [`expressions/switch-match-equality`](expressions.md#expressions-switch-match-equality). Decided in [0090](../decisions/0090.md), [0013](../decisions/0013.md), [0029](../decisions/0029.md).</sub>
+
+<a id="expressions-equality-semantics"></a>
+
+## Equality has one row per type, and every row is the strict reading
+
+`rule:expressions/equality-semantics`
+
+Nothing converts. Each type has one row, and where PHP's two operators disagreed the row takes the
+strict reading:
+
+| type | two values are equal when |
+|---|---|
+| `null` | always — one value |
+| `bool` | they are the same |
+| `int`, `uint`, `float`, `decimal` | mathematically equal across the whole domain: `1 == 1.0` is true, and `decimal` ignores scale, so `1.10 == 1.1000` is true |
+| `float` edges | IEEE 754: `NAN == NAN` is **false**, `0.0 == -0.0` is **true** |
+| `string` | the same sequence of Unicode scalar values — never numeric, so `"1" == "01"` and `"1e3" == "1000"` are both false, and there is no normalization |
+| `bytes` | the same bytes |
+| `array<T>` | the same length, the same keys in the same order, and every value equal by this table, recursively |
+| class instance | the same object ([`expressions/object-identity-equality`](expressions.md#expressions-object-identity-equality)) |
+| enum case | the underlying integers are equal |
+| `callable` | the same closure — two `fn` literals with identical bodies are two closures |
+| `mixed`, a union | resolved at run time ([`expressions/mixed-equality`](expressions.md#expressions-mixed-equality)) |
+
+The array recursion terminates: an array is a copy-on-write value rather than a reference, so it
+cannot contain itself. An array holding objects compares those by identity, which bounds that walk
+too.
+
+The natural ordering used for sorting is a separate question and answers differently for `float`; the
+two are not the same table.
+
+<sub>See also [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/object-identity-equality`](expressions.md#expressions-object-identity-equality), [`expressions/mixed-equality`](expressions.md#expressions-mixed-equality), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused), [`enums/representation`](enums.md#enums-representation). Decided in [0090](../decisions/0090.md), [0054](../decisions/0054.md), [0010](../decisions/0010.md), [0007](../decisions/0007.md), [0031](../decisions/0031.md), [0009](../decisions/0009.md).</sub>
+
+<a id="expressions-mixed-equality"></a>
+
+## A `mixed` or union operand resolves at run time, and a mismatched pair answers `false`
+
+`rule:expressions/mixed-equality`
+
+`$a == $b` where either side is `mixed` or a union compiles, dispatches on the runtime tags, and
+applies [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics)'s table to the row they land in.
+
+**When the two runtime tags belong to different rows, the answer is `false`.** It does not throw, and
+it does not convert.
+
+That is the strict answer, not a looser rule returning: a `string` and an `int` are not the same
+value. The static case is a compile error rather than `false` for a different reason — there the
+compiler can prove the answer before the program runs, which makes it dead code rather than a
+question ([`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused)).
+
+The asymmetry is worth stating plainly: **`mixed` is where you pay for not declaring a type.** A
+comparison against `mixed` silently answers `false` where a typed one would have refused to compile.
+
+<sub>See also [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics), [`expressions/truthy-table`](expressions.md#expressions-truthy-table). Decided in [0090](../decisions/0090.md), [0007](../decisions/0007.md).</sub>
+
+<a id="expressions-object-identity-equality"></a>
+
+## Two objects are equal only when they are the same object, and no class may change that
+
+`rule:expressions/object-identity-equality`
+
+`$a == $b` on two class instances asks whether they are the same object. It never walks properties.
+
+There is **no `__equals`, no `equals()` protocol and no `Equatable` interface**. A per-class equality
+hook would make `==` mean something different in every file, and an ambient, undeclared property walk
+has unbounded cost in the object graph's size with no way for a class to opt out.
+
+Two named ways to ask the other question already exist:
+
+- **`$a->compareTo($b) == 0`**, where the class implements `Comparable`. A class with a meaningful
+  notion of "same value" almost always has a meaningful order too, and this gets both from one
+  declaration.
+- **`Core\Test::assertEqualsDeep`** in a test, which walks properties, arrays and shapes and produces
+  a diff. It is a test member on purpose: a structural walk is a debugging affordance, not something a
+  request path should reach for by accident.
+
+A class needing content equality in production and wanting no order writes an ordinary named method.
+That reads worse than `==` by exactly one call, and it is visible at the call site.
+
+<sub>See also [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics), [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/mixed-equality`](expressions.md#expressions-mixed-equality). Decided in [0090](../decisions/0090.md), [0013](../decisions/0013.md), [0014](../decisions/0014.md), [0028](../decisions/0028.md), [0079](../decisions/0079.md).</sub>
+
+<a id="expressions-disjoint-comparison-refused"></a>
+
+## Comparing two types that no single value inhabits is a compile error
+
+`rule:expressions/disjoint-comparison-refused`
+
+A comparison whose two static types are **disjoint** — no single value inhabits both — is a compile
+error (`E0466`), because the compiler already knows the answer and the author did not mean to write
+it.
 
 ```
-list(int $a, string $b) = $pair;    // E0230
-[int $a, string $b]     = $pair;    // the replacement, identical in every element position
+string $s = "1";
+int $n = 1;
+if ($s == $n) { }               // E0466: `string` and `int` are disjoint
+if ($s == ($n as string)) { }   // convert once, deliberately, then compare
 ```
 
-The parser still reads the whole construct through to its `;` — the target's elements, the `=` and
-the value expression — purely so the diagnostic spans the real statement and recovery resumes cleanly
-at the next one. The parsed target is then discarded and the statement becomes an error node: a
-rejected construct never reaches the tree as a live node.
+Disjointness, not identity of types, is the test, so ordinary code still compiles: the same type; any
+pairing of `int`, `uint`, `float` and `decimal`, which are **one numeric domain**; `?T` against `null`
+or against `T`, which is the null test and narrows; a union against any type one member can hold; a
+literal or enum-case type against its base; `mixed` against anything; a class against itself or an
+ancestor.
 
-`list` stays a reserved word. Freeing it would let a class or a method be named `list`, and keeping it
-reserved is what lets the diagnostic fire.
+Refused: a non-nullable type against `null`; `string` against `bytes`; an enum against its underlying
+integer, where `$e as int` is the written spelling; two unrelated classes; and anything else disjoint.
 
-<sub>See also [`expressions/no-keyword-logical-operators`](expressions.md#expressions-no-keyword-logical-operators). Decided in [0050](../decisions/0050.md), [0049](../decisions/0049.md).</sub>
+This turns the entire class of comparisons that silently answered `false` — or answered `true` in PHP
+7 and `false` in PHP 8 — into a diagnostic at the site that wrote it.
+
+<sub>See also [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics), [`expressions/mixed-equality`](expressions.md#expressions-mixed-equality), [`expressions/switch-match-equality`](expressions.md#expressions-switch-match-equality). Decided in [0090](../decisions/0090.md), [0007](../decisions/0007.md), [0009](../decisions/0009.md), [0010](../decisions/0010.md), [0047](../decisions/0047.md), [0054](../decisions/0054.md).</sub>
+
+<a id="expressions-switch-match-equality"></a>
+
+## A `switch` label and a `match` arm compare by the equality rule and by nothing else
+
+`rule:expressions/switch-match-equality`
+
+A `switch` label and a `match` arm are compared against the subject by
+[`expressions/equality-semantics`](expressions.md#expressions-equality-semantics), and by nothing else. There is one comparison in the language,
+so there is one here.
+
+A label or arm whose static type is disjoint from the subject's is
+[`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused)'s compile error, at the label rather than at the
+`switch`.
+
+`match (true) { … }` is unaffected: each arm is a `bool`, tested against `true`.
+
+Truthiness has no part in this. A `switch` subject and a `match` subject are compared, never tested
+for truth, and [`expressions/truthy-positions`](expressions.md#expressions-truthy-positions)'s six positions do not include either.
+
+<sub>See also [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics). Decided in [0090](../decisions/0090.md), [0035](../decisions/0035.md).</sub>
 
 <a id="expressions-intrinsic-literals"></a>
 
@@ -152,32 +305,29 @@ can be tested against its runtime twin, because the rows are enumerable.
 
 <sub>See also [`expressions/intrinsic-literals`](expressions.md#expressions-intrinsic-literals), [`expressions/preparation-preserves-behaviour`](expressions.md#expressions-preparation-preserves-behaviour). Decided in [0057](../decisions/0057.md), [0063](../decisions/0063.md).</sub>
 
-<a id="expressions-preparation-preserves-behaviour"></a>
+<a id="expressions-bracket-destructuring"></a>
 
-## The prepared path and the runtime path are one implementation, so preparation is only earlier and never different
+## `list(...)` does not parse; `[...]` is the only destructuring target
 
-`rule:expressions/preparation-preserves-behaviour`
+`rule:expressions/bracket-destructuring`
 
-The prepared path and the runtime path **share one implementation**. The compiler calls the same
-pattern compiler, the same URI parser and the same format-plan builder the runtime would have called,
-and stores the output. A divergence between the two is a bug of the same class as an incorrect
-optimisation, never a permitted difference.
+`list(...)` as a destructuring target does not parse. It is `E0230`, naming `[...]`, whose element
+grammar is identical in every position — key, nesting depth, skipped slot, reference marker.
 
-**Preparation is not evaluation.** A call whose result depends on runtime state is not evaluated at
-compile time; only the state-independent part is. `$now->format("Y-m-d")` prepares the format plan and
-formats at run time, because the instant, the timezone and the calendar are all runtime values. The
-narrower case where the whole call is constant folds to its value, but that is ordinary constant
-folding.
+```
+list(int $a, string $b) = $pair;    // E0230
+[int $a, string $b]     = $pair;    // the replacement, identical in every element position
+```
 
-Because preparation depends only on the literal and on the compiler's own version, it is keyed by the
-artifact cache like any other compiled output, including on the compiler-environment component — so a
-prepared artifact from a different compiler build is a cache miss rather than a mismatch.
+The parser still reads the whole construct through to its `;` — the target's elements, the `=` and
+the value expression — purely so the diagnostic spans the real statement and recovery resumes cleanly
+at the next one. The parsed target is then discarded and the statement becomes an error node: a
+rejected construct never reaches the tree as a live node.
 
-One observable difference is named rather than denied: a fully folded call is no longer a call, so the
-per-call probe does not fire for it. A *prepared* call — the common case — is still a call and probes
-normally, and the enclosing statement's probe is unaffected either way.
+`list` stays a reserved word. Freeing it would let a class or a method be named `list`, and keeping it
+reserved is what lets the diagnostic fire.
 
-<sub>See also [`expressions/intrinsic-literals`](expressions.md#expressions-intrinsic-literals), [`expressions/intrinsic-list-is-closed`](expressions.md#expressions-intrinsic-list-is-closed). Decided in [0057](../decisions/0057.md), [0042](../decisions/0042.md), [0018](../decisions/0018.md).</sub>
+<sub>See also [`expressions/no-keyword-logical-operators`](expressions.md#expressions-no-keyword-logical-operators). Decided in [0050](../decisions/0050.md), [0049](../decisions/0049.md).</sub>
 
 <a id="expressions-nullable-conversion"></a>
 
@@ -236,6 +386,26 @@ class's own reader ([`expressions/try-parse`](expressions.md#expressions-try-par
 
 <sub>See also [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`expressions/try-parse`](expressions.md#expressions-try-parse), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused). Decided in [0066](../decisions/0066.md), [0007](../decisions/0007.md), [0047](../decisions/0047.md).</sub>
 
+<a id="expressions-conversion-keeps-qualifiers"></a>
+
+## `as ?T` decides `tainted` and `secret` by exactly the rule `as T` uses, and launders nothing of its own
+
+`rule:expressions/conversion-keeps-qualifiers`
+
+Nullability and the security qualifiers are orthogonal axes. `as ?T` runs the **same** qualifier rule
+the checked form runs — one code path decides both spellings — so writing `?T` instead of `T` changes
+nothing about `tainted` or `secret`.
+
+Where the target is a qualifiable type, the operand's `tainted` and `secret` are carried into the
+result: `tainted string as ?string` is `?tainted string`. Where a checked conversion into the target
+already launders, `as ?T` launders exactly as much and no more.
+
+**`as ?T` is never a launderer in its own right.** It introduces no qualifier hole the checked form
+does not already have, and laundering stays what it is elsewhere: the narrow, sink-named `Core`
+members that declare it.
+
+<sub>See also [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`expressions/nullable-conversion-availability`](expressions.md#expressions-nullable-conversion-availability). Decided in [0066](../decisions/0066.md), [0024](../decisions/0024.md), [0033](../decisions/0033.md).</sub>
+
 <a id="expressions-try-parse"></a>
 
 ## A failable single-`string` parse is spelled `tryParse`, and no separate validity predicate stands beside it
@@ -262,202 +432,32 @@ parsed value instead — `Core\Uri::tryParse($s)?->scheme() != null` is the abso
 
 <sub>See also [`expressions/nullable-conversion-availability`](expressions.md#expressions-nullable-conversion-availability), [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion). Decided in [0066](../decisions/0066.md), [0063](../decisions/0063.md).</sub>
 
-<a id="expressions-conversion-keeps-qualifiers"></a>
+<a id="expressions-preparation-preserves-behaviour"></a>
 
-## `as ?T` decides `tainted` and `secret` by exactly the rule `as T` uses, and launders nothing of its own
+## The prepared path and the runtime path are one implementation, so preparation is only earlier and never different
 
-`rule:expressions/conversion-keeps-qualifiers`
+`rule:expressions/preparation-preserves-behaviour`
 
-Nullability and the security qualifiers are orthogonal axes. `as ?T` runs the **same** qualifier rule
-the checked form runs — one code path decides both spellings — so writing `?T` instead of `T` changes
-nothing about `tainted` or `secret`.
+The prepared path and the runtime path **share one implementation**. The compiler calls the same
+pattern compiler, the same URI parser and the same format-plan builder the runtime would have called,
+and stores the output. A divergence between the two is a bug of the same class as an incorrect
+optimisation, never a permitted difference.
 
-Where the target is a qualifiable type, the operand's `tainted` and `secret` are carried into the
-result: `tainted string as ?string` is `?tainted string`. Where a checked conversion into the target
-already launders, `as ?T` launders exactly as much and no more.
+**Preparation is not evaluation.** A call whose result depends on runtime state is not evaluated at
+compile time; only the state-independent part is. `$now->format("Y-m-d")` prepares the format plan and
+formats at run time, because the instant, the timezone and the calendar are all runtime values. The
+narrower case where the whole call is constant folds to its value, but that is ordinary constant
+folding.
 
-**`as ?T` is never a launderer in its own right.** It introduces no qualifier hole the checked form
-does not already have, and laundering stays what it is elsewhere: the narrow, sink-named `Core`
-members that declare it.
+Because preparation depends only on the literal and on the compiler's own version, it is keyed by the
+artifact cache like any other compiled output, including on the compiler-environment component — so a
+prepared artifact from a different compiler build is a cache miss rather than a mismatch.
 
-<sub>See also [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`expressions/nullable-conversion-availability`](expressions.md#expressions-nullable-conversion-availability). Decided in [0066](../decisions/0066.md), [0024](../decisions/0024.md), [0033](../decisions/0033.md).</sub>
+One observable difference is named rather than denied: a fully folded call is no longer a call, so the
+per-call probe does not fire for it. A *prepared* call — the common case — is still a call and probes
+normally, and the enclosing statement's probe is unaffected either way.
 
-<a id="expressions-nullable-condition-lint"></a>
-
-## A `?T` used directly as a condition is warned about, not refused  *(designed — not yet in the compiler)*
-
-`rule:expressions/nullable-condition-lint`
-
-`nvs check` warns when a `?T` is used directly as a condition, naming `!= null` as the fix.
-
-Both `null` and `0` are falsy, so `if ($s as ?int)` is false for an invalid value *and* for a valid
-zero — reconstructing precisely the `(int)$x > 0` defect that nullable conversion exists to remove.
-
-It is a warning and not a diagnostic because **the hazard is not new and not specific to the
-operator**: any `?int` in an `if` has always had it. Refusing it would narrow
-[`expressions/truthy-positions`](expressions.md#expressions-truthy-positions) for every nullable value in the language, which is a larger change
-than this one.
-
-No warning code is allocated yet, and `nvs check` does not emit this today.
-
-<sub>See also [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`expressions/truthy-table`](expressions.md#expressions-truthy-table), [`expressions/bare-throwable-arm-warns`](expressions.md#expressions-bare-throwable-arm-warns). Decided in [0066](../decisions/0066.md), [0035](../decisions/0035.md).</sub>
-
-<a id="expressions-one-equality-operator"></a>
-
-## `==` and `!=` are the whole of equality, and `===`, `!==` and `<>` do not parse
-
-`rule:expressions/one-equality-operator`
-
-There is **one** equality operator, `==`, and its negation `!=`. `===` and `!==` do not parse
-(`E0232`); PHP's `<>` does not parse either (`E0241`), and each diagnostic names the edit. There is no
-suppression and no dialect flag: a construct that parses in one project and not another is two
-languages.
-
-`!=` is exactly `!( … == … )`. There is no third relation.
-
-Nothing for a second spelling to distinguish survives, because there is no loose comparison to escape
-from. `==` never converts either operand; both operands must be able to hold the same value
-([`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused)); each type's answer is the strict one
-([`expressions/equality-semantics`](expressions.md#expressions-equality-semantics)), objects compare by identity
-([`expressions/object-identity-equality`](expressions.md#expressions-object-identity-equality)), and only a `mixed` or union pairing is decided at run
-time ([`expressions/mixed-equality`](expressions.md#expressions-mixed-equality)).
-
-Ordering — `<`, `<=`, `>`, `>=`, `<=>` — is a separate question with its own rule, and this operator
-says nothing about it.
-
-<sub>See also [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics), [`expressions/object-identity-equality`](expressions.md#expressions-object-identity-equality), [`expressions/mixed-equality`](expressions.md#expressions-mixed-equality), [`expressions/switch-match-equality`](expressions.md#expressions-switch-match-equality). Decided in [0090](../decisions/0090.md), [0013](../decisions/0013.md), [0029](../decisions/0029.md).</sub>
-
-<a id="expressions-disjoint-comparison-refused"></a>
-
-## Comparing two types that no single value inhabits is a compile error
-
-`rule:expressions/disjoint-comparison-refused`
-
-A comparison whose two static types are **disjoint** — no single value inhabits both — is a compile
-error (`E0466`), because the compiler already knows the answer and the author did not mean to write
-it.
-
-```
-string $s = "1";
-int $n = 1;
-if ($s == $n) { }               // E0466: `string` and `int` are disjoint
-if ($s == ($n as string)) { }   // convert once, deliberately, then compare
-```
-
-Disjointness, not identity of types, is the test, so ordinary code still compiles: the same type; any
-pairing of `int`, `uint`, `float` and `decimal`, which are **one numeric domain**; `?T` against `null`
-or against `T`, which is the null test and narrows; a union against any type one member can hold; a
-literal or enum-case type against its base; `mixed` against anything; a class against itself or an
-ancestor.
-
-Refused: a non-nullable type against `null`; `string` against `bytes`; an enum against its underlying
-integer, where `$e as int` is the written spelling; two unrelated classes; and anything else disjoint.
-
-This turns the entire class of comparisons that silently answered `false` — or answered `true` in PHP
-7 and `false` in PHP 8 — into a diagnostic at the site that wrote it.
-
-<sub>See also [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics), [`expressions/mixed-equality`](expressions.md#expressions-mixed-equality), [`expressions/switch-match-equality`](expressions.md#expressions-switch-match-equality). Decided in [0090](../decisions/0090.md), [0007](../decisions/0007.md), [0009](../decisions/0009.md), [0010](../decisions/0010.md), [0047](../decisions/0047.md), [0054](../decisions/0054.md).</sub>
-
-<a id="expressions-equality-semantics"></a>
-
-## Equality has one row per type, and every row is the strict reading
-
-`rule:expressions/equality-semantics`
-
-Nothing converts. Each type has one row, and where PHP's two operators disagreed the row takes the
-strict reading:
-
-| type | two values are equal when |
-|---|---|
-| `null` | always — one value |
-| `bool` | they are the same |
-| `int`, `uint`, `float`, `decimal` | mathematically equal across the whole domain: `1 == 1.0` is true, and `decimal` ignores scale, so `1.10 == 1.1000` is true |
-| `float` edges | IEEE 754: `NAN == NAN` is **false**, `0.0 == -0.0` is **true** |
-| `string` | the same sequence of Unicode scalar values — never numeric, so `"1" == "01"` and `"1e3" == "1000"` are both false, and there is no normalization |
-| `bytes` | the same bytes |
-| `array<T>` | the same length, the same keys in the same order, and every value equal by this table, recursively |
-| class instance | the same object ([`expressions/object-identity-equality`](expressions.md#expressions-object-identity-equality)) |
-| enum case | the underlying integers are equal |
-| `callable` | the same closure — two `fn` literals with identical bodies are two closures |
-| `mixed`, a union | resolved at run time ([`expressions/mixed-equality`](expressions.md#expressions-mixed-equality)) |
-
-The array recursion terminates: an array is a copy-on-write value rather than a reference, so it
-cannot contain itself. An array holding objects compares those by identity, which bounds that walk
-too.
-
-The natural ordering used for sorting is a separate question and answers differently for `float`; the
-two are not the same table.
-
-<sub>See also [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/object-identity-equality`](expressions.md#expressions-object-identity-equality), [`expressions/mixed-equality`](expressions.md#expressions-mixed-equality), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused), [`enums/representation`](enums.md#enums-representation). Decided in [0090](../decisions/0090.md), [0054](../decisions/0054.md), [0010](../decisions/0010.md), [0007](../decisions/0007.md), [0031](../decisions/0031.md), [0009](../decisions/0009.md).</sub>
-
-<a id="expressions-object-identity-equality"></a>
-
-## Two objects are equal only when they are the same object, and no class may change that
-
-`rule:expressions/object-identity-equality`
-
-`$a == $b` on two class instances asks whether they are the same object. It never walks properties.
-
-There is **no `__equals`, no `equals()` protocol and no `Equatable` interface**. A per-class equality
-hook would make `==` mean something different in every file, and an ambient, undeclared property walk
-has unbounded cost in the object graph's size with no way for a class to opt out.
-
-Two named ways to ask the other question already exist:
-
-- **`$a->compareTo($b) == 0`**, where the class implements `Comparable`. A class with a meaningful
-  notion of "same value" almost always has a meaningful order too, and this gets both from one
-  declaration.
-- **`Core\Test::assertEqualsDeep`** in a test, which walks properties, arrays and shapes and produces
-  a diff. It is a test member on purpose: a structural walk is a debugging affordance, not something a
-  request path should reach for by accident.
-
-A class needing content equality in production and wanting no order writes an ordinary named method.
-That reads worse than `==` by exactly one call, and it is visible at the call site.
-
-<sub>See also [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics), [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/mixed-equality`](expressions.md#expressions-mixed-equality). Decided in [0090](../decisions/0090.md), [0013](../decisions/0013.md), [0014](../decisions/0014.md), [0028](../decisions/0028.md), [0079](../decisions/0079.md).</sub>
-
-<a id="expressions-mixed-equality"></a>
-
-## A `mixed` or union operand resolves at run time, and a mismatched pair answers `false`
-
-`rule:expressions/mixed-equality`
-
-`$a == $b` where either side is `mixed` or a union compiles, dispatches on the runtime tags, and
-applies [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics)'s table to the row they land in.
-
-**When the two runtime tags belong to different rows, the answer is `false`.** It does not throw, and
-it does not convert.
-
-That is the strict answer, not a looser rule returning: a `string` and an `int` are not the same
-value. The static case is a compile error rather than `false` for a different reason — there the
-compiler can prove the answer before the program runs, which makes it dead code rather than a
-question ([`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused)).
-
-The asymmetry is worth stating plainly: **`mixed` is where you pay for not declaring a type.** A
-comparison against `mixed` silently answers `false` where a typed one would have refused to compile.
-
-<sub>See also [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics), [`expressions/truthy-table`](expressions.md#expressions-truthy-table). Decided in [0090](../decisions/0090.md), [0007](../decisions/0007.md).</sub>
-
-<a id="expressions-switch-match-equality"></a>
-
-## A `switch` label and a `match` arm compare by the equality rule and by nothing else
-
-`rule:expressions/switch-match-equality`
-
-A `switch` label and a `match` arm are compared against the subject by
-[`expressions/equality-semantics`](expressions.md#expressions-equality-semantics), and by nothing else. There is one comparison in the language,
-so there is one here.
-
-A label or arm whose static type is disjoint from the subject's is
-[`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused)'s compile error, at the label rather than at the
-`switch`.
-
-`match (true) { … }` is unaffected: each arm is a `bool`, tested against `true`.
-
-Truthiness has no part in this. A `switch` subject and a `match` subject are compared, never tested
-for truth, and [`expressions/truthy-positions`](expressions.md#expressions-truthy-positions)'s six positions do not include either.
-
-<sub>See also [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics). Decided in [0090](../decisions/0090.md), [0035](../decisions/0035.md).</sub>
+<sub>See also [`expressions/intrinsic-literals`](expressions.md#expressions-intrinsic-literals), [`expressions/intrinsic-list-is-closed`](expressions.md#expressions-intrinsic-list-is-closed). Decided in [0057](../decisions/0057.md), [0042](../decisions/0042.md), [0018](../decisions/0018.md).</sub>
 
 <a id="expressions-pipeline-substitution"></a>
 

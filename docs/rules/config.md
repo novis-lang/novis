@@ -5,583 +5,6 @@
 
 *14 of 68 rules below are **designed** rather than shipped, and are marked where they appear.*
 
-<a id="config-three-changeability-classes"></a>
-
-## `nvs.toml` states defaults, not ceilings, and every directive carries one of three changeability classes
-
-`rule:config/three-changeability-classes`
-
-`nvs.toml` defines what a request **starts with**. A directive is a limit that cannot be exceeded
-only when it cannot be changed at runtime at all; where a value can change, the request sets whatever
-it wants, wider or narrower, and the file's value is the starting point it inherits.
-
-Every directive carries one of three changeability classes in the registry:
-
-| Class | `nvs.toml` | `Core\Config::set` |
-|---|---|---|
-| `System` | the only place it can be set | fails, returns `false` |
-| `Runtime` | the **default** a request starts with | any value, wider or narrower, up to the ceiling |
-| `RuntimeTighten` | the default *and* an upper bound | narrowing only; widening fails |
-
-`Runtime` is the class for anything changeable. `RuntimeTighten` is argued per directive, never as a
-policy: it exists for capability grants, where a script may drop a right it holds and never add one it
-does not, and for the directives where PHP itself behaves that way (`open_basedir`). The class answers
-one question only — *who may set it*. What applying a change requires is a second field on the same
-entry ([`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field)).
-
-This is what makes the most common `ini_set` in the PHP corpus — raising `memory_limit` for one
-import — work at conversion time rather than fail at runtime, while
-[`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives) keeps one request from becoming every co-resident
-request's outage.
-
-<sub>See also [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`config/a-refused-set-returns-false`](config.md#config-a-refused-set-returns-false), [`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local), [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field), [`config/an-app-block-may-widen-bounded-by-the-global-ceiling`](config.md#config-an-app-block-may-widen-bounded-by-the-global-ceiling). Decided in [0005](../decisions/0005.md), [0078](../decisions/0078.md), [0064](../decisions/0064.md).</sub>
-
-<a id="config-ceilings-are-their-own-directives"></a>
-
-## A ceiling is a `System` directive with the default's key name, and `false` removes it
-
-`rule:config/ceilings-are-their-own-directives`
-
-What the host is willing to lose to one request is stated separately from what a request starts
-with, in a `System`-class block using the **same key names**:
-
-```toml
-[limits]                     # Runtime — what a request starts with
-memory     = "128M"
-cpu_time   = "5s"
-
-[limits.hard]                # System — what one request may raise itself to
-memory     = "2G"
-cpu_time   = "60s"
-```
-
-The shipped ceilings are generous on purpose: they are sized to stop a runaway, not to shape ordinary
-code. `[limits.hard] memory = false` removes the ceiling entirely, giving literal PHP behaviour on a
-trusted single-tenant host — and `false` is the only spelling of "no ceiling" anywhere in the tree.
-
-The enforceable per-request cap is therefore the **ceiling**, not the default: a process's worst case
-is in-flight requests times `[limits.hard] memory`, and sizing a deployment means sizing against that
-number. That is memory spent to buy PHP compatibility, which is [`programs/memory-priority`](programs.md#programs-memory-priority)'s
-ordering working as written. An operator who cannot afford it lowers one number in one root-owned
-file.
-
-`[mode]` is the second, and last, block with this shape — a `Runtime` `default` beside a `System`
-`ceiling`, where the ceiling bounds how permissive a request may make itself
-([`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode)). Two instances of the pattern is something a
-reader learns once; a third would need its own argument.
-
-<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/a-refused-set-returns-false`](config.md#config-a-refused-set-returns-false), [`errors/on-limit`](errors.md#errors-on-limit), [`programs/memory-priority`](programs.md#programs-memory-priority), [`config/an-app-block-may-widen-bounded-by-the-global-ceiling`](config.md#config-an-app-block-may-widen-bounded-by-the-global-ceiling). Decided in [0005](../decisions/0005.md), [0091](../decisions/0091.md), [0004](../decisions/0004.md).</sub>
-
-<a id="config-a-refused-set-returns-false"></a>
-
-## A refused `Core\Config::set` returns `false` and leaves the value unchanged; it is never clamped
-
-`rule:config/a-refused-set-returns-false`
-
-A `Core\Config::set` that the changeability class or a ceiling refuses **returns `false` and leaves
-the value in force untouched**. It is never clamped to the ceiling: silently running with a different
-number than the one requested is harder to diagnose than a false return, and `false` is already what
-PHP answers for a set it will not perform.
-
-Every refusal answers the same way — a `System` directive whatever the value, a `RuntimeTighten`
-widening, a `Runtime` value above `[limits.hard]`, a value that does not spell the unit its
-directive takes, a name no directive governs — and none of them throws, so a program cannot catch a
-refusal and cannot tell one reason from another by its answer. What it can rely on is that after a
-`false` nothing about the request's configuration moved.
-
-The accepted half is the other assertion: a set below the ceiling does not merely echo back through
-`get`, it **takes effect** — a raised `memory` moves the ceiling the runtime enforces for the rest of
-that request ([`errors/on-limit`](errors.md#errors-on-limit)).
-
-<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set). Decided in [0005](../decisions/0005.md), [0064](../decisions/0064.md).</sub>
-
-<a id="config-a-runtime-set-is-request-local"></a>
-
-## Every runtime change lives in the request's own overlay and dies with the request
-
-`rule:config/a-runtime-set-is-request-local`
-
-`Core\Config::set` writes into the request's own copy-on-write overlay over the published snapshot,
-and the overlay is discarded when the request ends. `Core\Config::get` reads the effective value —
-the overlay, then the snapshot — and `Core\Config::restore` drops only what this request set,
-returning a directive to the file's value.
-
-A widened limit is therefore never observable to another request and cannot outlive the one that
-set it, which is what makes widening a question about *this* request's share of the host rather
-than about isolation. No runtime set can grant a capability, load an extension, reach another
-request's heap, or exceed a `System` value; what a request can do is move its own budget within the
-range the operator fixed, in both directions.
-
-The same property is what makes a request-local mode flip safe at all
-([`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode)), and it is the per-request half of the split
-[`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot) completes: requests share nothing *mutable*, and an
-overlay each request owns is not shared.
-
-<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set). Decided in [0005](../decisions/0005.md), [0078](../decisions/0078.md), [0064](../decisions/0064.md).</sub>
-
-<a id="config-system-means-a-request-may-not-set-it"></a>
-
-## A directive is `System` when changing it from inside a request would affect something other than that request, and that is all `System` means
-
-`rule:config/system-means-a-request-may-not-set-it`
-
-**A directive is `System` when changing it from inside a request would affect something other than
-that request.** That is the whole test, and it covers the `[[extension]]` entries and their hash
-pins, `cache.dir`, `opcache.validate` and its rate cap, the per-app blocks, `[limits.hard]` and
-`[mode] ceiling` themselves, every `[[schedule]]` key, `[deferred] max_concurrent` and both
-observability blocks. A directive being `System` is what makes it a limit; there is no separate notion
-of a "locked" value.
-
-A response header is the counter-example and is ordinary `Runtime`: a request may set any HTTP policy
-directive for itself, because it could already write the header directly and the change dies with the
-request.
-
-`System` is **not** a synonym for "read once at boot". Most `System` directives reload: whether a
-change needs a new snapshot or a restart is [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field)'s question,
-held in a field of its own, and the registry's census test fails if either field is ever derived from
-the other. With that split, `System` means one thing again — a request may not set it.
-
-<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class). Decided in [0005](../decisions/0005.md), [0078](../decisions/0078.md).</sub>
-
-<a id="config-an-edit-reaches-the-next-request-without-a-restart"></a>
-
-## An edited source file reaches the next request that resolves it, through lazy revalidation and one pointer swap, never a watcher or a restart
-
-`rule:config/an-edit-reaches-the-next-request-without-a-restart`
-
-The compiled-unit cache is keyed by **content**, not by path: `UnitKey { path, content_hash,
-env_hash } → CompileState`, and a `Ready` entry is write-once — nothing already in the map is ever
-mutated or torn. In front of it sits one small indirection, `path → current content_hash`, which is
-the pointer an edit swaps.
-
-Resolving a `require` or an inbound request's entry file walks five steps: reuse the known hash
-under `opcache.validate = "never"` or inside `revalidate_freq`, with no syscall; otherwise `stat`
-(and under `hash`, or on an `mtime` mismatch, re-hash) the file, and continue with no compile if
-the content is unchanged; on a change, compile the new content through the same single-flight
-machinery a cold compile uses, on the compile pool, never on a request-serving core; on success
-swap the path's pointer, publishing only if nobody moved it since; on failure leave the pointer
-alone ([`config/a-broken-edit-fails-the-requests-that-resolve-it`](config.md#config-a-broken-edit-fails-the-requests-that-resolve-it)).
-
-`mtime` is a cheap pre-filter; only the content hash is trusted as the key, so a filesystem with a
-coarse clock cannot serve stale code. There is no filesystem watcher, no stop-the-world phase and no
-second process, and a client cannot trigger a recompile — only the file's own content changing does.
-The rate cap bounds `stat` overhead to `N ⁄ revalidate_freq` per file, and laziness means only files
-a request actually resolves ever recompile, however many a deploy touched.
-
-<sub>See also [`config/a-request-keeps-the-unit-it-resolved`](config.md#config-a-request-keeps-the-unit-it-resolved), [`config/a-broken-edit-fails-the-requests-that-resolve-it`](config.md#config-a-broken-edit-fails-the-requests-that-resolve-it), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`concurrency/a-connection-keeps-its-compiled-unit`](concurrency.md#concurrency-a-connection-keeps-its-compiled-unit). Decided in [0017](../decisions/0017.md), [0078](../decisions/0078.md), [0042](../decisions/0042.md).</sub>
-
-<a id="config-a-request-keeps-the-unit-it-resolved"></a>
-
-## A file is resolved once per isolate, so an edit is invisible to a request already running
-
-`rule:config/a-request-keeps-the-unit-it-resolved`
-
-**A file is resolved once per isolate, the first time execution reaches it, and never re-resolved
-on a second reference within the same run.** The compiled unit a running isolate holds was cloned
-out of the cache at the moment of first touch, and it is never mutated in place — only ever replaced
-at the path-pointer layer above it. A request that resolved a file before an edit completes on the
-pre-edit unit even if the edit and a successful recompile land before it finishes; the next request
-to resolve the same path gets the new one.
-
-The compiled code is the *only* thing shared across requests. A request's heap arena, its limits and
-ceilings, its `Core\Request`/`Core\Server`/`Core\Session` state and its panic containment are
-untouched by a swap: a hot-reload event changes what code a *future* request compiles to, never how
-isolated any request's execution of that code is ([`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing)). A
-connection isolate is the long-lived case of the same rule
-([`concurrency/a-connection-keeps-its-compiled-unit`](concurrency.md#concurrency-a-connection-keeps-its-compiled-unit)).
-
-Old generations are retained only while some in-flight request still holds one, bounded by that
-request's own wall-clock and CPU limits — O(in-flight), never O(edits ever made).
-
-<sub>See also [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`concurrency/a-connection-keeps-its-compiled-unit`](concurrency.md#concurrency-a-connection-keeps-its-compiled-unit). Decided in [0017](../decisions/0017.md), [0006](../decisions/0006.md).</sub>
-
-<a id="config-a-broken-edit-fails-the-requests-that-resolve-it"></a>
-
-## A revalidated file that no longer compiles fails the requests that resolve it afterwards, loudly, and the last good version is never served in its place
-
-`rule:config/a-broken-edit-fails-the-requests-that-resolve-it`
-
-When a revalidated file no longer compiles, the path's pointer is left where it was — it still names
-the last content that compiled — but the `Failed` state the resolution just reached is what **this**
-caller gets, as ordinary checked-return data. A later request landing on the same content sees the
-same `Failed` entry, because it is the same key, and is answered from the table rather than compiled
-again, so a request storm against a broken file costs one compile and one rendering of its spans, not
-one per request.
-
-Requests already running are unaffected ([`config/a-request-keeps-the-unit-it-resolved`](config.md#config-a-request-keeps-the-unit-it-resolved)); only
-requests that newly resolve the broken file fail, and they fail loudly. Silently continuing to serve
-the last good version after an edit — especially a security fix — is the worse failure mode, and it
-would diverge from PHP's own `validate_timestamps` behaviour to buy availability nothing needs.
-
-The same policy covers an extension removed while source still references it: nothing proves that at
-reload time, and the units that call it fail when a request next resolves them, and only those.
-
-<sub>See also [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart), [`config/a-request-keeps-the-unit-it-resolved`](config.md#config-a-request-keeps-the-unit-it-resolved). Decided in [0017](../decisions/0017.md), [0078](../decisions/0078.md).</sub>
-
-<a id="config-opcache-revalidation-is-system-class"></a>
-
-## `opcache.validate` and its rate cap are `System`, and `validate`'s startup default is chosen by the run mode
-
-`rule:config/opcache-revalidation-is-system-class`
-
-`opcache.validate` — `never`, `mtime` or `hash` — and `opcache.revalidate_freq` are `System`-class:
-a request cannot loosen how often, or whether, the process re-checks source files. Letting a request
-set `validate = "never"` for itself would be a way to pin a version of the code past a since-shipped
-fix, and letting it lower `revalidate_freq` would be a way to force a `stat`/hash storm on a hot
-file. Neither is a request-local decision ([`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it)).
-
-`validate`'s **startup default** is selected by the run mode — `never` in `production`, `mtime` in
-`development` — as one of the startup rows in [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped). That
-does not loosen the paragraph above: the row is chosen by root-owned configuration before any request
-exists, is never re-derived by a runtime mode flip, and stays unflippable from code. An `[opcache]
-validate` written beside `mode = "development"` still wins, because the mode supplies a default and
-nothing more.
-
-`revalidate_freq` is deliberately not a mode row: no value of it a developer's machine needs differs
-from an operator's, so it keeps its own default under either mode.
-
-<sub>See also [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped), [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart). Decided in [0017](../decisions/0017.md), [0091](../decisions/0091.md), [0005](../decisions/0005.md).</sub>
-
-<a id="config-the-config-is-an-immutable-snapshot"></a>
-
-## The configuration is one immutable snapshot a request clones at start, and a reload replaces it whole after validating everything
-
-`rule:config/the-config-is-an-immutable-snapshot`
-
-The parsed configuration is one immutable snapshot behind an `Arc`. A request clones the `Arc` when
-it starts and reads from that clone for its whole life, so a reload is never visible to a request
-already running and no request ever observes half of one file and half of another. The per-request
-half is unchanged: `Core\Config::set` writes an overlay over the clone
-([`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local)).
-
-Replacement is **validate-then-publish**, in this order, and any failure before the last step leaves
-the running configuration completely untouched: read and parse the whole tree of files, where a
-syntax error, an unknown key or a duplicate key ends it; verify every `[[extension]]` pin against the
-file on disk, on every reload and not only the first; register the directives those extensions
-contribute; validate the assembled registry; then compute `env_hash` and publish the new `Arc`. The
-tree's ownership checks re-run on every file, so a file that became group-writable since boot refuses
-the swap and leaves the previous snapshot serving.
-
-Cost: one `Arc` clone at request start and **no syscall** — unlike source revalidation, configuration
-is never polled from the request path; a reload is pushed by the operator. Two snapshots live during
-a swap, plus one per in-flight request still holding an older one — kilobytes each, bounded by
-concurrency, never by reloads performed.
-
-<sub>See also [`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local), [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field), [`config/one-local-control-socket`](config.md#config-one-local-control-socket), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary). Decided in [0078](../decisions/0078.md), [0005](../decisions/0005.md), [0103](../decisions/0103.md).</sub>
-
-<a id="config-reloadability-is-its-own-field"></a>
-
-## Reloadability is a second registry field, `Reload` or `Boot`, orthogonal to the changeability class
-
-`rule:config/reloadability-is-its-own-field`
-
-Beside its changeability class, every directive carries a second field answering a different
-question — not *who may set it* but *what applying a change requires*:
-
-| Field | Meaning |
-|---|---|
-| `Reload` | a new snapshot is enough |
-| `Boot` | applying it would rebind an OS resource or re-create the runtime |
-
-The two are independent. A `System` directive may be `Reload` — a capability grant, `[limits.hard]`,
-`[mode] ceiling` — and every `Runtime` and `RuntimeTighten` directive is `Reload` by construction,
-since such a directive *is* a value read out of the snapshot. A registry that derived either field
-from the other would re-create the conflation this field exists to end, so the census test fails if it
-ever does.
-
-`Boot` is the narrow set: `cache.dir`, `[server]`'s listen addresses, the thread-per-core count and
-`[control] socket` itself. Everything else reloads, including the `[[extension]]` array and its pins,
-`opcache.validate` and its rate cap, the per-app blocks, `[[schedule]]`, `[deferred] max_concurrent`
-and both observability blocks. A `[[schedule]]` firing already in flight runs to completion; the new
-set arms from the next tick. A changed `Boot` key **does not take effect**: the published snapshot
-carries the running value forward, and the reload names the key
-([`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply)).
-
-<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`config/every-schedule-key-is-system`](config.md#config-every-schedule-key-is-system), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system). Decided in [0078](../decisions/0078.md), [0005](../decisions/0005.md).</sub>
-
-<a id="config-one-local-control-socket"></a>
-
-## The server is controlled over one local socket whose owner and mode are the authentication, and `nvs ctl` is its client  *(designed — not yet in the compiler)*
-
-`rule:config/one-local-control-socket`
-
-```toml
-[control]
-socket = "/run/nvs/control.sock"   # \\.\pipe\nvs-control on Windows; `false` disables
-```
-
-**Local socket only. There is no TCP listener, no token, no TLS and no auth middleware** — the
-socket's owner and mode are the authentication. It is created mode `0600` (a DACL naming this account
-on Windows), owned by the runtime's account, and **the server refuses to start if the directory
-holding it is writable by any other account**, the same trust check every configuration file gets.
-A tree that writes no `[control]` block gets no control surface at all. The socket exists only where
-a long-running server does; `nvs run` compiles one file and exits.
-
-The wire protocol is HTTP over that socket, not a bespoke line protocol: `curl --unix-socket` debugs
-it with no special tooling. **`nvs ctl` is the client**, a namespace of its own because every other
-subcommand acts on files with no server involved; `--socket` addresses one of several servers on a
-host. `reload` re-reads the whole configuration tree and publishes it; `ctl config` prints the live
-snapshot with each directive's origin. Operations serialize, so two reloads cannot interleave two
-snapshots. **No control operation runs user Novis code, ever** — one that could would be
-[`security/no-eval`](security.md#security-no-eval)'s door with a different name on it.
-
-The wire shape is unstable until 1.0: every response carries the server version, and `nvs ctl`
-refuses a mismatch. Every reload is written to `Core\Log` with its outcome.
-
-<sub>See also [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`config/no-network-control-surface`](config.md#config-no-network-control-surface), [`security/no-eval`](security.md#security-no-eval), [`config/ctl-config-reports-the-live-snapshot`](config.md#config-ctl-config-reports-the-live-snapshot), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary). Decided in [0078](../decisions/0078.md), [0103](../decisions/0103.md), [0042](../decisions/0042.md).</sub>
-
-<a id="config-the-extension-set-is-in-every-unit-key"></a>
-
-## The extension set is folded into one `env_hash` that both compiled-unit cache keys carry, so an extension change is an ordinary cache miss
-
-`rule:config/the-extension-set-is-in-every-unit-key`
-
-```
-extension_set_hash = BLAKE3(sorted sha256 pins of the [[extension]] array)
-env_hash           = BLAKE3(target_triple ‖ cpu_feature_bitset ‖ compiler_version_hash ‖ extension_set_hash)
-content_hash       = BLAKE3(source_content)
-artifact_key       = BLAKE3(content_hash ‖ env_hash)
-```
-
-One `env_hash` is carried by **both** compiled-unit caches: the on-disk key is
-`BLAKE3(content_hash ‖ env_hash)`, and the in-memory key is `UnitKey { path, content_hash,
-env_hash }`. It is derived from the same `content_hash` the in-memory key carries, so a unit's bytes
-are hashed once for both. It is constant for the life of a configuration and costs the request path
-nothing.
-
-That is the whole of extension reload: a changed set changes `env_hash`, every unit key changes with
-it, every lookup is an ordinary miss, and the lazy per-path revalidation of
-[`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart) recompiles each unit on the compile
-pool as some request resolves it. No invalidation pass exists. It also closes the hole where an
-artifact compiled against one extension set — holding a direct call to a trampoline that has since
-moved — could be reused against another.
-
-Invalidation is coarse by design: changing the set rekeys every unit, not only units that call an
-extension. Finer would need per-unit dependency tracking including negative dependencies, a real
-subsystem for a modest win. The compile pool bounds how much of the resulting wave is in flight at
-once.
-
-<sub>See also [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system). Decided in [0078](../decisions/0078.md), [0017](../decisions/0017.md), [0042](../decisions/0042.md).</sub>
-
-<a id="config-a-reload-names-what-it-could-not-apply"></a>
-
-## A reload reports what it applied, names every changed `Boot` key it could not apply, and counts the units it invalidated
-
-`rule:config/a-reload-names-what-it-could-not-apply`
-
-The answer to a reload names, in one place: the directives applied and now in force; the **`Boot`
-keys whose values changed and therefore did not take effect, each named individually**; and how many
-compiled units were invalidated, so an operator knows a recompile wave is coming. A validation failure
-reports the offending line and states that the running configuration is unchanged.
-
-Naming the ignored `Boot` keys is the difference between a reload an operator can trust and one they
-have to guess about: silently ignoring a changed listen address is how a deployment ends up believing
-it applied a change it did not. The report and the carry are one operation — the published snapshot
-still holds the *running* value of each named key, so the change exists nowhere but the report until
-a restart. A changed `Boot` key is therefore absent from the applied list rather than present in
-both.
-
-The unit count follows [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key): a changed `env_hash`
-invalidates every unit and an unchanged one invalidates none. What a reload cannot catch is an
-extension removed while source still references it — those units fail when next resolved
-([`config/a-broken-edit-fails-the-requests-that-resolve-it`](config.md#config-a-broken-edit-fails-the-requests-that-resolve-it)).
-
-<sub>See also [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot), [`config/one-local-control-socket`](config.md#config-one-local-control-socket). Decided in [0078](../decisions/0078.md).</sub>
-
-<a id="config-no-network-control-surface"></a>
-
-## There is no network-reachable control surface, in either direction of configuration
-
-`rule:config/no-network-control-surface`
-
-There is no TCP listener, in either direction of configuration. `[control] socket` accepts a local
-endpoint or `false`, and a value that would be reached over a network — a URL, a host and a port, a
-bare port number — is refused at boot by name rather than bound. A remote control plane is reachable
-today by running `nvs ctl` over the operator's existing access path, SSH or the container runtime's
-exec, which every orchestrator already has.
-
-A network listener is the only part of the control design that would carry an authentication
-surface, and nothing yet needs one, so this is deferred rather than rejected. What it would take is
-already recorded: a second listener absent unless configured and never sharing the application
-listener; per-effect-class enablement (`observe` / `operate` / `lifecycle`) so a liveness probe cannot
-be handed `shutdown`; a token read from a file, refused at boot if absent; TLS required for any
-non-loopback bind; and `lifecycle` withheld from a network listener entirely.
-
-A control endpoint on the application listener is rejected outright: every path-normalization bug
-and proxy misconfiguration would become privilege escalation, and a reserved prefix would collide
-permanently with the compile-time route table.
-
-<sub>See also [`config/one-local-control-socket`](config.md#config-one-local-control-socket). Decided in [0078](../decisions/0078.md).</sub>
-
-<a id="config-two-modes-and-the-default-is-production"></a>
-
-## A run mode is one of exactly two closed values, and with nothing configured it is `production`
-
-`rule:config/two-modes-and-the-default-is-production`
-
-`Env\Mode` is a closed enum with exactly two cases, `Env\Mode::Production` and
-`Env\Mode::Development`. **With nothing configured, the mode is `Production`.** That direction
-matches every other default in the language — secure headers, closed CORS, the refusing sink,
-deny-by-default capabilities — and it is the direction Laravel and Django did not take: a deployment
-that forgets the line is safe, and a developer who wants the other one asks for it, once.
-
-**The set is closed, and staging is not a third value.** A staging host runs `production` mode with
-different configuration — different credentials, a different log target, wider limits — which is what
-staging has always actually been. An open set of named environments buys per-name config files at the
-cost of the compiler no longer being able to enumerate what a name does, which is the property
-[`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults) exists to preserve; and since an unknown *key* in `nvs.toml` is
-already an error, an unknown *value* silently meaning "some third thing" would be the odd one out.
-
-A `test` run selects development-mode defaults inside its own isolate; it is not a third value
-either.
-
-<sub>See also [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults), [`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode), [`config/no-environment-variable-selects-the-mode`](config.md#config-no-environment-variable-selects-the-mode), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type). Decided in [0091](../decisions/0091.md), [0005](../decisions/0005.md).</sub>
-
-<a id="config-the-mode-flag-wins-over-the-file"></a>
-
-## The mode a server starts in comes from `nvs.toml` or from `nvs serve --mode=`, and the flag is the last word  *(designed — not yet in the compiler)*
-
-`rule:config/the-mode-flag-wins-over-the-file`
-
-```toml
-[mode]
-default = "production"      # Runtime — the mode an application starts in
-ceiling = "development"     # System  — the most permissive mode any code may select
-```
-
-`nvs.toml` is one source: `[mode] default` is `Runtime`-class, which is what makes a runtime flip
-possible at all. **`nvs serve --mode=development` is the other, and it overrides the file** —
-ordinary CLI precedence, the flag being the last word about the mode the server starts in. The flag
-replaces the **global** value; a matching `[[app]]` block still layers over it, so a flag never drags
-an application that pins its own mode along with it. The flag set is closed and there is no `--set`.
-
-This is a deliberate choice of ergonomics over one safety catch. Refusing a flag that contradicts the
-file would have caught a deploy script carrying a stale `--mode`; what covers that case instead is the
-banner and `Warn` record a development-mode server emits when it binds a public interface, so the
-payment for flag-over-file is visible rather than silent.
-
-The ceiling bounds a runtime flip, not the startup value: `nvs serve --mode=development` in a
-directory with no `nvs.toml` simply works, and the ceiling follows it.
-
-<sub>See also [`config/two-modes-and-the-default-is-production`](config.md#config-two-modes-and-the-default-is-production), [`config/no-environment-variable-selects-the-mode`](config.md#config-no-environment-variable-selects-the-mode), [`config/a-directive-flag-is-a-closed-list-at-the-global-layer`](config.md#config-a-directive-flag-is-a-closed-list-at-the-global-layer), [`config/an-application-is-its-entry-file-path`](config.md#config-an-application-is-its-entry-file-path), [`config/a-mount-routes-and-an-app-block-sets-policy`](config.md#config-a-mount-routes-and-an-app-block-sets-policy). Decided in [0091](../decisions/0091.md), [0103](../decisions/0103.md).</sub>
-
-<a id="config-no-environment-variable-selects-the-mode"></a>
-
-## No environment variable selects the run mode — not `NVS_MODE`, not `APP_ENV`, not `NODE_ENV`
-
-`rule:config/no-environment-variable-selects-the-mode`
-
-**No environment variable is read for the mode. Not `NVS_MODE`, not `APP_ENV`, not `NODE_ENV`.**
-No variable is ever populated by the host, and `Core\Env` is read-only; an env-var mode would be the
-one place Novis reintroduced the exact mechanism behind every incident this design was shaped by —
-Laravel's `APP_ENV=prod APP_DEBUG=true`, Django's settings dump on any 500, Node's `NODE_ENV` that
-every library sniffs independently so a stack can be half in production with nothing detecting it.
-
-Setting all three and asserting the mode is unchanged is a conformance case, not a convention. A
-converted Laravel application's `APP_ENV` read arrives as an ordinary `Core\Env::get` and stays one:
-it is that application's own variable, not Novis's mode.
-
-The operator's runtime switch is a reload of the root-owned file over the local control socket
-([`config/one-local-control-socket`](config.md#config-one-local-control-socket)), which swaps the whole snapshot with no restart and no
-control port — strictly more capable than editing an environment variable, and root-owned.
-
-<sub>See also [`config/two-modes-and-the-default-is-production`](config.md#config-two-modes-and-the-default-is-production), [`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file), [`config/one-local-control-socket`](config.md#config-one-local-control-socket). Decided in [0091](../decisions/0091.md), [0012](../decisions/0012.md).</sub>
-
-<a id="config-a-mode-is-five-defaults"></a>
-
-## A mode is a shorthand for the defaults of five `Runtime` directives, and governs nothing else
-
-`rule:config/a-mode-is-five-defaults`
-
-**The mode is a shorthand. It changes only the default of directives that are each individually
-settable anyway.** The complete list, and it is complete:
-
-| Directive | Class | `production` | `development` |
-|---|---|---|---|
-| `[debug] inline` | `RuntimeTighten` | `false` | `true` |
-| `[log] format` | `Runtime` | `"json"` | `"text"` |
-| `[log] level` | `Runtime` | `Info` | `Debug` |
-| `[http.errors] detail` | `Runtime` | `"generic"` | `"full"` |
-| `[log] access` | `Runtime` | `false` | `true` |
-
-Three properties follow. **Every row is spellable on its own**, so `mode = "development"` beside
-`[log] format = "json"` is legal and means what it reads like — the mode supplies a default, the
-explicit line overrides it. **The resolved value of every directive is printable**, so *what exactly
-does development mode change?* has a complete, mechanical answer. **No row is `System`-class**,
-which is what makes a runtime flip coherent: everything the table governs is something a request
-could already have set for itself. The table has one home in the tree, and a test asserts its key
-set — a sixth row cannot appear silently.
-
-What a mode deliberately does not govern: `[debug] mode`'s probe bits, whose configured value is
-already the default *and* the bound; the revalidation rate cap
-([`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class)); and **anything with no directive**. A mode
-never gates a *behaviour* — no dev toolbar, no source-context injection, no watcher. A feature that
-should differ between modes gets a directive first and a row second, in that order.
-
-<sub>See also [`config/two-modes-and-the-default-is-production`](config.md#config-two-modes-and-the-default-is-production), [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped), [`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode), [`errors/log-level`](errors.md#errors-log-level), [`config/check-and-dump-audit-the-tree-offline`](config.md#config-check-and-dump-audit-the-tree-offline), [`config/a-mount-routes-and-an-app-block-sets-policy`](config.md#config-a-mount-routes-and-an-app-block-sets-policy). Decided in [0091](../decisions/0091.md), [0092](../decisions/0092.md), [0020](../decisions/0020.md), [0097](../decisions/0097.md), [0005](../decisions/0005.md).</sub>
-
-<a id="config-a-startup-default-is-never-flipped"></a>
-
-## A mode also selects three startup defaults that are fixed at boot, never re-derived, and never flippable from code  *(designed — not yet in the compiler)*
-
-`rule:config/a-startup-default-is-never-flipped`
-
-Three directives have a right value that differs between the two modes and cannot be `Runtime`-class,
-because each is read before there is any request to change it:
-
-| Directive | Class | `production` | `development` |
-|---|---|---|---|
-| `[server] dispatch` | `Boot` | `"entry"` | `"path"` |
-| `[server] static` | `Boot` | `false` | `true` |
-| `opcache.validate` | `System` | `never` | `mtime` |
-
-**A startup row is fixed at boot, is never re-derived, and is never flippable.** `Core\Config::set`
-refuses it exactly as it refuses any `Boot` or `System` directive, and a runtime mode flip re-derives
-**only** the five rows of [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults). Without that separation a flip would
-appear to change `dispatch` for a request that had already been dispatched.
-
-The objection to a flippable `opcache.validate` was always about the *flip*, never the *default*: a
-request that could set `validate = "never"` for itself would pin a version of the code past a shipped
-fix, and a startup value chosen by a root-owned mode does none of that. The list stays closed at eight
-rows across the two tables, and which table a future directive belongs in is decided by its
-changeability class alone.
-
-<sub>See also [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode). Decided in [0091](../decisions/0091.md), [0017](../decisions/0017.md), [0097](../decisions/0097.md).</sub>
-
-<a id="config-a-program-may-read-and-flip-its-mode"></a>
-
-## A program may read the mode and may flip it for its own request, bounded by a `System` ceiling
-
-`rule:config/a-program-may-read-and-flip-its-mode`
-
-```
-Core\Env::mode(): Env\Mode                                  // read
-Core\Config::set("mode.default", "development"): bool       // flip
-```
-
-**Reading it is first-class.** Applications legitimately need it — seed data, a null mail transport,
-a development-only route — and a language that denies the honest accessor gets the dishonest one:
-people read a governed directive as a proxy for the mode. `Core\Env::mode()` returns the typed enum;
-`Core\Config::get("mode.default")` returns the same fact as a string, the way it does for every
-directive. `mode.default` is the one key the mode is read and written at; the bare `mode` names the
-table and is not a second spelling.
-
-**Flipping it is the ordinary `Runtime` mechanism with no new spelling.** The set is bounded by
-`[mode] ceiling`, a `System` directive stating the most permissive mode any code on the host may
-select; when unset it equals the mode the server started in, so a production host that wrote nothing
-refuses every flip without its operator knowing the feature exists, and one host serving mixed
-applications is one root-owned line. A refused flip returns `false` and moves nothing
-([`config/a-refused-set-returns-false`](config.md#config-a-refused-set-returns-false)); a name that is not one of the two modes is outside every
-ceiling.
-
-**Every flip is request-local** ([`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local)), which is what makes
-allowing it safe at all. An accepted flip re-derives the five mode rows into the request's overlay,
-**except any the request has already set explicitly** — without the re-derivation the flip does
-nothing; without the exception it stomps a deliberate choice made three lines earlier. For a mixed
-host the `[[app]]` block is the primary answer and the in-code flip the escape hatch.
-
-<sub>See also [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults), [`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local), [`config/a-refused-set-returns-false`](config.md#config-a-refused-set-returns-false), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`config/a-mount-routes-and-an-app-block-sets-policy`](config.md#config-a-mount-routes-and-an-app-block-sets-policy). Decided in [0091](../decisions/0091.md), [0005](../decisions/0005.md).</sub>
-
 <a id="config-the-file-is-nvs-toml-and-it-is-toml"></a>
 
 ## The configuration file is `nvs.toml`, and it is TOML
@@ -664,6 +87,30 @@ Across files the two shapes behave differently, which is
 
 <sub>See also [`config/a-value-array-replaces-and-a-table-appends`](config.md#config-a-value-array-replaces-and-a-table-appends), [`config/include-takes-a-path-or-a-dir`](config.md#config-include-takes-a-path-or-a-dir). Decided in [0064](../decisions/0064.md), [0003](../decisions/0003.md), [0006](../decisions/0006.md), [0018](../decisions/0018.md).</sub>
 
+<a id="config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one"></a>
+
+## A duplicate key is an error, and so is an unknown one — per file
+
+`rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`
+
+The same key set twice in one file is refused (`E0604`), and so is a key the registry does not know
+(`E0601`) — both name the file and the line. In a root-owned file where one table grants
+capabilities, a line silently overridden by a later copy of itself is a security-relevant failure that
+costs nothing to refuse, and a typo'd `capabilties` must fail at boot rather than read as "granted
+nothing". A typo'd block header is refused the same way and claims no block. Both are `serde`'s own
+behaviour with `deny_unknown_fields`; neither is new machinery.
+
+On a reload the same diagnostic refuses the swap and the previous snapshot keeps serving, so a typo is
+never published to a running server either.
+
+**Both refusals are per file.** Across an `[[include]]` the same key set twice is not a duplicate but
+an override, which [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded) allows on condition that it
+is reported with both origins. The property protected is that no assignment is *silently* shadowed;
+inside one file the only way to hold it is to refuse, and an included file is refused inside exactly as
+the root is.
+
+<sub>See also [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/the-file-is-nvs-toml-and-it-is-toml`](config.md#config-the-file-is-nvs-toml-and-it-is-toml), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot). Decided in [0064](../decisions/0064.md), [0103](../decisions/0103.md).</sub>
+
 <a id="config-every-block-is-argued-where-it-is-added"></a>
 
 ## The block roster is closed, and each block's directives are argued by the rule that adds it
@@ -703,30 +150,6 @@ several fields.
 
 <sub>See also [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one). Decided in [0064](../decisions/0064.md), [0103](../decisions/0103.md), [0104](../decisions/0104.md).</sub>
 
-<a id="config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one"></a>
-
-## A duplicate key is an error, and so is an unknown one — per file
-
-`rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`
-
-The same key set twice in one file is refused (`E0604`), and so is a key the registry does not know
-(`E0601`) — both name the file and the line. In a root-owned file where one table grants
-capabilities, a line silently overridden by a later copy of itself is a security-relevant failure that
-costs nothing to refuse, and a typo'd `capabilties` must fail at boot rather than read as "granted
-nothing". A typo'd block header is refused the same way and claims no block. Both are `serde`'s own
-behaviour with `deny_unknown_fields`; neither is new machinery.
-
-On a reload the same diagnostic refuses the swap and the previous snapshot keeps serving, so a typo is
-never published to a running server either.
-
-**Both refusals are per file.** Across an `[[include]]` the same key set twice is not a duplicate but
-an override, which [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded) allows on condition that it
-is reported with both origins. The property protected is that no assignment is *silently* shadowed;
-inside one file the only way to hold it is to refuse, and an included file is refused inside exactly as
-the root is.
-
-<sub>See also [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/the-file-is-nvs-toml-and-it-is-toml`](config.md#config-the-file-is-nvs-toml-and-it-is-toml), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot). Decided in [0064](../decisions/0064.md), [0103](../decisions/0103.md).</sub>
-
 <a id="config-nvs-toml-is-not-a-project-manifest"></a>
 
 ## `nvs.toml` is a deployment file, never a project manifest, and it is never found by walking up
@@ -747,57 +170,6 @@ path announced at boot, and the installer refusing a service whose configuration
 directory.
 
 <sub>See also [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload). Decided in [0064](../decisions/0064.md), [0103](../decisions/0103.md), [0061](../decisions/0061.md).</sub>
-
-<a id="config-ini-set-is-core-config-set"></a>
-
-## `ini_set` is `Core\Config::set`, and the whole family crosses as strings
-
-`rule:config/ini-set-is-core-config-set`
-
-[`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants) removes `ini_set`, `ini_get`, `ini_restore` and
-`ini_get_all` independently of the format; the names go with the file:
-
-| PHP | Novis |
-|---|---|
-| `ini_set($k, $v)` | `Core\Config::set(string $name, string $value): bool` |
-| `ini_get($k)` | `Core\Config::get(string $name): ?string` |
-| `ini_restore($k)` | `Core\Config::restore(string $name): void` |
-| `ini_get_all()` | `Core\Config::all(): array<string, string>` |
-
-The semantics are the changeability model's, unchanged: a set the class or a ceiling refuses returns
-`false` and leaves the value in force untouched, and every accepted change is request-local on the
-copy-on-write overlay, invisible to the next request on the same core. A bare limit name and its
-`[limits]` spelling are one key to every member.
-
-Values cross this API as `string` in both directions even where the file is typed, because the
-directive *name* is dynamic here and one return type is what makes that possible. The registry parses
-the string with the parser the boot path uses
-([`config/one-parser-for-the-boot-path-and-config-set`](config.md#config-one-parser-for-the-boot-path-and-config-set)). On a host with no configuration at all
-`get` is `null`, `all` is empty, `set` is `false` and nothing throws
-([`config/no-configuration-file-is-a-complete-configuration`](config.md#config-no-configuration-file-is-a-complete-configuration)).
-
-<sub>See also [`config/one-parser-for-the-boot-path-and-config-set`](config.md#config-one-parser-for-the-boot-path-and-config-set), [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives). Decided in [0064](../decisions/0064.md), [0005](../decisions/0005.md), [0011](../decisions/0011.md).</sub>
-
-<a id="config-one-parser-for-the-boot-path-and-config-set"></a>
-
-## The boot path and `Core\Config::set` parse a value through one implementation
-
-`rule:config/one-parser-for-the-boot-path-and-config-set`
-
-A value written in the file and a value handed to `Core\Config::set` go through **one parser**. Every
-shipped default parses identically through the boot path and through `set`, and the two refusals the
-boot makes — a value that is not a quantity, a name no directive governs — are the same two `set`
-answers `false` with. A depth written as a bare integer and one written as `"64"` are the same value
-wherever they arrive.
-
-This is the shape [`expressions/preparation-preserves-behaviour`](expressions.md#expressions-preparation-preserves-behaviour) already establishes: a prepared
-path and a runtime path cannot diverge when there is one implementation. `Core\Config` itself
-marshals a string in and a string out and holds none of the rules — what a name resolves to, what a
-set may do and where the ceiling comes from all live in the configuration crate, and the parser is not
-reachable from the stdlib member at all, which is what makes the claim true by construction rather
-than by discipline.
-
-<sub>See also [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set), [`config/a-size-or-duration-is-a-quoted-string-with-its-suffix`](config.md#config-a-size-or-duration-is-a-quoted-string-with-its-suffix), [`expressions/preparation-preserves-behaviour`](expressions.md#expressions-preparation-preserves-behaviour). Decided in [0064](../decisions/0064.md), [0057](../decisions/0057.md).</sub>
 
 <a id="config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults"></a>
 
@@ -1011,6 +383,26 @@ a database beside *that* file, not beside the running program.
 
 <sub>See also [`config/include-takes-a-path-or-a-dir`](config.md#config-include-takes-a-path-or-a-dir), [`config/app-keys-are-canonicalized-before-matching`](config.md#config-app-keys-are-canonicalized-before-matching), [`config/a-secret-is-a-file-whose-content-is-the-value`](config.md#config-a-secret-is-a-file-whose-content-is-the-value). Decided in [0103](../decisions/0103.md).</sub>
 
+<a id="config-any-file-in-the-tree-may-set-any-directive"></a>
+
+## Any file in the tree may set any directive, `System` class included
+
+`rule:config/any-file-in-the-tree-may-set-any-directive`
+
+Because [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary) is uniform, **any file in the tree may set any
+directive**, `System` class included: capabilities, `[limits.hard]`, `[mode] ceiling` and
+`[[extension]]` entries are as legitimate in `conf.d/host.toml` as in the root file, and a capability
+grant in an included file takes effect.
+
+Whoever can write an included file cleared exactly the same bar as whoever can write the root file, so
+a rule restricting what an include may say would buy no security an attacker does not already have,
+while costing per-host capability sets and per-environment extension sets. Confining `System`
+directives to the root, or letting an include only narrow, would each invert deny-by-default at the
+file layer: the root would have to grant every right any environment needs so that each host could
+take some away.
+
+<sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it). Decided in [0103](../decisions/0103.md), [0005](../decisions/0005.md).</sub>
+
 <a id="config-ownership-is-the-trust-boundary"></a>
 
 ## Every file the configuration reads, and its directory, must be owned by the runtime account or root and writable by nobody else
@@ -1038,6 +430,31 @@ root, so a configuration kept under such a path refuses until that inheritance i
 Where the check runs is [`config/the-ownership-check-runs-where-it-can-be-answered`](config.md#config-the-ownership-check-runs-where-it-can-be-answered).
 
 <sub>See also [`config/optional-covers-absence-and-moves-the-check-to-the-directory`](config.md#config-optional-covers-absence-and-moves-the-check-to-the-directory), [`config/any-file-in-the-tree-may-set-any-directive`](config.md#config-any-file-in-the-tree-may-set-any-directive), [`config/the-ownership-check-runs-where-it-can-be-answered`](config.md#config-the-ownership-check-runs-where-it-can-be-answered), [`config/a-secret-file-is-checked-for-integrity-and-advised-on-exposure`](config.md#config-a-secret-file-is-checked-for-integrity-and-advised-on-exposure), [`config/one-local-control-socket`](config.md#config-one-local-control-socket). Decided in [0103](../decisions/0103.md), [0042](../decisions/0042.md), [0078](../decisions/0078.md).</sub>
+
+<a id="config-the-ownership-check-runs-where-it-can-be-answered"></a>
+
+## The ownership check runs on `nvs serve` and on reload; `nvs run`, `config check` and `config dump` read without it, and an unchecked file can grant nothing
+
+`rule:config/the-ownership-check-runs-where-it-can-be-answered`
+
+The ownership check runs where its question can be answered — `nvs serve` and reload, on the host and
+as the account that will serve — and three readers resolve the tree without it, each for a reason of
+its own.
+
+`nvs run` executes a program the invoking account named, from a working directory that account chose,
+as that account: whoever can write its `./nvs.toml` can write the program, so the file adds no
+authority the check would take away, and the Windows default would otherwise refuse nearly every
+checkout. `nvs config check` and `nvs config dump` run on the auditing machine as the auditing account,
+where the check answers a different question than the one it exists for — it refuses trees the server
+would accept and passes trees the server would refuse, and a green result that means neither is worse
+than one that does not claim to have looked.
+
+**What the exemption may never do is grant.** A capability or a `System` directive read through an
+unchecked file on the `run` path carries the invoking account's own authority and nothing more:
+`./nvs.toml` can grant a CLI program nothing it could not take for itself, and the rule that places
+the capability check is bound by that sentence.
+
+<sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/check-and-dump-audit-the-tree-offline`](config.md#config-check-and-dump-audit-the-tree-offline), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope). Decided in [0103](../decisions/0103.md), [0093](../decisions/0093.md).</sub>
 
 <a id="config-optional-covers-absence-and-moves-the-check-to-the-directory"></a>
 
@@ -1068,51 +485,6 @@ the shallowest directory an attacker would have to write in order to keep it. A 
 directory is checked the same way.
 
 <sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/include-takes-a-path-or-a-dir`](config.md#config-include-takes-a-path-or-a-dir). Decided in [0103](../decisions/0103.md).</sub>
-
-<a id="config-any-file-in-the-tree-may-set-any-directive"></a>
-
-## Any file in the tree may set any directive, `System` class included
-
-`rule:config/any-file-in-the-tree-may-set-any-directive`
-
-Because [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary) is uniform, **any file in the tree may set any
-directive**, `System` class included: capabilities, `[limits.hard]`, `[mode] ceiling` and
-`[[extension]]` entries are as legitimate in `conf.d/host.toml` as in the root file, and a capability
-grant in an included file takes effect.
-
-Whoever can write an included file cleared exactly the same bar as whoever can write the root file, so
-a rule restricting what an include may say would buy no security an attacker does not already have,
-while costing per-host capability sets and per-environment extension sets. Confining `System`
-directives to the root, or letting an include only narrow, would each invert deny-by-default at the
-file layer: the root would have to grant every right any environment needs so that each host could
-take some away.
-
-<sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it). Decided in [0103](../decisions/0103.md), [0005](../decisions/0005.md).</sub>
-
-<a id="config-the-ownership-check-runs-where-it-can-be-answered"></a>
-
-## The ownership check runs on `nvs serve` and on reload; `nvs run`, `config check` and `config dump` read without it, and an unchecked file can grant nothing
-
-`rule:config/the-ownership-check-runs-where-it-can-be-answered`
-
-The ownership check runs where its question can be answered — `nvs serve` and reload, on the host and
-as the account that will serve — and three readers resolve the tree without it, each for a reason of
-its own.
-
-`nvs run` executes a program the invoking account named, from a working directory that account chose,
-as that account: whoever can write its `./nvs.toml` can write the program, so the file adds no
-authority the check would take away, and the Windows default would otherwise refuse nearly every
-checkout. `nvs config check` and `nvs config dump` run on the auditing machine as the auditing account,
-where the check answers a different question than the one it exists for — it refuses trees the server
-would accept and passes trees the server would refuse, and a green result that means neither is worse
-than one that does not claim to have looked.
-
-**What the exemption may never do is grant.** A capability or a `System` directive read through an
-unchecked file on the `run` path carries the invoking account's own authority and nothing more:
-`./nvs.toml` can grant a CLI program nothing it could not take for itself, and the rule that places
-the capability check is bound by that sentence.
-
-<sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/check-and-dump-audit-the-tree-offline`](config.md#config-check-and-dump-audit-the-tree-offline), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope). Decided in [0103](../decisions/0103.md), [0093](../decisions/0093.md).</sub>
 
 <a id="config-a-secret-is-a-file-whose-content-is-the-value"></a>
 
@@ -1165,6 +537,85 @@ check` and counted on its summary line, and it never changes the verdict.
 
 <sub>See also [`config/a-secret-is-a-file-whose-content-is-the-value`](config.md#config-a-secret-is-a-file-whose-content-is-the-value), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary). Decided in [0103](../decisions/0103.md), [0033](../decisions/0033.md).</sub>
 
+<a id="config-one-parser-for-the-boot-path-and-config-set"></a>
+
+## The boot path and `Core\Config::set` parse a value through one implementation
+
+`rule:config/one-parser-for-the-boot-path-and-config-set`
+
+A value written in the file and a value handed to `Core\Config::set` go through **one parser**. Every
+shipped default parses identically through the boot path and through `set`, and the two refusals the
+boot makes — a value that is not a quantity, a name no directive governs — are the same two `set`
+answers `false` with. A depth written as a bare integer and one written as `"64"` are the same value
+wherever they arrive.
+
+This is the shape [`expressions/preparation-preserves-behaviour`](expressions.md#expressions-preparation-preserves-behaviour) already establishes: a prepared
+path and a runtime path cannot diverge when there is one implementation. `Core\Config` itself
+marshals a string in and a string out and holds none of the rules — what a name resolves to, what a
+set may do and where the ceiling comes from all live in the configuration crate, and the parser is not
+reachable from the stdlib member at all, which is what makes the claim true by construction rather
+than by discipline.
+
+<sub>See also [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set), [`config/a-size-or-duration-is-a-quoted-string-with-its-suffix`](config.md#config-a-size-or-duration-is-a-quoted-string-with-its-suffix), [`expressions/preparation-preserves-behaviour`](expressions.md#expressions-preparation-preserves-behaviour). Decided in [0064](../decisions/0064.md), [0057](../decisions/0057.md).</sub>
+
+<a id="config-the-config-is-an-immutable-snapshot"></a>
+
+## The configuration is one immutable snapshot a request clones at start, and a reload replaces it whole after validating everything
+
+`rule:config/the-config-is-an-immutable-snapshot`
+
+The parsed configuration is one immutable snapshot behind an `Arc`. A request clones the `Arc` when
+it starts and reads from that clone for its whole life, so a reload is never visible to a request
+already running and no request ever observes half of one file and half of another. The per-request
+half is unchanged: `Core\Config::set` writes an overlay over the clone
+([`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local)).
+
+Replacement is **validate-then-publish**, in this order, and any failure before the last step leaves
+the running configuration completely untouched: read and parse the whole tree of files, where a
+syntax error, an unknown key or a duplicate key ends it; verify every `[[extension]]` pin against the
+file on disk, on every reload and not only the first; register the directives those extensions
+contribute; validate the assembled registry; then compute `env_hash` and publish the new `Arc`. The
+tree's ownership checks re-run on every file, so a file that became group-writable since boot refuses
+the swap and leaves the previous snapshot serving.
+
+Cost: one `Arc` clone at request start and **no syscall** — unlike source revalidation, configuration
+is never polled from the request path; a reload is pushed by the operator. Two snapshots live during
+a swap, plus one per in-flight request still holding an older one — kilobytes each, bounded by
+concurrency, never by reloads performed.
+
+<sub>See also [`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local), [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field), [`config/one-local-control-socket`](config.md#config-one-local-control-socket), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary). Decided in [0078](../decisions/0078.md), [0005](../decisions/0005.md), [0103](../decisions/0103.md).</sub>
+
+<a id="config-three-changeability-classes"></a>
+
+## `nvs.toml` states defaults, not ceilings, and every directive carries one of three changeability classes
+
+`rule:config/three-changeability-classes`
+
+`nvs.toml` defines what a request **starts with**. A directive is a limit that cannot be exceeded
+only when it cannot be changed at runtime at all; where a value can change, the request sets whatever
+it wants, wider or narrower, and the file's value is the starting point it inherits.
+
+Every directive carries one of three changeability classes in the registry:
+
+| Class | `nvs.toml` | `Core\Config::set` |
+|---|---|---|
+| `System` | the only place it can be set | fails, returns `false` |
+| `Runtime` | the **default** a request starts with | any value, wider or narrower, up to the ceiling |
+| `RuntimeTighten` | the default *and* an upper bound | narrowing only; widening fails |
+
+`Runtime` is the class for anything changeable. `RuntimeTighten` is argued per directive, never as a
+policy: it exists for capability grants, where a script may drop a right it holds and never add one it
+does not, and for the directives where PHP itself behaves that way (`open_basedir`). The class answers
+one question only — *who may set it*. What applying a change requires is a second field on the same
+entry ([`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field)).
+
+This is what makes the most common `ini_set` in the PHP corpus — raising `memory_limit` for one
+import — work at conversion time rather than fail at runtime, while
+[`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives) keeps one request from becoming every co-resident
+request's outage.
+
+<sub>See also [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`config/a-refused-set-returns-false`](config.md#config-a-refused-set-returns-false), [`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local), [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field), [`config/an-app-block-may-widen-bounded-by-the-global-ceiling`](config.md#config-an-app-block-may-widen-bounded-by-the-global-ceiling). Decided in [0005](../decisions/0005.md), [0078](../decisions/0078.md), [0064](../decisions/0064.md).</sub>
+
 <a id="config-a-directive-flag-is-a-closed-list-at-the-global-layer"></a>
 
 ## A CLI flag that sets a directive is one of a closed list, wins over every file, and there is no `--set`  *(designed — not yet in the compiler)*
@@ -1196,6 +647,346 @@ So `nvs serve --mode=development` on a mixed host does not drag an application t
 along with it, and `[mode] ceiling` still bounds what any of them may select.
 
 <sub>See also [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set), [`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file), [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped). Decided in [0103](../decisions/0103.md), [0091](../decisions/0091.md), [0097](../decisions/0097.md), [0064](../decisions/0064.md).</sub>
+
+<a id="config-reloadability-is-its-own-field"></a>
+
+## Reloadability is a second registry field, `Reload` or `Boot`, orthogonal to the changeability class
+
+`rule:config/reloadability-is-its-own-field`
+
+Beside its changeability class, every directive carries a second field answering a different
+question — not *who may set it* but *what applying a change requires*:
+
+| Field | Meaning |
+|---|---|
+| `Reload` | a new snapshot is enough |
+| `Boot` | applying it would rebind an OS resource or re-create the runtime |
+
+The two are independent. A `System` directive may be `Reload` — a capability grant, `[limits.hard]`,
+`[mode] ceiling` — and every `Runtime` and `RuntimeTighten` directive is `Reload` by construction,
+since such a directive *is* a value read out of the snapshot. A registry that derived either field
+from the other would re-create the conflation this field exists to end, so the census test fails if it
+ever does.
+
+`Boot` is the narrow set: `cache.dir`, `[server]`'s listen addresses, the thread-per-core count and
+`[control] socket` itself. Everything else reloads, including the `[[extension]]` array and its pins,
+`opcache.validate` and its rate cap, the per-app blocks, `[[schedule]]`, `[deferred] max_concurrent`
+and both observability blocks. A `[[schedule]]` firing already in flight runs to completion; the new
+set arms from the next tick. A changed `Boot` key **does not take effect**: the published snapshot
+carries the running value forward, and the reload names the key
+([`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply)).
+
+<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`config/every-schedule-key-is-system`](config.md#config-every-schedule-key-is-system), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system). Decided in [0078](../decisions/0078.md), [0005](../decisions/0005.md).</sub>
+
+<a id="config-ceilings-are-their-own-directives"></a>
+
+## A ceiling is a `System` directive with the default's key name, and `false` removes it
+
+`rule:config/ceilings-are-their-own-directives`
+
+What the host is willing to lose to one request is stated separately from what a request starts
+with, in a `System`-class block using the **same key names**:
+
+```toml
+[limits]                     # Runtime — what a request starts with
+memory     = "128M"
+cpu_time   = "5s"
+
+[limits.hard]                # System — what one request may raise itself to
+memory     = "2G"
+cpu_time   = "60s"
+```
+
+The shipped ceilings are generous on purpose: they are sized to stop a runaway, not to shape ordinary
+code. `[limits.hard] memory = false` removes the ceiling entirely, giving literal PHP behaviour on a
+trusted single-tenant host — and `false` is the only spelling of "no ceiling" anywhere in the tree.
+
+The enforceable per-request cap is therefore the **ceiling**, not the default: a process's worst case
+is in-flight requests times `[limits.hard] memory`, and sizing a deployment means sizing against that
+number. That is memory spent to buy PHP compatibility, which is [`programs/memory-priority`](programs.md#programs-memory-priority)'s
+ordering working as written. An operator who cannot afford it lowers one number in one root-owned
+file.
+
+`[mode]` is the second, and last, block with this shape — a `Runtime` `default` beside a `System`
+`ceiling`, where the ceiling bounds how permissive a request may make itself
+([`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode)). Two instances of the pattern is something a
+reader learns once; a third would need its own argument.
+
+<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/a-refused-set-returns-false`](config.md#config-a-refused-set-returns-false), [`errors/on-limit`](errors.md#errors-on-limit), [`programs/memory-priority`](programs.md#programs-memory-priority), [`config/an-app-block-may-widen-bounded-by-the-global-ceiling`](config.md#config-an-app-block-may-widen-bounded-by-the-global-ceiling). Decided in [0005](../decisions/0005.md), [0091](../decisions/0091.md), [0004](../decisions/0004.md).</sub>
+
+<a id="config-system-means-a-request-may-not-set-it"></a>
+
+## A directive is `System` when changing it from inside a request would affect something other than that request, and that is all `System` means
+
+`rule:config/system-means-a-request-may-not-set-it`
+
+**A directive is `System` when changing it from inside a request would affect something other than
+that request.** That is the whole test, and it covers the `[[extension]]` entries and their hash
+pins, `cache.dir`, `opcache.validate` and its rate cap, the per-app blocks, `[limits.hard]` and
+`[mode] ceiling` themselves, every `[[schedule]]` key, `[deferred] max_concurrent` and both
+observability blocks. A directive being `System` is what makes it a limit; there is no separate notion
+of a "locked" value.
+
+A response header is the counter-example and is ordinary `Runtime`: a request may set any HTTP policy
+directive for itself, because it could already write the header directly and the change dies with the
+request.
+
+`System` is **not** a synonym for "read once at boot". Most `System` directives reload: whether a
+change needs a new snapshot or a restart is [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field)'s question,
+held in a field of its own, and the registry's census test fails if either field is ever derived from
+the other. With that split, `System` means one thing again — a request may not set it.
+
+<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class). Decided in [0005](../decisions/0005.md), [0078](../decisions/0078.md).</sub>
+
+<a id="config-a-runtime-set-is-request-local"></a>
+
+## Every runtime change lives in the request's own overlay and dies with the request
+
+`rule:config/a-runtime-set-is-request-local`
+
+`Core\Config::set` writes into the request's own copy-on-write overlay over the published snapshot,
+and the overlay is discarded when the request ends. `Core\Config::get` reads the effective value —
+the overlay, then the snapshot — and `Core\Config::restore` drops only what this request set,
+returning a directive to the file's value.
+
+A widened limit is therefore never observable to another request and cannot outlive the one that
+set it, which is what makes widening a question about *this* request's share of the host rather
+than about isolation. No runtime set can grant a capability, load an extension, reach another
+request's heap, or exceed a `System` value; what a request can do is move its own budget within the
+range the operator fixed, in both directions.
+
+The same property is what makes a request-local mode flip safe at all
+([`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode)), and it is the per-request half of the split
+[`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot) completes: requests share nothing *mutable*, and an
+overlay each request owns is not shared.
+
+<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set). Decided in [0005](../decisions/0005.md), [0078](../decisions/0078.md), [0064](../decisions/0064.md).</sub>
+
+<a id="config-a-refused-set-returns-false"></a>
+
+## A refused `Core\Config::set` returns `false` and leaves the value unchanged; it is never clamped
+
+`rule:config/a-refused-set-returns-false`
+
+A `Core\Config::set` that the changeability class or a ceiling refuses **returns `false` and leaves
+the value in force untouched**. It is never clamped to the ceiling: silently running with a different
+number than the one requested is harder to diagnose than a false return, and `false` is already what
+PHP answers for a set it will not perform.
+
+Every refusal answers the same way — a `System` directive whatever the value, a `RuntimeTighten`
+widening, a `Runtime` value above `[limits.hard]`, a value that does not spell the unit its
+directive takes, a name no directive governs — and none of them throws, so a program cannot catch a
+refusal and cannot tell one reason from another by its answer. What it can rely on is that after a
+`false` nothing about the request's configuration moved.
+
+The accepted half is the other assertion: a set below the ceiling does not merely echo back through
+`get`, it **takes effect** — a raised `memory` moves the ceiling the runtime enforces for the rest of
+that request ([`errors/on-limit`](errors.md#errors-on-limit)).
+
+<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set). Decided in [0005](../decisions/0005.md), [0064](../decisions/0064.md).</sub>
+
+<a id="config-ini-set-is-core-config-set"></a>
+
+## `ini_set` is `Core\Config::set`, and the whole family crosses as strings
+
+`rule:config/ini-set-is-core-config-set`
+
+[`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants) removes `ini_set`, `ini_get`, `ini_restore` and
+`ini_get_all` independently of the format; the names go with the file:
+
+| PHP | Novis |
+|---|---|
+| `ini_set($k, $v)` | `Core\Config::set(string $name, string $value): bool` |
+| `ini_get($k)` | `Core\Config::get(string $name): ?string` |
+| `ini_restore($k)` | `Core\Config::restore(string $name): void` |
+| `ini_get_all()` | `Core\Config::all(): array<string, string>` |
+
+The semantics are the changeability model's, unchanged: a set the class or a ceiling refuses returns
+`false` and leaves the value in force untouched, and every accepted change is request-local on the
+copy-on-write overlay, invisible to the next request on the same core. A bare limit name and its
+`[limits]` spelling are one key to every member.
+
+Values cross this API as `string` in both directions even where the file is typed, because the
+directive *name* is dynamic here and one return type is what makes that possible. The registry parses
+the string with the parser the boot path uses
+([`config/one-parser-for-the-boot-path-and-config-set`](config.md#config-one-parser-for-the-boot-path-and-config-set)). On a host with no configuration at all
+`get` is `null`, `all` is empty, `set` is `false` and nothing throws
+([`config/no-configuration-file-is-a-complete-configuration`](config.md#config-no-configuration-file-is-a-complete-configuration)).
+
+<sub>See also [`config/one-parser-for-the-boot-path-and-config-set`](config.md#config-one-parser-for-the-boot-path-and-config-set), [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives). Decided in [0064](../decisions/0064.md), [0005](../decisions/0005.md), [0011](../decisions/0011.md).</sub>
+
+<a id="config-an-edit-reaches-the-next-request-without-a-restart"></a>
+
+## An edited source file reaches the next request that resolves it, through lazy revalidation and one pointer swap, never a watcher or a restart
+
+`rule:config/an-edit-reaches-the-next-request-without-a-restart`
+
+The compiled-unit cache is keyed by **content**, not by path: `UnitKey { path, content_hash,
+env_hash } → CompileState`, and a `Ready` entry is write-once — nothing already in the map is ever
+mutated or torn. In front of it sits one small indirection, `path → current content_hash`, which is
+the pointer an edit swaps.
+
+Resolving a `require` or an inbound request's entry file walks five steps: reuse the known hash
+under `opcache.validate = "never"` or inside `revalidate_freq`, with no syscall; otherwise `stat`
+(and under `hash`, or on an `mtime` mismatch, re-hash) the file, and continue with no compile if
+the content is unchanged; on a change, compile the new content through the same single-flight
+machinery a cold compile uses, on the compile pool, never on a request-serving core; on success
+swap the path's pointer, publishing only if nobody moved it since; on failure leave the pointer
+alone ([`config/a-broken-edit-fails-the-requests-that-resolve-it`](config.md#config-a-broken-edit-fails-the-requests-that-resolve-it)).
+
+`mtime` is a cheap pre-filter; only the content hash is trusted as the key, so a filesystem with a
+coarse clock cannot serve stale code. There is no filesystem watcher, no stop-the-world phase and no
+second process, and a client cannot trigger a recompile — only the file's own content changing does.
+The rate cap bounds `stat` overhead to `N ⁄ revalidate_freq` per file, and laziness means only files
+a request actually resolves ever recompile, however many a deploy touched.
+
+<sub>See also [`config/a-request-keeps-the-unit-it-resolved`](config.md#config-a-request-keeps-the-unit-it-resolved), [`config/a-broken-edit-fails-the-requests-that-resolve-it`](config.md#config-a-broken-edit-fails-the-requests-that-resolve-it), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`concurrency/a-connection-keeps-its-compiled-unit`](concurrency.md#concurrency-a-connection-keeps-its-compiled-unit). Decided in [0017](../decisions/0017.md), [0078](../decisions/0078.md), [0042](../decisions/0042.md).</sub>
+
+<a id="config-a-request-keeps-the-unit-it-resolved"></a>
+
+## A file is resolved once per isolate, so an edit is invisible to a request already running
+
+`rule:config/a-request-keeps-the-unit-it-resolved`
+
+**A file is resolved once per isolate, the first time execution reaches it, and never re-resolved
+on a second reference within the same run.** The compiled unit a running isolate holds was cloned
+out of the cache at the moment of first touch, and it is never mutated in place — only ever replaced
+at the path-pointer layer above it. A request that resolved a file before an edit completes on the
+pre-edit unit even if the edit and a successful recompile land before it finishes; the next request
+to resolve the same path gets the new one.
+
+The compiled code is the *only* thing shared across requests. A request's heap arena, its limits and
+ceilings, its `Core\Request`/`Core\Server`/`Core\Session` state and its panic containment are
+untouched by a swap: a hot-reload event changes what code a *future* request compiles to, never how
+isolated any request's execution of that code is ([`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing)). A
+connection isolate is the long-lived case of the same rule
+([`concurrency/a-connection-keeps-its-compiled-unit`](concurrency.md#concurrency-a-connection-keeps-its-compiled-unit)).
+
+Old generations are retained only while some in-flight request still holds one, bounded by that
+request's own wall-clock and CPU limits — O(in-flight), never O(edits ever made).
+
+<sub>See also [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`concurrency/a-connection-keeps-its-compiled-unit`](concurrency.md#concurrency-a-connection-keeps-its-compiled-unit). Decided in [0017](../decisions/0017.md), [0006](../decisions/0006.md).</sub>
+
+<a id="config-a-broken-edit-fails-the-requests-that-resolve-it"></a>
+
+## A revalidated file that no longer compiles fails the requests that resolve it afterwards, loudly, and the last good version is never served in its place
+
+`rule:config/a-broken-edit-fails-the-requests-that-resolve-it`
+
+When a revalidated file no longer compiles, the path's pointer is left where it was — it still names
+the last content that compiled — but the `Failed` state the resolution just reached is what **this**
+caller gets, as ordinary checked-return data. A later request landing on the same content sees the
+same `Failed` entry, because it is the same key, and is answered from the table rather than compiled
+again, so a request storm against a broken file costs one compile and one rendering of its spans, not
+one per request.
+
+Requests already running are unaffected ([`config/a-request-keeps-the-unit-it-resolved`](config.md#config-a-request-keeps-the-unit-it-resolved)); only
+requests that newly resolve the broken file fail, and they fail loudly. Silently continuing to serve
+the last good version after an edit — especially a security fix — is the worse failure mode, and it
+would diverge from PHP's own `validate_timestamps` behaviour to buy availability nothing needs.
+
+The same policy covers an extension removed while source still references it: nothing proves that at
+reload time, and the units that call it fail when a request next resolves them, and only those.
+
+<sub>See also [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart), [`config/a-request-keeps-the-unit-it-resolved`](config.md#config-a-request-keeps-the-unit-it-resolved). Decided in [0017](../decisions/0017.md), [0078](../decisions/0078.md).</sub>
+
+<a id="config-a-reload-names-what-it-could-not-apply"></a>
+
+## A reload reports what it applied, names every changed `Boot` key it could not apply, and counts the units it invalidated
+
+`rule:config/a-reload-names-what-it-could-not-apply`
+
+The answer to a reload names, in one place: the directives applied and now in force; the **`Boot`
+keys whose values changed and therefore did not take effect, each named individually**; and how many
+compiled units were invalidated, so an operator knows a recompile wave is coming. A validation failure
+reports the offending line and states that the running configuration is unchanged.
+
+Naming the ignored `Boot` keys is the difference between a reload an operator can trust and one they
+have to guess about: silently ignoring a changed listen address is how a deployment ends up believing
+it applied a change it did not. The report and the carry are one operation — the published snapshot
+still holds the *running* value of each named key, so the change exists nowhere but the report until
+a restart. A changed `Boot` key is therefore absent from the applied list rather than present in
+both.
+
+The unit count follows [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key): a changed `env_hash`
+invalidates every unit and an unchanged one invalidates none. What a reload cannot catch is an
+extension removed while source still references it — those units fail when next resolved
+([`config/a-broken-edit-fails-the-requests-that-resolve-it`](config.md#config-a-broken-edit-fails-the-requests-that-resolve-it)).
+
+<sub>See also [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot), [`config/one-local-control-socket`](config.md#config-one-local-control-socket). Decided in [0078](../decisions/0078.md).</sub>
+
+<a id="config-one-local-control-socket"></a>
+
+## The server is controlled over one local socket whose owner and mode are the authentication, and `nvs ctl` is its client  *(designed — not yet in the compiler)*
+
+`rule:config/one-local-control-socket`
+
+```toml
+[control]
+socket = "/run/nvs/control.sock"   # \\.\pipe\nvs-control on Windows; `false` disables
+```
+
+**Local socket only. There is no TCP listener, no token, no TLS and no auth middleware** — the
+socket's owner and mode are the authentication. It is created mode `0600` (a DACL naming this account
+on Windows), owned by the runtime's account, and **the server refuses to start if the directory
+holding it is writable by any other account**, the same trust check every configuration file gets.
+A tree that writes no `[control]` block gets no control surface at all. The socket exists only where
+a long-running server does; `nvs run` compiles one file and exits.
+
+The wire protocol is HTTP over that socket, not a bespoke line protocol: `curl --unix-socket` debugs
+it with no special tooling. **`nvs ctl` is the client**, a namespace of its own because every other
+subcommand acts on files with no server involved; `--socket` addresses one of several servers on a
+host. `reload` re-reads the whole configuration tree and publishes it; `ctl config` prints the live
+snapshot with each directive's origin. Operations serialize, so two reloads cannot interleave two
+snapshots. **No control operation runs user Novis code, ever** — one that could would be
+[`security/no-eval`](security.md#security-no-eval)'s door with a different name on it.
+
+The wire shape is unstable until 1.0: every response carries the server version, and `nvs ctl`
+refuses a mismatch. Every reload is written to `Core\Log` with its outcome.
+
+<sub>See also [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`config/no-network-control-surface`](config.md#config-no-network-control-surface), [`security/no-eval`](security.md#security-no-eval), [`config/ctl-config-reports-the-live-snapshot`](config.md#config-ctl-config-reports-the-live-snapshot), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary). Decided in [0078](../decisions/0078.md), [0103](../decisions/0103.md), [0042](../decisions/0042.md).</sub>
+
+<a id="config-no-network-control-surface"></a>
+
+## There is no network-reachable control surface, in either direction of configuration
+
+`rule:config/no-network-control-surface`
+
+There is no TCP listener, in either direction of configuration. `[control] socket` accepts a local
+endpoint or `false`, and a value that would be reached over a network — a URL, a host and a port, a
+bare port number — is refused at boot by name rather than bound. A remote control plane is reachable
+today by running `nvs ctl` over the operator's existing access path, SSH or the container runtime's
+exec, which every orchestrator already has.
+
+A network listener is the only part of the control design that would carry an authentication
+surface, and nothing yet needs one, so this is deferred rather than rejected. What it would take is
+already recorded: a second listener absent unless configured and never sharing the application
+listener; per-effect-class enablement (`observe` / `operate` / `lifecycle`) so a liveness probe cannot
+be handed `shutdown`; a token read from a file, refused at boot if absent; TLS required for any
+non-loopback bind; and `lifecycle` withheld from a network listener entirely.
+
+A control endpoint on the application listener is rejected outright: every path-normalization bug
+and proxy misconfiguration would become privilege escalation, and a reserved prefix would collide
+permanently with the compile-time route table.
+
+<sub>See also [`config/one-local-control-socket`](config.md#config-one-local-control-socket). Decided in [0078](../decisions/0078.md).</sub>
+
+<a id="config-ctl-config-reports-the-live-snapshot"></a>
+
+## `nvs ctl config` reports what the running process actually holds, including an optional include that appeared after boot  *(designed — not yet in the compiler)*
+
+`rule:config/ctl-config-reports-the-live-snapshot`
+
+`nvs ctl config --origin` answers the question the offline pair cannot: **what the running process
+actually holds** — what the last reload published, including an `optional` include that has appeared
+since boot, and every `Boot` key whose changed value was reported and left unapplied. It is the second
+operation on the control socket, which the reload rule reserved for exactly this kind of read.
+
+The output is `nvs config dump --origin`'s, taken from the live snapshot rather than from the files on
+disk, so the two can be diffed: a difference between them is a reload that has not happened, a file
+that changed since the last one, or a directory-mode change that will refuse the next one.
+
+<sub>See also [`config/check-and-dump-audit-the-tree-offline`](config.md#config-check-and-dump-audit-the-tree-offline), [`config/the-resolved-root-is-announced-and-stored`](config.md#config-the-resolved-root-is-announced-and-stored), [`config/one-local-control-socket`](config.md#config-one-local-control-socket), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply). Decided in [0103](../decisions/0103.md), [0078](../decisions/0078.md).</sub>
 
 <a id="config-check-and-dump-audit-the-tree-offline"></a>
 
@@ -1230,22 +1021,174 @@ read without the ownership check
 
 <sub>See also [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/ctl-config-reports-the-live-snapshot`](config.md#config-ctl-config-reports-the-live-snapshot), [`config/the-ownership-check-runs-where-it-can-be-answered`](config.md#config-the-ownership-check-runs-where-it-can-be-answered), [`config/a-secret-is-a-file-whose-content-is-the-value`](config.md#config-a-secret-is-a-file-whose-content-is-the-value). Decided in [0103](../decisions/0103.md), [0093](../decisions/0093.md).</sub>
 
-<a id="config-ctl-config-reports-the-live-snapshot"></a>
+<a id="config-two-modes-and-the-default-is-production"></a>
 
-## `nvs ctl config` reports what the running process actually holds, including an optional include that appeared after boot  *(designed — not yet in the compiler)*
+## A run mode is one of exactly two closed values, and with nothing configured it is `production`
 
-`rule:config/ctl-config-reports-the-live-snapshot`
+`rule:config/two-modes-and-the-default-is-production`
 
-`nvs ctl config --origin` answers the question the offline pair cannot: **what the running process
-actually holds** — what the last reload published, including an `optional` include that has appeared
-since boot, and every `Boot` key whose changed value was reported and left unapplied. It is the second
-operation on the control socket, which the reload rule reserved for exactly this kind of read.
+`Env\Mode` is a closed enum with exactly two cases, `Env\Mode::Production` and
+`Env\Mode::Development`. **With nothing configured, the mode is `Production`.** That direction
+matches every other default in the language — secure headers, closed CORS, the refusing sink,
+deny-by-default capabilities — and it is the direction Laravel and Django did not take: a deployment
+that forgets the line is safe, and a developer who wants the other one asks for it, once.
 
-The output is `nvs config dump --origin`'s, taken from the live snapshot rather than from the files on
-disk, so the two can be diffed: a difference between them is a reload that has not happened, a file
-that changed since the last one, or a directory-mode change that will refuse the next one.
+**The set is closed, and staging is not a third value.** A staging host runs `production` mode with
+different configuration — different credentials, a different log target, wider limits — which is what
+staging has always actually been. An open set of named environments buys per-name config files at the
+cost of the compiler no longer being able to enumerate what a name does, which is the property
+[`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults) exists to preserve; and since an unknown *key* in `nvs.toml` is
+already an error, an unknown *value* silently meaning "some third thing" would be the odd one out.
 
-<sub>See also [`config/check-and-dump-audit-the-tree-offline`](config.md#config-check-and-dump-audit-the-tree-offline), [`config/the-resolved-root-is-announced-and-stored`](config.md#config-the-resolved-root-is-announced-and-stored), [`config/one-local-control-socket`](config.md#config-one-local-control-socket), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply). Decided in [0103](../decisions/0103.md), [0078](../decisions/0078.md).</sub>
+A `test` run selects development-mode defaults inside its own isolate; it is not a third value
+either.
+
+<sub>See also [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults), [`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode), [`config/no-environment-variable-selects-the-mode`](config.md#config-no-environment-variable-selects-the-mode), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type). Decided in [0091](../decisions/0091.md), [0005](../decisions/0005.md).</sub>
+
+<a id="config-the-mode-flag-wins-over-the-file"></a>
+
+## The mode a server starts in comes from `nvs.toml` or from `nvs serve --mode=`, and the flag is the last word  *(designed — not yet in the compiler)*
+
+`rule:config/the-mode-flag-wins-over-the-file`
+
+```toml
+[mode]
+default = "production"      # Runtime — the mode an application starts in
+ceiling = "development"     # System  — the most permissive mode any code may select
+```
+
+`nvs.toml` is one source: `[mode] default` is `Runtime`-class, which is what makes a runtime flip
+possible at all. **`nvs serve --mode=development` is the other, and it overrides the file** —
+ordinary CLI precedence, the flag being the last word about the mode the server starts in. The flag
+replaces the **global** value; a matching `[[app]]` block still layers over it, so a flag never drags
+an application that pins its own mode along with it. The flag set is closed and there is no `--set`.
+
+This is a deliberate choice of ergonomics over one safety catch. Refusing a flag that contradicts the
+file would have caught a deploy script carrying a stale `--mode`; what covers that case instead is the
+banner and `Warn` record a development-mode server emits when it binds a public interface, so the
+payment for flag-over-file is visible rather than silent.
+
+The ceiling bounds a runtime flip, not the startup value: `nvs serve --mode=development` in a
+directory with no `nvs.toml` simply works, and the ceiling follows it.
+
+<sub>See also [`config/two-modes-and-the-default-is-production`](config.md#config-two-modes-and-the-default-is-production), [`config/no-environment-variable-selects-the-mode`](config.md#config-no-environment-variable-selects-the-mode), [`config/a-directive-flag-is-a-closed-list-at-the-global-layer`](config.md#config-a-directive-flag-is-a-closed-list-at-the-global-layer), [`config/an-application-is-its-entry-file-path`](config.md#config-an-application-is-its-entry-file-path), [`config/a-mount-routes-and-an-app-block-sets-policy`](config.md#config-a-mount-routes-and-an-app-block-sets-policy). Decided in [0091](../decisions/0091.md), [0103](../decisions/0103.md).</sub>
+
+<a id="config-no-environment-variable-selects-the-mode"></a>
+
+## No environment variable selects the run mode — not `NVS_MODE`, not `APP_ENV`, not `NODE_ENV`
+
+`rule:config/no-environment-variable-selects-the-mode`
+
+**No environment variable is read for the mode. Not `NVS_MODE`, not `APP_ENV`, not `NODE_ENV`.**
+No variable is ever populated by the host, and `Core\Env` is read-only; an env-var mode would be the
+one place Novis reintroduced the exact mechanism behind every incident this design was shaped by —
+Laravel's `APP_ENV=prod APP_DEBUG=true`, Django's settings dump on any 500, Node's `NODE_ENV` that
+every library sniffs independently so a stack can be half in production with nothing detecting it.
+
+Setting all three and asserting the mode is unchanged is a conformance case, not a convention. A
+converted Laravel application's `APP_ENV` read arrives as an ordinary `Core\Env::get` and stays one:
+it is that application's own variable, not Novis's mode.
+
+The operator's runtime switch is a reload of the root-owned file over the local control socket
+([`config/one-local-control-socket`](config.md#config-one-local-control-socket)), which swaps the whole snapshot with no restart and no
+control port — strictly more capable than editing an environment variable, and root-owned.
+
+<sub>See also [`config/two-modes-and-the-default-is-production`](config.md#config-two-modes-and-the-default-is-production), [`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file), [`config/one-local-control-socket`](config.md#config-one-local-control-socket). Decided in [0091](../decisions/0091.md), [0012](../decisions/0012.md).</sub>
+
+<a id="config-a-mode-is-five-defaults"></a>
+
+## A mode is a shorthand for the defaults of five `Runtime` directives, and governs nothing else
+
+`rule:config/a-mode-is-five-defaults`
+
+**The mode is a shorthand. It changes only the default of directives that are each individually
+settable anyway.** The complete list, and it is complete:
+
+| Directive | Class | `production` | `development` |
+|---|---|---|---|
+| `[debug] inline` | `RuntimeTighten` | `false` | `true` |
+| `[log] format` | `Runtime` | `"json"` | `"text"` |
+| `[log] level` | `Runtime` | `Info` | `Debug` |
+| `[http.errors] detail` | `Runtime` | `"generic"` | `"full"` |
+| `[log] access` | `Runtime` | `false` | `true` |
+
+Three properties follow. **Every row is spellable on its own**, so `mode = "development"` beside
+`[log] format = "json"` is legal and means what it reads like — the mode supplies a default, the
+explicit line overrides it. **The resolved value of every directive is printable**, so *what exactly
+does development mode change?* has a complete, mechanical answer. **No row is `System`-class**,
+which is what makes a runtime flip coherent: everything the table governs is something a request
+could already have set for itself. The table has one home in the tree, and a test asserts its key
+set — a sixth row cannot appear silently.
+
+What a mode deliberately does not govern: `[debug] mode`'s probe bits, whose configured value is
+already the default *and* the bound; the revalidation rate cap
+([`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class)); and **anything with no directive**. A mode
+never gates a *behaviour* — no dev toolbar, no source-context injection, no watcher. A feature that
+should differ between modes gets a directive first and a row second, in that order.
+
+<sub>See also [`config/two-modes-and-the-default-is-production`](config.md#config-two-modes-and-the-default-is-production), [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped), [`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode), [`errors/log-level`](errors.md#errors-log-level), [`config/check-and-dump-audit-the-tree-offline`](config.md#config-check-and-dump-audit-the-tree-offline), [`config/a-mount-routes-and-an-app-block-sets-policy`](config.md#config-a-mount-routes-and-an-app-block-sets-policy). Decided in [0091](../decisions/0091.md), [0092](../decisions/0092.md), [0020](../decisions/0020.md), [0097](../decisions/0097.md), [0005](../decisions/0005.md).</sub>
+
+<a id="config-a-startup-default-is-never-flipped"></a>
+
+## A mode also selects three startup defaults that are fixed at boot, never re-derived, and never flippable from code  *(designed — not yet in the compiler)*
+
+`rule:config/a-startup-default-is-never-flipped`
+
+Three directives have a right value that differs between the two modes and cannot be `Runtime`-class,
+because each is read before there is any request to change it:
+
+| Directive | Class | `production` | `development` |
+|---|---|---|---|
+| `[server] dispatch` | `Boot` | `"entry"` | `"path"` |
+| `[server] static` | `Boot` | `false` | `true` |
+| `opcache.validate` | `System` | `never` | `mtime` |
+
+**A startup row is fixed at boot, is never re-derived, and is never flippable.** `Core\Config::set`
+refuses it exactly as it refuses any `Boot` or `System` directive, and a runtime mode flip re-derives
+**only** the five rows of [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults). Without that separation a flip would
+appear to change `dispatch` for a request that had already been dispatched.
+
+The objection to a flippable `opcache.validate` was always about the *flip*, never the *default*: a
+request that could set `validate = "never"` for itself would pin a version of the code past a shipped
+fix, and a startup value chosen by a root-owned mode does none of that. The list stays closed at eight
+rows across the two tables, and which table a future directive belongs in is decided by its
+changeability class alone.
+
+<sub>See also [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode). Decided in [0091](../decisions/0091.md), [0017](../decisions/0017.md), [0097](../decisions/0097.md).</sub>
+
+<a id="config-a-program-may-read-and-flip-its-mode"></a>
+
+## A program may read the mode and may flip it for its own request, bounded by a `System` ceiling
+
+`rule:config/a-program-may-read-and-flip-its-mode`
+
+```
+Core\Env::mode(): Env\Mode                                  // read
+Core\Config::set("mode.default", "development"): bool       // flip
+```
+
+**Reading it is first-class.** Applications legitimately need it — seed data, a null mail transport,
+a development-only route — and a language that denies the honest accessor gets the dishonest one:
+people read a governed directive as a proxy for the mode. `Core\Env::mode()` returns the typed enum;
+`Core\Config::get("mode.default")` returns the same fact as a string, the way it does for every
+directive. `mode.default` is the one key the mode is read and written at; the bare `mode` names the
+table and is not a second spelling.
+
+**Flipping it is the ordinary `Runtime` mechanism with no new spelling.** The set is bounded by
+`[mode] ceiling`, a `System` directive stating the most permissive mode any code on the host may
+select; when unset it equals the mode the server started in, so a production host that wrote nothing
+refuses every flip without its operator knowing the feature exists, and one host serving mixed
+applications is one root-owned line. A refused flip returns `false` and moves nothing
+([`config/a-refused-set-returns-false`](config.md#config-a-refused-set-returns-false)); a name that is not one of the two modes is outside every
+ceiling.
+
+**Every flip is request-local** ([`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local)), which is what makes
+allowing it safe at all. An accepted flip re-derives the five mode rows into the request's overlay,
+**except any the request has already set explicitly** — without the re-derivation the flip does
+nothing; without the exception it stomps a deliberate choice made three lines earlier. For a mixed
+host the `[[app]]` block is the primary answer and the in-code flip the escape hatch.
+
+<sub>See also [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults), [`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local), [`config/a-refused-set-returns-false`](config.md#config-a-refused-set-returns-false), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`config/a-mount-routes-and-an-app-block-sets-policy`](config.md#config-a-mount-routes-and-an-app-block-sets-policy). Decided in [0091](../decisions/0091.md), [0005](../decisions/0005.md).</sub>
 
 <a id="config-an-application-is-its-entry-file-path"></a>
 
@@ -1506,34 +1449,6 @@ prevent, and a warning at boot is read once and then never again.
 
 <sub>See also [`config/a-fleet-entry-fires-at-most-once-under-a-lease`](config.md#config-a-fleet-entry-fires-at-most-once-under-a-lease), [`config/scheduled-work-is-a-config-block`](config.md#config-scheduled-work-is-a-config-block), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers). Decided in [0073](../decisions/0073.md).</sub>
 
-<a id="config-a-fleet-entry-fires-at-most-once-under-a-lease"></a>
-
-## A `fleet` entry fires once per interval across the deployment under a lease in the shared store — at most once, never exactly once  *(designed — not yet in the compiler)*
-
-`rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`
-
-A `scope = "fleet"` entry fires once per interval across the deployment, guarded by a **lease** in the
-shared store keyed on the entry's `name` plus the fire's *scheduled* instant — not the instant it was
-noticed, so two hosts whose clocks differ by a second still ask for the same key. A host that wins the
-lease runs the script; a host that does not, does not. The lease carries a TTL and is renewed while
-the run is in flight, so a host that dies mid-run releases it by expiry rather than blocking the next
-interval forever.
-
-**`"fleet"` is at-most-once per interval, not exactly-once.** A network partition can leave an
-interval unrun; a lease expiring under a run that is alive but unreachable can produce a second run.
-Exactly-once across machines needs a transaction the work itself participates in, which is the
-application's job and not a scheduler's: a job that must not run twice makes its own effect
-idempotent.
-
-The ticker holds no store: it asks one question — take this key for this long, yes or no — through a
-`Leases` parameter only `nvs serve` can supply. **Today `nvs serve` supplies none**: the shared tier's
-wire is `put` and `get` ([`concurrency/a-cached-value-is-copied-across-the-boundary`](concurrency.md#concurrency-a-cached-value-is-copied-across-the-boundary)) and neither
-is a set-if-absent, so every `fleet` entry boots, is left **unarmed**, and is named in a boot note.
-Firing it on each host's own clock would be the precise failure the scope exists to prevent, so the
-safe half is to run none of them and say so.
-
-<sub>See also [`config/scope-has-no-default`](config.md#config-scope-has-no-default), [`config/a-missed-fire-is-skipped-and-a-dst-edge-fires-once`](config.md#config-a-missed-fire-is-skipped-and-a-dst-edge-fires-once), [`concurrency/a-cached-value-is-copied-across-the-boundary`](concurrency.md#concurrency-a-cached-value-is-copied-across-the-boundary), [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit). Decided in [0073](../decisions/0073.md), [0059](../decisions/0059.md).</sub>
-
 <a id="config-every-schedule-key-is-system"></a>
 
 ## Every `[[schedule]]` key is `System`, and not even `RuntimeTighten` reaches one
@@ -1555,6 +1470,27 @@ why not even `RuntimeTighten` applies. This is the same class and the same reaso
 a request could redirect is work a request could redirect into a database it was never granted.
 
 <sub>See also [`config/scheduled-work-is-a-config-block`](config.md#config-scheduled-work-is-a-config-block), [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class). Decided in [0073](../decisions/0073.md), [0005](../decisions/0005.md), [0017](../decisions/0017.md).</sub>
+
+<a id="config-a-schedule-entry-narrows-only"></a>
+
+## An entry's `limits` and `grants` narrow the deployment's, and can never widen them  *(designed — not yet in the compiler)*
+
+`rule:config/a-schedule-entry-narrows-only`
+
+An entry's optional `limits` table is a sub-cap on the run's budget, and its optional `grants` table
+narrows the run's capabilities. Both are **narrowing only**: an entry cannot raise `memory` above the
+deployment's `[limits]`, and cannot grant a capability the deployment's `[capabilities]` withheld or
+widen a scope it narrowed. A scheduled run cannot widen anything, for the same reason no program can
+([`security/no-runtime-grant`](security.md#security-no-runtime-grant)) — the root-owned file is the ceiling, and a block inside it is not a
+second authority.
+
+The keys parse and are carried on the entry today. **What is not armed is the narrowing itself**:
+nothing in the ticker yet builds a run's budget or grant set per isolate from them, so a fire spends
+the deployment's `[limits]` and holds the deployment's `[capabilities]` whole. That is inside the rule
+— the run holds no more than the deployment does — and short of it, since an entry that asked for
+less does not get less.
+
+<sub>See also [`config/a-scheduled-run-is-a-root-isolate`](config.md#config-a-scheduled-run-is-a-root-isolate), [`security/no-runtime-grant`](security.md#security-no-runtime-grant), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives). Decided in [0073](../decisions/0073.md), [0005](../decisions/0005.md).</sub>
 
 <a id="config-a-scheduled-run-is-a-root-isolate"></a>
 
@@ -1588,26 +1524,33 @@ queued job is the same root shape ([`concurrency/a-job-runs-as-a-root-isolate`](
 
 <sub>See also [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`security/request-state-throws-in-an-isolate`](security.md#security-request-state-throws-in-an-isolate), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`core-classes/script-args`](core-classes.md#core-classes-script-args), [`concurrency/a-job-runs-as-a-root-isolate`](concurrency.md#concurrency-a-job-runs-as-a-root-isolate), [`config/a-schedule-entry-narrows-only`](config.md#config-a-schedule-entry-narrows-only). Decided in [0073](../decisions/0073.md), [0006](../decisions/0006.md).</sub>
 
-<a id="config-a-schedule-entry-narrows-only"></a>
+<a id="config-a-fleet-entry-fires-at-most-once-under-a-lease"></a>
 
-## An entry's `limits` and `grants` narrow the deployment's, and can never widen them  *(designed — not yet in the compiler)*
+## A `fleet` entry fires once per interval across the deployment under a lease in the shared store — at most once, never exactly once  *(designed — not yet in the compiler)*
 
-`rule:config/a-schedule-entry-narrows-only`
+`rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`
 
-An entry's optional `limits` table is a sub-cap on the run's budget, and its optional `grants` table
-narrows the run's capabilities. Both are **narrowing only**: an entry cannot raise `memory` above the
-deployment's `[limits]`, and cannot grant a capability the deployment's `[capabilities]` withheld or
-widen a scope it narrowed. A scheduled run cannot widen anything, for the same reason no program can
-([`security/no-runtime-grant`](security.md#security-no-runtime-grant)) — the root-owned file is the ceiling, and a block inside it is not a
-second authority.
+A `scope = "fleet"` entry fires once per interval across the deployment, guarded by a **lease** in the
+shared store keyed on the entry's `name` plus the fire's *scheduled* instant — not the instant it was
+noticed, so two hosts whose clocks differ by a second still ask for the same key. A host that wins the
+lease runs the script; a host that does not, does not. The lease carries a TTL and is renewed while
+the run is in flight, so a host that dies mid-run releases it by expiry rather than blocking the next
+interval forever.
 
-The keys parse and are carried on the entry today. **What is not armed is the narrowing itself**:
-nothing in the ticker yet builds a run's budget or grant set per isolate from them, so a fire spends
-the deployment's `[limits]` and holds the deployment's `[capabilities]` whole. That is inside the rule
-— the run holds no more than the deployment does — and short of it, since an entry that asked for
-less does not get less.
+**`"fleet"` is at-most-once per interval, not exactly-once.** A network partition can leave an
+interval unrun; a lease expiring under a run that is alive but unreachable can produce a second run.
+Exactly-once across machines needs a transaction the work itself participates in, which is the
+application's job and not a scheduler's: a job that must not run twice makes its own effect
+idempotent.
 
-<sub>See also [`config/a-scheduled-run-is-a-root-isolate`](config.md#config-a-scheduled-run-is-a-root-isolate), [`security/no-runtime-grant`](security.md#security-no-runtime-grant), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives). Decided in [0073](../decisions/0073.md), [0005](../decisions/0005.md).</sub>
+The ticker holds no store: it asks one question — take this key for this long, yes or no — through a
+`Leases` parameter only `nvs serve` can supply. **Today `nvs serve` supplies none**: the shared tier's
+wire is `put` and `get` ([`concurrency/a-cached-value-is-copied-across-the-boundary`](concurrency.md#concurrency-a-cached-value-is-copied-across-the-boundary)) and neither
+is a set-if-absent, so every `fleet` entry boots, is left **unarmed**, and is named in a boot note.
+Firing it on each host's own clock would be the precise failure the scope exists to prevent, so the
+safe half is to run none of them and say so.
+
+<sub>See also [`config/scope-has-no-default`](config.md#config-scope-has-no-default), [`config/a-missed-fire-is-skipped-and-a-dst-edge-fires-once`](config.md#config-a-missed-fire-is-skipped-and-a-dst-edge-fires-once), [`concurrency/a-cached-value-is-copied-across-the-boundary`](concurrency.md#concurrency-a-cached-value-is-copied-across-the-boundary), [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit). Decided in [0073](../decisions/0073.md), [0059](../decisions/0059.md).</sub>
 
 <a id="config-overlap-is-skip-queue-or-kill"></a>
 
@@ -1808,6 +1751,63 @@ under one name — hosts governed by a table, paths governed by nothing — is o
 guarantees.
 
 <sub>See also [`config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it`](config.md#config-a-unix-socket-is-admitted-only-where-an-operator-wrote-it), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix), [`security/net-address-policy`](security.md#security-net-address-policy). Decided in [0142](../decisions/0142.md).</sub>
+
+<a id="config-the-extension-set-is-in-every-unit-key"></a>
+
+## The extension set is folded into one `env_hash` that both compiled-unit cache keys carry, so an extension change is an ordinary cache miss
+
+`rule:config/the-extension-set-is-in-every-unit-key`
+
+```
+extension_set_hash = BLAKE3(sorted sha256 pins of the [[extension]] array)
+env_hash           = BLAKE3(target_triple ‖ cpu_feature_bitset ‖ compiler_version_hash ‖ extension_set_hash)
+content_hash       = BLAKE3(source_content)
+artifact_key       = BLAKE3(content_hash ‖ env_hash)
+```
+
+One `env_hash` is carried by **both** compiled-unit caches: the on-disk key is
+`BLAKE3(content_hash ‖ env_hash)`, and the in-memory key is `UnitKey { path, content_hash,
+env_hash }`. It is derived from the same `content_hash` the in-memory key carries, so a unit's bytes
+are hashed once for both. It is constant for the life of a configuration and costs the request path
+nothing.
+
+That is the whole of extension reload: a changed set changes `env_hash`, every unit key changes with
+it, every lookup is an ordinary miss, and the lazy per-path revalidation of
+[`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart) recompiles each unit on the compile
+pool as some request resolves it. No invalidation pass exists. It also closes the hole where an
+artifact compiled against one extension set — holding a direct call to a trampoline that has since
+moved — could be reused against another.
+
+Invalidation is coarse by design: changing the set rekeys every unit, not only units that call an
+extension. Finer would need per-unit dependency tracking including negative dependencies, a real
+subsystem for a modest win. The compile pool bounds how much of the resulting wave is in flight at
+once.
+
+<sub>See also [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system). Decided in [0078](../decisions/0078.md), [0017](../decisions/0017.md), [0042](../decisions/0042.md).</sub>
+
+<a id="config-opcache-revalidation-is-system-class"></a>
+
+## `opcache.validate` and its rate cap are `System`, and `validate`'s startup default is chosen by the run mode
+
+`rule:config/opcache-revalidation-is-system-class`
+
+`opcache.validate` — `never`, `mtime` or `hash` — and `opcache.revalidate_freq` are `System`-class:
+a request cannot loosen how often, or whether, the process re-checks source files. Letting a request
+set `validate = "never"` for itself would be a way to pin a version of the code past a since-shipped
+fix, and letting it lower `revalidate_freq` would be a way to force a `stat`/hash storm on a hot
+file. Neither is a request-local decision ([`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it)).
+
+`validate`'s **startup default** is selected by the run mode — `never` in `production`, `mtime` in
+`development` — as one of the startup rows in [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped). That
+does not loosen the paragraph above: the row is chosen by root-owned configuration before any request
+exists, is never re-derived by a runtime mode flip, and stays unflippable from code. An `[opcache]
+validate` written beside `mode = "development"` still wins, because the mode supplies a default and
+nothing more.
+
+`revalidate_freq` is deliberately not a mode row: no value of it a developer's machine needs differs
+from an operator's, so it keeps its own default under either mode.
+
+<sub>See also [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped), [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart). Decided in [0017](../decisions/0017.md), [0091](../decisions/0091.md), [0005](../decisions/0005.md).</sub>
 
 <a id="config-opcache-file-cache-directives-are-system"></a>
 

@@ -5,6 +5,71 @@
 
 *36 of 56 rules below are **designed** rather than shipped, and are marked where they appear.*
 
+<a id="tooling-shebang-opens-code-mode"></a>
+
+## A file whose first two bytes are `#!` starts in code mode, and its first line is trivia
+
+`rule:tooling/shebang-opens-code-mode`
+
+```
+#!/usr/bin/env nvs
+Core\Cli::write("hello\n");
+```
+
+**The trigger is exact:** the bytes `#!` at offset 0. Line 1, up to and including its first `\n`, is
+**trivia** — not a token, not emitted, preserved by the formatter and seen by an editor as a comment.
+**The file then continues in code mode**, exactly as if `<?nvs` stood there. Nothing else changes:
+`?>` still switches to text mode and writes literal bytes to standard output, and a later `<?nvs`
+reopens code mode ([`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag)).
+
+**`#!` anywhere but offset 0 is ordinary text**, in either mode, with no lookahead and no special
+case. A byte-order mark before it therefore defeats the shebang and the file has none — PHP's
+long-standing behaviour too, left as-is rather than repaired, because inventing one rule for one
+marker is how a parser acquires the heuristics [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused) forbids.
+
+**An `<?nvs` in a shebang file, before any `?>`, is `E0009`** — "this file opens with `#!` and is
+already in code mode; remove the `<?nvs`" — rather than a lex error naming something the author did
+not write. The reverse, a shebang file that never wanted code mode, is not a shape anyone writes and
+gets no rule.
+
+The line is trivia on every platform, so one file runs as `./app` on Unix and as `nvs app.nvs` on
+Windows with no edit; Windows gains no kernel shebang support, and its distribution answer is the
+single-file executable. This is one lexer branch at offset 0: no parser rule, HIR shape or runtime
+behaviour changes.
+
+<sub>See also [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag), [`statements/exit-is-the-only-termination-keyword`](statements.md#statements-exit-is-the-only-termination-keyword), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree). Decided in [0100](../decisions/0100.md), [0049](../decisions/0049.md), [0099](../decisions/0099.md), [0095](../decisions/0095.md).</sub>
+
+<a id="tooling-no-repl"></a>
+
+## There is no REPL and none is planned; `nvs run`, `nvs test` and `Core\Debug::dump` are the answer
+
+`rule:tooling/no-repl`
+
+`nvs` gains no `repl` subcommand and no interactive evaluator, and the subcommand roster is not
+reopened for one. A REPL needs three things that are each a language question disguised as a tool: a
+top-level scope that survives between inputs, where everything is a class member and there is no top
+level to bind into ([`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants)); redefinition of a class or member
+already compiled, where an artifact is keyed by content hash and redefinition is a cache
+invalidation, not an edit; and a printed representation of every value, against
+[`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization). Answering them would put a second, looser set of
+rules beside the one every compiled program obeys — the shape
+[`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name) rules against.
+
+What exists instead, and what the documentation points at when the question is asked:
+
+- **`nvs run file.nvs`** for a script, made cheap by the on-disk artifact cache — the second run of an
+  unchanged file compiles nothing.
+- **`nvs test`** ([`testing/test-attribute`](testing.md#testing-test-attribute)) for the "poke at it until it works" loop, which is
+  what a REPL is used for most of the time and which leaves something behind afterwards.
+- **`Core\Debug::dump`** ([`errors/debug-dump`](errors.md#errors-debug-dump)) for looking at a value.
+
+This is a **decision, not a gap**, and [`tooling/python-claims`](tooling.md#tooling-python-claims) requires it to be said out loud
+wherever Novis is compared to Python. It reopens only on evidence that "what is this value" costs a
+build, and what would be built then is a debugger-shaped inspector over a paused isolate, not a
+general evaluator.
+
+<sub>See also [`tooling/python-claims`](tooling.md#tooling-python-claims), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate), [`testing/test-attribute`](testing.md#testing-test-attribute), [`errors/debug-dump`](errors.md#errors-debug-dump), [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file), [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink). Decided in [0100](../decisions/0100.md), [0011](../decisions/0011.md), [0042](../decisions/0042.md), [0022](../decisions/0022.md), [0015](../decisions/0015.md), [0079](../decisions/0079.md), [0092](../decisions/0092.md).</sub>
+
 <a id="tooling-reflection-and-source-parsing-are-core-features"></a>
 
 ## Reflection and source parsing are built into `Core`, and `Core\Ast` is the compiler's own parser
@@ -30,6 +95,70 @@ into execution, because `eval` does not exist. Neither touches the filesystem, t
 process, so neither needs a capability grant ([`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability)).
 
 <sub>See also [`core-classes/reflect`](core-classes.md#core-classes-reflect), [`core-classes/ast-is-inert`](core-classes.md#core-classes-ast-is-inert), [`security/reflection-enforces-visibility`](security.md#security-reflection-enforces-visibility), [`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability), [`enums/reflection`](enums.md#enums-reflection), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0019](../decisions/0019.md).</sub>
+
+<a id="tooling-python-claims"></a>
+
+## Against Python, Novis claims the tool that gets handed over; "faster than Python" and "replaces Python" are forbidden
+
+`rule:tooling/python-claims`
+
+The claim Novis makes against Python is the one Python is worst at: **the tool that gets handed to
+somebody else.** It is [`programs/audience`](programs.md#programs-audience)'s existing purchase pointed at the command line — a
+second audience below the first and never above it — and it adds no priority, reorders nothing, and
+schedules no milestone of its own.
+
+**Permitted:** that a Novis CLI program ships as one file with no interpreter, virtualenv or package
+install; that argument parsing, help, completions, colour, prompts and progress are in the binary;
+that any function may suspend, so there is no `async` split through the library; that shelling out
+through a string ([`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only)), leaking a secret
+([`security/secret-qualifier`](security.md#security-secret-qualifier)) and interpolating a query ([`security/tainted-qualifier`](security.md#security-tainted-qualifier)) are
+compile errors; and any **measured** figure from the userland suite
+([`tooling/bench-engine-list-is-data`](tooling.md#tooling-bench-engine-list-is-data)), quoted with its engine, mode and host.
+
+**Forbidden in any document, error message, `--help` text or landing page:** "faster than Python",
+"replaces Python", "Python without the GIL", "a typed Python", or any phrasing implying a Python
+program, script or package runs, converts or ports. There is no `nvs convert` for Python and none is
+planned — the rule table is a PHP table and gains no second language. The rule and its reason are
+[`programs/three-claims`](programs.md#programs-three-claims)'s: a claim a reader can test and find false costs more than the
+adoption it buys.
+
+**Required wherever the comparison is made at all:** that Novis has no REPL ([`tooling/no-repl`](tooling.md#tooling-no-repl)),
+and no numeric or machine-learning stack and no route to one ([`security/no-ffi`](security.md#security-no-ffi)).
+
+No check enforces a forbidden phrasing and none should; the rule exists so a reviewer has something
+to point at.
+
+<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/three-claims`](programs.md#programs-three-claims), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`tooling/no-repl`](tooling.md#tooling-no-repl), [`tooling/bench-engine-list-is-data`](tooling.md#tooling-bench-engine-list-is-data), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/no-ffi`](security.md#security-no-ffi), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host), [`tooling/commands-are-compiled`](tooling.md#tooling-commands-are-compiled), [`concurrency/one-scheduler`](concurrency.md#concurrency-one-scheduler). Decided in [0100](../decisions/0100.md), [0080](../decisions/0080.md), [0044](../decisions/0044.md), [0033](../decisions/0033.md), [0024](../decisions/0024.md), [0048](../decisions/0048.md), [0052](../decisions/0052.md).</sub>
+
+<a id="tooling-echo-always-has-a-sink"></a>
+
+## Every execution context binds `echo` to a sink, and the default sink is the terminal
+
+`rule:tooling/echo-always-has-a-sink`
+
+| Context | `echo` writes to | Carrier |
+|---|---|---|
+| an HTTP request | the response body | `Core\Html\Markup`, auto-escaping ([`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape)) |
+| a CLI program — a `#[Command]` method or a script's main task | stdout | `Cli\Text`, substituting ([`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink)) |
+| a `spawn script` isolate | its own output buffer, or the parent's stream under `output: 'inherit'` | the parent's carrier ([`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured)) |
+| a scheduled script, a job worker, a `#[Test]` method | that run's captured output | `Cli\Text` |
+
+**The terminal sink is the default; the HTML sink is attached by an HTTP request and by nothing
+else.** That is the fail-closed direction, for the terminal sink's own reason: its substitution is
+uniform rather than tty-dependent precisely because a CI log is written to a pipe and read by a human
+later, which is exactly what a scheduled run's and a job worker's output is. A context with no
+attached sink does not exist, so `echo` never has an undefined meaning — and where the meaning had to
+be chosen, it was chosen to neutralize. Routing a sinkless context's `echo` to `Core\Log` instead was
+rejected: it silently reshapes free text into the structured writer.
+
+The same table selects a rendering ([`errors/renderings`](errors.md#errors-renderings)): the sink in force decides not only
+where a log record, a dump, a trace or a diagnostic goes but whether it is drawn as plaintext, JSON or
+HTML, so no call site names a format. It also gives `Core\Out::capture` its answer
+([`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier)), and it is why a JSON body is `Response::json` rather
+than an `echo` the HTML sink would escape into corruption
+([`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member)).
+
+<sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/the-tty-belongs-to-the-main-task`](tooling.md#tooling-the-tty-belongs-to-the-main-task), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured), [`errors/renderings`](errors.md#errors-renderings), [`config/a-scheduled-run-is-a-root-isolate`](config.md#config-a-scheduled-run-is-a-root-isolate). Decided in [0088](../decisions/0088.md), [0086](../decisions/0086.md), [0024](../decisions/0024.md), [0092](../decisions/0092.md).</sub>
 
 <a id="tooling-terminal-output-is-a-sink"></a>
 
@@ -58,6 +187,29 @@ neutralized form as a value. A `secret` value is refused outright with no carrie
 ([`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse)), because substitution does nothing for confidentiality.
 
 <sub>See also [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path), [`tooling/an-escape-in-a-literal-is-a-compile-error`](tooling.md#tooling-an-escape-in-a-literal-is-a-compile-error), [`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`security/bidi-predicate`](security.md#security-bidi-predicate), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named). Decided in [0086](../decisions/0086.md), [0024](../decisions/0024.md), [0087](../decisions/0087.md).</sub>
+
+<a id="tooling-text-is-the-one-raw-path"></a>
+
+## `Cli\Text` is the terminal's one raw path, and both of its constructors neutralize their input
+
+`rule:tooling/text-is-the-one-raw-path`
+
+`Cli\Text` is peer to `Core\Html\Markup` and the only value the terminal sink writes raw. Its two
+constructors, `Text::plain(string)` and `Text::styled(string, Style)`, **both apply the sink's
+substitution to their input**, so the only control bytes a `Text` can carry are the ones its `Style`
+put there. That is the structural guarantee: `Text` is not a trust assertion a developer can be
+tricked into making, it is a constructor that cannot produce an injected sequence. `Text + Text` is
+`Text`, immutable, composing the way `Markup + Markup` does, and `Text::plain` is idempotent, so text
+that has already been through the sink is never escaped twice.
+
+A `Text` holds bytes, so the styling is rendered when it is built, against the profile resolved once
+for the process ([`tooling/the-terminal-profile-resolves-once`](tooling.md#tooling-the-terminal-profile-resolves-once)), not at the write. The known
+limit: a `Text` written to a terminal standard output and to a redirected standard error in one run
+sends both the same bytes. Closing it would make the sink's carrier
+([`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier)) two representations instead of one, and that trade is
+not worth making while `echo` writes standard output and nothing else can observe the difference.
+
+<sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/styling-is-a-value-not-a-grammar`](tooling.md#tooling-styling-is-a-value-not-a-grammar), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier). Decided in [0086](../decisions/0086.md), [0088](../decisions/0088.md).</sub>
 
 <a id="tooling-an-escape-in-a-literal-is-a-compile-error"></a>
 
@@ -103,29 +255,6 @@ use site as any scalar constant is — and `Color::rgb(uint, uint, uint)` and `C
 construct the rest.
 
 <sub>See also [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path), [`tooling/the-terminal-profile-resolves-once`](tooling.md#tooling-the-terminal-profile-resolves-once), [`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink), [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type). Decided in [0086](../decisions/0086.md), [0063](../decisions/0063.md).</sub>
-
-<a id="tooling-text-is-the-one-raw-path"></a>
-
-## `Cli\Text` is the terminal's one raw path, and both of its constructors neutralize their input
-
-`rule:tooling/text-is-the-one-raw-path`
-
-`Cli\Text` is peer to `Core\Html\Markup` and the only value the terminal sink writes raw. Its two
-constructors, `Text::plain(string)` and `Text::styled(string, Style)`, **both apply the sink's
-substitution to their input**, so the only control bytes a `Text` can carry are the ones its `Style`
-put there. That is the structural guarantee: `Text` is not a trust assertion a developer can be
-tricked into making, it is a constructor that cannot produce an injected sequence. `Text + Text` is
-`Text`, immutable, composing the way `Markup + Markup` does, and `Text::plain` is idempotent, so text
-that has already been through the sink is never escaped twice.
-
-A `Text` holds bytes, so the styling is rendered when it is built, against the profile resolved once
-for the process ([`tooling/the-terminal-profile-resolves-once`](tooling.md#tooling-the-terminal-profile-resolves-once)), not at the write. The known
-limit: a `Text` written to a terminal standard output and to a redirected standard error in one run
-sends both the same bytes. Closing it would make the sink's carrier
-([`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier)) two representations instead of one, and that trade is
-not worth making while `echo` writes standard output and nothing else can observe the difference.
-
-<sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/styling-is-a-value-not-a-grammar`](tooling.md#tooling-styling-is-a-value-not-a-grammar), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier). Decided in [0086](../decisions/0086.md), [0088](../decisions/0088.md).</sub>
 
 <a id="tooling-the-terminal-profile-resolves-once"></a>
 
@@ -176,6 +305,83 @@ property of the renderer, not of the string; putting it on `Core\Str` would impl
 intrinsic width, the confusion [`types/string-is-utf8`](types.md#types-string-is-utf8) exists to remove.
 
 <sub>See also [`tooling/the-terminal-profile-resolves-once`](tooling.md#tooling-the-terminal-profile-resolves-once), [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`types/string-is-utf8`](types.md#types-string-is-utf8), [`types/bytes`](types.md#types-bytes). Decided in [0086](../decisions/0086.md).</sub>
+
+<a id="tooling-no-raw-handle-onto-standard-output"></a>
+
+## There is no raw handle onto standard output or standard error, and no cursor, clipboard or title primitive
+
+`rule:tooling/no-raw-handle-onto-standard-output`
+
+The terminal's substitution is uniform, so a `Core\IO\File` over descriptor 1 or 2 would not be a
+convenience beside the sink — it would be the way around it, available to exactly the computed-escape
+case [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink) exists to catch. `Cli::write` already *is* writing to
+those streams, and no operation is reachable two ways
+([`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation)). So the standard-stream surface is `Core\IO::stdin()`
+alone, the reading half being neither a sink nor a second spelling of anything. The price, recorded
+rather than hidden: a program cannot emit byte-exact binary on its standard output, and one whose
+output is bytes names a file.
+
+The same closure keeps four more things out of `Core\Cli`. Cursor primitives, per
+[`tooling/in-place-output-is-a-scoped-live-region`](tooling.md#tooling-in-place-output-is-a-scoped-live-region). Reading the clipboard, setting the window
+title, or any other `OSC` capability — offering them would re-open, as a feature, the exact channel
+the sink closes. Spinners and table rendering, which are pure text composition over `Str::format` and
+`displayWidth` and need no terminal privilege, so they are a package's natural first offering rather
+than Tier 0 ([`core-api/tier-placement`](core-api.md#core-api-tier-placement)). And a TUI widget layer — panes, focus, event loops —
+which is an application framework, not a language surface.
+
+<sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path), [`tooling/in-place-output-is-a-scoped-live-region`](tooling.md#tooling-in-place-output-is-a-scoped-live-region), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation), [`core-api/tier-placement`](core-api.md#core-api-tier-placement). Decided in [0086](../decisions/0086.md), [0063](../decisions/0063.md), [0051](../decisions/0051.md).</sub>
+
+<a id="tooling-the-tty-belongs-to-the-main-task"></a>
+
+## The tty belongs to the main task of a CLI program, so a `Core\Cli` member throws in a request and in a spawned isolate  *(designed — not yet in the compiler)*
+
+`rule:tooling/the-tty-belongs-to-the-main-task`
+
+The tty belongs to the main task of a CLI program. In a request context and inside a spawned isolate,
+every `Core\Cli` member throws: two tasks interleaving escape sequences on one terminal produce output
+no one can reason about, and there is no locking scheme that makes it coherent.
+
+**`echo` is not one of those members, and does not throw.** It binds to whatever sink its context has
+— the response body under a request, the terminal sink everywhere else, including a scheduled script,
+a job worker, a test and a spawned isolate's buffer ([`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink)). What
+throws is claiming the *terminal*; writing text never does. An isolate's `echo` reaches a buffer its
+parent owns, never a tty ([`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured)), which is why the two rules are
+consistent rather than in tension.
+
+<sub>See also [`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink), [`tooling/the-terminal-is-restored-on-every-exit-path`](tooling.md#tooling-the-terminal-is-restored-on-every-exit-path), [`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments). Decided in [0086](../decisions/0086.md), [0088](../decisions/0088.md), [0006](../decisions/0006.md).</sub>
+
+<a id="tooling-in-place-output-is-a-scoped-live-region"></a>
+
+## In-place output is a scoped live region the runtime paints, never a cursor primitive
+
+`rule:tooling/in-place-output-is-a-scoped-live-region`
+
+```nvs
+Cli::live(fn($live) => {
+    foreach ($files as $f) {
+        $live->set([Cli\Text::plain("scanning {$f}")]);
+    }
+});
+```
+
+`Cli::live<T>(callable $body): T` hands its body a `Cli\Live` with `->set(array<Cli\Text> $lines)`;
+`Cli::progress<T>(uint $total, callable $body): T` hands it a `Cli\Progress` with
+`->advance({by?: uint, label?: string})`. Both answer what the body computed, at the body's type.
+**The runtime owns the cursor**: it coalesces frames on a timer rather than repainting per `set`,
+diffs against the previous frame, hides and restores the cursor, and **renders nothing at all when
+the stream is not a terminal**, so a piped run produces clean output instead of a smear of escape
+sequences. A handle that outlives its region is dead: painting through it is a `LogicError`, because
+two regions on one cursor is the state this rule exists to make unreachable.
+
+This is the scoped-closure shape `Out::capture` and `Db::transaction`
+([`core-classes/db-transactions`](core-classes.md#core-classes-db-transactions)) already use, and scoping is what makes restoration enforceable
+([`tooling/the-terminal-is-restored-on-every-exit-path`](tooling.md#tooling-the-terminal-is-restored-on-every-exit-path)): a region has an end, and the runtime is
+at that end on every path including a throw. Cursor primitives — `moveUp`, `clearLine`,
+`alternateScreen` — are **not** the surface. They break the moment output is piped, they cannot
+survive a resize, they interleave incoherently when two tasks write, and a program that dies holding
+them leaves the operator's shell unusable.
+
+<sub>See also [`tooling/the-terminal-is-restored-on-every-exit-path`](tooling.md#tooling-the-terminal-is-restored-on-every-exit-path), [`tooling/the-terminal-profile-resolves-once`](tooling.md#tooling-the-terminal-profile-resolves-once), [`tooling/no-raw-handle-onto-standard-output`](tooling.md#tooling-no-raw-handle-onto-standard-output), [`core-classes/db-transactions`](core-classes.md#core-classes-db-transactions). Decided in [0086](../decisions/0086.md), [0067](../decisions/0067.md).</sub>
 
 <a id="tooling-a-prompt-is-a-core-member"></a>
 
@@ -231,38 +437,29 @@ rather than a hang.
 
 <sub>See also [`tooling/a-prompt-is-a-core-member`](tooling.md#tooling-a-prompt-is-a-core-member), [`programs/memory-priority`](programs.md#programs-memory-priority), [`testing/test-attribute`](testing.md#testing-test-attribute). Decided in [0086](../decisions/0086.md), [0074](../decisions/0074.md), [0079](../decisions/0079.md).</sub>
 
-<a id="tooling-in-place-output-is-a-scoped-live-region"></a>
+<a id="tooling-the-terminal-is-restored-on-every-exit-path"></a>
 
-## In-place output is a scoped live region the runtime paints, never a cursor primitive
+## Raw mode, a hidden cursor and a live region are restored on a throw, a fatal, a panic and a signal
 
-`rule:tooling/in-place-output-is-a-scoped-live-region`
+`rule:tooling/the-terminal-is-restored-on-every-exit-path`
 
-```nvs
-Cli::live(fn($live) => {
-    foreach ($files as $f) {
-        $live->set([Cli\Text::plain("scanning {$f}")]);
-    }
-});
-```
+Raw mode, a hidden cursor and a live region must be undone on a throw, on a fatal, on an internal
+panic and on a signal. Restoration is an obligation of [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), not a
+`finally` an author remembers: a ladder that protects the process while leaving the operator's shell
+in raw mode has failed at the thing it exists for. This is the most-forgotten defect in
+cross-platform terminal code, and it is the reason in-place output is scoped rather than free-form
+([`tooling/in-place-output-is-a-scoped-live-region`](tooling.md#tooling-in-place-output-is-a-scoped-live-region)) — a region has an end, and the runtime is at
+that end on every path.
 
-`Cli::live<T>(callable $body): T` hands its body a `Cli\Live` with `->set(array<Cli\Text> $lines)`;
-`Cli::progress<T>(uint $total, callable $body): T` hands it a `Cli\Progress` with
-`->advance({by?: uint, label?: string})`. Both answer what the body computed, at the body's type.
-**The runtime owns the cursor**: it coalesces frames on a timer rather than repainting per `set`,
-diffs against the previous frame, hides and restores the cursor, and **renders nothing at all when
-the stream is not a terminal**, so a piped run produces clean output instead of a smear of escape
-sequences. A handle that outlives its region is dead: painting through it is a `LogicError`, because
-two regions on one cursor is the state this rule exists to make unreachable.
+A statement after the body cannot discharge the obligation, because a throw skips it and a panic
+skips every statement there is ([`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code)). So the end of a region is a
+destructor, in the stdlib's scope guard and in the runtime's region both — one ends the *scope*, the
+other puts the *terminal* back — and an outer region closing also closes any inner one whose own
+guard was skipped, so the stack can never keep a region nobody can reach. What is left on screen is
+the last frame; what is restored is the cursor, and the row below the region is where the next `echo`
+lands.
 
-This is the scoped-closure shape `Out::capture` and `Db::transaction`
-([`core-classes/db-transactions`](core-classes.md#core-classes-db-transactions)) already use, and scoping is what makes restoration enforceable
-([`tooling/the-terminal-is-restored-on-every-exit-path`](tooling.md#tooling-the-terminal-is-restored-on-every-exit-path)): a region has an end, and the runtime is
-at that end on every path including a throw. Cursor primitives — `moveUp`, `clearLine`,
-`alternateScreen` — are **not** the surface. They break the moment output is piped, they cannot
-survive a resize, they interleave incoherently when two tasks write, and a program that dies holding
-them leaves the operator's shell unusable.
-
-<sub>See also [`tooling/the-terminal-is-restored-on-every-exit-path`](tooling.md#tooling-the-terminal-is-restored-on-every-exit-path), [`tooling/the-terminal-profile-resolves-once`](tooling.md#tooling-the-terminal-profile-resolves-once), [`tooling/no-raw-handle-onto-standard-output`](tooling.md#tooling-no-raw-handle-onto-standard-output), [`core-classes/db-transactions`](core-classes.md#core-classes-db-transactions). Decided in [0086](../decisions/0086.md), [0067](../decisions/0067.md).</sub>
+<sub>See also [`tooling/in-place-output-is-a-scoped-live-region`](tooling.md#tooling-in-place-output-is-a-scoped-live-region), [`tooling/the-tty-belongs-to-the-main-task`](tooling.md#tooling-the-tty-belongs-to-the-main-task), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code), [`errors/engine-floor`](errors.md#errors-engine-floor). Decided in [0086](../decisions/0086.md), [0020](../decisions/0020.md).</sub>
 
 <a id="tooling-commands-are-compiled"></a>
 
@@ -343,493 +540,6 @@ question, so the reason the router stops does not exist here, and stopping anywa
 shape rather than its reasoning.
 
 <sub>See also [`tooling/commands-are-compiled`](tooling.md#tooling-commands-are-compiled), [`tooling/a-parameter-is-an-argument-unless-it-is-an-option`](tooling.md#tooling-a-parameter-is-an-argument-unless-it-is-an-option), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching), [`routing/the-servers-match-dispatches-nothing`](routing.md#routing-the-servers-match-dispatches-nothing), [`statements/exit-is-the-only-termination-keyword`](statements.md#statements-exit-is-the-only-termination-keyword). Decided in [0086](../decisions/0086.md), [0102](../decisions/0102.md).</sub>
-
-<a id="tooling-no-raw-handle-onto-standard-output"></a>
-
-## There is no raw handle onto standard output or standard error, and no cursor, clipboard or title primitive
-
-`rule:tooling/no-raw-handle-onto-standard-output`
-
-The terminal's substitution is uniform, so a `Core\IO\File` over descriptor 1 or 2 would not be a
-convenience beside the sink — it would be the way around it, available to exactly the computed-escape
-case [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink) exists to catch. `Cli::write` already *is* writing to
-those streams, and no operation is reachable two ways
-([`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation)). So the standard-stream surface is `Core\IO::stdin()`
-alone, the reading half being neither a sink nor a second spelling of anything. The price, recorded
-rather than hidden: a program cannot emit byte-exact binary on its standard output, and one whose
-output is bytes names a file.
-
-The same closure keeps four more things out of `Core\Cli`. Cursor primitives, per
-[`tooling/in-place-output-is-a-scoped-live-region`](tooling.md#tooling-in-place-output-is-a-scoped-live-region). Reading the clipboard, setting the window
-title, or any other `OSC` capability — offering them would re-open, as a feature, the exact channel
-the sink closes. Spinners and table rendering, which are pure text composition over `Str::format` and
-`displayWidth` and need no terminal privilege, so they are a package's natural first offering rather
-than Tier 0 ([`core-api/tier-placement`](core-api.md#core-api-tier-placement)). And a TUI widget layer — panes, focus, event loops —
-which is an application framework, not a language surface.
-
-<sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path), [`tooling/in-place-output-is-a-scoped-live-region`](tooling.md#tooling-in-place-output-is-a-scoped-live-region), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation), [`core-api/tier-placement`](core-api.md#core-api-tier-placement). Decided in [0086](../decisions/0086.md), [0063](../decisions/0063.md), [0051](../decisions/0051.md).</sub>
-
-<a id="tooling-the-tty-belongs-to-the-main-task"></a>
-
-## The tty belongs to the main task of a CLI program, so a `Core\Cli` member throws in a request and in a spawned isolate  *(designed — not yet in the compiler)*
-
-`rule:tooling/the-tty-belongs-to-the-main-task`
-
-The tty belongs to the main task of a CLI program. In a request context and inside a spawned isolate,
-every `Core\Cli` member throws: two tasks interleaving escape sequences on one terminal produce output
-no one can reason about, and there is no locking scheme that makes it coherent.
-
-**`echo` is not one of those members, and does not throw.** It binds to whatever sink its context has
-— the response body under a request, the terminal sink everywhere else, including a scheduled script,
-a job worker, a test and a spawned isolate's buffer ([`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink)). What
-throws is claiming the *terminal*; writing text never does. An isolate's `echo` reaches a buffer its
-parent owns, never a tty ([`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured)), which is why the two rules are
-consistent rather than in tension.
-
-<sub>See also [`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink), [`tooling/the-terminal-is-restored-on-every-exit-path`](tooling.md#tooling-the-terminal-is-restored-on-every-exit-path), [`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments). Decided in [0086](../decisions/0086.md), [0088](../decisions/0088.md), [0006](../decisions/0006.md).</sub>
-
-<a id="tooling-the-terminal-is-restored-on-every-exit-path"></a>
-
-## Raw mode, a hidden cursor and a live region are restored on a throw, a fatal, a panic and a signal
-
-`rule:tooling/the-terminal-is-restored-on-every-exit-path`
-
-Raw mode, a hidden cursor and a live region must be undone on a throw, on a fatal, on an internal
-panic and on a signal. Restoration is an obligation of [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), not a
-`finally` an author remembers: a ladder that protects the process while leaving the operator's shell
-in raw mode has failed at the thing it exists for. This is the most-forgotten defect in
-cross-platform terminal code, and it is the reason in-place output is scoped rather than free-form
-([`tooling/in-place-output-is-a-scoped-live-region`](tooling.md#tooling-in-place-output-is-a-scoped-live-region)) — a region has an end, and the runtime is at
-that end on every path.
-
-A statement after the body cannot discharge the obligation, because a throw skips it and a panic
-skips every statement there is ([`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code)). So the end of a region is a
-destructor, in the stdlib's scope guard and in the runtime's region both — one ends the *scope*, the
-other puts the *terminal* back — and an outer region closing also closes any inner one whose own
-guard was skipped, so the stack can never keep a region nobody can reach. What is left on screen is
-the last frame; what is restored is the cursor, and the row below the region is where the next `echo`
-lands.
-
-<sub>See also [`tooling/in-place-output-is-a-scoped-live-region`](tooling.md#tooling-in-place-output-is-a-scoped-live-region), [`tooling/the-tty-belongs-to-the-main-task`](tooling.md#tooling-the-tty-belongs-to-the-main-task), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code), [`errors/engine-floor`](errors.md#errors-engine-floor). Decided in [0086](../decisions/0086.md), [0020](../decisions/0020.md).</sub>
-
-<a id="tooling-echo-always-has-a-sink"></a>
-
-## Every execution context binds `echo` to a sink, and the default sink is the terminal
-
-`rule:tooling/echo-always-has-a-sink`
-
-| Context | `echo` writes to | Carrier |
-|---|---|---|
-| an HTTP request | the response body | `Core\Html\Markup`, auto-escaping ([`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape)) |
-| a CLI program — a `#[Command]` method or a script's main task | stdout | `Cli\Text`, substituting ([`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink)) |
-| a `spawn script` isolate | its own output buffer, or the parent's stream under `output: 'inherit'` | the parent's carrier ([`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured)) |
-| a scheduled script, a job worker, a `#[Test]` method | that run's captured output | `Cli\Text` |
-
-**The terminal sink is the default; the HTML sink is attached by an HTTP request and by nothing
-else.** That is the fail-closed direction, for the terminal sink's own reason: its substitution is
-uniform rather than tty-dependent precisely because a CI log is written to a pipe and read by a human
-later, which is exactly what a scheduled run's and a job worker's output is. A context with no
-attached sink does not exist, so `echo` never has an undefined meaning — and where the meaning had to
-be chosen, it was chosen to neutralize. Routing a sinkless context's `echo` to `Core\Log` instead was
-rejected: it silently reshapes free text into the structured writer.
-
-The same table selects a rendering ([`errors/renderings`](errors.md#errors-renderings)): the sink in force decides not only
-where a log record, a dump, a trace or a diagnostic goes but whether it is drawn as plaintext, JSON or
-HTML, so no call site names a format. It also gives `Core\Out::capture` its answer
-([`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier)), and it is why a JSON body is `Response::json` rather
-than an `echo` the HTML sink would escape into corruption
-([`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member)).
-
-<sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/the-tty-belongs-to-the-main-task`](tooling.md#tooling-the-tty-belongs-to-the-main-task), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured), [`errors/renderings`](errors.md#errors-renderings), [`config/a-scheduled-run-is-a-root-isolate`](config.md#config-a-scheduled-run-is-a-root-isolate). Decided in [0088](../decisions/0088.md), [0086](../decisions/0086.md), [0024](../decisions/0024.md), [0092](../decisions/0092.md).</sub>
-
-<a id="tooling-convert-one-table-two-modes"></a>
-
-## `nvs convert` is one rule table read through two modes, and every branch carries a tier  *(designed — not yet in the compiler)*
-
-`rule:tooling/convert-one-table-two-modes`
-
-Every rewrite `nvs convert` knows is a **rule** in one table, and every branch of a rule carries
-exactly one tier. **E** — the converted construct behaves identically to the PHP one for every input
-the converted program's type checker accepts. **D** — a mechanical Novis destination exists but the
-behaviour may differ. **N** — no mechanical destination exists. The two modes are that tier read
-through a filter, never a second code path:
-
-| Tier | `--mode=equivalent` (default) | `--mode=runnable` |
-|---|---|---|
-| E | emitted as code | emitted as code |
-| D | original commented out, the idiomatic Novis shape beside it | emitted as code with `TODO(convert:<id>)` naming the difference |
-| N | original commented out, the idiomatic shape beside it | the same |
-
-So `--mode=equivalent` output is a worklist that **will not run**, and its header says so.
-`--mode=runnable` output usually runs, is explicitly not idiomatic Novis, and every site where it may
-diverge is one `grep` away ([`tooling/convert-annotations-and-report`](tooling.md#tooling-convert-annotations-and-report)).
-
-A rule has **ordered branches**, and a branch's tier may be predicated on a side condition the
-converter decides by its own analysis. A condition it cannot decide is **false**: control falls to the
-next branch and the weaker tier applies — fail-closed, the same direction as
-[`security/sink-predicate`](security.md#security-sink-predicate). A rule record is data with exactly these fields: `id` (a domain
-letter plus four digits, never reused), `match`, `when`, `tier`, `rewrite`, `diverges` (one
-sentence — the `TODO` text), `idiomatic` (what Novis wants instead — the comment the default mode
-leaves), `dialect` and `proof`. `diverges` says what will break; `idiomatic` says what to write.
-
-<sub>See also [`tooling/convert-equivalent-is-proven`](tooling.md#tooling-convert-equivalent-is-proven), [`tooling/convert-annotations-and-report`](tooling.md#tooling-convert-annotations-and-report), [`tooling/convert-three-tables`](tooling.md#tooling-convert-three-tables), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`security/sink-predicate`](security.md#security-sink-predicate). Decided in [0089](../decisions/0089.md), [0088](../decisions/0088.md).</sub>
-
-<a id="tooling-convert-equivalent-is-proven"></a>
-
-## A tier-E rewrite names a differential case against the PHP oracle, or it is not E  *(designed — not yet in the compiler)*
-
-`rule:tooling/convert-equivalent-is-proven`
-
-A branch may be **E** only when, for every input the converted program's type checker accepts, the
-two programs agree on all of: values returned, bytes written to each sink, which `Throwable` escapes,
-and the order of externally visible side effects — evaluated against the declared target dialect
-([`tooling/convert-php-front-end`](tooling.md#tooling-convert-php-front-end)), never against "PHP in general".
-
-**Nothing is E because someone was confident.** An E branch names a differential case in
-`tests/convert/` that runs the PHP fragment on the oracle build this repository already keeps and
-the converted fragment under `nvs test`, and compares. CI refuses an E branch whose `proof` is
-missing or whose case does not run. A branch claiming E across several dialects owes one case per
-dialect; where no oracle exists for a dialect, the branch is D, not E.
-
-A tier is usually a property of the **site**, not of the construct. `==` keeps its spelling
-([`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator)) and is E when both operands are proven the same
-non-`string` scalar or proven numeric, D otherwise with a `diverges` sentence per operand shape, and
-has no E or D branch at all for a cross-type comparison, which is
-[`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused)'s compile error. `strlen($s)` is E when the argument
-is proven `bytes` and D when it is `string`, because grapheme counting changes the number on any
-non-ASCII input — a `TODO`, not a blocker.
-
-Where inference cannot decide a type, **`mixed` is an E answer, not a divergence**: it is the one
-unchecked position ([`types/unions-and-mixed`](types.md#types-unions-and-mixed)), which is exactly PHP's own discipline. The
-accompanying `TODO` names the binding and says what it costs.
-
-<sub>See also [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes), [`tooling/convert-php-front-end`](tooling.md#tooling-convert-php-front-end), [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0089](../decisions/0089.md), [0079](../decisions/0079.md), [0007](../decisions/0007.md), [0009](../decisions/0009.md), [0090](../decisions/0090.md).</sub>
-
-<a id="tooling-convert-is-deterministic"></a>
-
-## `nvs convert` is a pure function of its input bytes, mode, dialect, table digest and flags  *(designed — not yet in the compiler)*
-
-`rule:tooling/convert-is-deterministic`
-
-Output is a pure function of the input bytes of every file in the unit, the mode, the target dialect,
-the rule-table digest and the explicit flags — nothing else. Concretely, and each is a rule the
-implementation may not break:
-
-1. **File discovery is sorted** by byte-wise path, and units are processed in that order.
-2. **No ambient input** — no clock, locale, environment, network, random seed, absolute path in
-   output, or hash-map iteration order anywhere a decision or an emission order depends on it.
-3. **The pass pipeline is fixed and each pass runs once**, over the tree in source order. There is no
-   run-to-fixpoint; a rule needing rewritten input names the earlier pass that produces it.
-4. **Rule precedence is total**: innermost matching node first, then by rule id. Two rules that could
-   both apply at one site are a table error CI catches.
-5. **Every generated name is a pure function of source facts.** Where a counter is unavoidable it is
-   per-file, in source order, and the rule says so.
-6. **Formatting is not the converter's business.** It emits a tree and prints it through `nvs fmt`'s
-   one unconfigurable style; it has no formatting options, and output is UTF-8 without a BOM with `\n`
-   line endings on every platform.
-7. **Every output file carries a header** naming the source path, source digest, rule-table digest,
-   mode and dialect, so two runs that differ are attributable to one of those five inputs.
-
-**No model, no heuristic outside the table, no probability.** A rewrite the table does not state
-does not happen. This is what makes the output reviewable and the tool re-runnable, and it is why
-LLM assistance is refused outright ([`tooling/convert-never-does`](tooling.md#tooling-convert-never-does)).
-
-<sub>See also [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes), [`tooling/convert-php-front-end`](tooling.md#tooling-convert-php-front-end), [`tooling/convert-never-does`](tooling.md#tooling-convert-never-does), [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style). Decided in [0089](../decisions/0089.md), [0039](../decisions/0039.md).</sub>
-
-<a id="tooling-convert-drops-nothing"></a>
-
-## Every non-trivia input byte leaves the converter as code or as comment, and output is re-parsed before it is written  *(designed — not yet in the compiler)*
-
-`rule:tooling/convert-drops-nothing`
-
-**Byte-completeness.** Every non-trivia byte of input leaves the converter as either converted code
-or commented-out source. A construct with no rule is treated as tier N: commented, annotated and
-counted. The test for this is mechanical and runs over the whole corpus.
-
-**Comments and docblocks survive**, re-attached to the construct they documented. A converter that
-loses a library's documentation has not ported it.
-
-**A file the front end cannot parse becomes a fully commented-out file** carrying the parse error and
-the dialect it was tried under — never a missing file and never a silent skip
-([`tooling/convert-php-front-end`](tooling.md#tooling-convert-php-front-end)).
-
-**Output is re-parsed with `nvs-syntax` before it is written.** A rule that produces unparseable
-Novis is a converter bug: the run reports it against the rule id, and that file falls back to fully
-commented-out, so a bad rule can never leave a tree that does not parse.
-
-<sub>See also [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes), [`tooling/convert-php-front-end`](tooling.md#tooling-convert-php-front-end). Decided in [0089](../decisions/0089.md).</sub>
-
-<a id="tooling-convert-annotations-and-report"></a>
-
-## A converted site is annotated `TODO(convert:<id>)`, and `--check` publishes the tier counts as TOML  *(designed — not yet in the compiler)*
-
-`rule:tooling/convert-annotations-and-report`
-
-One greppable spelling each, stable across releases. A runnable-mode D site carries a `TODO`
-naming the rule and the difference:
-
-```
-// TODO(convert:S0140): Core\Str::length counts grapheme clusters; strlen counted bytes.
-var $n = Core\Str::length($blob);
-```
-
-A commented-out site carries the rule id, what the original meant, and the idiomatic shape:
-
-```
-// convert:C0004 — PHP compares an int against a string here, and 8.0 changed what that means.
-// Idiomatic Novis: convert once at the boundary, then compare — `$id == ($raw as int)`.
-// if ($id == "1") { … }
-```
-
-`nvs convert --check` writes no files and emits a report — TOML, for the reason
-[`config/the-file-is-nvs-toml-and-it-is-toml`](config.md#config-the-file-is-nvs-toml-and-it-is-toml) gives — ordered by path then rule id so it diffs
-cleanly. It carries per-tier counts, per-rule counts, the share of input constructs emitted as code
-in each mode, and the rules that fired most often without an E branch, which is the work queue for
-the table itself.
-
-That report is the number [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise) obliges the project to publish
-instead of a compatibility claim. `--explain <id>` prints one rule: its branches, their tiers, their
-conditions and their proofs.
-
-<sub>See also [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`programs/three-claims`](programs.md#programs-three-claims), [`config/the-file-is-nvs-toml-and-it-is-toml`](config.md#config-the-file-is-nvs-toml-and-it-is-toml). Decided in [0089](../decisions/0089.md), [0064](../decisions/0064.md), [0080](../decisions/0080.md).</sub>
-
-<a id="tooling-convert-three-tables"></a>
-
-## Names, constructs and semantic deltas each have one home, and the converter copies none of them  *(designed — not yet in the compiler)*
-
-`rule:tooling/convert-three-tables`
-
-Three tables, three homes, no fourth copy.
-
-1. **Names → `docs/spec/02-php-migration.md`**, one row per PHP built-in, already CI-checked by
-   `tools/check-migration.py`. The converter's name mapping is *generated* from it: a row whose Novis
-   cell is exactly one `Core` member spelling is machine-read as a mechanical rename; any other cell
-   must carry a rule id, because prose like "`Core\Str::format` into `$file->write`" is a rewrite,
-   not a rename. A `dropped` row with neither is a checker error once the converter exists.
-2. **Constructs → `crates/nvs-convert/rules/*.toml`**, one file per PHP domain, one record per rule
-   ([`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes)'s field list). It is data, not code, so a rule can be
-   reviewed by someone who does not read Rust; the browsable copy under `docs/spec/` is generated and
-   CI-checked identical, never hand-edited — the discipline [`testing/attribution-is-diffed-in-ci`](testing.md#testing-attribution-is-diffed-in-ci)
-   applies to notices.
-3. **Semantic deltas → the decision that created each one.** A rule's `when` predicates are drawn
-   from a **closed vocabulary** — the inferred type of an operand, its qualifier, a literal's shape,
-   the dialect, whether a name resolves — and its `diverges` sentence cites the record by number
-   rather than restating its reasoning.
-
-The table grows for years. That is the accepted price, and it is why the growth is one data row
-rather than one branch in a match.
-
-<sub>See also [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes), [`tooling/convert-equivalent-is-proven`](tooling.md#tooling-convert-equivalent-is-proven), [`testing/attribution-is-diffed-in-ci`](testing.md#testing-attribution-is-diffed-in-ci). Decided in [0089](../decisions/0089.md), [0065](../decisions/0065.md).</sub>
-
-<a id="tooling-convert-php-front-end"></a>
-
-## The PHP front end is `php-rs-parser`, pinned, reached only through `nvs_convert::php`, and never linked into the server  *(designed — not yet in the compiler)*
-
-`rule:tooling/convert-php-front-end`
-
-The converter needs an AST for **PHP 7.4 through 8.6**, extendable. 8.0 is the hard requirement and
-7.4 came free with the parser chosen; a dialect below 7.4 is **refused, not guessed at** — the file
-becomes [`tooling/convert-drops-nothing`](tooling.md#tooling-convert-drops-nothing)'s commented-out file, and the report names the version
-it was tried under. Extending the range is a row: a new dialect value plus a branch on any rule whose
-behaviour it changed.
-
-The front end is **`php-rs-parser`** (with `php-ast`, `php-lexer` and `phpdoc-parser`), BSD-3-Clause
-and pure Rust, **pinned to an exact version** and upgraded deliberately. It was chosen over
-`mago-syntax` by measurement: it names the constructs PHP 8.0 removed, rejects a type PHP itself
-rejects, carries a version knob, states a semantic-rejection contract — at least one diagnostic iff
-`php -l` would reject the input at the configured version — and returns an owned tree with comments
-in source order and doc-blocks attached to their declaration.
-
-Three bounds hold the dependency in place. **The passes see only `nvs_convert::php`** — our own
-facade over node kinds, spans and comments, written before any pass and the only module allowed to
-name the parser crate — so replacing it is one module, not a rewrite. **The parser is behind a Cargo
-feature and is never linked into the server binary**: a PHP front end has no business on a machine
-serving requests. **No PHP binary is required to convert.** PHP is the differential oracle that
-proves an E rule ([`tooling/convert-equivalent-is-proven`](tooling.md#tooling-convert-equivalent-is-proven)), a development-side dependency; an
-installed PHP at convert time would make output depend on which build the user has, breaking
-[`tooling/convert-is-deterministic`](tooling.md#tooling-convert-is-deterministic). The parser is not vendored: owning it would mean owning
-every future PHP release.
-
-<sub>See also [`tooling/convert-is-deterministic`](tooling.md#tooling-convert-is-deterministic), [`tooling/convert-drops-nothing`](tooling.md#tooling-convert-drops-nothing), [`tooling/convert-equivalent-is-proven`](tooling.md#tooling-convert-equivalent-is-proven), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions). Decided in [0089](../decisions/0089.md), [0068](../decisions/0068.md), [0051](../decisions/0051.md), [0065](../decisions/0065.md).</sub>
-
-<a id="tooling-convert-never-does"></a>
-
-## The converter never runs its input, never converts `vendor/` by default, never invents a binding and never claims compatibility  *(designed — not yet in the compiler)*
-
-`rule:tooling/convert-never-does`
-
-Five refusals, each a rule of its own.
-
-- **Never runs the input.** No `eval`, no autoload execution, no `composer install`, no bootstrap
-  file. Conversion is a read of bytes.
-- **Never converts `vendor/` by default.** The tool is scoped to an application's own code
-  ([`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise)); a dependency is reported against the package registry —
-  as a package that exists, one that does not, or a C extension that needs a Tier 1 `.nvsx`, which the
-  converter cannot synthesise and says so.
-- **Never invents a name binding.** A name that does not resolve under [`programs/autoload`](programs.md#programs-autoload) is
-  reported, not guessed.
-- **Never applies a rewrite that is not in the table**, and never asks a model for one. A model is
-  non-deterministic by construction ([`tooling/convert-is-deterministic`](tooling.md#tooling-convert-is-deterministic)), cannot produce a rule
-  id, a tier or a proof, and fails as a confident wrong rewrite — the exact outcome the tiering exists
-  to prevent. A model may help a *human* write a rule for the table, where the differential case
-  checks it.
-- **Never claims compatibility in its own output.** The header states mode, dialect, digests and the
-  tier counts; the forbidden phrasings of [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise) bind the
-  converter's own text as much as any other document.
-
-<sub>See also [`tooling/convert-is-deterministic`](tooling.md#tooling-convert-is-deterministic), [`tooling/convert-annotations-and-report`](tooling.md#tooling-convert-annotations-and-report), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`programs/autoload`](programs.md#programs-autoload), [`security/no-eval`](security.md#security-no-eval), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0089](../decisions/0089.md), [0080](../decisions/0080.md), [0061](../decisions/0061.md), [0081](../decisions/0081.md).</sub>
-
-<a id="tooling-fmt-never-inserts-visibility"></a>
-
-## `nvs fmt` never inserts a visibility keyword; `nvs convert` inserts `public` as an E-tier rewrite  *(designed — not yet in the compiler)*
-
-`rule:tooling/fmt-never-inserts-visibility`
-
-[`core-api/written-visibility`](core-api.md#core-api-written-visibility) makes an omitted visibility keyword a compile error. Two tools
-meet that error, and they answer it in opposite ways.
-
-**`nvs fmt` never inserts the keyword.** The formatter orders modifiers and does not supply a missing
-one. A formatter that inserted `public` would make a file's *meaning* depend on whether a tool had
-been run over it, and would restore PHP's implicit default through the back door for anyone who
-formats on save. A file that does not compile still does not compile after `nvs fmt`.
-
-**`nvs convert` does insert it**, as an **E-tier** row of its rule table
-([`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes)): PHP's omission provably means `public`, so writing the
-word is a behaviour-identical rewrite, discharged by a differential case like any other E branch
-([`tooling/convert-equivalent-is-proven`](tooling.md#tooling-convert-equivalent-is-proven)). Porting a PHP file therefore costs the author nothing
-here, and the ported member reports the level PHP actually gave it.
-
-<sub>See also [`core-api/written-visibility`](core-api.md#core-api-written-visibility), [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes), [`tooling/convert-equivalent-is-proven`](tooling.md#tooling-convert-equivalent-is-proven), [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per). Decided in [0094](../decisions/0094.md), [0089](../decisions/0089.md), [0039](../decisions/0039.md).</sub>
-
-<a id="tooling-python-claims"></a>
-
-## Against Python, Novis claims the tool that gets handed over; "faster than Python" and "replaces Python" are forbidden
-
-`rule:tooling/python-claims`
-
-The claim Novis makes against Python is the one Python is worst at: **the tool that gets handed to
-somebody else.** It is [`programs/audience`](programs.md#programs-audience)'s existing purchase pointed at the command line — a
-second audience below the first and never above it — and it adds no priority, reorders nothing, and
-schedules no milestone of its own.
-
-**Permitted:** that a Novis CLI program ships as one file with no interpreter, virtualenv or package
-install; that argument parsing, help, completions, colour, prompts and progress are in the binary;
-that any function may suspend, so there is no `async` split through the library; that shelling out
-through a string ([`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only)), leaking a secret
-([`security/secret-qualifier`](security.md#security-secret-qualifier)) and interpolating a query ([`security/tainted-qualifier`](security.md#security-tainted-qualifier)) are
-compile errors; and any **measured** figure from the userland suite
-([`tooling/bench-engine-list-is-data`](tooling.md#tooling-bench-engine-list-is-data)), quoted with its engine, mode and host.
-
-**Forbidden in any document, error message, `--help` text or landing page:** "faster than Python",
-"replaces Python", "Python without the GIL", "a typed Python", or any phrasing implying a Python
-program, script or package runs, converts or ports. There is no `nvs convert` for Python and none is
-planned — the rule table is a PHP table and gains no second language. The rule and its reason are
-[`programs/three-claims`](programs.md#programs-three-claims)'s: a claim a reader can test and find false costs more than the
-adoption it buys.
-
-**Required wherever the comparison is made at all:** that Novis has no REPL ([`tooling/no-repl`](tooling.md#tooling-no-repl)),
-and no numeric or machine-learning stack and no route to one ([`security/no-ffi`](security.md#security-no-ffi)).
-
-No check enforces a forbidden phrasing and none should; the rule exists so a reviewer has something
-to point at.
-
-<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/three-claims`](programs.md#programs-three-claims), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`tooling/no-repl`](tooling.md#tooling-no-repl), [`tooling/bench-engine-list-is-data`](tooling.md#tooling-bench-engine-list-is-data), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/no-ffi`](security.md#security-no-ffi), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host), [`tooling/commands-are-compiled`](tooling.md#tooling-commands-are-compiled), [`concurrency/one-scheduler`](concurrency.md#concurrency-one-scheduler). Decided in [0100](../decisions/0100.md), [0080](../decisions/0080.md), [0044](../decisions/0044.md), [0033](../decisions/0033.md), [0024](../decisions/0024.md), [0048](../decisions/0048.md), [0052](../decisions/0052.md).</sub>
-
-<a id="tooling-shebang-opens-code-mode"></a>
-
-## A file whose first two bytes are `#!` starts in code mode, and its first line is trivia
-
-`rule:tooling/shebang-opens-code-mode`
-
-```
-#!/usr/bin/env nvs
-Core\Cli::write("hello\n");
-```
-
-**The trigger is exact:** the bytes `#!` at offset 0. Line 1, up to and including its first `\n`, is
-**trivia** — not a token, not emitted, preserved by the formatter and seen by an editor as a comment.
-**The file then continues in code mode**, exactly as if `<?nvs` stood there. Nothing else changes:
-`?>` still switches to text mode and writes literal bytes to standard output, and a later `<?nvs`
-reopens code mode ([`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag)).
-
-**`#!` anywhere but offset 0 is ordinary text**, in either mode, with no lookahead and no special
-case. A byte-order mark before it therefore defeats the shebang and the file has none — PHP's
-long-standing behaviour too, left as-is rather than repaired, because inventing one rule for one
-marker is how a parser acquires the heuristics [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused) forbids.
-
-**An `<?nvs` in a shebang file, before any `?>`, is `E0009`** — "this file opens with `#!` and is
-already in code mode; remove the `<?nvs`" — rather than a lex error naming something the author did
-not write. The reverse, a shebang file that never wanted code mode, is not a shape anyone writes and
-gets no rule.
-
-The line is trivia on every platform, so one file runs as `./app` on Unix and as `nvs app.nvs` on
-Windows with no edit; Windows gains no kernel shebang support, and its distribution answer is the
-single-file executable. This is one lexer branch at offset 0: no parser rule, HIR shape or runtime
-behaviour changes.
-
-<sub>See also [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag), [`statements/exit-is-the-only-termination-keyword`](statements.md#statements-exit-is-the-only-termination-keyword), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree). Decided in [0100](../decisions/0100.md), [0049](../decisions/0049.md), [0099](../decisions/0099.md), [0095](../decisions/0095.md).</sub>
-
-<a id="tooling-no-repl"></a>
-
-## There is no REPL and none is planned; `nvs run`, `nvs test` and `Core\Debug::dump` are the answer
-
-`rule:tooling/no-repl`
-
-`nvs` gains no `repl` subcommand and no interactive evaluator, and the subcommand roster is not
-reopened for one. A REPL needs three things that are each a language question disguised as a tool: a
-top-level scope that survives between inputs, where everything is a class member and there is no top
-level to bind into ([`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants)); redefinition of a class or member
-already compiled, where an artifact is keyed by content hash and redefinition is a cache
-invalidation, not an edit; and a printed representation of every value, against
-[`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization). Answering them would put a second, looser set of
-rules beside the one every compiled program obeys — the shape
-[`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name) rules against.
-
-What exists instead, and what the documentation points at when the question is asked:
-
-- **`nvs run file.nvs`** for a script, made cheap by the on-disk artifact cache — the second run of an
-  unchanged file compiles nothing.
-- **`nvs test`** ([`testing/test-attribute`](testing.md#testing-test-attribute)) for the "poke at it until it works" loop, which is
-  what a REPL is used for most of the time and which leaves something behind afterwards.
-- **`Core\Debug::dump`** ([`errors/debug-dump`](errors.md#errors-debug-dump)) for looking at a value.
-
-This is a **decision, not a gap**, and [`tooling/python-claims`](tooling.md#tooling-python-claims) requires it to be said out loud
-wherever Novis is compared to Python. It reopens only on evidence that "what is this value" costs a
-build, and what would be built then is a debugger-shaped inspector over a paused isolate, not a
-general evaluator.
-
-<sub>See also [`tooling/python-claims`](tooling.md#tooling-python-claims), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate), [`testing/test-attribute`](testing.md#testing-test-attribute), [`errors/debug-dump`](errors.md#errors-debug-dump), [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file), [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink). Decided in [0100](../decisions/0100.md), [0011](../decisions/0011.md), [0042](../decisions/0042.md), [0022](../decisions/0022.md), [0015](../decisions/0015.md), [0079](../decisions/0079.md), [0092](../decisions/0092.md).</sub>
-
-<a id="tooling-bench-engine-list-is-data"></a>
-
-## The benchmark engine list is data, `total` is the CLI headline, and a missing engine never turns a build red
-
-`rule:tooling/bench-engine-list-is-data`
-
-`benches/userland/` carries a twin per engine beside each case — `.nvs`, `.php`, `.py`, and `.ts`
-for Bun — and `python tools/bench.py` runs whichever engines a case has twins for
-([`testing/userland-benchmarks`](testing.md#testing-userland-benchmarks)). **The engine list is data, not a count.** `evaluate`, the
-`00-baseline` subtraction, the table, `explain` and the NDJSON record all iterate the list, and
-`--engines nvs,php` narrows it; adding an engine is one `Engine` entry plus a suffix. Bun is kept
-because it is the strongest engine in the suite: measuring only engines Novis beats is how a
-benchmark suite stops being evidence.
-
-**`total` is the headline for a CLI claim and `work` for a language claim**, and the suite refuses to
-pick one. `total` on `00-baseline` is the cold-start figure; quoting either without saying which is
-the misuse [`tooling/python-claims`](tooling.md#tooling-python-claims) forbids.
-
-**Byte-identical output is still the gate:** a case whose twins disagree reports `DIFF` and no time.
-The fairness rule — each case in its own language's idiom, never transliterated — gains exactly one
-exception, of one kind: **arithmetic that must agree.** Python floors `%` where the other three
-truncate, so two cases spell the truncated remainder out; a TypeScript `number` is a float64, so the
-cases whose seeded LCG passes 2^53 run that one line in `BigInt`. Each is confined to the cases that
-need it and carries a comment saying why.
-
-**Neither Python nor Bun is a toolchain dependency.** A missing twin skips that engine with a warning
-and an uninstalled engine is narrowed away with `--engines`, so neither can turn a build, a test or a
-loop session red — nothing outside this suite reads any of it.
-
-<sub>See also [`testing/userland-benchmarks`](testing.md#testing-userland-benchmarks), [`testing/perf-secondary-figures`](testing.md#testing-perf-secondary-figures), [`tooling/python-claims`](tooling.md#tooling-python-claims), [`programs/three-claims`](programs.md#programs-three-claims). Decided in [0100](../decisions/0100.md), [0026](../decisions/0026.md), [0065](../decisions/0065.md).</sub>
 
 <a id="tooling-fmt-is-one-canonical-style"></a>
 
@@ -988,6 +698,72 @@ breaking rewrite of every formatted file, the same cost class casing already acc
 
 <sub>See also [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per), [`tooling/fmt-trailing-commas`](tooling.md#tooling-fmt-trailing-commas), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`types/closure-literal`](types.md#types-closure-literal), [`types/object-literal`](types.md#types-object-literal), [`types/shape-type`](types.md#types-shape-type), [`enums/declaration`](enums.md#enums-declaration). Decided in [0039](../decisions/0039.md).</sub>
 
+<a id="tooling-fmt-normalizes-only-reserved-spellings"></a>
+
+## `nvs fmt` lower-cases a mis-cased reserved spelling only where that spelling has no other legal meaning — a duration unit and the open tag, never a keyword or an identifier  *(designed — not yet in the compiler)*
+
+`rule:tooling/fmt-normalizes-only-reserved-spellings`
+
+`nvs fmt` normalizes a mis-cased reserved spelling to its lower-case form only where that mis-cased
+spelling has no other legal meaning. Two qualify, and each already carries the diagnostic that names the
+fix: a duration literal's unit, `5Min` → `5min` ([`types/duration-literal`](types.md#types-duration-literal)), and the open tag,
+`<?NVS` → `<?nvs` ([`classes/reserved-spellings-are-lower-case`](classes.md#classes-reserved-spellings-are-lower-case)).
+
+The criterion is what generalizes, not the list. A keyword never qualifies: `IF` and `ECHO` are legal
+`PascalCase` class names under [`core-api/casing-checks-the-leading-character`](core-api.md#core-api-casing-checks-the-leading-character), so nothing lexical
+separates a mis-typed keyword from a deliberate class reference, and a formatter that rewrote one would be
+the only place in the toolchain that guesses. An identifier never qualifies for a different reason: fixing
+its case is a *rename*, which must reach every use site across the workspace, and `nvs fmt` is a
+single-file walk — that rename is an editor's workspace-wide code action. A duration unit and an open tag
+can be nothing else, which is why they and only they are here. Normalizing PHP's case-insensitive
+reserved words is the converter's job, where the input is known to be PHP.
+
+<sub>See also [`types/duration-literal`](types.md#types-duration-literal), [`classes/reserved-spellings-are-lower-case`](classes.md#classes-reserved-spellings-are-lower-case), [`core-api/casing-checks-the-leading-character`](core-api.md#core-api-casing-checks-the-leading-character), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0039](../decisions/0039.md).</sub>
+
+<a id="tooling-fmt-never-inserts-visibility"></a>
+
+## `nvs fmt` never inserts a visibility keyword; `nvs convert` inserts `public` as an E-tier rewrite  *(designed — not yet in the compiler)*
+
+`rule:tooling/fmt-never-inserts-visibility`
+
+[`core-api/written-visibility`](core-api.md#core-api-written-visibility) makes an omitted visibility keyword a compile error. Two tools
+meet that error, and they answer it in opposite ways.
+
+**`nvs fmt` never inserts the keyword.** The formatter orders modifiers and does not supply a missing
+one. A formatter that inserted `public` would make a file's *meaning* depend on whether a tool had
+been run over it, and would restore PHP's implicit default through the back door for anyone who
+formats on save. A file that does not compile still does not compile after `nvs fmt`.
+
+**`nvs convert` does insert it**, as an **E-tier** row of its rule table
+([`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes)): PHP's omission provably means `public`, so writing the
+word is a behaviour-identical rewrite, discharged by a differential case like any other E branch
+([`tooling/convert-equivalent-is-proven`](tooling.md#tooling-convert-equivalent-is-proven)). Porting a PHP file therefore costs the author nothing
+here, and the ported member reports the level PHP actually gave it.
+
+<sub>See also [`core-api/written-visibility`](core-api.md#core-api-written-visibility), [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes), [`tooling/convert-equivalent-is-proven`](tooling.md#tooling-convert-equivalent-is-proven), [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per). Decided in [0094](../decisions/0094.md), [0089](../decisions/0089.md), [0039](../decisions/0039.md).</sub>
+
+<a id="tooling-fmt-never-reorders-members"></a>
+
+## `nvs fmt` never reorders class members, because declaration order is observable in what a program prints and sends  *(designed — not yet in the compiler)*
+
+`rule:tooling/fmt-never-reorders-members`
+
+Methods, properties, class constants and enum cases keep the order their author wrote. No "group by
+visibility, constants before properties before methods" rule exists, because declaration order is
+observable: [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list) makes a derived codec's encode order the property
+declaration order, on purpose, for ETags and cached fixtures; and [`testing/bench-counters`](testing.md#testing-bench-counters) makes the
+test runner's report order the declaration order of the cases. A formatter that reordered members would
+change what a program prints and sends, and a formatter that changes meaning is not a formatter — the
+same line [`core-api/written-visibility`](core-api.md#core-api-written-visibility) takes when it refuses to let the formatter insert a missing
+`public`, and [`classes/comparable`](classes.md#classes-comparable) takes for the converter.
+
+PER has no member-ordering rule to defer to in any case; the convention people associate with it is one
+PHP tool's. A developer who wants the reordering can have it as a deliberate, diff-visible code action. It
+is never something a formatter does on save. The `use` block ([`tooling/fmt-sorts-the-use-block`](tooling.md#tooling-fmt-sorts-the-use-block)) is
+the only reordering anywhere.
+
+<sub>See also [`tooling/fmt-sorts-the-use-block`](tooling.md#tooling-fmt-sorts-the-use-block), [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`testing/bench-counters`](testing.md#testing-bench-counters), [`core-api/written-visibility`](core-api.md#core-api-written-visibility), [`classes/comparable`](classes.md#classes-comparable), [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes). Decided in [0039](../decisions/0039.md).</sub>
+
 <a id="tooling-fmt-is-idempotent"></a>
 
 ## `nvs fmt` is a fixed point over the input bytes: byte-stable on every machine, and deliberately not source-independent  *(designed — not yet in the compiler)*
@@ -1055,77 +831,6 @@ one thing only, since formatting and repair are never one command
 ([`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic)).
 
 <sub>See also [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`tooling/fmt-is-idempotent`](tooling.md#tooling-fmt-is-idempotent). Decided in [0039](../decisions/0039.md).</sub>
-
-<a id="tooling-fmt-normalizes-only-reserved-spellings"></a>
-
-## `nvs fmt` lower-cases a mis-cased reserved spelling only where that spelling has no other legal meaning — a duration unit and the open tag, never a keyword or an identifier  *(designed — not yet in the compiler)*
-
-`rule:tooling/fmt-normalizes-only-reserved-spellings`
-
-`nvs fmt` normalizes a mis-cased reserved spelling to its lower-case form only where that mis-cased
-spelling has no other legal meaning. Two qualify, and each already carries the diagnostic that names the
-fix: a duration literal's unit, `5Min` → `5min` ([`types/duration-literal`](types.md#types-duration-literal)), and the open tag,
-`<?NVS` → `<?nvs` ([`classes/reserved-spellings-are-lower-case`](classes.md#classes-reserved-spellings-are-lower-case)).
-
-The criterion is what generalizes, not the list. A keyword never qualifies: `IF` and `ECHO` are legal
-`PascalCase` class names under [`core-api/casing-checks-the-leading-character`](core-api.md#core-api-casing-checks-the-leading-character), so nothing lexical
-separates a mis-typed keyword from a deliberate class reference, and a formatter that rewrote one would be
-the only place in the toolchain that guesses. An identifier never qualifies for a different reason: fixing
-its case is a *rename*, which must reach every use site across the workspace, and `nvs fmt` is a
-single-file walk — that rename is an editor's workspace-wide code action. A duration unit and an open tag
-can be nothing else, which is why they and only they are here. Normalizing PHP's case-insensitive
-reserved words is the converter's job, where the input is known to be PHP.
-
-<sub>See also [`types/duration-literal`](types.md#types-duration-literal), [`classes/reserved-spellings-are-lower-case`](classes.md#classes-reserved-spellings-are-lower-case), [`core-api/casing-checks-the-leading-character`](core-api.md#core-api-casing-checks-the-leading-character), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0039](../decisions/0039.md).</sub>
-
-<a id="tooling-fmt-never-reorders-members"></a>
-
-## `nvs fmt` never reorders class members, because declaration order is observable in what a program prints and sends  *(designed — not yet in the compiler)*
-
-`rule:tooling/fmt-never-reorders-members`
-
-Methods, properties, class constants and enum cases keep the order their author wrote. No "group by
-visibility, constants before properties before methods" rule exists, because declaration order is
-observable: [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list) makes a derived codec's encode order the property
-declaration order, on purpose, for ETags and cached fixtures; and [`testing/bench-counters`](testing.md#testing-bench-counters) makes the
-test runner's report order the declaration order of the cases. A formatter that reordered members would
-change what a program prints and sends, and a formatter that changes meaning is not a formatter — the
-same line [`core-api/written-visibility`](core-api.md#core-api-written-visibility) takes when it refuses to let the formatter insert a missing
-`public`, and [`classes/comparable`](classes.md#classes-comparable) takes for the converter.
-
-PER has no member-ordering rule to defer to in any case; the convention people associate with it is one
-PHP tool's. A developer who wants the reordering can have it as a deliberate, diff-visible code action. It
-is never something a formatter does on save. The `use` block ([`tooling/fmt-sorts-the-use-block`](tooling.md#tooling-fmt-sorts-the-use-block)) is
-the only reordering anywhere.
-
-<sub>See also [`tooling/fmt-sorts-the-use-block`](tooling.md#tooling-fmt-sorts-the-use-block), [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`testing/bench-counters`](testing.md#testing-bench-counters), [`core-api/written-visibility`](core-api.md#core-api-written-visibility), [`classes/comparable`](classes.md#classes-comparable), [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes). Decided in [0039](../decisions/0039.md).</sub>
-
-<a id="tooling-meta-json"></a>
-
-## `nvs meta --json` prints the whole `Core` registry as one JSON document, and a field with nothing written is an absent key rather than an empty one
-
-`rule:tooling/meta-json`
-
-`nvs meta --json` prints the `Core` registry as one JSON document: every class with its members and its
-constants, and the enums beside them at top level — top level because the registry's roster is, an enum
-having no owner class there. Each member's reference card ([`core-api/reference-card`](core-api.md#core-api-reference-card)) sits under a
-`doc` key — `short`, `params` with each parameter's `name`, `desc` and shape keys, `return`, `errors` —
-and each member also carries its signature half: `kind`, `signature` in the spec's own spelling, `params`
-with types, qualifiers and defaults, `options`, `returns`; a class its `typeParams` and `constructor`, a
-constant its `type` and `value`. Four rosters the compiler declares outside the registry sit beside
-`classes` and `enums`: `exceptions`, `interfaces`, `attributes` and `directives`.
-
-The omission rule is the same at every level: a row with nothing written has no `doc` key, a written card
-carries only its non-empty fields, and no array is ever emitted empty. That is
-[`core-api/field-wise-precedence`](core-api.md#core-api-field-wise-precedence) made mechanical — an absent key is the one spelling of "not written"
-a consumer can tell from "written, and empty" without learning a convention.
-
-The command owns the contract, and `--json` is required so that a `meta` with nothing named cannot
-succeed by printing nothing. A consumer ignores fields it does not know, so a field may be added but never
-renamed or moved; a consumer on a toolchain without the subcommand treats it as "no registry docs yet",
-never as an error. `docs/novis.md` and the website's core data are both built from this command alone.
-
-<sub>See also [`core-api/reference-card`](core-api.md#core-api-reference-card), [`core-api/field-wise-precedence`](core-api.md#core-api-field-wise-precedence), [`core-api/parameters-are-callable-by-name`](core-api.md#core-api-parameters-are-callable-by-name), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program), [`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers). Decided in [0117](../decisions/0117.md).</sub>
 
 <a id="tooling-doc-comment-is-three-slashes"></a>
 
@@ -1216,6 +921,49 @@ must still compile — and a third has to meet the same standard, never merely i
 
 <sub>See also [`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`types/callable-signature`](types.md#types-callable-signature), [`core-api/reference-card`](core-api.md#core-api-reference-card). Decided in [0137](../decisions/0137.md).</sub>
 
+<a id="tooling-strict-docs"></a>
+
+## Nothing requires a doc comment by default; `nvs check --strict-docs` reports a public member without one, and no autofix can satisfy it  *(designed — not yet in the compiler)*
+
+`rule:tooling/strict-docs`
+
+`nvs check` is silent about documentation. `nvs check --strict-docs` reports a **public** member with no
+attached doc comment ([`tooling/doc-comment-attaches-to-the-next-declaration`](tooling.md#tooling-doc-comment-attaches-to-the-next-declaration)); publishing a package
+turns it on unconditionally. A private helper is never reported, and neither is an application, at any
+setting, unless it asks.
+
+Why this cannot become the failure mode it is modelled against: an editor that demands a docblock is
+answered with a generated one, and a generated docblock is noise nobody reads and everybody deletes. Here
+there is nothing to generate. With no `@param` and no `@return`
+([`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example)), a synthesized `///` would be empty, so no autofix is
+possible and the only way to satisfy the check is to write a sentence. A diagnostic in every project was
+rejected for the same reason: the pressure would be answered by `/// Charges the card.` above
+`chargeTheCard()`, noise a human typed that will outlive the method's behaviour.
+
+Until a package manager exists, `--strict-docs` is opt-in only and nothing fires it automatically. If
+publishing turns out to want more than "a public member has a comment" — a minimum length, a required first
+sentence — that is a lint's design and belongs with the publisher.
+
+<sub>See also [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`tooling/doc-comment-attaches-to-the-next-declaration`](tooling.md#tooling-doc-comment-attaches-to-the-next-declaration), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0137](../decisions/0137.md).</sub>
+
+<a id="tooling-nvs-doc-renders-and-decides-nothing"></a>
+
+## `nvs doc <entry>` writes one Markdown page per class from the JSON and has no source of truth of its own  *(designed — not yet in the compiler)*
+
+`rule:tooling/nvs-doc-renders-and-decides-nothing`
+
+`nvs doc <entry>` writes one Markdown page per class from the JSON [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program)
+emits. It ships in the binary because a user's project does not have this repository's `tools/reference.py`,
+and it is deliberately the least interesting part of the design: a renderer with no source of truth of its
+own ([`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers)), so replacing it later costs nothing.
+
+It renders text the lexer has already accepted, so it needs no bidi check of its own
+([`security/bidi-boundaries`](security.md#security-bidi-boundaries)). This repository does not itself need it — the one-file reference and the
+website already cover every in-tree consumer — and it exists for a user's own project and for the package
+ecosystem that does not exist yet, which is why it is kept cheap to replace.
+
+<sub>See also [`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program). Decided in [0137](../decisions/0137.md).</sub>
+
 <a id="tooling-one-json-several-renderers"></a>
 
 ## `nvs meta --json` is the one machine-readable source of documentation, every renderer consumes it, and no renderer is authoritative for content  *(designed — not yet in the compiler)*
@@ -1243,6 +991,33 @@ exactly the duplication that shape exists to avoid.
 
 <sub>See also [`tooling/meta-json`](tooling.md#tooling-meta-json), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program), [`tooling/nvs-doc-renders-and-decides-nothing`](tooling.md#tooling-nvs-doc-renders-and-decides-nothing), [`core-api/reference-card`](core-api.md#core-api-reference-card). Decided in [0137](../decisions/0137.md), [0117](../decisions/0117.md).</sub>
 
+<a id="tooling-meta-json"></a>
+
+## `nvs meta --json` prints the whole `Core` registry as one JSON document, and a field with nothing written is an absent key rather than an empty one
+
+`rule:tooling/meta-json`
+
+`nvs meta --json` prints the `Core` registry as one JSON document: every class with its members and its
+constants, and the enums beside them at top level — top level because the registry's roster is, an enum
+having no owner class there. Each member's reference card ([`core-api/reference-card`](core-api.md#core-api-reference-card)) sits under a
+`doc` key — `short`, `params` with each parameter's `name`, `desc` and shape keys, `return`, `errors` —
+and each member also carries its signature half: `kind`, `signature` in the spec's own spelling, `params`
+with types, qualifiers and defaults, `options`, `returns`; a class its `typeParams` and `constructor`, a
+constant its `type` and `value`. Four rosters the compiler declares outside the registry sit beside
+`classes` and `enums`: `exceptions`, `interfaces`, `attributes` and `directives`.
+
+The omission rule is the same at every level: a row with nothing written has no `doc` key, a written card
+carries only its non-empty fields, and no array is ever emitted empty. That is
+[`core-api/field-wise-precedence`](core-api.md#core-api-field-wise-precedence) made mechanical — an absent key is the one spelling of "not written"
+a consumer can tell from "written, and empty" without learning a convention.
+
+The command owns the contract, and `--json` is required so that a `meta` with nothing named cannot
+succeed by printing nothing. A consumer ignores fields it does not know, so a field may be added but never
+renamed or moved; a consumer on a toolchain without the subcommand treats it as "no registry docs yet",
+never as an error. `docs/novis.md` and the website's core data are both built from this command alone.
+
+<sub>See also [`core-api/reference-card`](core-api.md#core-api-reference-card), [`core-api/field-wise-precedence`](core-api.md#core-api-field-wise-precedence), [`core-api/parameters-are-callable-by-name`](core-api.md#core-api-parameters-are-callable-by-name), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program), [`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers). Decided in [0117](../decisions/0117.md).</sub>
+
 <a id="tooling-meta-json-takes-a-program"></a>
 
 ## `nvs meta --json <entry>` emits that program's own declarations beside the `Core` registry, in the registry's own shape  *(designed — not yet in the compiler)*
@@ -1269,48 +1044,273 @@ one input added to one document, never a fork.
 
 <sub>See also [`tooling/meta-json`](tooling.md#tooling-meta-json), [`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case). Decided in [0137](../decisions/0137.md), [0117](../decisions/0117.md).</sub>
 
-<a id="tooling-nvs-doc-renders-and-decides-nothing"></a>
+<a id="tooling-convert-php-front-end"></a>
 
-## `nvs doc <entry>` writes one Markdown page per class from the JSON and has no source of truth of its own  *(designed — not yet in the compiler)*
+## The PHP front end is `php-rs-parser`, pinned, reached only through `nvs_convert::php`, and never linked into the server  *(designed — not yet in the compiler)*
 
-`rule:tooling/nvs-doc-renders-and-decides-nothing`
+`rule:tooling/convert-php-front-end`
 
-`nvs doc <entry>` writes one Markdown page per class from the JSON [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program)
-emits. It ships in the binary because a user's project does not have this repository's `tools/reference.py`,
-and it is deliberately the least interesting part of the design: a renderer with no source of truth of its
-own ([`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers)), so replacing it later costs nothing.
+The converter needs an AST for **PHP 7.4 through 8.6**, extendable. 8.0 is the hard requirement and
+7.4 came free with the parser chosen; a dialect below 7.4 is **refused, not guessed at** — the file
+becomes [`tooling/convert-drops-nothing`](tooling.md#tooling-convert-drops-nothing)'s commented-out file, and the report names the version
+it was tried under. Extending the range is a row: a new dialect value plus a branch on any rule whose
+behaviour it changed.
 
-It renders text the lexer has already accepted, so it needs no bidi check of its own
-([`security/bidi-boundaries`](security.md#security-bidi-boundaries)). This repository does not itself need it — the one-file reference and the
-website already cover every in-tree consumer — and it exists for a user's own project and for the package
-ecosystem that does not exist yet, which is why it is kept cheap to replace.
+The front end is **`php-rs-parser`** (with `php-ast`, `php-lexer` and `phpdoc-parser`), BSD-3-Clause
+and pure Rust, **pinned to an exact version** and upgraded deliberately. It was chosen over
+`mago-syntax` by measurement: it names the constructs PHP 8.0 removed, rejects a type PHP itself
+rejects, carries a version knob, states a semantic-rejection contract — at least one diagnostic iff
+`php -l` would reject the input at the configured version — and returns an owned tree with comments
+in source order and doc-blocks attached to their declaration.
 
-<sub>See also [`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program). Decided in [0137](../decisions/0137.md).</sub>
+Three bounds hold the dependency in place. **The passes see only `nvs_convert::php`** — our own
+facade over node kinds, spans and comments, written before any pass and the only module allowed to
+name the parser crate — so replacing it is one module, not a rewrite. **The parser is behind a Cargo
+feature and is never linked into the server binary**: a PHP front end has no business on a machine
+serving requests. **No PHP binary is required to convert.** PHP is the differential oracle that
+proves an E rule ([`tooling/convert-equivalent-is-proven`](tooling.md#tooling-convert-equivalent-is-proven)), a development-side dependency; an
+installed PHP at convert time would make output depend on which build the user has, breaking
+[`tooling/convert-is-deterministic`](tooling.md#tooling-convert-is-deterministic). The parser is not vendored: owning it would mean owning
+every future PHP release.
 
-<a id="tooling-strict-docs"></a>
+<sub>See also [`tooling/convert-is-deterministic`](tooling.md#tooling-convert-is-deterministic), [`tooling/convert-drops-nothing`](tooling.md#tooling-convert-drops-nothing), [`tooling/convert-equivalent-is-proven`](tooling.md#tooling-convert-equivalent-is-proven), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions). Decided in [0089](../decisions/0089.md), [0068](../decisions/0068.md), [0051](../decisions/0051.md), [0065](../decisions/0065.md).</sub>
 
-## Nothing requires a doc comment by default; `nvs check --strict-docs` reports a public member without one, and no autofix can satisfy it  *(designed — not yet in the compiler)*
+<a id="tooling-convert-one-table-two-modes"></a>
 
-`rule:tooling/strict-docs`
+## `nvs convert` is one rule table read through two modes, and every branch carries a tier  *(designed — not yet in the compiler)*
 
-`nvs check` is silent about documentation. `nvs check --strict-docs` reports a **public** member with no
-attached doc comment ([`tooling/doc-comment-attaches-to-the-next-declaration`](tooling.md#tooling-doc-comment-attaches-to-the-next-declaration)); publishing a package
-turns it on unconditionally. A private helper is never reported, and neither is an application, at any
-setting, unless it asks.
+`rule:tooling/convert-one-table-two-modes`
 
-Why this cannot become the failure mode it is modelled against: an editor that demands a docblock is
-answered with a generated one, and a generated docblock is noise nobody reads and everybody deletes. Here
-there is nothing to generate. With no `@param` and no `@return`
-([`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example)), a synthesized `///` would be empty, so no autofix is
-possible and the only way to satisfy the check is to write a sentence. A diagnostic in every project was
-rejected for the same reason: the pressure would be answered by `/// Charges the card.` above
-`chargeTheCard()`, noise a human typed that will outlive the method's behaviour.
+Every rewrite `nvs convert` knows is a **rule** in one table, and every branch of a rule carries
+exactly one tier. **E** — the converted construct behaves identically to the PHP one for every input
+the converted program's type checker accepts. **D** — a mechanical Novis destination exists but the
+behaviour may differ. **N** — no mechanical destination exists. The two modes are that tier read
+through a filter, never a second code path:
 
-Until a package manager exists, `--strict-docs` is opt-in only and nothing fires it automatically. If
-publishing turns out to want more than "a public member has a comment" — a minimum length, a required first
-sentence — that is a lint's design and belongs with the publisher.
+| Tier | `--mode=equivalent` (default) | `--mode=runnable` |
+|---|---|---|
+| E | emitted as code | emitted as code |
+| D | original commented out, the idiomatic Novis shape beside it | emitted as code with `TODO(convert:<id>)` naming the difference |
+| N | original commented out, the idiomatic shape beside it | the same |
 
-<sub>See also [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`tooling/doc-comment-attaches-to-the-next-declaration`](tooling.md#tooling-doc-comment-attaches-to-the-next-declaration), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0137](../decisions/0137.md).</sub>
+So `--mode=equivalent` output is a worklist that **will not run**, and its header says so.
+`--mode=runnable` output usually runs, is explicitly not idiomatic Novis, and every site where it may
+diverge is one `grep` away ([`tooling/convert-annotations-and-report`](tooling.md#tooling-convert-annotations-and-report)).
+
+A rule has **ordered branches**, and a branch's tier may be predicated on a side condition the
+converter decides by its own analysis. A condition it cannot decide is **false**: control falls to the
+next branch and the weaker tier applies — fail-closed, the same direction as
+[`security/sink-predicate`](security.md#security-sink-predicate). A rule record is data with exactly these fields: `id` (a domain
+letter plus four digits, never reused), `match`, `when`, `tier`, `rewrite`, `diverges` (one
+sentence — the `TODO` text), `idiomatic` (what Novis wants instead — the comment the default mode
+leaves), `dialect` and `proof`. `diverges` says what will break; `idiomatic` says what to write.
+
+<sub>See also [`tooling/convert-equivalent-is-proven`](tooling.md#tooling-convert-equivalent-is-proven), [`tooling/convert-annotations-and-report`](tooling.md#tooling-convert-annotations-and-report), [`tooling/convert-three-tables`](tooling.md#tooling-convert-three-tables), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`security/sink-predicate`](security.md#security-sink-predicate). Decided in [0089](../decisions/0089.md), [0088](../decisions/0088.md).</sub>
+
+<a id="tooling-convert-three-tables"></a>
+
+## Names, constructs and semantic deltas each have one home, and the converter copies none of them  *(designed — not yet in the compiler)*
+
+`rule:tooling/convert-three-tables`
+
+Three tables, three homes, no fourth copy.
+
+1. **Names → `docs/spec/02-php-migration.md`**, one row per PHP built-in, already CI-checked by
+   `tools/check-migration.py`. The converter's name mapping is *generated* from it: a row whose Novis
+   cell is exactly one `Core` member spelling is machine-read as a mechanical rename; any other cell
+   must carry a rule id, because prose like "`Core\Str::format` into `$file->write`" is a rewrite,
+   not a rename. A `dropped` row with neither is a checker error once the converter exists.
+2. **Constructs → `crates/nvs-convert/rules/*.toml`**, one file per PHP domain, one record per rule
+   ([`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes)'s field list). It is data, not code, so a rule can be
+   reviewed by someone who does not read Rust; the browsable copy under `docs/spec/` is generated and
+   CI-checked identical, never hand-edited — the discipline [`testing/attribution-is-diffed-in-ci`](testing.md#testing-attribution-is-diffed-in-ci)
+   applies to notices.
+3. **Semantic deltas → the decision that created each one.** A rule's `when` predicates are drawn
+   from a **closed vocabulary** — the inferred type of an operand, its qualifier, a literal's shape,
+   the dialect, whether a name resolves — and its `diverges` sentence cites the record by number
+   rather than restating its reasoning.
+
+The table grows for years. That is the accepted price, and it is why the growth is one data row
+rather than one branch in a match.
+
+<sub>See also [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes), [`tooling/convert-equivalent-is-proven`](tooling.md#tooling-convert-equivalent-is-proven), [`testing/attribution-is-diffed-in-ci`](testing.md#testing-attribution-is-diffed-in-ci). Decided in [0089](../decisions/0089.md), [0065](../decisions/0065.md).</sub>
+
+<a id="tooling-convert-equivalent-is-proven"></a>
+
+## A tier-E rewrite names a differential case against the PHP oracle, or it is not E  *(designed — not yet in the compiler)*
+
+`rule:tooling/convert-equivalent-is-proven`
+
+A branch may be **E** only when, for every input the converted program's type checker accepts, the
+two programs agree on all of: values returned, bytes written to each sink, which `Throwable` escapes,
+and the order of externally visible side effects — evaluated against the declared target dialect
+([`tooling/convert-php-front-end`](tooling.md#tooling-convert-php-front-end)), never against "PHP in general".
+
+**Nothing is E because someone was confident.** An E branch names a differential case in
+`tests/convert/` that runs the PHP fragment on the oracle build this repository already keeps and
+the converted fragment under `nvs test`, and compares. CI refuses an E branch whose `proof` is
+missing or whose case does not run. A branch claiming E across several dialects owes one case per
+dialect; where no oracle exists for a dialect, the branch is D, not E.
+
+A tier is usually a property of the **site**, not of the construct. `==` keeps its spelling
+([`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator)) and is E when both operands are proven the same
+non-`string` scalar or proven numeric, D otherwise with a `diverges` sentence per operand shape, and
+has no E or D branch at all for a cross-type comparison, which is
+[`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused)'s compile error. `strlen($s)` is E when the argument
+is proven `bytes` and D when it is `string`, because grapheme counting changes the number on any
+non-ASCII input — a `TODO`, not a blocker.
+
+Where inference cannot decide a type, **`mixed` is an E answer, not a divergence**: it is the one
+unchecked position ([`types/unions-and-mixed`](types.md#types-unions-and-mixed)), which is exactly PHP's own discipline. The
+accompanying `TODO` names the binding and says what it costs.
+
+<sub>See also [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes), [`tooling/convert-php-front-end`](tooling.md#tooling-convert-php-front-end), [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0089](../decisions/0089.md), [0079](../decisions/0079.md), [0007](../decisions/0007.md), [0009](../decisions/0009.md), [0090](../decisions/0090.md).</sub>
+
+<a id="tooling-convert-is-deterministic"></a>
+
+## `nvs convert` is a pure function of its input bytes, mode, dialect, table digest and flags  *(designed — not yet in the compiler)*
+
+`rule:tooling/convert-is-deterministic`
+
+Output is a pure function of the input bytes of every file in the unit, the mode, the target dialect,
+the rule-table digest and the explicit flags — nothing else. Concretely, and each is a rule the
+implementation may not break:
+
+1. **File discovery is sorted** by byte-wise path, and units are processed in that order.
+2. **No ambient input** — no clock, locale, environment, network, random seed, absolute path in
+   output, or hash-map iteration order anywhere a decision or an emission order depends on it.
+3. **The pass pipeline is fixed and each pass runs once**, over the tree in source order. There is no
+   run-to-fixpoint; a rule needing rewritten input names the earlier pass that produces it.
+4. **Rule precedence is total**: innermost matching node first, then by rule id. Two rules that could
+   both apply at one site are a table error CI catches.
+5. **Every generated name is a pure function of source facts.** Where a counter is unavoidable it is
+   per-file, in source order, and the rule says so.
+6. **Formatting is not the converter's business.** It emits a tree and prints it through `nvs fmt`'s
+   one unconfigurable style; it has no formatting options, and output is UTF-8 without a BOM with `\n`
+   line endings on every platform.
+7. **Every output file carries a header** naming the source path, source digest, rule-table digest,
+   mode and dialect, so two runs that differ are attributable to one of those five inputs.
+
+**No model, no heuristic outside the table, no probability.** A rewrite the table does not state
+does not happen. This is what makes the output reviewable and the tool re-runnable, and it is why
+LLM assistance is refused outright ([`tooling/convert-never-does`](tooling.md#tooling-convert-never-does)).
+
+<sub>See also [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes), [`tooling/convert-php-front-end`](tooling.md#tooling-convert-php-front-end), [`tooling/convert-never-does`](tooling.md#tooling-convert-never-does), [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style). Decided in [0089](../decisions/0089.md), [0039](../decisions/0039.md).</sub>
+
+<a id="tooling-convert-drops-nothing"></a>
+
+## Every non-trivia input byte leaves the converter as code or as comment, and output is re-parsed before it is written  *(designed — not yet in the compiler)*
+
+`rule:tooling/convert-drops-nothing`
+
+**Byte-completeness.** Every non-trivia byte of input leaves the converter as either converted code
+or commented-out source. A construct with no rule is treated as tier N: commented, annotated and
+counted. The test for this is mechanical and runs over the whole corpus.
+
+**Comments and docblocks survive**, re-attached to the construct they documented. A converter that
+loses a library's documentation has not ported it.
+
+**A file the front end cannot parse becomes a fully commented-out file** carrying the parse error and
+the dialect it was tried under — never a missing file and never a silent skip
+([`tooling/convert-php-front-end`](tooling.md#tooling-convert-php-front-end)).
+
+**Output is re-parsed with `nvs-syntax` before it is written.** A rule that produces unparseable
+Novis is a converter bug: the run reports it against the rule id, and that file falls back to fully
+commented-out, so a bad rule can never leave a tree that does not parse.
+
+<sub>See also [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes), [`tooling/convert-php-front-end`](tooling.md#tooling-convert-php-front-end). Decided in [0089](../decisions/0089.md).</sub>
+
+<a id="tooling-convert-annotations-and-report"></a>
+
+## A converted site is annotated `TODO(convert:<id>)`, and `--check` publishes the tier counts as TOML  *(designed — not yet in the compiler)*
+
+`rule:tooling/convert-annotations-and-report`
+
+One greppable spelling each, stable across releases. A runnable-mode D site carries a `TODO`
+naming the rule and the difference:
+
+```
+// TODO(convert:S0140): Core\Str::length counts grapheme clusters; strlen counted bytes.
+var $n = Core\Str::length($blob);
+```
+
+A commented-out site carries the rule id, what the original meant, and the idiomatic shape:
+
+```
+// convert:C0004 — PHP compares an int against a string here, and 8.0 changed what that means.
+// Idiomatic Novis: convert once at the boundary, then compare — `$id == ($raw as int)`.
+// if ($id == "1") { … }
+```
+
+`nvs convert --check` writes no files and emits a report — TOML, for the reason
+[`config/the-file-is-nvs-toml-and-it-is-toml`](config.md#config-the-file-is-nvs-toml-and-it-is-toml) gives — ordered by path then rule id so it diffs
+cleanly. It carries per-tier counts, per-rule counts, the share of input constructs emitted as code
+in each mode, and the rules that fired most often without an E branch, which is the work queue for
+the table itself.
+
+That report is the number [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise) obliges the project to publish
+instead of a compatibility claim. `--explain <id>` prints one rule: its branches, their tiers, their
+conditions and their proofs.
+
+<sub>See also [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`programs/three-claims`](programs.md#programs-three-claims), [`config/the-file-is-nvs-toml-and-it-is-toml`](config.md#config-the-file-is-nvs-toml-and-it-is-toml). Decided in [0089](../decisions/0089.md), [0064](../decisions/0064.md), [0080](../decisions/0080.md).</sub>
+
+<a id="tooling-convert-never-does"></a>
+
+## The converter never runs its input, never converts `vendor/` by default, never invents a binding and never claims compatibility  *(designed — not yet in the compiler)*
+
+`rule:tooling/convert-never-does`
+
+Five refusals, each a rule of its own.
+
+- **Never runs the input.** No `eval`, no autoload execution, no `composer install`, no bootstrap
+  file. Conversion is a read of bytes.
+- **Never converts `vendor/` by default.** The tool is scoped to an application's own code
+  ([`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise)); a dependency is reported against the package registry —
+  as a package that exists, one that does not, or a C extension that needs a Tier 1 `.nvsx`, which the
+  converter cannot synthesise and says so.
+- **Never invents a name binding.** A name that does not resolve under [`programs/autoload`](programs.md#programs-autoload) is
+  reported, not guessed.
+- **Never applies a rewrite that is not in the table**, and never asks a model for one. A model is
+  non-deterministic by construction ([`tooling/convert-is-deterministic`](tooling.md#tooling-convert-is-deterministic)), cannot produce a rule
+  id, a tier or a proof, and fails as a confident wrong rewrite — the exact outcome the tiering exists
+  to prevent. A model may help a *human* write a rule for the table, where the differential case
+  checks it.
+- **Never claims compatibility in its own output.** The header states mode, dialect, digests and the
+  tier counts; the forbidden phrasings of [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise) bind the
+  converter's own text as much as any other document.
+
+<sub>See also [`tooling/convert-is-deterministic`](tooling.md#tooling-convert-is-deterministic), [`tooling/convert-annotations-and-report`](tooling.md#tooling-convert-annotations-and-report), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`programs/autoload`](programs.md#programs-autoload), [`security/no-eval`](security.md#security-no-eval), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0089](../decisions/0089.md), [0080](../decisions/0080.md), [0061](../decisions/0061.md), [0081](../decisions/0081.md).</sub>
+
+<a id="tooling-bench-engine-list-is-data"></a>
+
+## The benchmark engine list is data, `total` is the CLI headline, and a missing engine never turns a build red
+
+`rule:tooling/bench-engine-list-is-data`
+
+`benches/userland/` carries a twin per engine beside each case — `.nvs`, `.php`, `.py`, and `.ts`
+for Bun — and `python tools/bench.py` runs whichever engines a case has twins for
+([`testing/userland-benchmarks`](testing.md#testing-userland-benchmarks)). **The engine list is data, not a count.** `evaluate`, the
+`00-baseline` subtraction, the table, `explain` and the NDJSON record all iterate the list, and
+`--engines nvs,php` narrows it; adding an engine is one `Engine` entry plus a suffix. Bun is kept
+because it is the strongest engine in the suite: measuring only engines Novis beats is how a
+benchmark suite stops being evidence.
+
+**`total` is the headline for a CLI claim and `work` for a language claim**, and the suite refuses to
+pick one. `total` on `00-baseline` is the cold-start figure; quoting either without saying which is
+the misuse [`tooling/python-claims`](tooling.md#tooling-python-claims) forbids.
+
+**Byte-identical output is still the gate:** a case whose twins disagree reports `DIFF` and no time.
+The fairness rule — each case in its own language's idiom, never transliterated — gains exactly one
+exception, of one kind: **arithmetic that must agree.** Python floors `%` where the other three
+truncate, so two cases spell the truncated remainder out; a TypeScript `number` is a float64, so the
+cases whose seeded LCG passes 2^53 run that one line in `BigInt`. Each is confined to the cases that
+need it and carries a comment saying why.
+
+**Neither Python nor Bun is a toolchain dependency.** A missing twin skips that engine with a warning
+and an uninstalled engine is narrowed away with `--engines`, so neither can turn a build, a test or a
+loop session red — nothing outside this suite reads any of it.
+
+<sub>See also [`testing/userland-benchmarks`](testing.md#testing-userland-benchmarks), [`testing/perf-secondary-figures`](testing.md#testing-perf-secondary-figures), [`tooling/python-claims`](tooling.md#tooling-python-claims), [`programs/three-claims`](programs.md#programs-three-claims). Decided in [0100](../decisions/0100.md), [0026](../decisions/0026.md), [0065](../decisions/0065.md).</sub>
 
 <a id="tooling-telemetry-is-two-opt-ins"></a>
 
@@ -1365,6 +1365,25 @@ one local file per user and one buffered append per invocation — for `nvs serv
 the listener binds — and nothing on the request path.
 
 <sub>See also [`tooling/telemetry-is-two-opt-ins`](tooling.md#tooling-telemetry-is-two-opt-ins), [`tooling/telemetry-show-prints-the-payload`](tooling.md#tooling-telemetry-show-prints-the-payload), [`observability/the-runtime-exports-what-it-already-measures`](observability.md#observability-the-runtime-exports-what-it-already-measures). Decided in [0130](../decisions/0130.md).</sub>
+
+<a id="tooling-telemetry-show-prints-the-payload"></a>
+
+## `nvs telemetry show` prints the exact payload the next upload would send, and the schema, the endpoint contracts and the aggregated data are all published  *(designed — not yet in the compiler)*
+
+`rule:tooling/telemetry-show-prints-the-payload`
+
+`nvs telemetry show` prints the exact payload the next upload would send, before anything is sent, and its
+bytes equal what the listener then receives. That is what makes the design falsifiable rather than
+promised: a reader can compare the printed payload against the closed counter schema
+([`tooling/telemetry-counters-are-a-closed-set`](tooling.md#tooling-telemetry-counters-are-a-closed-set)) with no trust in prose.
+
+Both sides are published when this ships. The reference's tools chapter documents both consents, the
+complete counter list and both endpoints' contracts, and that chapter — not a design record — is then the
+user-facing statement of what is collected. The service side's contract is published with it: aggregates
+only, no IP retention, and the aggregated data itself public, so anyone can see exactly what the project
+sees.
+
+<sub>See also [`tooling/telemetry-counters-are-a-closed-set`](tooling.md#tooling-telemetry-counters-are-a-closed-set), [`tooling/telemetry-is-two-opt-ins`](tooling.md#tooling-telemetry-is-two-opt-ins), [`config/telemetry-and-update-endpoints-are-configuration`](config.md#config-telemetry-and-update-endpoints-are-configuration). Decided in [0130](../decisions/0130.md).</sub>
 
 <a id="tooling-a-serving-process-never-uploads"></a>
 
@@ -1426,22 +1445,3 @@ update exists and whether or not a telemetry send succeeded
 ([`tooling/a-failed-upload-never-fails-the-command`](tooling.md#tooling-a-failed-upload-never-fails-the-command)); automation reads the JSON.
 
 <sub>See also [`tooling/telemetry-is-two-opt-ins`](tooling.md#tooling-telemetry-is-two-opt-ins), [`tooling/a-failed-upload-never-fails-the-command`](tooling.md#tooling-a-failed-upload-never-fails-the-command), [`config/telemetry-and-update-endpoints-are-configuration`](config.md#config-telemetry-and-update-endpoints-are-configuration), [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink). Decided in [0130](../decisions/0130.md).</sub>
-
-<a id="tooling-telemetry-show-prints-the-payload"></a>
-
-## `nvs telemetry show` prints the exact payload the next upload would send, and the schema, the endpoint contracts and the aggregated data are all published  *(designed — not yet in the compiler)*
-
-`rule:tooling/telemetry-show-prints-the-payload`
-
-`nvs telemetry show` prints the exact payload the next upload would send, before anything is sent, and its
-bytes equal what the listener then receives. That is what makes the design falsifiable rather than
-promised: a reader can compare the printed payload against the closed counter schema
-([`tooling/telemetry-counters-are-a-closed-set`](tooling.md#tooling-telemetry-counters-are-a-closed-set)) with no trust in prose.
-
-Both sides are published when this ships. The reference's tools chapter documents both consents, the
-complete counter list and both endpoints' contracts, and that chapter — not a design record — is then the
-user-facing statement of what is collected. The service side's contract is published with it: aggregates
-only, no IP retention, and the aggregated data itself public, so anyone can see exactly what the project
-sees.
-
-<sub>See also [`tooling/telemetry-counters-are-a-closed-set`](tooling.md#tooling-telemetry-counters-are-a-closed-set), [`tooling/telemetry-is-two-opt-ins`](tooling.md#tooling-telemetry-is-two-opt-ins), [`config/telemetry-and-update-endpoints-are-configuration`](config.md#config-telemetry-and-update-endpoints-are-configuration). Decided in [0130](../decisions/0130.md).</sub>

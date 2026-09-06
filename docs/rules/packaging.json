@@ -1,403 +1,8 @@
 {
   "topic": "packaging",
   "title": "Packaging",
-  "order": 170,
+  "order": 210,
   "rules": [
-    {
-      "id": "packaging/an-extension-is-a-sandboxed-wasm-component",
-      "title": "A third-party extension is a sandboxed WebAssembly component, never a shared library loaded with `dlopen`",
-      "status": "designed",
-      "because": [
-        "0003",
-        "0052"
-      ],
-      "divergesFromPhp": "there is no `extension=` line and no `.so`; an extension is one portable `.nvsx` that cannot address host memory, and nothing loads native code at runtime",
-      "seeAlso": [
-        "packaging/three-tiers",
-        "packaging/values-cross-as-handles",
-        "packaging/a-guest-has-no-ambient-authority",
-        "security/no-ffi",
-        "security/closed-doors",
-        "packaging/a-package-is-its-digest"
-      ],
-      "guardedBy": [
-        "benches/abi-probe/tests/wasm_sandbox.rs"
-      ]
-    },
-    {
-      "id": "packaging/three-tiers",
-      "title": "Library and extension code sits at one of three tiers: built-in, sandboxed component, or statically linked native",
-      "status": "designed",
-      "because": [
-        "0003",
-        "0051"
-      ],
-      "seeAlso": [
-        "core-api/five-placements",
-        "core-api/tier-placement",
-        "core-api/tier-roster",
-        "packaging/the-boundary-is-the-cost"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "packaging/an-nvsx-is-one-file-carrying-its-manifest",
-      "title": "A `.nvsx` is a single WebAssembly component whose manifest is an `nvs.manifest` custom section",
-      "status": "designed",
-      "because": [
-        "0003",
-        "0055"
-      ],
-      "divergesFromPhp": "a PHP extension is a per-platform binary registered by an ini line; an `.nvsx` is one file for every platform and carries its own declarations inside it",
-      "seeAlso": [
-        "packaging/extension-calls-are-statically-typed",
-        "security/extension-manifest-only-tightens",
-        "config/the-extension-set-is-in-every-unit-key"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "packaging/values-cross-as-handles",
-      "title": "A value crosses the guest boundary as a bounds-checked handle, never as a pointer",
-      "status": "designed",
-      "because": [
-        "0003"
-      ],
-      "seeAlso": [
-        "packaging/the-boundary-is-the-cost",
-        "core-api/a-lifetime-is-an-object"
-      ],
-      "guardedBy": [
-        "benches/abi-probe/tests/wasm_sandbox.rs"
-      ]
-    },
-    {
-      "id": "packaging/extension-calls-are-statically-typed",
-      "title": "An extension's classes are registered from its manifest at load, and a call into one is type-checked at compile time and emitted as a direct call",
-      "status": "designed",
-      "because": [
-        "0003",
-        "0011",
-        "0078"
-      ],
-      "divergesFromPhp": "a call into an extension is checked by `nvs check` like a call into `Core`, not dispatched by name at runtime",
-      "seeAlso": [
-        "classes/no-free-functions-or-constants",
-        "config/the-extension-set-is-in-every-unit-key",
-        "packaging/an-nvsx-is-one-file-carrying-its-manifest"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "packaging/extension-loading-is-root-controlled",
-      "title": "An extension loads only from an `[[extension]]` entry in the root-owned `nvs.toml`, pinned by its `sha256`",
-      "status": "designed",
-      "because": [
-        "0003",
-        "0064",
-        "0078"
-      ],
-      "divergesFromPhp": "`extension=` in a `php.ini` names a file; an `[[extension]]` entry names a file and its digest, a project cannot add one, and a changed binary under its pin is refused rather than loaded",
-      "seeAlso": [
-        "config/ownership-is-the-trust-boundary",
-        "config/lists-are-arrays-and-repeated-records-are-arrays-of-tables",
-        "config/the-extension-set-is-in-every-unit-key",
-        "packaging/an-extension-package-carries-two-payloads",
-        "packaging/a-package-is-its-digest"
-      ],
-      "guardedBy": [
-        "crates/nvs-config/tests/tree.rs"
-      ]
-    },
-    {
-      "id": "packaging/a-fresh-instance-per-request",
-      "title": "A guest is instantiated fresh for each request that calls it, so extension state cannot leak between requests",
-      "status": "designed",
-      "because": [
-        "0003"
-      ],
-      "divergesFromPhp": "a stateful PHP extension keeps its globals for the worker's lifetime; a guest starts pristine on every request and nothing it stored is there on the next one",
-      "seeAlso": [
-        "security/no-cross-request-state",
-        "concurrency/cross-request-state-is-explicit",
-        "packaging/a-guest-runs-under-the-requests-budget"
-      ],
-      "guardedBy": [
-        "benches/abi-probe/tests/wasm_sandbox.rs"
-      ]
-    },
-    {
-      "id": "packaging/a-guest-runs-under-the-requests-budget",
-      "title": "A guest runs under the request's CPU and memory caps, and a runaway guest traps rather than hanging a core",
-      "status": "designed",
-      "because": [
-        "0003",
-        "0020"
-      ],
-      "seeAlso": [
-        "errors/on-limit",
-        "packaging/a-fresh-instance-per-request"
-      ],
-      "guardedBy": [
-        "benches/abi-probe/tests/wasm_sandbox.rs"
-      ]
-    },
-    {
-      "id": "packaging/a-guest-has-no-ambient-authority",
-      "title": "A guest has no ambient authority: WASI is not granted by default, and every host function it receives is capability-checked",
-      "status": "designed",
-      "because": [
-        "0003"
-      ],
-      "divergesFromPhp": "native extension code calls `open()` and `connect()` directly; a guest reaches the filesystem and the network only through the same grants script code has",
-      "seeAlso": [
-        "security/capability-check-at-the-door",
-        "security/capability-question-is-grant-and-scope",
-        "security/extension-cannot-launder"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "packaging/the-boundary-is-the-cost",
-      "title": "An extension call costs a fixed ten-odd nanoseconds over a built-in call, so an extension's API is coarse-grained",
-      "status": "designed",
-      "because": [
-        "0003",
-        "0051"
-      ],
-      "seeAlso": [
-        "packaging/three-tiers",
-        "packaging/values-cross-as-handles",
-        "core-classes/image-pipeline"
-      ],
-      "guardedBy": [
-        "benches/abi-probe/tests/perf_guards.rs"
-      ]
-    },
-    {
-      "id": "packaging/a-c-dependency-answers-two-questions",
-      "title": "A C dependency is admitted under ordinary audit only if attacker-controlled data never reaches it; otherwise it needs an exceptional verification record or is confined to wasm",
-      "status": "shipped",
-      "because": [
-        "0051"
-      ],
-      "seeAlso": [
-        "core-api/tier-placement",
-        "testing/attribution-is-diffed-in-ci",
-        "packaging/an-extension-is-a-sandboxed-wasm-component",
-        "packaging/the-third-party-notice-is-generated-never-written-by-hand"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "packaging/a-service-is-one-stored-argv",
-      "title": "`nvs service` is a namespace, and everything after a mandatory `--` is stored verbatim as the argv the service runs",
-      "status": "designed",
-      "because": [
-        "0093",
-        "0078"
-      ],
-      "divergesFromPhp": "there is no shim — no NSSM, no WinSW, no hand-written unit around `php-fpm` — and the hosted program's own flags follow a `--` the installer never reads past",
-      "seeAlso": [
-        "packaging/the-installer-is-a-sink",
-        "packaging/the-argv-lives-in-imagepath",
-        "packaging/the-unit-is-printed-and-install-is-the-opt-in",
-        "config/one-local-control-socket",
-        "core-classes/process-is-argv-only"
-      ],
-      "guardedBy": [
-        "crates/nvs-cli/src/service.rs"
-      ]
-    },
-    {
-      "id": "packaging/the-installer-is-a-sink",
-      "title": "The service installer fails closed: a closed `serve`/`run` allowlist, no relative path, no argv without `--config`, no install whose output goes nowhere, no password on a command line",
-      "status": "shipped",
-      "because": [
-        "0093",
-        "0088",
-        "0103",
-        "0048"
-      ],
-      "divergesFromPhp": "`sc create` and a hand-written unit store whatever they are given; the installer refuses each of these by name with an `E063x` diagnostic and installs nothing",
-      "seeAlso": [
-        "security/sink-predicate",
-        "config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults",
-        "security/secret-qualifier",
-        "packaging/a-bundle-may-not-install-itself"
-      ],
-      "guardedBy": [
-        "crates/nvs-cli/src/service.rs"
-      ]
-    },
-    {
-      "id": "packaging/the-argv-lives-in-imagepath",
-      "title": "On Windows the argv is encoded into the SCM's one `ImagePath` string, the binary path is always quoted, and nothing else holds it",
-      "status": "designed",
-      "because": [
-        "0093",
-        "0044"
-      ],
-      "seeAlso": [
-        "core-classes/process-is-argv-only",
-        "packaging/a-service-is-one-stored-argv"
-      ],
-      "guardedBy": [
-        "crates/nvs-cli/src/service.rs"
-      ]
-    },
-    {
-      "id": "packaging/a-service-runs-as-a-virtual-account",
-      "title": "A service's default identity is the per-service virtual account `NT SERVICE\\<name>`, and `LocalSystem` is never the default",
-      "status": "designed",
-      "because": [
-        "0093"
-      ],
-      "divergesFromPhp": "a hand-registered service usually runs as `LocalSystem`; here that must be written out as `--account SYSTEM`, and the default account has no password to rotate",
-      "seeAlso": [
-        "packaging/the-installer-is-a-sink",
-        "packaging/a-service-answers-its-manager"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "packaging/a-service-answers-its-manager",
-      "title": "A stop drains, a `PARAMCHANGE` reloads, and lifecycle records go to the event log beside the configured log destination",
-      "status": "designed",
-      "because": [
-        "0093",
-        "0078"
-      ],
-      "divergesFromPhp": "a shim can only report that the process exited; the service itself reports an advancing stop checkpoint and performs a reload in-process",
-      "seeAlso": [
-        "config/a-reload-names-what-it-could-not-apply",
-        "concurrency/a-drain-closes-a-connection-cleanly",
-        "packaging/a-service-runs-as-a-virtual-account",
-        "http-server/the-residue-is-one-named-fault-class"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "packaging/the-unit-is-printed-and-install-is-the-opt-in",
-      "title": "On Linux `nvs service unit` prints the systemd unit and touches nothing; writing it is an explicit `--install`",
-      "status": "shipped",
-      "because": [
-        "0093"
-      ],
-      "divergesFromPhp": "the unit is generated rather than written by hand, and printing rather than installing is the default because configuration management owns the directory",
-      "seeAlso": [
-        "packaging/the-generated-unit-is-hardened",
-        "packaging/the-argv-lives-in-imagepath",
-        "packaging/a-service-is-one-stored-argv"
-      ],
-      "guardedBy": [
-        "crates/nvs-cli/src/service.rs"
-      ]
-    },
-    {
-      "id": "packaging/the-generated-unit-is-hardened",
-      "title": "The generated unit carries the hardening block, `Type=notify`, `MemoryMax` from `[limits]`, and `AmbientCapabilities` only for a privileged port",
-      "status": "designed",
-      "because": [
-        "0093",
-        "0097",
-        "0051"
-      ],
-      "divergesFromPhp": "`NoNewPrivileges`, `ProtectSystem=strict` and an emptied `CapabilityBoundingSet` are emitted for you rather than left to whoever writes the unit",
-      "seeAlso": [
-        "packaging/the-unit-is-printed-and-install-is-the-opt-in",
-        "packaging/a-c-dependency-answers-two-questions",
-        "config/three-changeability-classes"
-      ],
-      "guardedBy": [
-        "crates/nvs-cli/src/service.rs"
-      ]
-    },
-    {
-      "id": "packaging/a-bundle-may-not-install-itself",
-      "title": "A single-file bundle may not install itself as a service",
-      "status": "shipped",
-      "because": [
-        "0093",
-        "0048"
-      ],
-      "seeAlso": [
-        "programs/bundle-trust-domain",
-        "packaging/the-installer-is-a-sink"
-      ],
-      "guardedBy": [
-        "crates/nvs-cli/src/service.rs"
-      ]
-    },
-    {
-      "id": "packaging/a-service-is-operator-surface",
-      "title": "There is no `Core\\Service`: only an operator installs a service, from the command line, and nothing about it is on the request path",
-      "status": "shipped",
-      "because": [
-        "0093",
-        "0005"
-      ],
-      "seeAlso": [
-        "security/no-runtime-grant",
-        "core-api/tier-placement",
-        "packaging/a-service-is-one-stored-argv"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "packaging/an-extension-package-carries-two-payloads",
-      "title": "An extension package may carry Novis source beside its `.nvsx`, under one namespace, and the component's manifest registers exactly one class",
-      "status": "designed",
-      "because": [
-        "0120",
-        "0081",
-        "0123"
-      ],
-      "divergesFromPhp": "a Composer package is source only and a PHP extension is a binary only; an extension package here is both, and the builder a program names is ordinary Novis source",
-      "seeAlso": [
-        "core-classes/image-pipeline",
-        "core-classes/spreadsheet-has-no-io",
-        "packaging/an-nvsx-is-one-file-carrying-its-manifest",
-        "packaging/extension-loading-is-root-controlled",
-        "packaging/the-boundary-is-the-cost",
-        "packaging/a-package-is-its-digest"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "packaging/pdf-decoding-ships-in-the-image-package",
-      "title": "PDF is a decode-only format of `nvs/image`, in the second wave, and never a member of `nvs/pdf`",
-      "status": "designed",
-      "because": [
-        "0128",
-        "0120",
-        "0121"
-      ],
-      "divergesFromPhp": "there is no Ghostscript to install and no ImageMagick policy to loosen; a page becomes an image through the same sandboxed component every other format uses",
-      "seeAlso": [
-        "core-classes/pdf-page-is-an-image-source",
-        "core-classes/image-format-roster",
-        "core-classes/pdf-render-has-no-io",
-        "packaging/an-extension-package-carries-two-payloads"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "packaging/the-artifact-cache-is-read-not-mapped",
-      "title": "A compiled-unit cache entry is read into memory, never mapped",
-      "status": "designed",
-      "because": [
-        "0106",
-        "0042"
-      ],
-      "seeAlso": [
-        "errors/panics-bypass-user-code",
-        "config/the-extension-set-is-in-every-unit-key",
-        "packaging/an-artifact-is-verified-whole-before-a-page-is-executable",
-        "http-server/a-requests-blast-radius-is-bounded-at-four-tiers"
-      ],
-      "guardedBy": []
-    },
     {
       "id": "packaging/an-artifact-is-one-immutable-content-addressed-file",
       "title": "A compiled unit is one immutable file whose address is its content and its environment",
@@ -434,6 +39,22 @@
       ]
     },
     {
+      "id": "packaging/the-artifact-cache-is-read-not-mapped",
+      "title": "A compiled-unit cache entry is read into memory, never mapped",
+      "status": "designed",
+      "because": [
+        "0106",
+        "0042"
+      ],
+      "seeAlso": [
+        "errors/panics-bypass-user-code",
+        "config/the-extension-set-is-in-every-unit-key",
+        "packaging/an-artifact-is-verified-whole-before-a-page-is-executable",
+        "http-server/a-requests-blast-radius-is-bounded-at-four-tiers"
+      ],
+      "guardedBy": []
+    },
+    {
       "id": "packaging/a-warm-hit-skips-codegen-not-the-front-end",
       "title": "A warm hit skips codegen and nothing else, and it must beat the compile it replaces",
       "status": "shipped",
@@ -459,6 +80,23 @@
         "packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header",
         "packaging/a-bad-cache-entry-is-a-miss-never-an-error",
         "packaging/the-checksum-proves-integrity-and-ownership-proves-trust"
+      ],
+      "guardedBy": [
+        "crates/nvs-cli/src/cache.rs"
+      ]
+    },
+    {
+      "id": "packaging/the-checksum-proves-integrity-and-ownership-proves-trust",
+      "title": "The checksum answers corruption; a cache directory another account can write is refused at startup",
+      "status": "shipped",
+      "because": [
+        "0042"
+      ],
+      "divergesFromPhp": "opcache.file_cache_dir is taken as written; a directory that is world-writable or not owned by the runtime's own account refuses the process rather than the entry",
+      "seeAlso": [
+        "config/ownership-is-the-trust-boundary",
+        "config/opcache-file-cache-directives-are-system",
+        "packaging/an-artifact-is-verified-whole-before-a-page-is-executable"
       ],
       "guardedBy": [
         "crates/nvs-cli/src/cache.rs"
@@ -494,23 +132,6 @@
       ]
     },
     {
-      "id": "packaging/the-checksum-proves-integrity-and-ownership-proves-trust",
-      "title": "The checksum answers corruption; a cache directory another account can write is refused at startup",
-      "status": "shipped",
-      "because": [
-        "0042"
-      ],
-      "divergesFromPhp": "opcache.file_cache_dir is taken as written; a directory that is world-writable or not owned by the runtime's own account refuses the process rather than the entry",
-      "seeAlso": [
-        "config/ownership-is-the-trust-boundary",
-        "config/opcache-file-cache-directives-are-system",
-        "packaging/an-artifact-is-verified-whole-before-a-page-is-executable"
-      ],
-      "guardedBy": [
-        "crates/nvs-cli/src/cache.rs"
-      ]
-    },
-    {
       "id": "packaging/eviction-rides-the-cold-miss-at-a-probability",
       "title": "Eviction rides the cold miss at a configured probability, and a warm hit pays nothing for it",
       "status": "shipped",
@@ -536,6 +157,28 @@
         "packaging/eviction-rides-the-cold-miss-at-a-probability"
       ],
       "guardedBy": []
+    },
+    {
+      "id": "packaging/autoload-probes-fold-into-the-cache-key",
+      "title": "A unit's cache key covers every autoload path it probed, misses included, and every directory a discovery query listed",
+      "status": "designed",
+      "because": [
+        "0061",
+        "0042"
+      ],
+      "divergesFromPhp": "OPcache revalidates the files it compiled; here adding a file that shadows an already-resolved name, or a module nothing references yet, invalidates the unit although no hashed file changed",
+      "seeAlso": [
+        "programs/autoload",
+        "programs/implementing",
+        "config/an-edit-reaches-the-next-request-without-a-restart",
+        "config/opcache-revalidation-is-system-class",
+        "config/the-extension-set-is-in-every-unit-key",
+        "packaging/an-artifact-is-one-immutable-content-addressed-file"
+      ],
+      "guardedBy": [
+        "tests/conformance/lang/an-autoload-prefix-probes-its-second-root-only-after-the-first-misses.nvst",
+        "tests/conformance/lang/an-explicit-autoload-prefix-shadows-a-discover-glob.nvst"
+      ]
     },
     {
       "id": "packaging/a-wasm-module-cache-reuses-the-artifact-cache",
@@ -620,16 +263,19 @@
       ]
     },
     {
-      "id": "packaging/a-macos-bundle-is-ad-hoc-signed-at-build",
-      "title": "A macOS bundle is ad-hoc signed by the build command; PE and ELF need no step",
+      "id": "packaging/build-compile-packages-what-is-on-disk-and-resolves-nothing",
+      "title": "`nvs build --compile` packages what is already resolved on disk and fetches no dependency",
       "status": "shipped",
       "because": [
         "0048"
       ],
+      "divergesFromPhp": "there is no `composer install` step inside the bundler: resolving dependencies and packaging them are two commands that compose, not one",
       "seeAlso": [
         "packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-cli/tests/bundle.rs"
+      ]
     },
     {
       "id": "packaging/a-nvsx-dependency-embeds-in-the-same-payload",
@@ -646,18 +292,29 @@
       "guardedBy": []
     },
     {
-      "id": "packaging/build-compile-packages-what-is-on-disk-and-resolves-nothing",
-      "title": "`nvs build --compile` packages what is already resolved on disk and fetches no dependency",
+      "id": "packaging/a-macos-bundle-is-ad-hoc-signed-at-build",
+      "title": "A macOS bundle is ad-hoc signed by the build command; PE and ELF need no step",
       "status": "shipped",
       "because": [
         "0048"
       ],
-      "divergesFromPhp": "there is no `composer install` step inside the bundler: resolving dependencies and packaging them are two commands that compose, not one",
       "seeAlso": [
         "packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host"
       ],
+      "guardedBy": []
+    },
+    {
+      "id": "packaging/a-build-records-no-timestamp",
+      "title": "A build records its target, host, profile, compiler and commit, and never a date",
+      "status": "shipped",
+      "because": [
+        "0065"
+      ],
+      "seeAlso": [
+        "packaging/nvs-info-is-the-one-call-and-nvs-i-its-php-spelling"
+      ],
       "guardedBy": [
-        "crates/nvs-cli/tests/bundle.rs"
+        "crates/nvs-cli/src/info.rs"
       ]
     },
     {
@@ -707,18 +364,22 @@
       ]
     },
     {
-      "id": "packaging/a-build-records-no-timestamp",
-      "title": "A build records its target, host, profile, compiler and commit, and never a date",
-      "status": "shipped",
+      "id": "packaging/a-package-name-is-vendor-slash-name",
+      "title": "A package name is `vendor/name`, lowercase ASCII compared exactly, and `nvs` is reserved for first-party packages",
+      "status": "designed",
       "because": [
-        "0065"
+        "0081",
+        "0062",
+        "0051"
       ],
+      "divergesFromPhp": "Composer lowercases and compares names case-insensitively; here a name is compared exactly so that one which resolves on one operating system resolves on all three",
       "seeAlso": [
-        "packaging/nvs-info-is-the-one-call-and-nvs-i-its-php-spelling"
+        "packaging/a-package-is-its-digest",
+        "core-api/reserved-namespace",
+        "programs/path-case",
+        "packaging/a-c-dependency-answers-two-questions"
       ],
-      "guardedBy": [
-        "crates/nvs-cli/src/info.rs"
-      ]
+      "guardedBy": []
     },
     {
       "id": "packaging/a-package-is-its-digest",
@@ -745,97 +406,57 @@
       "guardedBy": []
     },
     {
-      "id": "packaging/a-package-name-is-vendor-slash-name",
-      "title": "A package name is `vendor/name`, lowercase ASCII compared exactly, and `nvs` is reserved for first-party packages",
+      "id": "packaging/package-toml-is-a-tool-input",
+      "title": "`package.toml` is read by the `nvs` CLI, never by the runtime and never by name resolution",
       "status": "designed",
       "because": [
         "0081",
-        "0062",
-        "0051"
-      ],
-      "divergesFromPhp": "Composer lowercases and compares names case-insensitively; here a name is compared exactly so that one which resolves on one operating system resolves on all three",
-      "seeAlso": [
-        "packaging/a-package-is-its-digest",
-        "core-api/reserved-namespace",
-        "programs/path-case",
-        "packaging/a-c-dependency-answers-two-questions"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "packaging/a-package-cannot-reach-its-host",
-      "title": "A package ships no `nvs.toml`, and none of its `require` or `autoload` paths reaches outside its own directory",
-      "status": "designed",
-      "because": [
-        "0081",
+        "0061",
         "0064",
-        "0006"
+        "0112"
       ],
-      "divergesFromPhp": "a Composer package's files may `require` anything the process can read; here a `..`, an absolute path or a symlink that leaves the package is a compile error",
+      "divergesFromPhp": "composer.json drives the autoloader; here a populated `vendor/` resolves every name identically whether the manifest is present, absent or malformed",
       "seeAlso": [
-        "packaging/a-package-is-its-digest",
+        "packaging/a-fetched-package-is-an-autoload-line",
         "config/nvs-toml-is-not-a-project-manifest",
-        "security/path-scope-canonicalise-then-prefix"
+        "config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one",
+        "programs/no-runtime-autoload",
+        "security/optional-capability-degrades"
       ],
       "guardedBy": []
     },
     {
-      "id": "packaging/a-git-dependency-is-root-only",
-      "title": "A git dependency pins an exact commit, and only the root application may declare one",
+      "id": "packaging/a-package-file-stays-under-its-declared-prefix",
+      "title": "Every file in a fetched package declares a namespace under the prefix its manifest claims, and two packages claiming one prefix is a fetch error naming both",
       "status": "designed",
       "because": [
+        "0112",
         "0081"
       ],
-      "divergesFromPhp": "a `vcs` repository in composer.json may name a branch and is honoured anywhere in the graph; here a git source names a commit and is refused below the root, at publish and at fetch",
+      "divergesFromPhp": "a Composer package may declare any PSR-4 prefix, including the application's; here a package file declaring `namespace App;` to reach the application's grants fails to compile",
       "seeAlso": [
-        "packaging/a-package-is-its-digest",
-        "packaging/the-lockfile-holds-every-digest",
-        "packaging/publishing-never-overwrites"
+        "security/grants-are-keyed-on-a-namespace",
+        "security/authority-is-the-enclosing-namespace",
+        "security/an-unmatched-namespace-holds-the-application",
+        "packaging/a-fetched-package-is-an-autoload-line"
       ],
       "guardedBy": []
     },
     {
-      "id": "packaging/resolution-takes-the-highest-minimum",
-      "title": "Resolution selects the highest minimum any package asked for, and nothing upgrades itself",
-      "status": "designed",
-      "because": [
-        "0081"
-      ],
-      "divergesFromPhp": "there are no version ranges and no solver, so `^1.4` and \"your requirements could not be resolved\" both cease to exist; a version arrives only because somebody named it",
-      "seeAlso": [
-        "packaging/a-breaking-release-is-a-new-name",
-        "packaging/a-known-bad-version-is-retracted-not-deleted",
-        "packaging/the-lockfile-holds-every-digest"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "packaging/a-breaking-release-is-a-new-name",
-      "title": "A package that breaks its API publishes under a new name carrying `supersedes`",
+      "id": "packaging/a-fetched-package-is-an-autoload-line",
+      "title": "A fetched package is reached by an ordinary `autoload` line in a committed, generated `vendor/packages.nvs`",
       "status": "designed",
       "because": [
         "0081",
-        "0068"
+        "0061"
       ],
-      "divergesFromPhp": "`2.0.0` of the same name is how Composer ships a break; here the break is `acme/http2`, and the old and new package coexist in one graph without conflict",
+      "divergesFromPhp": "there is no `vendor/autoload.php` classmap or loader to `require`; the generated file holds declarations the compiler resolves like any other source",
       "seeAlso": [
-        "packaging/resolution-takes-the-highest-minimum",
-        "packaging/a-dependency-break-is-absorbed-never-forwarded",
-        "packaging/a-known-bad-version-is-retracted-not-deleted"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "packaging/a-known-bad-version-is-retracted-not-deleted",
-      "title": "A known-bad version is retracted, never deleted, and `nvs audit` names the minimum bump that clears it",
-      "status": "designed",
-      "because": [
-        "0081"
-      ],
-      "divergesFromPhp": "Packagist lets a publisher delete a release, which breaks every lockfile naming it; here the bytes stay fetchable forever and only selection refuses them",
-      "seeAlso": [
-        "packaging/resolution-takes-the-highest-minimum",
-        "packaging/the-registry-keeps-an-append-only-log"
+        "programs/no-runtime-autoload",
+        "programs/autoload",
+        "packaging/a-package-file-stays-under-its-declared-prefix",
+        "packaging/package-toml-is-a-tool-input",
+        "packaging/autoload-probes-fold-into-the-cache-key"
       ],
       "guardedBy": []
     },
@@ -859,6 +480,38 @@
       "guardedBy": []
     },
     {
+      "id": "packaging/a-package-cannot-reach-its-host",
+      "title": "A package ships no `nvs.toml`, and none of its `require` or `autoload` paths reaches outside its own directory",
+      "status": "designed",
+      "because": [
+        "0081",
+        "0064",
+        "0006"
+      ],
+      "divergesFromPhp": "a Composer package's files may `require` anything the process can read; here a `..`, an absolute path or a symlink that leaves the package is a compile error",
+      "seeAlso": [
+        "packaging/a-package-is-its-digest",
+        "config/nvs-toml-is-not-a-project-manifest",
+        "security/path-scope-canonicalise-then-prefix"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "packaging/resolution-takes-the-highest-minimum",
+      "title": "Resolution selects the highest minimum any package asked for, and nothing upgrades itself",
+      "status": "designed",
+      "because": [
+        "0081"
+      ],
+      "divergesFromPhp": "there are no version ranges and no solver, so `^1.4` and \"your requirements could not be resolved\" both cease to exist; a version arrives only because somebody named it",
+      "seeAlso": [
+        "packaging/a-breaking-release-is-a-new-name",
+        "packaging/a-known-bad-version-is-retracted-not-deleted",
+        "packaging/the-lockfile-holds-every-digest"
+      ],
+      "guardedBy": []
+    },
+    {
       "id": "packaging/the-lockfile-holds-every-digest",
       "title": "`package.lock` records every package's digest, a mismatch is a hard error, and `--locked` fetches nothing the lock does not name",
       "status": "designed",
@@ -876,6 +529,21 @@
       "guardedBy": []
     },
     {
+      "id": "packaging/a-git-dependency-is-root-only",
+      "title": "A git dependency pins an exact commit, and only the root application may declare one",
+      "status": "designed",
+      "because": [
+        "0081"
+      ],
+      "divergesFromPhp": "a `vcs` repository in composer.json may name a branch and is honoured anywhere in the graph; here a git source names a commit and is refused below the root, at publish and at fetch",
+      "seeAlso": [
+        "packaging/a-package-is-its-digest",
+        "packaging/the-lockfile-holds-every-digest",
+        "packaging/publishing-never-overwrites"
+      ],
+      "guardedBy": []
+    },
+    {
       "id": "packaging/the-registry-keeps-an-append-only-log",
       "title": "The registry publishes an append-only transparency log, and a client verifies inclusion and consistency before using an artifact",
       "status": "designed",
@@ -887,44 +555,6 @@
         "packaging/the-lockfile-holds-every-digest",
         "packaging/a-known-bad-version-is-retracted-not-deleted",
         "packaging/publishing-never-overwrites"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "packaging/a-fetched-package-is-an-autoload-line",
-      "title": "A fetched package is reached by an ordinary `autoload` line in a committed, generated `vendor/packages.nvs`",
-      "status": "designed",
-      "because": [
-        "0081",
-        "0061"
-      ],
-      "divergesFromPhp": "there is no `vendor/autoload.php` classmap or loader to `require`; the generated file holds declarations the compiler resolves like any other source",
-      "seeAlso": [
-        "programs/no-runtime-autoload",
-        "programs/autoload",
-        "packaging/a-package-file-stays-under-its-declared-prefix",
-        "packaging/package-toml-is-a-tool-input",
-        "packaging/autoload-probes-fold-into-the-cache-key"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "packaging/package-toml-is-a-tool-input",
-      "title": "`package.toml` is read by the `nvs` CLI, never by the runtime and never by name resolution",
-      "status": "designed",
-      "because": [
-        "0081",
-        "0061",
-        "0064",
-        "0112"
-      ],
-      "divergesFromPhp": "composer.json drives the autoloader; here a populated `vendor/` resolves every name identically whether the manifest is present, absent or malformed",
-      "seeAlso": [
-        "packaging/a-fetched-package-is-an-autoload-line",
-        "config/nvs-toml-is-not-a-project-manifest",
-        "config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one",
-        "programs/no-runtime-autoload",
-        "security/optional-capability-degrades"
       ],
       "guardedBy": []
     },
@@ -945,43 +575,34 @@
       "guardedBy": []
     },
     {
-      "id": "packaging/a-package-file-stays-under-its-declared-prefix",
-      "title": "Every file in a fetched package declares a namespace under the prefix its manifest claims, and two packages claiming one prefix is a fetch error naming both",
+      "id": "packaging/a-known-bad-version-is-retracted-not-deleted",
+      "title": "A known-bad version is retracted, never deleted, and `nvs audit` names the minimum bump that clears it",
       "status": "designed",
       "because": [
-        "0112",
         "0081"
       ],
-      "divergesFromPhp": "a Composer package may declare any PSR-4 prefix, including the application's; here a package file declaring `namespace App;` to reach the application's grants fails to compile",
+      "divergesFromPhp": "Packagist lets a publisher delete a release, which breaks every lockfile naming it; here the bytes stay fetchable forever and only selection refuses them",
       "seeAlso": [
-        "security/grants-are-keyed-on-a-namespace",
-        "security/authority-is-the-enclosing-namespace",
-        "security/an-unmatched-namespace-holds-the-application",
-        "packaging/a-fetched-package-is-an-autoload-line"
+        "packaging/resolution-takes-the-highest-minimum",
+        "packaging/the-registry-keeps-an-append-only-log"
       ],
       "guardedBy": []
     },
     {
-      "id": "packaging/autoload-probes-fold-into-the-cache-key",
-      "title": "A unit's cache key covers every autoload path it probed, misses included, and every directory a discovery query listed",
+      "id": "packaging/a-breaking-release-is-a-new-name",
+      "title": "A package that breaks its API publishes under a new name carrying `supersedes`",
       "status": "designed",
       "because": [
-        "0061",
-        "0042"
+        "0081",
+        "0068"
       ],
-      "divergesFromPhp": "OPcache revalidates the files it compiled; here adding a file that shadows an already-resolved name, or a module nothing references yet, invalidates the unit although no hashed file changed",
+      "divergesFromPhp": "`2.0.0` of the same name is how Composer ships a break; here the break is `acme/http2`, and the old and new package coexist in one graph without conflict",
       "seeAlso": [
-        "programs/autoload",
-        "programs/implementing",
-        "config/an-edit-reaches-the-next-request-without-a-restart",
-        "config/opcache-revalidation-is-system-class",
-        "config/the-extension-set-is-in-every-unit-key",
-        "packaging/an-artifact-is-one-immutable-content-addressed-file"
+        "packaging/resolution-takes-the-highest-minimum",
+        "packaging/a-dependency-break-is-absorbed-never-forwarded",
+        "packaging/a-known-bad-version-is-retracted-not-deleted"
       ],
-      "guardedBy": [
-        "tests/conformance/lang/an-autoload-prefix-probes-its-second-root-only-after-the-first-misses.nvst",
-        "tests/conformance/lang/an-explicit-autoload-prefix-shadows-a-discover-glob.nvst"
-      ]
+      "guardedBy": []
     },
     {
       "id": "packaging/the-version-contract-starts-at-0-1-0",
@@ -1144,6 +765,385 @@
         ".github/dependabot.yml",
         ".github/workflows/ci.yml"
       ]
+    },
+    {
+      "id": "packaging/an-extension-is-a-sandboxed-wasm-component",
+      "title": "A third-party extension is a sandboxed WebAssembly component, never a shared library loaded with `dlopen`",
+      "status": "designed",
+      "because": [
+        "0003",
+        "0052"
+      ],
+      "divergesFromPhp": "there is no `extension=` line and no `.so`; an extension is one portable `.nvsx` that cannot address host memory, and nothing loads native code at runtime",
+      "seeAlso": [
+        "packaging/three-tiers",
+        "packaging/values-cross-as-handles",
+        "packaging/a-guest-has-no-ambient-authority",
+        "security/no-ffi",
+        "security/closed-doors",
+        "packaging/a-package-is-its-digest"
+      ],
+      "guardedBy": [
+        "benches/abi-probe/tests/wasm_sandbox.rs"
+      ]
+    },
+    {
+      "id": "packaging/three-tiers",
+      "title": "Library and extension code sits at one of three tiers: built-in, sandboxed component, or statically linked native",
+      "status": "designed",
+      "because": [
+        "0003",
+        "0051"
+      ],
+      "seeAlso": [
+        "core-api/five-placements",
+        "core-api/tier-placement",
+        "core-api/tier-roster",
+        "packaging/the-boundary-is-the-cost"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "packaging/an-nvsx-is-one-file-carrying-its-manifest",
+      "title": "A `.nvsx` is a single WebAssembly component whose manifest is an `nvs.manifest` custom section",
+      "status": "designed",
+      "because": [
+        "0003",
+        "0055"
+      ],
+      "divergesFromPhp": "a PHP extension is a per-platform binary registered by an ini line; an `.nvsx` is one file for every platform and carries its own declarations inside it",
+      "seeAlso": [
+        "packaging/extension-calls-are-statically-typed",
+        "security/extension-manifest-only-tightens",
+        "config/the-extension-set-is-in-every-unit-key"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "packaging/an-extension-package-carries-two-payloads",
+      "title": "An extension package may carry Novis source beside its `.nvsx`, under one namespace, and the component's manifest registers exactly one class",
+      "status": "designed",
+      "because": [
+        "0120",
+        "0081",
+        "0123"
+      ],
+      "divergesFromPhp": "a Composer package is source only and a PHP extension is a binary only; an extension package here is both, and the builder a program names is ordinary Novis source",
+      "seeAlso": [
+        "core-classes/image-pipeline",
+        "core-classes/spreadsheet-has-no-io",
+        "packaging/an-nvsx-is-one-file-carrying-its-manifest",
+        "packaging/extension-loading-is-root-controlled",
+        "packaging/the-boundary-is-the-cost",
+        "packaging/a-package-is-its-digest"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "packaging/extension-loading-is-root-controlled",
+      "title": "An extension loads only from an `[[extension]]` entry in the root-owned `nvs.toml`, pinned by its `sha256`",
+      "status": "designed",
+      "because": [
+        "0003",
+        "0064",
+        "0078"
+      ],
+      "divergesFromPhp": "`extension=` in a `php.ini` names a file; an `[[extension]]` entry names a file and its digest, a project cannot add one, and a changed binary under its pin is refused rather than loaded",
+      "seeAlso": [
+        "config/ownership-is-the-trust-boundary",
+        "config/lists-are-arrays-and-repeated-records-are-arrays-of-tables",
+        "config/the-extension-set-is-in-every-unit-key",
+        "packaging/an-extension-package-carries-two-payloads",
+        "packaging/a-package-is-its-digest"
+      ],
+      "guardedBy": [
+        "crates/nvs-config/tests/tree.rs"
+      ]
+    },
+    {
+      "id": "packaging/extension-calls-are-statically-typed",
+      "title": "An extension's classes are registered from its manifest at load, and a call into one is type-checked at compile time and emitted as a direct call",
+      "status": "designed",
+      "because": [
+        "0003",
+        "0011",
+        "0078"
+      ],
+      "divergesFromPhp": "a call into an extension is checked by `nvs check` like a call into `Core`, not dispatched by name at runtime",
+      "seeAlso": [
+        "classes/no-free-functions-or-constants",
+        "config/the-extension-set-is-in-every-unit-key",
+        "packaging/an-nvsx-is-one-file-carrying-its-manifest"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "packaging/values-cross-as-handles",
+      "title": "A value crosses the guest boundary as a bounds-checked handle, never as a pointer",
+      "status": "designed",
+      "because": [
+        "0003"
+      ],
+      "seeAlso": [
+        "packaging/the-boundary-is-the-cost",
+        "core-api/a-lifetime-is-an-object"
+      ],
+      "guardedBy": [
+        "benches/abi-probe/tests/wasm_sandbox.rs"
+      ]
+    },
+    {
+      "id": "packaging/a-fresh-instance-per-request",
+      "title": "A guest is instantiated fresh for each request that calls it, so extension state cannot leak between requests",
+      "status": "designed",
+      "because": [
+        "0003"
+      ],
+      "divergesFromPhp": "a stateful PHP extension keeps its globals for the worker's lifetime; a guest starts pristine on every request and nothing it stored is there on the next one",
+      "seeAlso": [
+        "security/no-cross-request-state",
+        "concurrency/cross-request-state-is-explicit",
+        "packaging/a-guest-runs-under-the-requests-budget"
+      ],
+      "guardedBy": [
+        "benches/abi-probe/tests/wasm_sandbox.rs"
+      ]
+    },
+    {
+      "id": "packaging/a-guest-runs-under-the-requests-budget",
+      "title": "A guest runs under the request's CPU and memory caps, and a runaway guest traps rather than hanging a core",
+      "status": "designed",
+      "because": [
+        "0003",
+        "0020"
+      ],
+      "seeAlso": [
+        "errors/on-limit",
+        "packaging/a-fresh-instance-per-request"
+      ],
+      "guardedBy": [
+        "benches/abi-probe/tests/wasm_sandbox.rs"
+      ]
+    },
+    {
+      "id": "packaging/a-guest-has-no-ambient-authority",
+      "title": "A guest has no ambient authority: WASI is not granted by default, and every host function it receives is capability-checked",
+      "status": "designed",
+      "because": [
+        "0003"
+      ],
+      "divergesFromPhp": "native extension code calls `open()` and `connect()` directly; a guest reaches the filesystem and the network only through the same grants script code has",
+      "seeAlso": [
+        "security/capability-check-at-the-door",
+        "security/capability-question-is-grant-and-scope",
+        "security/extension-cannot-launder"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "packaging/the-boundary-is-the-cost",
+      "title": "An extension call costs a fixed ten-odd nanoseconds over a built-in call, so an extension's API is coarse-grained",
+      "status": "designed",
+      "because": [
+        "0003",
+        "0051"
+      ],
+      "seeAlso": [
+        "packaging/three-tiers",
+        "packaging/values-cross-as-handles",
+        "core-classes/image-pipeline"
+      ],
+      "guardedBy": [
+        "benches/abi-probe/tests/perf_guards.rs"
+      ]
+    },
+    {
+      "id": "packaging/a-c-dependency-answers-two-questions",
+      "title": "A C dependency is admitted under ordinary audit only if attacker-controlled data never reaches it; otherwise it needs an exceptional verification record or is confined to wasm",
+      "status": "shipped",
+      "because": [
+        "0051"
+      ],
+      "seeAlso": [
+        "core-api/tier-placement",
+        "testing/attribution-is-diffed-in-ci",
+        "packaging/an-extension-is-a-sandboxed-wasm-component",
+        "packaging/the-third-party-notice-is-generated-never-written-by-hand"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "packaging/pdf-decoding-ships-in-the-image-package",
+      "title": "PDF is a decode-only format of `nvs/image`, in the second wave, and never a member of `nvs/pdf`",
+      "status": "designed",
+      "because": [
+        "0128",
+        "0120",
+        "0121"
+      ],
+      "divergesFromPhp": "there is no Ghostscript to install and no ImageMagick policy to loosen; a page becomes an image through the same sandboxed component every other format uses",
+      "seeAlso": [
+        "core-classes/pdf-page-is-an-image-source",
+        "core-classes/image-format-roster",
+        "core-classes/pdf-render-has-no-io",
+        "packaging/an-extension-package-carries-two-payloads"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "packaging/a-service-is-one-stored-argv",
+      "title": "`nvs service` is a namespace, and everything after a mandatory `--` is stored verbatim as the argv the service runs",
+      "status": "designed",
+      "because": [
+        "0093",
+        "0078"
+      ],
+      "divergesFromPhp": "there is no shim — no NSSM, no WinSW, no hand-written unit around `php-fpm` — and the hosted program's own flags follow a `--` the installer never reads past",
+      "seeAlso": [
+        "packaging/the-installer-is-a-sink",
+        "packaging/the-argv-lives-in-imagepath",
+        "packaging/the-unit-is-printed-and-install-is-the-opt-in",
+        "config/one-local-control-socket",
+        "core-classes/process-is-argv-only"
+      ],
+      "guardedBy": [
+        "crates/nvs-cli/src/service.rs"
+      ]
+    },
+    {
+      "id": "packaging/the-installer-is-a-sink",
+      "title": "The service installer fails closed: a closed `serve`/`run` allowlist, no relative path, no argv without `--config`, no install whose output goes nowhere, no password on a command line",
+      "status": "shipped",
+      "because": [
+        "0093",
+        "0088",
+        "0103",
+        "0048"
+      ],
+      "divergesFromPhp": "`sc create` and a hand-written unit store whatever they are given; the installer refuses each of these by name with an `E063x` diagnostic and installs nothing",
+      "seeAlso": [
+        "security/sink-predicate",
+        "config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults",
+        "security/secret-qualifier",
+        "packaging/a-bundle-may-not-install-itself"
+      ],
+      "guardedBy": [
+        "crates/nvs-cli/src/service.rs"
+      ]
+    },
+    {
+      "id": "packaging/the-argv-lives-in-imagepath",
+      "title": "On Windows the argv is encoded into the SCM's one `ImagePath` string, the binary path is always quoted, and nothing else holds it",
+      "status": "designed",
+      "because": [
+        "0093",
+        "0044"
+      ],
+      "seeAlso": [
+        "core-classes/process-is-argv-only",
+        "packaging/a-service-is-one-stored-argv"
+      ],
+      "guardedBy": [
+        "crates/nvs-cli/src/service.rs"
+      ]
+    },
+    {
+      "id": "packaging/a-service-runs-as-a-virtual-account",
+      "title": "A service's default identity is the per-service virtual account `NT SERVICE\\<name>`, and `LocalSystem` is never the default",
+      "status": "designed",
+      "because": [
+        "0093"
+      ],
+      "divergesFromPhp": "a hand-registered service usually runs as `LocalSystem`; here that must be written out as `--account SYSTEM`, and the default account has no password to rotate",
+      "seeAlso": [
+        "packaging/the-installer-is-a-sink",
+        "packaging/a-service-answers-its-manager"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "packaging/a-service-answers-its-manager",
+      "title": "A stop drains, a `PARAMCHANGE` reloads, and lifecycle records go to the event log beside the configured log destination",
+      "status": "designed",
+      "because": [
+        "0093",
+        "0078"
+      ],
+      "divergesFromPhp": "a shim can only report that the process exited; the service itself reports an advancing stop checkpoint and performs a reload in-process",
+      "seeAlso": [
+        "config/a-reload-names-what-it-could-not-apply",
+        "concurrency/a-drain-closes-a-connection-cleanly",
+        "packaging/a-service-runs-as-a-virtual-account",
+        "http-server/the-residue-is-one-named-fault-class"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "packaging/the-unit-is-printed-and-install-is-the-opt-in",
+      "title": "On Linux `nvs service unit` prints the systemd unit and touches nothing; writing it is an explicit `--install`",
+      "status": "shipped",
+      "because": [
+        "0093"
+      ],
+      "divergesFromPhp": "the unit is generated rather than written by hand, and printing rather than installing is the default because configuration management owns the directory",
+      "seeAlso": [
+        "packaging/the-generated-unit-is-hardened",
+        "packaging/the-argv-lives-in-imagepath",
+        "packaging/a-service-is-one-stored-argv"
+      ],
+      "guardedBy": [
+        "crates/nvs-cli/src/service.rs"
+      ]
+    },
+    {
+      "id": "packaging/the-generated-unit-is-hardened",
+      "title": "The generated unit carries the hardening block, `Type=notify`, `MemoryMax` from `[limits]`, and `AmbientCapabilities` only for a privileged port",
+      "status": "designed",
+      "because": [
+        "0093",
+        "0097",
+        "0051"
+      ],
+      "divergesFromPhp": "`NoNewPrivileges`, `ProtectSystem=strict` and an emptied `CapabilityBoundingSet` are emitted for you rather than left to whoever writes the unit",
+      "seeAlso": [
+        "packaging/the-unit-is-printed-and-install-is-the-opt-in",
+        "packaging/a-c-dependency-answers-two-questions",
+        "config/three-changeability-classes"
+      ],
+      "guardedBy": [
+        "crates/nvs-cli/src/service.rs"
+      ]
+    },
+    {
+      "id": "packaging/a-bundle-may-not-install-itself",
+      "title": "A single-file bundle may not install itself as a service",
+      "status": "shipped",
+      "because": [
+        "0093",
+        "0048"
+      ],
+      "seeAlso": [
+        "programs/bundle-trust-domain",
+        "packaging/the-installer-is-a-sink"
+      ],
+      "guardedBy": [
+        "crates/nvs-cli/src/service.rs"
+      ]
+    },
+    {
+      "id": "packaging/a-service-is-operator-surface",
+      "title": "There is no `Core\\Service`: only an operator installs a service, from the command line, and nothing about it is on the request path",
+      "status": "shipped",
+      "because": [
+        "0093",
+        "0005"
+      ],
+      "seeAlso": [
+        "security/no-runtime-grant",
+        "core-api/tier-placement",
+        "packaging/a-service-is-one-stored-argv"
+      ],
+      "guardedBy": []
     }
   ]
 }

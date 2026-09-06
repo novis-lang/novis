@@ -36,29 +36,6 @@ divergence, not a bug. The tracked number distinguishes the two, or it reads as 
 
 <sub>See also [`types/declaration`](types.md#types-declaration), [`types/conversion`](types.md#types-conversion), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/arithmetic`](types.md#types-arithmetic), [`types/arrays`](types.md#types-arrays), [`types/uint`](types.md#types-uint), [`php-migration/absent-storage-is-never-a-zero-value`](php-migration.md#php-migration-absent-storage-is-never-a-zero-value), [`php-migration/a-declared-type-answers-before-the-program-runs`](php-migration.md#php-migration-a-declared-type-answers-before-the-program-runs), [`php-migration/an-element-write-needs-storage-to-write-back-into`](php-migration.md#php-migration-an-element-write-needs-storage-to-write-back-into), [`php-migration/a-body-never-falls-off-its-end`](php-migration.md#php-migration-a-body-never-falls-off-its-end). Decided in [0007](../decisions/0007.md).</sub>
 
-<a id="php-migration-absent-storage-is-never-a-zero-value"></a>
-
-## Absent storage never reads as a zero value: an unassigned variable and `[]` in a read position are refused, and an absent key throws
-
-`rule:php-migration/absent-storage-is-never-a-zero-value`
-
-PHP fills a hole with a zero value and warns. Here a hole is answered before the program runs or
-thrown at: reading a variable that is not definitely assigned is an error at check time; `$a[]`
-anywhere but as an assignment target is refused (`E0481`), so `$a[] .= "x"` — which appends in PHP
-only because the element that is not there yet reads as `""` — does not compile; and reading an
-absent array key **throws**, because there is no `null` to put in an `array<string>`, so the rule
-holds at run time too. A stored `null` in an `array<?T>` is not an absent key and reads back
-unchanged.
-
-`$a["k"] ?? $d` is the one exception and is PHP-identical: `??` means "absent or `null`, without the
-warning", so the guarded read yields `$d` rather than throwing — refusing there would refuse the
-spelling PHP offers for exactly this, and the throw is what makes it worth writing. The guard covers
-every level of the chain under it, so `$a["k"]["j"] ?? $d` yields `$d` for an absent key at either
-depth, and a `null` base needs no `!= null` test in that one position. `isset` and `empty` are the
-same guarded read and answer rather than throw.
-
-<sub>See also [`types/arrays`](types.md#types-arrays), [`types/declaration`](types.md#types-declaration), [`types/mixed-subscript`](types.md#types-mixed-subscript), [`classes/no-undefined-value`](classes.md#classes-no-undefined-value), [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws). Decided in [0007](../decisions/0007.md).</sub>
-
 <a id="php-migration-a-declared-type-answers-before-the-program-runs"></a>
 
 ## `->` on a receiver that can hold no object, and `instanceof` on a subject that can hold none, are refused where they are written
@@ -85,6 +62,29 @@ tests the class that value holds; a bare `string` on the right is `E0496`, the n
 checked at the `as` that produced the reference, not at the test.
 
 <sub>See also [`types/erased-member-access`](types.md#types-erased-member-access), [`types/narrowing`](types.md#types-narrowing), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/class-reference`](types.md#types-class-reference), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused). Decided in [0007](../decisions/0007.md).</sub>
+
+<a id="php-migration-absent-storage-is-never-a-zero-value"></a>
+
+## Absent storage never reads as a zero value: an unassigned variable and `[]` in a read position are refused, and an absent key throws
+
+`rule:php-migration/absent-storage-is-never-a-zero-value`
+
+PHP fills a hole with a zero value and warns. Here a hole is answered before the program runs or
+thrown at: reading a variable that is not definitely assigned is an error at check time; `$a[]`
+anywhere but as an assignment target is refused (`E0481`), so `$a[] .= "x"` — which appends in PHP
+only because the element that is not there yet reads as `""` — does not compile; and reading an
+absent array key **throws**, because there is no `null` to put in an `array<string>`, so the rule
+holds at run time too. A stored `null` in an `array<?T>` is not an absent key and reads back
+unchanged.
+
+`$a["k"] ?? $d` is the one exception and is PHP-identical: `??` means "absent or `null`, without the
+warning", so the guarded read yields `$d` rather than throwing — refusing there would refuse the
+spelling PHP offers for exactly this, and the throw is what makes it worth writing. The guard covers
+every level of the chain under it, so `$a["k"]["j"] ?? $d` yields `$d` for an absent key at either
+depth, and a `null` base needs no `!= null` test in that one position. `isset` and `empty` are the
+same guarded read and answer rather than throw.
+
+<sub>See also [`types/arrays`](types.md#types-arrays), [`types/declaration`](types.md#types-declaration), [`types/mixed-subscript`](types.md#types-mixed-subscript), [`classes/no-undefined-value`](classes.md#classes-no-undefined-value), [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws). Decided in [0007](../decisions/0007.md).</sub>
 
 <a id="php-migration-an-element-write-needs-storage-to-write-back-into"></a>
 
@@ -129,37 +129,6 @@ the refusal costs no program that ran.
 
 <sub>See also [`types/declaration`](types.md#types-declaration), [`iteration/generators`](iteration.md#iteration-generators), [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor). Decided in [0007](../decisions/0007.md).</sub>
 
-<a id="php-migration-a-deprecation-is-a-refusal"></a>
-
-## What PHP deprecates for removal is refused at compile time, never phased in behind a warning  *(designed — not yet in the compiler)*
-
-`rule:php-migration/a-deprecation-is-a-refusal`
-
-Novis compiles, and it has no deprecation channel. A change PHP must phase in over a major version —
-announced in 8.x, warned about at run time, removed in 9 — is here a refusal at the line it is
-written, the posture already taken for legacy cast syntax ([`types/no-legacy-cast`](types.md#types-no-legacy-cast)), the keyword
-operators ([`expressions/no-keyword-logical-operators`](expressions.md#expressions-no-keyword-logical-operators)) and `list()`
-([`expressions/bracket-destructuring`](expressions.md#expressions-bracket-destructuring)). Parity is owed to programs PHP 9 will still run, not to
-spellings PHP itself is removing, so a refusal of this kind never produces a program PHP runs and
-Novis answers differently: nothing diverges at run time, because nothing reaches it. Each is a
-front-end check with zero run-time cost and no run-time state. Building a warning channel to permit,
-temporarily, code that can be refused statically at the exact line is the alternative that lost.
-
-PHP 8.6 lands as four of these and one non-adoption: no `return` leaves a `finally`
-([`php-migration/no-return-leaves-a-finally`](php-migration.md#php-migration-no-return-leaves-a-finally)), a constructor's `return` carries no value
-([`php-migration/a-constructor-return-carries-no-value`](php-migration.md#php-migration-a-constructor-return-carries-no-value)), `let` and `is` are reserved
-([`php-migration/let-and-is-are-reserved`](php-migration.md#php-migration-let-and-is-are-reserved)), a `readonly` property declares no default
-([`php-migration/a-readonly-property-declares-no-default`](php-migration.md#php-migration-a-readonly-property-declares-no-default)), and partial application is not
-adopted ([`php-migration/no-partial-application`](php-migration.md#php-migration-no-partial-application)); beside them, one session rule with no off
-switch ([`php-migration/a-session-id-the-store-did-not-issue-is-rejected`](php-migration.md#php-migration-a-session-id-the-store-did-not-issue-is-rejected)). The rest of 8.6 asks
-nothing: `clamp` is `Core\Math::clamp`, `Time\Duration` is `Core\Time\Duration` under its own
-literals ([`types/duration-literal`](types.md#types-duration-literal)), `Io\Poll` has no landing spot because readiness is
-runtime-internal and user code gets structured concurrency, and nearly every other deprecation names
-surface Novis never shipped. Three of the four refusals rewrite mechanically under `nvs convert`;
-`return` in `finally` is the one it can only point at.
-
-<sub>See also [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`expressions/no-keyword-logical-operators`](expressions.md#expressions-no-keyword-logical-operators), [`expressions/bracket-destructuring`](expressions.md#expressions-bracket-destructuring), [`php-migration/no-return-leaves-a-finally`](php-migration.md#php-migration-no-return-leaves-a-finally), [`php-migration/a-constructor-return-carries-no-value`](php-migration.md#php-migration-a-constructor-return-carries-no-value), [`php-migration/let-and-is-are-reserved`](php-migration.md#php-migration-let-and-is-are-reserved), [`php-migration/a-readonly-property-declares-no-default`](php-migration.md#php-migration-a-readonly-property-declares-no-default), [`php-migration/no-partial-application`](php-migration.md#php-migration-no-partial-application), [`php-migration/a-session-id-the-store-did-not-issue-is-rejected`](php-migration.md#php-migration-a-session-id-the-store-did-not-issue-is-rejected), [`types/duration-literal`](types.md#types-duration-literal). Decided in [0124](../decisions/0124.md).</sub>
-
 <a id="php-migration-no-return-leaves-a-finally"></a>
 
 ## A `return` never leaves a `finally` block, and neither does a `break` or `continue` whose target lies outside it  *(designed — not yet in the compiler)*
@@ -195,27 +164,6 @@ PHP 8.6 deprecates the value-returning form on the same "never made sense" argum
 mechanical — drop the value — and `nvs convert` applies it.
 
 <sub>See also [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`php-migration/a-deprecation-is-a-refusal`](php-migration.md#php-migration-a-deprecation-is-a-refusal). Decided in [0124](../decisions/0124.md), [0022](../decisions/0022.md).</sub>
-
-<a id="php-migration-let-and-is-are-reserved"></a>
-
-## `let` and `is` are reserved spellings; `var` declares, `instanceof` tests and `as` converts  *(designed — not yet in the compiler)*
-
-`rule:php-migration/let-and-is-are-reserved`
-
-`let` and `is` are reserved words, in the family whose construct does not exist — `eval`, `goto`,
-`list` — so the spelling stays available and nothing a user wrote ever has to be renamed out from
-under a future decision. PHP 8.6 deprecates both as identifiers to reserve them for future use;
-Novis, with no published corpus, reserves them outright, and both at once, because the cost of
-reserving now is the same and near zero while the cost of taking either back later is a breaking
-rename.
-
-The diagnostics name the living spellings: `var` declares an inferred local
-([`types/var-inference`](types.md#types-var-inference)), `instanceof` tests ([`types/narrowing`](types.md#types-narrowing)) and `as` converts
-([`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion)). Like every reserved word, both match in lower case only
-([`classes/reserved-spellings-are-lower-case`](classes.md#classes-reserved-spellings-are-lower-case)). A converted program renames any `let` or `is` it
-used as a name; the rewrite is mechanical.
-
-<sub>See also [`types/var-inference`](types.md#types-var-inference), [`types/narrowing`](types.md#types-narrowing), [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`classes/reserved-spellings-are-lower-case`](classes.md#classes-reserved-spellings-are-lower-case), [`security/no-eval`](security.md#security-no-eval), [`php-migration/a-deprecation-is-a-refusal`](php-migration.md#php-migration-a-deprecation-is-a-refusal). Decided in [0124](../decisions/0124.md).</sub>
 
 <a id="php-migration-a-readonly-property-declares-no-default"></a>
 
@@ -260,26 +208,57 @@ at which point the wrapper either suffices or measurably bloats output.
 
 <sub>See also [`types/closure-literal`](types.md#types-closure-literal), [`types/callable-is-a-closure`](types.md#types-callable-is-a-closure), [`expressions/first-class-callable-syntax`](expressions.md#expressions-first-class-callable-syntax), [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution), [`expressions/pipeline-hole-once`](expressions.md#expressions-pipeline-hole-once), [`php-migration/a-deprecation-is-a-refusal`](php-migration.md#php-migration-a-deprecation-is-a-refusal). Decided in [0124](../decisions/0124.md), [0027](../decisions/0027.md), [0031](../decisions/0031.md).</sub>
 
-<a id="php-migration-a-session-id-the-store-did-not-issue-is-rejected"></a>
+<a id="php-migration-let-and-is-are-reserved"></a>
 
-## A session id the store did not issue is rejected, always, with no toggle  *(designed — not yet in the compiler)*
+## `let` and `is` are reserved spellings; `var` declares, `instanceof` tests and `as` converts  *(designed — not yet in the compiler)*
 
-`rule:php-migration/a-session-id-the-store-did-not-issue-is-rejected`
+`rule:php-migration/let-and-is-are-reserved`
 
-`Core\Session::start()` accepts a presented id only if its own store issued it and it is still
-live. An unknown, expired or attacker-minted id is discarded and a fresh id is issued in its place.
-There is no toggle, no ini, no option: PHP 8.6 flips `session.use_strict_mode` to `1` by default,
-and Novis has no off position, on the first priority — an off switch for fixation resistance is a
-security default traded for nothing. Session fixation resistance is therefore a property of the
-language, not of a deployment's ini hygiene.
+`let` and `is` are reserved words, in the family whose construct does not exist — `eval`, `goto`,
+`list` — so the spelling stays available and nothing a user wrote ever has to be renamed out from
+under a future decision. PHP 8.6 deprecates both as identifiers to reserve them for future use;
+Novis, with no published corpus, reserves them outright, and both at once, because the cost of
+reserving now is the same and near zero while the cost of taking either back later is a breaking
+rename.
 
-It follows that the session store must be able to answer "did I issue this id" — the same demand
-PHP 8.6 makes of session handlers by deprecating those without `create_sid`/`validateId`. A store
-that holds nothing, such as a signed cookie carrying the record itself, cannot answer it and so
-cannot be the session store ([`core-api/session-roster`](core-api.md#core-api-session-roster)). The acceptance test presents a
-fabricated id and asserts that a fresh one comes back.
+The diagnostics name the living spellings: `var` declares an inferred local
+([`types/var-inference`](types.md#types-var-inference)), `instanceof` tests ([`types/narrowing`](types.md#types-narrowing)) and `as` converts
+([`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion)). Like every reserved word, both match in lower case only
+([`classes/reserved-spellings-are-lower-case`](classes.md#classes-reserved-spellings-are-lower-case)). A converted program renames any `let` or `is` it
+used as a name; the rewrite is mechanical.
 
-<sub>See also [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly), [`core-api/session-roster`](core-api.md#core-api-session-roster), [`php-migration/a-deprecation-is-a-refusal`](php-migration.md#php-migration-a-deprecation-is-a-refusal). Decided in [0124](../decisions/0124.md), [0139](../decisions/0139.md), [0012](../decisions/0012.md).</sub>
+<sub>See also [`types/var-inference`](types.md#types-var-inference), [`types/narrowing`](types.md#types-narrowing), [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`classes/reserved-spellings-are-lower-case`](classes.md#classes-reserved-spellings-are-lower-case), [`security/no-eval`](security.md#security-no-eval), [`php-migration/a-deprecation-is-a-refusal`](php-migration.md#php-migration-a-deprecation-is-a-refusal). Decided in [0124](../decisions/0124.md).</sub>
+
+<a id="php-migration-a-deprecation-is-a-refusal"></a>
+
+## What PHP deprecates for removal is refused at compile time, never phased in behind a warning  *(designed — not yet in the compiler)*
+
+`rule:php-migration/a-deprecation-is-a-refusal`
+
+Novis compiles, and it has no deprecation channel. A change PHP must phase in over a major version —
+announced in 8.x, warned about at run time, removed in 9 — is here a refusal at the line it is
+written, the posture already taken for legacy cast syntax ([`types/no-legacy-cast`](types.md#types-no-legacy-cast)), the keyword
+operators ([`expressions/no-keyword-logical-operators`](expressions.md#expressions-no-keyword-logical-operators)) and `list()`
+([`expressions/bracket-destructuring`](expressions.md#expressions-bracket-destructuring)). Parity is owed to programs PHP 9 will still run, not to
+spellings PHP itself is removing, so a refusal of this kind never produces a program PHP runs and
+Novis answers differently: nothing diverges at run time, because nothing reaches it. Each is a
+front-end check with zero run-time cost and no run-time state. Building a warning channel to permit,
+temporarily, code that can be refused statically at the exact line is the alternative that lost.
+
+PHP 8.6 lands as four of these and one non-adoption: no `return` leaves a `finally`
+([`php-migration/no-return-leaves-a-finally`](php-migration.md#php-migration-no-return-leaves-a-finally)), a constructor's `return` carries no value
+([`php-migration/a-constructor-return-carries-no-value`](php-migration.md#php-migration-a-constructor-return-carries-no-value)), `let` and `is` are reserved
+([`php-migration/let-and-is-are-reserved`](php-migration.md#php-migration-let-and-is-are-reserved)), a `readonly` property declares no default
+([`php-migration/a-readonly-property-declares-no-default`](php-migration.md#php-migration-a-readonly-property-declares-no-default)), and partial application is not
+adopted ([`php-migration/no-partial-application`](php-migration.md#php-migration-no-partial-application)); beside them, one session rule with no off
+switch ([`php-migration/a-session-id-the-store-did-not-issue-is-rejected`](php-migration.md#php-migration-a-session-id-the-store-did-not-issue-is-rejected)). The rest of 8.6 asks
+nothing: `clamp` is `Core\Math::clamp`, `Time\Duration` is `Core\Time\Duration` under its own
+literals ([`types/duration-literal`](types.md#types-duration-literal)), `Io\Poll` has no landing spot because readiness is
+runtime-internal and user code gets structured concurrency, and nearly every other deprecation names
+surface Novis never shipped. Three of the four refusals rewrite mechanically under `nvs convert`;
+`return` in `finally` is the one it can only point at.
+
+<sub>See also [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`expressions/no-keyword-logical-operators`](expressions.md#expressions-no-keyword-logical-operators), [`expressions/bracket-destructuring`](expressions.md#expressions-bracket-destructuring), [`php-migration/no-return-leaves-a-finally`](php-migration.md#php-migration-no-return-leaves-a-finally), [`php-migration/a-constructor-return-carries-no-value`](php-migration.md#php-migration-a-constructor-return-carries-no-value), [`php-migration/let-and-is-are-reserved`](php-migration.md#php-migration-let-and-is-are-reserved), [`php-migration/a-readonly-property-declares-no-default`](php-migration.md#php-migration-a-readonly-property-declares-no-default), [`php-migration/no-partial-application`](php-migration.md#php-migration-no-partial-application), [`php-migration/a-session-id-the-store-did-not-issue-is-rejected`](php-migration.md#php-migration-a-session-id-the-store-did-not-issue-is-rejected), [`types/duration-literal`](types.md#types-duration-literal). Decided in [0124](../decisions/0124.md).</sub>
 
 <a id="php-migration-a-trait-converts-to-an-interface-or-a-delegate"></a>
 
@@ -334,6 +313,52 @@ the argv; the converter supplies the call shape and the pointer.
 
 <sub>See also [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`core-classes/process-run`](core-classes.md#core-classes-process-run), [`core-classes/process-spawn`](core-classes.md#core-classes-process-spawn), [`core-classes/process-refuses-a-shell-target`](core-classes.md#core-classes-process-refuses-a-shell-target), [`security/process-exec-capability`](security.md#security-process-exec-capability). Decided in [0044](../decisions/0044.md).</sub>
 
+<a id="php-migration-a-session-id-the-store-did-not-issue-is-rejected"></a>
+
+## A session id the store did not issue is rejected, always, with no toggle  *(designed — not yet in the compiler)*
+
+`rule:php-migration/a-session-id-the-store-did-not-issue-is-rejected`
+
+`Core\Session::start()` accepts a presented id only if its own store issued it and it is still
+live. An unknown, expired or attacker-minted id is discarded and a fresh id is issued in its place.
+There is no toggle, no ini, no option: PHP 8.6 flips `session.use_strict_mode` to `1` by default,
+and Novis has no off position, on the first priority — an off switch for fixation resistance is a
+security default traded for nothing. Session fixation resistance is therefore a property of the
+language, not of a deployment's ini hygiene.
+
+It follows that the session store must be able to answer "did I issue this id" — the same demand
+PHP 8.6 makes of session handlers by deprecating those without `create_sid`/`validateId`. A store
+that holds nothing, such as a signed cookie carrying the record itself, cannot answer it and so
+cannot be the session store ([`core-api/session-roster`](core-api.md#core-api-session-roster)). The acceptance test presents a
+fabricated id and asserts that a fresh one comes back.
+
+<sub>See also [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly), [`core-api/session-roster`](core-api.md#core-api-session-roster), [`php-migration/a-deprecation-is-a-refusal`](php-migration.md#php-migration-a-deprecation-is-a-refusal). Decided in [0124](../decisions/0124.md), [0139](../decisions/0139.md), [0012](../decisions/0012.md).</sub>
+
+<a id="php-migration-the-php-name-layer-is-joined-at-build-time"></a>
+
+## The PHP-name layer is joined once at build time, and a destination spelling the registry cannot place fails the build  *(designed — not yet in the compiler)*
+
+`rule:php-migration/the-php-name-layer-is-joined-at-build-time`
+
+The inventory, the migration table and the `Core` registry are joined once, at build time, into a
+static sorted table compiled into the language server. The server reads no file under `docs/` at
+runtime: a shipped binary does not depend on the documentation tree, and a lookup answers in the time
+a lookup takes.
+
+The join is a consistency check, and the check is a benefit the layer buys rather than a cost it pays.
+A destination spelling in the migration table that matches no registry row, and that no spec section
+schedules, is a typo in the docs or a member the registry renamed — and it fails the build instead of
+shipping as a suggestion that cannot resolve. A destination that is merely unbuilt is not a mismatch:
+the spec names it where the registry does not, and it becomes an inert item under
+[`php-migration/an-item-inserts-only-a-registered-member`](php-migration.md#php-migration-an-item-inserts-only-a-registered-member).
+
+Nobody writes a mapping for the editor. The migration table is the converter's table too, and the rule
+that neither translation table is copied into the other binds this reader the same way; a mapping the
+editor owned would drift, and the drift would surface as the editor and the converter disagreeing
+about one name.
+
+<sub>See also [`php-migration/every-php-builtin-is-a-completion-candidate`](php-migration.md#php-migration-every-php-builtin-is-a-completion-candidate), [`php-migration/an-item-inserts-only-a-registered-member`](php-migration.md#php-migration-an-item-inserts-only-a-registered-member), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes). Decided in [0111](../decisions/0111.md), [0089](../decisions/0089.md).</sub>
+
 <a id="php-migration-every-php-builtin-is-a-completion-candidate"></a>
 
 ## Every PHP built-in name is a completion candidate, and the migration table is what the item says  *(designed — not yet in the compiler)*
@@ -384,31 +409,6 @@ the job, where one that names its milestone reads as a language with a schedule.
 items that go somewhere.
 
 <sub>See also [`php-migration/every-php-builtin-is-a-completion-candidate`](php-migration.md#php-migration-every-php-builtin-is-a-completion-candidate), [`php-migration/the-php-name-layer-is-joined-at-build-time`](php-migration.md#php-migration-the-php-name-layer-is-joined-at-build-time), [`php-migration/completion-php-names-setting`](php-migration.md#php-migration-completion-php-names-setting), [`ide/three-of-four-item-shapes-insert-nothing`](ide.md#ide-three-of-four-item-shapes-insert-nothing), [`ide/completion-offers-only-what-the-compiler-derived`](ide.md#ide-completion-offers-only-what-the-compiler-derived). Decided in [0111](../decisions/0111.md), [0108](../decisions/0108.md).</sub>
-
-<a id="php-migration-the-php-name-layer-is-joined-at-build-time"></a>
-
-## The PHP-name layer is joined once at build time, and a destination spelling the registry cannot place fails the build  *(designed — not yet in the compiler)*
-
-`rule:php-migration/the-php-name-layer-is-joined-at-build-time`
-
-The inventory, the migration table and the `Core` registry are joined once, at build time, into a
-static sorted table compiled into the language server. The server reads no file under `docs/` at
-runtime: a shipped binary does not depend on the documentation tree, and a lookup answers in the time
-a lookup takes.
-
-The join is a consistency check, and the check is a benefit the layer buys rather than a cost it pays.
-A destination spelling in the migration table that matches no registry row, and that no spec section
-schedules, is a typo in the docs or a member the registry renamed — and it fails the build instead of
-shipping as a suggestion that cannot resolve. A destination that is merely unbuilt is not a mismatch:
-the spec names it where the registry does not, and it becomes an inert item under
-[`php-migration/an-item-inserts-only-a-registered-member`](php-migration.md#php-migration-an-item-inserts-only-a-registered-member).
-
-Nobody writes a mapping for the editor. The migration table is the converter's table too, and the rule
-that neither translation table is copied into the other binds this reader the same way; a mapping the
-editor owned would drift, and the drift would surface as the editor and the converter disagreeing
-about one name.
-
-<sub>See also [`php-migration/every-php-builtin-is-a-completion-candidate`](php-migration.md#php-migration-every-php-builtin-is-a-completion-candidate), [`php-migration/an-item-inserts-only-a-registered-member`](php-migration.md#php-migration-an-item-inserts-only-a-registered-member), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes). Decided in [0111](../decisions/0111.md), [0089](../decisions/0089.md).</sub>
 
 <a id="php-migration-a-php-name-sorts-below-every-novis-symbol"></a>
 

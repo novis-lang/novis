@@ -1,8 +1,57 @@
 {
   "topic": "tooling",
   "title": "Tooling",
-  "order": 200,
+  "order": 100,
   "rules": [
+    {
+      "id": "tooling/shebang-opens-code-mode",
+      "title": "A file whose first two bytes are `#!` starts in code mode, and its first line is trivia",
+      "status": "shipped",
+      "because": [
+        "0100",
+        "0049",
+        "0099",
+        "0095"
+      ],
+      "divergesFromPhp": "a `#!` first line is stripped by PHP but the file still needs `<?php` on line 2; here the shebang itself opens code mode, and a `<?nvs` after it is E0009",
+      "seeAlso": [
+        "statements/nvs-is-the-only-open-tag",
+        "statements/exit-is-the-only-termination-keyword",
+        "errors/ambiguous-input-refused",
+        "packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host",
+        "ide/one-grammar-one-tree"
+      ],
+      "guardedBy": [
+        "tests/conformance/core/a-shebang-line-opens-code.nvst"
+      ]
+    },
+    {
+      "id": "tooling/no-repl",
+      "title": "There is no REPL and none is planned; `nvs run`, `nvs test` and `Core\\Debug::dump` are the answer",
+      "status": "shipped",
+      "because": [
+        "0100",
+        "0011",
+        "0042",
+        "0022",
+        "0015",
+        "0079",
+        "0092"
+      ],
+      "divergesFromPhp": "there is no `php -a`; the loop an interactive shell serves is `nvs run` over a cached artifact and `nvs test`",
+      "seeAlso": [
+        "tooling/python-claims",
+        "testing/nvst-is-separate",
+        "testing/test-attribute",
+        "errors/debug-dump",
+        "classes/no-free-functions-or-constants",
+        "classes/definite-property-initialization",
+        "statements/nothing-gets-a-second-name",
+        "packaging/an-artifact-is-one-immutable-content-addressed-file",
+        "packaging/the-installer-is-a-sink"
+      ],
+      "guardedBy": []
+    },
     {
       "id": "tooling/reflection-and-source-parsing-are-core-features",
       "title": "Reflection and source parsing are built into `Core`, and `Core\\Ast` is the compiler's own parser",
@@ -24,6 +73,62 @@
         "tests/conformance/core/core-ast-parse-stops-where-the-compiler-stops.nvst",
         "tests/conformance/core/reflect-forclass-reaches-a-description-by-name-and-absence-is-null.nvst",
         "tests/conformance/core/reflect-call-runs-a-public-method-and-refuses-a-private-one.nvst"
+      ]
+    },
+    {
+      "id": "tooling/python-claims",
+      "title": "Against Python, Novis claims the tool that gets handed over; \"faster than Python\" and \"replaces Python\" are forbidden",
+      "status": "shipped",
+      "because": [
+        "0100",
+        "0080",
+        "0044",
+        "0033",
+        "0024",
+        "0048",
+        "0052"
+      ],
+      "seeAlso": [
+        "programs/audience",
+        "programs/three-claims",
+        "programs/no-compatibility-promise",
+        "tooling/no-repl",
+        "tooling/bench-engine-list-is-data",
+        "core-classes/process-is-argv-only",
+        "security/secret-qualifier",
+        "security/tainted-qualifier",
+        "security/no-ffi",
+        "packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host",
+        "tooling/commands-are-compiled",
+        "concurrency/one-scheduler"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "tooling/echo-always-has-a-sink",
+      "title": "Every execution context binds `echo` to a sink, and the default sink is the terminal",
+      "status": "shipped",
+      "because": [
+        "0088",
+        "0086",
+        "0024",
+        "0092"
+      ],
+      "divergesFromPhp": "`echo` in a scheduled script, a job worker or a test neutralizes control bytes rather than writing raw, and only an HTTP request makes it HTML",
+      "seeAlso": [
+        "tooling/terminal-output-is-a-sink",
+        "tooling/the-tty-belongs-to-the-main-task",
+        "core-classes/html-auto-escape",
+        "security/response-body-is-one-typed-member",
+        "security/capture-answers-the-carrier",
+        "security/isolate-output-is-captured",
+        "errors/renderings",
+        "config/a-scheduled-run-is-a-root-isolate"
+      ],
+      "guardedBy": [
+        "tests/conformance/core/out-capture-answers-the-sinks-carrier.nvst",
+        "tests/conformance/core/a-response-body-member-and-echo-share-one-output.nvst",
+        "crates/nvs-types/tests/response.rs"
       ]
     },
     {
@@ -49,6 +154,27 @@
         "tests/conformance/core/terminal-output-substitutes-a-control-sequence-visibly.nvst",
         "tests/conformance/core/cli-write-is-the-sink-echo-already-is.nvst",
         "tests/conformance/core/cli-text-plain-passes-layout-and-shows-commands.nvst"
+      ]
+    },
+    {
+      "id": "tooling/text-is-the-one-raw-path",
+      "title": "`Cli\\Text` is the terminal's one raw path, and both of its constructors neutralize their input",
+      "status": "shipped",
+      "because": [
+        "0086",
+        "0088"
+      ],
+      "seeAlso": [
+        "tooling/terminal-output-is-a-sink",
+        "tooling/styling-is-a-value-not-a-grammar",
+        "core-classes/html-escape-answers-markup",
+        "security/capture-answers-the-carrier"
+      ],
+      "guardedBy": [
+        "tests/conformance/core/cli-text-plain-is-the-sinks-carrier.nvst",
+        "tests/conformance/core/cli-styled-neutralizes-its-body-exactly-as-plain-does.nvst",
+        "tests/conformance/core/cli-text-composes-with-plus-and-stays-the-carrier.nvst",
+        "tests/conformance/core/cli-text-plain-is-idempotent.nvst"
       ]
     },
     {
@@ -88,27 +214,6 @@
       ]
     },
     {
-      "id": "tooling/text-is-the-one-raw-path",
-      "title": "`Cli\\Text` is the terminal's one raw path, and both of its constructors neutralize their input",
-      "status": "shipped",
-      "because": [
-        "0086",
-        "0088"
-      ],
-      "seeAlso": [
-        "tooling/terminal-output-is-a-sink",
-        "tooling/styling-is-a-value-not-a-grammar",
-        "core-classes/html-escape-answers-markup",
-        "security/capture-answers-the-carrier"
-      ],
-      "guardedBy": [
-        "tests/conformance/core/cli-text-plain-is-the-sinks-carrier.nvst",
-        "tests/conformance/core/cli-styled-neutralizes-its-body-exactly-as-plain-does.nvst",
-        "tests/conformance/core/cli-text-composes-with-plus-and-stays-the-carrier.nvst",
-        "tests/conformance/core/cli-text-plain-is-idempotent.nvst"
-      ]
-    },
-    {
       "id": "tooling/the-terminal-profile-resolves-once",
       "title": "The terminal profile resolves once per process, and a stream that is not a terminal gets no styling",
       "status": "shipped",
@@ -145,6 +250,67 @@
         "tests/conformance/core/cli-displaywidth-measures-what-the-sink-will-show.nvst",
         "tests/conformance/core/cli-displaywidth-tab-reaches-the-stop-and-a-newline-ends-the-row.nvst",
         "tests/conformance/core/cli-displaywidth-asks-a-whole-cluster-what-its-code-points-cannot-answer.nvst"
+      ]
+    },
+    {
+      "id": "tooling/no-raw-handle-onto-standard-output",
+      "title": "There is no raw handle onto standard output or standard error, and no cursor, clipboard or title primitive",
+      "status": "shipped",
+      "because": [
+        "0086",
+        "0063",
+        "0051"
+      ],
+      "divergesFromPhp": "`STDOUT`, `STDERR`, `php://stdout` and `fwrite(STDOUT, …)` have no counterpart; byte-exact output names a file, and standard input is `Core\\IO::stdin()` alone",
+      "seeAlso": [
+        "tooling/terminal-output-is-a-sink",
+        "tooling/text-is-the-one-raw-path",
+        "tooling/in-place-output-is-a-scoped-live-region",
+        "core-api/one-paradigm-per-operation",
+        "core-api/tier-placement"
+      ],
+      "guardedBy": [
+        "tests/conformance/core/io-the-standard-streams-are-one-member-and-not-three.nvst"
+      ]
+    },
+    {
+      "id": "tooling/the-tty-belongs-to-the-main-task",
+      "title": "The tty belongs to the main task of a CLI program, so a `Core\\Cli` member throws in a request and in a spawned isolate",
+      "status": "designed",
+      "because": [
+        "0086",
+        "0088",
+        "0006"
+      ],
+      "divergesFromPhp": "a request handler cannot reach the terminal at all, where PHP-FPM's `STDOUT` quietly lands in the server log",
+      "seeAlso": [
+        "tooling/echo-always-has-a-sink",
+        "tooling/the-terminal-is-restored-on-every-exit-path",
+        "security/isolate-output-is-captured",
+        "core-classes/cli-arguments"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "tooling/in-place-output-is-a-scoped-live-region",
+      "title": "In-place output is a scoped live region the runtime paints, never a cursor primitive",
+      "status": "shipped",
+      "because": [
+        "0086",
+        "0067"
+      ],
+      "divergesFromPhp": "there is no `\\r`-and-overwrite progress bar and no cursor movement; `Cli::live` and `Cli::progress` hand the body a handle and paint nothing at all on a pipe",
+      "seeAlso": [
+        "tooling/the-terminal-is-restored-on-every-exit-path",
+        "tooling/the-terminal-profile-resolves-once",
+        "tooling/no-raw-handle-onto-standard-output",
+        "core-classes/db-transactions"
+      ],
+      "guardedBy": [
+        "tests/conformance/core/a-live-region-answers-what-its-body-computed.nvst",
+        "tests/conformance/core/a-live-handle-is-dead-once-its-region-has-closed.nvst",
+        "tests/conformance/core/a-progress-bar-counts-toward-its-total-and-answers-its-body.nvst",
+        "tests/conformance/core/cli-a-live-regions-rows-are-the-sinks-own-table.nvst"
       ]
     },
     {
@@ -193,25 +359,24 @@
       ]
     },
     {
-      "id": "tooling/in-place-output-is-a-scoped-live-region",
-      "title": "In-place output is a scoped live region the runtime paints, never a cursor primitive",
+      "id": "tooling/the-terminal-is-restored-on-every-exit-path",
+      "title": "Raw mode, a hidden cursor and a live region are restored on a throw, a fatal, a panic and a signal",
       "status": "shipped",
       "because": [
         "0086",
-        "0067"
+        "0020"
       ],
-      "divergesFromPhp": "there is no `\\r`-and-overwrite progress bar and no cursor movement; `Cli::live` and `Cli::progress` hand the body a handle and paint nothing at all on a pipe",
+      "divergesFromPhp": "a script that dies mid-prompt does not leave the shell in raw mode; restoration is the runtime's obligation rather than a `finally` the author remembers",
       "seeAlso": [
-        "tooling/the-terminal-is-restored-on-every-exit-path",
-        "tooling/the-terminal-profile-resolves-once",
-        "tooling/no-raw-handle-onto-standard-output",
-        "core-classes/db-transactions"
+        "tooling/in-place-output-is-a-scoped-live-region",
+        "tooling/the-tty-belongs-to-the-main-task",
+        "errors/escalation-ladder",
+        "errors/panics-bypass-user-code",
+        "errors/engine-floor"
       ],
       "guardedBy": [
-        "tests/conformance/core/a-live-region-answers-what-its-body-computed.nvst",
-        "tests/conformance/core/a-live-handle-is-dead-once-its-region-has-closed.nvst",
-        "tests/conformance/core/a-progress-bar-counts-toward-its-total-and-answers-its-body.nvst",
-        "tests/conformance/core/cli-a-live-regions-rows-are-the-sinks-own-table.nvst"
+        "crates/nvs-stdlib/src/cli.rs",
+        "tests/conformance/core/a-progress-bar-nests-inside-a-live-region.nvst"
       ]
     },
     {
@@ -284,351 +449,6 @@
         "tests/conformance/core/command-help-is-generated-from-the-compiled-table.nvst",
         "tests/conformance/core/command-completions-writes-a-bash-function-behind-complete-f.nvst",
         "tests/conformance/core/command-completions-writes-one-fish-line-per-command-and-spelling.nvst"
-      ]
-    },
-    {
-      "id": "tooling/no-raw-handle-onto-standard-output",
-      "title": "There is no raw handle onto standard output or standard error, and no cursor, clipboard or title primitive",
-      "status": "shipped",
-      "because": [
-        "0086",
-        "0063",
-        "0051"
-      ],
-      "divergesFromPhp": "`STDOUT`, `STDERR`, `php://stdout` and `fwrite(STDOUT, …)` have no counterpart; byte-exact output names a file, and standard input is `Core\\IO::stdin()` alone",
-      "seeAlso": [
-        "tooling/terminal-output-is-a-sink",
-        "tooling/text-is-the-one-raw-path",
-        "tooling/in-place-output-is-a-scoped-live-region",
-        "core-api/one-paradigm-per-operation",
-        "core-api/tier-placement"
-      ],
-      "guardedBy": [
-        "tests/conformance/core/io-the-standard-streams-are-one-member-and-not-three.nvst"
-      ]
-    },
-    {
-      "id": "tooling/the-tty-belongs-to-the-main-task",
-      "title": "The tty belongs to the main task of a CLI program, so a `Core\\Cli` member throws in a request and in a spawned isolate",
-      "status": "designed",
-      "because": [
-        "0086",
-        "0088",
-        "0006"
-      ],
-      "divergesFromPhp": "a request handler cannot reach the terminal at all, where PHP-FPM's `STDOUT` quietly lands in the server log",
-      "seeAlso": [
-        "tooling/echo-always-has-a-sink",
-        "tooling/the-terminal-is-restored-on-every-exit-path",
-        "security/isolate-output-is-captured",
-        "core-classes/cli-arguments"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "tooling/the-terminal-is-restored-on-every-exit-path",
-      "title": "Raw mode, a hidden cursor and a live region are restored on a throw, a fatal, a panic and a signal",
-      "status": "shipped",
-      "because": [
-        "0086",
-        "0020"
-      ],
-      "divergesFromPhp": "a script that dies mid-prompt does not leave the shell in raw mode; restoration is the runtime's obligation rather than a `finally` the author remembers",
-      "seeAlso": [
-        "tooling/in-place-output-is-a-scoped-live-region",
-        "tooling/the-tty-belongs-to-the-main-task",
-        "errors/escalation-ladder",
-        "errors/panics-bypass-user-code",
-        "errors/engine-floor"
-      ],
-      "guardedBy": [
-        "crates/nvs-stdlib/src/cli.rs",
-        "tests/conformance/core/a-progress-bar-nests-inside-a-live-region.nvst"
-      ]
-    },
-    {
-      "id": "tooling/echo-always-has-a-sink",
-      "title": "Every execution context binds `echo` to a sink, and the default sink is the terminal",
-      "status": "shipped",
-      "because": [
-        "0088",
-        "0086",
-        "0024",
-        "0092"
-      ],
-      "divergesFromPhp": "`echo` in a scheduled script, a job worker or a test neutralizes control bytes rather than writing raw, and only an HTTP request makes it HTML",
-      "seeAlso": [
-        "tooling/terminal-output-is-a-sink",
-        "tooling/the-tty-belongs-to-the-main-task",
-        "core-classes/html-auto-escape",
-        "security/response-body-is-one-typed-member",
-        "security/capture-answers-the-carrier",
-        "security/isolate-output-is-captured",
-        "errors/renderings",
-        "config/a-scheduled-run-is-a-root-isolate"
-      ],
-      "guardedBy": [
-        "tests/conformance/core/out-capture-answers-the-sinks-carrier.nvst",
-        "tests/conformance/core/a-response-body-member-and-echo-share-one-output.nvst",
-        "crates/nvs-types/tests/response.rs"
-      ]
-    },
-    {
-      "id": "tooling/convert-one-table-two-modes",
-      "title": "`nvs convert` is one rule table read through two modes, and every branch carries a tier",
-      "status": "designed",
-      "because": [
-        "0089",
-        "0088"
-      ],
-      "divergesFromPhp": "a Rector run rewrites in one best-effort pass; here every rewrite is proven, annotated or commented out, and the default output is a worklist that does not run",
-      "seeAlso": [
-        "tooling/convert-equivalent-is-proven",
-        "tooling/convert-annotations-and-report",
-        "tooling/convert-three-tables",
-        "programs/no-compatibility-promise",
-        "security/sink-predicate"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "tooling/convert-equivalent-is-proven",
-      "title": "A tier-E rewrite names a differential case against the PHP oracle, or it is not E",
-      "status": "designed",
-      "because": [
-        "0089",
-        "0079",
-        "0007",
-        "0009",
-        "0090"
-      ],
-      "seeAlso": [
-        "tooling/convert-one-table-two-modes",
-        "tooling/convert-php-front-end",
-        "expressions/one-equality-operator",
-        "expressions/disjoint-comparison-refused",
-        "types/unions-and-mixed"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "tooling/convert-is-deterministic",
-      "title": "`nvs convert` is a pure function of its input bytes, mode, dialect, table digest and flags",
-      "status": "designed",
-      "because": [
-        "0089",
-        "0039"
-      ],
-      "divergesFromPhp": "a Rector run iterates to a fixpoint and its output depends on the installed PHP; every pass here runs once, in a fixed order, and no PHP binary is consulted",
-      "seeAlso": [
-        "tooling/convert-one-table-two-modes",
-        "tooling/convert-php-front-end",
-        "tooling/convert-never-does",
-        "tooling/fmt-is-one-canonical-style"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "tooling/convert-drops-nothing",
-      "title": "Every non-trivia input byte leaves the converter as code or as comment, and output is re-parsed before it is written",
-      "status": "designed",
-      "because": [
-        "0089"
-      ],
-      "seeAlso": [
-        "tooling/convert-one-table-two-modes",
-        "tooling/convert-php-front-end"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "tooling/convert-annotations-and-report",
-      "title": "A converted site is annotated `TODO(convert:<id>)`, and `--check` publishes the tier counts as TOML",
-      "status": "designed",
-      "because": [
-        "0089",
-        "0064",
-        "0080"
-      ],
-      "seeAlso": [
-        "tooling/convert-one-table-two-modes",
-        "programs/no-compatibility-promise",
-        "programs/three-claims",
-        "config/the-file-is-nvs-toml-and-it-is-toml"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "tooling/convert-three-tables",
-      "title": "Names, constructs and semantic deltas each have one home, and the converter copies none of them",
-      "status": "designed",
-      "because": [
-        "0089",
-        "0065"
-      ],
-      "seeAlso": [
-        "tooling/convert-one-table-two-modes",
-        "tooling/convert-equivalent-is-proven",
-        "testing/attribution-is-diffed-in-ci"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "tooling/convert-php-front-end",
-      "title": "The PHP front end is `php-rs-parser`, pinned, reached only through `nvs_convert::php`, and never linked into the server",
-      "status": "designed",
-      "because": [
-        "0089",
-        "0068",
-        "0051",
-        "0065"
-      ],
-      "divergesFromPhp": "no PHP binary is needed to convert, and the source is read at one declared dialect between 7.4 and 8.6 rather than under whichever PHP is installed",
-      "seeAlso": [
-        "tooling/convert-is-deterministic",
-        "tooling/convert-drops-nothing",
-        "tooling/convert-equivalent-is-proven",
-        "core-api/tier-placement",
-        "packaging/a-dependency-break-is-absorbed-never-forwarded",
-        "packaging/a-c-dependency-answers-two-questions"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "tooling/convert-never-does",
-      "title": "The converter never runs its input, never converts `vendor/` by default, never invents a binding and never claims compatibility",
-      "status": "designed",
-      "because": [
-        "0089",
-        "0080",
-        "0061",
-        "0081"
-      ],
-      "divergesFromPhp": "no autoloader, bootstrap or `composer install` runs, and a Composer dependency is reported against the package registry rather than ported",
-      "seeAlso": [
-        "tooling/convert-is-deterministic",
-        "tooling/convert-annotations-and-report",
-        "programs/no-compatibility-promise",
-        "programs/autoload",
-        "security/no-eval",
-        "packaging/a-package-is-its-digest"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "tooling/fmt-never-inserts-visibility",
-      "title": "`nvs fmt` never inserts a visibility keyword; `nvs convert` inserts `public` as an E-tier rewrite",
-      "status": "designed",
-      "because": [
-        "0094",
-        "0089",
-        "0039"
-      ],
-      "divergesFromPhp": "php-cs-fixer's `visibility_required` fixer writes the missing `public`; the formatter here never changes meaning, and the insertion happens only in `nvs convert`",
-      "seeAlso": [
-        "core-api/written-visibility",
-        "tooling/convert-one-table-two-modes",
-        "tooling/convert-equivalent-is-proven",
-        "tooling/fmt-base-style-is-per"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "tooling/python-claims",
-      "title": "Against Python, Novis claims the tool that gets handed over; \"faster than Python\" and \"replaces Python\" are forbidden",
-      "status": "shipped",
-      "because": [
-        "0100",
-        "0080",
-        "0044",
-        "0033",
-        "0024",
-        "0048",
-        "0052"
-      ],
-      "seeAlso": [
-        "programs/audience",
-        "programs/three-claims",
-        "programs/no-compatibility-promise",
-        "tooling/no-repl",
-        "tooling/bench-engine-list-is-data",
-        "core-classes/process-is-argv-only",
-        "security/secret-qualifier",
-        "security/tainted-qualifier",
-        "security/no-ffi",
-        "packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host",
-        "tooling/commands-are-compiled",
-        "concurrency/one-scheduler"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "tooling/shebang-opens-code-mode",
-      "title": "A file whose first two bytes are `#!` starts in code mode, and its first line is trivia",
-      "status": "shipped",
-      "because": [
-        "0100",
-        "0049",
-        "0099",
-        "0095"
-      ],
-      "divergesFromPhp": "a `#!` first line is stripped by PHP but the file still needs `<?php` on line 2; here the shebang itself opens code mode, and a `<?nvs` after it is E0009",
-      "seeAlso": [
-        "statements/nvs-is-the-only-open-tag",
-        "statements/exit-is-the-only-termination-keyword",
-        "errors/ambiguous-input-refused",
-        "packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host",
-        "ide/one-grammar-one-tree"
-      ],
-      "guardedBy": [
-        "tests/conformance/core/a-shebang-line-opens-code.nvst"
-      ]
-    },
-    {
-      "id": "tooling/no-repl",
-      "title": "There is no REPL and none is planned; `nvs run`, `nvs test` and `Core\\Debug::dump` are the answer",
-      "status": "shipped",
-      "because": [
-        "0100",
-        "0011",
-        "0042",
-        "0022",
-        "0015",
-        "0079",
-        "0092"
-      ],
-      "divergesFromPhp": "there is no `php -a`; the loop an interactive shell serves is `nvs run` over a cached artifact and `nvs test`",
-      "seeAlso": [
-        "tooling/python-claims",
-        "testing/nvst-is-separate",
-        "testing/test-attribute",
-        "errors/debug-dump",
-        "classes/no-free-functions-or-constants",
-        "classes/definite-property-initialization",
-        "statements/nothing-gets-a-second-name",
-        "packaging/an-artifact-is-one-immutable-content-addressed-file",
-        "packaging/the-installer-is-a-sink"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "tooling/bench-engine-list-is-data",
-      "title": "The benchmark engine list is data, `total` is the CLI headline, and a missing engine never turns a build red",
-      "status": "shipped",
-      "because": [
-        "0100",
-        "0026",
-        "0065"
-      ],
-      "seeAlso": [
-        "testing/userland-benchmarks",
-        "testing/perf-secondary-figures",
-        "tooling/python-claims",
-        "programs/three-claims"
-      ],
-      "guardedBy": [
-        "tools/bench.py",
-        "benches/userland/README.md"
       ]
     },
     {
@@ -746,6 +566,60 @@
       "guardedBy": []
     },
     {
+      "id": "tooling/fmt-normalizes-only-reserved-spellings",
+      "title": "`nvs fmt` lower-cases a mis-cased reserved spelling only where that spelling has no other legal meaning — a duration unit and the open tag, never a keyword or an identifier",
+      "status": "designed",
+      "because": [
+        "0039"
+      ],
+      "divergesFromPhp": "PHP's case-insensitive keywords are not normalized; `IF` is a legal class name and fixing an identifier's case is a rename, not a layout",
+      "seeAlso": [
+        "types/duration-literal",
+        "classes/reserved-spellings-are-lower-case",
+        "core-api/casing-checks-the-leading-character",
+        "tooling/fmt-is-never-a-diagnostic",
+        "tooling/convert-one-table-two-modes",
+        "ide/every-feature-is-staged-behind-its-dependency"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "tooling/fmt-never-inserts-visibility",
+      "title": "`nvs fmt` never inserts a visibility keyword; `nvs convert` inserts `public` as an E-tier rewrite",
+      "status": "designed",
+      "because": [
+        "0094",
+        "0089",
+        "0039"
+      ],
+      "divergesFromPhp": "php-cs-fixer's `visibility_required` fixer writes the missing `public`; the formatter here never changes meaning, and the insertion happens only in `nvs convert`",
+      "seeAlso": [
+        "core-api/written-visibility",
+        "tooling/convert-one-table-two-modes",
+        "tooling/convert-equivalent-is-proven",
+        "tooling/fmt-base-style-is-per"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "tooling/fmt-never-reorders-members",
+      "title": "`nvs fmt` never reorders class members, because declaration order is observable in what a program prints and sends",
+      "status": "designed",
+      "because": [
+        "0039"
+      ],
+      "divergesFromPhp": "php-cs-fixer's `ordered_class_elements` has no counterpart; a member's position is kept",
+      "seeAlso": [
+        "tooling/fmt-sorts-the-use-block",
+        "core-classes/derive-field-list",
+        "testing/bench-counters",
+        "core-api/written-visibility",
+        "classes/comparable",
+        "tooling/convert-one-table-two-modes"
+      ],
+      "guardedBy": []
+    },
+    {
       "id": "tooling/fmt-is-idempotent",
       "title": "`nvs fmt` is a fixed point over the input bytes: byte-stable on every machine, and deliberately not source-independent",
       "status": "designed",
@@ -791,62 +665,6 @@
         "tooling/fmt-is-idempotent"
       ],
       "guardedBy": []
-    },
-    {
-      "id": "tooling/fmt-normalizes-only-reserved-spellings",
-      "title": "`nvs fmt` lower-cases a mis-cased reserved spelling only where that spelling has no other legal meaning — a duration unit and the open tag, never a keyword or an identifier",
-      "status": "designed",
-      "because": [
-        "0039"
-      ],
-      "divergesFromPhp": "PHP's case-insensitive keywords are not normalized; `IF` is a legal class name and fixing an identifier's case is a rename, not a layout",
-      "seeAlso": [
-        "types/duration-literal",
-        "classes/reserved-spellings-are-lower-case",
-        "core-api/casing-checks-the-leading-character",
-        "tooling/fmt-is-never-a-diagnostic",
-        "tooling/convert-one-table-two-modes",
-        "ide/every-feature-is-staged-behind-its-dependency"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "tooling/fmt-never-reorders-members",
-      "title": "`nvs fmt` never reorders class members, because declaration order is observable in what a program prints and sends",
-      "status": "designed",
-      "because": [
-        "0039"
-      ],
-      "divergesFromPhp": "php-cs-fixer's `ordered_class_elements` has no counterpart; a member's position is kept",
-      "seeAlso": [
-        "tooling/fmt-sorts-the-use-block",
-        "core-classes/derive-field-list",
-        "testing/bench-counters",
-        "core-api/written-visibility",
-        "classes/comparable",
-        "tooling/convert-one-table-two-modes"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "tooling/meta-json",
-      "title": "`nvs meta --json` prints the whole `Core` registry as one JSON document, and a field with nothing written is an absent key rather than an empty one",
-      "status": "shipped",
-      "because": [
-        "0117"
-      ],
-      "divergesFromPhp": "there is no `php --rf`, no reflection dump and no phpDocumentor pass over the standard library; one command from the binary is the reference's only input",
-      "seeAlso": [
-        "core-api/reference-card",
-        "core-api/field-wise-precedence",
-        "core-api/parameters-are-callable-by-name",
-        "tooling/meta-json-takes-a-program",
-        "tooling/one-json-several-renderers"
-      ],
-      "guardedBy": [
-        "crates/nvs-cli/tests/meta.rs",
-        "crates/nvs-cli/src/meta.rs"
-      ]
     },
     {
       "id": "tooling/doc-comment-is-three-slashes",
@@ -899,35 +717,17 @@
       "guardedBy": []
     },
     {
-      "id": "tooling/one-json-several-renderers",
-      "title": "`nvs meta --json` is the one machine-readable source of documentation, every renderer consumes it, and no renderer is authoritative for content",
+      "id": "tooling/strict-docs",
+      "title": "Nothing requires a doc comment by default; `nvs check --strict-docs` reports a public member without one, and no autofix can satisfy it",
       "status": "designed",
       "because": [
-        "0137",
-        "0117"
+        "0137"
       ],
-      "divergesFromPhp": "phpDocumentor re-derives documentation from source at every run; here nothing does, and the renderers share one JSON",
+      "divergesFromPhp": "an IDE cannot answer the check with a generated docblock, because there is no tag to generate",
       "seeAlso": [
-        "tooling/meta-json",
-        "tooling/meta-json-takes-a-program",
-        "tooling/nvs-doc-renders-and-decides-nothing",
-        "core-api/reference-card"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "tooling/meta-json-takes-a-program",
-      "title": "`nvs meta --json <entry>` emits that program's own declarations beside the `Core` registry, in the registry's own shape",
-      "status": "designed",
-      "because": [
-        "0137",
-        "0117"
-      ],
-      "seeAlso": [
-        "tooling/meta-json",
-        "tooling/one-json-several-renderers",
         "tooling/doc-comment-tags-are-see-and-example",
-        "ide/an-lsp-answer-is-frozen-as-an-lspt-case"
+        "tooling/doc-comment-attaches-to-the-next-declaration",
+        "packaging/a-package-is-its-digest"
       ],
       "guardedBy": []
     },
@@ -946,19 +746,219 @@
       "guardedBy": []
     },
     {
-      "id": "tooling/strict-docs",
-      "title": "Nothing requires a doc comment by default; `nvs check --strict-docs` reports a public member without one, and no autofix can satisfy it",
+      "id": "tooling/one-json-several-renderers",
+      "title": "`nvs meta --json` is the one machine-readable source of documentation, every renderer consumes it, and no renderer is authoritative for content",
       "status": "designed",
       "because": [
-        "0137"
+        "0137",
+        "0117"
       ],
-      "divergesFromPhp": "an IDE cannot answer the check with a generated docblock, because there is no tag to generate",
+      "divergesFromPhp": "phpDocumentor re-derives documentation from source at every run; here nothing does, and the renderers share one JSON",
       "seeAlso": [
+        "tooling/meta-json",
+        "tooling/meta-json-takes-a-program",
+        "tooling/nvs-doc-renders-and-decides-nothing",
+        "core-api/reference-card"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "tooling/meta-json",
+      "title": "`nvs meta --json` prints the whole `Core` registry as one JSON document, and a field with nothing written is an absent key rather than an empty one",
+      "status": "shipped",
+      "because": [
+        "0117"
+      ],
+      "divergesFromPhp": "there is no `php --rf`, no reflection dump and no phpDocumentor pass over the standard library; one command from the binary is the reference's only input",
+      "seeAlso": [
+        "core-api/reference-card",
+        "core-api/field-wise-precedence",
+        "core-api/parameters-are-callable-by-name",
+        "tooling/meta-json-takes-a-program",
+        "tooling/one-json-several-renderers"
+      ],
+      "guardedBy": [
+        "crates/nvs-cli/tests/meta.rs",
+        "crates/nvs-cli/src/meta.rs"
+      ]
+    },
+    {
+      "id": "tooling/meta-json-takes-a-program",
+      "title": "`nvs meta --json <entry>` emits that program's own declarations beside the `Core` registry, in the registry's own shape",
+      "status": "designed",
+      "because": [
+        "0137",
+        "0117"
+      ],
+      "seeAlso": [
+        "tooling/meta-json",
+        "tooling/one-json-several-renderers",
         "tooling/doc-comment-tags-are-see-and-example",
-        "tooling/doc-comment-attaches-to-the-next-declaration",
+        "ide/an-lsp-answer-is-frozen-as-an-lspt-case"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "tooling/convert-php-front-end",
+      "title": "The PHP front end is `php-rs-parser`, pinned, reached only through `nvs_convert::php`, and never linked into the server",
+      "status": "designed",
+      "because": [
+        "0089",
+        "0068",
+        "0051",
+        "0065"
+      ],
+      "divergesFromPhp": "no PHP binary is needed to convert, and the source is read at one declared dialect between 7.4 and 8.6 rather than under whichever PHP is installed",
+      "seeAlso": [
+        "tooling/convert-is-deterministic",
+        "tooling/convert-drops-nothing",
+        "tooling/convert-equivalent-is-proven",
+        "core-api/tier-placement",
+        "packaging/a-dependency-break-is-absorbed-never-forwarded",
+        "packaging/a-c-dependency-answers-two-questions"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "tooling/convert-one-table-two-modes",
+      "title": "`nvs convert` is one rule table read through two modes, and every branch carries a tier",
+      "status": "designed",
+      "because": [
+        "0089",
+        "0088"
+      ],
+      "divergesFromPhp": "a Rector run rewrites in one best-effort pass; here every rewrite is proven, annotated or commented out, and the default output is a worklist that does not run",
+      "seeAlso": [
+        "tooling/convert-equivalent-is-proven",
+        "tooling/convert-annotations-and-report",
+        "tooling/convert-three-tables",
+        "programs/no-compatibility-promise",
+        "security/sink-predicate"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "tooling/convert-three-tables",
+      "title": "Names, constructs and semantic deltas each have one home, and the converter copies none of them",
+      "status": "designed",
+      "because": [
+        "0089",
+        "0065"
+      ],
+      "seeAlso": [
+        "tooling/convert-one-table-two-modes",
+        "tooling/convert-equivalent-is-proven",
+        "testing/attribution-is-diffed-in-ci"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "tooling/convert-equivalent-is-proven",
+      "title": "A tier-E rewrite names a differential case against the PHP oracle, or it is not E",
+      "status": "designed",
+      "because": [
+        "0089",
+        "0079",
+        "0007",
+        "0009",
+        "0090"
+      ],
+      "seeAlso": [
+        "tooling/convert-one-table-two-modes",
+        "tooling/convert-php-front-end",
+        "expressions/one-equality-operator",
+        "expressions/disjoint-comparison-refused",
+        "types/unions-and-mixed"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "tooling/convert-is-deterministic",
+      "title": "`nvs convert` is a pure function of its input bytes, mode, dialect, table digest and flags",
+      "status": "designed",
+      "because": [
+        "0089",
+        "0039"
+      ],
+      "divergesFromPhp": "a Rector run iterates to a fixpoint and its output depends on the installed PHP; every pass here runs once, in a fixed order, and no PHP binary is consulted",
+      "seeAlso": [
+        "tooling/convert-one-table-two-modes",
+        "tooling/convert-php-front-end",
+        "tooling/convert-never-does",
+        "tooling/fmt-is-one-canonical-style"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "tooling/convert-drops-nothing",
+      "title": "Every non-trivia input byte leaves the converter as code or as comment, and output is re-parsed before it is written",
+      "status": "designed",
+      "because": [
+        "0089"
+      ],
+      "seeAlso": [
+        "tooling/convert-one-table-two-modes",
+        "tooling/convert-php-front-end"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "tooling/convert-annotations-and-report",
+      "title": "A converted site is annotated `TODO(convert:<id>)`, and `--check` publishes the tier counts as TOML",
+      "status": "designed",
+      "because": [
+        "0089",
+        "0064",
+        "0080"
+      ],
+      "seeAlso": [
+        "tooling/convert-one-table-two-modes",
+        "programs/no-compatibility-promise",
+        "programs/three-claims",
+        "config/the-file-is-nvs-toml-and-it-is-toml"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "tooling/convert-never-does",
+      "title": "The converter never runs its input, never converts `vendor/` by default, never invents a binding and never claims compatibility",
+      "status": "designed",
+      "because": [
+        "0089",
+        "0080",
+        "0061",
+        "0081"
+      ],
+      "divergesFromPhp": "no autoloader, bootstrap or `composer install` runs, and a Composer dependency is reported against the package registry rather than ported",
+      "seeAlso": [
+        "tooling/convert-is-deterministic",
+        "tooling/convert-annotations-and-report",
+        "programs/no-compatibility-promise",
+        "programs/autoload",
+        "security/no-eval",
         "packaging/a-package-is-its-digest"
       ],
       "guardedBy": []
+    },
+    {
+      "id": "tooling/bench-engine-list-is-data",
+      "title": "The benchmark engine list is data, `total` is the CLI headline, and a missing engine never turns a build red",
+      "status": "shipped",
+      "because": [
+        "0100",
+        "0026",
+        "0065"
+      ],
+      "seeAlso": [
+        "testing/userland-benchmarks",
+        "testing/perf-secondary-figures",
+        "tooling/python-claims",
+        "programs/three-claims"
+      ],
+      "guardedBy": [
+        "tools/bench.py",
+        "benches/userland/README.md"
+      ]
     },
     {
       "id": "tooling/telemetry-is-two-opt-ins",
@@ -988,6 +988,20 @@
         "tooling/telemetry-is-two-opt-ins",
         "tooling/telemetry-show-prints-the-payload",
         "observability/the-runtime-exports-what-it-already-measures"
+      ],
+      "guardedBy": []
+    },
+    {
+      "id": "tooling/telemetry-show-prints-the-payload",
+      "title": "`nvs telemetry show` prints the exact payload the next upload would send, and the schema, the endpoint contracts and the aggregated data are all published",
+      "status": "designed",
+      "because": [
+        "0130"
+      ],
+      "seeAlso": [
+        "tooling/telemetry-counters-are-a-closed-set",
+        "tooling/telemetry-is-two-opt-ins",
+        "config/telemetry-and-update-endpoints-are-configuration"
       ],
       "guardedBy": []
     },
@@ -1033,20 +1047,6 @@
         "tooling/a-failed-upload-never-fails-the-command",
         "config/telemetry-and-update-endpoints-are-configuration",
         "tooling/terminal-output-is-a-sink"
-      ],
-      "guardedBy": []
-    },
-    {
-      "id": "tooling/telemetry-show-prints-the-payload",
-      "title": "`nvs telemetry show` prints the exact payload the next upload would send, and the schema, the endpoint contracts and the aggregated data are all published",
-      "status": "designed",
-      "because": [
-        "0130"
-      ],
-      "seeAlso": [
-        "tooling/telemetry-counters-are-a-closed-set",
-        "tooling/telemetry-is-two-opt-ins",
-        "config/telemetry-and-update-endpoints-are-configuration"
       ],
       "guardedBy": []
     }

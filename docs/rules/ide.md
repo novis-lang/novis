@@ -67,41 +67,30 @@ needs — and an empty span is a coincidence, not a contract.
 
 <sub>See also [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error). Decided in [0099](../decisions/0099.md), [0040](../decisions/0040.md).</sub>
 
-<a id="ide-the-index-answers-the-cursor"></a>
+<a id="ide-the-tree-survives-a-syntax-error"></a>
 
-## `SyntaxIndex.at(offset)` answers the innermost node and its ancestors, and is rebuilt per analysis  *(designed — not yet in the compiler)*
+## The parser always returns a tree, a node it invented says so, and an offset maps to the innermost node even inside a malformed region  *(designed — not yet in the compiler)*
 
-`rule:ide/the-index-answers-the-cursor`
+`rule:ide/the-tree-survives-a-syntax-error`
 
-`SyntaxIndex` is built by one walk over the tree and answers `at(offset) -> NodePath`: the innermost node
-containing the offset plus its ancestors. Hover, definition and completion each need a different depth of
-that path, and `selectionRange` is the ancestor list itself, so the request is a projection of the index
-rather than a feature built on top of it.
+A live editor spends most of its time on a syntactically invalid document — mid-statement, an unclosed
+brace, a half-typed identifier — so completion and hover that go dark on the first error rarely work
+when they matter. The parser therefore never fails to produce a tree: every `parse_*` returns a node
+rather than a `Result`, a missing token is reported at the empty span where it should have been without
+consuming what follows, and `$u->` with nothing after it parses to a property access whose name was
+synthesized at the cursor.
 
-The index is rebuilt per analysis. Making it incremental belongs with the rest of incrementality, and the
-ancestor paths are what would make item-level caching expressible if [`ide/a-full-reanalysis-stays-under-a-bound`](ide.md#ide-a-full-reanalysis-stays-under-a-bound)
-ever fails.
+Recovery is explicit, never inferred. A node the parser invented says so — `MemberName::Missing`, a span
+on `ExprKind::Error` naming what it stood in for — because completion's whole behaviour turns on telling
+a name the user wrote from one the parser made up at the cursor, and an empty span cannot carry that.
 
-<sub>See also [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed). Decided in [0099](../decisions/0099.md), [0040](../decisions/0040.md).</sub>
+One walk builds a `SyntaxIndex` answering "the innermost node at this byte offset, and its ancestors",
+so the server maps a cursor back to a syntax node even inside a malformed region, with no second
+position-mapping mechanism. The test is direct: an unclosed brace or a trailing `->` does not stop
+completion on the well-formed code around it. What this gives up is incremental reparse — every analysis
+reparses the document — and a latency bound keeps that a measured trade.
 
-<a id="ide-the-server-is-synchronous"></a>
-
-## `nvs-lsp` is synchronous on `lsp-server` and `lsp-types` — a reader thread, a writer thread, one analysis thread, and no async runtime  *(designed — not yet in the compiler)*
-
-`rule:ide/the-server-is-synchronous`
-
-`crates/nvs-lsp` is a library plus a thin `nvs lsp` subcommand speaking LSP over stdio, built on
-rust-analyzer's `lsp-server` and `lsp-types` — pure Rust, no build script — with `serde` and `serde_json`
-from the workspace. No tokio, no tower, no `async-trait`: [`concurrency/one-scheduler`](concurrency.md#concurrency-one-scheduler) is why, and the
-manifest-policy test is what pins it.
-
-Concurrency is a thread and a channel, which is the shape `lsp-server` hands over and the shape the rest
-of the project already uses: a reader thread, a writer thread, and one analysis thread that owns the
-document store. A request that arrives while an older analysis is in flight cancels it, because its result
-is about a document version nobody is looking at any more; `$/cancelRequest` cancels an in-flight request
-the same way.
-
-<sub>See also [`concurrency/one-scheduler`](concurrency.md#concurrency-one-scheduler), [`ide/an-open-document-is-its-own-entry-point`](ide.md#ide-an-open-document-is-its-own-entry-point), [`ide/stdout-belongs-to-the-protocol`](ide.md#ide-stdout-belongs-to-the-protocol), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients). Decided in [0099](../decisions/0099.md), [0040](../decisions/0040.md).</sub>
+<sub>See also [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/the-first-server-answers-a-closed-list`](ide.md#ide-the-first-server-answers-a-closed-list), [`ide/a-quick-fix-is-a-diagnostics-own-suggestion`](ide.md#ide-a-quick-fix-is-a-diagnostics-own-suggestion), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0040](../decisions/0040.md), [0099](../decisions/0099.md).</sub>
 
 <a id="ide-positions-have-one-home"></a>
 
@@ -122,6 +111,99 @@ spans are byte offsets, so normalising line endings server-side would shift ever
 the document store is the one place that could happen.
 
 <sub>See also [`types/bytes`](types.md#types-bytes), [`ide/the-server-is-synchronous`](ide.md#ide-the-server-is-synchronous). Decided in [0099](../decisions/0099.md).</sub>
+
+<a id="ide-the-index-answers-the-cursor"></a>
+
+## `SyntaxIndex.at(offset)` answers the innermost node and its ancestors, and is rebuilt per analysis  *(designed — not yet in the compiler)*
+
+`rule:ide/the-index-answers-the-cursor`
+
+`SyntaxIndex` is built by one walk over the tree and answers `at(offset) -> NodePath`: the innermost node
+containing the offset plus its ancestors. Hover, definition and completion each need a different depth of
+that path, and `selectionRange` is the ancestor list itself, so the request is a projection of the index
+rather than a feature built on top of it.
+
+The index is rebuilt per analysis. Making it incremental belongs with the rest of incrementality, and the
+ancestor paths are what would make item-level caching expressible if [`ide/a-full-reanalysis-stays-under-a-bound`](ide.md#ide-a-full-reanalysis-stays-under-a-bound)
+ever fails.
+
+<sub>See also [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed). Decided in [0099](../decisions/0099.md), [0040](../decisions/0040.md).</sub>
+
+<a id="ide-a-full-reanalysis-stays-under-a-bound"></a>
+
+## A full re-analysis of a ~1,000-line document stays under a named bound, and the guard is a test rather than an assumption  *(designed — not yet in the compiler)*
+
+`rule:ide/a-full-reanalysis-stays-under-a-bound`
+
+A full re-analysis of a ~1,000-line document stays under a named bound, and the guard has the shape
+`benches/abi-probe/tests/perf_guards.rs` already uses.
+
+[`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree) traded incremental reparse away, so every analysis reparses the whole
+document; this measurement is what says the trade still holds. If the guard ever fails, the answer is real
+work — item-level caching over the `SyntaxIndex`, then a decision to revisit with a number in hand — and
+never a smaller number in the test. Architecture assumptions are tested, not remembered, and this is the
+one thing M4B built nothing to protect.
+
+<sub>See also [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/an-open-document-is-its-own-entry-point`](ide.md#ide-an-open-document-is-its-own-entry-point), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms). Decided in [0099](../decisions/0099.md), [0040](../decisions/0040.md).</sub>
+
+<a id="ide-ast-json-schema-is-frozen"></a>
+
+## `nvs ast --json` has a frozen node schema, is resilient by default, and its only type-dependent field is a `secret` literal's placeholder  *(designed — not yet in the compiler)*
+
+`rule:ide/ast-json-schema-is-frozen`
+
+`nvs ast` gains `--json`, because the AST panel needs a stable shape and `{stmts:#?}` — Rust's derived
+`Debug` — has none: any field reordering in any AST struct changes it. The schema is a node object of
+`kind`, `span` as `[start, end]`, the node's own scalar fields, and `children`. Trivia and recovery nodes
+are included, because a panel that hides them is least useful on exactly the file the developer is looking
+at the panel to understand, and `--resilient` is the default: the panel's whole value is on a file that
+does not compile. A snapshot test over `examples/` freezes it.
+
+One scalar field is not the source text, and it is the only place this output depends on anything past the
+parse: a literal node whose static type carries `secret` emits the fixed placeholder
+[`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse) gives a dumped property, rather than its own bytes
+([`security/redaction-reaches-the-tools-own-renderings`](security.md#security-redaction-reaches-the-tools-own-renderings)). Putting that in the JSON rather than in the
+panel is what stops `--json` and the webview from disagreeing about it.
+
+<sub>See also [`security/redaction-reaches-the-tools-own-renderings`](security.md#security-redaction-reaches-the-tools-own-renderings), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md), [0040](../decisions/0040.md).</sub>
+
+<a id="ide-one-crate-and-one-extension-grow-in-place"></a>
+
+## `nvs-lsp` and `editors/vscode` are one crate and one package that grow in place; no prototype is built to be discarded  *(designed — not yet in the compiler)*
+
+`rule:ide/one-crate-and-one-extension-grow-in-place`
+
+`crates/nvs-lsp` and `editors/vscode` are one crate and one package across every milestone that touches
+them. The first, minimal server and extension are the same files the deep half later extends in place;
+nothing stands up a second "real" implementation next to a throwaway first one, and nothing is built
+to be discarded.
+
+Two implementations of the same client-server pair drift and duplicate work — the identical reasoning
+[`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients) applies to formatting and language smarts, applied to the editor
+packages themselves. The cost is the ordinary one of any early-shipped surface: the minimal server and
+extension have to be kept building and passing through the milestones between, even while nothing in
+those milestones depends on them.
+
+<sub>See also [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/the-first-server-answers-a-closed-list`](ide.md#ide-the-first-server-answers-a-closed-list), [`ide/editor-clients-live-under-editors`](ide.md#ide-editor-clients-live-under-editors). Decided in [0040](../decisions/0040.md), [0016](../decisions/0016.md).</sub>
+
+<a id="ide-the-server-is-synchronous"></a>
+
+## `nvs-lsp` is synchronous on `lsp-server` and `lsp-types` — a reader thread, a writer thread, one analysis thread, and no async runtime  *(designed — not yet in the compiler)*
+
+`rule:ide/the-server-is-synchronous`
+
+`crates/nvs-lsp` is a library plus a thin `nvs lsp` subcommand speaking LSP over stdio, built on
+rust-analyzer's `lsp-server` and `lsp-types` — pure Rust, no build script — with `serde` and `serde_json`
+from the workspace. No tokio, no tower, no `async-trait`: [`concurrency/one-scheduler`](concurrency.md#concurrency-one-scheduler) is why, and the
+manifest-policy test is what pins it.
+
+Concurrency is a thread and a channel, which is the shape `lsp-server` hands over and the shape the rest
+of the project already uses: a reader thread, a writer thread, and one analysis thread that owns the
+document store. A request that arrives while an older analysis is in flight cancels it, because its result
+is about a document version nobody is looking at any more; `$/cancelRequest` cancels an in-flight request
+the same way.
+
+<sub>See also [`concurrency/one-scheduler`](concurrency.md#concurrency-one-scheduler), [`ide/an-open-document-is-its-own-entry-point`](ide.md#ide-an-open-document-is-its-own-entry-point), [`ide/stdout-belongs-to-the-protocol`](ide.md#ide-stdout-belongs-to-the-protocol), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients). Decided in [0099](../decisions/0099.md), [0040](../decisions/0040.md).</sub>
 
 <a id="ide-an-open-document-is-its-own-entry-point"></a>
 
@@ -190,612 +272,6 @@ no site to point one at.
 
 <sub>See also [`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/diagnostics-are-phase-gated`](ide.md#ide-diagnostics-are-phase-gated), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md), [0040](../decisions/0040.md), [0137](../decisions/0137.md).</sub>
 
-<a id="ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows"></a>
-
-## A code action ships only where its replacement text is already in a diagnostic's suggestions — two at M4B, and no other  *(designed — not yet in the compiler)*
-
-`rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`
-
-M4B ships two code actions and only two: the casing fix ([`core-api/identifier-casing`](core-api.md#core-api-identifier-casing)) and the
-legacy-cast fix `(int)$x` → `$x as int` ([`types/no-legacy-cast`](types.md#types-no-legacy-cast)). They are admitted for one reason,
-and it is not that they are useful: their replacement text is already computed, sitting in the
-`Diagnostic::suggestions` field `nvs-diagnostics` has carried since M0. The provider is a translation from
-`Suggestion` to `CodeAction` — a dozen lines and no new analysis.
-
-The boundary is exactly that. A quick fix whose replacement a diagnostic already knows may ship; one that
-would need the checker to compute something new is M10's. Both are registered under `source.fixAll.nvs`
-so `editor.codeActionsOnSave` composes them with format-on-save when that arrives.
-
-<sub>See also [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0099](../decisions/0099.md), [0040](../decisions/0040.md).</sub>
-
-<a id="ide-diagnostics-are-phase-gated"></a>
-
-## A file with a lexer or parser diagnostic publishes those and its declaration diagnostics, and suppresses its own resolution and type diagnostics  *(designed — not yet in the compiler)*
-
-`rule:ide/diagnostics-are-phase-gated`
-
-The front end runs parse → declarations → resolution → types with no gate between the phases, bailing
-only after the type check. In batch mode that is right: you read the first error and the process exits. In
-an editor it is not — resolution running over an `ExprKind::Error` node reports `E0301` ("assigned to but
-never declared") *above* the `E0102` that caused it, and on every keystroke mid-statement that is a wall of
-red whose topmost entry is wrong, which teaches a developer to stop reading the squiggles.
-
-So, expressible because the code bands are allocated by phase: **a file that has produced a lexer
-(`E00xx`) or parser (`E01xx`) diagnostic publishes those and its declaration diagnostics, and suppresses
-resolution (`E03xx`) and type (`E04xx`) diagnostics for that file only.** Not for the workspace, and not
-for the phases below the failure: the other files in the graph keep their own diagnostics, because a
-broken buffer in one tab is not a reason to go dark in another.
-
-This is presentation, not analysis. The checker still runs and `nvs check` is untouched, so no diagnostic
-is lost anywhere one was reaching a human before. The suppression is one-directional — a resolution error
-never suppresses a type error, because those two do not cascade the way a parse failure into everything
-below it does. A `.lspt` case pins it in both directions, with `phase=all` defeating the gate.
-
-<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/a-request-line-is-closed`](ide.md#ide-a-request-line-is-closed). Decided in [0099](../decisions/0099.md).</sub>
-
-<a id="ide-highlighting-is-two-layers"></a>
-
-## Syntax highlighting is a TextMate grammar and a semantic-token provider, each with its own test, and each must cover what makes Novis not PHP  *(designed — not yet in the compiler)*
-
-`rule:ide/highlighting-is-two-layers`
-
-"Colour" is two deliverables because the two layers fail differently: the grammar has to be right before
-the server has started, and the server has to be right about things a regex cannot see.
-
-**Layer one, the TextMate grammar** (`editors/vscode/syntaxes/nvs.tmLanguage.json`), is what a file looks
-like the instant it opens. It must cover, because each is a way Novis is not PHP and a borrowed PHP grammar
-gets wrong: the dual-mode lexer's openers `<?nvs`, `<?php`, `<?=` and `?>`, with inline HTML outside them
-highlighted as HTML; heredoc and nowdoc, with interpolation only in the former; type annotations everywhere
-the grammar allows one, including the inline shape `{x: int}` ([`types/object-top`](types.md#types-object-top)); the qualifiers
-`tainted` and `secret`, and `decimal` as a scalar keyword ([`types/decimal`](types.md#types-decimal)); `spawn`, `spawn script`,
-`autoload`, `type`, `by`-delegation, property hooks and their `get`/`set` bodies; duration literals
-([`types/duration-literal`](types.md#types-duration-literal)); `#[...]` attributes distinguished from a `#` comment; and nothing Novis
-rejects ([`ide/rejected-syntax-gets-no-colour`](ide.md#ide-rejected-syntax-gets-no-colour)). Its test needs no editor: `vscode-textmate` plus
-`vscode-oniguruma` tokenize a fixture and a snapshot freezes the scope of every span.
-
-**Layer two, semantic tokens**, is where a compiler colours what a regex cannot know
-([`ide/semantic-tokens-carry-the-qualifiers`](ide.md#ide-semantic-tokens-carry-the-qualifiers)). Its test is a `.lspt` case per token type, plus the
-extension-host run confirming the client's legend matches the server's.
-
-<sub>See also [`ide/rejected-syntax-gets-no-colour`](ide.md#ide-rejected-syntax-gets-no-colour), [`ide/semantic-tokens-carry-the-qualifiers`](ide.md#ide-semantic-tokens-carry-the-qualifiers), [`ide/novis-ships-names-not-colours`](ide.md#ide-novis-ships-names-not-colours), [`ide/case-files-have-their-own-grammar`](ide.md#ide-case-files-have-their-own-grammar), [`types/object-top`](types.md#types-object-top), [`types/duration-literal`](types.md#types-duration-literal), [`types/decimal`](types.md#types-decimal), [`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes), [`ide/the-first-server-answers-a-closed-list`](ide.md#ide-the-first-server-answers-a-closed-list). Decided in [0099](../decisions/0099.md), [0040](../decisions/0040.md).</sub>
-
-<a id="ide-rejected-syntax-gets-no-colour"></a>
-
-## Nothing Novis rejects is coloured as though it were valid  *(designed — not yet in the compiler)*
-
-`rule:ide/rejected-syntax-gets-no-colour`
-
-Nothing Novis rejects may be coloured as though it were valid. `===` and `!==` are not operators
-([`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator)), `(int)$x` is not a cast ([`types/no-legacy-cast`](types.md#types-no-legacy-cast)), `|>` is
-not PHP 8.5's operator ([`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution)), and the alternative colon syntax
-(`if (...): ... endif;`) is not syntax at all.
-
-A grammar that colours these confirms a mistake in the editor before the server contradicts it, which is
-worse than no colour. The grammar snapshot test asserts `===` receives no operator scope, alongside the
-positive cases — a `#[Route]` attribute that is not a comment, a nowdoc that does not interpolate, inline
-HTML outside `<?nvs`.
-
-<sub>See also [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution). Decided in [0099](../decisions/0099.md).</sub>
-
-<a id="ide-semantic-tokens-carry-the-qualifiers"></a>
-
-## Semantic tokens use LSP's standard types plus two modifiers of Novis's own, `tainted` and `secret`, and the client's legend must equal the server's  *(designed — not yet in the compiler)*
-
-`rule:ide/semantic-tokens-carry-the-qualifiers`
-
-The token types M4B emits are each chosen because the grammar structurally cannot answer them:
-`namespace`, `class` (with `defaultLibrary` for a `Core` class, so the standard library is visibly not
-user code), `interface`, `enum`, `enumMember`, `type` (an alias), `method`, `property`, `parameter`,
-`variable`, `typeParameter` — and two modifiers of Novis's own, **`tainted` and `secret`**, so a qualified
-value is visibly qualified at every use site rather than only where it was declared.
-
-That pair is why this layer is built at M4B rather than M10: [`security/tainted-qualifier`](security.md#security-tainted-qualifier)'s and
-[`security/secret-qualifier`](security.md#security-secret-qualifier)'s whole model is that a value carries a qualifier through the program, and
-an editor that shows it is the cheapest teaching surface the language has. "The qualifier is visible" is
-verified as "the token carries the modifier", never as a colour.
-
-The legend the client registers must equal the legend the server declares. A mismatch silently colours
-everything one token type off, which no unit test on either side alone can see, so the extension-host run
-proves it.
-
-<sub>See also [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/novis-ships-names-not-colours`](ide.md#ide-novis-ships-names-not-colours), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/tainted-has-no-default-decoration`](security.md#security-tainted-has-no-default-decoration). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md).</sub>
-
-<a id="ide-novis-ships-names-not-colours"></a>
-
-## Both layers ship standard names and no colours: every scope is on the TextMate allowlist, every token type is in LSP's legend, and the extension overrides no theme  *(designed — not yet in the compiler)*
-
-`rule:ide/novis-ships-names-not-colours`
-
-Colour is the user's theme's to decide. Both layers ship *names*, and a theme styles only the names it
-already recognises, which makes naming the whole of the work and the whole of the risk.
-
-Every scope the TextMate grammar emits comes from the standard TextMate vocabulary, suffixed `.nvs` —
-`keyword.control.nvs`, `storage.type.nvs`, `entity.name.type.class.nvs`, `string.quoted.double.nvs`. An
-invented name like `keyword.nvs.spawn` is matched by no theme, so the construct renders as unstyled body
-text: technically correct and visibly broken. The grammar snapshot test asserts every scope it produces is
-on an allowlist of standard names, so a novel one fails in CI rather than in somebody's editor.
-
-Every semantic token type comes from LSP's standard legend. The two modifiers Novis adds are by definition
-not in it, so the extension declares `semanticTokenScopes`, mapping each to a standard TextMate scope a
-theme already styles — and a theme with no opinion falls back to the underlying token type rather than to
-nothing. The extension ships no `configurationDefaults` for `editor.tokenColorCustomizations` or
-`editor.semanticTokenColorCustomizations`: whatever a `tainted` value ought to look like is not Novis's
-call to make in someone else's editor, which is also what
-[`security/tainted-has-no-default-decoration`](security.md#security-tainted-has-no-default-decoration) applies. A bundled theme is a legitimate future option a
-user may select; it is not a default.
-
-<sub>See also [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/semantic-tokens-carry-the-qualifiers`](ide.md#ide-semantic-tokens-carry-the-qualifiers), [`security/tainted-has-no-default-decoration`](security.md#security-tainted-has-no-default-decoration). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md).</sub>
-
-<a id="ide-case-files-have-their-own-grammar"></a>
-
-## `.nvst` and `.lspt` get a grammar of their own, with Novis embedded in `--FILE--` and PHP in `--ORACLE--`  *(designed — not yet in the compiler)*
-
-`rule:ide/case-files-have-their-own-grammar`
-
-`.nvst` and `.lspt` get a second grammar: the section headers, with the Novis grammar embedded inside
-`--FILE--` and PHP's inside `--ORACLE--`. It is a thin wrapper whose bodies `include` the grammar M4B
-builds anyway.
-
-It ranks above the "nice later" pile because of who reads those files. This repository's own loop writes
-hundreds of them and every session reads them as flat grey text, so the grammar that helps most per byte
-written is the one for the format the project authors most — the only grammar here whose audience is the
-people working on Novis rather than the people using it. A `.nvst` case opens with its sections coloured
-and Novis highlighted inside `--FILE--`.
-
-<sub>See also [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate). Decided in [0099](../decisions/0099.md).</sub>
-
-<a id="ide-an-lsp-answer-is-frozen-as-an-lspt-case"></a>
-
-## An LSP answer is frozen as a `.lspt` case — a document, a `<|>` cursor, a request and its rendering — run by `nvs lsp-test` printing `N passed, M failed`  *(designed — not yet in the compiler)*
-
-`rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`
-
-A `.lspt` case is a document, a cursor, a request, and the response rendered canonically:
-
-```
---TEST--
-member completion survives an unclosed brace
---FILE--
-<?nvs
-class User { public string $name; public function greet(): string { return "hi"; } }
-$u = new User();
-$u-><|>
-if (true) {
---REQUEST--
-completion
---EXPECT--
-greet   method    (): string
-name    property  string
-```
-
-It is a sibling of `.nvst` and deliberately not an extension of it: `.nvst` runs a program and freezes
-stdout, `.lspt` asks a question of a document that is usually not even valid. Sharing the *format* is
-right; sharing the *suite* would make `nvs test`'s count mean two things and break the conformance
-coverage guard ([`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate)). The section lexer is `nvs_test`'s, extracted to a shared
-module, so `--TEST--`, `--FILE--`, `--FILE <relative/path>--` and `--EXPECT--` mean exactly what they mean
-in a `.nvst` case, multi-file cases included. `<|>` is the cursor, removed before analysis and reported as
-an offset — exactly one per case, and none for a request that needs none.
-
-The runner is `nvs lsp-test <paths>`, walking directories for `*.lspt` and printing `N passed, M failed`
-— the line the loop's `nvs-suite` check kind already parses, so editor behaviour is gated with no change
-to the driver at all.
-
-<sub>See also [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate), [`ide/a-request-line-is-closed`](ide.md#ide-a-request-line-is-closed), [`ide/the-rendering-has-one-home`](ide.md#ide-the-rendering-has-one-home), [`ide/lspt-coverage-is-inferred`](ide.md#ide-lspt-coverage-is-inferred), [`ide/case-files-have-their-own-grammar`](ide.md#ide-case-files-have-their-own-grammar). Decided in [0099](../decisions/0099.md), [0040](../decisions/0040.md).</sub>
-
-<a id="ide-a-request-line-is-closed"></a>
-
-## `--REQUEST--` is one line whose argument set is closed per request, and an unknown request or argument fails the case  *(designed — not yet in the compiler)*
-
-`rule:ide/a-request-line-is-closed`
-
-`--REQUEST--` is one line: the request name, then optional `key=value` arguments. The argument set is
-closed per request and lives beside the renderer, so a case cannot ask for something no runner implements.
-`completion` takes `prefix=` (filter the labels, which is how a case about `->` avoids freezing the whole
-keyword list) and `limit=`; `diagnostics` takes `phase=all` to defeat [`ide/diagnostics-are-phase-gated`](ide.md#ide-diagnostics-are-phase-gated),
-which is how the gating itself gets a case; `semanticTokens` takes `types=` to restrict the rendering to
-the token types under test; the rest take none.
-
-An unknown request or argument fails the case loudly rather than being ignored. A silently-dropped argument
-is a case that passes while testing something else.
-
-<sub>See also [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case), [`ide/diagnostics-are-phase-gated`](ide.md#ide-diagnostics-are-phase-gated). Decided in [0099](../decisions/0099.md).</sub>
-
-<a id="ide-the-rendering-has-one-home"></a>
-
-## `--EXPECT--` is exact and frozen, and every response is rendered by `nvs_lsp::render` so no case invents a spelling  *(designed — not yet in the compiler)*
-
-`rule:ide/the-rendering-has-one-home`
-
-`--EXPECT--` is exact and frozen, on the same terms as `.nvst`'s: the case's *source* may be corrected
-freely, its expectation may not be edited to make it pass.
-
-The rendering is canonical and has one home, `nvs_lsp::render`, so no case invents its own spelling:
-diagnostics as `L:C-L:C severity CODE message` sorted by position; a hover as its markdown verbatim; a
-definition as `file:L:C` or `none`; completion as `label kind detail`, sorted by label; semantic tokens as
-`L:C+len type modifiers`; symbols as an indented outline.
-
-<sub>See also [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate). Decided in [0099](../decisions/0099.md).</sub>
-
-<a id="ide-lspt-coverage-is-inferred"></a>
-
-## `.lspt` coverage is inferred from the node the cursor resolved to, never declared, and `every_request_answers_every_construct` names each empty cell  *(designed — not yet in the compiler)*
-
-`rule:ide/lspt-coverage-is-inferred`
-
-Coverage is inferred, never declared. `nvs lsp-test --coverage` prints the matrix of request × syntactic
-construct, taking the construct from the node the cursor actually resolved to. A case cannot claim coverage
-it does not have, and nobody maintains a list by hand.
-
-The guard test `every_request_answers_every_construct` reads that matrix and fails naming each empty cell
-— a gate that enumerates its source of truth rather than counting. Rust integration tests are kept beside
-`.lspt` for what they are genuinely better at, the resilient parser's own invariants over a corpus, and
-never as the only mechanism, because that would make coverage invisible to the gate the loop stops on.
-
-<sub>See also [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case). Decided in [0099](../decisions/0099.md).</sub>
-
-<a id="ide-contributions-are-frozen-and-only-ever-added"></a>
-
-## A setting name and a command id are public API: the roster is frozen, and anything later is added, never renamed  *(designed — not yet in the compiler)*
-
-`rule:ide/contributions-are-frozen-and-only-ever-added`
-
-A setting name lives in somebody's `settings.json` and a command id in their keybindings, so renaming one
-later breaks a user's configuration silently. The identifiers are therefore public API, frozen on first
-contribution, and anything added later is added, never renamed.
-
-M4B's roster. Settings: `nvs.path` (the binary, falling back to `PATH`), `nvs.lsp.enable`,
-`nvs.lsp.debounce`, `nvs.lsp.trace.server`, and — added under this rule by
-[`security/reveal-is-explicit-and-window-local`](security.md#security-reveal-is-explicit-and-window-local) and [`security/tainted-has-no-default-decoration`](security.md#security-tainted-has-no-default-decoration)
-— `nvs.secrets.redact` (default `true`) and `nvs.taint.mark` (default `off`). Commands: `nvs.run`,
-`nvs.test`, `nvs.showAst`, `nvs.restartServer`, and from the same source `nvs.revealSecret` and
-`nvs.hideSecrets`. Nothing else is contributed at M4B.
-
-M10 adds, under the same rule and not as an exception to it: the settings `nvs.check.scope`,
-`nvs.codeLens.enable`, `nvs.template.services` and `nvs.completion.phpNames` (`all`/`resolved`/`off`,
-default `all`), the command `nvs.checkWorkspace`, and a second request of Novis's own, `nvs/regions`. A
-contributions test asserts `package.json` declares exactly what the roster names.
-
-<sub>See also [`security/reveal-is-explicit-and-window-local`](security.md#security-reveal-is-explicit-and-window-local), [`security/tainted-has-no-default-decoration`](security.md#security-tainted-has-no-default-decoration), [`ide/the-extension-claims-nvs-only`](ide.md#ide-the-extension-claims-nvs-only), [`ide/dependencies-are-allowlisted`](ide.md#ide-dependencies-are-allowlisted), [`ide/check-json-is-the-diagnostic-record-as-a-document`](ide.md#ide-check-json-is-the-diagnostic-record-as-a-document), [`php-migration/completion-php-names-setting`](php-migration.md#php-migration-completion-php-names-setting). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md), [0108](../decisions/0108.md), [0111](../decisions/0111.md).</sub>
-
-<a id="ide-the-extension-claims-nvs-only"></a>
-
-## The extension activates on `.nvs` and never claims `.php`  *(designed — not yet in the compiler)*
-
-`rule:ide/the-extension-claims-nvs-only`
-
-The extension registers `.nvs` and does not claim `.php`, even though `nvs-syntax` parses it. Claiming it
-would fight every PHP extension a user already has, and losing that fight silently looks like Novis being
-broken. An opt-in setting is M10's if anyone converting a codebase asks for it.
-
-The extension-host run proves activation on `.nvs` and its absence on `.php`.
-
-<sub>See also [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added), [`ide/the-extension-runs-where-the-binary-is`](ide.md#ide-the-extension-runs-where-the-binary-is). Decided in [0099](../decisions/0099.md).</sub>
-
-<a id="ide-language-configuration-is-content"></a>
-
-## `language-configuration.json` carries comments, pairs, indentation, folding and a `wordPattern` that includes `$`  *(designed — not yet in the compiler)*
-
-`rule:ide/language-configuration-is-content`
-
-`language-configuration.json` is content, not a checkbox: comments (`//`, `#`, `/* */`), brackets,
-auto-closing and surrounding pairs, `indentationRules`, `onEnterRules` continuing a `/** */` block, and
-folding markers.
-
-The one entry that is Novis-specific, and that a file borrowed from a PHP extension gets wrong, is that
-**`wordPattern` must include `$`**. Without it, double-clicking `$total` selects `total`, every
-rename-adjacent interaction is off by one character, and word-based completion suggests the wrong token.
-
-<sub>See also [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added), [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers). Decided in [0099](../decisions/0099.md).</sub>
-
-<a id="ide-tasks-carry-a-problem-matcher"></a>
-
-## `nvs run` and `nvs test` are Tasks with a `problemMatcher` over the renderer's own format, so a diagnostic is a Problems-panel entry  *(designed — not yet in the compiler)*
-
-`rule:ide/tasks-carry-a-problem-matcher`
-
-`nvs run` and `nvs test` are contributed as Tasks, and each carries a `problemMatcher`. Without one the
-Tasks print text into a terminal; with one, every diagnostic is a clickable entry in the Problems panel.
-
-It is a two-line regex over the renderer's existing format — `error[E0301]: message`, then
-`  --> file:line:col` ([`errors/renderings`](errors.md#errors-renderings)) — and it is the difference between the Tasks being
-useful and being decorative. A failing `nvs test` populating the Problems panel through the matcher is
-part of the extension-host run.
-
-<sub>See also [`errors/renderings`](errors.md#errors-renderings), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0099](../decisions/0099.md).</sub>
-
-<a id="ide-the-extension-refuses-a-binary-it-does-not-understand"></a>
-
-## On a version mismatch at `initialize` the client says so in the status item and does not start  *(designed — not yet in the compiler)*
-
-`rule:ide/the-extension-refuses-a-binary-it-does-not-understand`
-
-`nvs lsp` reports its version at `initialize`. On a mismatch with the extension's own, the
-`LanguageStatusItem` says so and the client does not start, rather than running and producing confusing
-answers.
-
-An old `nvs` earlier on `PATH` than the intended one is the single most likely support question this
-extension will ever get, and it costs one comparison to answer it out loud. A client reporting a mismatched
-version gets a refusal and a status item, not a session.
-
-<sub>See also [`ide/the-extension-runs-where-the-binary-is`](ide.md#ide-the-extension-runs-where-the-binary-is), [`ide/the-server-is-synchronous`](ide.md#ide-the-server-is-synchronous). Decided in [0099](../decisions/0099.md).</sub>
-
-<a id="ide-dependencies-are-allowlisted"></a>
-
-## The extension holds no language logic, and its `package.json` dependencies are checked against an allowlist by its own tests  *(designed — not yet in the compiler)*
-
-`rule:ide/dependencies-are-allowlisted`
-
-The extension may hold no language logic — no parser, no formatter, no type table — and this is enforced
-rather than intended: its `package.json` `dependencies` are checked against an allowlist by its own test
-suite, so a second implementation cannot arrive as a dependency, and the reviewer is not the only thing
-standing between the repository and one.
-
-The same allowlist is what keeps the client free of language logic when a feature is added. The redaction
-of [`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server) is a range list from the server and a decoration;
-there is nothing in it a parser would help with, and the test is unchanged by it.
-
-<sub>See also [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added), [`ide/headless-gates-the-loop-the-host-run-gates-the-milestone`](ide.md#ide-headless-gates-the-loop-the-host-run-gates-the-milestone), [`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md).</sub>
-
-<a id="ide-the-extension-runs-where-the-binary-is"></a>
-
-## The extension is `nvs-lang.nvs`, language `nvs`, `extensionKind: ["workspace"]`, built as a `.vsix` and published nowhere  *(designed — not yet in the compiler)*
-
-`rule:ide/the-extension-runs-where-the-binary-is`
-
-The extension id is `nvs-lang.nvs`, the language id is `nvs`, and `extensionKind` is `["workspace"]`. The
-client spawns `nvs lsp`, which has to be the binary next to the code, so a WSL distro, an SSH host and a
-devcontainer all get the remote's toolchain rather than a missing one.
-
-CI produces an installable `.vsix` artifact. Nothing is published — no Marketplace publisher, no listing,
-no branding; that decision is open and M4B does not close it. `editors/vscode` is a TypeScript package
-outside the Cargo workspace.
-
-<sub>See also [`ide/the-extension-claims-nvs-only`](ide.md#ide-the-extension-claims-nvs-only), [`ide/the-extension-refuses-a-binary-it-does-not-understand`](ide.md#ide-the-extension-refuses-a-binary-it-does-not-understand), [`ide/the-lockfile-is-committed-and-build-output-is-not`](ide.md#ide-the-lockfile-is-committed-and-build-output-is-not), [`ide/editor-clients-live-under-editors`](ide.md#ide-editor-clients-live-under-editors), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients). Decided in [0099](../decisions/0099.md).</sub>
-
-<a id="ide-a-full-reanalysis-stays-under-a-bound"></a>
-
-## A full re-analysis of a ~1,000-line document stays under a named bound, and the guard is a test rather than an assumption  *(designed — not yet in the compiler)*
-
-`rule:ide/a-full-reanalysis-stays-under-a-bound`
-
-A full re-analysis of a ~1,000-line document stays under a named bound, and the guard has the shape
-`benches/abi-probe/tests/perf_guards.rs` already uses.
-
-[`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree) traded incremental reparse away, so every analysis reparses the whole
-document; this measurement is what says the trade still holds. If the guard ever fails, the answer is real
-work — item-level caching over the `SyntaxIndex`, then a decision to revisit with a number in hand — and
-never a smaller number in the test. Architecture assumptions are tested, not remembered, and this is the
-one thing M4B built nothing to protect.
-
-<sub>See also [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/an-open-document-is-its-own-entry-point`](ide.md#ide-an-open-document-is-its-own-entry-point), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms). Decided in [0099](../decisions/0099.md), [0040](../decisions/0040.md).</sub>
-
-<a id="ide-ast-json-schema-is-frozen"></a>
-
-## `nvs ast --json` has a frozen node schema, is resilient by default, and its only type-dependent field is a `secret` literal's placeholder  *(designed — not yet in the compiler)*
-
-`rule:ide/ast-json-schema-is-frozen`
-
-`nvs ast` gains `--json`, because the AST panel needs a stable shape and `{stmts:#?}` — Rust's derived
-`Debug` — has none: any field reordering in any AST struct changes it. The schema is a node object of
-`kind`, `span` as `[start, end]`, the node's own scalar fields, and `children`. Trivia and recovery nodes
-are included, because a panel that hides them is least useful on exactly the file the developer is looking
-at the panel to understand, and `--resilient` is the default: the panel's whole value is on a file that
-does not compile. A snapshot test over `examples/` freezes it.
-
-One scalar field is not the source text, and it is the only place this output depends on anything past the
-parse: a literal node whose static type carries `secret` emits the fixed placeholder
-[`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse) gives a dumped property, rather than its own bytes
-([`security/redaction-reaches-the-tools-own-renderings`](security.md#security-redaction-reaches-the-tools-own-renderings)). Putting that in the JSON rather than in the
-panel is what stops `--json` and the webview from disagreeing about it.
-
-<sub>See also [`security/redaction-reaches-the-tools-own-renderings`](security.md#security-redaction-reaches-the-tools-own-renderings), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md), [0040](../decisions/0040.md).</sub>
-
-<a id="ide-headless-gates-the-loop-the-host-run-gates-the-milestone"></a>
-
-## The headless suites run every iteration with no editor; the extension-host run is CI-only, under `xvfb-run`, with an isolated profile  *(designed — not yet in the compiler)*
-
-`rule:ide/headless-gates-the-loop-the-host-run-gates-the-milestone`
-
-Two tiers, because they answer different questions and cost two orders of magnitude apart.
-
-**Headless, every iteration.** Plain Node, no editor, no display, no network: the grammar snapshot tests, a
-contributions test asserting `package.json` declares what the extension claims and depends only on the
-allowlist, and a protocol round-trip that spawns the real `nvs lsp` binary and drives it with
-`vscode-languageclient`. It is what the loop's acceptance test gates on, and it runs once rather than once
-per leg — a `command` check is not a program fixture, so it has no calling convention for the WSL leg to
-exercise. CI runs it on all three platforms, since a `.vsix` is cross-platform and a path bug is not.
-
-**The extension host, in CI only.** `@vscode/test-electron` runs Mocha inside the real extension host —
-the only thing that can prove activation on `.nvs`, the Tasks, the `LanguageStatusItem`, the AST panel and
-the semantic-token legend. It needs a display, and the only display on a developer's machine is one a
-person is using, so it runs on Linux under `xvfb-run` and is not on the loop's acceptance list at all.
-Wherever it runs it isolates its profile — `--user-data-dir` and `--extensions-dir` to a throwaway
-directory, a fixture folder rather than the repository — or a test that writes a setting writes it into
-the developer's own `settings.json`.
-
-<sub>See also [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/dependencies-are-allowlisted`](ide.md#ide-dependencies-are-allowlisted), [`ide/semantic-tokens-carry-the-qualifiers`](ide.md#ide-semantic-tokens-carry-the-qualifiers), [`ide/the-lockfile-is-committed-and-build-output-is-not`](ide.md#ide-the-lockfile-is-committed-and-build-output-is-not), [`testing/ci-lanes`](testing.md#testing-ci-lanes). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md).</sub>
-
-<a id="ide-the-lockfile-is-committed-and-build-output-is-not"></a>
-
-## `package-lock.json` is committed; `node_modules/`, `out/`, `.vscode-test/` and `*.vsix` are ignored  *(designed — not yet in the compiler)*
-
-`rule:ide/the-lockfile-is-committed-and-build-output-is-not`
-
-`.gitignore` carries `node_modules/`, `out/`, `.vscode-test/` and `*.vsix`: a session that commits
-`node_modules` is a session whose commit nobody can review.
-
-`package-lock.json` **is** committed, because `npm ci` is what the acceptance run uses and it requires one,
-and because an unpinned dependency tree makes the grammar snapshots reproducible only by luck. CI grows two
-jobs beside the ones already there — the headless suites on all three platforms and the extension-host run
-on Linux — and `ci.yml` is the count of those.
-
-<sub>See also [`ide/headless-gates-the-loop-the-host-run-gates-the-milestone`](ide.md#ide-headless-gates-the-loop-the-host-run-gates-the-milestone), [`ide/the-extension-runs-where-the-binary-is`](ide.md#ide-the-extension-runs-where-the-binary-is). Decided in [0099](../decisions/0099.md).</sub>
-
-<a id="ide-phpstorm-draws-no-redaction-at-m4b"></a>
-
-## The redaction request is one server's to answer for both editors, but the drawing is per-editor and PhpStorm has none until its plugin lands  *(designed — not yet in the compiler)*
-
-`rule:ide/phpstorm-draws-no-redaction-at-m4b`
-
-`nvs/redactions` is a request on the one server both clients drive, so the PhpStorm plugin can answer it
-whenever it is built — the range computation is shared, per
-[`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server). What is not shared is the drawing: an editor-side
-decoration is per-editor work with no common half.
-
-The plugin is not built at M4B, so PhpStorm conceals nothing at this milestone. That is a decision rather
-than something discovered when someone opens a `.nvs` file in PhpStorm on a call, and the PhpStorm side is
-due when its plugin is.
-
-<sub>See also [`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server), [`security/redaction-covers-bytes-only`](security.md#security-redaction-covers-bytes-only), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server). Decided in [0101](../decisions/0101.md), [0099](../decisions/0099.md).</sub>
-
-<a id="ide-one-server-two-thin-clients"></a>
-
-## Language smarts and formatting have one implementation each, `nvs-lsp` and `nvs-fmt`, and an editor client holds none of either  *(designed — not yet in the compiler)*
-
-`rule:ide/one-server-two-thin-clients`
-
-`nvs-lsp` and `nvs-fmt` are the only place completion, hover, diagnostics, rename, go-to-definition
-and formatting are implemented. An editor client is a thin adapter: it starts the server or the
-formatter, translates its own editor's events into LSP requests, and renders what comes back. It
-decides nothing about the language — not what a name resolves to, not where a line breaks, not even
-which range is a `secret` ([`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server)).
-
-The reason is the same one that gives every fact one home in the documentation, applied to executable
-behaviour: two implementations of the formatting rules drift the first time one editor's plugin fixes a
-bug the other's has not, and the verification that both editors produce byte-identical diagnostics and
-formatted output for one file only holds while there is one implementation to agree with.
-
-The VS Code extension ([`ide/vscode-is-the-reference-client`](ide.md#ide-vscode-is-the-reference-client)) and the PhpStorm plugin
-([`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server)) are the two clients, and a dependency-allowlist test on
-the extension is what enforces "holds no language logic" rather than review.
-
-<sub>See also [`ide/vscode-is-the-reference-client`](ide.md#ide-vscode-is-the-reference-client), [`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server), [`ide/one-crate-and-one-extension-grow-in-place`](ide.md#ide-one-crate-and-one-extension-grow-in-place), [`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server), [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0016](../decisions/0016.md), [0040](../decisions/0040.md).</sub>
-
-<a id="ide-vscode-is-the-reference-client"></a>
-
-## The VS Code extension is a `vscode-languageclient` shell: it registers `.nvs`, colours from a TextMate grammar until the server answers, and routes everything else to `nvs lsp` and `nvs fmt`  *(designed — not yet in the compiler)*
-
-`rule:ide/vscode-is-the-reference-client`
-
-The VS Code extension is a standard `vscode-languageclient` package and the reference client. It
-registers the `nvs` language ID and the `.nvs` association ([`ide/nvs-is-its-own-file-type`](ide.md#ide-nvs-is-its-own-file-type)), a
-`language-configuration.json` for bracket matching, comment toggles, auto-closing pairs and indentation
-— PHP's, adjusted for `spawn script`, `type` aliases and the type-annotation syntax PHP lacks — and a
-TextMate grammar for the `<?nvs ?>` / `<?= ?>` plus inline-HTML lexer mode, so a file has correct-enough
-colour the moment it opens and before the server has parsed anything.
-
-It spawns `nvs lsp` from a configurable path setting, falling back to `PATH`, and layers LSP semantic
-tokens over the TextMate baseline once the server is live — the two-layer pattern rust-analyzer and
-Deno use. `editor.formatOnSave` and the format commands go to `textDocument/formatting` and
-`rangeFormatting` against `nvs-fmt`; `nvs run` and `nvs test` are VS Code Tasks and a "Run File"
-command. A `secret` value's bytes are concealed by default on ranges the server hands over, and
-`tainted` gets no default decoration ([`security/tainted-has-no-default-decoration`](security.md#security-tainted-has-no-default-decoration)).
-
-Nothing in that list is language logic ([`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients)). The concrete
-contribution roster — setting and command identifiers — is frozen elsewhere; this is the shape.
-
-<sub>See also [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/nvs-is-its-own-file-type`](ide.md#ide-nvs-is-its-own-file-type), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server), [`security/tainted-has-no-default-decoration`](security.md#security-tainted-has-no-default-decoration), [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0016](../decisions/0016.md), [0040](../decisions/0040.md), [0099](../decisions/0099.md).</sub>
-
-<a id="ide-nvs-is-its-own-file-type"></a>
-
-## `.nvs` is registered as its own language in every editor, activates nothing on `.php`, and is never handed to a PHP plugin  *(designed — not yet in the compiler)*
-
-`rule:ide/nvs-is-its-own-file-type`
-
-Every editor client registers `.nvs` as its own file type and language, distinct from whatever PHP
-support the editor bundles, and activates on nothing else — the VS Code extension does not activate on
-`.php`, and the PhpStorm plugin does not let PhpStorm's PHP plugin or a generic-text fallback claim a
-`.nvs` file.
-
-The registration is not polish. Without it PhpStorm's own PHP plugin may take the file, or a plain-text
-fallback will, and either failure looks to the user like "the plugin does not work" with no diagnostic
-pointing at the real cause. The verification for both clients is the same: opening a `.nvs` file
-invokes Novis's client and never the editor's PHP support.
-
-A Novis file is not a PHP file to the editor for the same reason it is not one to the compiler
-([`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag)): the grammar, the type syntax and the diagnostics are
-different enough that a PHP tool over the file would colour valid Novis as an error and valid PHP that
-Novis rejects as fine.
-
-<sub>See also [`ide/vscode-is-the-reference-client`](ide.md#ide-vscode-is-the-reference-client), [`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server), [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag). Decided in [0016](../decisions/0016.md), [0040](../decisions/0040.md).</sub>
-
-<a id="ide-phpstorm-bridges-to-the-same-server"></a>
-
-## PhpStorm drives the same `nvs lsp` and `nvs fmt` through JetBrains' LSP client, and builds no PSI tree, native refactoring or debugger UI until a later decision says so  *(designed — not yet in the compiler)*
-
-`rule:ide/phpstorm-bridges-to-the-same-server`
-
-The PhpStorm plugin drives the same `nvs lsp` binary the VS Code extension does, through JetBrains
-Platform's LSP client support — falling back to the community LSP4IJ plugin if the bundled API lacks a
-needed feature; which of the two is left to a concrete evaluation when the work starts. Completion,
-hover, diagnostics, rename and go-to-definition route through that bridge, and so does formatting:
-"Reformat Code" runs `nvs fmt`, and PhpStorm's native Formatter framework and Code Style settings page
-do not apply to `.nvs` files. That is the price of not forking the formatter into a second
-implementation ([`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients)), named up front.
-
-The plugin registers `.nvs` as its own file type ([`ide/nvs-is-its-own-file-type`](ide.md#ide-nvs-is-its-own-file-type)) and ships a
-TextMate-or-equivalent baseline grammar for the same instant-colour reason VS Code does.
-
-It explicitly does not build a native PSI tree, PhpStorm-grade refactoring beyond what the LSP `rename`
-request gives, structural search and replace, intention actions backed by its own inspector, or
-PhpStorm's native debugger UI ([`ide/the-debug-adapter-does-not-wait-for-an-editor`](ide.md#ide-the-debug-adapter-does-not-wait-for-an-editor)). Those are the
-real quality gap between an LSP bridge and PhpStorm's PHP support, and a full native plugin is a later,
-explicit decision if usage justifies it — kept open, not silently skipped, and not scheduled.
-
-<sub>See also [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/nvs-is-its-own-file-type`](ide.md#ide-nvs-is-its-own-file-type), [`ide/the-debug-adapter-does-not-wait-for-an-editor`](ide.md#ide-the-debug-adapter-does-not-wait-for-an-editor), [`ide/editor-clients-live-under-editors`](ide.md#ide-editor-clients-live-under-editors). Decided in [0016](../decisions/0016.md), [0040](../decisions/0040.md).</sub>
-
-<a id="ide-the-debug-adapter-does-not-wait-for-an-editor"></a>
-
-## `nvs dap` is complete without any editor's debugger UI; VS Code's wiring is a descriptor factory and a `launch.json` schema, and PhpStorm's stays deferred  *(designed — not yet in the compiler)*
-
-`rule:ide/the-debug-adapter-does-not-wait-for-an-editor`
-
-`nvs dap` — the debug adapter, using safepoints for breakpoints ([`testing/debug-probes`](testing.md#testing-debug-probes)) — is a
-complete, testable deliverable on its own. A working adapter and a working debugger UI in a given editor
-are two different integrations, the same way a language server and a syntax-highlighting extension are,
-so a stalled or under-scoped editor integration cannot block the adapter from shipping and being useful
-to a CLI-driven client or a third editor.
-
-For VS Code the editor-side wiring is small and lands with the adapter: a `DebugAdapterDescriptorFactory`
-and a `launch.json` configuration schema targeting `nvs dap`. DAP is a wire protocol, and VS Code
-already renders breakpoints, call stack, variables and watches for any adapter that speaks it, so the
-extension authors no debugger UI — the acceptance is a breakpoint set in VS Code's UI hitting in
-JIT-compiled code with correct variable values, through the descriptor factory and schema alone
-([`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has)). How deep that UI goes is the adapter's
-capability set, not the extension's.
-
-PhpStorm's `XDebugger` UI wired to a DAP backend stays deferred ([`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server)).
-The two clients are deliberately asymmetric here; a future PhpStorm-depth pass has to address or
-explicitly accept that.
-
-<sub>See also [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server), [`testing/debug-probes`](testing.md#testing-debug-probes), [`ide/the-debugger-ui-is-as-deep-as-the-adapter`](ide.md#ide-the-debugger-ui-is-as-deep-as-the-adapter). Decided in [0016](../decisions/0016.md), [0040](../decisions/0040.md).</sub>
-
-<a id="ide-editor-clients-live-under-editors"></a>
-
-## An editor client lives under `editors/<editor>`, outside the Cargo workspace, and is created when its milestone starts rather than scaffolded ahead of it  *(designed — not yet in the compiler)*
-
-`rule:ide/editor-clients-live-under-editors`
-
-The editor clients sit at the repository root, beside `crates/` and outside the Rust workspace:
-
-```
-editors/
-  vscode/      TextMate grammar, language-configuration.json, LSP client extension
-  phpstorm/    file-type registration, LSP-bridge plugin (Kotlin/Gradle)
-```
-
-Neither is a Cargo crate — the VS Code extension is TypeScript and Node tooling, the PhpStorm plugin is
-Kotlin, Gradle and the IntelliJ Platform SDK — so neither is governed by the workspace `Cargo.toml`, and
-each brings a build toolchain (`npm`/`vsce`, Gradle) that is a genuinely new kind of CI job next to
-everything `cargo` builds. `tools/verify.py` runs the extension's headless suites last, for that reason,
-and treats the directory being absent as a real state rather than an error.
-
-A directory is created when its milestone starts, never scaffolded empty ahead of it — the rule every
-crate already follows. The VS Code package and the server crate that back it are then the only ones
-there will be ([`ide/one-crate-and-one-extension-grow-in-place`](ide.md#ide-one-crate-and-one-extension-grow-in-place)).
-
-<sub>See also [`ide/one-crate-and-one-extension-grow-in-place`](ide.md#ide-one-crate-and-one-extension-grow-in-place), [`ide/vscode-is-the-reference-client`](ide.md#ide-vscode-is-the-reference-client), [`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server). Decided in [0016](../decisions/0016.md), [0040](../decisions/0040.md).</sub>
-
 <a id="ide-the-first-server-answers-a-closed-list"></a>
 
 ## The first `nvs lsp` answers six requests and two code actions, and nothing else until the workspace index exists  *(designed — not yet in the compiler)*
@@ -821,50 +297,6 @@ action beyond the two. Everything else waits for its dependency
 ([`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency)).
 
 <sub>See also [`ide/one-crate-and-one-extension-grow-in-place`](ide.md#ide-one-crate-and-one-extension-grow-in-place), [`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error), [`ide/a-quick-fix-is-a-diagnostics-own-suggestion`](ide.md#ide-a-quick-fix-is-a-diagnostics-own-suggestion), [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`ide/the-server-is-synchronous`](ide.md#ide-the-server-is-synchronous), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index). Decided in [0040](../decisions/0040.md), [0099](../decisions/0099.md).</sub>
-
-<a id="ide-one-crate-and-one-extension-grow-in-place"></a>
-
-## `nvs-lsp` and `editors/vscode` are one crate and one package that grow in place; no prototype is built to be discarded  *(designed — not yet in the compiler)*
-
-`rule:ide/one-crate-and-one-extension-grow-in-place`
-
-`crates/nvs-lsp` and `editors/vscode` are one crate and one package across every milestone that touches
-them. The first, minimal server and extension are the same files the deep half later extends in place;
-nothing stands up a second "real" implementation next to a throwaway first one, and nothing is built
-to be discarded.
-
-Two implementations of the same client-server pair drift and duplicate work — the identical reasoning
-[`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients) applies to formatting and language smarts, applied to the editor
-packages themselves. The cost is the ordinary one of any early-shipped surface: the minimal server and
-extension have to be kept building and passing through the milestones between, even while nothing in
-those milestones depends on them.
-
-<sub>See also [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/the-first-server-answers-a-closed-list`](ide.md#ide-the-first-server-answers-a-closed-list), [`ide/editor-clients-live-under-editors`](ide.md#ide-editor-clients-live-under-editors). Decided in [0040](../decisions/0040.md), [0016](../decisions/0016.md).</sub>
-
-<a id="ide-the-tree-survives-a-syntax-error"></a>
-
-## The parser always returns a tree, a node it invented says so, and an offset maps to the innermost node even inside a malformed region  *(designed — not yet in the compiler)*
-
-`rule:ide/the-tree-survives-a-syntax-error`
-
-A live editor spends most of its time on a syntactically invalid document — mid-statement, an unclosed
-brace, a half-typed identifier — so completion and hover that go dark on the first error rarely work
-when they matter. The parser therefore never fails to produce a tree: every `parse_*` returns a node
-rather than a `Result`, a missing token is reported at the empty span where it should have been without
-consuming what follows, and `$u->` with nothing after it parses to a property access whose name was
-synthesized at the cursor.
-
-Recovery is explicit, never inferred. A node the parser invented says so — `MemberName::Missing`, a span
-on `ExprKind::Error` naming what it stood in for — because completion's whole behaviour turns on telling
-a name the user wrote from one the parser made up at the cursor, and an empty span cannot carry that.
-
-One walk builds a `SyntaxIndex` answering "the innermost node at this byte offset, and its ancestors",
-so the server maps a cursor back to a syntax node even inside a malformed region, with no second
-position-mapping mechanism. The test is direct: an unclosed brace or a trailing `->` does not stop
-completion on the well-formed code around it. What this gives up is incremental reparse — every analysis
-reparses the document — and a latency bound keeps that a measured trade.
-
-<sub>See also [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/the-first-server-answers-a-closed-list`](ide.md#ide-the-first-server-answers-a-closed-list), [`ide/a-quick-fix-is-a-diagnostics-own-suggestion`](ide.md#ide-a-quick-fix-is-a-diagnostics-own-suggestion), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0040](../decisions/0040.md), [0099](../decisions/0099.md).</sub>
 
 <a id="ide-every-feature-is-staged-behind-its-dependency"></a>
 
@@ -896,249 +328,30 @@ per-framework module enters `nvs-lsp`.
 
 <sub>See also [`ide/the-first-server-answers-a-closed-list`](ide.md#ide-the-first-server-answers-a-closed-list), [`ide/a-quick-fix-is-a-diagnostics-own-suggestion`](ide.md#ide-a-quick-fix-is-a-diagnostics-own-suggestion), [`ide/no-refactoring-introduces-an-alias`](ide.md#ide-no-refactoring-introduces-an-alias), [`ide/the-ast-panel-shells-out-to-the-cli`](ide.md#ide-the-ast-panel-shells-out-to-the-cli), [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/the-debug-adapter-does-not-wait-for-an-editor`](ide.md#ide-the-debug-adapter-does-not-wait-for-an-editor), [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index), [`ide/completion-offers-only-what-the-compiler-derived`](ide.md#ide-completion-offers-only-what-the-compiler-derived), [`ide/a-template-region-gets-services-but-no-second-formatter`](ide.md#ide-a-template-region-gets-services-but-no-second-formatter), [`ide/ast-json-schema-is-frozen`](ide.md#ide-ast-json-schema-is-frozen). Decided in [0040](../decisions/0040.md), [0016](../decisions/0016.md), [0099](../decisions/0099.md), [0108](../decisions/0108.md).</sub>
 
-<a id="ide-a-quick-fix-is-a-diagnostics-own-suggestion"></a>
+<a id="ide-diagnostics-are-phase-gated"></a>
 
-## An inspection is a code action backed by a diagnostic the checker emits, runs on the resilient tree, and is off by default under `source.fixAll.nvs` so it composes with format-on-save while `nvs fmt` stays layout-only  *(designed — not yet in the compiler)*
+## A file with a lexer or parser diagnostic publishes those and its declaration diagnostics, and suppresses its own resolution and type diagnostics  *(designed — not yet in the compiler)*
 
-`rule:ide/a-quick-fix-is-a-diagnostics-own-suggestion`
+`rule:ide/diagnostics-are-phase-gated`
 
-An inspection is an LSP code action, and every one is backed by a diagnostic the checker emits: a casing
-violation offers the `camelCase`/`PascalCase` rename ([`core-api/identifier-casing`](core-api.md#core-api-identifier-casing)); a legacy
-`(int)$x` offers `$x as int` ([`types/no-legacy-cast`](types.md#types-no-legacy-cast)); a missing constructor property assignment
-offers to add it ([`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization)); `include` and `require_once` offer
-`require` ([`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct)); a `tainted` or `secret` value at
-a refusing sink offers the laundering call the diagnostic already names
-([`security/tainted-qualifier`](security.md#security-tainted-qualifier)), a mis-ordered `tainted secret string` included; and a `#[Route]`
-missing its `path` offers the derived one ([`routing/a-quick-fix-writes-a-derived-path`](routing.md#routing-a-quick-fix-writes-a-derived-path)). Each is a
-suggestion the developer applies deliberately.
+The front end runs parse → declarations → resolution → types with no gate between the phases, bailing
+only after the type check. In batch mode that is right: you read the first error and the process exits. In
+an editor it is not — resolution running over an `ExprKind::Error` node reports `E0301` ("assigned to but
+never declared") *above* the `E0102` that caused it, and on every keystroke mid-statement that is a wall of
+red whose topmost entry is wrong, which teaches a developer to stop reading the squiggles.
 
-They run against the resilient tree ([`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error)), not a successful
-parse: a mis-ordered qualifier, a legacy cast and a `var $x` property are parse or declaration errors,
-so a fix that fired only on a clean parse would never fire on the file that needs it.
+So, expressible because the code bands are allocated by phase: **a file that has produced a lexer
+(`E00xx`) or parser (`E01xx`) diagnostic publishes those and its declaration diagnostics, and suppresses
+resolution (`E03xx`) and type (`E04xx`) diagnostics for that file only.** Not for the workspace, and not
+for the phases below the failure: the other files in the graph keep their own diagnostics, because a
+broken buffer in one tab is not a reason to go dark in another.
 
-They are off by default and composable with format-on-save. The extension registers them under
-`source.fixAll.nvs`, which VS Code runs through `editor.codeActionsOnSave` independently of
-`editor.formatOnSave`, so a developer who opts in gets layout and fixes on one keystroke while `nvs fmt`
-itself stays layout-only and `nvs fmt --check` fails for exactly one reason. PhpStorm's Reformat Code
-dialog, with its per-action checkboxes, is the same composition through a different client.
+This is presentation, not analysis. The checker still runs and `nvs check` is untouched, so no diagnostic
+is lost anywhere one was reaching a human before. The suppression is one-directional — a resolution error
+never suppresses a type error, because those two do not cascade the way a parse failure into everything
+below it does. A `.lspt` case pins it in both directions, with `phase=all` defeating the gate.
 
-<sub>See also [`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error), [`ide/the-first-server-answers-a-closed-list`](ide.md#ide-the-first-server-answers-a-closed-list), [`routing/a-quick-fix-writes-a-derived-path`](routing.md#routing-a-quick-fix-writes-a-derived-path), [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined). Decided in [0040](../decisions/0040.md), [0039](../decisions/0039.md), [0099](../decisions/0099.md).</sub>
-
-<a id="ide-no-refactoring-introduces-an-alias"></a>
-
-## Rename, organize-imports and auto-import never write a `use` alias: an import inserts the fully-qualified name, and organize-imports only reorders and removes  *(designed — not yet in the compiler)*
-
-`rule:ide/no-refactoring-introduces-an-alias`
-
-The refactorings are LSP requests — workspace-wide rename, extract to method or variable, and
-organize-imports — and the deeper completion is signature help, cross-file symbol search, auto-import,
-and inlay hints for `var`-inferred types ([`types/var-inference`](types.md#types-var-inference)) and call-site parameter names.
-
-None of them writes an alias. Organize-imports is restricted to reordering and removing unused `use`
-statements; auto-import inserts the correct fully-qualified name and nothing else. An editor that
-resolved a clash with `use Foo as Bar` would be inventing a spelling the language does not have
-([`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name)), and a second name introduced by tooling is exactly as
-much a second name as one typed by hand.
-
-<sub>See also [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`types/var-inference`](types.md#types-var-inference), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index). Decided in [0040](../decisions/0040.md).</sub>
-
-<a id="ide-the-ast-panel-shells-out-to-the-cli"></a>
-
-## The AST panel renders `nvs ast --json` for the active file, on the resilient tree by default, and never runs `Core\Ast`  *(designed — not yet in the compiler)*
-
-`rule:ide/the-ast-panel-shells-out-to-the-cli`
-
-The AST explorer panel renders `nvs ast --json` for the active file as a tree view — the resilient tree
-by default, so the panel works on a file that does not compile. `nvs ast` ships the `--json` flag with a
-frozen schema for that purpose; the `{stmts:#?}` debug print has no stability contract and is not what
-the panel reads.
-
-It does not use `Core\Ast` ([`core-classes/ast-is-inert`](core-classes.md#core-classes-ast-is-inert)). That is the language-level reflective
-parse a running Novis program calls; the editor panel is simpler and shells out to the CLI, the same way
-`nvs check` backs diagnostics. Both read the one tree there is ([`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree)), so the
-panel and the compiler cannot disagree about a file's shape.
-
-<sub>See also [`core-classes/ast-is-inert`](core-classes.md#core-classes-ast-is-inert), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error), [`ide/ast-json-schema-is-frozen`](ide.md#ide-ast-json-schema-is-frozen). Decided in [0040](../decisions/0040.md), [0099](../decisions/0099.md).</sub>
-
-<a id="ide-the-extension-builds-no-ui-the-editor-already-has"></a>
-
-## Coverage, server health, profiles and the debugger reach the editor through its own APIs and open formats — `FileCoverage`, `LanguageStatusItem`, DAP's UI, speedscope — and the extension builds none of them  *(designed — not yet in the compiler)*
-
-`rule:ide/the-extension-builds-no-ui-the-editor-already-has`
-
-Where the editor or an open format already renders something, the extension feeds it and draws nothing
-of its own. Four surfaces follow that rule. Server health and version are a `LanguageStatusItem`, the
-API VS Code sanctions for it, not a hand-rolled status-bar item. Coverage flows through VS Code's
-finalized Testing API and its `FileCoverage` model — per-file statement, branch and declaration counts
-from the Clover/lcov exporters `nvs test` already produces ([`testing/debug-probes`](testing.md#testing-debug-probes),
-[`testing/report-formats`](testing.md#testing-report-formats)) — and VS Code's own gutter and summary UI shows it; no gutter renderer
-is written. A profile from `nvs run --profile` is emitted in the open speedscope JSON format, and a
-"View Profile" command opens it in speedscope.app or an embedded webview that speaks the same format,
-because VS Code's built-in flame chart is V8-specific and no bespoke flamegraph is built. The debugger
-is DAP's existing UI over `nvs dap` ([`ide/the-debug-adapter-does-not-wait-for-an-editor`](ide.md#ide-the-debug-adapter-does-not-wait-for-an-editor)).
-
-That is four pieces of UI infrastructure Novis neither builds nor maintains, which is the simplicity
-priority applied directly. The extension's own code is the descriptor factory, the schema contribution,
-the test provider and the command that hands a file to a viewer.
-
-<sub>See also [`ide/the-debug-adapter-does-not-wait-for-an-editor`](ide.md#ide-the-debug-adapter-does-not-wait-for-an-editor), [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/report-formats`](testing.md#testing-report-formats), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`ide/the-debugger-ui-is-as-deep-as-the-adapter`](ide.md#ide-the-debugger-ui-is-as-deep-as-the-adapter). Decided in [0040](../decisions/0040.md).</sub>
-
-<a id="ide-five-features-are-one-reference-index"></a>
-
-## Find-references, occurrence highlight, CodeLens, type hierarchy and unused-member dimming are five queries against one workspace index  *(designed — not yet in the compiler)*
-
-`rule:ide/five-features-are-one-reference-index`
-
-`nvs-lsp` builds one workspace symbol index, and five features are each one query against it — none
-gets a walk of its own. `textDocument/references` is the index's read side. `textDocument/documentHighlight`
-is the same query narrowed to the open file, which is why it waits for the index rather than shipping
-earlier: it needs resolution applied to every occurrence, not to one. CodeLens above a declaration shows
-the reference count, a type's implementors, and the methods a method overrides and is overridden by; it is
-gated on `nvs.codeLens.enable` (default `true`), because a lens is a request per visible declaration and a
-large file is where it is least welcome. `textDocument/typeHierarchy` shows supertypes and subtypes,
-including [`classes/interface-default-methods`](classes.md#classes-interface-default-methods) and [`classes/delegation-by-field`](classes.md#classes-delegation-by-field), which is
-where a reader most needs to see the shape rather than reconstruct it.
-
-The fifth is **unused-member dimming**: a private member, constant or `use` with no reference anywhere in
-the index is a diagnostic carrying LSP's `Unnecessary` tag, rendered as dimming rather than a squiggle.
-It is only correct at workspace scope — a symbol unused in the open buffer is not unused — so it is
-silent under the default of [`ide/check-scope-defaults-to-open-documents`](ide.md#ide-check-scope-defaults-to-open-documents) rather than wrong.
-
-Call hierarchy is deliberately not in this list. `textDocument/callHierarchy` is a different index —
-call-site edges kept incrementally — and nothing else needs it, so it is not built.
-
-The structural check is that `nvs-lsp` has exactly one symbol-index construction site and all five
-readers read it.
-
-<sub>See also [`ide/check-scope-defaults-to-open-documents`](ide.md#ide-check-scope-defaults-to-open-documents), [`classes/no-traits`](classes.md#classes-no-traits), [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0108](../decisions/0108.md).</sub>
-
-<a id="ide-completion-offers-only-what-the-compiler-derived"></a>
-
-## The editor completes a value only where the compiler already derives it for another reason, never from a convention scan, an annotation dialect or the network  *(designed — not yet in the compiler)*
-
-`rule:ide/completion-offers-only-what-the-compiler-derived`
-
-`nvs-lsp` contains no framework-specific module, no annotation dialect, no convention scan and no
-directory-layout knowledge. It offers a **value** in a completion list only where the compiler already
-derives that value for another reason, and it reaches it through the same table that other reason uses.
-This is the whole of Novis's answer to "framework support", and it is a closed rule, not a starting
-point.
-
-What that admits: route names and their parameters, from the route table
-[`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered) builds while compiling — the same table
-[`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked) checks a link against; configuration directives in
-`nvs.toml` and every file `[[include]]` pulls in, from the closed registry the runtime validates against
-([`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one)), so completion, hover with type and
-default, and "no such directive" are three readings of one registry, and `[[include]]`'s `path` and `dir`
-complete as paths — scoped to the workspace's config tree, never to every TOML file; `#[Api]` fields and
-every attribute's shape literal, which is a declared type; and enum cases, members off a resolved receiver
-and in-scope variables, which are the same rule and not an exception to it.
-
-What it refuses has no subject rather than being declined: ORM columns (a codec's fields are declared
-properties, already reached as members), service-container and facade resolution (constructor injection
-is resolved while compiling, so go-to-definition already goes there), and view-name completion
-([`programs/first-party-framework`](programs.md#programs-first-party-framework) makes the view layer the language). A vendor annotation dialect or
-an `ide.json`-style patch file is refused outright as a second, unchecked description of the program's
-shape — the failure [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table) refuses for API
-documents. And **the language server makes no network request**: a lockfile on disk may be read, a
-remote index may not be consulted.
-
-One thing offered is not a *value*: a PHP built-in's name, admitted as a candidate from an audited table
-and bounded on the insert side by [`ide/three-of-four-item-shapes-insert-nothing`](ide.md#ide-three-of-four-item-shapes-insert-nothing).
-
-A test, not review, enforces this: `nvs-lsp`'s completion sources are enumerated, and each must name a
-table the compiler builds for another reason.
-
-<sub>See also [`ide/three-of-four-item-shapes-insert-nothing`](ide.md#ide-three-of-four-item-shapes-insert-nothing), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked), [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table), [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`php-migration/every-php-builtin-is-a-completion-candidate`](php-migration.md#php-migration-every-php-builtin-is-a-completion-candidate), [`php-migration/an-item-inserts-only-a-registered-member`](php-migration.md#php-migration-an-item-inserts-only-a-registered-member). Decided in [0108](../decisions/0108.md), [0111](../decisions/0111.md).</sub>
-
-<a id="ide-a-template-region-gets-services-but-no-second-formatter"></a>
-
-## An inline-HTML region gets the editor's own HTML, CSS and JavaScript services on boundaries the server reports, and no formatter beside `nvs fmt`  *(designed — not yet in the compiler)*
-
-`rule:ide/a-template-region-gets-services-but-no-second-formatter`
-
-The extension forwards requests inside an inline-HTML region to VS Code's built-in HTML, CSS and
-JavaScript language services, so the half of a `.nvs` file that is markup gets Emmet expansion, tag
-closing and renaming, the colour picker, hover and validation. Since
-[`programs/first-party-framework`](programs.md#programs-first-party-framework) makes inline HTML the template engine, that region is where a web
-application's markup is written, not an edge case.
-
-**The region list comes from the server**, as one request of Novis's own, `nvs/regions`, beside
-`nvs/redactions`. The lexer already knows where a mode ends; the client does not re-derive it from a
-grammar, for the reason [`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server) gives for redaction
-ranges — a client that guesses is a second implementation of the lexer. Forwarding a request to a service
-the extension did not write is not language logic in the client.
-
-**Formatting is excluded, and this is the load-bearing half.** The embedded services are not registered as
-formatting providers, and `editor.formatOnSave` in a `.nvs` file runs `nvs fmt` over the whole file and
-nothing else. A second, configurable formatter inside a file whose formatter is unconfigurable by
-decision would make `nvs fmt --check` fail for a second reason. `nvs fmt` treats an inline-HTML region as
-any other span it does not reflow, so formatting a `.nvs` file with markup in it is byte-identical to
-`nvs fmt`.
-
-`nvs.template.services` (default `true`) disables the forwarding, because a user with their own HTML
-tooling has to be able to get out of the way of ours.
-
-<sub>See also [`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server), [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0108](../decisions/0108.md).</sub>
-
-<a id="ide-a-code-action-writes-only-what-is-already-determined"></a>
-
-## A code action that writes may write only text the type system has already fully determined, and never makes a choice  *(designed — not yet in the compiler)*
-
-`rule:ide/a-code-action-writes-only-what-is-already-determined`
-
-Four code actions **write** rather than fix, and one bound governs all of them: an action may write only
-text the type system has already fully determined. It never invents a body, never names a parameter from a
-heuristic, and never picks between two possible signatures. Anything needing a choice is a refactoring
-the user drives, not an action a light bulb offers.
-
-The four: **implement missing members** — on a class that does not satisfy an interface or abstract
-base, insert every missing method and property with the signature copied from the declaration,
-[`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling) markers and qualifiers intact, and a body that
-throws; **override a method** — a picker over the hierarchy's overridable members, inserting the chosen
-signatures with a call to the base where one exists; **declare the function you just called** — on the
-unresolved-call diagnostic, insert a declaration whose parameter types are the argument types at the call
-and whose return type is the one the context requires, both already computed to produce the diagnostic;
-and **narrow an `array<mixed>` to its literal's type**
-([`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal)), which writes an annotation rather than a declaration
-under the same bound.
-
-Applying a generator produces text that compiles, and applying it twice is a no-op.
-
-**Getter/setter generation is refused** under this bound and under [`classes/property-observer`](classes.md#classes-property-observer):
-property hooks mean the pair of methods that action exists to save typing has no reason to be written.
-Code snippets are refused for a neighbouring reason — a snippet body is a second copy of a syntactic shape
-the grammar already owns, silently stale after a grammar change.
-
-<sub>See also [`ide/narrowing-is-a-diff-never-a-save-time-fix`](ide.md#ide-narrowing-is-a-diff-never-a-save-time-fix), [`classes/property-observer`](classes.md#classes-property-observer), [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling), [`routing/a-quick-fix-writes-a-derived-path`](routing.md#routing-a-quick-fix-writes-a-derived-path), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0108](../decisions/0108.md), [0114](../decisions/0114.md).</sub>
-
-<a id="ide-the-debugger-ui-is-as-deep-as-the-adapter"></a>
-
-## The debugger UI is only as deep as the capabilities `nvs dap` reports, so the adapter's capability list is the debugger's scope  *(designed — not yet in the compiler)*
-
-`rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`
-
-`nvs dap` is wired into VS Code's existing debugger UI, and every feature below renders in a UI that
-already exists — it appears only if the adapter reports the corresponding capability at `initialize`. The
-adapter's capability list is therefore the debugger's scope, and it is this:
-
-- **Conditional breakpoints, hit counts and logpoints** — `supportsConditionalBreakpoints`,
-  `supportsHitConditionalBreakpoints`, `supportsLogPoints`. A logpoint that does not stop the program is
-  the debugging most users actually do.
-- **Exception filters** — `exceptionBreakpointFilters`, so "break on uncaught" and "break on thrown" are
-  separate switches. [`errors/escalation-ladder`](errors.md#errors-escalation-ladder)'s single `Throwable` channel is what makes this two
-  filters rather than PHP's five categories.
-- **Stepping exclusions** — a `launch.json` glob list, so stepping does not descend into package code and
-  a handled throw inside it does not stop the session.
-- **Path mappings**, because the container case is the normal case: the file the adapter reports and the
-  file in the editor differ whenever the program runs anywhere but the workspace root.
-- **The value a function just returned**, in the variables pane after stepping out.
-- **A `spawn`ed isolate is a DAP thread** — the standard presentation, needing no protocol extension. The
-  *tree* of isolates would need one and is not built.
-
-A fixture session exercises each of these, and `nvs dap` reports each capability at `initialize`.
-
-<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0108](../decisions/0108.md).</sub>
+<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/a-request-line-is-closed`](ide.md#ide-a-request-line-is-closed). Decided in [0099](../decisions/0099.md).</sub>
 
 <a id="ide-check-json-is-the-diagnostic-record-as-a-document"></a>
 
@@ -1182,54 +395,100 @@ added to the extension's frozen roster under that roster's own rule: a name is a
 
 <sub>See also [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index), [`ide/check-json-is-the-diagnostic-record-as-a-document`](ide.md#ide-check-json-is-the-diagnostic-record-as-a-document), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0108](../decisions/0108.md).</sub>
 
-<a id="ide-the-extension-is-a-workspace-extension"></a>
+<a id="ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows"></a>
 
-## The extension declares itself a workspace extension, because `nvs lsp` must be the binary next to the code  *(designed — not yet in the compiler)*
+## A code action ships only where its replacement text is already in a diagnostic's suggestions — two at M4B, and no other  *(designed — not yet in the compiler)*
 
-`rule:ide/the-extension-is-a-workspace-extension`
+`rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`
 
-The extension's `package.json` declares `extensionKind: ["workspace"]`. It spawns `nvs lsp`, which must
-be the binary next to the code — in a WSL distro, over SSH, or inside a devcontainer — and a workspace
-extension runs where the code is rather than where the editor's window is.
+M4B ships two code actions and only two: the casing fix ([`core-api/identifier-casing`](core-api.md#core-api-identifier-casing)) and the
+legacy-cast fix `(int)$x` → `$x as int` ([`types/no-legacy-cast`](types.md#types-no-legacy-cast)). They are admitted for one reason,
+and it is not that they are useful: their replacement text is already computed, sitting in the
+`Diagnostic::suggestions` field `nvs-diagnostics` has carried since M0. The provider is a translation from
+`Suggestion` to `CodeAction` — a dozen lines and no new analysis.
 
-That one line is the difference between working in every remote configuration and failing in all of
-them with a message about `nvs` not being on `PATH`. The same contributions test that checks the frozen
-identifiers asserts it.
+The boundary is exactly that. A quick fix whose replacement a diagnostic already knows may ship; one that
+would need the checker to compute something new is M10's. Both are registered under `source.fixAll.nvs`
+so `editor.codeActionsOnSave` composes them with format-on-save when that arrives.
 
-<sub>See also [`ide/check-scope-defaults-to-open-documents`](ide.md#ide-check-scope-defaults-to-open-documents), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0108](../decisions/0108.md).</sub>
+<sub>See also [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0099](../decisions/0099.md), [0040](../decisions/0040.md).</sub>
 
-<a id="ide-three-of-four-item-shapes-insert-nothing"></a>
+<a id="ide-a-quick-fix-is-a-diagnostics-own-suggestion"></a>
 
-## A PHP-name completion item takes one of four shapes, and three of them insert nothing  *(designed — not yet in the compiler)*
+## An inspection is a code action backed by a diagnostic the checker emits, runs on the resilient tree, and is off by default under `source.fixAll.nvs` so it composes with format-on-save while `nvs fmt` stays layout-only  *(designed — not yet in the compiler)*
 
-`rule:ide/three-of-four-item-shapes-insert-nothing`
+`rule:ide/a-quick-fix-is-a-diagnostics-own-suggestion`
 
-A PHP built-in's name typed at a top-level identifier position completes to an item shaped by the
-migration table's outcome for that name and by whether its destination is registered in `Core`. Four
-shapes, and three insert nothing:
+An inspection is an LSP code action, and every one is backed by a diagnostic the checker emits: a casing
+violation offers the `camelCase`/`PascalCase` rename ([`core-api/identifier-casing`](core-api.md#core-api-identifier-casing)); a legacy
+`(int)$x` offers `$x as int` ([`types/no-legacy-cast`](types.md#types-no-legacy-cast)); a missing constructor property assignment
+offers to add it ([`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization)); `include` and `require_once` offer
+`require` ([`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct)); a `tainted` or `secret` value at
+a refusing sink offers the laundering call the diagnostic already names
+([`security/tainted-qualifier`](security.md#security-tainted-qualifier)), a mis-ordered `tainted secret string` included; and a `#[Route]`
+missing its `path` offers the derived one ([`routing/a-quick-fix-writes-a-derived-path`](routing.md#routing-a-quick-fix-writes-a-derived-path)). Each is a
+suggestion the developer applies deliberately.
 
-| Row | Item |
-|---|---|
-| `member` or `language`, destination registered | inserts it, with the signature the registry holds |
-| `member` or `language`, destination not registered | appears, names the milestone, inserts nothing |
-| `dropped` | appears, gives the row's reason and rewrite, inserts nothing |
-| `open`, or no row at all | appears, says undecided, inserts nothing |
+They run against the resilient tree ([`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error)), not a successful
+parse: a mis-ordered qualifier, a legacy cast and a `var $x` property are parse or declaration errors,
+so a fix that fired only on a clean parse would never fire on the file that needs it.
 
-A missing row and an `open` row are one case, exactly as `check-migration.py` treats them. "Inserts
-nothing" is asserted as the absence of an edit, not as an empty string.
+They are off by default and composable with format-on-save. The extension registers them under
+`source.fixAll.nvs`, which VS Code runs through `editor.codeActionsOnSave` independently of
+`editor.formatOnSave`, so a developer who opts in gets layout and fixes on one keystroke while `nvs fmt`
+itself stays layout-only and `nvs fmt --check` fails for exactly one reason. PhpStorm's Reformat Code
+dialog, with its per-action checkboxes, is the same composition through a different client.
 
-A row whose cell names more than one destination is prose the converter may not guess at, and is a
-genuine ambiguity there. It is not one here: completion has a person in the loop, so such a row becomes
-one item per destination and the developer picks. This is the single place the editor may offer more than
-the converter, and it follows from the human, not from a better table; the converter's own tier for that
-row is unchanged.
+<sub>See also [`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error), [`ide/the-first-server-answers-a-closed-list`](ide.md#ide-the-first-server-answers-a-closed-list), [`routing/a-quick-fix-writes-a-derived-path`](routing.md#routing-a-quick-fix-writes-a-derived-path), [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined). Decided in [0040](../decisions/0040.md), [0039](../decisions/0039.md), [0099](../decisions/0099.md).</sub>
 
-The shape table is what keeps this layer inside [`ide/completion-offers-only-what-the-compiler-derived`](ide.md#ide-completion-offers-only-what-the-compiler-derived)
-rather than beside it: a *name* may come from an audited table, but the text an editor types on a
-developer's behalf still comes only from something the compiler can resolve. The PHP spelling never
-reaches a file, which is what [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name) requires of it.
+<a id="ide-a-code-action-writes-only-what-is-already-determined"></a>
 
-<sub>See also [`ide/completion-offers-only-what-the-compiler-derived`](ide.md#ide-completion-offers-only-what-the-compiler-derived), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes), [`php-migration/every-php-builtin-is-a-completion-candidate`](php-migration.md#php-migration-every-php-builtin-is-a-completion-candidate), [`php-migration/an-item-inserts-only-a-registered-member`](php-migration.md#php-migration-an-item-inserts-only-a-registered-member), [`php-migration/completion-php-names-setting`](php-migration.md#php-migration-completion-php-names-setting). Decided in [0111](../decisions/0111.md), [0108](../decisions/0108.md).</sub>
+## A code action that writes may write only text the type system has already fully determined, and never makes a choice  *(designed — not yet in the compiler)*
+
+`rule:ide/a-code-action-writes-only-what-is-already-determined`
+
+Four code actions **write** rather than fix, and one bound governs all of them: an action may write only
+text the type system has already fully determined. It never invents a body, never names a parameter from a
+heuristic, and never picks between two possible signatures. Anything needing a choice is a refactoring
+the user drives, not an action a light bulb offers.
+
+The four: **implement missing members** — on a class that does not satisfy an interface or abstract
+base, insert every missing method and property with the signature copied from the declaration,
+[`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling) markers and qualifiers intact, and a body that
+throws; **override a method** — a picker over the hierarchy's overridable members, inserting the chosen
+signatures with a call to the base where one exists; **declare the function you just called** — on the
+unresolved-call diagnostic, insert a declaration whose parameter types are the argument types at the call
+and whose return type is the one the context requires, both already computed to produce the diagnostic;
+and **narrow an `array<mixed>` to its literal's type**
+([`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal)), which writes an annotation rather than a declaration
+under the same bound.
+
+Applying a generator produces text that compiles, and applying it twice is a no-op.
+
+**Getter/setter generation is refused** under this bound and under [`classes/property-observer`](classes.md#classes-property-observer):
+property hooks mean the pair of methods that action exists to save typing has no reason to be written.
+Code snippets are refused for a neighbouring reason — a snippet body is a second copy of a syntactic shape
+the grammar already owns, silently stale after a grammar change.
+
+<sub>See also [`ide/narrowing-is-a-diff-never-a-save-time-fix`](ide.md#ide-narrowing-is-a-diff-never-a-save-time-fix), [`classes/property-observer`](classes.md#classes-property-observer), [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling), [`routing/a-quick-fix-writes-a-derived-path`](routing.md#routing-a-quick-fix-writes-a-derived-path), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0108](../decisions/0108.md), [0114](../decisions/0114.md).</sub>
+
+<a id="ide-no-refactoring-introduces-an-alias"></a>
+
+## Rename, organize-imports and auto-import never write a `use` alias: an import inserts the fully-qualified name, and organize-imports only reorders and removes  *(designed — not yet in the compiler)*
+
+`rule:ide/no-refactoring-introduces-an-alias`
+
+The refactorings are LSP requests — workspace-wide rename, extract to method or variable, and
+organize-imports — and the deeper completion is signature help, cross-file symbol search, auto-import,
+and inlay hints for `var`-inferred types ([`types/var-inference`](types.md#types-var-inference)) and call-site parameter names.
+
+None of them writes an alias. Organize-imports is restricted to reordering and removing unused `use`
+statements; auto-import inserts the correct fully-qualified name and nothing else. An editor that
+resolved a clash with `use Foo as Bar` would be inventing a spelling the language does not have
+([`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name)), and a second name introduced by tooling is exactly as
+much a second name as one typed by hand.
+
+<sub>See also [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`types/var-inference`](types.md#types-var-inference), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index). Decided in [0040](../decisions/0040.md).</sub>
 
 <a id="ide-narrow-an-annotation-to-its-literal"></a>
 
@@ -1378,3 +637,744 @@ throws. Nothing is spent per request, and no memory beyond one more interned des
 did not already have that type.
 
 <sub>See also [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined), [`types/arrays`](types.md#types-arrays), [`types/conversion`](types.md#types-conversion), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0114](../decisions/0114.md), [0007](../decisions/0007.md).</sub>
+
+<a id="ide-highlighting-is-two-layers"></a>
+
+## Syntax highlighting is a TextMate grammar and a semantic-token provider, each with its own test, and each must cover what makes Novis not PHP  *(designed — not yet in the compiler)*
+
+`rule:ide/highlighting-is-two-layers`
+
+"Colour" is two deliverables because the two layers fail differently: the grammar has to be right before
+the server has started, and the server has to be right about things a regex cannot see.
+
+**Layer one, the TextMate grammar** (`editors/vscode/syntaxes/nvs.tmLanguage.json`), is what a file looks
+like the instant it opens. It must cover, because each is a way Novis is not PHP and a borrowed PHP grammar
+gets wrong: the dual-mode lexer's openers `<?nvs`, `<?php`, `<?=` and `?>`, with inline HTML outside them
+highlighted as HTML; heredoc and nowdoc, with interpolation only in the former; type annotations everywhere
+the grammar allows one, including the inline shape `{x: int}` ([`types/object-top`](types.md#types-object-top)); the qualifiers
+`tainted` and `secret`, and `decimal` as a scalar keyword ([`types/decimal`](types.md#types-decimal)); `spawn`, `spawn script`,
+`autoload`, `type`, `by`-delegation, property hooks and their `get`/`set` bodies; duration literals
+([`types/duration-literal`](types.md#types-duration-literal)); `#[...]` attributes distinguished from a `#` comment; and nothing Novis
+rejects ([`ide/rejected-syntax-gets-no-colour`](ide.md#ide-rejected-syntax-gets-no-colour)). Its test needs no editor: `vscode-textmate` plus
+`vscode-oniguruma` tokenize a fixture and a snapshot freezes the scope of every span.
+
+**Layer two, semantic tokens**, is where a compiler colours what a regex cannot know
+([`ide/semantic-tokens-carry-the-qualifiers`](ide.md#ide-semantic-tokens-carry-the-qualifiers)). Its test is a `.lspt` case per token type, plus the
+extension-host run confirming the client's legend matches the server's.
+
+<sub>See also [`ide/rejected-syntax-gets-no-colour`](ide.md#ide-rejected-syntax-gets-no-colour), [`ide/semantic-tokens-carry-the-qualifiers`](ide.md#ide-semantic-tokens-carry-the-qualifiers), [`ide/novis-ships-names-not-colours`](ide.md#ide-novis-ships-names-not-colours), [`ide/case-files-have-their-own-grammar`](ide.md#ide-case-files-have-their-own-grammar), [`types/object-top`](types.md#types-object-top), [`types/duration-literal`](types.md#types-duration-literal), [`types/decimal`](types.md#types-decimal), [`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes), [`ide/the-first-server-answers-a-closed-list`](ide.md#ide-the-first-server-answers-a-closed-list). Decided in [0099](../decisions/0099.md), [0040](../decisions/0040.md).</sub>
+
+<a id="ide-rejected-syntax-gets-no-colour"></a>
+
+## Nothing Novis rejects is coloured as though it were valid  *(designed — not yet in the compiler)*
+
+`rule:ide/rejected-syntax-gets-no-colour`
+
+Nothing Novis rejects may be coloured as though it were valid. `===` and `!==` are not operators
+([`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator)), `(int)$x` is not a cast ([`types/no-legacy-cast`](types.md#types-no-legacy-cast)), `|>` is
+not PHP 8.5's operator ([`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution)), and the alternative colon syntax
+(`if (...): ... endif;`) is not syntax at all.
+
+A grammar that colours these confirms a mistake in the editor before the server contradicts it, which is
+worse than no colour. The grammar snapshot test asserts `===` receives no operator scope, alongside the
+positive cases — a `#[Route]` attribute that is not a comment, a nowdoc that does not interpolate, inline
+HTML outside `<?nvs`.
+
+<sub>See also [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution). Decided in [0099](../decisions/0099.md).</sub>
+
+<a id="ide-semantic-tokens-carry-the-qualifiers"></a>
+
+## Semantic tokens use LSP's standard types plus two modifiers of Novis's own, `tainted` and `secret`, and the client's legend must equal the server's  *(designed — not yet in the compiler)*
+
+`rule:ide/semantic-tokens-carry-the-qualifiers`
+
+The token types M4B emits are each chosen because the grammar structurally cannot answer them:
+`namespace`, `class` (with `defaultLibrary` for a `Core` class, so the standard library is visibly not
+user code), `interface`, `enum`, `enumMember`, `type` (an alias), `method`, `property`, `parameter`,
+`variable`, `typeParameter` — and two modifiers of Novis's own, **`tainted` and `secret`**, so a qualified
+value is visibly qualified at every use site rather than only where it was declared.
+
+That pair is why this layer is built at M4B rather than M10: [`security/tainted-qualifier`](security.md#security-tainted-qualifier)'s and
+[`security/secret-qualifier`](security.md#security-secret-qualifier)'s whole model is that a value carries a qualifier through the program, and
+an editor that shows it is the cheapest teaching surface the language has. "The qualifier is visible" is
+verified as "the token carries the modifier", never as a colour.
+
+The legend the client registers must equal the legend the server declares. A mismatch silently colours
+everything one token type off, which no unit test on either side alone can see, so the extension-host run
+proves it.
+
+<sub>See also [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/novis-ships-names-not-colours`](ide.md#ide-novis-ships-names-not-colours), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/tainted-has-no-default-decoration`](security.md#security-tainted-has-no-default-decoration). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md).</sub>
+
+<a id="ide-novis-ships-names-not-colours"></a>
+
+## Both layers ship standard names and no colours: every scope is on the TextMate allowlist, every token type is in LSP's legend, and the extension overrides no theme  *(designed — not yet in the compiler)*
+
+`rule:ide/novis-ships-names-not-colours`
+
+Colour is the user's theme's to decide. Both layers ship *names*, and a theme styles only the names it
+already recognises, which makes naming the whole of the work and the whole of the risk.
+
+Every scope the TextMate grammar emits comes from the standard TextMate vocabulary, suffixed `.nvs` —
+`keyword.control.nvs`, `storage.type.nvs`, `entity.name.type.class.nvs`, `string.quoted.double.nvs`. An
+invented name like `keyword.nvs.spawn` is matched by no theme, so the construct renders as unstyled body
+text: technically correct and visibly broken. The grammar snapshot test asserts every scope it produces is
+on an allowlist of standard names, so a novel one fails in CI rather than in somebody's editor.
+
+Every semantic token type comes from LSP's standard legend. The two modifiers Novis adds are by definition
+not in it, so the extension declares `semanticTokenScopes`, mapping each to a standard TextMate scope a
+theme already styles — and a theme with no opinion falls back to the underlying token type rather than to
+nothing. The extension ships no `configurationDefaults` for `editor.tokenColorCustomizations` or
+`editor.semanticTokenColorCustomizations`: whatever a `tainted` value ought to look like is not Novis's
+call to make in someone else's editor, which is also what
+[`security/tainted-has-no-default-decoration`](security.md#security-tainted-has-no-default-decoration) applies. A bundled theme is a legitimate future option a
+user may select; it is not a default.
+
+<sub>See also [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/semantic-tokens-carry-the-qualifiers`](ide.md#ide-semantic-tokens-carry-the-qualifiers), [`security/tainted-has-no-default-decoration`](security.md#security-tainted-has-no-default-decoration). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md).</sub>
+
+<a id="ide-five-features-are-one-reference-index"></a>
+
+## Find-references, occurrence highlight, CodeLens, type hierarchy and unused-member dimming are five queries against one workspace index  *(designed — not yet in the compiler)*
+
+`rule:ide/five-features-are-one-reference-index`
+
+`nvs-lsp` builds one workspace symbol index, and five features are each one query against it — none
+gets a walk of its own. `textDocument/references` is the index's read side. `textDocument/documentHighlight`
+is the same query narrowed to the open file, which is why it waits for the index rather than shipping
+earlier: it needs resolution applied to every occurrence, not to one. CodeLens above a declaration shows
+the reference count, a type's implementors, and the methods a method overrides and is overridden by; it is
+gated on `nvs.codeLens.enable` (default `true`), because a lens is a request per visible declaration and a
+large file is where it is least welcome. `textDocument/typeHierarchy` shows supertypes and subtypes,
+including [`classes/interface-default-methods`](classes.md#classes-interface-default-methods) and [`classes/delegation-by-field`](classes.md#classes-delegation-by-field), which is
+where a reader most needs to see the shape rather than reconstruct it.
+
+The fifth is **unused-member dimming**: a private member, constant or `use` with no reference anywhere in
+the index is a diagnostic carrying LSP's `Unnecessary` tag, rendered as dimming rather than a squiggle.
+It is only correct at workspace scope — a symbol unused in the open buffer is not unused — so it is
+silent under the default of [`ide/check-scope-defaults-to-open-documents`](ide.md#ide-check-scope-defaults-to-open-documents) rather than wrong.
+
+Call hierarchy is deliberately not in this list. `textDocument/callHierarchy` is a different index —
+call-site edges kept incrementally — and nothing else needs it, so it is not built.
+
+The structural check is that `nvs-lsp` has exactly one symbol-index construction site and all five
+readers read it.
+
+<sub>See also [`ide/check-scope-defaults-to-open-documents`](ide.md#ide-check-scope-defaults-to-open-documents), [`classes/no-traits`](classes.md#classes-no-traits), [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0108](../decisions/0108.md).</sub>
+
+<a id="ide-completion-offers-only-what-the-compiler-derived"></a>
+
+## The editor completes a value only where the compiler already derives it for another reason, never from a convention scan, an annotation dialect or the network  *(designed — not yet in the compiler)*
+
+`rule:ide/completion-offers-only-what-the-compiler-derived`
+
+`nvs-lsp` contains no framework-specific module, no annotation dialect, no convention scan and no
+directory-layout knowledge. It offers a **value** in a completion list only where the compiler already
+derives that value for another reason, and it reaches it through the same table that other reason uses.
+This is the whole of Novis's answer to "framework support", and it is a closed rule, not a starting
+point.
+
+What that admits: route names and their parameters, from the route table
+[`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered) builds while compiling — the same table
+[`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked) checks a link against; configuration directives in
+`nvs.toml` and every file `[[include]]` pulls in, from the closed registry the runtime validates against
+([`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one)), so completion, hover with type and
+default, and "no such directive" are three readings of one registry, and `[[include]]`'s `path` and `dir`
+complete as paths — scoped to the workspace's config tree, never to every TOML file; `#[Api]` fields and
+every attribute's shape literal, which is a declared type; and enum cases, members off a resolved receiver
+and in-scope variables, which are the same rule and not an exception to it.
+
+What it refuses has no subject rather than being declined: ORM columns (a codec's fields are declared
+properties, already reached as members), service-container and facade resolution (constructor injection
+is resolved while compiling, so go-to-definition already goes there), and view-name completion
+([`programs/first-party-framework`](programs.md#programs-first-party-framework) makes the view layer the language). A vendor annotation dialect or
+an `ide.json`-style patch file is refused outright as a second, unchecked description of the program's
+shape — the failure [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table) refuses for API
+documents. And **the language server makes no network request**: a lockfile on disk may be read, a
+remote index may not be consulted.
+
+One thing offered is not a *value*: a PHP built-in's name, admitted as a candidate from an audited table
+and bounded on the insert side by [`ide/three-of-four-item-shapes-insert-nothing`](ide.md#ide-three-of-four-item-shapes-insert-nothing).
+
+A test, not review, enforces this: `nvs-lsp`'s completion sources are enumerated, and each must name a
+table the compiler builds for another reason.
+
+<sub>See also [`ide/three-of-four-item-shapes-insert-nothing`](ide.md#ide-three-of-four-item-shapes-insert-nothing), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked), [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table), [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`php-migration/every-php-builtin-is-a-completion-candidate`](php-migration.md#php-migration-every-php-builtin-is-a-completion-candidate), [`php-migration/an-item-inserts-only-a-registered-member`](php-migration.md#php-migration-an-item-inserts-only-a-registered-member). Decided in [0108](../decisions/0108.md), [0111](../decisions/0111.md).</sub>
+
+<a id="ide-three-of-four-item-shapes-insert-nothing"></a>
+
+## A PHP-name completion item takes one of four shapes, and three of them insert nothing  *(designed — not yet in the compiler)*
+
+`rule:ide/three-of-four-item-shapes-insert-nothing`
+
+A PHP built-in's name typed at a top-level identifier position completes to an item shaped by the
+migration table's outcome for that name and by whether its destination is registered in `Core`. Four
+shapes, and three insert nothing:
+
+| Row | Item |
+|---|---|
+| `member` or `language`, destination registered | inserts it, with the signature the registry holds |
+| `member` or `language`, destination not registered | appears, names the milestone, inserts nothing |
+| `dropped` | appears, gives the row's reason and rewrite, inserts nothing |
+| `open`, or no row at all | appears, says undecided, inserts nothing |
+
+A missing row and an `open` row are one case, exactly as `check-migration.py` treats them. "Inserts
+nothing" is asserted as the absence of an edit, not as an empty string.
+
+A row whose cell names more than one destination is prose the converter may not guess at, and is a
+genuine ambiguity there. It is not one here: completion has a person in the loop, so such a row becomes
+one item per destination and the developer picks. This is the single place the editor may offer more than
+the converter, and it follows from the human, not from a better table; the converter's own tier for that
+row is unchanged.
+
+The shape table is what keeps this layer inside [`ide/completion-offers-only-what-the-compiler-derived`](ide.md#ide-completion-offers-only-what-the-compiler-derived)
+rather than beside it: a *name* may come from an audited table, but the text an editor types on a
+developer's behalf still comes only from something the compiler can resolve. The PHP spelling never
+reaches a file, which is what [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name) requires of it.
+
+<sub>See also [`ide/completion-offers-only-what-the-compiler-derived`](ide.md#ide-completion-offers-only-what-the-compiler-derived), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes), [`php-migration/every-php-builtin-is-a-completion-candidate`](php-migration.md#php-migration-every-php-builtin-is-a-completion-candidate), [`php-migration/an-item-inserts-only-a-registered-member`](php-migration.md#php-migration-an-item-inserts-only-a-registered-member), [`php-migration/completion-php-names-setting`](php-migration.md#php-migration-completion-php-names-setting). Decided in [0111](../decisions/0111.md), [0108](../decisions/0108.md).</sub>
+
+<a id="ide-a-template-region-gets-services-but-no-second-formatter"></a>
+
+## An inline-HTML region gets the editor's own HTML, CSS and JavaScript services on boundaries the server reports, and no formatter beside `nvs fmt`  *(designed — not yet in the compiler)*
+
+`rule:ide/a-template-region-gets-services-but-no-second-formatter`
+
+The extension forwards requests inside an inline-HTML region to VS Code's built-in HTML, CSS and
+JavaScript language services, so the half of a `.nvs` file that is markup gets Emmet expansion, tag
+closing and renaming, the colour picker, hover and validation. Since
+[`programs/first-party-framework`](programs.md#programs-first-party-framework) makes inline HTML the template engine, that region is where a web
+application's markup is written, not an edge case.
+
+**The region list comes from the server**, as one request of Novis's own, `nvs/regions`, beside
+`nvs/redactions`. The lexer already knows where a mode ends; the client does not re-derive it from a
+grammar, for the reason [`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server) gives for redaction
+ranges — a client that guesses is a second implementation of the lexer. Forwarding a request to a service
+the extension did not write is not language logic in the client.
+
+**Formatting is excluded, and this is the load-bearing half.** The embedded services are not registered as
+formatting providers, and `editor.formatOnSave` in a `.nvs` file runs `nvs fmt` over the whole file and
+nothing else. A second, configurable formatter inside a file whose formatter is unconfigurable by
+decision would make `nvs fmt --check` fail for a second reason. `nvs fmt` treats an inline-HTML region as
+any other span it does not reflow, so formatting a `.nvs` file with markup in it is byte-identical to
+`nvs fmt`.
+
+`nvs.template.services` (default `true`) disables the forwarding, because a user with their own HTML
+tooling has to be able to get out of the way of ours.
+
+<sub>See also [`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server), [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0108](../decisions/0108.md).</sub>
+
+<a id="ide-case-files-have-their-own-grammar"></a>
+
+## `.nvst` and `.lspt` get a grammar of their own, with Novis embedded in `--FILE--` and PHP in `--ORACLE--`  *(designed — not yet in the compiler)*
+
+`rule:ide/case-files-have-their-own-grammar`
+
+`.nvst` and `.lspt` get a second grammar: the section headers, with the Novis grammar embedded inside
+`--FILE--` and PHP's inside `--ORACLE--`. It is a thin wrapper whose bodies `include` the grammar M4B
+builds anyway.
+
+It ranks above the "nice later" pile because of who reads those files. This repository's own loop writes
+hundreds of them and every session reads them as flat grey text, so the grammar that helps most per byte
+written is the one for the format the project authors most — the only grammar here whose audience is the
+people working on Novis rather than the people using it. A `.nvst` case opens with its sections coloured
+and Novis highlighted inside `--FILE--`.
+
+<sub>See also [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate). Decided in [0099](../decisions/0099.md).</sub>
+
+<a id="ide-an-lsp-answer-is-frozen-as-an-lspt-case"></a>
+
+## An LSP answer is frozen as a `.lspt` case — a document, a `<|>` cursor, a request and its rendering — run by `nvs lsp-test` printing `N passed, M failed`  *(designed — not yet in the compiler)*
+
+`rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`
+
+A `.lspt` case is a document, a cursor, a request, and the response rendered canonically:
+
+```
+--TEST--
+member completion survives an unclosed brace
+--FILE--
+<?nvs
+class User { public string $name; public function greet(): string { return "hi"; } }
+$u = new User();
+$u-><|>
+if (true) {
+--REQUEST--
+completion
+--EXPECT--
+greet   method    (): string
+name    property  string
+```
+
+It is a sibling of `.nvst` and deliberately not an extension of it: `.nvst` runs a program and freezes
+stdout, `.lspt` asks a question of a document that is usually not even valid. Sharing the *format* is
+right; sharing the *suite* would make `nvs test`'s count mean two things and break the conformance
+coverage guard ([`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate)). The section lexer is `nvs_test`'s, extracted to a shared
+module, so `--TEST--`, `--FILE--`, `--FILE <relative/path>--` and `--EXPECT--` mean exactly what they mean
+in a `.nvst` case, multi-file cases included. `<|>` is the cursor, removed before analysis and reported as
+an offset — exactly one per case, and none for a request that needs none.
+
+The runner is `nvs lsp-test <paths>`, walking directories for `*.lspt` and printing `N passed, M failed`
+— the line the loop's `nvs-suite` check kind already parses, so editor behaviour is gated with no change
+to the driver at all.
+
+<sub>See also [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate), [`ide/a-request-line-is-closed`](ide.md#ide-a-request-line-is-closed), [`ide/the-rendering-has-one-home`](ide.md#ide-the-rendering-has-one-home), [`ide/lspt-coverage-is-inferred`](ide.md#ide-lspt-coverage-is-inferred), [`ide/case-files-have-their-own-grammar`](ide.md#ide-case-files-have-their-own-grammar). Decided in [0099](../decisions/0099.md), [0040](../decisions/0040.md).</sub>
+
+<a id="ide-a-request-line-is-closed"></a>
+
+## `--REQUEST--` is one line whose argument set is closed per request, and an unknown request or argument fails the case  *(designed — not yet in the compiler)*
+
+`rule:ide/a-request-line-is-closed`
+
+`--REQUEST--` is one line: the request name, then optional `key=value` arguments. The argument set is
+closed per request and lives beside the renderer, so a case cannot ask for something no runner implements.
+`completion` takes `prefix=` (filter the labels, which is how a case about `->` avoids freezing the whole
+keyword list) and `limit=`; `diagnostics` takes `phase=all` to defeat [`ide/diagnostics-are-phase-gated`](ide.md#ide-diagnostics-are-phase-gated),
+which is how the gating itself gets a case; `semanticTokens` takes `types=` to restrict the rendering to
+the token types under test; the rest take none.
+
+An unknown request or argument fails the case loudly rather than being ignored. A silently-dropped argument
+is a case that passes while testing something else.
+
+<sub>See also [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case), [`ide/diagnostics-are-phase-gated`](ide.md#ide-diagnostics-are-phase-gated). Decided in [0099](../decisions/0099.md).</sub>
+
+<a id="ide-the-rendering-has-one-home"></a>
+
+## `--EXPECT--` is exact and frozen, and every response is rendered by `nvs_lsp::render` so no case invents a spelling  *(designed — not yet in the compiler)*
+
+`rule:ide/the-rendering-has-one-home`
+
+`--EXPECT--` is exact and frozen, on the same terms as `.nvst`'s: the case's *source* may be corrected
+freely, its expectation may not be edited to make it pass.
+
+The rendering is canonical and has one home, `nvs_lsp::render`, so no case invents its own spelling:
+diagnostics as `L:C-L:C severity CODE message` sorted by position; a hover as its markdown verbatim; a
+definition as `file:L:C` or `none`; completion as `label kind detail`, sorted by label; semantic tokens as
+`L:C+len type modifiers`; symbols as an indented outline.
+
+<sub>See also [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate). Decided in [0099](../decisions/0099.md).</sub>
+
+<a id="ide-lspt-coverage-is-inferred"></a>
+
+## `.lspt` coverage is inferred from the node the cursor resolved to, never declared, and `every_request_answers_every_construct` names each empty cell  *(designed — not yet in the compiler)*
+
+`rule:ide/lspt-coverage-is-inferred`
+
+Coverage is inferred, never declared. `nvs lsp-test --coverage` prints the matrix of request × syntactic
+construct, taking the construct from the node the cursor actually resolved to. A case cannot claim coverage
+it does not have, and nobody maintains a list by hand.
+
+The guard test `every_request_answers_every_construct` reads that matrix and fails naming each empty cell
+— a gate that enumerates its source of truth rather than counting. Rust integration tests are kept beside
+`.lspt` for what they are genuinely better at, the resilient parser's own invariants over a corpus, and
+never as the only mechanism, because that would make coverage invisible to the gate the loop stops on.
+
+<sub>See also [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case). Decided in [0099](../decisions/0099.md).</sub>
+
+<a id="ide-headless-gates-the-loop-the-host-run-gates-the-milestone"></a>
+
+## The headless suites run every iteration with no editor; the extension-host run is CI-only, under `xvfb-run`, with an isolated profile  *(designed — not yet in the compiler)*
+
+`rule:ide/headless-gates-the-loop-the-host-run-gates-the-milestone`
+
+Two tiers, because they answer different questions and cost two orders of magnitude apart.
+
+**Headless, every iteration.** Plain Node, no editor, no display, no network: the grammar snapshot tests, a
+contributions test asserting `package.json` declares what the extension claims and depends only on the
+allowlist, and a protocol round-trip that spawns the real `nvs lsp` binary and drives it with
+`vscode-languageclient`. It is what the loop's acceptance test gates on, and it runs once rather than once
+per leg — a `command` check is not a program fixture, so it has no calling convention for the WSL leg to
+exercise. CI runs it on all three platforms, since a `.vsix` is cross-platform and a path bug is not.
+
+**The extension host, in CI only.** `@vscode/test-electron` runs Mocha inside the real extension host —
+the only thing that can prove activation on `.nvs`, the Tasks, the `LanguageStatusItem`, the AST panel and
+the semantic-token legend. It needs a display, and the only display on a developer's machine is one a
+person is using, so it runs on Linux under `xvfb-run` and is not on the loop's acceptance list at all.
+Wherever it runs it isolates its profile — `--user-data-dir` and `--extensions-dir` to a throwaway
+directory, a fixture folder rather than the repository — or a test that writes a setting writes it into
+the developer's own `settings.json`.
+
+<sub>See also [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/dependencies-are-allowlisted`](ide.md#ide-dependencies-are-allowlisted), [`ide/semantic-tokens-carry-the-qualifiers`](ide.md#ide-semantic-tokens-carry-the-qualifiers), [`ide/the-lockfile-is-committed-and-build-output-is-not`](ide.md#ide-the-lockfile-is-committed-and-build-output-is-not), [`testing/ci-lanes`](testing.md#testing-ci-lanes). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md).</sub>
+
+<a id="ide-one-server-two-thin-clients"></a>
+
+## Language smarts and formatting have one implementation each, `nvs-lsp` and `nvs-fmt`, and an editor client holds none of either  *(designed — not yet in the compiler)*
+
+`rule:ide/one-server-two-thin-clients`
+
+`nvs-lsp` and `nvs-fmt` are the only place completion, hover, diagnostics, rename, go-to-definition
+and formatting are implemented. An editor client is a thin adapter: it starts the server or the
+formatter, translates its own editor's events into LSP requests, and renders what comes back. It
+decides nothing about the language — not what a name resolves to, not where a line breaks, not even
+which range is a `secret` ([`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server)).
+
+The reason is the same one that gives every fact one home in the documentation, applied to executable
+behaviour: two implementations of the formatting rules drift the first time one editor's plugin fixes a
+bug the other's has not, and the verification that both editors produce byte-identical diagnostics and
+formatted output for one file only holds while there is one implementation to agree with.
+
+The VS Code extension ([`ide/vscode-is-the-reference-client`](ide.md#ide-vscode-is-the-reference-client)) and the PhpStorm plugin
+([`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server)) are the two clients, and a dependency-allowlist test on
+the extension is what enforces "holds no language logic" rather than review.
+
+<sub>See also [`ide/vscode-is-the-reference-client`](ide.md#ide-vscode-is-the-reference-client), [`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server), [`ide/one-crate-and-one-extension-grow-in-place`](ide.md#ide-one-crate-and-one-extension-grow-in-place), [`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server), [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0016](../decisions/0016.md), [0040](../decisions/0040.md).</sub>
+
+<a id="ide-editor-clients-live-under-editors"></a>
+
+## An editor client lives under `editors/<editor>`, outside the Cargo workspace, and is created when its milestone starts rather than scaffolded ahead of it  *(designed — not yet in the compiler)*
+
+`rule:ide/editor-clients-live-under-editors`
+
+The editor clients sit at the repository root, beside `crates/` and outside the Rust workspace:
+
+```
+editors/
+  vscode/      TextMate grammar, language-configuration.json, LSP client extension
+  phpstorm/    file-type registration, LSP-bridge plugin (Kotlin/Gradle)
+```
+
+Neither is a Cargo crate — the VS Code extension is TypeScript and Node tooling, the PhpStorm plugin is
+Kotlin, Gradle and the IntelliJ Platform SDK — so neither is governed by the workspace `Cargo.toml`, and
+each brings a build toolchain (`npm`/`vsce`, Gradle) that is a genuinely new kind of CI job next to
+everything `cargo` builds. `tools/verify.py` runs the extension's headless suites last, for that reason,
+and treats the directory being absent as a real state rather than an error.
+
+A directory is created when its milestone starts, never scaffolded empty ahead of it — the rule every
+crate already follows. The VS Code package and the server crate that back it are then the only ones
+there will be ([`ide/one-crate-and-one-extension-grow-in-place`](ide.md#ide-one-crate-and-one-extension-grow-in-place)).
+
+<sub>See also [`ide/one-crate-and-one-extension-grow-in-place`](ide.md#ide-one-crate-and-one-extension-grow-in-place), [`ide/vscode-is-the-reference-client`](ide.md#ide-vscode-is-the-reference-client), [`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server). Decided in [0016](../decisions/0016.md), [0040](../decisions/0040.md).</sub>
+
+<a id="ide-vscode-is-the-reference-client"></a>
+
+## The VS Code extension is a `vscode-languageclient` shell: it registers `.nvs`, colours from a TextMate grammar until the server answers, and routes everything else to `nvs lsp` and `nvs fmt`  *(designed — not yet in the compiler)*
+
+`rule:ide/vscode-is-the-reference-client`
+
+The VS Code extension is a standard `vscode-languageclient` package and the reference client. It
+registers the `nvs` language ID and the `.nvs` association ([`ide/nvs-is-its-own-file-type`](ide.md#ide-nvs-is-its-own-file-type)), a
+`language-configuration.json` for bracket matching, comment toggles, auto-closing pairs and indentation
+— PHP's, adjusted for `spawn script`, `type` aliases and the type-annotation syntax PHP lacks — and a
+TextMate grammar for the `<?nvs ?>` / `<?= ?>` plus inline-HTML lexer mode, so a file has correct-enough
+colour the moment it opens and before the server has parsed anything.
+
+It spawns `nvs lsp` from a configurable path setting, falling back to `PATH`, and layers LSP semantic
+tokens over the TextMate baseline once the server is live — the two-layer pattern rust-analyzer and
+Deno use. `editor.formatOnSave` and the format commands go to `textDocument/formatting` and
+`rangeFormatting` against `nvs-fmt`; `nvs run` and `nvs test` are VS Code Tasks and a "Run File"
+command. A `secret` value's bytes are concealed by default on ranges the server hands over, and
+`tainted` gets no default decoration ([`security/tainted-has-no-default-decoration`](security.md#security-tainted-has-no-default-decoration)).
+
+Nothing in that list is language logic ([`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients)). The concrete
+contribution roster — setting and command identifiers — is frozen elsewhere; this is the shape.
+
+<sub>See also [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/nvs-is-its-own-file-type`](ide.md#ide-nvs-is-its-own-file-type), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server), [`security/tainted-has-no-default-decoration`](security.md#security-tainted-has-no-default-decoration), [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0016](../decisions/0016.md), [0040](../decisions/0040.md), [0099](../decisions/0099.md).</sub>
+
+<a id="ide-nvs-is-its-own-file-type"></a>
+
+## `.nvs` is registered as its own language in every editor, activates nothing on `.php`, and is never handed to a PHP plugin  *(designed — not yet in the compiler)*
+
+`rule:ide/nvs-is-its-own-file-type`
+
+Every editor client registers `.nvs` as its own file type and language, distinct from whatever PHP
+support the editor bundles, and activates on nothing else — the VS Code extension does not activate on
+`.php`, and the PhpStorm plugin does not let PhpStorm's PHP plugin or a generic-text fallback claim a
+`.nvs` file.
+
+The registration is not polish. Without it PhpStorm's own PHP plugin may take the file, or a plain-text
+fallback will, and either failure looks to the user like "the plugin does not work" with no diagnostic
+pointing at the real cause. The verification for both clients is the same: opening a `.nvs` file
+invokes Novis's client and never the editor's PHP support.
+
+A Novis file is not a PHP file to the editor for the same reason it is not one to the compiler
+([`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag)): the grammar, the type syntax and the diagnostics are
+different enough that a PHP tool over the file would colour valid Novis as an error and valid PHP that
+Novis rejects as fine.
+
+<sub>See also [`ide/vscode-is-the-reference-client`](ide.md#ide-vscode-is-the-reference-client), [`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server), [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag). Decided in [0016](../decisions/0016.md), [0040](../decisions/0040.md).</sub>
+
+<a id="ide-the-extension-claims-nvs-only"></a>
+
+## The extension activates on `.nvs` and never claims `.php`  *(designed — not yet in the compiler)*
+
+`rule:ide/the-extension-claims-nvs-only`
+
+The extension registers `.nvs` and does not claim `.php`, even though `nvs-syntax` parses it. Claiming it
+would fight every PHP extension a user already has, and losing that fight silently looks like Novis being
+broken. An opt-in setting is M10's if anyone converting a codebase asks for it.
+
+The extension-host run proves activation on `.nvs` and its absence on `.php`.
+
+<sub>See also [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added), [`ide/the-extension-runs-where-the-binary-is`](ide.md#ide-the-extension-runs-where-the-binary-is). Decided in [0099](../decisions/0099.md).</sub>
+
+<a id="ide-language-configuration-is-content"></a>
+
+## `language-configuration.json` carries comments, pairs, indentation, folding and a `wordPattern` that includes `$`  *(designed — not yet in the compiler)*
+
+`rule:ide/language-configuration-is-content`
+
+`language-configuration.json` is content, not a checkbox: comments (`//`, `#`, `/* */`), brackets,
+auto-closing and surrounding pairs, `indentationRules`, `onEnterRules` continuing a `/** */` block, and
+folding markers.
+
+The one entry that is Novis-specific, and that a file borrowed from a PHP extension gets wrong, is that
+**`wordPattern` must include `$`**. Without it, double-clicking `$total` selects `total`, every
+rename-adjacent interaction is off by one character, and word-based completion suggests the wrong token.
+
+<sub>See also [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added), [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers). Decided in [0099](../decisions/0099.md).</sub>
+
+<a id="ide-contributions-are-frozen-and-only-ever-added"></a>
+
+## A setting name and a command id are public API: the roster is frozen, and anything later is added, never renamed  *(designed — not yet in the compiler)*
+
+`rule:ide/contributions-are-frozen-and-only-ever-added`
+
+A setting name lives in somebody's `settings.json` and a command id in their keybindings, so renaming one
+later breaks a user's configuration silently. The identifiers are therefore public API, frozen on first
+contribution, and anything added later is added, never renamed.
+
+M4B's roster. Settings: `nvs.path` (the binary, falling back to `PATH`), `nvs.lsp.enable`,
+`nvs.lsp.debounce`, `nvs.lsp.trace.server`, and — added under this rule by
+[`security/reveal-is-explicit-and-window-local`](security.md#security-reveal-is-explicit-and-window-local) and [`security/tainted-has-no-default-decoration`](security.md#security-tainted-has-no-default-decoration)
+— `nvs.secrets.redact` (default `true`) and `nvs.taint.mark` (default `off`). Commands: `nvs.run`,
+`nvs.test`, `nvs.showAst`, `nvs.restartServer`, and from the same source `nvs.revealSecret` and
+`nvs.hideSecrets`. Nothing else is contributed at M4B.
+
+M10 adds, under the same rule and not as an exception to it: the settings `nvs.check.scope`,
+`nvs.codeLens.enable`, `nvs.template.services` and `nvs.completion.phpNames` (`all`/`resolved`/`off`,
+default `all`), the command `nvs.checkWorkspace`, and a second request of Novis's own, `nvs/regions`. A
+contributions test asserts `package.json` declares exactly what the roster names.
+
+<sub>See also [`security/reveal-is-explicit-and-window-local`](security.md#security-reveal-is-explicit-and-window-local), [`security/tainted-has-no-default-decoration`](security.md#security-tainted-has-no-default-decoration), [`ide/the-extension-claims-nvs-only`](ide.md#ide-the-extension-claims-nvs-only), [`ide/dependencies-are-allowlisted`](ide.md#ide-dependencies-are-allowlisted), [`ide/check-json-is-the-diagnostic-record-as-a-document`](ide.md#ide-check-json-is-the-diagnostic-record-as-a-document), [`php-migration/completion-php-names-setting`](php-migration.md#php-migration-completion-php-names-setting). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md), [0108](../decisions/0108.md), [0111](../decisions/0111.md).</sub>
+
+<a id="ide-tasks-carry-a-problem-matcher"></a>
+
+## `nvs run` and `nvs test` are Tasks with a `problemMatcher` over the renderer's own format, so a diagnostic is a Problems-panel entry  *(designed — not yet in the compiler)*
+
+`rule:ide/tasks-carry-a-problem-matcher`
+
+`nvs run` and `nvs test` are contributed as Tasks, and each carries a `problemMatcher`. Without one the
+Tasks print text into a terminal; with one, every diagnostic is a clickable entry in the Problems panel.
+
+It is a two-line regex over the renderer's existing format — `error[E0301]: message`, then
+`  --> file:line:col` ([`errors/renderings`](errors.md#errors-renderings)) — and it is the difference between the Tasks being
+useful and being decorative. A failing `nvs test` populating the Problems panel through the matcher is
+part of the extension-host run.
+
+<sub>See also [`errors/renderings`](errors.md#errors-renderings), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0099](../decisions/0099.md).</sub>
+
+<a id="ide-the-extension-is-a-workspace-extension"></a>
+
+## The extension declares itself a workspace extension, because `nvs lsp` must be the binary next to the code  *(designed — not yet in the compiler)*
+
+`rule:ide/the-extension-is-a-workspace-extension`
+
+The extension's `package.json` declares `extensionKind: ["workspace"]`. It spawns `nvs lsp`, which must
+be the binary next to the code — in a WSL distro, over SSH, or inside a devcontainer — and a workspace
+extension runs where the code is rather than where the editor's window is.
+
+That one line is the difference between working in every remote configuration and failing in all of
+them with a message about `nvs` not being on `PATH`. The same contributions test that checks the frozen
+identifiers asserts it.
+
+<sub>See also [`ide/check-scope-defaults-to-open-documents`](ide.md#ide-check-scope-defaults-to-open-documents), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0108](../decisions/0108.md).</sub>
+
+<a id="ide-the-extension-runs-where-the-binary-is"></a>
+
+## The extension is `nvs-lang.nvs`, language `nvs`, `extensionKind: ["workspace"]`, built as a `.vsix` and published nowhere  *(designed — not yet in the compiler)*
+
+`rule:ide/the-extension-runs-where-the-binary-is`
+
+The extension id is `nvs-lang.nvs`, the language id is `nvs`, and `extensionKind` is `["workspace"]`. The
+client spawns `nvs lsp`, which has to be the binary next to the code, so a WSL distro, an SSH host and a
+devcontainer all get the remote's toolchain rather than a missing one.
+
+CI produces an installable `.vsix` artifact. Nothing is published — no Marketplace publisher, no listing,
+no branding; that decision is open and M4B does not close it. `editors/vscode` is a TypeScript package
+outside the Cargo workspace.
+
+<sub>See also [`ide/the-extension-claims-nvs-only`](ide.md#ide-the-extension-claims-nvs-only), [`ide/the-extension-refuses-a-binary-it-does-not-understand`](ide.md#ide-the-extension-refuses-a-binary-it-does-not-understand), [`ide/the-lockfile-is-committed-and-build-output-is-not`](ide.md#ide-the-lockfile-is-committed-and-build-output-is-not), [`ide/editor-clients-live-under-editors`](ide.md#ide-editor-clients-live-under-editors), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients). Decided in [0099](../decisions/0099.md).</sub>
+
+<a id="ide-the-extension-refuses-a-binary-it-does-not-understand"></a>
+
+## On a version mismatch at `initialize` the client says so in the status item and does not start  *(designed — not yet in the compiler)*
+
+`rule:ide/the-extension-refuses-a-binary-it-does-not-understand`
+
+`nvs lsp` reports its version at `initialize`. On a mismatch with the extension's own, the
+`LanguageStatusItem` says so and the client does not start, rather than running and producing confusing
+answers.
+
+An old `nvs` earlier on `PATH` than the intended one is the single most likely support question this
+extension will ever get, and it costs one comparison to answer it out loud. A client reporting a mismatched
+version gets a refusal and a status item, not a session.
+
+<sub>See also [`ide/the-extension-runs-where-the-binary-is`](ide.md#ide-the-extension-runs-where-the-binary-is), [`ide/the-server-is-synchronous`](ide.md#ide-the-server-is-synchronous). Decided in [0099](../decisions/0099.md).</sub>
+
+<a id="ide-the-extension-builds-no-ui-the-editor-already-has"></a>
+
+## Coverage, server health, profiles and the debugger reach the editor through its own APIs and open formats — `FileCoverage`, `LanguageStatusItem`, DAP's UI, speedscope — and the extension builds none of them  *(designed — not yet in the compiler)*
+
+`rule:ide/the-extension-builds-no-ui-the-editor-already-has`
+
+Where the editor or an open format already renders something, the extension feeds it and draws nothing
+of its own. Four surfaces follow that rule. Server health and version are a `LanguageStatusItem`, the
+API VS Code sanctions for it, not a hand-rolled status-bar item. Coverage flows through VS Code's
+finalized Testing API and its `FileCoverage` model — per-file statement, branch and declaration counts
+from the Clover/lcov exporters `nvs test` already produces ([`testing/debug-probes`](testing.md#testing-debug-probes),
+[`testing/report-formats`](testing.md#testing-report-formats)) — and VS Code's own gutter and summary UI shows it; no gutter renderer
+is written. A profile from `nvs run --profile` is emitted in the open speedscope JSON format, and a
+"View Profile" command opens it in speedscope.app or an embedded webview that speaks the same format,
+because VS Code's built-in flame chart is V8-specific and no bespoke flamegraph is built. The debugger
+is DAP's existing UI over `nvs dap` ([`ide/the-debug-adapter-does-not-wait-for-an-editor`](ide.md#ide-the-debug-adapter-does-not-wait-for-an-editor)).
+
+That is four pieces of UI infrastructure Novis neither builds nor maintains, which is the simplicity
+priority applied directly. The extension's own code is the descriptor factory, the schema contribution,
+the test provider and the command that hands a file to a viewer.
+
+<sub>See also [`ide/the-debug-adapter-does-not-wait-for-an-editor`](ide.md#ide-the-debug-adapter-does-not-wait-for-an-editor), [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/report-formats`](testing.md#testing-report-formats), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`ide/the-debugger-ui-is-as-deep-as-the-adapter`](ide.md#ide-the-debugger-ui-is-as-deep-as-the-adapter). Decided in [0040](../decisions/0040.md).</sub>
+
+<a id="ide-the-ast-panel-shells-out-to-the-cli"></a>
+
+## The AST panel renders `nvs ast --json` for the active file, on the resilient tree by default, and never runs `Core\Ast`  *(designed — not yet in the compiler)*
+
+`rule:ide/the-ast-panel-shells-out-to-the-cli`
+
+The AST explorer panel renders `nvs ast --json` for the active file as a tree view — the resilient tree
+by default, so the panel works on a file that does not compile. `nvs ast` ships the `--json` flag with a
+frozen schema for that purpose; the `{stmts:#?}` debug print has no stability contract and is not what
+the panel reads.
+
+It does not use `Core\Ast` ([`core-classes/ast-is-inert`](core-classes.md#core-classes-ast-is-inert)). That is the language-level reflective
+parse a running Novis program calls; the editor panel is simpler and shells out to the CLI, the same way
+`nvs check` backs diagnostics. Both read the one tree there is ([`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree)), so the
+panel and the compiler cannot disagree about a file's shape.
+
+<sub>See also [`core-classes/ast-is-inert`](core-classes.md#core-classes-ast-is-inert), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error), [`ide/ast-json-schema-is-frozen`](ide.md#ide-ast-json-schema-is-frozen). Decided in [0040](../decisions/0040.md), [0099](../decisions/0099.md).</sub>
+
+<a id="ide-dependencies-are-allowlisted"></a>
+
+## The extension holds no language logic, and its `package.json` dependencies are checked against an allowlist by its own tests  *(designed — not yet in the compiler)*
+
+`rule:ide/dependencies-are-allowlisted`
+
+The extension may hold no language logic — no parser, no formatter, no type table — and this is enforced
+rather than intended: its `package.json` `dependencies` are checked against an allowlist by its own test
+suite, so a second implementation cannot arrive as a dependency, and the reviewer is not the only thing
+standing between the repository and one.
+
+The same allowlist is what keeps the client free of language logic when a feature is added. The redaction
+of [`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server) is a range list from the server and a decoration;
+there is nothing in it a parser would help with, and the test is unchanged by it.
+
+<sub>See also [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added), [`ide/headless-gates-the-loop-the-host-run-gates-the-milestone`](ide.md#ide-headless-gates-the-loop-the-host-run-gates-the-milestone), [`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md).</sub>
+
+<a id="ide-the-lockfile-is-committed-and-build-output-is-not"></a>
+
+## `package-lock.json` is committed; `node_modules/`, `out/`, `.vscode-test/` and `*.vsix` are ignored  *(designed — not yet in the compiler)*
+
+`rule:ide/the-lockfile-is-committed-and-build-output-is-not`
+
+`.gitignore` carries `node_modules/`, `out/`, `.vscode-test/` and `*.vsix`: a session that commits
+`node_modules` is a session whose commit nobody can review.
+
+`package-lock.json` **is** committed, because `npm ci` is what the acceptance run uses and it requires one,
+and because an unpinned dependency tree makes the grammar snapshots reproducible only by luck. CI grows two
+jobs beside the ones already there — the headless suites on all three platforms and the extension-host run
+on Linux — and `ci.yml` is the count of those.
+
+<sub>See also [`ide/headless-gates-the-loop-the-host-run-gates-the-milestone`](ide.md#ide-headless-gates-the-loop-the-host-run-gates-the-milestone), [`ide/the-extension-runs-where-the-binary-is`](ide.md#ide-the-extension-runs-where-the-binary-is). Decided in [0099](../decisions/0099.md).</sub>
+
+<a id="ide-phpstorm-bridges-to-the-same-server"></a>
+
+## PhpStorm drives the same `nvs lsp` and `nvs fmt` through JetBrains' LSP client, and builds no PSI tree, native refactoring or debugger UI until a later decision says so  *(designed — not yet in the compiler)*
+
+`rule:ide/phpstorm-bridges-to-the-same-server`
+
+The PhpStorm plugin drives the same `nvs lsp` binary the VS Code extension does, through JetBrains
+Platform's LSP client support — falling back to the community LSP4IJ plugin if the bundled API lacks a
+needed feature; which of the two is left to a concrete evaluation when the work starts. Completion,
+hover, diagnostics, rename and go-to-definition route through that bridge, and so does formatting:
+"Reformat Code" runs `nvs fmt`, and PhpStorm's native Formatter framework and Code Style settings page
+do not apply to `.nvs` files. That is the price of not forking the formatter into a second
+implementation ([`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients)), named up front.
+
+The plugin registers `.nvs` as its own file type ([`ide/nvs-is-its-own-file-type`](ide.md#ide-nvs-is-its-own-file-type)) and ships a
+TextMate-or-equivalent baseline grammar for the same instant-colour reason VS Code does.
+
+It explicitly does not build a native PSI tree, PhpStorm-grade refactoring beyond what the LSP `rename`
+request gives, structural search and replace, intention actions backed by its own inspector, or
+PhpStorm's native debugger UI ([`ide/the-debug-adapter-does-not-wait-for-an-editor`](ide.md#ide-the-debug-adapter-does-not-wait-for-an-editor)). Those are the
+real quality gap between an LSP bridge and PhpStorm's PHP support, and a full native plugin is a later,
+explicit decision if usage justifies it — kept open, not silently skipped, and not scheduled.
+
+<sub>See also [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/nvs-is-its-own-file-type`](ide.md#ide-nvs-is-its-own-file-type), [`ide/the-debug-adapter-does-not-wait-for-an-editor`](ide.md#ide-the-debug-adapter-does-not-wait-for-an-editor), [`ide/editor-clients-live-under-editors`](ide.md#ide-editor-clients-live-under-editors). Decided in [0016](../decisions/0016.md), [0040](../decisions/0040.md).</sub>
+
+<a id="ide-phpstorm-draws-no-redaction-at-m4b"></a>
+
+## The redaction request is one server's to answer for both editors, but the drawing is per-editor and PhpStorm has none until its plugin lands  *(designed — not yet in the compiler)*
+
+`rule:ide/phpstorm-draws-no-redaction-at-m4b`
+
+`nvs/redactions` is a request on the one server both clients drive, so the PhpStorm plugin can answer it
+whenever it is built — the range computation is shared, per
+[`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server). What is not shared is the drawing: an editor-side
+decoration is per-editor work with no common half.
+
+The plugin is not built at M4B, so PhpStorm conceals nothing at this milestone. That is a decision rather
+than something discovered when someone opens a `.nvs` file in PhpStorm on a call, and the PhpStorm side is
+due when its plugin is.
+
+<sub>See also [`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server), [`security/redaction-covers-bytes-only`](security.md#security-redaction-covers-bytes-only), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server). Decided in [0101](../decisions/0101.md), [0099](../decisions/0099.md).</sub>
+
+<a id="ide-the-debug-adapter-does-not-wait-for-an-editor"></a>
+
+## `nvs dap` is complete without any editor's debugger UI; VS Code's wiring is a descriptor factory and a `launch.json` schema, and PhpStorm's stays deferred  *(designed — not yet in the compiler)*
+
+`rule:ide/the-debug-adapter-does-not-wait-for-an-editor`
+
+`nvs dap` — the debug adapter, using safepoints for breakpoints ([`testing/debug-probes`](testing.md#testing-debug-probes)) — is a
+complete, testable deliverable on its own. A working adapter and a working debugger UI in a given editor
+are two different integrations, the same way a language server and a syntax-highlighting extension are,
+so a stalled or under-scoped editor integration cannot block the adapter from shipping and being useful
+to a CLI-driven client or a third editor.
+
+For VS Code the editor-side wiring is small and lands with the adapter: a `DebugAdapterDescriptorFactory`
+and a `launch.json` configuration schema targeting `nvs dap`. DAP is a wire protocol, and VS Code
+already renders breakpoints, call stack, variables and watches for any adapter that speaks it, so the
+extension authors no debugger UI — the acceptance is a breakpoint set in VS Code's UI hitting in
+JIT-compiled code with correct variable values, through the descriptor factory and schema alone
+([`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has)). How deep that UI goes is the adapter's
+capability set, not the extension's.
+
+PhpStorm's `XDebugger` UI wired to a DAP backend stays deferred ([`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server)).
+The two clients are deliberately asymmetric here; a future PhpStorm-depth pass has to address or
+explicitly accept that.
+
+<sub>See also [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server), [`testing/debug-probes`](testing.md#testing-debug-probes), [`ide/the-debugger-ui-is-as-deep-as-the-adapter`](ide.md#ide-the-debugger-ui-is-as-deep-as-the-adapter). Decided in [0016](../decisions/0016.md), [0040](../decisions/0040.md).</sub>
+
+<a id="ide-the-debugger-ui-is-as-deep-as-the-adapter"></a>
+
+## The debugger UI is only as deep as the capabilities `nvs dap` reports, so the adapter's capability list is the debugger's scope  *(designed — not yet in the compiler)*
+
+`rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`
+
+`nvs dap` is wired into VS Code's existing debugger UI, and every feature below renders in a UI that
+already exists — it appears only if the adapter reports the corresponding capability at `initialize`. The
+adapter's capability list is therefore the debugger's scope, and it is this:
+
+- **Conditional breakpoints, hit counts and logpoints** — `supportsConditionalBreakpoints`,
+  `supportsHitConditionalBreakpoints`, `supportsLogPoints`. A logpoint that does not stop the program is
+  the debugging most users actually do.
+- **Exception filters** — `exceptionBreakpointFilters`, so "break on uncaught" and "break on thrown" are
+  separate switches. [`errors/escalation-ladder`](errors.md#errors-escalation-ladder)'s single `Throwable` channel is what makes this two
+  filters rather than PHP's five categories.
+- **Stepping exclusions** — a `launch.json` glob list, so stepping does not descend into package code and
+  a handled throw inside it does not stop the session.
+- **Path mappings**, because the container case is the normal case: the file the adapter reports and the
+  file in the editor differ whenever the program runs anywhere but the workspace root.
+- **The value a function just returned**, in the variables pane after stepping out.
+- **A `spawn`ed isolate is a DAP thread** — the standard presentation, needing no protocol extension. The
+  *tree* of isolates would need one and is not built.
+
+A fixture session exercises each of these, and `nvs dap` reports each capability at `initialize`.
+
+<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0108](../decisions/0108.md).</sub>
