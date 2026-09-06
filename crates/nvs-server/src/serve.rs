@@ -5337,10 +5337,17 @@ mod tests {
     /// answer that matters is the one given while the process is draining —
     /// that is what a proxy takes an instance out of rotation on, and answering
     /// it after the last connection has gone would report the one state nobody
-    /// can act on. Nothing here waits on a race: the client's two connections
-    /// are sequential, the loop parks in `accept` until the second arrives, and
-    /// the child spawned for it cannot run until the loop has broken and marked
-    /// the drain.
+    /// can act on.
+    ///
+    /// The two connections have to be sequential — the first is answered `200`
+    /// only because the loop yields to its child before accepting the second,
+    /// and a second socket already waiting in the backlog would be accepted
+    /// without that yield, so both requests would see the drain. That leaves a
+    /// window this case cannot close from the outside: between the two, the
+    /// loop is parked in `accept` with nothing else runnable, which is exactly
+    /// the state `run_until_idle` can read as idle when a turn wakes nothing.
+    /// Both halves below are about that window rather than about the endpoint:
+    /// the client's read deadline, and the parked-task assertion on the report.
     #[test]
     fn is_draining_answers_during_a_graceful_shutdown() {
         let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
@@ -5352,6 +5359,16 @@ mod tests {
         let client = std::thread::spawn(move || {
             let probe = || {
                 let mut socket = TcpStream::connect(addr).expect("the loopback refused a socket");
+                // The two sibling multi-connection cases set this and this one
+                // had been the exception. `connect` succeeds against a bound
+                // listener whether or not anything ever accepts — the socket
+                // simply waits in the backlog — so a loop that stopped early
+                // leaves the read below with no answer and no end of file. It
+                // waited three hours that way on the Windows leg of the
+                // 2026-09-06 nightly, until the run was cancelled by hand.
+                socket
+                    .set_read_timeout(Some(CLIENT_PATIENCE))
+                    .expect("the socket refused a read timeout");
                 socket
                     .write_all(
                         b"GET /healthz HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
@@ -5405,7 +5422,18 @@ mod tests {
                 .expect("the accept loop failed");
             }
         });
-        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+        let report = nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+        // The accept loop ends by draining its children, so nothing of this
+        // case's is parked once it returns — and a report that says otherwise
+        // is the one exit `run_until_idle` documents, a blocking poll that woke
+        // nothing being read as idle. Asserted before the join, because from
+        // there the same failure reads as a client that went unanswered and
+        // says nothing about which side stopped.
+        assert_eq!(
+            report.parked, 0,
+            "the core went idle with the accept loop still parked, so the connection the shutdown \
+             lands on was never accepted"
+        );
 
         let (accepting, shutting_down) = client.join().expect("the client thread panicked");
         assert!(
