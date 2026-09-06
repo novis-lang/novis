@@ -2114,6 +2114,13 @@ is why" — is this file.
   --locate unit_for lowered` re-derives every anchor in the group in one call, which is cheaper than
   reading one window that turns out to be somebody else's. Resolving the next group's anchors after
   the last commit rather than before it is the other half of the fix.
+- **`python tools/peek.py <targets> --locate <symbol> ...` prints the anchors and silently drops the
+  targets.** A call opening with three `file:locator` targets and ending in `--locate temp_dir
+  temporary_dir` answered with two `file:line` lines and nothing else — no error, no mention of the
+  three regions that were asked for, so it reads as "those files had no match" rather than as "that
+  argument was never honoured". `--locate` is a *mode*, not an extra question: ask for anchors in one
+  call and for regions in another, and never mix the two, or the expensive half of the call is the
+  half that is discarded.
 
 ## Running things
 
