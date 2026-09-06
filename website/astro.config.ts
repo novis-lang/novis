@@ -46,12 +46,14 @@ export default defineConfig({
     starlight({
       title: SITE_TITLE,
       description: SITE_DESCRIPTION,
-      // The mark next to the wordmark in the header. One source of truth:
-      // media/novis-logo.png is the design export, sized down by CSS in
-      // src/components/Header.astro. public/favicon.ico and
+      // The mark in the header, standing in for the wordmark: the site nav's
+      // first link already reads "Novis" beside it, so the mark alone carries
+      // the title, and its alt text keeps it for screen readers. One source
+      // of truth: media/novis-logo.png is the design export, sized down by
+      // CSS in src/components/Header.astro. public/favicon.ico and
       // public/apple-touch-icon.png are cut from the same file — see the
       // website README's "Logo and favicon" section for the command.
-      logo: { src: './media/novis-logo.png', alt: '' },
+      logo: { src: './media/novis-logo.png', alt: SITE_TITLE, replacesTitle: true },
       favicon: '/favicon.ico',
       customCss: ['./src/styles/custom.css'],
       routeMiddleware: './src/routeData.ts',

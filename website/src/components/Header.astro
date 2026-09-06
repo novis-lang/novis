@@ -1,11 +1,12 @@
 ---
 /**
- * Header override: the default Starlight header (the mark and wordmark, search,
- * social icons, theme switch) plus the site navigation — Novis / Docs /
- * Why Novis? / Sponsoring.
+ * Header override: the default Starlight header (the mark, search, social
+ * icons, theme switch) plus the site navigation — Novis / Docs / Why Novis? /
+ * Sponsoring.
  *
  * The mark comes from Starlight's `logo` option (see astro.config.ts) through
- * `<SiteTitle />`; its size is set below, because the default suits a wide
+ * `<SiteTitle />`, and stands in for the wordmark, which the nav's first link
+ * repeats anyway; its size is set below, because the default suits a wide
  * logo rather than a square one.
  *
  * Layout follows the default component so the search stays centered over the
@@ -73,19 +74,14 @@ const isCurrent = (href: string) =>
     height: 100%;
   }
 
-  /* The wordmark and the nav links share a baseline: this row aligns its two
-     items on it, and each item's baseline is its text's — a flex container
-     whose items are not themselves baseline-aligned takes its first item's,
-     and the mark, positioned out of flow below, is no longer that item. The
-     header then centers the row as one box in the bar, and the mark is
-     centered on the row, so it sits on the bar's midline whatever the two
-     text sizes do. */
+  /* The mark and the nav links are each centered in the bar. With the
+     wordmark hidden there is one text size in this row, so centering the
+     boxes is enough: the links share a baseline with each other, and the mark
+     sits on the bar's midline. */
   .start-group {
     --mark-size: 2.25rem;
-    --mark-gap: 0.55rem;
-    position: relative;
     display: flex;
-    align-items: baseline;
+    align-items: center;
     gap: calc(var(--sl-nav-gap) + 0.5rem);
     min-width: 0;
   }
@@ -104,19 +100,9 @@ const isCurrent = (href: string) =>
 
   /* Starlight sizes a logo to the nav height less its padding, which suits a
      wide wordmark. Ours is a square mark inside a 512px export that carries
-     ~7% transparent margin of its own, so the box is set larger than the
-     wordmark to land the mark itself at its height. The wordmark reserves the
-     mark's column with padding, since the mark is out of flow (see
-     `.start-group`); the clip on `.title-wrapper` does not reach it, because
-     its containing block is the row above the wrapper. */
-  .title-wrapper :global(.site-title) {
-    padding-inline-start: calc(var(--mark-size) + var(--mark-gap));
-  }
+     ~7% transparent margin of its own, so the box is set a little larger to
+     land the mark itself at the nav's text height. */
   .title-wrapper :global(.site-title img) {
-    position: absolute;
-    inset-inline-start: 0;
-    top: 50%;
-    translate: 0 -50%;
     box-sizing: border-box;
     height: var(--mark-size);
     width: var(--mark-size);
