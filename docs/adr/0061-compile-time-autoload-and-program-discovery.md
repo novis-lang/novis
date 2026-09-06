@@ -4,7 +4,8 @@
 - **Date:** 2026-08-23
 - **Scope:** how a class/interface/enum reference reaches the file that declares it without a hand-written
   `require`; the `autoload` declaration and its two forms; the one-declaration-per-autoloaded-file rule;
-  `Core\Program::implementing<T>()`; what the two add to the artifact cache's invalidation set. Not in
+  `Core\Program::implementing<T>()`; what the two add to the artifact cache's invalidation set;
+  `Core\Program::id()`, the same class's one runtime member, and the formula behind it. Not in
   scope: `require`'s own semantics, which are unchanged.
 - **Amends:** [0028](0028-closing-the-remaining-magic-methods.md) § 6, which closed `__autoload` as moot on
   the grounds that static resolution leaves no runtime moment for a loader callback. That is still true and
@@ -20,7 +21,9 @@
 > answer — becomes `Core\Program::implementing<T>()`, a compile-time query expanding to an array literal of
 > `new` expressions. The first costs one keyword and no new invalidation edge; the second is opt-in, and is
 > the only thing in Novis that makes a compiled unit depend on a *directory's contents* rather than a file's
-> bytes.
+> bytes. The same class carries the one member here that actually runs — `id()`, the 64 lowercase hex
+> characters naming this program's exact code and environment — which § 6 shows cannot be folded the way
+> everything else in this ADR is, because folding it would change the bytes it is a digest of.
 
 ## Context
 
@@ -193,6 +196,48 @@ the failure later, against the direction [ADR 0022](0022-definite-property-initi
   listed directories (tens, not thousands), and exactly zero under `validate = never`, which is what a
   production deployment runs. For `nvs build --compile` and the wasm target the question does not arise:
   resolution happens once, at build time.
+
+### 6. `Core\Program::id()` — the one member of this class that runs
+
+```php
+function Core\Program::id(): string;
+```
+
+`BLAKE3(unit content hashes in program order ‖ env_hash)`, rendered as all 32 bytes in lowercase hex — 64
+characters, and the runtime never truncates, because a caller that wants eight of them can take eight and
+one that wants all 32 cannot get them back. Both inputs are already on disk for another reason: a unit's
+`content_hash` and the `env_hash` are the two halves of
+[ADR 0042](0042-on-disk-artifact-cache-format.md)'s cache address, so a program's identity is one combine
+over digests the caches already hold, and `nvs_config::cache::program_id` owns the combine because it owns
+both inputs. Program order rather than sorted order: a graph whose units resolve in a different order is a
+different program, and an identity that cannot see that is not one.
+
+**It cannot be a compile-time-folded constant, and that is circularity rather than preference.** Every
+other answer in this ADR is decided in `nvs check` and expanded into the unit that asked for it (§ 3).
+Folding this one would write the id into a unit as a literal, which changes that unit's bytes, hence its
+content hash, hence the id just folded. So this is `Core\Program`'s first and only member with a body: the
+host computes the id once, where the resolved graph and the environment digest are both in hand, writes it
+onto the context before any Novis code runs, and the member reads that string back.
+
+**Computed at program resolution and at [ADR 0017](0017-hot-reload-without-restart.md)'s pointer swap,
+never per call and never lazily.** A lazy first-call compute would put a hash of every unit digest on one
+unlucky request's path, and a per-call one on all of them; the swap is the only other moment the answer
+changes, because it is the only moment a running host's set of units does. What this spends is 32 bytes per
+program and one BLAKE3 combine per resolution — [ADR 0004](0004-memory-for-simplicity.md)'s ledger, stated
+here because that ADR asks for it to be stated.
+
+**Plain `string`, never `secret`** ([ADR 0033](0033-secret-qualifier-for-confidential-values.md)). Every
+use of the id is an echo — a cache-busting URL segment, a response header, the field that tells one
+deployment's log lines from another's — and `secret` refuses an echo by design, so qualifying it would
+make the member useless for the things it exists for. It does tell a reader that a deployment's code
+changed, and when; that is a fingerprinting caveat rather than a disclosure, since a digest reveals no
+source and answers no question about what changed. The caveat is recorded in the member's registry card
+([ADR 0117](0117-an-implemented-core-member-documents-itself-in-the-registry.md)), not enforced.
+
+A context nobody wrote an id onto makes the member **throw**, rather than answer an empty string or invent
+one — the same call `Core\Command::completions` makes for a context with no program name. Callers key
+caches and invalidate CDNs on this value, so an id that is not this program's identity is worse than no
+answer at all.
 
 ## Consequences
 
