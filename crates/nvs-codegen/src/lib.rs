@@ -2424,6 +2424,14 @@ echo Tag::of(3);
         let bytes = unit.finish_object().expect("the object is written");
 
         let file = object::File::parse(&*bytes).expect("cranelift wrote a readable object");
+        // Mach-O prefixes every linker-visible name with `_` and ELF and COFF do not, so a
+        // relocation names the callee in the object format's spelling rather than in the one
+        // `linkage_name` hands back. Deriving what to look for from the object's own format is
+        // what keeps this a claim about the *symbol* on every host.
+        let wanted = match file.format() {
+            object::BinaryFormat::MachO => format!("_{callee}"),
+            _ => callee,
+        };
         let mut targets = Vec::new();
         for section in file.sections() {
             for (_, reloc) in section.relocations() {
@@ -2436,8 +2444,8 @@ echo Tag::of(3);
             }
         }
         assert!(
-            targets.contains(&callee),
-            "nothing in the object relocates against `{callee}`, so the call to it was baked \
+            targets.contains(&wanted),
+            "nothing in the object relocates against `{wanted}`, so the call to it was baked \
              in as an address this process alone could use. Relocations found: {targets:?}"
         );
     }
