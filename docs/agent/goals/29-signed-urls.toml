@@ -42,9 +42,11 @@ modules = [
 # rule `until` copies; 0097/0102 are the mount prefix and the one match; 0004 prices it.
 rules = ["0060", "0146", "0024", "0033", "0063", "0096", "0097", "0102", "0004"]
 
-adrs = ["0146", "0060 §§1,4,5"]
+# One entry per section: `orient.py` slices one heading per entry, so "0060 §§1,4,5" matched no
+# heading at all and this goal would have opened with none of the three it names.
+adrs = ["0146", "0060 §1", "0060 §4", "0060 §5"]
 
-shapes = ["A core class", "A commit message", "A .nvst case"]
+shapes = ["A `Core` member — the five edits", "A commit message", "A `.nvst` test case"]
 
 playbook = [
   'Writing Novis itself > core is',

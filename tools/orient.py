@@ -15,7 +15,7 @@ So this script prints the same kinds of thing, selected by the goal's own `[cont
     the handoff's state and the current item        always
     the code at every `path:line` the item names    always -- see `run_anchors`
     the goal's standing decisions                   always -- this is what keeps a run off BLOCKED
-    the rules the named records created or changed  [context] rules
+    a named rule's own body; a named record's rules  [context] rules
     the named ADR sections, sliced live             [context] adrs
     the named spec sections, sliced live            [context] spec
     the map lines for the named modules             [context] modules
@@ -807,54 +807,116 @@ def run_standing_decisions() -> None:
         warn(f"{rel(GOAL_MD)} has no `## Standing decisions` section -- loop-authoring.md § 4")
 
 
-def run_rules(m: Manifest) -> None:
-    """The rules the goal's `[context] rules` records created or changed, one line each.
+#: How many of a record's guard paths and modified-rule ids are named before the row is summarised.
+#:
+#: Both lists were printed whole until 2026-09-06, and between them they were 17.8 KB of a 94.9 KB
+#: pack -- 8.2 KB of guard paths and 9.6 KB of bare ids -- against 11.8 KB for the rule titles that
+#: are the section's actual content. Neither list is *readable* at that length: ADR 0067 alone
+#: contributed 43 `.nvst` paths, and a rule id with no title beside it cannot be triaged without
+#: opening the chapter anyway. So both are now a sample plus a count, which is the shape that
+#: answers the only question a session asks of them -- "is there a lot of this, and where does it
+#: live" -- and `python tools/rules.py --show <id>` answers the rest in one call.
+NAMED_BEFORE_COUNT = 6
 
-    `rules` names decision records by number, as it always has. Until migration unit C2 the
-    bullets came from the authored `docs/ground-rules.md`, selected by the numbers a bullet
-    cited; that file is retired, and the relation it encoded by hand is now the rulebook's
-    `because` -- the same table a frozen record's `changes:` block is derived from. So the pack
-    prints, per record, the rules whose `because` names it, `rule:` token first so the id is
-    what a session copies, and the chapter's body is the rule.
+
+def rule_lines(book, ids: list[str]) -> None:
+    """`- rule:<id> -- <title>` for each, marking a rule that is designed rather than shipped."""
+    for rid in ids:
+        r = book.by_id[rid]
+        mark = "" if r.status == "shipped" else "  (designed)"
+        emit(f"- `rule:{r.id}` -- {r.title}{mark}")
+
+
+def capped(label: str, items: list[str], tail: str, indent: str = "  ") -> None:
+    """One wrapped line naming at most `NAMED_BEFORE_COUNT` of `items`, then how many are left."""
+    if not items:
+        return
+    shown = items[:NAMED_BEFORE_COUNT]
+    rest = f", and {len(items) - NAMED_BEFORE_COUNT} more ({tail})" \
+        if len(items) > NAMED_BEFORE_COUNT else ""
+    emit(textwrap.fill(f"{label}: " + ", ".join(shown) + rest, width=100, initial_indent=indent,
+                       subsequent_indent=indent, break_on_hyphens=False, break_long_words=False))
+
+
+def run_rules(m: Manifest) -> None:
+    """The rules this goal works inside, selected by `[context] rules`.
+
+    An entry is one of two things, told apart by the `/` a rule id always has:
+
+    * **a decision record number** -- `"0067"` -- which expands to the rules whose `because` names
+      it: the ones it created as `rule:` token plus title, the ones it modified as ids. Until
+      migration unit C2 those bullets came from the authored `docs/ground-rules.md`, selected by
+      the numbers a bullet cited; that file is retired and the relation it encoded by hand is now
+      the rulebook's `because`, which is also what a frozen record's `changes:` block is derived
+      from.
+    * **a rule id** -- `"core-classes/schema-plan"` -- which prints that one rule's **body**.
+
+    The second form exists because the first prints only titles, and a title is a pointer rather
+    than a rule. `AGENTS.md` is explicit that the fragment is the rule and the record is frozen
+    rationale, so a goal that named its records and nothing else was shipping every session 9 KB of
+    history and 0 bytes of the text it is held to -- and paying a call to fetch the rule anyway.
+    Name the two or three rules the item is actually written against; the record numbers stay for
+    the surrounding map.
     """
     section(
         "THE RULES THIS GOAL LIVES INSIDE",
-        f"docs/rules/*.json, the rules created or changed by [context] rules = {m.rules or '[]'}",
+        f"docs/rules/, selected by [context] rules = {m.rules or '[]'}",
     )
     emit("AGENTS.md's priority ordering and its four rules are already in your context. These are")
-    emit("the decisions this goal's own work sits inside; the rule's chapter body is the rule.")
+    emit("the rules this goal's own work sits inside. A rule named by id is printed whole, because")
+    emit("the fragment IS the rule; a record number expands to the rules it created or changed.")
     emit()
     if not m.rules:
-        warn("[context] rules is empty, so no decision is named as binding this goal")
+        warn("[context] rules is empty, so no rule and no decision is named as binding this goal")
         return
     try:
         book = rulebook.Rulebook()
     except Exception as exc:  # noqa: BLE001 -- a broken rulebook is a loud warning, not a crash
         warn(f"the rulebook did not load ({exc}); no rule can be selected")
         return
-    for num in m.rules:
-        created = [r for r in book.by_id.values() if r.because and r.because[0] == num]
-        changed = [r for r in book.by_id.values() if num in r.because[1:]]
-        if not created and not changed:
-            warn(f"[context] rules names {num}, but no rule's `because` names that record")
+
+    for entry in m.rules:
+        if "/" in entry:
+            run_one_rule(book, entry)
             continue
-        emit(f"ADR {num} -- {len(created)} rule(s) created, {len(changed)} changed:")
-        for r in sorted(created, key=lambda r: (r.topic, r.order)):
-            mark = "" if r.status == "shipped" else "  (designed)"
-            emit(f"- `rule:{r.id}` -- {r.title}{mark}")
-        guards = sorted({g for r in created for g in r.guarded_by})
-        if guards:
-            # The authored bullets named the mechanism behind a rule in prose ("`tools/dossier.py`
-            # is the whole mechanism"); the rulebook names it as the rule's guard.
-            emit(textwrap.fill("guarded by: " + ", ".join(guards), width=100, initial_indent="  ",
-                               subsequent_indent="  ", break_on_hyphens=False, break_long_words=False))
-        if changed:
-            # A foundational record sits in the `because` of sixty rules; ids alone keep the
-            # pack readable, and the chapter is one `--where` away.
-            ids = ", ".join(f"rule:{r.id}" for r in sorted(changed, key=lambda r: (r.topic, r.order)))
-            emit(textwrap.fill(f"changed: {ids}", width=100, initial_indent="  ", subsequent_indent="  ",
-                               break_on_hyphens=False, break_long_words=False))
+        created = sorted([r for r in book.by_id.values() if r.because and r.because[0] == entry],
+                         key=lambda r: (r.topic, r.order))
+        changed = sorted([r for r in book.by_id.values() if entry in r.because[1:]],
+                         key=lambda r: (r.topic, r.order))
+        if not created and not changed:
+            warn(f"[context] rules names {entry}, but no rule's `because` names that record "
+                 f"and the rulebook has no rule with that id")
+            continue
+        emit(f"ADR {entry} -- {len(created)} rule(s) created, {len(changed)} changed:")
+        rule_lines(book, [r.id for r in created])
+        # The authored bullets named the mechanism behind a rule in prose ("`tools/dossier.py` is
+        # the whole mechanism"); the rulebook names it as the rule's guard.
+        capped("guarded by", sorted({g for r in created for g in r.guarded_by}),
+               "`rules.py --show <id>` lists a rule's own")
+        # A foundational record sits in the `because` of sixty rules. Ids alone were already the
+        # compromise; a sample of them is the one that fits.
+        capped("changed", [f"rule:{r.id}" for r in changed],
+               "`brief.py --where` routes a topic to its chapter")
         emit()
+
+
+def run_one_rule(book, rid: str) -> None:
+    """One rule, printed the way `rules.py --show` prints it: the id, what holds it, and the body."""
+    r = book.by_id.get(rid)
+    if r is None:
+        warn(f"[context] rules names rule:{rid}, and the rulebook has no rule with that id -- "
+             f"`python tools/rules.py --list` is every one of them")
+        return
+    mark = "" if r.status == "shipped" else "  (designed, not yet shipped)"
+    emit(f"---- rule:{r.id}{mark}")
+    emit(f"     {r.title}")
+    if r.because:
+        emit(f"     decided in {', '.join(r.because)}"
+             f"{'' if len(r.because) == 1 else ' (first created it, the rest amended it)'}")
+    capped("guarded by", r.guarded_by, "`rules.py --show` lists them all", indent="     ")
+    emit()
+    emit(r.body())
+    emit()
 
 
 def adr_path(number: str) -> Path | None:
@@ -989,6 +1051,100 @@ def run_map(m: Manifest) -> None:
         warn(f"[context] modules pattern {pat!r} matched no module -- it moved, or the glob is wrong")
 
 
+#: Shapes that only make sense together, as {shape: the one it implies}. A decision is two files --
+#: the frozen record and the rule's fragment -- written in one commit, and a session handed only
+#: the record's shape writes half of it and is then refused by `session.py --wrap`'s rulebook gate.
+#: Warning here is the cheap end of that: the manifest is one line, and the refusal is at the point
+#: where context is at its peak.
+SHAPE_IMPLIES = {"A decision record": "A rule fragment"}
+
+
+def manifest_findings(path: Path) -> tuple[list[str], list[str]]:
+    """`(problems, notes)` for one goal file's `[context]` block, printing nothing.
+
+    `chain.py --check` walks every entry on the chain and, until this existed, checked only that
+    the driver could *run* the acceptance list. Nothing looked at the manifest, which is the other
+    half of whether the goal is walkable: five queued goals were naming shapes -- `"A core class"`,
+    `"A .nvst case"` -- that `conventions.md` has no heading for, and one was naming
+    `"0060 §§1,4,5"`, which slices no section at all. Each of those is a section the pack silently
+    does not print, discovered by the session that opens the goal at 3am and works without it.
+
+    **What gates and what only reports is a question of whether the target can legitimately not
+    exist yet.** A `shapes` entry names a heading in a file that is already written, and a
+    `playbook` selector names a bullet that is already there, so neither is ever forward-looking:
+    those are problems. A `rules`, `adrs`, `spec` or `milestones` entry may name something this
+    goal is about to create -- that is a normal way to write a manifest -- so those are notes.
+    `modules` is not audited at all here: a goal whose first slice creates the crate is the
+    ordinary case, and `orient.py`'s own run-time warning is the right place for it.
+    """
+    problems: list[str] = []
+    notes: list[str] = []
+    try:
+        spec = tomllib.loads(path.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError):
+        return problems, notes  # chain.py --check reports an unreadable goal itself
+    m = Manifest(spec)
+    where = rel(path)
+    if not m.present:
+        notes.append(f"{where}: has no `[context]` block, so a session opens on the unscoped pack")
+        return problems, notes
+    for key in m.unknown:
+        problems.append(f"{where}: `[context] {key}` is not a field orient.py reads -- "
+                        f"one of {', '.join(Manifest.FIELDS)}")
+
+    conventions = read(CONVENTIONS)
+    for name in m.shapes:
+        if slice_section(conventions, name) is None:
+            problems.append(f"{where}: shapes names {name!r}, and conventions.md has no such "
+                            f"heading -- the shape is silently not printed")
+    for shape, implied in SHAPE_IMPLIES.items():
+        if shape in m.shapes and implied not in m.shapes:
+            problems.append(f"{where}: shapes names {shape!r} without {implied!r}")
+
+    playbook_text = read(PLAYBOOK)
+    for selector in m.playbook:
+        _hits, complaint = slice_bullets(playbook_text, selector)
+        if complaint:
+            problems.append(f"{where}: playbook selector {selector!r} -- {complaint}")
+
+    for entry in m.adrs:
+        parts = entry.replace("§", " ").split()
+        if not parts:
+            continue
+        number, wanted = parts[0], " ".join(parts[1:])
+        target = adr_path(number)
+        if target is None:
+            notes.append(f"{where}: adrs names {number}, and docs/decisions/ has no {number}.md")
+        elif wanted and slice_section(strip_frontmatter(read(target)), wanted) is None:
+            notes.append(f"{where}: adrs entry {entry!r} matches no heading in {number}.md -- "
+                         f"one entry is ONE section, so `§§1,4,5` slices nothing")
+    for entry in m.spec:
+        parts = entry.replace("§", " ").split()
+        if not parts:
+            continue
+        number, wanted = parts[0], " ".join(parts[1:])
+        target = spec_path(number)
+        if target is None:
+            notes.append(f"{where}: spec names {number}, and docs/spec/ has no {number}-*.md")
+        elif wanted and slice_section(read(target), wanted) is None:
+            notes.append(f"{where}: spec entry {entry!r} matches no heading in {rel(target)}")
+
+    if m.rules:
+        try:
+            book = rulebook.Rulebook()
+        except Exception:  # noqa: BLE001 -- rules.py --check is where a broken rulebook is reported
+            book = None
+        if book is not None:
+            for entry in m.rules:
+                if "/" in entry:
+                    if entry not in book.by_id:
+                        notes.append(f"{where}: rules names rule:{entry}, and the rulebook has no "
+                                     f"rule with that id")
+                elif not any(entry in r.because for r in book.by_id.values()):
+                    notes.append(f"{where}: rules names {entry}, and no rule's `because` names it")
+    return problems, notes
+
+
 def run_named_sections(title: str, source: Path, wanted: list[str], field: str) -> None:
     if not wanted:
         return
@@ -996,6 +1152,12 @@ def run_named_sections(title: str, source: Path, wanted: list[str], field: str) 
     if not text:
         warn(f"{rel(source)} is missing")
         return
+    if field == "shapes":
+        for shape, implied in SHAPE_IMPLIES.items():
+            if shape in wanted and implied not in wanted:
+                warn(f"[context] shapes names {shape!r} without {implied!r}. One decision is both "
+                     f"files, in one commit, and `session.py --wrap` refuses a rulebook left "
+                     f"half-written -- add {implied!r} to the manifest")
     section(title, f"{rel(source)}, filtered to [context] {field}")
     for name in wanted:
         body = slice_section(text, name)

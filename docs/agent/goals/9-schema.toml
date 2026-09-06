@@ -94,14 +94,23 @@ modules = [
   "crates/nvs-cli/src/main.rs",
 ]
 
-rules = ["0067", "0084", "0024", "0051", "0082", "0132", "0063", "0117", "0005"]
+# Record numbers for the surrounding map -- the rules each one created or changed, as titles. Then
+# the four rules the remaining stages are written against, by id, which prints each one's fragment
+# WHOLE: the record is frozen on its date and the fragment is what the work is held to.
+rules = [
+  "0067", "0084", "0024", "0051", "0082", "0132", "0063", "0117", "0005",
+  "core-classes/schema-introspection",     # stage 4
+  "core-classes/schema-converges",         # stage 5
+  "core-classes/schema-plan",              # stage 5's grades
+  "core-classes/schema-apply-capability",  # stage 6
+]
 
 # 0067 whole -- its Revisiting item is what this goal closes, and its § 9 type map is the vocabulary
 # read in the other direction. 0084 § 2 for the schema this goal takes over. 0082 § 7 for the design
 # that stays blocked.
 adrs = ["0067", "0084", "0082"]
 
-shapes = ["A `Core` member — the five edits", "A decision record", "A `.nvst` test case", "A commit message"]
+shapes = ["A `Core` member — the five edits", "A rule fragment", "A decision record", "A `.nvst` test case", "A commit message"]
 
 playbook = [
   'Writing Novis itself > core is',

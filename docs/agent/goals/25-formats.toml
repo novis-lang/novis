@@ -35,7 +35,7 @@ rules = ["0051", "0024", "0097", "0009", "0052", "0004"]
 
 adrs = ["0051 §3", "0097 §1"]
 
-shapes = ["A decision record", "A core class", "A commit message", "A .nvst case", "A diagnostic"]
+shapes = ["A decision record", "A rule fragment", "A `Core` member — the five edits", "A commit message", "A `.nvst` test case", "A diagnostic"]
 
 playbook = [
   'Writing Novis itself > core is',

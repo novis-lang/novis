@@ -40,6 +40,7 @@ adrs = ["0079 §18", "0097 §6", "0079 §10"]
 shapes = [
   "A `Core` member — the five edits",
   "A `.nvst` test case",
+  "A rule fragment",
   "A decision record",
   "A commit message",
 ]

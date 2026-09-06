@@ -50,6 +50,7 @@ shapes = [
   "A `Core` member — the five edits",
   "A diagnostic",
   "A `.nvst` test case",
+  "A rule fragment",
   "A decision record",
   "A commit message",
 ]

@@ -65,6 +65,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import loop  # noqa: E402  -- same directory; the check schema has one home and it is `loop.py`
+import orient as orientmod  # noqa: E402  -- the `[context]` manifest's one reader, likewise
 
 ROOT = Path(__file__).resolve().parent.parent
 GOALS = ROOT / "docs" / "agent" / "goals"
@@ -1065,6 +1066,12 @@ def cmd_check(text, head, entries):
                 fail = loop.spec_error(path)
                 if fail:
                     problems.append(f"{rel(path)}: the driver cannot run this list -- {fail}")
+                # The other half of walkable: the driver can run the checks, and the SESSION gets
+                # the pack. A manifest naming a heading that is not there costs nothing until the
+                # chain reaches the entry, and then costs one session the section it needed.
+                bad, said = orientmod.manifest_findings(path)
+                problems.extend(bad)
+                notes.extend(said)
             if key == "md" and e.num is not None:
                 h1 = body.split("\n", 1)[0]
                 if not h1.startswith(f"# Loop goal {e.num} "):
