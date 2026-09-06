@@ -162,6 +162,7 @@
 pub mod catalog;
 pub mod conn;
 pub mod ddl;
+pub mod direct;
 pub mod maria;
 pub mod matrix;
 pub mod mysql;
