@@ -704,8 +704,19 @@ def cmd_apply(state: dict, path: Path, dry_run: bool) -> int:
         index = json.loads(index_path.read_text(encoding="utf-8")) if index_path.exists() else {"topics": []}
         if not any(t["topic"] == doc["topic"] for t in index["topics"]):
             order = (max((t.get("order", 0) for t in index["topics"]), default=0)) + 10
-            index["topics"].append({"topic": doc["topic"], "title": doc["topic"].replace("-", " ").title(),
-                                    "order": order})
+            # The chapter names itself, and the slug is only the fallback. Title-casing the slug
+            # turns `core-api` into "Core Api" and a chapter calling itself "The Core classes" into
+            # "Core Classes" -- and since `rules.py` renders the heading from this file rather than
+            # from the chapter's own JSON, the invented name is the one every reader then sees.
+            # `order` stays sequential on purpose: registration order is migration order, and the
+            # chapters' own `order` fields disagree with each other (four of the first nine claim 20).
+            title = doc["topic"].replace("-", " ").title()
+            for text in doc["json"].values():
+                chapter = json.loads(text)  # already validated above
+                if chapter.get("topic") == doc["topic"] and chapter.get("title"):
+                    title = chapter["title"]
+                    break
+            index["topics"].append({"topic": doc["topic"], "title": title, "order": order})
             writes[index_path] = json.dumps(index, indent=2) + "\n"
 
     rewrites = plan_citation_rewrites(doc["remap"])
