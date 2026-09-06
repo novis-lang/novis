@@ -46,7 +46,7 @@ wherever it kept a component.
 | `examples/**` | tool | a mirror of `../docs/examples/`, emptied and rewritten on every `sync:examples` — edit the repository's copy, which is where the sweep that writes them lives ([ADR 0134](../docs/adr/0134-every-shipped-feature-owes-four-proofs.md)). **Gitignored**, unlike the ADR mirror: that one is transformed on the way in, this one is the same bytes twice. `examples:check` runs it, so a stale mirror fails here rather than shipping |
 | `scripts/spec-overrides.mjs` | human | corrections for spec table rows the parser cannot read — every fix goes here, never into the parser |
 | `config/site.mjs` | human | **all placeholder URLs live here** — swap them once to go live |
-| `config/external-links.mjs` | human | the rule that a link off the site opens in a new tab with `rel="noopener noreferrer nofollow"`: an integration decorates content links at build time, and a component spreads `externalLinkAttrs(href)` onto any anchor it writes itself |
+| `config/external-links.mjs` | human | the rule that a link off the site opens in a new tab with `rel="noopener noreferrer nofollow"` — except the project's own repository and Discord links, which open in a new tab with no `rel`: an integration decorates content links at build time, and a component spreads `externalLinkAttrs(href)` onto any anchor it writes itself |
 
 A member removed from the spec leaves its page behind as an *orphan*; `sync:core` lists
 orphans at the end of its run for a human to review and delete.

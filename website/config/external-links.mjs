@@ -2,7 +2,10 @@
  * The one home of the external-link rule: a link that leaves the site opens
  * in a new tab and carries `rel="noopener noreferrer nofollow"`. `noopener`
  * keeps the opened page off our `window`, `noreferrer` keeps our URL out of
- * its logs, `nofollow` says we vouch for nothing we link to.
+ * its logs, `nofollow` says we vouch for nothing we link to. The project's
+ * own pages elsewhere — the repository and the Discord server, OWN_LINKS
+ * below — are the exception: they open in a new tab too, but carry no `rel`
+ * of ours, since we do vouch for them and want them followed.
  *
  * Links reach the built HTML by two roads, and the rule has to meet both:
  *
@@ -24,12 +27,25 @@
  * are; the site's own absolute URLs stay in-tab.
  */
 import { isSatteriProcessor } from '@astrojs/markdown-satteri'
-import { SITE_URL } from './site.mjs'
+import { SITE_URL, GITHUB_URL, DISCORD_URL } from './site.mjs'
 
-/** The `rel` every external link carries. */
+/** The `rel` every external link carries, except one of our own. */
 export const EXTERNAL_REL = 'noopener noreferrer nofollow'
 
+/** Prefixes of the project's own pages off the site: new tab, no `rel`. */
+export const OWN_LINKS = [GITHUB_URL, DISCORD_URL]
+
 const siteOrigin = new URL(SITE_URL).origin
+
+/**
+ * Whether `href` is one of the project's own pages elsewhere — the
+ * repository, anything under it (edit and blob links), the Discord invite.
+ * @param {string} href
+ * @returns {boolean}
+ */
+function isOwn(href) {
+  return OWN_LINKS.some((own) => href === own || href.startsWith(own + '/') || href.startsWith(own + '?'))
+}
 
 /**
  * Whether `href` points at another website. A `URL` counts as its string —
@@ -49,14 +65,17 @@ export function isExternal(href) {
 
 /**
  * The attributes a component spreads onto an anchor: `{}` for a link that
- * stays on the site, `target` and `rel` for one that leaves it. An existing
- * `rel` (Starlight's social icons carry `rel="me"`) is kept and extended.
+ * stays on the site, `target` alone for one of our own pages elsewhere,
+ * `target` and `rel` for one that leaves the project. An existing `rel`
+ * (Starlight's social icons carry `rel="me"`) is kept, and extended where
+ * the rule adds tokens.
  * @param {unknown} href
  * @param {string} [rel]
  * @returns {{ target?: string; rel?: string }}
  */
 export function externalLinkAttrs(href, rel) {
   if (!isExternal(href)) return rel ? { rel } : {}
+  if (isOwn(String(href))) return rel ? { target: '_blank', rel } : { target: '_blank' }
   return { target: '_blank', rel: mergeRel(rel) }
 }
 
@@ -94,7 +113,7 @@ function satteriExternalLinks() {
         const attrs = externalLinkAttrs(node.properties?.href, relOf(node.properties?.rel))
         if (!attrs.target) return
         ctx.setProperty(node, 'target', attrs.target)
-        ctx.setProperty(node, 'rel', attrs.rel)
+        if (attrs.rel) ctx.setProperty(node, 'rel', attrs.rel)
       },
     },
     raw(node, ctx) {
@@ -111,7 +130,7 @@ function rehypeExternalLinks() {
       const attrs = externalLinkAttrs(node.properties.href, relOf(node.properties.rel))
       if (attrs.target) {
         node.properties.target = attrs.target
-        node.properties.rel = attrs.rel
+        if (attrs.rel) node.properties.rel = attrs.rel
       }
     } else if (node.type === 'raw' && typeof node.value === 'string') {
       node.value = decorateRawAnchors(node.value)
@@ -133,7 +152,7 @@ const rawAttr = (name) => new RegExp(`\\b${name}\\s*=\\s*"([^"]*)"`, 'i')
 /**
  * The rule applied to anchors inside raw HTML, which never reach an element
  * visitor. Attributes already on the tag are kept: `target` wins if present,
- * `rel` is extended.
+ * `rel` is extended where the rule adds tokens.
  * @param {string} html
  * @returns {string}
  */
@@ -142,10 +161,11 @@ export function decorateRawAnchors(html) {
   return html.replace(rawAnchor, (tag, attrs) => {
     const href = rawAttr('href').exec(attrs)?.[1]
     if (!isExternal(href)) return tag
+    const target = rawAttr('target').test(attrs) ? '' : ' target="_blank"'
+    if (isOwn(href)) return `<a ${attrs}${target}>`
     let rest = attrs
     const rel = rawAttr('rel').exec(attrs)?.[1]
     if (rel !== undefined) rest = rest.replace(rawAttr('rel'), ' ').replace(/\s+/g, ' ').trim()
-    const target = rawAttr('target').test(rest) ? '' : ' target="_blank"'
     return `<a ${rest}${target} rel="${mergeRel(rel)}">`
   })
 }
