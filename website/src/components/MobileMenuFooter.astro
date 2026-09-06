@@ -2,6 +2,8 @@
 /**
  * MobileMenuFooter override: the site navigation (hidden from the header on
  * small screens) followed by the default social icons and theme switcher.
+ * The sidebar renders it at its foot; on a page without a sidebar it is the
+ * whole of the mobile menu (see PageFrame.astro).
  */
 import Default from '@astrojs/starlight/components/MobileMenuFooter.astro'
 import { withBase } from '~/lib/base'

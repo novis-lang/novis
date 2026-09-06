@@ -76,6 +76,8 @@ export default defineConfig({
         Head: './src/components/Head.astro',
         PageTitle: './src/components/PageTitle.astro',
         MobileMenuFooter: './src/components/MobileMenuFooter.astro',
+        // The mobile menu button on every page, sidebar or not.
+        PageFrame: './src/components/PageFrame.astro',
         // The two Starlight components that link off the site, with the
         // external-link rule applied — see config/external-links.mjs.
         SocialIcons: './src/components/SocialIcons.astro',
