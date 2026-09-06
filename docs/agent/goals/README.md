@@ -92,6 +92,17 @@ one, so the ~110 unindexed items become a short list of scheduling questions ins
 inventory. [28 unowned-sweep](28-unowned-sweep.md) closes what is left, four fifths of which is one
 blocker — an options bag the registry could not spell, which is what goal 18 lands.
 
+**Then one entry the user asked for on 2026-09-06**, and it is the first since goal 20 that *adds* a
+surface rather than closing one. [29 signed-urls](29-signed-urls.md) is
+[ADR 0146](../../adr/0146-a-signature-is-over-a-payload-and-a-url-is-a-payload-core-uri.md): Novis could
+sign a cookie and a JWT and could not sign a link, which is what a password reset, an unsubscribe, a
+download and a tamper-proof AJAX endpoint all are. It lands `Core\Signature` — ADR 0060's fifth and
+final roster entry, over a payload map — and the two doors onto it, `$uri->sign` and `Core\Router`'s
+pair. Its whole argument is that it invents **no** canonical form: `$uri->sign` signs what
+`$uri->compareTo` already normalizes, which is where every other language's version of this feature has
+gone wrong. It sits after goal 28 because it adds surface and 28 is the last entry that only closes,
+and because `{keys, until}` needs the options bag goal 28 stage 2 lands.
+
 **Then the chain turns around.** [50 dossier](50-dossier.md) is the last hand-written entry and it writes
 no proof of its own: one session runs `python tools/dossier.py --emit-goals --append-chain
 docs/agent/goals/chain.toml`, which puts [ADR 0134](../../adr/0134-every-shipped-feature-owes-four-proofs.md)'s
@@ -156,7 +167,8 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [26 xml-tree](26-xml-tree.md) | M8, one ADR slot + ADR 0122 § 4's fold | `nvs-stdlib`, `nvs-diagnostics` |
 | [27 gap-owners](27-gap-owners.md) | post-parity, no ADR — a process gate | `tools/`, every crate's module docs |
 | [28 unowned-sweep](28-unowned-sweep.md) | post-parity, ADR 0002/0033/0044 amendments | `nvs-stdlib`, `nvs-types`, `nvs-runtime` |
-| 29–49 | free | the gap the dossier's number leaves, so a new hand-written entry costs one `[[goal]]` block and no renumber |
+| [29 signed-urls](29-signed-urls.md) | M8, ADR 0146 + ADR 0060/0077 amendments | `nvs-stdlib`, `nvs-types`, `nvs-runtime` |
+| 30–49 | free | the gap the dossier's number leaves, so a new hand-written entry costs one `[[goal]]` block and no renumber |
 | [50 dossier](50-dossier.md) | ADR 0134 | none — it writes the goals that open all of them, then optimizes the loop for their shape |
 | 51 onward | ADR 0134, generated | one group of features per goal, its own `[context]` manifest |
 

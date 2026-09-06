@@ -2158,6 +2158,14 @@ is why" — is this file.
   `## Next group` and `verify.py` rather than the driver's report, and an acceptance line naming the goal's
   own fixture every session is the ordinary state and not a regression. Write it anyway: while it is
   absent, the ~30 program fixtures that would otherwise still be guarding the floor do not run either.
+- **A new goal's TOML is validated by `python tools/chain.py --check` and by nothing else, so run it
+  before you believe the file.** Two mistakes look identical to every other tool and to a reading eye:
+  a `[[check]]` `kind` the driver does not know (the set is `cargo-named`, `command`, `contains`,
+  `exact`, `min-bytes`, `nvs-suite`, `ordered` — there is no `nvst`, however many `.nvst` trees the
+  check runs), and a `kind = "command"` naming a tool that a *later* goal builds. `--check` catches the
+  first and cannot catch the second, so prefer a `cargo-named` check against a test that exists today
+  over a `command` against a tool that does not — goal 28's `tools/owners.py` is the standing example
+  of the latter, and the test behind it (`every_outstanding_key_names_an_owner`) is the former.
 
 ## Running things
 

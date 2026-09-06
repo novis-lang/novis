@@ -355,6 +355,22 @@ handoff = "docs/agent/goals/28-unowned-sweep.handoff.md"
 milestone = "post-parity"
 preflight = "docker"
 
+# The first entry since goal 20 that adds a surface rather than closing one, which is why it sits
+# here: goals 21-28 only close, and this is the last place a new surface can land before the
+# dossier stops adding them entirely. ADR 0146 is the design and it is finished --
+# `Core\Signature` as ADR 0060's fifth and final roster entry, plus the two doors onto it that
+# people will actually find, `$uri->sign` and `Core\Router`'s pair. It goes after goal 28 for a
+# second, mechanical reason: `{keys, until}` is an options bag whose `until` is a required key
+# holding a nullable value, and telling an omitted key from a written `null` is precisely what
+# goal 18 spelled and goal 28 stage 2 is the second caller of.
+[[goal]]
+name = "29 signed-urls"
+md = "docs/agent/goals/29-signed-urls.md"
+toml = "docs/agent/goals/29-signed-urls.toml"
+handoff = "docs/agent/goals/29-signed-urls.handoff.md"
+milestone = "M8"
+preflight = "docker"
+
 # The chain stops adding surface here and starts closing what is behind it. The dossier writes no proof: it
 # fires `dossier.py --emit-goals --append-chain` at this file, so ADR 0134's roster -- one goal per group
 # of features owing four proofs -- lands on the end of the chain the driver is already walking, and
