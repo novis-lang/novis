@@ -22,7 +22,7 @@
 //!   artifact and never a runtime feature; see [`openapi`] for what the table
 //!   supplies and what it does not yet.
 //! * `nvs build --compile` (M6) —
-//!   [ADR 0048](/docs/adr/0048-portable-single-file-executables.md)'s
+//!   `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`'s
 //!   portable single-file executable: the program's `require` graph as plain
 //!   source, appended to a copy of this binary. Also the one subcommand this
 //!   binary can *be*: a copy carrying that payload runs it instead of parsing
@@ -275,8 +275,8 @@ enum Command {
     /// changing what this invocation means
     /// (`rule:routing/api-document-is-a-deterministic-build-artifact`
     /// spells the OpenAPI command,
-    /// [ADR 0048](/docs/adr/0048-portable-single-file-executables.md)
-    /// § 5 the bundle).
+    /// `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`
+    /// the bundle).
     #[command(group = clap::ArgGroup::new("artifact").required(true).args(["openapi", "compile"]))]
     Build {
         /// The entry point of the program to build.
@@ -284,7 +284,7 @@ enum Command {
         /// Write `rule:routing/api-document-is-generated-from-the-route-table`'s OpenAPI 3.1 document to standard output.
         #[arg(long)]
         openapi: bool,
-        /// Write ADR 0048's portable single-file executable: this program's
+        /// Write `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`'s portable single-file executable: this program's
         /// `require` graph as source, appended to a copy of the `nvs` host
         /// binary.
         #[arg(long)]
@@ -338,8 +338,8 @@ enum Command {
     /// registering it would store.
     ///
     /// A namespace matching `nvs ctl`'s precedent
-    /// ([ADR 0093](/docs/adr/0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md)
-    /// § 1): every other subcommand acts on files with no server involved, and
+    /// (`rule:packaging/a-service-is-one-stored-argv`
+    /// ): every other subcommand acts on files with no server involved, and
     /// these do not. See [`service`], whose module doc owns which half of § 1
     /// is on disk and why the other half is not.
     Service {
@@ -488,7 +488,7 @@ enum TmpCommand {
 
 /// `nvs service`'s own subcommands.
 ///
-/// One so far, and it is the one ADR 0093 § 5 makes the default on Linux:
+/// One so far, and it is the one `rule:packaging/the-unit-is-printed-and-install-is-the-opt-in` makes the default on Linux:
 /// generate the unit and **print** it, because the operator's configuration
 /// management already owns the directory it belongs in and a binary that writes
 /// there behind Ansible's back is a worse citizen than one that prints. On
@@ -556,7 +556,7 @@ impl From<FaultSiteArg> for nvs_runtime::FaultSite {
 }
 
 fn main() -> ExitCode {
-    // ADR 0048 § 4, and it happens before clap sees anything: a bundled
+    // `rule:packaging/a-bundle-is-found-by-its-footer-before-argv-is-read`, and it happens before clap sees anything: a bundled
     // executable's `argv` belongs to the program it carries, so an app whose
     // first argument is `run` or `--help` must not have it read as one of
     // ours. An ordinary `nvs` finds no footer and falls straight through.
@@ -1169,7 +1169,7 @@ fn run_run(
     // worth anything if a tree that does not resolve stops the run.
     let mut config_sources = SourceMap::new();
     // A bundled program's entry file is a synthetic path inside the payload
-    // (ADR 0048 § 4), and `trust::canonical` has no filesystem entry to
+    // (`rule:packaging/a-bundle-is-found-by-its-footer-before-argv-is-read`), and `trust::canonical` has no filesystem entry to
     // examine for it. The executable itself is what an `[[app]]` block could
     // legitimately key on, and it is also all § 1's single trust domain
     // leaves to key on: the only principal here is whoever ran the binary.
@@ -1197,7 +1197,7 @@ fn run_run(
         render_diagnostics(&mut diags, &config_sources);
     }
 
-    // ADR 0042 §§ 3 and 7: the unit comes off disk when this environment has an
+    // `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable` and `rule:config/opcache-file-cache-directives-are-system`: the unit comes off disk when this environment has an
     // artifact for this program and out of Cranelift when it does not, and
     // `cache::unit_for` is the whole of that decision — every way the cache can
     // fail to answer is a compile, so nothing here reports one.
@@ -1560,7 +1560,7 @@ fn run_test(
             return ExitCode::FAILURE;
         };
         // `rule:config/the-config-is-an-immutable-snapshot`'s snapshot, resolved here for the reason `run_run`
-        // resolves it above its own compile: ADR 0042's artifact key is half
+        // resolves it above its own compile: `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s artifact key is half
         // configuration — § 7's `[opcache]` says where artifacts live and
         // whether they are read at all, and § 4's environment digest covers the
         // loaded extension set — so a suite compiled above the tree would

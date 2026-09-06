@@ -76,13 +76,13 @@ Two things are deliberately **not** affected:
 ### 2. The reserved `Core` namespace
 
 - **`Core` and everything nested under it** (`Core\Str`, `Core\Foo\Bar`, …) **is reserved.** User code and
-  every Tier 1/Tier 2 extension ([ADR 0003](0003-extension-system.md)) are refused a `namespace` declaration
+  every Tier 1/Tier 2 extension (`rule:packaging/an-extension-is-a-sandboxed-wasm-component`) are refused a `namespace` declaration
   or a class declaration that shadows anything under it — a diagnostic naming the collision. (An import
   *renamed* to collide with a `Core` name is no longer a separate case to guard against:
   `rule:statements/nothing-gets-a-second-name` removes `use … as …` outright, so there is no alias left to spoof one.)
 - **Domain classes, not one class.** Built-ins are grouped the way PHP's own extensions already group them —
   `Core\Str`, `Core\Arr`, `Core\Math`, `Core\Json`, `Core\Regex`, `Core\IO`, `Core\Env`, and more as later
-  milestones build them out — matching the Tier 0/Tier 2 split [ADR 0003](0003-extension-system.md) already
+  milestones build them out — matching the Tier 0/Tier 2 split `rule:packaging/an-extension-is-a-sandboxed-wasm-component` already
   draws by domain (`nvs-regex`, `nvs-db`). The exact roster is stdlib design, due at M2/M8, not fixed by this
   ADR; what *is* fixed here is the shape: one class per domain, `static` methods and `const` members, no
   free function or constant anywhere, ever. `Core\Server`, `Core\Request`, `Core\Session`, `Core\Cli` and
@@ -100,7 +100,7 @@ Two things are deliberately **not** affected:
   `rule:statements/static-is-a-member-modifier` already gives the rest of the language: nothing is reachable without
   a declared name in scope, and a reserved namespace is not an exemption from that.
 - **An extension manifest registers classes, not bare functions or constants.**
-  [ADR 0003](0003-extension-system.md)'s "declared functions, classes, constants" is amended to "declared
+  `rule:packaging/an-extension-is-a-sandboxed-wasm-component`'s "declared functions, classes, constants" is amended to "declared
   classes, whose `static` methods and `const` members the host registers" — Tier 1 and Tier 2 extensions
   follow the same shape user code does; there is no second, function-shaped registration path for them to
   use instead.
@@ -206,7 +206,7 @@ Verification, in the order it becomes possible:
   class member) — no bare-name fallback exists in the resolver at all; a collision with `Core` is a
   diagnostic at the declaration site.
 - **M8**: the stdlib milestone stands up the first `Core` domain classes; each is checked against
-  [ADR 0003](0003-extension-system.md)'s Tier 0 boundary and this ADR's "one manifest entry is a class" rule.
+  `rule:packaging/an-extension-is-a-sandboxed-wasm-component`'s Tier 0 boundary and this ADR's "one manifest entry is a class" rule.
 - **M11**: the converter's PHP-global → `Core`-class-and-member table exercised on a real project; the
   free-function/constant grouping heuristic for leftover procedural code checked against a human review of
   the generated class(es).

@@ -22,7 +22,7 @@
 //!   `serialize_i64`/`serialize_str`/`serialize_map` and the crate decides what
 //!   bytes those are.
 //!
-//! Pure Rust, no build script, no C — ADR 0051 § 4's two questions do not even
+//! Pure Rust, no build script, no C — `rule:packaging/a-c-dependency-answers-two-questions`'s two questions do not even
 //! arise.
 //!
 //! # `escapeUnicode` is a post-pass, not a formatter

@@ -1,4 +1,4 @@
-//! [ADR 0042]'s on-disk artifact cache: one immutable, content-addressed file per compiled unit,
+//! `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s on-disk artifact cache: one immutable, content-addressed file per compiled unit,
 //! and the writer that publishes one by a single atomic rename.
 //!
 //! § 1's layout is `<cache_dir>/<key[0..2]>/<key[2..]>.nvsc`, where the key is
@@ -172,11 +172,10 @@
 //! Stripping the prefix belongs with whatever makes `aarch64` load, since neither is worth a format
 //! branch on its own.
 //!
-//! [ADR 0048](/docs/adr/0048-portable-single-file-executables.md) is not the other half of
+//! `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host` is not the other half of
 //! this. Its § 2 decides a bundle carries *source*, not precompiled artifacts, and feeds into this
 //! cache rather than out of it, so there is no already-produced payload for the cache to ship over.
 //!
-//! [ADR 0042]: ../../../docs/adr/0042-on-disk-artifact-cache-format.md
 
 // Every compile site calls `unit_for` and `from_config`, and nothing outside this module calls
 // anything else here. What is left over is the vocabulary § 3's own steps are stated in —
@@ -1226,7 +1225,7 @@ pub(crate) fn unit_digests(files: &[nvs_types::ProgramFile<'_>]) -> Vec<Digest> 
         .collect()
 }
 
-/// Which half of ADR 0042 this run's unit came out of.
+/// Which half of `rule:packaging/an-artifact-is-one-immutable-content-addressed-file` this run's unit came out of.
 ///
 /// Nothing a script can observe turns on this — § 3 makes a miss exactly as invisible as a cold
 /// cache — so it exists for the tests that have to tell the two paths apart, and for a caller that
@@ -1241,7 +1240,7 @@ pub(crate) enum Provenance {
 }
 
 /// The unit for `program` — out of `cache` when it holds a usable artifact for `source`, and out
-/// of Cranelift when it does not. ADR 0042 §§ 3 and 4, at the one call site a run makes.
+/// of Cranelift when it does not. `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable` and `rule:packaging/a-writer-publishes-by-one-atomic-rename-and-never-a-lock`, at the one call site a run makes.
 ///
 /// **Every way this can fail to use the cache is a cold compile and nothing else.** No cache at
 /// all (the directory is absent, unwritable, or another account's — [`from_config`] answers
@@ -1432,7 +1431,7 @@ mod tests {
     /// A private directory for one test, removed first so a crashed run does not poison the next.
     ///
     /// **Two levels below the temp dir, not one**, and that is what makes these tests runnable at
-    /// all: ADR 0042 § 5's check reads the directory *and its parent*, and a Unix `/tmp` is mode
+    /// all: `rule:packaging/the-checksum-proves-integrity-and-ownership-proves-trust`'s check reads the directory *and its parent*, and a Unix `/tmp` is mode
     /// `1777`, so a cache placed directly in it is refused before any test's own subject is
     /// reached. The per-process root this nests under is created by this process and carries the
     /// umask's ordinary bits, so it is the parent the check is meant to see.
@@ -1525,7 +1524,7 @@ mod tests {
         total
     }
 
-    /// ADR 0042 § 6: eviction rides on a store and on nothing else, it is the roll that decides
+    /// `rule:packaging/eviction-rides-the-cold-miss-at-a-probability`: eviction rides on a store and on nothing else, it is the roll that decides
     /// whether it happens at all, and it deletes oldest-first down to a floor under the cap. The
     /// half that is a performance property rather than a policy one is the middle assertion: a
     /// warm hit over a cache that is *already* over its cap walks nothing.
@@ -1602,7 +1601,7 @@ mod tests {
         drop(fs::remove_dir_all(&dir));
     }
 
-    /// ADR 0042 § 5, which is `rule:config/ownership-is-the-trust-boundary` applied to `[cache] dir`: a directory another local
+    /// `rule:packaging/the-checksum-proves-integrity-and-ownership-proves-trust`, which is `rule:config/ownership-is-the-trust-boundary` applied to `[cache] dir`: a directory another local
     /// account can write is refused once, at construction, rather than entry by entry — that
     /// principal can compute a valid header and checksum over bytes of their own choosing, so
     /// there is nothing per entry that could catch them.
@@ -1638,7 +1637,7 @@ mod tests {
         drop(fs::remove_dir_all(&root));
     }
 
-    /// ADR 0042 §§ 1-2: the address is the content, the layout is a two-character fan-out, and a
+    /// `rule:packaging/an-artifact-is-one-immutable-content-addressed-file` and `rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`: the address is the content, the layout is a two-character fan-out, and a
     /// published file is never rewritten in place.
     #[test]
     fn the_cache_is_a_fan_out_of_immutable_content_addressed_files() {
@@ -1718,7 +1717,7 @@ mod tests {
         drop(fs::remove_dir_all(&dir));
     }
 
-    /// ADR 0042 § 4: concurrent writers of one key resolve by rename. Exactly one file exists
+    /// `rule:packaging/a-writer-publishes-by-one-atomic-rename-and-never-a-lock`: concurrent writers of one key resolve by rename. Exactly one file exists
     /// afterwards, it holds the right bytes, and no lock file and no temp file were left behind.
     #[test]
     fn a_concurrent_write_resolves_by_rename_with_no_lock_file() {
@@ -1768,7 +1767,7 @@ mod tests {
         drop(fs::remove_dir_all(&dir));
     }
 
-    /// ADR 0042 § 3: an artifact is checked over its whole length before [`Cache::load`] will hand
+    /// `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable`: an artifact is checked over its whole length before [`Cache::load`] will hand
     /// back the handle a mapper would take, and the check is the byte-exact one.
     ///
     /// What is assertable today is the ordering and the coverage, which is what the ADR's claim
@@ -1831,7 +1830,7 @@ mod tests {
         drop(fs::remove_dir_all(&dir));
     }
 
-    /// ADR 0042 § 3: a tampered artifact is rejected, silently, and the file goes with it — while a
+    /// `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable`: a tampered artifact is rejected, silently, and the file goes with it — while a
     /// file that is merely *foreign* is left alone.
     ///
     /// The three foreign cases are the ones § 3 calls a cache miss rather than corruption: a wrong
@@ -1882,7 +1881,7 @@ mod tests {
         drop(fs::remove_dir_all(&dir));
     }
 
-    /// ADR 0042 § 2: what a writer publishes is the object `nvs_codegen::compile_object` wrote,
+    /// `rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`: what a writer publishes is the object `nvs_codegen::compile_object` wrote,
     /// and the name § 3's loader will resolve a descriptor against is derived on *this* side of
     /// the crate boundary, from the class's label alone.
     ///
@@ -2395,7 +2394,7 @@ mod tests {
         drop(fs::remove_dir_all(&dir));
     }
 
-    /// ADR 0042 § 3: a payload whose checksum fails is a miss, and the run that asked for it sees
+    /// `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable`: a payload whose checksum fails is a miss, and the run that asked for it sees
     /// no error at all.
     ///
     /// [`a_tampered_artifact_is_rejected`] pins the same rule over bytes a test invented. What is
@@ -2449,7 +2448,7 @@ mod tests {
         drop(fs::remove_dir_all(&dir));
     }
 
-    /// ADR 0042 § 2: an artifact another toolchain wrote is a miss, and the environment is in the
+    /// `rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`: an artifact another toolchain wrote is a miss, and the environment is in the
     /// *address* rather than only in the header.
     ///
     /// Both halves, because § 2 keeps both on purpose. The address is what makes a foreign
@@ -2505,7 +2504,7 @@ mod tests {
         drop(fs::remove_dir_all(&dir));
     }
 
-    /// ADR 0042 § *Verification*'s warm-versus-cold margin — the measurement that says this cache
+    /// `rule:packaging/a-warm-hit-skips-codegen-not-the-front-end`'s warm-versus-cold margin — the measurement that says this cache
     /// is worth having, and the one that would say it is not.
     ///
     /// **The front end is inside neither arm.** [`lowered`] runs parse, check and lower once, above

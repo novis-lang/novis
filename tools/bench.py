@@ -83,7 +83,7 @@ inside the measurement rather than pre-compiled away.
 one engine, one script -- the baseline case -- and no comparison, so it runs whether or not PHP,
 Python or Bun is installed. What makes it *warm* is the process `measure()` already discards: by
 the timed reps the binary, its libraries and the script are in the OS page cache, and the artifact
-that run published is on disk for ADR 0042 § 3 to load. `warm_start()` owns both halves.
+that run published is on disk for `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable` to load. `warm_start()` owns both halves.
 
 What `--max-work-ms` budgets is the total **less** `nvs --version`, because most of the total is
 the operating system creating a process and not Novis at all. `warm_start()` owns that argument
@@ -355,7 +355,7 @@ def warm_start(binary: Path, reps: int, max_work_ms: float | None) -> int:
     `measure()` throws its first process away, and that discarded run is what makes this warm in
     both senses. The binary, its libraries and the script are in the OS page cache for every timed
     rep; and the discarded run published the artifact
-    [ADR 0042](../docs/adr/0042-on-disk-artifact-cache-format.md) § 3 then has each timed rep load,
+    `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable` then has each timed rep load,
     so the figure covers the read path -- verify, place, relocate, protect, bind -- and not a
     compile. A cache directory § 5 refuses is the one case where it does not: every rep compiles
     then, which is the shape a regression here takes rather than an error anyone sees.
@@ -379,7 +379,7 @@ def warm_start(binary: Path, reps: int, max_work_ms: float | None) -> int:
     print(f"  start floor {fmt(floor['min_ms'])} ms   nvs --version, the OS creating a process")
     print(f"  total       {fmt(total['min_ms'])} ms   median {fmt(total['median_ms'])} ms")
     print(f"  novis work  {fmt(work_ms)} ms   the total less that floor")
-    print("  each rep is an ADR 0042 warm hit; the discarded warm-up published the artifact")
+    print("  each rep is an `rule:packaging/an-artifact-is-one-immutable-content-addressed-file` warm hit; the discarded warm-up published the artifact")
     if max_work_ms is None:
         return 0
     within = work_ms <= max_work_ms

@@ -39,7 +39,7 @@
   the scale of the PHP plugin itself.
 - Three open questions this ADR resolves: how deep PhpStorm integration goes (LSP-bridge vs. native PSI),
   whether debugger UI wiring counts toward v1 "done," and where the client packages live — resolved in the
-  same phased spirit as [ADR 0003](0003-extension-system.md)'s wasm-before-native tiers.
+  same phased spirit as `rule:packaging/an-extension-is-a-sandboxed-wasm-component`'s wasm-before-native tiers.
 
 ## Decision
 
@@ -170,7 +170,7 @@ workspace `Cargo.toml` governs, alongside (not inside) `crates/`.
 
 - **Full native PhpStorm plugin from the start** (own PSI/lexer/parser). Rejected for now: a multi-month
   sub-project undertaken before any PhpStorm user has touched the language, same reasoning
-  [ADR 0003](0003-extension-system.md) used for wasm-before-native extensions — kept on the table, see
+  `rule:packaging/an-extension-is-a-sandboxed-wasm-component` used for wasm-before-native extensions — kept on the table, see
   *Revisiting*.
 - **LSP-bridge only, permanently, no native option ever revisited.** Rejected: forecloses a legitimate future
   decision if real PhpStorm adoption makes the refactoring/debugger gap worth paying down.

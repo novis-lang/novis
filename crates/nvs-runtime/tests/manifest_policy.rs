@@ -219,7 +219,7 @@ fn tokio_appears_in_neither_the_manifest_nor_the_lockfile() {
         dependents.iter().copied().collect::<Vec<_>>(),
         ["hyper"],
         "the lock file's route to `tokio` is no longer `hyper`'s alone. Every other dependency in \
-         this tree was picked under ADR 0051 § 4 with an async runtime as a disqualifier, so a \
+         this tree was picked under `rule:packaging/a-c-dependency-answers-two-questions` with an async runtime as a disqualifier, so a \
          second dependent is a dependency to reconsider rather than a line to add here."
     );
 

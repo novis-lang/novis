@@ -177,7 +177,7 @@ Two constraints on the template, both binding:
 `nvs/web` is a package and lives under every rule in
 [0081](0081-packages-are-digests-resolution-is-a-maximum.md), including the one that makes a breaking
 release a new package name. Its cadence should be deliberately slow, and
-[ADR 0068](0068-dependency-currency-and-the-version-contract.md)'s absorb-don't-forward discipline applies
+`rule:packaging/a-dependency-break-is-absorbed-never-forwarded`'s absorb-don't-forward discipline applies
 to it as strictly as to the runtime's own dependencies. The `Core` half versions with the binary and is
 bound by every compatibility rule `Core` already carries.
 

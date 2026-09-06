@@ -62,7 +62,7 @@ M4's, goal 1's, goal 2's and goal 3's whole acceptance lists, **never traded.**
     the fix — [hash.rs:606](../../../crates/nvs-stdlib/src/hash.rs) concatenates its retained chunks at
     `finish`, so that route peaks at twice the file. Hashing in Rust with a fixed buffer sidesteps the
     whole problem, because the hasher never has to survive a Novis call boundary — which is the actual
-    obstacle item 34 describes. [ADR 0042](../../adr/0042-on-disk-artifact-cache-format.md)'s mmap
+    obstacle item 34 describes. `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s mmap
     argument is the technique, already argued for the artifact cache and reused rather than re-decided.
     **What it spends:** one fixed buffer per call and no per-file growth, which is the point.
 
@@ -196,7 +196,7 @@ M4's, goal 1's, goal 2's and goal 3's whole acceptance lists, **never traded.**
 30. **Every member of §§ 14, 16, 17 is registered, cased and classified.** The three tests goal 1 built for
     Part I, run over Part II: registered, has a conformance case, carries a qualifier classification.
 31. **The C-dependency enumeration.** A check listing the default binary's C dependencies and failing on
-    any addition not recorded against ADR 0051 § 4's two questions. m8.md names this as CI infrastructure
+    any addition not recorded against `rule:packaging/a-c-dependency-answers-two-questions`'s two questions. m8.md names this as CI infrastructure
     rather than a fixture, and it is here rather than in goal 5 because goal 5 adds the one exception
     (SQLite) and a gate written by the goal that needs an exemption is a gate with an exemption in it.
 32. **No class outside Tier 0 registers a name beginning `Core\`.** Same paragraph, same reason.
@@ -268,7 +268,7 @@ refusals.
 
 40. **The read roster grows its second entry, in `crates/nvs-stdlib/src/password.rs`.** `verify` reads
     `$2y$`/`$2a$`/`$2b$` (never `$2x$`) through a pure-Rust bcrypt crate — picking it is pre-authorized
-    under ADR 0051 § 4 and owes the `[workspace.dependencies]` comment, `cargo deny check` and `python
+    under `rule:packaging/a-c-dependency-answers-two-questions` and owes the `[workspace.dependencies]` comment, `cargo deny check` and `python
     tools/gen-attribution.py`. A stored cost past 17 is refused before any work, in `MAX_M_COST`'s
     shape; `needsRehash` reads a bcrypt hash rather than throwing at it and answers `true` for every
     tag. The module doc's refusal section is rewritten to defer to `rule:security/an-unreadable-stored-hash-throws` as the roster's home,
@@ -298,7 +298,7 @@ there by the switch that left it and folded forward at every switch since.
   0076, 0082, 0086, 0105. A session that believes it needs a new number has almost certainly found a
   section it has not read.
 - **Redis is the default shared store**, decided in `rule:core-api/two-cache-tiers`. Its client is a synchronous one over
-  goal 2's parking stream; picking it is pre-authorized under ADR 0051 § 4.
+  goal 2's parking stream; picking it is pre-authorized under `rule:packaging/a-c-dependency-answers-two-questions`.
 - **`Core\Cache::local` and `Core\RateLimit::shed` need no capability, and each declares that as a
   `None` row in `registry::CAPABILITIES`.** `rule:core-api/two-cache-tiers` is the decision behind both: their state is a
   map in the calling core's own thread, so nothing leaves the process, no name is resolved and no file
@@ -313,7 +313,7 @@ there by the switch that left it and folded forward at every switch since.
   twice, exactly as goal 2's graph copy is one walk reached twice.
 - **`Core\Session`, `Core\Metrics`, `Core\Router::match` and `Core\Queue` are not in this goal.** The
   first three need a request and are goal 6's; `Core\Queue` needs a database and is goal 5's.
-- **Picking every dependency but the two the user named** stays pre-authorized under ADR 0051 § 4. A new
+- **Picking every dependency but the two the user named** stays pre-authorized under `rule:packaging/a-c-dependency-answers-two-questions`. A new
   Rust dependency owes the `[workspace.dependencies]` line with a comment saying why, `cargo deny check`,
   and `python tools/gen-attribution.py`.
 

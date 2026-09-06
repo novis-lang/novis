@@ -79,7 +79,7 @@
 //! — the key-taking pair is unchanged and still the only path for a `string`
 //! subscript — which is why this had to land while nothing depends on the
 //! current set, rather than as a versioned break once
-//! [ADR 0042](/docs/adr/0042-on-disk-artifact-cache-format.md)
+//! `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`
 //! artifacts and M9's WIT signatures do.
 //!
 //! **What still calls the key-taking pair for an integer subscript is

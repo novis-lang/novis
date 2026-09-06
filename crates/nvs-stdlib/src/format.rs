@@ -18,7 +18,7 @@
 //! `rule:types/conversion`'s and
 //! `rule:types/conversion`'s, not
 //! Rust's `Display`. Adapting one would be more code than the grammar, so
-//! [ADR 0051](/docs/adr/0051-standard-library-tiers.md) § 4's first
+//! `rule:packaging/a-c-dependency-answers-two-questions`'s first
 //! question answers itself: this is Novis's own semantics, not an external
 //! specification someone else maintains.
 //!

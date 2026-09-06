@@ -262,7 +262,7 @@ pub(crate) fn run(
     filter: Option<String>,
     update: bool,
 ) -> ExitCode {
-    // ADR 0042 §§ 3 and 7: the suite's unit comes off disk when this
+    // `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable` and `rule:config/opcache-file-cache-directives-are-system`: the suite's unit comes off disk when this
     // environment has an artifact for this program, and the key is the
     // program's, not the subcommand's — a `nvs run` and a `nvs test` of one
     // program lower the same `nvs_ir::Program` through the same entry label, so
@@ -552,7 +552,7 @@ impl nvs_runtime::inproc::Answering for UnderTest {
 /// `Err` is the message to render; a compile that fails ends the run rather
 /// than any one test.
 ///
-/// `cache` is ADR 0042's artifact cache, or [`None`] for a run that consults
+/// `cache` is `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s artifact cache, or [`None`] for a run that consults
 /// none — every way it can fail to answer is a cold compile and nothing a
 /// verdict can see, which is why the [`crate::cache::Provenance`] this drops is
 /// dropped rather than reported.

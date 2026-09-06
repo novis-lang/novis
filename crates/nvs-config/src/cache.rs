@@ -1,6 +1,6 @@
 //! `rule:config/the-extension-set-is-in-every-unit-key`: the one `env_hash` both compiled-unit cache keys carry.
 //!
-//! Two caches key a compiled unit — the on-disk artifact cache ([ADR 0042] § 2) and the in-memory
+//! Two caches key a compiled unit — the on-disk artifact cache (`rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`) and the in-memory
 //! unit table (`rule:config/an-edit-reaches-the-next-request-without-a-restart`) — and § 4 gives them the same environment digest so that a unit compiled
 //! against one extension set, one CPU or one compiler is never reused against another:
 //!
@@ -15,7 +15,7 @@
 //! **The source is hashed once.** Both keys carry [`content_hash`], and the on-disk key is derived
 //! from that digest rather than from the source a second time, so a unit's bytes cross BLAKE3 exactly
 //! once however many caches it lands in; [`artifact_key`] itself runs over 64 bytes. Both digests are
-//! cryptographic on purpose — [ADR 0042] § 1 says what a merely fast hash would give up.
+//! cryptographic on purpose — `rule:packaging/an-artifact-is-one-immutable-content-addressed-file` says what a merely fast hash would give up.
 //!
 //! **Both keys are built here, in the crate that holds the extension set**, rather than each in the
 //! cache that uses it. The two caches live in two other crates and answer the same question; § 4's
@@ -55,7 +55,6 @@
 //! moves with the source, which is a `build.rs` this crate does not have yet and which nothing can
 //! use until the caches themselves are on disk.
 //!
-//! [ADR 0042]: ../../../docs/adr/0042-on-disk-artifact-cache-format.md
 
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -69,9 +68,8 @@ use crate::value::{Quantity, Unit};
 pub struct Digest([u8; 32]);
 
 impl Digest {
-    /// The digest's bytes, as [ADR 0042] § 2's header field holds them.
+    /// The digest's bytes, as `rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`'s header field holds them.
     ///
-    /// [ADR 0042]: ../../../docs/adr/0042-on-disk-artifact-cache-format.md
     pub fn as_bytes(&self) -> &[u8; 32] {
         &self.0
     }
@@ -157,12 +155,11 @@ pub fn content_hash(source: &[u8]) -> Digest {
     Digest(*blake3::hash(source).as_bytes())
 }
 
-/// [ADR 0042] § 1's on-disk key, as `rule:config/the-extension-set-is-in-every-unit-key` rekeyed it: `BLAKE3(content_hash ‖ env_hash)`.
+/// `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s on-disk key, as `rule:config/the-extension-set-is-in-every-unit-key` rekeyed it: `BLAKE3(content_hash ‖ env_hash)`.
 ///
 /// Both inputs are fixed 32-byte digests, so neither needs [`feed`]'s length prefix to keep them
 /// apart.
 ///
-/// [ADR 0042]: ../../../docs/adr/0042-on-disk-artifact-cache-format.md
 pub fn artifact_key(content: Digest, env: EnvHash) -> Digest {
     let mut hasher = blake3::Hasher::new();
     hasher.update(content.as_bytes());
@@ -177,7 +174,7 @@ pub fn artifact_key(content: Digest, env: EnvHash) -> Digest {
 /// significant on purpose: `units` is the resolution's own order, and the same files required in a
 /// different order are a different program.
 ///
-/// The environment is folded in for the reason [ADR 0042] § 1 folds it into an artifact key — the
+/// The environment is folded in for the reason `rule:packaging/an-artifact-is-one-immutable-content-addressed-file` folds it into an artifact key — the
 /// same sources compiled against another extension set, CPU or compiler are not the same running
 /// program, and an id that could not tell them apart would name two of them the same thing.
 ///
@@ -315,7 +312,6 @@ impl Default for Revalidation {
     /// default is the run mode's ([`from_config`](Self::from_config)), and it reaches this one only
     /// for the `freq` beside it.
     ///
-    /// [ADR 0042]: ../../../docs/adr/0042-on-disk-artifact-cache-format.md
     fn default() -> Self {
         Self {
             validate: Validate::Mtime,

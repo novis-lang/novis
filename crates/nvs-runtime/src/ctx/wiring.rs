@@ -368,7 +368,7 @@ impl Ctx {
     ///   `nvs`. The word the shell saw is `nvs`, but a script registered
     ///   against it would answer for the toolchain: every other `nvs run` would
     ///   then complete against this program's command table.
-    /// * [ADR 0048](/docs/adr/0048-portable-single-file-executables.md)'s
+    /// * `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`'s
     ///   single-file executable — the **executable's** own stem, because there
     ///   the binary *is* the program, and its entry file is a synthetic path
     ///   inside the payload that no shell has ever seen.

@@ -119,7 +119,7 @@ crates, and it has the reset that § 13 calls the good case. The other four are 
     and not a MySQL flag** — § *Context* argues it: `RETURNING`, a bulk-execute protocol MySQL lacks, a
     native `UUID` type, and its own error-code table. `executeMany` stays N executions there, per § 4:
     a bulk command cannot reproduce what the loop lets a caller observe.
-18. **MariaDB's `ed25519` and `parsec` authentication plugins.** ADR 0051 § 4 named this case in advance
+18. **MariaDB's `ed25519` and `parsec` authentication plugins.** `rule:packaging/a-c-dependency-answers-two-questions` named this case in advance
     so it would be answered by the test rather than by convenience: an authentication handshake handles
     attacker-reachable data, so question 2 applies, and the answer is **a Rust implementation of the
     plugin, or a documented refusal to support that auth method** — never a C dependency.
@@ -194,10 +194,10 @@ like the WSL leg already is.
   another's state.
 - **PostgreSQL first, then the rest.** Its extended protocol pays nothing extra for a prepare, so the
   first driver is the one that exercises the design rather than the driver's own quirks.
-- **SQLite's C dependency is the one audited exception**, under ADR 0051 § 4's second question, and goal 4
+- **SQLite's C dependency is the one audited exception**, under `rule:packaging/a-c-dependency-answers-two-questions`'s second question, and goal 4
   built the enumeration check that fails on any *addition* to that list. A second C dependency is a
   `BLOCKED`.
-- **Picking every dependency but the two the user named** stays pre-authorized under ADR 0051 § 4, with
+- **Picking every dependency but the two the user named** stays pre-authorized under `rule:packaging/a-c-dependency-answers-two-questions`, with
   the three obligations a Rust dependency owes.
 
 ## What this goal does not touch

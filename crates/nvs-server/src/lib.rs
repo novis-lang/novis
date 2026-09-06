@@ -83,7 +83,7 @@
 //! Framing is where request smuggling lives, and it is not a parser to own for
 //! one implementation's worth of traffic. The workspace `Cargo.toml`'s comment
 //! above the dependency is the argument in full — including the part that
-//! matters most, which is that ADR 0051 § 4's first question answers **yes**
+//! matters most, which is that `rule:packaging/a-c-dependency-answers-two-questions`'s first question answers **yes**
 //! here and the answer is still to take the dependency.
 //!
 //! **There is no second scheduler.** `hyper` with `http1` and `server` alone
@@ -119,7 +119,7 @@ pub mod trace;
 
 // The request a handler is handed, so that one can be *spelled* where it is
 // written. `hyper` is this crate's dependency and deliberately not its callers'
-// — ADR 0051 § 4's answer is one crate owning h1 — but the parameter type of a
+// — `rule:packaging/a-c-dependency-answers-two-questions`'s answer is one crate owning h1 — but the parameter type of a
 // `Fn(Request<Incoming>, Origin) -> Reply` has to be nameable outside it — the
 // second parameter is ADR 0097 § 6's walk, which ran on the connection before
 // the handler because its answer decides policy on responses no handler sees —

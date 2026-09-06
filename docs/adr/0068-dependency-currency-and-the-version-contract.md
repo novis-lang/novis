@@ -1,4 +1,4 @@
-# ADR 0068 — Dependencies stay current; a dependency break is absorbed, never forwarded
+# `rule:packaging/a-dependency-break-is-absorbed-never-forwarded` — Dependencies stay current; a dependency break is absorbed, never forwarded
 
 - **Status:** Accepted
 - **Date:** 2026-08-24

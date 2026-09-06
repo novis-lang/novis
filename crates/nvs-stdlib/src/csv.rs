@@ -20,7 +20,7 @@
 //! paragraphs down, and a writer cannot silently accept a document that means
 //! something else.
 //!
-//! [ADR 0051](/docs/adr/0051-standard-library-tiers.md) § 4's first
+//! `rule:packaging/a-c-dependency-answers-two-questions`'s first
 //! question is **yes** — an uploaded spreadsheet is attacker-controlled text
 //! reaching this member directly — so under that ADR a C dependency here would
 //! need question 2's exceptional verification record and would not have one.

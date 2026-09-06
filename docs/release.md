@@ -151,7 +151,7 @@ thing to question.
 
 ## The version scheme is not plain SemVer
 
-[ADR 0068](adr/0068-dependency-currency-and-the-version-contract.md) § 3 owns it, and below 1.0 the
+`rule:packaging/below-1-0-the-breaking-slot-moves-left` owns it, and below 1.0 the
 breaking slot moves left by one — `0.MINOR` carries breaking changes and `0.MINOR.PATCH` is always
 compatible. From today's 0.0.1:
 
@@ -161,7 +161,7 @@ compatible. From today's 0.0.1:
 | `minor` | 0.0.2 | the same, deliberately: below 1.0 there is no third slot for a compatible feature |
 | `major` | 0.1.0 | **and refuses unless `allow_contract` is ticked** |
 
-That refusal is not a formality. ADR 0068 § 1 makes 0.1.0 the release that ends the prototyping
+That refusal is not a formality. `rule:packaging/the-version-contract-starts-at-0-1-0` makes 0.1.0 the release that ends the prototyping
 regime and declares the version contract — "the switch is thrown once, in the commit that tags
 0.1.0". A dropdown nobody read is not a way to throw it.
 

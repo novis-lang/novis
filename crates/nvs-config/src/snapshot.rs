@@ -293,9 +293,8 @@ pub struct Reload {
 ///
 /// A `RwLock` and not a lock-free cell because the read happens **once per request**, at start,
 /// and is an `Arc` clone under a read guard — the contended case is a reload, which is rare, and
-/// a dependency bought for one uncontended read is not a trade this crate makes ([ADR 0051] § 4).
+/// a dependency bought for one uncontended read is not a trade this crate makes (`rule:packaging/a-c-dependency-answers-two-questions`).
 ///
-/// [ADR 0051]: ../../../docs/adr/0051-standard-library-tiers.md
 #[derive(Debug)]
 pub struct Current(RwLock<Arc<Snapshot>>);
 

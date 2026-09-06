@@ -123,7 +123,7 @@
 //! know. base64 has four such rules, `fromBase64` is a member request bodies
 //! reach, and every one of those rules is a documented CVE somewhere. The
 //! `base64` crate is the pick under
-//! [ADR 0051](/docs/adr/0051-standard-library-tiers.md) § 4 —
+//! `rule:packaging/a-c-dependency-answers-two-questions` —
 //! pure Rust, no build script, no C, and already in this tree's lock file
 //! under `wasmtime-internal-cache`, so it adds no crate at all.
 //! `Cargo.toml`'s `[workspace.dependencies]` comment states the pick; this
@@ -131,7 +131,7 @@
 //!
 //! # Why hex takes no dependency
 //!
-//! [ADR 0051](/docs/adr/0051-standard-library-tiers.md) § 4 asks
+//! `rule:packaging/a-c-dependency-answers-two-questions` asks
 //! two questions of an outside crate, and base-16 answers both the wrong way:
 //! the whole algorithm is a nibble table, there is no specification drift to
 //! track and no security-relevant parsing to get wrong, so a dependency would

@@ -2187,7 +2187,7 @@ impl<'a> Lowering<'a> {
     /// added `nvs_array_get_index` and `nvs_array_set_index` and no third —
     /// so `unset($a[$i])` renders the decimal here rather than having
     /// codegen discover it cannot. Widening the runtime ABI to close that
-    /// is a separate decision, not a side effect of this one; ADR 0042's
+    /// is a separate decision, not a side effect of this one; `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s
     /// artifacts and M9's WIT signatures are about to freeze that surface.
     pub(crate) fn lower_rendered_array_key(
         &mut self,

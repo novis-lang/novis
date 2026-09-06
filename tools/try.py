@@ -44,7 +44,7 @@ prints both outputs, and the exit status is 0 unless a snippet could not be *rea
 `--bundle FILE...` swaps the twin. Each argument is a `.nvs` entry point rather than a `.nvst`
 snippet; each is built with `nvs build --compile`, and the executable that comes out is run beside
 `nvs run` over the same source. That pair *is*
-[ADR 0048](../docs/adr/0048-portable-single-file-executables.md)'s own verification list -- "a
+`rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`'s own verification list -- "a
 bundled executable runs identically to `nvs run` against the same source" -- asked the same way a
 `--ORACLE--` asks PHP, and for the same reason: a hand-written expectation about a bundle is a
 translation, and the executable is right there to ask instead.
@@ -230,7 +230,7 @@ def bundled(path: Path, keep: bool, expect: list[str], stem: str) -> tuple[bool,
 
     ok = True
     if bundle_out == run_out and bundle_code == run_code:
-        out.append("  MATCH -- the bundle runs identically to `nvs run` (ADR 0048 Verification)")
+        out.append("  MATCH -- the bundle runs identically to `nvs run` (`rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host` Verification)")
     else:
         ok = False
         out.append("  DIFFER -- the bundle and `nvs run` do not agree")

@@ -84,7 +84,7 @@ pub struct Config {
     pub mode: Option<Mode>,
     /// `[capabilities]` — deny-by-default grants (ADRs 0005, 0006).
     pub capabilities: Option<Capabilities>,
-    /// `[[extension]]` — a precompiled binary and its pin (ADR 0003 § 3).
+    /// `[[extension]]` — a precompiled binary and its pin (`rule:packaging/extension-loading-is-root-controlled`).
     pub extension: Vec<Extension>,
     /// `[debug]` — the probe set, default and ceiling in one (`rule:testing/debug-probes`).
     pub debug: Option<Debug>,
@@ -327,7 +327,7 @@ pub struct CapDb {
     pub schema: Option<Setting>,
 }
 
-/// One `[[extension]]` entry — ADR 0003 § 3.
+/// One `[[extension]]` entry — `rule:packaging/extension-loading-is-root-controlled`.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Extension {
@@ -891,7 +891,7 @@ pub struct Mount {
     pub origin: Option<String>,
 }
 
-/// `[cache]` — ADR 0042's artifact cache, and under it the one block that is not about artifacts.
+/// `[cache]` — `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s artifact cache, and under it the one block that is not about artifacts.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Cache {

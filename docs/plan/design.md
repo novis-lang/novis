@@ -60,7 +60,7 @@ spellings rejected, and the reasoning. Do not restate that detail here when addi
 | Implementation language | Rust (stable, pinned via `rust-toolchain.toml`) |
 | Resource priorities | Security → semantics → latency → simplicity → memory footprint, in that order, within an enforced per-request cap (`rule:programs/memory-priority`) |
 | Execution | Cranelift JIT from day one, no interpreter tier; baseline codegen first, optimising tier later |
-| Code cache | Content-addressed on-disk cache (BLAKE3) + in-process `Arc` sharing; hot-reloads on an edit via a per-path pointer swap, no watcher, no restart (`rule:config/an-edit-reaches-the-next-request-without-a-restart`); the on-disk file format, its mmap-verify-then-execute read path and its eviction policy are [ADR 0042](../adr/0042-on-disk-artifact-cache-format.md) |
+| Code cache | Content-addressed on-disk cache (BLAKE3) + in-process `Arc` sharing; hot-reloads on an edit via a per-path pointer swap, no watcher, no restart (`rule:config/an-edit-reaches-the-next-request-without-a-restart`); the on-disk file format, its mmap-verify-then-execute read path and its eviction policy are `rule:packaging/an-artifact-is-one-immutable-content-addressed-file` |
 | Parallelism | Hybrid: `async`/`await` for I/O inside a task (same heap, cooperative) + isolated workers on other cores for CPU work |
 | Suspension | Stackful coroutines — no async colouring; any function may yield |
 | Isolated execution | `spawn script 'file.nvs'` runs another file in-process as a child isolate, file-only, never a source string (`rule:security/isolate-shares-nothing`) |
@@ -83,14 +83,14 @@ spellings rejected, and the reasoning. Do not restate that detail here when addi
 | Databases | One `Core\Db` API over MySQL, MariaDB (a driver of its own, not a MySQL version), PostgreSQL, SQLite and MS SQL Server: connections named in root-owned config, every statement prepared, a transaction is a closure (`rule:core-classes/db-one-api`) |
 | Tooling | LSP + formatter, test runner, debugger + profiler, package manager |
 | Audience | Web applications of every kind; the pitch is isolation and qualifiers, and PHP syntax is an on-ramp rather than a compatibility promise (`rule:programs/audience`) |
-| Packages | Content-addressed source archives from a first-party registry or (root-only) a git URL, resolved by minimal version selection, with no package code running before the program and capabilities granted per package ([ADR 0081](../adr/0081-packages-are-digests-resolution-is-a-maximum.md)) |
+| Packages | Content-addressed source archives from a first-party registry or (root-only) a git URL, resolved by minimal version selection, with no package code running before the program and capabilities granted per package (`rule:packaging/a-package-is-its-digest`) |
 | Framework | First-party and split by `rule:core-api/tier-placement`'s six tests: privileged halves in `Core`, the opinionated layer as the `nvs/web` package; no ORM, no runtime container, the language is the view layer (`rule:programs/first-party-framework`) |
 | Real-time | WebSocket and SSE connections are root isolates opened the way a script is spawned; fan-out is a bounded `Core\Topic` (`rule:concurrency/a-connection-is-a-root-isolate`) |
 | Background work | A durable job is a row in a `Core\Db` table, enqueued inside the caller's transaction and run as an isolate (`rule:concurrency/enqueue-commits-with-your-write`) |
 | API contracts | OpenAPI 3.1 generated while compiling from the route table and derived codecs, with `nvs api diff` as a breaking-change gate (`rule:routing/api-document-is-generated-from-the-route-table`) |
 | Testing | Hand-written suite is normative; `.phpt → .nvst` transpiler imports PHP's corpus |
 | Migration | `nvs convert` — real PHP→Novis transpiler |
-| Extensions | Three tiers: built-in, sandboxed **WebAssembly components** (`.nvsx`), statically linked native. No `dlopen` ([ADR 0003](../adr/0003-extension-system.md)) |
+| Extensions | Three tiers: built-in, sandboxed **WebAssembly components** (`.nvsx`), statically linked native. No `dlopen` (`rule:packaging/an-extension-is-a-sandboxed-wasm-component`) |
 | Platforms | Windows x86_64, Linux x86_64, macOS (x86_64 + aarch64) |
 | Licence | MIT |
 
@@ -183,7 +183,7 @@ signature, the measured cost and the reasoning are in `rule:errors/propagation`.
 
 Three tiers, each the right answer for a different class of code rather than a compromise. The full
 reasoning — the WIT interface, the handle-table value model, the measured boundary costs, the isolation and
-loading rules, and the decisive rejection of `dlopen` — is in [ADR 0003](../adr/0003-extension-system.md).
+loading rules, and the decisive rejection of `dlopen` — is in `rule:packaging/an-extension-is-a-sandboxed-wasm-component`.
 
 - **Tier 0 — built-in (`nvs-stdlib`).** Compiled into the binary, native, direct heap access, no boundary.
   Home of the fine-grained primitives whose total cost is comparable to a call.

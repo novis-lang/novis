@@ -150,7 +150,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// about to run, and `Core\Path::SEPARATOR` — the platform-dependent constant
 /// that landed first — already rests on exactly this reading. Whether a cached
 /// artifact may ever be replayed on another machine is
-/// [ADR 0042](/docs/adr/0042-on-disk-artifact-cache-format.md)'s
+/// `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s
 /// question about that cache's identity and not this module's, and the day it
 /// is answered these constants and `SEPARATOR` are answered together.
 const CONSTANTS: &[CoreConst] = &[

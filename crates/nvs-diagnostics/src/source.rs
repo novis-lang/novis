@@ -176,7 +176,7 @@ impl SourceMap {
     /// [`MAX_SOURCE_LEN`].
     pub fn load(&mut self, path: impl AsRef<Path>) -> io::Result<SourceId> {
         let path = path.as_ref();
-        // ADR 0048 § 4: inside a bundled executable the payload is the byte
+        // `rule:packaging/a-bundle-is-found-by-its-footer-before-argv-is-read`: inside a bundled executable the payload is the byte
         // source, and the name a diagnostic prints is the path the *build* saw
         // rather than the synthetic one this process resolves against.
         if let Some((name, text)) = crate::embedded::text(path) {

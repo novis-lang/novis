@@ -208,7 +208,7 @@ surface and is unaffected.
 
 The exporter is **Native and feature-gated** (`rule:core-api/five-placements`), defaulting
 on in the server distribution, so a CLI binary or an
-[ADR 0048](0048-portable-single-file-executables.md) single-file executable does not carry an OTLP client
+`rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host` single-file executable does not carry an OTLP client
 and its transitive dependencies. `Core\Metrics` is Tier 0 either way — the same split 0051 § 3 already uses
 for `Core\Cache`'s Redis backend, where the class is always there and the driver is a feature.
 

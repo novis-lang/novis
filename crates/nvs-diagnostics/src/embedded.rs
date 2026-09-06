@@ -1,4 +1,4 @@
-//! [ADR 0048](/docs/adr/0048-portable-single-file-executables.md) § 4's
+//! `rule:packaging/a-bundle-is-found-by-its-footer-before-argv-is-read`'s
 //! byte source: the files a bundled executable resolves against instead of the
 //! filesystem.
 //!
@@ -30,7 +30,7 @@
 //! **Known gap.** `autoload` probing (`rule:programs/no-runtime-autoload`) lists real directories and is
 //! not routed through here, so a bundled program that reaches a name only
 //! through an autoload root does not resolve it. `require` — which is what
-//! ADR 0048 § 3 makes the closed-world rule about — does.
+//! `rule:packaging/a-bundled-require-resolves-at-build-time` makes the closed-world rule about — does.
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Component, Path, PathBuf};

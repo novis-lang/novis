@@ -19,7 +19,7 @@
 //!   every non-fancy sub-expression to it — so the two agree on syntax, on
 //!   Unicode tables and on what a character class means, which two unrelated
 //!   engines would not. That shared core is the reason this pair rather than,
-//!   say, `pcre2` behind a C shim: ADR 0051 § 4's second question asks what a
+//!   say, `pcre2` behind a C shim: `rule:packaging/a-c-dependency-answers-two-questions`'s second question asks what a
 //!   C dependency buys, and the answer here would be a *second* opinion about
 //!   pattern syntax, which is what `rule:core-classes/regex-two-tiers` exists to avoid.
 //!

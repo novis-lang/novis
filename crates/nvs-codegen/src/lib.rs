@@ -348,8 +348,8 @@ pub struct Unit {
 /// Whatever keeps a [`Unit`]'s code mapped for as long as the unit lives.
 ///
 /// A [`Unit`]'s addresses are raw pointers into pages somebody owns, and there
-/// are two somebodies: [`compile`]'s own `JITModule`, and — since ADR 0042
-/// § 3 — a loader holding the private mapping it placed a cached payload into.
+/// are two somebodies: [`compile`]'s own `JITModule`, and — since `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable`
+/// — a loader holding the private mapping it placed a cached payload into.
 /// The unit is the same type either way, because everything above this field
 /// reads an address and never asks where it came from; only the drop differs,
 /// and both arms free exactly the pages they made.
@@ -375,7 +375,7 @@ enum Code {
 ///
 /// This is the loader's counterpart to `Module::get_finalized_function`, and
 /// the whole of what [`Descriptors::bind`] and [`Descriptors::into_unit`] need
-/// from ADR 0042 § 3's mapping: the addresses this unit's own functions ended up
+/// from `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable`'s mapping: the addresses this unit's own functions ended up
 /// at. Implemented outside this crate, by whoever owns those pages.
 pub trait Placed {
     /// Where this owner placed the function `symbol` names, or [`None`] if the
@@ -682,8 +682,8 @@ pub fn compile(program: &Program) -> Result<Unit, CodegenError> {
 }
 
 /// Compiles every function in `program` into a relocatable object file, and
-/// returns its bytes — [ADR 0042](/docs/adr/0042-on-disk-artifact-cache-format.md)
-/// § 2's cached payload.
+/// returns its bytes — `rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`
+/// 's cached payload.
 ///
 /// **The same walk [`compile`] runs**, and that is the point rather than an
 /// implementation detail: `emit.rs` is handed a different [`Module`] and
@@ -732,8 +732,8 @@ pub fn disassemble(program: &Program) -> Result<String, CodegenError> {
 }
 
 /// Every class descriptor a unit declares, built from the lowered IR and from
-/// nothing else — [ADR 0042](/docs/adr/0042-on-disk-artifact-cache-format.md)
-/// § 2's answer to where a warm cache hit's descriptors come from.
+/// nothing else — `rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`
+/// 's answer to where a warm cache hit's descriptors come from.
 ///
 /// A cached payload leaves every `nvs_class_desc_*` undefined (§ 2) and its
 /// loader resolves one against "the `ClassDesc` this process allocated" (§ 3) —
@@ -822,7 +822,7 @@ impl Descriptors {
     }
 
     /// The address `symbol` names, or [`None`] if it is not a descriptor of a
-    /// class this unit declares — which ADR 0042 § 3 makes a cache miss on the
+    /// class this unit declares — which `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable` makes a cache miss on the
     /// footing of a wrong `env_hash`, never an error.
     ///
     /// The spelling is asked of [`class_desc_symbol`] rather than matched here,
@@ -877,7 +877,7 @@ impl Descriptors {
         }
     }
 
-    /// The end of ADR 0042 § 3: these descriptors and `code`'s placed pages,
+    /// The end of `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable`: these descriptors and `code`'s placed pages,
     /// assembled into the same [`Unit`] a cold compile of the same program
     /// would have produced.
     ///
@@ -991,8 +991,8 @@ struct UnitBuilder<M> {
 /// A JIT compiles at run time, so it *knows* the address of a runtime object
 /// it has already built, and for four milestones it baked that address in as
 /// an `iconst`. It no longer does. The address reaches the code as a
-/// relocation against the name [`class_desc_symbol`] mints, because ADR 0042
-/// § 2's payload is this same lowering walk emitted into an object file, and a
+/// relocation against the name [`class_desc_symbol`] mints, because `rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`
+/// 's payload is this same lowering walk emitted into an object file, and a
 /// host address written into an object file is wrong the moment another
 /// process reads it — the descriptors it names were allocated by the process
 /// that compiled, not by the one that will run.
@@ -1232,7 +1232,7 @@ impl Classes {
     ///
     /// **Sorted by label**, because the result is baked into machine code and
     /// two builds of one unit have to emit the same instructions for
-    /// [ADR 0042](/docs/adr/0042-on-disk-artifact-cache-format.md) § 3's
+    /// `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable`'s
     /// checksum to mean what it claims.
     fn conforming_to(&self, base: &str) -> Vec<(&str, *const nvs_runtime::ClassDesc)> {
         let mut out: Vec<(&str, *const nvs_runtime::ClassDesc)> = self
@@ -1529,7 +1529,7 @@ impl UnitBuilder<JITModule> {
 }
 
 impl UnitBuilder<ObjectModule> {
-    /// The out-of-process backend: ADR 0042 § 2's relocatable object, for a
+    /// The out-of-process backend: `rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`'s relocatable object, for a
     /// cache file some later process will load.
     ///
     /// Exactly two things differ from [`UnitBuilder::new`], and both follow from
@@ -1543,7 +1543,7 @@ impl UnitBuilder<ObjectModule> {
     fn for_object() -> Result<Self, CodegenError> {
         let isa = host_isa(true)?;
         // The object's own name is metadata: a cached artifact is addressed by
-        // ADR 0042's key, which the file's contents cannot contribute to.
+        // `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s key, which the file's contents cannot contribute to.
         let builder = ObjectBuilder::new(isa, "nvs", cranelift_module::default_libcall_names())
             .map_err(|source| CodegenError::Cranelift {
                 function: "<unit>".to_owned(),
@@ -2012,7 +2012,7 @@ impl Signatures {
 /// [`Descriptors::of`] derives it again from the same walk over the same
 /// program so a loader can ask a placed payload for a method's address. Both
 /// ends index the very `nvs_ir::Program` a warm hit's front end just lowered
-/// (ADR 0042 § 2), so the index they hand in is the same one.
+/// (`rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`), so the index they hand in is the same one.
 fn function_symbol(index: usize, label: &str) -> String {
     // `index` only disambiguates the symbol name: an Novis function name is not
     // a valid symbol (`<script>` is the first counter-example), and two classes
@@ -2031,7 +2031,7 @@ fn function_symbol(index: usize, label: &str) -> String {
 /// one is: the object backend's loader lives in another crate and a name two
 /// crates must spell identically is a function one of them exports.
 ///
-/// ADR 0042 § 2 names `nvs_ir::lower::ENTRY_SCRIPT_LABEL` as the label the
+/// `rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header` names `nvs_ir::lower::ENTRY_SCRIPT_LABEL` as the label the
 /// entry frame carries, and that is the only `label` any caller outside this
 /// crate has a reason to ask about.
 #[must_use]
@@ -2059,7 +2059,7 @@ pub fn is_function_symbol(symbol: &str, label: &str) -> bool {
 /// `Foo\Bar` with `Foo_Bar`; escaping every non-alphanumeric byte as `_xx`
 /// cannot, because an escape's introducer is itself escaped.
 ///
-/// It is `pub` for that second end. The loader ADR 0042 § 3 describes is in
+/// It is `pub` for that second end. The loader `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable` describes is in
 /// another crate, and a name two crates must spell identically is a function
 /// one of them exports rather than a rule both restate — a second
 /// implementation of this loop is a mangling scheme that agrees with this one
@@ -2145,7 +2145,7 @@ mod tests {
     ///
     /// The first half is the property: an **imported** symbol is one this unit
     /// declared and did not define, so every use of it leaves a relocation
-    /// record — which is the whole of what ADR 0042 § 2's object payload needs
+    /// record — which is the whole of what `rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`'s object payload needs
     /// and the whole of what an `iconst` immediate destroys. The second is the
     /// promise that came with it: under `JITModule` the record resolves to the
     /// address that used to be baked, so nothing on the hot path moved.
@@ -2189,7 +2189,7 @@ mod tests {
 
     #[test]
     fn the_entry_frame_s_symbol_is_recognised_and_no_other_is() {
-        // ADR 0042 § 3's loader finds the frame to enter by walking the symbol
+        // `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable`'s loader finds the frame to enter by walking the symbol
         // table, because the index in the name is the emitter's and not
         // derivable. What it must not do is accept a *helper* the payload leaves
         // undefined, or the frame of some other function whose sanitized name
@@ -2308,7 +2308,7 @@ echo $total;
         ),
     ];
 
-    /// ADR 0042 § 2's keystone: the object backend is a second [`Module`] behind
+    /// `rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`'s keystone: the object backend is a second [`Module`] behind
     /// the one lowering walk, so every program the JIT emits, it emits too.
     ///
     /// A failure here is not "the object file came out wrong". It is that the
@@ -2393,8 +2393,8 @@ echo $total;
     /// relocation whichever module finalizes it — so the claim is only
     /// *readable* on the object product, where the relocation table survives
     /// finalization. That is what this reads: a `nvs_class_desc_*` import proves
-    /// nothing about a call, and a call site is the other half of what ADR 0042
-    /// § 2's loader has to place.
+    /// nothing about a call, and a call site is the other half of what `rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`
+    /// 's loader has to place.
     #[test]
     fn a_statically_resolved_call_target_is_a_relocation_not_an_immediate() {
         use object::{Object, ObjectSection, ObjectSymbol};

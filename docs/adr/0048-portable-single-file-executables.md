@@ -1,4 +1,4 @@
-# ADR 0048 — A portable single-file executable appends source to the host binary; rebundling is a build-time CLI step, not a runtime one
+# `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host` — A portable single-file executable appends source to the host binary; rebundling is a build-time CLI step, not a runtime one
 
 - **Status:** Accepted
 - **Date:** 2026-08-22
@@ -14,7 +14,7 @@
 > self-extracting-executable trick, invisible to the PE/ELF loader and requiring no new runtime mechanism.
 > At startup, `nvs-host` checks its own binary for that footer; if present, `require`/entry-point resolution
 > reads from the embedded tree instead of argv, and every step after that — content hashing, the artifact
-> cache, JIT compilation — is [ADR 0042](0042-on-disk-artifact-cache-format.md)'s existing pipeline,
+> cache, JIT compilation — is `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s existing pipeline,
 > unchanged. Rebundling means an app author reruns the same build command against their own source; the
 > shipped executable itself never mutates. Scope is deliberately CLI-only: a single downloaded-and-run
 > executable is one trust domain, the same as any other native binary, so none of `rule:config/three-changeability-classes`'s root/app

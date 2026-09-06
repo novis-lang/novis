@@ -14,7 +14,7 @@
 > next target is **the parity program**, goals 1–6 of the chain: PHP core feature parity, all
 > five SQL drivers, concurrency, governance and the server, run as the six-goal chain in
 > [docs/agent/goals/](agent/goals/README.md). Dependencies: `regex` + `fancy-regex` and `jiff` are named
-> by the user; the rest the loop picks under ADR 0051 § 4.
+> by the user; the rest the loop picks under `rule:packaging/a-c-dependency-answers-two-questions`.
 >
 > **Done:** M0 (setup) and M1 (front end) whole, M2 (HIR, types, IR) and M3 (baseline Cranelift
 > backend) whole, **M4 (language completeness) to its loop goal's acceptance list** — its own
@@ -59,9 +59,9 @@
 > `Core` row too; `rule:concurrency/a-connection-is-a-root-isolate` is whole — § 1's `101` opens a root isolate, § 4's bus crosses cores, §
 > 7's bounds are finite; `Core\Sse` fills § 5's cell. **`rule:config/the-config-is-an-immutable-snapshot`'s endpoint lands**: `E0629` refuses
 > a network `socket`, a local one is 0600, `reload` its only operation, a changed `Boot` key named.
-> **ADR 0093 refuses**: `E0630`-`E0634`; `nvs service unit` prints § 5's. **`rule:config/an-edit-reaches-the-next-request-without-a-restart` is guarded**:
+> **`rule:packaging/a-service-is-one-stored-argv` refuses**: `E0630`-`E0634`; `nvs service unit` prints § 5's. **`rule:config/an-edit-reaches-the-next-request-without-a-restart` is guarded**:
 > `never` never `stat`s, one window is one check, a swap publishes, § 3a picks `validate`, 10k cold
-> compile once. **ADR 0042 lands.** **`Core\Cldr` is whole.** Conformance 1570, differential 276,
+> compile once. **`rule:packaging/an-artifact-is-one-immutable-content-addressed-file` lands.** **`Core\Cldr` is whole.** Conformance 1570, differential 276,
 > migration 100%; valgrind green, arrays too. Serve: 2.78x php-cgi.
 >
 > **Blocking:** Nothing waiting on a decision — every design call goals 1–6 reach is pre-authorized
@@ -71,7 +71,7 @@
 > `tests/db/compose.yaml`'s PostgreSQL. That wall is down: a `[db.<name>] tls_ca_file` names a PEM
 > bundle, `nvs_config::db` resolves and trust-checks it at boot, and the handshake verifies against
 > it alone. `examples/transaction.nvs` now runs end to end against it. Picking every dependency but
-> the two the user named is pre-authorized under ADR 0051 § 4.
+> the two the user named is pre-authorized under `rule:packaging/a-c-dependency-answers-two-questions`.
 
 **How the plan relates to the ADRs.** The plan is the record of *what* gets built, in what order, and how
 each milestone is verified. It states decisions but does not argue them. The reasoning lives in

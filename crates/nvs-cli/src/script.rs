@@ -184,7 +184,7 @@ pub(crate) struct Compiler {
     /// `[opcache] validate` and `revalidate_freq`, read once for the same
     /// reason: both are `System`-class, so no request can move them.
     revalidation: Revalidation,
-    /// [ADR 0042]'s on-disk cache, resolved from the same block and once for
+    /// `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s on-disk cache, resolved from the same block and once for
     /// the same reason — or [`None`] for a host that consults none.
     ///
     /// It sits **behind** the two maps above rather than beside them: a path
@@ -196,7 +196,6 @@ pub(crate) struct Compiler {
     /// **What it spends:** one open of a content-addressed path per compile
     /// this cache misses, against a whole backend on every one it answers.
     ///
-    /// [ADR 0042]: /docs/adr/0042-on-disk-artifact-cache-format.md
     cache: Option<crate::cache::Cache>,
     /// How many times [`Self::compile`] has run on this cache — the counter
     /// `docs/plan/m7.md`'s acceptance paragraph asks the "compiles it exactly
@@ -222,7 +221,7 @@ impl Default for Compiler {
     /// correct answer rather than a placeholder: the digest separates
     /// environments, and a run that read no configuration has exactly this one.
     /// Every subcommand that installs a resolver now holds one — `nvs test`
-    /// resolves the tree above the suite's compile, because ADR 0042's artifact
+    /// resolves the tree above the suite's compile, because `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s artifact
     /// key is half configuration — so what is left here is this crate's own
     /// tests.
     fn default() -> Self {
@@ -384,12 +383,11 @@ impl Compiler {
     ///
     /// The backend half may still come off disk — [`Self::cache`] is asked here
     /// and nowhere else — and that is why the counter below keeps counting a
-    /// warm hit as a compile. [ADR 0042] § 2 is explicit that a hit skips
+    /// warm hit as a compile. `rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header` is explicit that a hit skips
     /// codegen and not the front end, so the front end really did run; what a
     /// hit saves is the Cranelift walk, which this counter never claimed to
     /// measure.
     ///
-    /// [ADR 0042]: /docs/adr/0042-on-disk-artifact-cache-format.md
     fn compile(&self, path: &str, written: &Path) -> Result<Rc<Compiled>, String> {
         // Counted here rather than at the call site, and before the front end
         // rather than after it: a compile that *failed* is still a compile

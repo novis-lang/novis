@@ -1454,7 +1454,7 @@ tests = [
   "a_grapheme_index_costs_more_than_a_code_point_index",
 ]
 
-# The architecture invariants ADR 0003 rests on -- a result and a throw travelling up through many JIT
+# The architecture invariants `rule:packaging/an-extension-is-a-sandboxed-wasm-component` rests on -- a result and a throw travelling up through many JIT
 # frames, a runtime panic contained and reported, a helper suspending with JIT frames live above it, and
 # native unwinding through those frames still being unavailable. Correctness, not cost, so debug is the
 # right profile and not merely the cheap one: `overflow-checks` and `debug_assert!` are on.
@@ -2096,7 +2096,7 @@ file = "examples/capability.nvs"
 want = ["granted: read ok", "denied: fs.write", "denied: script.spawn"]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 5 -- ADR 0042's artifact cache, exactly as specified. That ADR is a finished design and this
+# Stage 5 -- `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s artifact cache, exactly as specified. That ADR is a finished design and this
 # stage builds what it says rather than a fresh one.
 # ---------------------------------------------------------------------------------------------------
 [[check]]
@@ -2172,7 +2172,7 @@ tests = [
 ]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 7 -- ADR 0048's bundler. Last, because it is the cache read back through no new mechanism.
+# Stage 7 -- `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`'s bundler. Last, because it is the cache read back through no new mechanism.
 # ---------------------------------------------------------------------------------------------------
 [[check]]
 kind = "command"
@@ -2654,7 +2654,7 @@ tests = [
 # Stage 10 -- the gates. The set claims, checked over the registry rather than over fixtures.
 #
 # The C-dependency enumeration is here rather than in goal 5 on purpose: goal 5 adds the one exception
-# ADR 0051 § 4 allows, and a gate written by the goal that needs an exemption is a gate with an exemption
+# `rule:packaging/a-c-dependency-answers-two-questions` allows, and a gate written by the goal that needs an exemption is a gate with an exemption
 # in it.
 # ---------------------------------------------------------------------------------------------------
 [[check]]
@@ -3019,7 +3019,7 @@ tests = [
   # note that it names the one fact (does `BULK_UNIT_RESULTS` continue past a refusal?) that reopens it.
   "execute_many_on_mariadb_is_n_executions_and_not_the_bulk_command",
   "mariadb_returning_is_available_and_mysqls_is_not",
-  # ADR 0051 § 4 named this case in advance so it would be answered by the test, not by convenience.
+  # `rule:packaging/a-c-dependency-answers-two-questions` named this case in advance so it would be answered by the test, not by convenience.
   "the_mariadb_auth_plugins_are_implemented_in_rust_or_refused_by_name",
 ]
 
@@ -3812,7 +3812,7 @@ stage = "1 floor"
 name = "nvs-cli (nvs service, and it fails closed)"
 args = ["test", "-p", "nvs-cli"]
 tests = [
-  # ADR 0093 -- the installer is a sink.
+  # `rule:packaging/a-service-is-one-stored-argv` -- the installer is a sink.
   "the_installer_refuses_a_subcommand_outside_the_serve_and_run_allowlist",
   "the_installer_refuses_a_relative_path",
   "the_installer_refuses_a_password_on_a_command_line",
@@ -4273,7 +4273,7 @@ name = "the differential tree"
 args = ["test", "tests/differential/"]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 2 -- the keystone: `nvs-codegen` emits the same IR a second way. ADR 0042 § 2.
+# Stage 2 -- the keystone: `nvs-codegen` emits the same IR a second way. `rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`.
 # ---------------------------------------------------------------------------------------------------
 [[check]]
 kind = "cargo-named"
@@ -4289,7 +4289,7 @@ tests = [
 ]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 3 -- the relocating read path, and the wiring. ADR 0042 § 3, as amended by stage 4.
+# Stage 3 -- the relocating read path, and the wiring. `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable`, as amended by stage 4.
 # ---------------------------------------------------------------------------------------------------
 [[check]]
 kind = "cargo-named"
@@ -4306,7 +4306,7 @@ tests = [
 ]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 4 -- the amendment, and the number. ADR 0042 §§ 2-3.
+# Stage 4 -- the amendment, and the number. `rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header` and `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable`.
 # ---------------------------------------------------------------------------------------------------
 
 # The measurement is the check: a cache that does not beat compiling is a cache to delete, and this

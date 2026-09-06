@@ -25,7 +25,7 @@
 //! every slot its ancestors already claimed. That makes a recompile of an
 //! unchanged file reproduce the same layout — the same stability property
 //! `nvs_ir::ids` needs for a probe id, for the same reason: an artifact cached
-//! under ADR 0042 must still describe the code it is paired with.
+//! under `rule:packaging/an-artifact-is-one-immutable-content-addressed-file` must still describe the code it is paired with.
 //!
 //! A `static` property claims no slot: `rule:statements/static-is-a-member-modifier` makes it class storage, not
 //! instance storage. A *hooked* property (`rule:classes/property-hooks`) does claim one, even

@@ -26,7 +26,7 @@
 - Novis already has every ingredient. `rule:types/declaration` makes types known statically;
   `rule:attributes/inert-metadata` already defines "compile-time constant" precisely
   and already resolves a `Core` accessor during checking;
-  [ADR 0042](0042-on-disk-artifact-cache-format.md) already stores per-unit compiled artifacts. What is
+  `rule:packaging/an-artifact-is-one-immutable-content-addressed-file` already stores per-unit compiled artifacts. What is
   missing is only the decision that the compiler may know a few `Core` methods by name.
 - The motivating case is `rule:core-classes/regex-two-tiers`. Deciding a pattern's engine tier at
   compile time is what lets `nvs check` report — or an operator's `nvs.toml` refuse — a pattern that can be
@@ -93,7 +93,7 @@ a permitted difference, and § *Verification* tests for it directly.
 
 Because preparation depends only on the literal and on the compiler's own version, it is keyed by the
 artifact cache exactly as any other compiled output is
-([ADR 0042](0042-on-disk-artifact-cache-format.md)) — including on the compiler-environment component of
+(`rule:packaging/an-artifact-is-one-immutable-content-addressed-file`) — including on the compiler-environment component of
 the cache key, so a prepared artifact from a different compiler build is a cache miss rather than a
 mismatch.
 

@@ -79,6 +79,11 @@
       "topic": "config",
       "title": "Configuration",
       "order": 160
+    },
+    {
+      "topic": "packaging",
+      "title": "Packaging",
+      "order": 170
     }
   ]
 }

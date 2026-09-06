@@ -1,0 +1,23 @@
+Plain `autoload` (`rule:programs/autoload`) adds no new dependency kind to the artifact cache, with
+one exception. A file nobody references changes nothing, and when a reference is finally written the
+*referencing* file's content hash changes and the cache key misses on its own. The exception is
+**shadowing**: adding `src/Thing.nvs` when `App\Thing` currently resolves to
+`vendor/compat/Thing.nvs` changes the answer with no existing file touched. So a unit records the
+**ordered list of paths it probed, including the misses**; a negative entry is an ordinary path
+entry in the revalidation table, and the trace folds into the unit's cache key exactly as the target
+triple does.
+
+A **discovery query** (`rule:programs/implementing`) makes a unit depend on directory *contents*:
+adding a module that nothing references must change the generated list. So every directory listed
+during the scan — not just the roots, since a directory's `mtime` does not propagate upward — joins
+the revalidation set, and the sorted list of discovered names hashes into the key, so a listing that
+changes without changing the discovered set recompiles nothing.
+
+**No new directive.** Both ride the existing revalidation directives, which are `System`-class
+(`rule:config/opcache-revalidation-is-system-class`): bounded at N ⁄ `revalidate_freq` stats per
+window for N listed directories — tens, not thousands — and exactly zero under `validate = never`,
+which is what production runs. For a compiled build and the wasm target the question does not
+arise; resolution happens once, at build time.
+
+**Not on disk.** The resolver produces the probe trace and then drops it: the revalidation table the
+key needs does not exist yet, so neither the trace nor the listed directories reach a cache key.

@@ -12,7 +12,7 @@
 //!
 //! # No dependency, and that is the decision rather than the default
 //!
-//! [ADR 0051](/docs/adr/0051-standard-library-tiers.md) § 4's first
+//! `rule:packaging/a-c-dependency-answers-two-questions`'s first
 //! question is emphatically **yes** here — a form field is the most
 //! attacker-reachable string a web server holds, and it reaches these members
 //! before anything else looks at it. That would normally argue for binding

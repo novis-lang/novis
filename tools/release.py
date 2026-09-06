@@ -23,13 +23,13 @@ the latest tag all agree, and `CHANGELOG.md` has a section for the version on di
 
 ## The version scheme is not plain SemVer, and this is not the place that decides it
 
-[ADR 0068](../docs/adr/0068-dependency-currency-and-the-version-contract.md) § 3 owns it: one
+`rule:packaging/below-1-0-the-breaking-slot-moves-left` owns it: one
 number for the whole workspace, and **before 1.0 the breaking slot moves left by one** -- `0.MINOR`
 carries breaking changes and `0.MINOR.PATCH` is always compatible. So `--plan major` on 0.0.1
 produces **0.1.0**, not 1.0.0, and below 1.0 `minor` and `patch` are deliberately the same
 increment because there is no third slot to put a compatible feature in.
 
-That is also why `--plan` refuses to reach 0.1.0 without `--allow-contract`. ADR 0068 § 1 makes
+That is also why `--plan` refuses to reach 0.1.0 without `--allow-contract`. `rule:packaging/the-version-contract-starts-at-0-1-0` makes
 0.1.0 the release that throws the switch from the prototyping regime to the version contract --
 "the switch is thrown once, in the commit that tags 0.1.0" -- and a switch thrown by a dropdown
 nobody read is exactly the failure that ADR is written against.
@@ -93,7 +93,7 @@ for _stream in (sys.stdout, sys.stderr):
         _stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
 
 # Shipped beside the binary in every archive. THIRD-PARTY-LICENSES.txt is not optional --
-# ADR 0065 makes it the notice this project owes at distribution, and an archive is
+# `rule:packaging/the-third-party-notice-is-generated-never-written-by-hand` makes it the notice this project owes at distribution, and an archive is
 # distribution. A file missing here fails the packaging step rather than shipping without it.
 ARCHIVE_EXTRAS = ("README.md", "LICENSE", "THIRD-PARTY-LICENSES.txt", "CHANGELOG.md")
 
@@ -103,8 +103,8 @@ Every released version of Novis, newest first. Generated from the commit log by
 `tools/release.py` and prepended by the release workflow -- edit a section only to correct it,
 never to add one by hand.
 
-What a version number promises is [ADR 0068](docs/adr/0068-dependency-currency-and-the-version-contract.md)
-§§ 2-3: it covers the language, the `Core` library, `nvs.toml`, the CLI, diagnostic identity, the
+What a version number promises is `rule:packaging/the-versioned-surface-is-enumerated` and `rule:packaging/below-1-0-the-breaking-slot-moves-left`
+: it covers the language, the `Core` library, `nvs.toml`, the CLI, diagnostic identity, the
 extension ABI and `serialize()` output -- and explicitly not the Rust APIs of the `nvs-*` crates.
 Before 1.0 the breaking slot moves left: `0.MINOR` carries breaking changes.
 
@@ -189,7 +189,7 @@ def tags() -> list[tuple[tuple[int, int, int], str]]:
 
 
 def next_version(current: str, bump: str) -> str:
-    """ADR 0068 § 3's scheme, which is SemVer only at and above 1.0."""
+    """`rule:packaging/below-1-0-the-breaking-slot-moves-left`'s scheme, which is SemVer only at and above 1.0."""
     major, minor, patch = parse(current)
     if major == 0:
         # Below 1.0 the breaking slot is MINOR, so there is no slot left for a compatible
@@ -218,7 +218,7 @@ def docker_tags(version: str, image: str, variant: str, floating: bool) -> list[
     """The registry tags one variant of one release claims.
 
     Here rather than in `docker/metadata-action` because that action's `type=semver` implements
-    SemVer, and ADR 0068 § 3 is not SemVer below 1.0 -- it moves the breaking slot left, so
+    SemVer, and `rule:packaging/below-1-0-the-breaking-slot-moves-left` is not SemVer below 1.0 -- it moves the breaking slot left, so
     `0.MINOR` is what carries a breaking change. Under plain SemVer a bare `0` tag is the stable
     line; under this scheme it would follow 0.0 -> 0.1 straight across a breaking change, which
     is the one thing a floating tag must never do. So there is no bare-major tag until there is
@@ -280,7 +280,7 @@ def resolve(bump: str, exact: str | None, allow_contract: bool) -> tuple[str, st
     if parse(target) >= (0, 1, 0) and parse(current) < (0, 1, 0) and not allow_contract:
         die(
             f"{current} -> {target} crosses into the version contract.\n"
-            "  ADR 0068 § 1: 0.1.0 is the release that declares the language complete enough to\n"
+            "  `rule:packaging/the-version-contract-starts-at-0-1-0`: 0.1.0 is the release that declares the language complete enough to\n"
             "  write against, and the switch is thrown once, in the commit that tags it. That is a\n"
             "  decision a person takes, not a dropdown.\n"
             "  Re-run the workflow with 'I understand this declares the version contract' ticked,\n"
@@ -375,8 +375,7 @@ def render(version: str, previous_tag: str | None, entries: list[dict], url: str
         lines += [
             "### Breaking changes",
             "",
-            "What a break may and may not be is [ADR 0068](docs/adr/"
-            "0068-dependency-currency-and-the-version-contract.md) §§ 2-4.",
+            "What a break may and may not be is `rule:packaging/the-versioned-surface-is-enumerated`, `rule:packaging/below-1-0-the-breaking-slot-moves-left` and `rule:packaging/who-can-see-it-decides-the-release-slot`.",
             "",
         ]
         lines.extend(listing(breaking))
@@ -489,7 +488,7 @@ def package(version: str, target: str, name: str, kind: str, out_dir: Path) -> N
     for extra in ARCHIVE_EXTRAS:
         source = ROOT / extra
         if not source.is_file():
-            die(f"{extra} is missing; every archive ships it (ADR 0065)")
+            die(f"{extra} is missing; every archive ships it (`rule:packaging/the-third-party-notice-is-generated-never-written-by-hand`)")
         shutil.copy2(source, staged / extra)
 
     if kind == "zip":
@@ -595,7 +594,7 @@ def main() -> int:
     mode.add_argument("--docker-tags", metavar="VERSION", help="the registry tags one image variant claims")
 
     parser.add_argument("--version", default="", help="exact version, overriding --plan/--preview's arithmetic")
-    parser.add_argument("--allow-contract", action="store_true", help="permit crossing into 0.1.0 (ADR 0068 § 1)")
+    parser.add_argument("--allow-contract", action="store_true", help="permit crossing into 0.1.0 (`rule:packaging/the-version-contract-starts-at-0-1-0`)")
     parser.add_argument("--out", type=Path, help="output file (--notes) or directory (--package)")
     parser.add_argument("--notes-file", type=Path, help="the rendered section --apply prepends")
     parser.add_argument("--since", help="previous tag, when it is not the newest one")

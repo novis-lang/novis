@@ -19,7 +19,7 @@ a different text.*
 
 **In detailed words** (the reference doc's body): `Core\Program::id()` answers the lowercase-hex spelling
 of `BLAKE3(unit content hashes in program order ‖ env_hash)` — the per-unit source digests
-[ADR 0042](../../adr/0042-on-disk-artifact-cache-format.md)'s artifact cache already computes, combined
+`rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s artifact cache already computes, combined
 in program order, then the environment hash covering the target triple, the CPU feature bitset, the
 compiler build and the loaded extension set
 (`rule:config/the-config-is-an-immutable-snapshot`). It is computed once when the program is

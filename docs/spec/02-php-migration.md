@@ -580,10 +580,10 @@ how this runtime is built.
 | `gc_status` | dropped | there is no collector to report on; a request's held bytes are `Core\Os::memoryUsage` |
 | `opcache_reset` | dropped | the compiled-unit cache is the runtime's, keyed on `env_hash` (`rule:config/the-extension-set-is-in-every-unit-key`) and revalidated by `opcache.validate` (`rule:config/an-edit-reaches-the-next-request-without-a-restart`). An operator clears it with `nvs cache clear`; a request may not invalidate what other requests are still running against |
 | `opcache_invalidate` | dropped | same, one path at a time — `opcache.validate` is `System`-class for the reason `rule:config/an-edit-reaches-the-next-request-without-a-restart` gives, and a per-path reset is that directive reached sideways |
-| `opcache_compile_file` | dropped | compilation happens on first use, and its artifact is verified before a single page becomes executable ([ADR 0042](../adr/0042-on-disk-artifact-cache-format.md) § 3); a program does not schedule it |
-| `opcache_is_script_cached` | dropped | a cache hit is invisible by design — a bad entry is exactly as invisible as a cold one ([ADR 0042](../adr/0042-on-disk-artifact-cache-format.md) § 3) — so there is no observable state to answer with |
+| `opcache_compile_file` | dropped | compilation happens on first use, and its artifact is verified before a single page becomes executable (`rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable`); a program does not schedule it |
+| `opcache_is_script_cached` | dropped | a cache hit is invisible by design — a bad entry is exactly as invisible as a cold one (`rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable`) — so there is no observable state to answer with |
 | `opcache_is_script_cached_in_file_cache` | dropped | same |
-| `opcache_get_status` | dropped | the cache is the operator's: `nvs cache gc` and `nvs cache clear` act on it ([ADR 0042](../adr/0042-on-disk-artifact-cache-format.md) § 6), and `nvs config dump` reports the `[opcache]` block it runs under |
+| `opcache_get_status` | dropped | the cache is the operator's: `nvs cache gc` and `nvs cache clear` act on it (`rule:packaging/eviction-rides-the-cold-miss-at-a-probability`), and `nvs config dump` reports the `[opcache]` block it runs under |
 | `opcache_get_configuration` | dropped | `nvs config dump` is that report, and `Core\Config::get` answers for one directive |
 | `opcache_jit_blacklist` | dropped | the JIT is not steerable per function: what gets compiled, and when, is the runtime's decision and no call or directive changes it for one name |
 | `getenv` | member | `Core\Env::get`, or `Core\Env::all` for the no-argument form; both answer with `tainted` values |
@@ -1346,17 +1346,17 @@ deployment: a program reads the one key it needs through `Core\Config::get`, and
 | `get_defined_vars` | dropped | the current scope as an array. `Core\Debug::dump` shows the values a program named; a scope is not a value |
 | `get_included_files` | dropped | the include graph is resolved while compiling (`rule:programs/no-runtime-autoload`), so there is no runtime list that could differ from it |
 | `get_required_files` | dropped | `get_included_files`' alias, from when the two keywords meant different things |
-| `get_loaded_extensions` | dropped | which extensions a build carries. What a program may reach is what its own manifest pins ([ADR 0081](../adr/0081-packages-are-digests-resolution-is-a-maximum.md)) plus the `Core` roster, both known before it runs |
+| `get_loaded_extensions` | dropped | which extensions a build carries. What a program may reach is what its own manifest pins (`rule:packaging/a-package-is-its-digest`) plus the `Core` roster, both known before it runs |
 | `get_extension_funcs` | dropped | an extension's function list, in a language with no free functions |
 | `phpinfo` | dropped | the configuration, extension list and build detail as one HTML page, and the disclosure named above. One key at a time is `Core\Config::get` ([01 § 15](01-core-library.md)) |
 | `phpcredits` | dropped | the same page, for names. Attribution ships with the distribution rather than from a call inside a request |
 | `phpversion` | dropped | the engine's version as a fact a request branches on. What a program compiles against is settled before it runs, and the deployed version is the operator's to report |
 | `pdo_drivers` | dropped | the drivers a binary was built with. What is reachable is the `[db.<name>]` blocks an operator configured (`rule:core-classes/db-one-api`, `rule:config/the-file-is-nvs-toml-and-it-is-toml`), which is a different question and the one that was being asked |
-| `php_strip_whitespace` | dropped | source with its comments removed, a deployment-size trick over a language that ships source. Novis ships a compiled artifact ([ADR 0048](../adr/0048-portable-single-file-executables.md)) |
+| `php_strip_whitespace` | dropped | source with its comments removed, a deployment-size trick over a language that ships source. Novis ships a compiled artifact (`rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`) |
 | `highlight_file` | dropped | it reads a source file and prints it as coloured HTML — an information disclosure with a rendering attached |
 | `highlight_string` | dropped | the same over a string. Highlighting is the editor's ([ADR 0016](../adr/0016-ide-integration.md)); a program that renders code renders text, through `Core\Html::escape` |
 | `show_source` | dropped | `highlight_file`'s alias |
-| `version_compare` | dropped | its ordering is PHP's own — `pl` above everything, `RC` below release, `beta` folded in by a string scan — and it is a resolver's rule rather than a string operation. Versions are resolved while building ([ADR 0081](../adr/0081-packages-are-digests-resolution-is-a-maximum.md)), where a pin is a digest and a range is a maximum |
+| `version_compare` | dropped | its ordering is PHP's own — `pl` above everything, `RC` below release, `beta` folded in by a string scan — and it is a resolver's rule rather than a string operation. Versions are resolved while building (`rule:packaging/a-package-is-its-digest`), where a pin is a digest and a range is a maximum |
 | `clone` | language | the `clone` keyword, unchanged — PHP's shallow, single-level copy (`rule:classes/two-copy-depths`). The function spelling exists so that cloning can be passed as a callable, and a callable here is a closure (`rule:types/closure-literal`) |
 | `pack` | member | `Core\Bytes::pack` ([01 § 7](01-core-library.md)), whose format string is a template rather than a mode string, so R11 does not reach it |
 | `unpack` | member | `Core\Bytes::unpack`, which names its fields the same way |

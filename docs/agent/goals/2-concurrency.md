@@ -222,7 +222,7 @@ there by the switch that left it and folded forward at every switch since.
   registry for what is *built*: give the row the spec's names and leave its `params` alone, and put a
   member whose shape the two genuinely disagree on in the handoff's Backlog — never a shape change.
 - **No `tokio`, and this is not a judgement call.** If a capability appears to require an async runtime,
-  that is a real `BLOCKED` naming the capability. Every other crate choice is yours under ADR 0051 § 4.
+  that is a real `BLOCKED` naming the capability. Every other crate choice is yours under `rule:packaging/a-c-dependency-answers-two-questions`.
 - **A blocking-looking read parks; it never blocks the core.** If a syscall has no readiness to wait on,
   it goes to item 6's pool. There is no third option, and "just this once" is how a core wedges.
 - **Cancellation runs no user code**, and this is not softened when a fixture looks like it wants a

@@ -57,7 +57,7 @@
 //!
 //! # The dependency, and why `uuid`
 //!
-//! [ADR 0051](/docs/adr/0051-standard-library-tiers.md) § 4's first
+//! `rule:packaging/a-c-dependency-answers-two-questions`'s first
 //! question — does attacker-controlled data reach it — is **yes** for this
 //! class, at `Uuid::parse`, which is exactly why the parser should not
 //! be hand-written here. `uuid` is the crate every Rust program already uses

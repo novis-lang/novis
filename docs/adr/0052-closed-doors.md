@@ -12,7 +12,7 @@
   extends the same rule to library calls that mutate process-global state.
 - **Amended by:** none.
 
-> **In short:** four doors stay shut. **No FFI** — it is `dlopen` with friendlier syntax, and ADR 0003
+> **In short:** four doors stay shut. **No FFI** — it is `dlopen` with friendlier syntax, and `rule:packaging/an-extension-is-a-sandboxed-wasm-component`
 > already rejected `dlopen` because it destroys the two claims the product rests on. **No stream wrappers
 > and no scheme dispatch** — a path argument is a filesystem path, always, which retires `phar://`
 > deserialization, `php://filter` chains, remote inclusion and a large part of PHP's SSRF surface in one
@@ -42,7 +42,7 @@
 There is no `FFI`-equivalent, no `com_dotnet`-equivalent, and no mechanism by which userland code causes
 native code to be loaded into the process.
 
-[ADR 0003](0003-extension-system.md) rejected `dlopen` on two grounds: it destroys memory safety, because
+`rule:packaging/an-extension-is-a-sandboxed-wasm-component` rejected `dlopen` on two grounds: it destroys memory safety, because
 one bad write corrupts arbitrary memory, and it destroys request isolation, because one segfault takes down
 every in-flight request in Novis's single process. FFI reaches both outcomes from userland instead of from an
 extension author, which makes it strictly worse: the code doing the unsafe pointer arithmetic is now
@@ -51,7 +51,7 @@ written by an application developer under deadline rather than by someone who ch
 Tier 1 exists so this is unnecessary. Wrapping an existing C or Rust library is the *stated purpose* of the
 wasm component tier, and it delivers the same capability with a memory boundary, a capability grant, a CPU
 deadline and a memory cap. "Compile the library to wasm" is the answer, and
-[ADR 0051](0051-standard-library-tiers.md) § 4 already makes it the standing one.
+`rule:packaging/a-c-dependency-answers-two-questions` already makes it the standing one.
 
 ### 2. A path is a filesystem path: no stream wrappers, no scheme dispatch
 
@@ -103,8 +103,8 @@ produced at runtime.
 
 Four separate mechanisms depend on the set of code in a program being known before it runs. The static
 `require` graph (`rule:statements/require-is-the-only-inclusion-construct`) is what
-[ADR 0048](0048-portable-single-file-executables.md) § 3 bundles; the artifact cache
-([ADR 0042](0042-on-disk-artifact-cache-format.md)) is keyed on unit content; definite assignment
+`rule:packaging/a-bundled-require-resolves-at-build-time` bundles; the artifact cache
+(`rule:packaging/an-artifact-is-one-immutable-content-addressed-file`) is keyed on unit content; definite assignment
 (`rule:classes/definite-property-initialization`) and taint tracking
 (`rule:security/tainted-qualifier`) are whole-program compile-time analyses. `eval`
 does not weaken these one at a time — it makes all four unsound at once, and the escape hatches that would
@@ -158,7 +158,7 @@ or a plugin loader actually needs, with a boundary that `eval` never had.
   open; there is no symbol named `eval`, `FFI`, `shm_get_var` or `putenv` resolvable under `Core` or at
   file scope, and referencing one is an ordinary unresolved-name diagnostic that additionally names this
   ADR.
-- **M9:** the adversarial extension suite already required by ADR 0003 covers § 1 from the other side — an
+- **M9:** the adversarial extension suite already required by `rule:packaging/an-extension-is-a-sandboxed-wasm-component` covers § 1 from the other side — an
   extension cannot reach native code the host did not import for it.
 - **M11:** `nvs convert` has a fixture for each of the four PHP patterns, asserting the diagnostic names the
   replacement rather than emitting a partial translation.

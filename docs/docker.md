@@ -26,7 +26,7 @@ release procedure itself and what it needs configured once.
 | `sha-abc1234` | never | Pinning to a commit rather than to a version. |
 
 **There is deliberately no bare `0` tag**, and there will not be one before 1.0.
-[ADR 0068](adr/0068-dependency-currency-and-the-version-contract.md) § 3 moves the breaking slot
+`rule:packaging/below-1-0-the-breaking-slot-moves-left` moves the breaking slot
 left below 1.0: `0.MINOR` is what carries a breaking change, so a `0` tag would walk straight
 across one. `0.4` is the compatible line today, exactly as `1.4` will be after 1.0 — at which
 point a `1` tag appears, because by then `MAJOR` is the slot that breaks.
@@ -86,7 +86,7 @@ health_path = "/healthz"        # off by default, so no URL is silently reserved
 
 [cache]
 dir = "/var/cache/novis"        # optional; a writable volume here keeps compiled
-                                # artifacts across restarts (ADR 0042)
+                                # artifacts across restarts (`rule:packaging/an-artifact-is-one-immutable-content-addressed-file`)
 ```
 
 **Capabilities are denied by default and that does not change in a container.** A program that

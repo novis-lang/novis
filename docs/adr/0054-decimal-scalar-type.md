@@ -56,7 +56,7 @@ covered explicitly in § 6 rather than by making every monetary value pay for a 
 
 Rejected: IEEE 754-2008 `decimal128`. Better range and an actual standard, but the mature implementations
 are C (`libdecnumber`), failing the pure-Rust default and
-[ADR 0051](0051-standard-library-tiers.md) § 4's second question, and its cohort semantics — several
+`rule:packaging/a-c-dependency-answers-two-questions`'s second question, and its cohort semantics — several
 representations of one value — add subtlety that buys nothing monetary.
 
 ### 2. Literals: target-typed, with no suffix

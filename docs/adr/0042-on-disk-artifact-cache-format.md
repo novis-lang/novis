@@ -1,4 +1,4 @@
-# ADR 0042 — The on-disk artifact cache is one immutable, self-describing file per compiled unit, verified before it is ever mapped executable
+# `rule:packaging/an-artifact-is-one-immutable-content-addressed-file` — The on-disk artifact cache is one immutable, self-describing file per compiled unit, verified before it is ever mapped executable
 
 - **Status:** Accepted
 - **Date:** 2026-08-22

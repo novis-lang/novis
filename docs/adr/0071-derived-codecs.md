@@ -293,7 +293,7 @@ A compile-time pass over the classes carrying the attribute, emitting IR per cla
 unit as everything else. **Nothing is stored per object and nothing is reflected at run time**: an encoder
 is straight-line field-by-field code, not a loop over a runtime field map, and a decoder is the same plus
 the issue accumulator of § 5. Footprint is O(derived classes in compiled code) in the artifact
-([ADR 0042](0042-on-disk-artifact-cache-format.md)), not O(objects) and not O(requests). A program with no
+(`rule:packaging/an-artifact-is-one-immutable-content-addressed-file`), not O(objects) and not O(requests). A program with no
 derive attribute pays nothing at all, including no pass.
 
 ## Consequences

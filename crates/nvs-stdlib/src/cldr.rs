@@ -14,7 +14,7 @@
 //! *third* letter grammar, neither the one § 4 wrote nor the one PHP wrote. A
 //! full CLDR implementation is `icu`, which is a locale-data dependency an
 //! order of magnitude larger than everything else in `Core` put together and
-//! which ADR 0051 § 4's second question ("does it carry weight the language
+//! which `rule:packaging/a-c-dependency-answers-two-questions`'s second question ("does it carry weight the language
 //! does not need?") answers for. So what exists here is the **closed subset**
 //! of CLDR field letters § 4's own examples and PHP's `date()` roster between
 //! them reach, and every letter outside it is a diagnostic naming itself

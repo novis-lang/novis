@@ -6,10 +6,10 @@ when a pass finds a step that is wrong or missing.
 
 **A human fires this, always.** No agent, loop, cron job or CI workflow may start this pass on its own, and
 an agent that notices a stale dependency mid-session says so and carries on with its own work
-([ADR 0068](../adr/0068-dependency-currency-and-the-version-contract.md) § 9). Bumping a dependency is the
+(`rule:packaging/the-sweep-is-fired-by-a-human`). Bumping a dependency is the
 one class of change whose entire value is that a person weighed it.
 
-**The policy is [ADR 0068](../adr/0068-dependency-currency-and-the-version-contract.md); this file is only
+**The policy is `rule:packaging/a-dependency-break-is-absorbed-never-forwarded`; this file is only
 the procedure.** Every judgement call below routes to a section number there rather than restating it. If the
 two ever disagree, the ADR is right and this file is the bug.
 
@@ -19,7 +19,7 @@ Read the version in [Cargo.toml](../../Cargo.toml)'s `[workspace.package]`.
 
 - **Below 0.1.0 — the current state.** Prototyping. Update anything, fix what breaks, commit. Do steps 1, 2,
   4 and 7 below and skip the rest: there is no classification, no ladder, no sign-off, and no release
-  consequence (ADR 0068 § 1). Do not apply the contract rules "early" — that is how a prototype acquires a
+  consequence (`rule:packaging/the-version-contract-starts-at-0-1-0`). Do not apply the contract rules "early" — that is how a prototype acquires a
   compatibility surface nobody agreed to.
 - **0.1.0 or above.** The whole file applies.
 
@@ -46,9 +46,9 @@ date and a reason that is still true.
 
 ## 2. Move one thing at a time
 
-**One dependency, one commit** (ADR 0068 § 8) — or one group that genuinely cannot move separately, such as
+**One dependency, one commit** (`rule:packaging/one-bump-one-commit`) — or one group that genuinely cannot move separately, such as
 the four `cranelift-*` crates, which must also stay compatible with the pinned `wasmtime`
-([ADR 0003](../adr/0003-extension-system.md)).
+(`rule:packaging/an-extension-is-a-sandboxed-wasm-component`).
 
 ```sh
 cargo update -p <crate>                   # inside the declared range
@@ -104,40 +104,40 @@ double-digit percentage move is a finding, not a footnote.
 **F. If the PHP oracle version changed,** re-run the differential conformance comparison before trusting a
 single one of its results.
 
-**Two rules that are not yours to bend** (ADR 0068 § 7): a failing guard test in `benches/abi-probe/` is never
+**Two rules that are not yours to bend** (`rule:packaging/a-dependency-move-proves-two-things`): a failing guard test in `benches/abi-probe/` is never
 fixed by editing its threshold — the ADR named in the test's own comment is what gets revisited, and the
 sweep stops there — and a graph change always commits the regenerated `THIRD-PARTY-LICENSES.txt` alongside
 it.
 
 ## 4. When something breaks
 
-Ask one question: **can an Novis program author see it?** (ADR 0068 § 4.)
+Ask one question: **can an Novis program author see it?** (`rule:packaging/who-can-see-it-decides-the-release-slot`.)
 
 - **No — it is our insides.** Fix it: adapt the call sites, add an adapter, done. No approval, no version
   event, patch-level. This is the common case and it needs no ceremony.
-- **Yes.** Work down the absorption ladder in ADR 0068 § 5 and stop at the first step that holds — adapt,
+- **Yes.** Work down the absorption ladder in `rule:packaging/a-dependency-break-is-absorbed-never-forwarded` and stop at the first step that holds — adapt,
   adapt behind our own adapter, compensate at the boundary, hold with a dated record, fork/vendor, replace,
   and only then ship the break. Record which step you stopped at in the report.
 
 **Stop and ask the user before** any of: shipping a break an Novis program can see (§ 5 step 7); forking or
 vendoring (step 5); replacing a dependency (step 6); admitting a crate whose licence is outside
 [deny.toml](../../deny.toml)'s allow list, or a C dependency, which is
-[ADR 0051](../adr/0051-standard-library-tiers.md) § 4's two questions; or a guard-test failure that looks like
+`rule:packaging/a-c-dependency-answers-two-questions`'s two questions; or a guard-test failure that looks like
 a real premise change rather than noise.
 
-**A live advisory outranks everything,** including whatever milestone is in flight (ADR 0068 § 9). A hold may
+**A live advisory outranks everything,** including whatever milestone is in flight (`rule:packaging/the-sweep-is-fired-by-a-human`). A hold may
 never cover an advisory that actually applies.
 
 ## 5. Classify each bump
 
-Give every commit its § 4 row from ADR 0068 — `patch`, `minor` or `major` — in the commit message. Nothing
+Give every commit its § 4 row from `rule:packaging/a-dependency-break-is-absorbed-never-forwarded` — `patch`, `minor` or `major` — in the commit message. Nothing
 checks this; the accumulated set is what decides the next release's number, so an unclassified bump is a
 number nobody can compute later.
 
 ## 6. Deprecations
 
 If a break did reach the surface and a cycle is possible, land the warning **now**, in a minor: the old
-spelling keeps working and the compiler names its replacement (ADR 0068 § 6). Removal waits for the major.
+spelling keeps working and the compiler names its replacement (`rule:packaging/a-forced-break-is-announced-before-it-lands`). Removal waits for the major.
 Write the migration note in the same commit as the warning, not at release time.
 
 ## 7. Close the pass

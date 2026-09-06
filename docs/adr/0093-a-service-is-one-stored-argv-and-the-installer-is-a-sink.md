@@ -1,4 +1,4 @@
-# ADR 0093 — A service is one stored argv, and the installer that stores it is a sink
+# `rule:packaging/a-service-is-one-stored-argv` — A service is one stored argv, and the installer that stores it is a sink
 
 - **Status:** Accepted
 - **Date:** 2026-08-25

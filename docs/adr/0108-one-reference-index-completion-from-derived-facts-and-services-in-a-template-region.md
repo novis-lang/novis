@@ -248,7 +248,7 @@ extension:
 - **`nvs check --json`** writes the same `Diagnostic` records the terminal renderer prints — code, spans,
   severity, help and `suggestions` — as one machine-readable document with a schema frozen the way
   [ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 7 freezes `nvs ast --json`'s. It is part
-  of the CLI surface [ADR 0068](0068-dependency-currency-and-the-version-contract.md) versions. The text
+  of the CLI surface `rule:packaging/a-dependency-break-is-absorbed-never-forwarded` versions. The text
   rendering stays the default and is what the Tasks `problemMatcher` reads; nothing about the terminal
   output changes. It exists for CI and for the agents that increasingly drive this compiler, including the
   one that maintains this repository.
@@ -334,7 +334,7 @@ extension:
   assignments and returns ([0037](0037-var-local-type-inference.md)); the argument for a probe is the
   expression in the middle, and it is not strong enough yet to hold a name.
 - **A toolchain picker in the status bar**, listing named `nvs` binaries the way `nvs.path` currently names
-  one. Worth revisiting when [ADR 0068](0068-dependency-currency-and-the-version-contract.md)'s version
+  one. Worth revisiting when `rule:packaging/a-dependency-break-is-absorbed-never-forwarded`'s version
   contract starts putting two toolchains on one machine.
 - **A wasm build of `nvs-lsp` for `vscode.dev`.** The server is synchronous with no async runtime
   ([0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 2) and answers every request from parse,

@@ -90,12 +90,12 @@
 //! `rustls`'s own connection state, which is O(in-flight) and released with the
 //! stream.
 //!
-//! # `ring` is the provider, and it is spent under ADR 0051 § 4
+//! # `ring` is the provider, and it is spent under `rule:packaging/a-c-dependency-answers-two-questions`
 //!
 //! `rustls`'s default provider is `aws-lc-rs`, which is a C library built by
 //! `cmake`; it is off. `ring` is the provider instead, and it is not pure Rust
 //! either — its primitives are BoringSSL's pregenerated assembly behind a Rust
-//! API. So ADR 0051 § 4 applies with its first question answered **yes**: a TLS
+//! API. So `rule:packaging/a-c-dependency-answers-two-questions` applies with its first question answered **yes**: a TLS
 //! record layer is where attacker-controlled bytes land, by construction.
 //!
 //! Question 2 is what accepts it, on the same footing as that section's SQLite:

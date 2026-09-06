@@ -35,7 +35,7 @@
 - **The runtime half cannot be kept, and does not need to be.** A registered loader stack is process-global
   mutable state (`rule:statements/static-is-a-member-modifier`) driving a load of arbitrary code
   (`rule:security/no-eval`), and it reopens the closed `require` graph that
-  [ADR 0048](0048-portable-single-file-executables.md) § 3 depends on. What survives is the declarative
+  `rule:packaging/a-bundled-require-resolves-at-build-time` depends on. What survives is the declarative
   subset — a prefix→directories map — which is what Composer's
   `psr-4` key already is and what essentially every project uses it for.
 - **`require` order was never the problem.** `nvs-hir`'s `resolve_program` collects declarations from every
@@ -181,11 +181,11 @@ the failure later, against the direction `rule:classes/definite-property-initial
 
 - **Plain autoload adds no new dependency kind, with one exception.** A file nobody references changes
   nothing, and when a reference to it is finally written, the *referencing* file's content hash changes and
-  [ADR 0042](0042-on-disk-artifact-cache-format.md)'s key misses on its own. The exception is **shadowing**:
+  `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s key misses on its own. The exception is **shadowing**:
   adding `src/Thing.nvs` when `App\Thing` currently resolves to `vendor/compat/Thing.nvs` changes the answer
   with no existing file touched. So a unit records the ordered list of paths it probed **including the
   misses**; a negative entry is an ordinary `PathEntry` in `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s
-  table, and the trace folds into ADR 0042's key exactly the way `target_triple` does.
+  table, and the trace folds into `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s key exactly the way `target_triple` does.
 - **A discovery query makes a unit depend on directory contents.** Adding a module that nothing references
   must change the generated list. So every directory listed during the scan — not just the roots, since
   directory `mtime` does not propagate upward — joins the revalidation set, and the sorted list of
@@ -207,7 +207,7 @@ function Core\Program::id(): string;
 characters, and the runtime never truncates, because a caller that wants eight of them can take eight and
 one that wants all 32 cannot get them back. Both inputs are already on disk for another reason: a unit's
 `content_hash` and the `env_hash` are the two halves of
-[ADR 0042](0042-on-disk-artifact-cache-format.md)'s cache address, so a program's identity is one combine
+`rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s cache address, so a program's identity is one combine
 over digests the caches already hold, and `nvs_config::cache::program_id` owns the combine because it owns
 both inputs. Program order rather than sorted order: a graph whose units resolve in a different order is a
 different program, and an identity that cannot see that is not one.
@@ -266,7 +266,7 @@ answer at all.
   to compile if `FOO` is not deployed, where PHP fails at runtime only if reached. Modules that depend on
   interfaces owned by the framework rather than on each other's concrete classes are unaffected.
 - **`Core\Reflect` lookup by name reaches only the compiled program** — a name string can never pull in a
-  new file. Consistent with [ADR 0048](0048-portable-single-file-executables.md) § 3, and a visible
+  new file. Consistent with `rule:packaging/a-bundled-require-resolves-at-build-time`, and a visible
   divergence from PHP.
 - **A discovery query is the first thing in Novis to make a compiled unit depend on a directory listing.**
   Bounded and rate-capped (§ 5), but it is a genuinely new dependency kind, which is why the query is
@@ -334,7 +334,7 @@ answer at all.
   `discover` glob against a fixture tree, exact-case matching, `E_DUPLICATE_AUTOLOAD_PREFIX`,
   `E_AUTOLOAD_IN_AUTOLOADED_FILE` and `E_AUTOLOAD_FILE_SHAPE`. A fixture asserts that a shadowing file added
   under an earlier root changes the resolved path.
-- **M6** ([ADR 0042](0042-on-disk-artifact-cache-format.md)) — the probe trace, including misses, folds into
+- **M6** (`rule:packaging/an-artifact-is-one-immutable-content-addressed-file`) — the probe trace, including misses, folds into
   the cache key; a test asserts that adding a shadowing file misses the cache with no source file modified.
 - **M7** (`rule:config/an-edit-reaches-the-next-request-without-a-restart`) — directory listings join the revalidation set; a
   test asserts a new module file is picked up without a restart, that a listing change not affecting the

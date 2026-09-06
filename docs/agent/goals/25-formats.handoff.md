@@ -26,7 +26,7 @@ this — a sandboxed decoder gets the memory cap for free and the traversal rule
       absolute output ceiling, both. Exceeding either throws; a truncated decompression that looks like
       success is the bug the class exists to prevent. `[limits]` gives the default; a call may lower it
       and never raise it past the configured ceiling.
-- [ ] **Dependencies picked under ADR 0051 § 4** — pure Rust for all four, no audited-C exception, and
+- [ ] **Dependencies picked under `rule:packaging/a-c-dependency-answers-two-questions`** — pure Rust for all four, no audited-C exception, and
       each owes `python tools/gen-attribution.py`.
 - [ ] **Decide streaming-or-whole-buffer in the module doc.** The `Core\Xml` precedent is that a tree
       and a stream are different jobs stated as such; that sentence is either written here or

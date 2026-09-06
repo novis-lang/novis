@@ -221,7 +221,7 @@ not an example to read for inspiration.
     structurally immune to length-extension, published by NIST, and today unspellable.
 
     **`Blake3` is already decided and is not yet free.** [Cargo.toml:62](../../../Cargo.toml) declares it
-    and [ADR 0042](../../adr/0042-on-disk-artifact-cache-format.md) commits the artifact cache to it, but
+    and `rule:packaging/an-artifact-is-one-immutable-content-addressed-file` commits the artifact cache to it, but
     nothing consumes it, so it is absent from `Cargo.lock` and this is the slice that resolves it. It does
     not implement `digest 0.10`'s traits without `traits-preview`, so it takes its own `digest_of` arm and
     does **not** ride the `mac!` macro; and HMAC-BLAKE3 is a construction nobody uses, because BLAKE3's
@@ -273,7 +273,7 @@ be here.
   or anything that opens a file. A session that reaches one puts it in `## Backlog`.
 - **The conformance floor is per class, not per corpus.** Raising the total case count without moving a
   class's `floor` column has not closed item 10, and `gaps.py` is what says so.
-- **Picking every dependency but the two the user named** stays pre-authorized under ADR 0051 § 4. A new
+- **Picking every dependency but the two the user named** stays pre-authorized under `rule:packaging/a-c-dependency-answers-two-questions`. A new
   Rust dependency owes three things: the `[workspace.dependencies]` line with a comment saying why that
   crate, `cargo deny check`, and `python tools/gen-attribution.py`.
 

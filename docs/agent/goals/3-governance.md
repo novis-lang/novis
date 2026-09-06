@@ -99,7 +99,7 @@ The one file set the next four items share: a directive's declaration, and how a
 
 ## Stage 5 — the artifact cache
 
-14. **[ADR 0042](../../adr/0042-on-disk-artifact-cache-format.md), exactly as specified.** That ADR is a
+14. **`rule:packaging/an-artifact-is-one-immutable-content-addressed-file`, exactly as specified.** That ADR is a
     finished design, not a starting point: § 1's fan-out directory of immutable content-addressed files,
     § 2's file shape, § 3's **verify fully before a single page becomes executable**, § 4's one atomic
     rename and **no lock file, ever**, § 6's piggybacked probabilistic eviction off the request path, and
@@ -127,13 +127,13 @@ The one file set the next four items share: a directive's declaration, and how a
 
 ## Stage 7 — the bundler
 
-19. **`nvs build --compile`.** [ADR 0048](../../adr/0048-portable-single-file-executables.md) is the only
+19. **`nvs build --compile`.** `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host` is the only
     copy of the scope, the source-not-precompiled-artifacts trade, and why bundling a web-serving
     deployment is explicitly out of scope. It appends an entry file's statically-resolved `require` graph
     to the host `nvs` binary as **plain source**, read back through Stage 5's cache with no new mechanism —
     which is why it is this goal's last stage rather than its own goal.
 20. **A bundled executable runs identically to `nvs run` against the same source, on all three platforms.**
-    ADR 0048's own verification list.
+    `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`'s own verification list.
 
 ## The harness this goal owes
 
@@ -167,12 +167,12 @@ there by the switch that left it and folded forward at every switch since.
   so and an implementation that throws is a different API.
 - **A limit breach is a `FATAL` and never reaches a `catch`.** `rule:errors/escalation-ladder` decided it. A fixture that wants
   to catch one has found the rule, not a bug.
-- **The artifact cache is ADR 0042 as written.** If the implementation forces a different shape, record
+- **The artifact cache is `rule:packaging/an-artifact-is-one-immutable-content-addressed-file` as written.** If the implementation forces a different shape, record
   *that* in the crate's module doc with the reason and put the redesign in `## Backlog` — do not start one
   mid-run.
 - **No socket.** `nvs ctl` needs a long-running server and arrives in goal 6. `nvs config check` and
   `nvs config dump` are this goal's and read the tree directly.
-- **Picking every dependency but the two the user named** stays pre-authorized under ADR 0051 § 4.
+- **Picking every dependency but the two the user named** stays pre-authorized under `rule:packaging/a-c-dependency-answers-two-questions`.
 
 ## What this goal does not touch
 

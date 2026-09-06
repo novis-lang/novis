@@ -37,7 +37,7 @@
 //!
 //! Cost: two `stat`s per file on Unix, two security-descriptor reads and one walk of each DACL on
 //! Windows, at boot and again at each `nvs ctl reload`, plus one more of either for each secret
-//! file's advisory. Nothing here runs per request. ADR 0042's artifact cache is the one caller
+//! file's advisory. Nothing here runs per request. `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s artifact cache is the one caller
 //! outside boot — it checks its own directory once per process, which is why the Windows half is
 //! measured in microseconds rather than milliseconds.
 //!
@@ -410,7 +410,7 @@ mod platform {
     /// **This is the answer `GetEffectiveRightsFromAclW` gives, computed here instead, and the
     /// reason is the clock.** That call costs about 0.8 ms per principal on a Windows 11 box —
     /// § 6 asks about five of them, on the path and on its parent, so one [`check`](super::check)
-    /// came to 8 ms, and [ADR 0042]'s artifact cache pays it on every `nvs run` before it may look
+    /// came to 8 ms, and `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s artifact cache pays it on every `nvs run` before it may look
     /// at a single artifact. The walk costs microseconds and answers the same question, because
     /// the two rules that make the answer *effective* rather than a spelling are both in it: the
     /// entries are evaluated in order, so a `DENY` removes the bits it names from anything a later
@@ -420,7 +420,6 @@ mod platform {
     /// considered by neither: the trustee is always one of § 6's own well-known SIDs, and it is
     /// that SID's own entries that are being asked about.
     ///
-    /// [ADR 0042]: ../../../docs/adr/0042-on-disk-artifact-cache-format.md
     #[expect(
         unsafe_code,
         reason = "one `GetAce` per entry of an ACL that outlives this call, each read through the \

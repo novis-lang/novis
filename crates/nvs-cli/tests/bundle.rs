@@ -1,11 +1,11 @@
 //! `nvs build --compile` and the executable it writes —
-//! [ADR 0048](/docs/adr/0048-portable-single-file-executables.md)'s
+//! `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`'s
 //! *Verification* list, for the two claims that do not need three platforms to
 //! ask.
 //!
 //! Through the built binary rather than by calling `bundle::build`, for the
 //! reason [`openapi`](openapi) already writes down: `nvs-cli` is a binary crate
-//! with no library target, and what ADR 0048 § 5 promises is what the *command*
+//! with no library target, and what `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host` promises is what the *command*
 //! produces. The round-trip of the manifest itself is a unit test next to the
 //! writer (`src/bundle.rs`); this file asserts the two things only a real
 //! executable can answer — that the payload is on disk in § 2's shape, and that
@@ -146,7 +146,7 @@ fn a_bundle_carries_the_statically_resolved_require_graph_as_source() {
     }
 }
 
-/// ADR 0048's *Verification*, first row: a bundled executable runs identically
+/// `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`'s *Verification*, first row: a bundled executable runs identically
 /// to `nvs run` against the same source.
 ///
 /// Identically means all three of stdout, stderr and exit status — a bundle

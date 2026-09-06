@@ -1,4 +1,4 @@
-# ADR 0003 — Extensions are sandboxed WebAssembly components, not native shared libraries
+# `rule:packaging/an-extension-is-a-sandboxed-wasm-component` — Extensions are sandboxed WebAssembly components, not native shared libraries
 
 - **Status:** Accepted
 - **Date:** 2026-08-20

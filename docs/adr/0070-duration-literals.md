@@ -86,7 +86,7 @@ $cutoff = Time::now()->minus(7d);
 A duration literal is a compile-time constant under
 `rule:attributes/inert-metadata`'s existing definition, folded to a single nanosecond
 count and emitted into the compiled unit's constant pool
-([ADR 0042](0042-on-disk-artifact-cache-format.md)) as an immortal value. `{timeout: 30s}` allocates
+(`rule:packaging/an-artifact-is-one-immutable-content-addressed-file`) as an immortal value. `{timeout: 30s}` allocates
 nothing at run time; only a computed `Duration::seconds($n)` does. A literal whose value exceeds
 `Duration`'s range is a compile error, not a wrap.
 

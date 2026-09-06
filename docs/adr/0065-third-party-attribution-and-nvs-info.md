@@ -1,4 +1,4 @@
-# ADR 0065 — Attribution is generated, committed and embedded; `nvs info` is the one call
+# `rule:packaging/the-third-party-notice-is-generated-never-written-by-hand` — Attribution is generated, committed and embedded; `nvs info` is the one call
 
 - **Status:** Accepted
 - **Date:** 2026-08-23
@@ -6,7 +6,7 @@
   and kept current, where it is distributed, and the `nvs info` command that prints it alongside the
   build and host facts. Not in scope: Novis's own license, which is MIT and stated in
   [LICENSE](../../LICENSE); and not what a `.nvsx` extension's own dependencies oblige *its* author to,
-  which [ADR 0003](0003-extension-system.md) leaves to the extension.
+  which `rule:packaging/an-extension-is-a-sandboxed-wasm-component` leaves to the extension.
 - **Amends:** none. It gives [deny.toml](../../deny.toml)'s existing `licenses.allow` list a second
   reader — `tools/gen-attribution.py` fails if the two disagree — but does not change what it allows.
 - **Amended by:** none.
@@ -23,7 +23,7 @@
 ## Context
 
 - Novis is distributed two ways that both trigger the obligation: as source on GitHub, and as a compiled
-  `nvs` binary — which [ADR 0048](0048-portable-single-file-executables.md) then lets a user append their
+  `nvs` binary — which `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host` then lets a user append their
   own program to and hand onwards. A notice that exists only in the repository covers the first and
   neither of the others.
 - Every license in [deny.toml](../../deny.toml)'s allow list is permissive, and every one of them
@@ -115,8 +115,8 @@ Combining `-i` with a subcommand is refused rather than guessed at.
 
 Fields that do not exist yet are not printed. `nvs info` grows a configuration section when
 `rule:config/three-changeability-classes`'s `nvs.toml` lands in M6, an artifact-cache section with
-[ADR 0042](0042-on-disk-artifact-cache-format.md) in the same milestone, and a loaded-extension section
-with [ADR 0003](0003-extension-system.md) in M9. It reports no per-request state, ever — that is
+`rule:packaging/an-artifact-is-one-immutable-content-addressed-file` in the same milestone, and a loaded-extension section
+with `rule:packaging/an-extension-is-a-sandboxed-wasm-component` in M9. It reports no per-request state, ever — that is
 `rule:testing/debug-probes`'s territory and is
 flag-gated for reasons this command does not share.
 

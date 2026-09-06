@@ -5,7 +5,7 @@ Novis ships as MIT, and every permissive license in its dependency tree asks
 for the same thing in return: reproduce the notice with the binary. This
 script produces the one file that satisfies that, for both the repository
 and — via `include_str!` in `nvs-cli` — the shipped `nvs` binary itself.
-ADR 0065 owns the policy; this file only implements it.
+`rule:packaging/the-third-party-notice-is-generated-never-written-by-hand` owns the policy; this file only implements it.
 
     python tools/gen-attribution.py            # regenerate
     python tools/gen-attribution.py --check    # exit 1 if stale (CI)
@@ -13,9 +13,9 @@ ADR 0065 owns the policy; this file only implements it.
 It carries a second, related gate over the same graph, because the graph is
 already resolved here and reading it twice in two scripts is the duplication
 this repository does not keep: `--check-c-deps` enumerates the default
-binary's C dependencies and fails on one ADR 0051 § 4 has no record for.
+binary's C dependencies and fails on one `rule:packaging/a-c-dependency-answers-two-questions` has no record for.
 M8's verification list asks for that check by name; `C_DEPENDENCIES` below is
-the ledger, and ADR 0051 § 4 owns the two questions it answers.
+the ledger, and `rule:packaging/a-c-dependency-answers-two-questions` owns the two questions it answers.
 
 Three properties are worth knowing before changing anything here:
 
@@ -134,7 +134,7 @@ WIDTH = 78
 
 
 # ---------------------------------------------------------------------------
-# The C-dependency ledger — ADR 0051 § 4
+# The C-dependency ledger — `rule:packaging/a-c-dependency-answers-two-questions`
 # ---------------------------------------------------------------------------
 
 # Build dependencies that mean "this crate compiles or links C". A crate that
@@ -148,7 +148,7 @@ WIDTH = 78
 # not check.
 C_BUILD_TOOLS = frozenset({"cc", "cmake", "pkg-config", "bindgen", "nasm-rs", "meson"})
 
-# The three verdicts an entry may carry, which are ADR 0051 § 4's two questions
+# The three verdicts an entry may carry, which are `rule:packaging/a-c-dependency-answers-two-questions`'s two questions
 # plus the case where the question does not arise:
 #
 # * `no-native-code` — a signal above fired but this tree builds nothing
@@ -690,11 +690,11 @@ def c_dependencies(meta: dict, packages: list[dict]) -> list[tuple[str, str, str
 
 
 def check_c_deps() -> int:
-    """ADR 0051 § 4's standing test, as a gate over the resolved graph.
+    """`rule:packaging/a-c-dependency-answers-two-questions`'s standing test, as a gate over the resolved graph.
 
     M8's verification list asks for a check "enumerating the default
     binary's C dependencies, failing on any addition not recorded against
-    ADR 0051 § 4's two questions". That is this: the enumeration comes from
+    `rule:packaging/a-c-dependency-answers-two-questions`'s two questions". That is this: the enumeration comes from
     `cargo metadata`, the record comes from `C_DEPENDENCIES`, and the two
     are compared in both directions.
     """
@@ -720,7 +720,7 @@ def check_c_deps() -> int:
             print(f"  {name} {version} — {reason} [NOT RECORDED]")
             problems.append(
                 f"  - {name} {version} {reason}, and nothing in this file records it.\n"
-                f"    Answer ADR 0051 § 4's two questions — does attacker-controlled data\n"
+                f"    Answer `rule:packaging/a-c-dependency-answers-two-questions`'s two questions — does attacker-controlled data\n"
                 f"    reach it, and if so what is its verification record — and add the\n"
                 f"    entry to C_DEPENDENCIES in tools/gen-attribution.py, or confine the\n"
                 f"    code to wasm as § 4's second question requires."
@@ -739,7 +739,7 @@ def check_c_deps() -> int:
                 f"  - {name}'s record holds only while it is built with "
                 f"{', '.join(repr(f) for f in requires)},\n"
                 f"    and {', '.join(repr(f) for f in missing)} is no longer active. Either restore\n"
-                f"    the feature in Cargo.toml or answer ADR 0051 § 4 for the native code\n"
+                f"    the feature in Cargo.toml or answer `rule:packaging/a-c-dependency-answers-two-questions` for the native code\n"
                 f"    it now compiles."
             )
 
@@ -851,7 +851,7 @@ def main() -> int:
     parser.add_argument(
         "--check-c-deps",
         action="store_true",
-        help="list the default binary's C dependencies; exit non-zero on one ADR 0051 § 4 has no record for",
+        help="list the default binary's C dependencies; exit non-zero on one `rule:packaging/a-c-dependency-answers-two-questions` has no record for",
     )
     args = parser.parse_args()
 

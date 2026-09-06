@@ -1590,7 +1590,7 @@ pub mod code {
     /// `nvs service` was asked to store an argv that names something other
     /// than a server.
     ///
-    /// ADR 0093 § 2's first two rows, under one code because they are one
+    /// `rule:packaging/the-installer-is-a-sink`'s first two rows, under one code because they are one
     /// reason: the trailing argv is executed by a privileged account at every
     /// boot until somebody removes it, so what it names has to be a program
     /// that *stays running* and carries no testing hook. A subcommand outside
@@ -1604,7 +1604,7 @@ pub mod code {
     /// A path in the argv `nvs service` was asked to store, or in one of its
     /// own options, is relative — or the argv names no `--config` at all.
     ///
-    /// ADR 0093 § 2's third and last-but-two rows, under one code because that
+    /// `rule:packaging/the-installer-is-a-sink`'s third and last-but-two rows, under one code because that
     /// section says outright that they are the same failure: a service starts
     /// in `System32` under a minimal environment, so a relative `--config` is
     /// a guaranteed first-boot failure surfacing as an opaque service-manager
@@ -1622,7 +1622,7 @@ pub mod code {
     /// `nvs service install` was given neither a `--log-file` nor a config
     /// naming a `[log]` destination.
     ///
-    /// ADR 0093 § 2's fourth row and § 4's *Output*: a service has no console
+    /// `rule:packaging/the-installer-is-a-sink`'s fourth row and § 4's *Output*: a service has no console
     /// handle, so the process's stderr is discarded, and a refused compile or
     /// a `FATAL` under this argv would leave no trace anywhere at all. The
     /// installer refuses rather than picking a destination, because a log file
@@ -1633,7 +1633,7 @@ pub mod code {
     /// An `--account` password was passed to `nvs service` on the command
     /// line.
     ///
-    /// ADR 0093 § 2's fifth row: a command line is readable by other users on
+    /// `rule:packaging/the-installer-is-a-sink`'s fifth row: a command line is readable by other users on
     /// the box, so the value is prompted for instead and is `secret` in
     /// `rule:security/secret-qualifier`'s
     /// sense for its whole life. The option exists in order to be refused by
@@ -1642,10 +1642,10 @@ pub mod code {
     pub const E_SERVICE_PASSWORD_ON_A_COMMAND_LINE: Code = Code::new("E0633");
 
     /// `nvs service` was run from an
-    /// [ADR 0048](/docs/adr/0048-portable-single-file-executables.md)
+    /// `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`
     /// bundle.
     ///
-    /// ADR 0093 § 6. A bundle is a single trust domain because the person who
+    /// `rule:packaging/a-bundle-may-not-install-itself`. A bundle is a single trust domain because the person who
     /// downloads and runs it is the only principal involved; installing a
     /// service creates a **second** principal — a privileged account executing
     /// that payload at every boot, with no operator having read what it

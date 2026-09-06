@@ -76,7 +76,7 @@ milestone = "post-parity"
 preflight = "docker"
 retired = "2026-09-05"
 
-# Post-parity: ADR 0042's on-disk artifact cache, which goal 3 built exactly as specified and
+# Post-parity: `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s on-disk artifact cache, which goal 3 built exactly as specified and
 # which has had no caller since. `crates/nvs-cli/src/cache.rs` is the whole store -- layout,
 # fsync/rename write, mmap-verify read, eviction sweep, its own tests -- and nothing in `nvs-cli`
 # calls it, so every run compiles from source and the only cache on the path is one in-process

@@ -92,9 +92,9 @@
 //!   of the AST would reach nobody. A missed name costs a class that fails
 //!   to autoload, so the direction to widen in is always "harvest more",
 //!   never "filter harder".
-//! - ADR 0061 § 5's probe trace is produced ([`crate::autoload::Probe`]) and
+//! - `rule:packaging/autoload-probes-fold-into-the-cache-key`'s probe trace is produced ([`crate::autoload::Probe`]) and
 //!   then dropped. Folding it into the artifact cache's key needs
-//!   [ADR 0042](/docs/adr/0042-on-disk-artifact-cache-format.md)'s
+//!   `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s
 //!   `PathEntry` table, which does not exist yet; that is the cache slice's
 //!   work, not this one's.
 
@@ -381,10 +381,10 @@ pub fn resolve_program(
             if resolver.module().symbols.contains(&name) || !probed.insert(name.clone()) {
                 continue;
             }
-            // ADR 0061 § 5 keys the artifact cache on the whole probe trace,
+            // `rule:packaging/autoload-probes-fold-into-the-cache-key` keys the artifact cache on the whole probe trace,
             // misses included, so that adding a file which *shadows* one already
             // resolved invalidates the unit. `Probe::tried` carries it; nothing
-            // records it yet, because ADR 0042's `PathEntry` table is the cache
+            // records it yet, because `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s `PathEntry` table is the cache
             // slice's, not this one's.
             if let Some(path) = built.resolve(&name).hit {
                 next = Some((name, span, path));
@@ -439,8 +439,8 @@ fn canonical_path(src: &SourceFile) -> Option<PathBuf> {
 ///
 /// One function rather than a bare `Path::canonicalize` because a bundled
 /// executable has no filesystem to canonicalize against: its payload *is* the
-/// closed world ([ADR 0048](/docs/adr/0048-portable-single-file-executables.md)
-/// § 4), so `nvs_diagnostics::embedded` answers first and a path it does not
+/// closed world (`rule:packaging/a-bundle-is-found-by-its-footer-before-argv-is-read`
+/// ), so `nvs_diagnostics::embedded` answers first and a path it does not
 /// carry is exactly as unloadable as a missing file — which is § 3's rule, and
 /// it arrives here as the same `E_REQUIRE_TARGET_NOT_FOUND` an ordinary run
 /// would report. Outside a bundle the table is empty and this is the syscall it
@@ -1626,7 +1626,7 @@ require './Lib/Helper.nvs';
         assert!(!diags.has_errors(), "{diags:?}");
     }
 
-    // --- ADR 0061: the autoload map ----------------------------------------
+    // --- `rule:programs/no-runtime-autoload`: the autoload map ----------------------------------------
 
     /// A [`Site`] over `dir`, with a throwaway span: every assertion below is
     /// about which file was found, never about where the declaration sat.

@@ -71,7 +71,7 @@ grants its own diagnostic needs, a cycle closed through an array surviving `rule
 `stream`/`streamAs`, two rules that were waiting on a diagnostic band that has since opened, and the
 CLDR rosters that throw. Its keystone is the mechanism rather than any of those: an outstanding-members
 key gains an owner column and the test fails when that owner is no longer a live entry, so a switch
-cannot orphan work silently again. [22 warm-start](22-warm-start.md) is ADR 0042's artifact cache, which
+cannot orphan work silently again. [22 warm-start](22-warm-start.md) is `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s artifact cache, which
 goal 3 built exactly as specified and which has never had a caller — a subsystem rather than a gap,
 because the payload needs a second `nvs-codegen` `Module` and a named symbol for every host address the
 JIT bakes in, which is why it is its own entry.
@@ -159,7 +159,7 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [19 parses](19-parses.md) | M7, ADR 0141 + `rule:classes/comparable`/0066/0077/0102 amendments | `nvs-hir`, `nvs-types`, `nvs-stdlib`, `nvs-runtime`, `nvs-cli` |
 | [20 unix-sockets](20-unix-sockets.md) | M8, `rule:config/cache-shared-is-the-grant-over-the-configured-store` + ADR 0058/0059 amendments | `nvs-config`, `nvs-stdlib`, `nvs-db`, `nvs-host`, `nvs-diagnostics` |
 | [21 carried-gaps](21-carried-gaps.md) | post-parity, `rule:core-classes/db-one-api`/0073/0076/0116/0133 amendments | `nvs-config`, `nvs-cli`, `nvs-types`, `nvs-runtime`, `nvs-stdlib`, `nvs-server`, `nvs-db`, `nvs-diagnostics` |
-| [22 warm-start](22-warm-start.md) | post-parity, ADR 0042 | `nvs-codegen`, `nvs-cli`, `nvs-config` |
+| [22 warm-start](22-warm-start.md) | post-parity, `rule:packaging/an-artifact-is-one-immutable-content-addressed-file` | `nvs-codegen`, `nvs-cli`, `nvs-config` |
 | [23 per-core](23-per-core.md) | M7, one ADR slot + ADR 0097/0017 amendments | `nvs-cli`, `nvs-host`, `nvs-server`, `nvs-config` |
 | [24 net-os-signal](24-net-os-signal.md) | M8, one ADR slot + `rule:config/net-local-is-named-and-not-on-the-roster`'s deferred grant | `nvs-stdlib`, `nvs-host`, `nvs-config`, `nvs-runtime` |
 | [25 formats](25-formats.md) | M8, one ADR slot (the shared decompression bound) | `nvs-stdlib`, `nvs-config`, `nvs-diagnostics` |

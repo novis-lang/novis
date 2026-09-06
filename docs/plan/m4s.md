@@ -16,7 +16,7 @@ completion data, M5's concurrency tests, M9's extension conformance fixtures, M1
 table — is written against a real standard library instead of against fixtures that will need rewriting.
 Part II of the spec file (anything capability-bearing) stays at M8 and merely conforms to the same
 contract. `crates/nvs-stdlib` starts here — the Tier 0 crate
-[ADR 0003](../adr/0003-extension-system.md) § *Tier 0* already names, and the workspace manifest already
+`rule:packaging/three-tiers` already names, and the workspace manifest already
 declares; `Core\Regex` binds the engine `rule:core-classes/regex-two-tiers`
 picks, and `Core\Time`'s `format`/`parse` (CLDR patterns), `Core\Time\Duration::parse` and
 `Core\Str::format` land as `rule:expressions/intrinsic-literals` intrinsics with the

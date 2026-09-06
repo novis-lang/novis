@@ -15,7 +15,7 @@
 //! from the same tree, in the same compile. CI regenerates and diffs it, so
 //! a dependency added without its notice fails the build rather than
 //! shipping unattributed.
-//! [ADR 0065](/docs/adr/0065-third-party-attribution-and-nvs-info.md)
+//! `rule:packaging/the-third-party-notice-is-generated-never-written-by-hand`
 //! owns the policy.
 //!
 //! This module slices that file at its two section headings instead of

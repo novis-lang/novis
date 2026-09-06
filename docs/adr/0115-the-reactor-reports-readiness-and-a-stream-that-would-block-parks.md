@@ -54,7 +54,7 @@ source. One contract, three back ends, and the stream code above it is written o
 type, no `Future`, and no `tokio` in its dependency graph. That distinction is the whole reason this is
 not the `BLOCKED` the goal's standing decisions reserve for "a capability appears to require an async
 runtime" — the capability requires a *poller*, and a poller is what this crate is. It is pure Rust with
-no build script and no C, which is the default [ADR 0051](0051-standard-library-tiers.md) § 4 sets, and
+no build script and no C, which is the default `rule:packaging/a-c-dependency-answers-two-questions` sets, and
 its first question is answered "no": nothing attacker-controlled reaches a registration, which carries a
 descriptor and an interest set and no parsed input at all.
 

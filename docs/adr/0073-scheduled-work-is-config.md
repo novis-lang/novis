@@ -152,7 +152,7 @@ root, built by the same `Isolate` code path, and everything downstream follows w
   the entry's `name` in the record. Nothing is waiting for it.
 
 **Only `nvs serve` runs schedules.** `nvs run`, `nvs check` and a bundled
-[ADR 0048](0048-portable-single-file-executables.md) executable do not: a schedule is a property of a
+`rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host` executable do not: a schedule is a property of a
 running deployment, not of executing a file. `nvs run jobs/report.nvs` runs the identical script by hand,
 which is the entire debugging and backfill story and is why no `--run-now` flag is needed.
 

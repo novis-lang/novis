@@ -311,7 +311,7 @@ pub(super) const RETRY_BACKOFF_CAP: std::time::Duration = std::time::Duration::f
 /// conflicting requests share their statements and their timing and differ in
 /// nothing this function can read. `rand` is already this crate's, for the
 /// jitter above, so the draw costs no dependency and reopens no question under
-/// [ADR 0051](/docs/adr/0051-standard-library-tiers.md) § 4.
+/// `rule:packaging/a-c-dependency-answers-two-questions`.
 pub(super) fn retry_backoff(taken: u32) -> std::time::Duration {
     // Clamped before the shift rather than after: sixteen rungs is already past
     // the cap for this base, and a shift by 32 is undefined rather than

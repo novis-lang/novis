@@ -9,7 +9,7 @@
 //!
 //! # Why `unicode-segmentation`
 //!
-//! [ADR 0051](/docs/adr/0051-standard-library-tiers.md) § 4's two
+//! `rule:packaging/a-c-dependency-answers-two-questions`'s two
 //! questions: UAX #29 is an external specification with a mature pure-Rust
 //! implementation, so it is a dependency rather than ours to write.
 //! `unicode-segmentation` is the crate the Rust ecosystem's own text tooling

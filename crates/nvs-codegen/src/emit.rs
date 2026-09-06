@@ -14,7 +14,7 @@
 //! Nothing in this file names a concrete module. The walk takes
 //! `&mut dyn Module`, so the same emission serves the in-process
 //! [`cranelift_jit::JITModule`] and the object product
-//! [ADR 0042](/docs/adr/0042-on-disk-artifact-cache-format.md) § 2 caches: the
+//! `rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header` caches: the
 //! object backend is a second `Module` and never a second lowering, because a
 //! second lowering would be a second semantics. Dynamic dispatch is affordable
 //! for the same reason the rest of this walk is — every call through the trait
@@ -2194,7 +2194,7 @@ impl Emitter<'_, '_> {
     ///
     /// The import is what carries the relocation: an address this unit
     /// *defined* would be resolved at emit time and leave no record, which is
-    /// exactly the record ADR 0042 § 2's object payload needs. The declaration
+    /// exactly the record `rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`'s object payload needs. The declaration
     /// is idempotent — `cranelift-module` merges a repeated one — so every
     /// site that wants a descriptor calls this, and the `GlobalValue` is
     /// cached per function the way [`Self::callee_ref`] caches an import.

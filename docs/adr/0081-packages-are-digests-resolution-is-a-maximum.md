@@ -1,4 +1,4 @@
-# ADR 0081 — A dependency is a digest, resolution is a maximum, and a package's authority is granted one line at a time
+# `rule:packaging/a-package-is-its-digest` — A dependency is a digest, resolution is a maximum, and a package's authority is granted one line at a time
 
 - **Status:** Accepted
 - **Date:** 2026-08-24
@@ -81,7 +81,7 @@
   package; two with different digests are different packages regardless of what they call themselves.
 - **The archive holds Novis source and data files only.** No compiled artifacts, no shared objects, no
   binaries — with exactly one exception: an **extension package**, whose payload is a `.nvsx` wasm component
-  and which is sandboxed by [ADR 0003](0003-extension-system.md) with qualifier declarations by
+  and which is sandboxed by `rule:packaging/an-extension-is-a-sandboxed-wasm-component` with qualifier declarations by
   [0055](0055-extension-qualifier-declarations.md). An extension package **may also carry Novis source**
   beside its component — a builder that composes calls into it, as `nvs/image` does
   ([0120](0120-the-image-component-is-a-pipeline-that-crosses-the-boundary-once.md) § 1) — and that
@@ -147,7 +147,7 @@ Every dependency names the **minimum version** it needs. The version selected fo
   (`acme/http` → `acme/http2`) — carrying `supersedes = "acme/http"` for `nvs outdated` and `nvs audit`.
   The two coexist in one graph without conflict, because they are two packages. This is the real cost of
   no solver, it is paid by the *publisher* rather than by every consumer, and
-  [ADR 0068](0068-dependency-currency-and-the-version-contract.md)'s absorb-don't-forward discipline —
+  `rule:packaging/a-dependency-break-is-absorbed-never-forwarded`'s absorb-don't-forward discipline —
   already Novis's own rule for its Rust dependencies — is what makes it rare enough to live with.
 - **A known-bad version is retracted, not deleted.** A publisher marks a version retracted with a reason and
   a fixed-in version; resolution refuses to *select* it and names the fix, while the bytes remain fetchable

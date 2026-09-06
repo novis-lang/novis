@@ -42,7 +42,7 @@
 //!    ([`crate::string_lit`] is where that would live). The message quotes the
 //!    offending placeholder instead, which is what a reader searches for.
 //! 2. **Nothing is prepared yet.** § 3's second effect — the compiled pattern
-//!    and the parsed plan stored in ADR 0042's artifact cache — needs a
+//!    and the parsed plan stored in `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s artifact cache — needs a
 //!    channel from here to `nvs-ir`; validation is the half that pays for
 //!    itself without one, and is what `nvs check` reports.
 //! 3. **A member's own restriction on a well-formed pattern is left to run

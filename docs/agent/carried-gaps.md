@@ -9,7 +9,7 @@ to every tool, because nothing in the tree is shaped wrong. A `Core\Log` record 
 **It exists because the handoff cannot hold one.** `docs/agent/handoff.md` is *state*: `tools/loop.py`
 overwrites it with the next goal's seed at every switch, and `tools/goal-switch.py` carries the
 outgoing goal's `[[check]]` blocks forward and nothing else. So a `## Backlog` bullet lives exactly
-until the goal that wrote it goes green — which is how ADR 0042's cache redesign came to be "in the
+until the goal that wrote it goes green — which is how `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s cache redesign came to be "in the
 handoff's backlog" according to a module doc, and in no file at all according to the repository, and
 how `§18 stream` came to be filed under "goal 5's" six goals after goal 5 closed. Same failure,
 same fix, one file up.
@@ -49,7 +49,7 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 | `rule:core-classes/html-to-source`'s computed `$reason` is not refused — was blocked on a full diagnostic band | 21 | `crates/nvs-stdlib/src/html.rs` § *Known gaps* |
 | `queryAs<T>`'s three refusals are at run time — same blocker, same band | 21 | `crates/nvs-stdlib/src/db/mod.rs` gap 8 |
 | Twenty CLDR plural rosters throw; ordinals absent; eight pattern letters refused | 21 | `crates/nvs-stdlib/src/cldr.rs` gaps 2–4 |
-| ADR 0042's artifact cache is written, tested and has no caller | 22 | `crates/nvs-cli/src/cache.rs` § *Known gaps* |
+| `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s artifact cache is written, tested and has no caller | 22 | `crates/nvs-cli/src/cache.rs` § *Known gaps* |
 | `Core\Request::clientIp`/`host`/`scheme`, `Response::html`/`sendFile` | 17 | `crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt` |
 | `goto` labels, grouped `use`, `var` as a property declarator, an enum case named with a keyword | 13 | `crates/nvs-syntax/src/lib.rs` § *Known gaps* — M1's own *Verify* is a `php-src` corpus parse |
 | `nvs serve` runs on one core, and no path in the process starts a second | 23 | `crates/nvs-cli/src/serve.rs:42`, [m7.md](../plan/m7.md)'s own scope |

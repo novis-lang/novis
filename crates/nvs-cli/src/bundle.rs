@@ -1,4 +1,4 @@
-//! [ADR 0048](/docs/adr/0048-portable-single-file-executables.md)'s
+//! `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`'s
 //! portable single-file executable: `nvs build --compile` on the way out, and
 //! the footer check every `nvs` process makes on the way in.
 //!
@@ -117,7 +117,7 @@ pub(crate) fn run(bundle: Bundle) -> ExitCode {
     )
 }
 
-/// `nvs build --compile <entry> [-o <out>]` — ADR 0048 § 5.
+/// `nvs build --compile <entry> [-o <out>]` — `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`.
 ///
 /// The program goes through the same front end `check` and `run` do before a
 /// byte is written, which is where § 3's static-`require` rule is enforced: a

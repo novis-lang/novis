@@ -30,7 +30,7 @@
   **roughly 8000× a task**, before the child has even parsed a line. (`CreateProcess` is dearer than
   `fork`+`exec`, so Linux would be smaller, but not by three orders of magnitude.)
 - A child process is also worse at the isolation it's used for: it inherits ambient authority (env, cwd,
-  handles, OS-user rights — the same failure mode [ADR 0003](0003-extension-system.md) rejected `dlopen`
+  handles, OS-user rights — the same failure mode `rule:packaging/an-extension-is-a-sandboxed-wasm-component` rejected `dlopen`
   for), cannot be governed (the parent can only kill it — no CPU/memory accounting, no cooperative
   cancellation), and re-enters through the front door (arguments serialised onto a command line).
 - Novis already has the machinery for this, built for requests: a per-request arena with a hard cap, fresh

@@ -170,12 +170,12 @@ suite gains connections as its third parameterisation rather than a second suite
     world-writable**, speaking HTTP so a network listener would later be a second `bind` rather than a
     second protocol. `nvs ctl reload` is its **only** operation and there is **no control port in either
     direction of configuration**. Goal 3 built the snapshot this swaps.
-21. **`nvs service`** — [ADR 0093](../../adr/0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md),
+21. **`nvs service`** — `rule:packaging/a-service-is-one-stored-argv`,
     the only copy. SCM registration on Windows with the hosted argv in a quoted absolute `ImagePath`, a
     per-service virtual account, `STOP_PENDING` from the graceful drain and `PARAMCHANGE` into the reload;
     a printed hardened systemd unit on Linux, written to disk only on an explicit `--install`. **The
     installer is a sink and fails closed**: a closed `serve`/`run` allowlist, no relative path, no install
-    whose output would go nowhere, no password on a command line, and a refusal to install from an ADR 0048
+    whose output would go nowhere, no password on a command line, and a refusal to install from an `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`
     bundle.
 22. **Hot-reload of the compiled-unit cache** — `rule:config/an-edit-reaches-the-next-request-without-a-restart`,
     the only copy: a per-path pointer over goal 3's content-addressed cache, revalidated lazily and
@@ -240,8 +240,8 @@ there by the switch that left it and folded forward at every switch since.
 - **One isolation path.** The request is goal 2's `Isolate`. A second one makes Stage 9's state-bleed suite
   meaningless, which is why item 2 is stated as an item rather than assumed.
 - **`max_in_flight` is an arithmetic, not a number.** ADR 0106 amended ADR 0097 § 5 to say so.
-- **`tungstenite` is the framing crate**, sync, over `NvsStream` with no adapter, picked under ADR 0051
-  § 4's pre-authorization; owning RFC 6455 is refused for the reason owning h1 is.
+- **`tungstenite` is the framing crate**, sync, over `NvsStream` with no adapter, picked under `rule:packaging/a-c-dependency-answers-two-questions`
+  's pre-authorization; owning RFC 6455 is refused for the reason owning h1 is.
 - **`receive()` selects over both sources** — `rule:concurrency/a-connection-is-a-loop` — and an isolate's entry is a path or a
   static method with `args:` bound to its parameters — `rule:security/isolate-shares-nothing`. Both are decided in those bodies; a
   session that wants a `Core\Topic::receive()`, an `fn` literal entry or a capturing closure has found the
@@ -254,16 +254,16 @@ there by the switch that left it and folded forward at every switch since.
   with the SCM needs administrator rights the loop does not have and should not be given, and a systemd
   unit written to disk on an unattended box is a change nobody asked for. What is checked is what can be
   checked without either: **every refusal** — the closed `serve`/`run` allowlist, a relative path, a
-  password on a command line, an install whose output would go nowhere, an ADR 0048 bundle — plus the
+  password on a command line, an install whose output would go nowhere, an `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host` bundle — plus the
   *shape* of what would be installed: a quoted absolute `ImagePath` on Windows, a printed unit on Linux
-  with `--install` withheld. That is the whole of ADR 0093's *Verification* that does not require a
+  with `--install` withheld. That is the whole of `rule:packaging/a-service-is-one-stored-argv`'s *Verification* that does not require a
   privileged machine, and a session that finds the coverage thin has found this decision rather than a
   gap. Real installation is a manual gate, fired by the user on a machine they chose.
 - **Raw/unparsed body access for an arbitrary content-type is an open gap**, flagged by `rule:security/tainted-qualifier`'s
   *Revisiting* and narrowed by m7.md to what `body()` and `bodyStream()` do not already answer. If a
   session finds it genuinely needed, that is a decided-and-recorded call in `Core\Request`'s module doc —
   not a new ADR and not a `BLOCKED`.
-- **Picking every dependency but the two the user named** stays pre-authorized under ADR 0051 § 4.
+- **Picking every dependency but the two the user named** stays pre-authorized under `rule:packaging/a-c-dependency-answers-two-questions`.
 
 ## What this goal does not touch
 

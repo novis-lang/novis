@@ -575,7 +575,7 @@ mod tests {
         }
     }
 
-    /// ADR 0051 § 4's standing answer for MariaDB's two plugins, asserted as
+    /// `rule:packaging/a-c-dependency-answers-two-questions`'s standing answer for MariaDB's two plugins, asserted as
     /// the *pair* of outcomes it allows: a plugin this driver names is either
     /// implemented in Rust or refused by name, and never accepted-then-broken.
     ///

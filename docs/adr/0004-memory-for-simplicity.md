@@ -95,7 +95,7 @@ Every row is a decision Novis has taken, not an aspiration. This ADR names what 
 | Copy-on-write arrays and strings | A refcount per value, and a full clone on the first write to a shared one | PHP value semantics, with no aliasing rules for the developer to learn |
 | Isolated workers for CPU parallelism ([index](README.md)) | A deep copy of every value crossing a core boundary, moved only when the refcount is 1 | Non-atomic refcounts, and data races impossible by construction rather than by discipline |
 | Shared-nothing requests, heap dropped wholesale ([index](README.md)) | Peak rather than average retention inside a request | Cycle leaks cannot accumulate in a long-lived server, and no collector runs on the request path |
-| A fresh wasm instance per request ([ADR 0003](0003-extension-system.md)) | A linear memory per extension a request actually calls | Extension state cannot leak between requests — a guarantee PHP does not offer |
+| A fresh wasm instance per request (`rule:packaging/an-extension-is-a-sandboxed-wasm-component`) | A linear memory per extension a request actually calls | Extension state cannot leak between requests — a guarantee PHP does not offer |
 
 ## Consequences
 

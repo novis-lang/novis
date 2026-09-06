@@ -1373,7 +1373,7 @@ is why" — is this file.
   check**: a purpose-named file is the tell, and reading the two it names costs one call against a
   session spent rewriting a case that exists.
 - **`cargo metadata` reports a build dependency whether or not the feature that uses it is on,
-  and `links` is not a C signal at all.** Writing ADR 0051 § 4's ledger gate
+  and `links` is not a C signal at all.** Writing `rule:packaging/a-c-dependency-answers-two-questions`'s ledger gate
   (`python tools/gen-attribution.py --check-c-deps`) over the resolved graph turns up four
   candidates and only one of them is C: `blake3` keeps its `cc` build-dependency in the graph
   even though this tree takes `default-features = false, features = ["pure"]` and compiles no
@@ -2412,10 +2412,10 @@ is why" — is this file.
   member on it is a diagnostic. So adding a class can turn a fixture that "compiled" into one that
   reports — which is the point, but check the fixtures that name it.
 - **A new dependency owes three things**: a `[workspace.dependencies]` line with a comment saying why that
-  crate, `cargo deny check`, and `python tools/gen-attribution.py` (ADR 0065 — the notice is committed). A
+  crate, `cargo deny check`, and `python tools/gen-attribution.py` (`rule:packaging/the-third-party-notice-is-generated-never-written-by-hand` — the notice is committed). A
   license identifier new to the tree must be added to **both** `deny.toml`'s allow list and
   `tools/gen-attribution.py`'s `PREFERENCE`, in the same commit: that script fails if the two disagree.
-  The dependency *sweep* is a pass the user fires by hand (ADR 0068); never start it as a side effect.
+  The dependency *sweep* is a pass the user fires by hand (`rule:packaging/a-dependency-break-is-absorbed-never-forwarded`); never start it as a side effect.
 - **A registry rule quoted by test name may not be that rule, or may not exist.** A handoff opened
   `rule:types/array-combination`'s slice with "`registry`'s own `a_union_is_only_ever_a_parameter` says a union cannot be a
   return type", which would have forced `array<mixed>` on four members. There is no test by that name —
@@ -2963,7 +2963,7 @@ is why" — is this file.
   of linking to anything. The same call with no `--lib`/`--bin` works but builds and runs both,
   which is the slow way to iterate on one module. The same is true of every binary-only crate here.
 - **When the question is "what does this backend actually emit", a throwaway `#[test]` that prints
-  it costs one build and settles it; guessing costs a design.** ADR 0042 § 3's loader turns on the
+  it costs one build and settles it; guessing costs a design.** `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable`'s loader turns on the
   relocation kinds `nvs_codegen::compile_object` produces, and the plausible answer — ELF-style
   `PltRelative` to helpers, needing a stub for anything over 2 GB away — is not what this host
   does: a COFF object routes *every* external reference through a `.rdata$.refptr` cell of its own,
@@ -2995,7 +2995,7 @@ is why" — is this file.
   second full `verify.py` this cost. The tell is the inversion: a real regression narrows the gap
   toward 1x, it does not cross it.
 - **A wall-clock regression in `nvs run` can sit entirely outside the code that caused it, and one
-  `Instant::now()` per phase in a *release* build is what says so.** Wiring ADR 0042's artifact
+  `Instant::now()` per phase in a *release* build is what says so.** Wiring `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s artifact
   cache took `tools/bench.py --warm-start`'s figure from 3.9 ms of Novis work to 21.6 ms and
   failed the goal's own 6 ms check — and none of it was § 3's read path, which cost 0.5 ms for
   load, descriptors, relocate and bind together. It was `nvs_config::trust::check` on the cache
@@ -4131,7 +4131,7 @@ is why" — is this file.
   every declaration the program checks, so a class declared in the entry file itself lands in it —
   `crates/nvs-cli/tests/fixtures/api/base.nvs` is one file with a class and an `echo`, and
   `nvs build --openapi` emits both its operations. `examples/routes.nvs` splits across a root because it
-  is demonstrating ADR 0061 § 5's scan, not because an emitter fixture has to. Three near-identical
+  is demonstrating `rule:packaging/autoload-probes-fold-into-the-cache-key`'s scan, not because an emitter fixture has to. Three near-identical
   fixtures are then three files rather than six, and they read as a diff of each other.
 - **A test helper that names a file in `CARGO_TARGET_TMPDIR` after its *input* races the other
   tests that ask for the same input.** `crates/nvs-cli/tests/openapi.rs`'s `document(stem)` wrote
@@ -7149,9 +7149,9 @@ sibling in the same namespace unqualified.
   `[lints.clippy]` copied verbatim from `Cargo.toml`'s `[workspace.lints.*]`, change the one
   line to `unsafe_code = "deny"`, and say in a comment above it which call needs it. Copy both
   tables or the crate silently loses every clippy lint the workspace sets. `nvs-cli` did this
-  for ADR 0042 § 3's one `Mmap::map`.
+  for `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable`'s one `Mmap::map`.
 - **A source path is read off the filesystem in more places than the front end, and the
-  configuration snapshot is the one that bites.** ADR 0048's bundled executable resolves its entry
+  configuration snapshot is the one that bites.** `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`'s bundled executable resolves its entry
   and its whole `require` graph out of an appended payload, so the path handed to `nvs run` is
   synthetic — and `nvs_config::Snapshot::build` canonicalizes that same path through
   `trust::canonical` to key `rule:config/an-application-is-its-entry-file-path`'s `[[app]]` blocks, which refused the run with `E0605` long
@@ -8171,7 +8171,7 @@ sibling in the same namespace unqualified.
   `table.select(&request, &OnDisk)` pins it to `Request<Incoming>`; a read of the request placed
   *above* that line is `E0282: type annotations needed`, pointing at the closure and not at what
   moved. The annotation the compiler asks for is unsayable — `nvs-cli` has no `hyper` dependency and
-  ADR 0051 § 4's answer is that it should not gain one for a parameter type. `nvs_server` re-exports
+  `rule:packaging/a-c-dependency-answers-two-questions`'s answer is that it should not gain one for a parameter type. `nvs_server` re-exports
   `Request` and `Incoming` for exactly this, so the fix is a `use` and an annotated parameter, not a
   body reordered around inference.
 - **Nothing reached from inside `nvs_server::serve_connection`'s service closure may park on the

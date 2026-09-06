@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-08-23
 - **Scope:** which of PHP's bundled extensions Novis implements, and at which of
-  [ADR 0003](0003-extension-system.md)'s tiers; the decision procedure applied to any future stdlib
+  `rule:packaging/an-extension-is-a-sandboxed-wasm-component`'s tiers; the decision procedure applied to any future stdlib
   candidate. Not in scope: the API of any individual `Core` class, which each stdlib milestone designs.
 - **Amends:** [0003](0003-extension-system.md) — the three tiers were defined by *what each is*, never by
   *how to choose between them*; § 2 below is the missing procedure. Its "fine-grained primitives" rule for
@@ -34,7 +34,7 @@
   every `Core` class is a permanent public API developers must learn and we must keep compatible, and every
   crate in the default binary is unsandboxed code holding our process's authority. "Don't bloat the core"
   is therefore read as **do not grow the API surface, and do not grow the unsandboxed dependency set**.
-- Two properties of ADR 0003's own design decide most placements, and both are easy to state wrongly:
+- Two properties of `rule:packaging/an-extension-is-a-sandboxed-wasm-component`'s own design decide most placements, and both are easy to state wrongly:
   - **A Tier 1 guest is instantiated fresh per request**, and M9's verification explicitly requires that an
     extension storing state in a global cannot observe it on the next request. Anything whose defining
     feature is state outliving a request — above all a **connection pool** — therefore cannot be an
@@ -72,7 +72,7 @@
    is explicit that only a `Core` function whose contract names one sink may remove a qualifier.
 3. **Does it wait on the outside world?** Sockets, files, child processes, timers. Forces a capability
    grant, and — together with test 1 — usually forces Native.
-4. **Is per-call cost near call overhead?** ADR 0003's own Tier 0 rule. `Core\Str::len` cannot pay a
+4. **Is per-call cost near call overhead?** `rule:packaging/an-extension-is-a-sandboxed-wasm-component`'s own Tier 0 rule. `Core\Str::len` cannot pay a
    boundary crossing; a 1 µs formatting call comfortably can.
 5. **Does it parse hostile bytes?** Image codecs, archive readers, metadata and document parsers. This is
    where PHP's CVE history lives, and it is Tier 1's *headline* case rather than its consolation prize: the
@@ -125,7 +125,7 @@ reads the compiler's own route table (`rule:routing/api-document-is-generated-fr
 world — while composition and the backend-agnostic file API are the `nvs/web` package's.
 
 **A third-party package is a placement question this ADR now shares.**
-[ADR 0081](0081-packages-are-digests-resolution-is-a-maximum.md) gives § 1's Ext row a defined distribution
+`rule:packaging/a-package-is-its-digest` gives § 1's Ext row a defined distribution
 channel — a `.nvsx` and a source package are named, resolved, pinned, granted and vendored identically, and
 only the payload differs — and a Tier 2 Native subsystem is still never a package.
 
@@ -193,7 +193,7 @@ translation is ICU MessageFormat with locale as an explicit argument, and **Novi
 all**. `pcntl`, whose `fork()` is a correctness hazard in a threaded process and whose use cases are already
 served by `spawn worker` (`rule:security/isolate-shares-nothing`) and coroutines, leaving only a
 narrow `Core\Signal` for graceful shutdown. `imap`, which PHP itself demoted in 8.4. `phar`, replaced by
-[ADR 0048](0048-portable-single-file-executables.md) and closed off in `rule:security/closed-doors` along with the stream
+`rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host` and closed off in `rule:security/closed-doors` along with the stream
 wrapper it rides on. `calendar`. `gmp` as such, replaced by `Core\BigInt` over `num-bigint` rather than the
 C, LGPL GMP.
 
@@ -217,7 +217,7 @@ observability need `Core\Metrics` and [ADR 0076](0076-observability-export.md) s
 direction, and `enchant`, whose dictionaries a third-party `.nvsx` would carry the way the intl component
 carries CLDR.
 
-**Answered by the architecture.** `opcache` ([ADR 0042](0042-on-disk-artifact-cache-format.md),
+**Answered by the architecture.** `opcache` (`rule:packaging/an-artifact-is-one-immutable-content-addressed-file`,
 [0017](0017-hot-reload-without-restart.md)); `xdebug` (`rule:testing/debug-probes`,
 [0041](0041-timeline-export-and-gc-spawn-trace-events.md), [0016](0016-ide-integration.md)); `swoole`,
 `parallel`, `event` and `pthreads`, since the runtime *is* this; `apcu`
@@ -267,7 +267,7 @@ tier is therefore visible at the use site.
   makes the security claim legible in a way a compression
   benchmark does not. It is deliberately not a head start on a longer list. Everything else that was once
   pencilled in at Tier 1 is now either dropped with a named replacement or explicitly deferred, so the tier
-  earns its keep as [ADR 0081](0081-packages-are-digests-resolution-is-a-maximum.md)'s **third-party
+  earns its keep as `rule:packaging/a-package-is-its-digest`'s **third-party
   channel** rather than as a staging area for first-party work. If that channel is ever judged not worth
   M9's six weeks, two components is the honest number to judge it against.
 - **A cost this ADR accepts:** the default binary's unsandboxed dependency set is larger than a minimal
@@ -276,7 +276,7 @@ tier is therefore visible at the use site.
   because test 1 or test 2 put it there, not for convenience.
 - **A cost this ADR does not hide:** placing intl at Tier 1 means locale-correct formatting requires
   installing something. That is the deliberate trade for keeping multi-megabyte CLDR data out of every CLI
-  binary and every ADR 0048 single-file executable.
+  binary and every `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host` single-file executable.
 
 ## Alternatives rejected
 
@@ -301,7 +301,7 @@ tier is therefore visible at the use site.
   attempting it is a load-time diagnostic naming this ADR.
 - **M8:** a CI check enumerates the default binary's C dependencies and fails on any addition not recorded
   against § 4's two questions, so the test is enforced rather than remembered.
-- **M9:** the extension end-to-end verification uses the image codec, and the benchmark ADR 0003 currently
+- **M9:** the extension end-to-end verification uses the image codec, and the benchmark `rule:packaging/an-extension-is-a-sandboxed-wasm-component` currently
   asserts rather than measures is committed for it. The intl component is built in the same run to prove
   the embedded-data and batch-API shapes hold — specifically, that sorting 10,000 strings costs one
   boundary crossing rather than one per comparison.

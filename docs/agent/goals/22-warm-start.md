@@ -1,6 +1,6 @@
 # Loop goal 22 — The on-disk artifact cache has a producer
 
-[ADR 0042](../../adr/0042-on-disk-artifact-cache-format.md) is built and unreachable. Goal 3 item 14
+`rule:packaging/an-artifact-is-one-immutable-content-addressed-file` is built and unreachable. Goal 3 item 14
 landed it "exactly as specified" — `crates/nvs-cli/src/cache.rs` has the content-addressed layout, the
 `fsync`/`rename` write, the mmap-verify-then-execute read, the probabilistic eviction sweep and its own
 test suite — and **nothing calls it.** `grep -rn "crate::cache" crates/nvs-cli/src/` returns nothing:
@@ -19,7 +19,7 @@ Goal 21's whole acceptance list is this goal's floor, and it is never traded.
 
 ## Stage 0 — the catch-up
 
-Nothing. `crates/nvs-cli/src/cache.rs` is written against ADR 0042 as specified and stays; what
+Nothing. `crates/nvs-cli/src/cache.rs` is written against `rule:packaging/an-artifact-is-one-immutable-content-addressed-file` as specified and stays; what
 changes is § 3's *letter*, and stage 4 is where that amendment is written rather than left as a
 surprise for a reader of the ADR.
 
@@ -52,7 +52,7 @@ Files: `crates/nvs-codegen/src/lib.rs`, `crates/nvs-codegen/src/emit.rs`.
 ## Stage 3 — the relocating read path, and the wiring
 
 4. **A warm hit maps private-writable, verifies, relocates, then makes the pages executable.** This
-   **amends [ADR 0042](../../adr/0042-on-disk-artifact-cache-format.md) § 3's letter**, which maps
+   **amends `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable`'s letter**, which maps
    `PROT_READ` and `mprotect`s the very same mapping; a relocated image needs a private writable one
    first. The checksum discipline is untouched — the hash still covers the file's bytes and the
    patching happens after it.
@@ -63,7 +63,7 @@ Files: `crates/nvs-codegen/src/lib.rs`, `crates/nvs-codegen/src/emit.rs`.
 
 ## Stage 4 — the amendment and the measurement
 
-6. **ADR 0042 § 3's read path is rewritten to what landed**, in the ADR's own body — never as an
+6. **`rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable`'s read path is rewritten to what landed**, in the ADR's own body — never as an
    overlay, per AGENTS.md — and its *Investigation* paragraph about mapping "the bytes directly as the
    pages the JIT would otherwise have produced" is corrected to what stage 2 proves is reachable.
 7. **The warm-start figure is measured and recorded**, not asserted: `benches/` gains a cold-versus-
@@ -73,17 +73,17 @@ Files: `crates/nvs-codegen/src/lib.rs`, `crates/nvs-codegen/src/emit.rs`.
 ## Standing decisions
 
 - **This goal opens no new ADR number.** It folds its amendment into
-  [ADR 0042](../../adr/0042-on-disk-artifact-cache-format.md) §§ 2–3 and nothing else.
+  `rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header` and `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable` and nothing else.
 - **The object backend is a second `Module`, never a second lowering.** If the two cannot share the
   `nvs_ir::Program` walk, the goal stops and says so rather than forking `emit.rs` — a second
   lowering is a second semantics, and this repository has one execution tier on purpose.
 - **A warm hit that fails verification is a cold compile, silently.** A corrupt or stale payload is
-  never an error a user sees; it is a miss. ADR 0042 already says so and this restates the
+  never an error a user sees; it is a miss. `rule:packaging/an-artifact-is-one-immutable-content-addressed-file` already says so and this restates the
   consequence rather than the rule: nothing in this goal may make a cache problem into a program
   failure.
 - **`nvs run` keeps working with the cache directory absent, unwritable or full.** Every one of those
   is a miss, and the eviction sweep already decided what a full cache does.
 - **If stage 2 proves unreachable**, the safe fallback is recorded and taken: `cache.rs` is
-  **deleted** rather than left compiled-in with no caller, and ADR 0042 is retired with the reason.
+  **deleted** rather than left compiled-in with no caller, and `rule:packaging/an-artifact-is-one-immutable-content-addressed-file` is retired with the reason.
   Dead code that looks like a feature is worse than an absent feature, which is the whole finding
   this goal came out of.

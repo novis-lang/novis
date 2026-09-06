@@ -12,7 +12,7 @@
 //! [`AutoloadMap::build`] turns a program's sites into prefix → roots, and
 //! [`AutoloadMap::resolve`] turns a [`QName`] into the file that declares it,
 //! probing each root in declaration order and returning the whole ordered
-//! trace — misses included — because ADR 0061 § 5 keys the artifact cache on
+//! trace — misses included — because `rule:packaging/autoload-probes-fold-into-the-cache-key` keys the artifact cache on
 //! it. [`AutoloadMap::enumerate`] is that map read the other way, listing
 //! every name the roots declare: § 3's scan, which only a program calling
 //! `Core\Program::implementing<T>()` or writing a `#[Route]` ever pays for.
@@ -146,7 +146,7 @@ pub struct AutoloadMap {
 pub struct Probe {
     /// The file that declares the name, canonicalized.
     pub hit: Option<PathBuf>,
-    /// Every path probed, in order, *including* the misses — ADR 0061 § 5's
+    /// Every path probed, in order, *including* the misses — `rule:packaging/autoload-probes-fold-into-the-cache-key`'s
     /// shadowing edge: adding `src/Thing.nvs` where `App\Thing` currently
     /// resolves to `vendor/compat/Thing.nvs` changes the answer without
     /// touching a file anything already hashed.

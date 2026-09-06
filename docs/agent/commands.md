@@ -351,7 +351,7 @@ session, loop or cron job may cut one; `.github/workflows/release.yml` has exact
 human pressing `Run workflow`. An agent that notices the tree is due a release says so and carries on.
 
 The procedure and the one-time GitHub setup are [docs/release.md](../release.md); the version scheme is
-[ADR 0068](../adr/0068-dependency-currency-and-the-version-contract.md) § 3 and is not plain SemVer below
+`rule:packaging/below-1-0-the-breaking-slot-moves-left` and is not plain SemVer below
 1.0. The one command worth knowing here is the local preview, which needs no runner and no credentials and
 writes nothing:
 

@@ -74,7 +74,7 @@
 //!
 //! # Why these dependencies
 //!
-//! [ADR 0051](/docs/adr/0051-standard-library-tiers.md) § 4 asks
+//! `rule:packaging/a-c-dependency-answers-two-questions` asks
 //! two questions, and both land on "take the audited implementation" here —
 //! the opposite of the answer [`crate::encoding`]'s hex pair got, and worth
 //! reading beside it.

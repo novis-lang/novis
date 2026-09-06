@@ -1,4 +1,4 @@
-//! `nvs service` — [ADR 0093]'s operator surface: the one argv a service
+//! `nvs service` — `rule:packaging/a-service-is-one-stored-argv`'s operator surface: the one argv a service
 //! manager stores, the closed set of things that argv may name, and the two
 //! spellings of "print exactly what would be installed".
 //!
@@ -59,7 +59,6 @@
 //! which is what makes "printed, and written only on install" a property this
 //! module can be asked about rather than a comment.
 //!
-//! [ADR 0093]: /docs/adr/0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -116,9 +115,8 @@ pub(crate) struct Request<'a> {
 pub(crate) struct Host {
     /// This binary, absolute. § 3 quotes it unconditionally.
     pub(crate) exe: PathBuf,
-    /// Whether this binary is an [ADR 0048] bundle (§ 6).
+    /// Whether this binary is an `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host` bundle (§ 6).
     ///
-    /// [ADR 0048]: /docs/adr/0048-portable-single-file-executables.md
     pub(crate) from_a_bundle: bool,
     /// Whether the config the argv names sets `[log] target` to something a
     /// process with no console handle can actually write to.
@@ -784,7 +782,7 @@ mod tests {
         assert!(plan(&request(&argv), &host()).is_ok());
     }
 
-    /// ADR 0093 § 2, row 1 and row 2 — one code, because the reason is one:
+    /// `rule:packaging/the-installer-is-a-sink`, row 1 and row 2 — one code, because the reason is one:
     /// what the argv names has to keep running and must carry no testing hook.
     #[test]
     fn the_installer_refuses_a_subcommand_outside_the_serve_and_run_allowlist() {
@@ -815,7 +813,7 @@ mod tests {
         );
     }
 
-    /// ADR 0093 § 2, row 3 and the `--config` row — the same first-boot
+    /// `rule:packaging/the-installer-is-a-sink`, row 3 and the `--config` row — the same first-boot
     /// failure, one of them one step less visible.
     #[test]
     fn the_installer_refuses_a_relative_path() {
@@ -864,7 +862,7 @@ mod tests {
         assert!(plan(&request(&argv()), &host()).is_ok());
     }
 
-    /// ADR 0093 § 2, row 5 — and the refusal is by name, so an operator is not
+    /// `rule:packaging/the-installer-is-a-sink`, row 5 — and the refusal is by name, so an operator is not
     /// left believing they mistyped a flag.
     #[test]
     fn the_installer_refuses_a_password_on_a_command_line() {
@@ -886,7 +884,7 @@ mod tests {
         assert!(plan(&named, &host()).is_ok());
     }
 
-    /// ADR 0093 § 2, row 4 and § 4's *Output*.
+    /// `rule:packaging/the-installer-is-a-sink`, row 4 and § 4's *Output*.
     #[test]
     fn the_installer_refuses_an_install_whose_output_would_go_nowhere() {
         let argv = argv();
@@ -913,7 +911,7 @@ mod tests {
         }
     }
 
-    /// ADR 0093 § 6.
+    /// `rule:packaging/a-bundle-may-not-install-itself`.
     #[test]
     fn the_installer_refuses_to_install_from_a_bundle() {
         let argv = argv();
@@ -932,7 +930,7 @@ mod tests {
         );
     }
 
-    /// ADR 0093 § 3: the SCM stores one string, the process gets it back
+    /// `rule:packaging/the-argv-lives-in-imagepath`: the SCM stores one string, the process gets it back
     /// through `CommandLineToArgvW`, and that string is the only record of
     /// what the service runs — so the encoder's round trip is the property,
     /// and the quoting of the binary is unconditional.
@@ -989,7 +987,7 @@ mod tests {
         }
     }
 
-    /// ADR 0093 § 5: `nvs service unit` writes the unit to stdout and touches
+    /// `rule:packaging/the-unit-is-printed-and-install-is-the-opt-in`: `nvs service unit` writes the unit to stdout and touches
     /// nothing, and installing it is the explicit request rather than the
     /// default.
     #[test]

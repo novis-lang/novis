@@ -272,11 +272,11 @@ its consequences:
   nothing at all, including no pass.
 - **The scan makes the compiled unit depend on directory contents**, so every directory listed joins the
   revalidation set and the sorted route list hashes into the cache key — exactly
-  [ADR 0061](0061-compile-time-autoload-and-program-discovery.md) § 5, with no new dependency kind and no
+  `rule:packaging/autoload-probes-fold-into-the-cache-key`, with no new dependency kind and no
   new directive.
 - Routes declared in files reached by an ordinary `require` are included too; they are already in the graph.
 - The table is emitted into the compiled unit as a radix trie
-  ([ADR 0042](0042-on-disk-artifact-cache-format.md)), sorted by path so it is byte-deterministic across
+  (`rule:packaging/an-artifact-is-one-immutable-content-addressed-file`), sorted by path so it is byte-deterministic across
   builds. Cost is **O(routes in compiled code)** in the artifact
   (`rule:programs/memory-priority`), not per request and not per object; a match is a trie walk
   that allocates nothing for a route with no captures.
@@ -296,7 +296,7 @@ without one gets no `route` label rather than a cardinality bomb.
   `url()` name. Each is currently found by a `404`, a `null`, or a user clicking a broken link in an email.
 - **No route cache to warm and no cache to go stale.** Symfony and Laravel both generate a routing cache
   file precisely because the scan is compile-time work; here it is compile-time work, keyed and invalidated
-  by machinery [ADR 0042](0042-on-disk-artifact-cache-format.md) and
+  by machinery `rule:packaging/an-artifact-is-one-immutable-content-addressed-file` and
   `rule:programs/no-runtime-autoload` already built.
 - **The `\d+` requirement everybody writes is a type.** `show(uint $id)` both narrows matching and produces
   an unqualified `uint`, from one declaration that was going to exist anyway.
@@ -318,7 +318,7 @@ without one gets no `route` label rather than a cardinality bomb.
   case, but it is a real limit worth stating.
 - **The scan is opt-in but not free.** One `Core\Router::match` call makes the compiled unit depend on
   directory listings, with the revalidation cost
-  [ADR 0061](0061-compile-time-autoload-and-program-discovery.md) § 5 bounds. Zero under
+  `rule:packaging/autoload-probes-fold-into-the-cache-key` bounds. Zero under
   `validate = never`, which is what production runs.
 - **A cross-module route needs that module compiled.** The same consequence
   `rule:programs/no-runtime-autoload` already records for a hard cross-module
@@ -410,7 +410,7 @@ without one gets no `route` label rather than a cardinality bomb.
   asserted against a value containing `/`, `?` and `#`.
 - **M6/M7:** adding a file declaring a new route invalidates the cache with no existing source file
   modified, and a directory listing that changes without changing the route set recompiles nothing — the
-  same pair of assertions [ADR 0061](0061-compile-time-autoload-and-program-discovery.md) § 5 already
+  same pair of assertions `rule:packaging/autoload-probes-fold-into-the-cache-key` already
   requires for a discovery query.
 - **M7:** a matched route's `name` reaches [ADR 0076](0076-observability-export.md)'s `route` label, and a
   program with no route table emits the request series with no `route` label rather than with a path.

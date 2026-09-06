@@ -11,7 +11,7 @@
 //!
 //! # The generator, and why `rand`
 //!
-//! [ADR 0051](/docs/adr/0051-standard-library-tiers.md) § 4 asks
+//! `rule:packaging/a-c-dependency-answers-two-questions` asks
 //! two questions of a dependency, and this one answers the first: no
 //! attacker-controlled data reaches it at all — a member here takes a count or
 //! a pair of bounds and returns bytes — so it is accepted under ordinary
@@ -39,7 +39,7 @@
 //!
 //! `getrandom` alone was the alternative: fewer crates, but a syscall per draw
 //! *and* the rejection-sampling and Fisher-Yates code moved in here, which
-//! trades priority 3 and priority 2 to buy priority 4. ADR 0051 § 4 does not
+//! trades priority 3 and priority 2 to buy priority 4. `rule:packaging/a-c-dependency-answers-two-questions` does not
 //! ask a question that distinguishes them, so AGENTS.md's ordering does.
 //!
 //! # What it spends
@@ -57,7 +57,7 @@
 //!    type is what stops a test helper being reached for in production, so it
 //!    is a class of its own here too rather than an option on these members.
 //! 2. **`ThreadRng` is not reseeded on `fork`.** Nothing in Novis forks today —
-//!    [ADR 0093](/docs/adr/0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md)'s `nvs service` is
+//!    `rule:packaging/a-service-is-one-stored-argv`'s `nvs service` is
 //!    unbuilt — but a child process that inherits a parent's ChaCha state would
 //!    reproduce the parent's stream, so whatever lands there owes
 //!    `ThreadRng::reseed` in the child.
