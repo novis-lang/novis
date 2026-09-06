@@ -45,6 +45,16 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# Every job below carries a `timeout-minutes`, and this is the one home for why. GitHub's own
+# default is 360 minutes, which is not a bound anyone chose. The nightly run of 2026-09-06 wedged
+# in `is_draining_answers_during_a_graceful_shutdown` on the Windows leg and sat there for three
+# hours before it was cancelled by hand — billed the whole way at Windows's 2× rate, and reporting
+# nothing at the end that the first sixty seconds had not already reported.
+#
+# The numbers are roughly twice each job's measured wall clock on a warm cache, which leaves room
+# for a cold one and still turns a wedged test into a red build inside the hour. They bound the
+# bill; they are not a performance budget. A job that starts timing out is a regression to
+# investigate, never a number to raise here without one.
 jobs:
   # ---------------------------------------------------------------------------
   # Which lanes this run needs. Every gated job below reads one boolean from
@@ -57,6 +67,7 @@ jobs:
   changes:
     name: what changed
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       code: ${{ steps.lanes.outputs.code }}
       native: ${{ steps.lanes.outputs.native }}
@@ -97,6 +108,10 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ${{ matrix.os }}
+    # The longest job here, and the one the three-hour hang was on: 32 minutes on Windows with a
+    # warm cache against 13 on Linux and 7 on macOS, because it builds the workspace twice — once
+    # debug for the tests and once release for the cost guards.
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -156,6 +171,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.probe == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Install toolchain
@@ -180,6 +196,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       # rustfmt and clippy are in rust-toolchain.toml's `components`; naming them here too
@@ -212,6 +229,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.deps == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Install toolchain
@@ -234,6 +252,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.deps == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Install toolchain
@@ -259,6 +278,7 @@ jobs:
   migration-table:
     name: php migration table
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
@@ -279,6 +299,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.refdoc == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Install toolchain
@@ -311,6 +332,7 @@ jobs:
   docs:
     name: docs
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
@@ -342,6 +364,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.deep == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Install toolchain
@@ -370,6 +393,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.deep == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -403,6 +427,9 @@ jobs:
     needs: changes
     if: needs.changes.outputs.deep == 'true'
     runs-on: ubuntu-latest
+    # Generous: Miri interprets rather than executes, and the fixture trees below now really touch
+    # the filesystem, so this job grows with the front end's test count rather than its code size.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: dtolnay/rust-toolchain@be39649afda95dbf70f87cce95f68b8d5797b296 # nightly branch
@@ -414,7 +441,19 @@ jobs:
       # Cranelift-dependent crates cannot run under Miri (they execute JIT
       # code), so the front-end crates are tested here and the backend relies
       # on ASAN instead.
+      # Isolation off, and this is the trade. Miri's isolation refuses the host's clock, its
+      # randomness and its filesystem so that a run is reproducible; it does not change what Miri
+      # *checks*, which is undefined behaviour. `nvs-hir`'s `requires` and `autoload` tests build
+      # real fixture directories — twenty-odd of them — and the first `remove_dir_all` to reach
+      # `statx` aborts the whole binary, taking the other four crates' results down with it. That
+      # is how the first nightly run of this job ended, having reported on none of them.
+      #
+      # The alternative was `#[cfg_attr(miri, ignore)]` on every filesystem test, which gives up
+      # the same coverage and has to be remembered again by every test written after it. This
+      # gives it up once, in a place a reader can see.
       - name: miri test (front end)
+        env:
+          MIRIFLAGS: -Zmiri-disable-isolation
         run: |
           cargo +nightly miri test \
             -p nvs-diagnostics \
@@ -454,6 +493,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.native == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: dtolnay/rust-toolchain@be39649afda95dbf70f87cce95f68b8d5797b296 # nightly branch
