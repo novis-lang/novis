@@ -4,7 +4,7 @@
       "id": "Arr",
       "name": "Core\\Arr",
       "section": "2. `Core\\Arr`",
-      "summary": "`array<T>` is an insertion-ordered hash with copy-on-write value semantics\n([ADR 0007 § 5](../adr/0007-explicit-type-system.md)). Every member is pure (R3); an implementation\nmutates in place whenever the argument's refcount is 1, so purity costs nothing. `T` is a type variable —\nthe stdlib is parametric where user code is not.\n\nEvery key is a `string`, so every key-valued **return** below is typed `string`; a key **parameter** is\n`int|string`, matching the subscript normalisation of that same section. How arrays combine, and why no\nmember is named `merge`, is [ADR 0069](../adr/0069-array-combination-is-key-type-independent.md).",
+      "summary": "`array<T>` is an insertion-ordered hash with copy-on-write value semantics\n([ADR 0007 § 5](../decisions/0007.md)). Every member is pure (R3); an implementation\nmutates in place whenever the argument's refcount is 1, so purity costs nothing. `T` is a type variable —\nthe stdlib is parametric where user code is not.\n\nEvery key is a `string`, so every key-valued **return** below is typed `string`; a key **parameter** is\n`int|string`, matching the subscript normalisation of that same section. How arrays combine, and why no\nmember is named `merge`, is `rule:types/array-combination`.",
       "surface": "",
       "adrs": [],
       "enums": [
@@ -2847,7 +2847,7 @@
       "implemented": true,
       "slug": "arr",
       "url": "/docs/core/arr/",
-      "summaryHtml": "<p><code>array&lt;T&gt;</code> is an insertion-ordered hash with copy-on-write value semantics (<a href=\"/docs/adr/0007/\" data-adr=\"0007\">ADR 0007 § 5</a>). Every member is pure (R3); an implementation mutates in place whenever the argument's refcount is 1, so purity costs nothing. <code>T</code> is a type variable — the stdlib is parametric where user code is not.</p>\n<p>Every key is a <code>string</code>, so every key-valued <strong>return</strong> below is typed <code>string</code>; a key <strong>parameter</strong> is <code>int|string</code>, matching the subscript normalisation of that same section. How arrays combine, and why no member is named <code>merge</code>, is <a href=\"/docs/adr/0069/\" data-adr=\"0069\">ADR 0069</a>.</p>",
+      "summaryHtml": "<p><code>array&lt;T&gt;</code> is an insertion-ordered hash with copy-on-write value semantics (<a href=\"https://github.com/novis-lang/novis/blob/main/docs/decisions/0007.md\">ADR 0007 § 5</a>). Every member is pure (R3); an implementation mutates in place whenever the argument's refcount is 1, so purity costs nothing. <code>T</code> is a type variable — the stdlib is parametric where user code is not.</p>\n<p>Every key is a <code>string</code>, so every key-valued <strong>return</strong> below is typed <code>string</code>; a key <strong>parameter</strong> is <code>int|string</code>, matching the subscript normalisation of that same section. How arrays combine, and why no member is named <code>merge</code>, is <code>rule:types/array-combination</code>.</p>",
       "surfaceHtml": ""
     },
     {
@@ -3744,7 +3744,7 @@
       "id": "Encoding",
       "name": "Core\\Encoding",
       "section": "7. `Core\\Encoding` and `Core\\Bytes`",
-      "summary": "`Core\\Encoding` sits exactly at the `bytes`↔`string` boundary, which is the one place a conversion can\nhonestly fail ([ADR 0009](../adr/0009-string-and-bytes.md)).",
+      "summary": "`Core\\Encoding` sits exactly at the `bytes`↔`string` boundary, which is the one place a conversion can\nhonestly fail (`rule:types/bytes`).",
       "surface": "",
       "adrs": [],
       "enums": [],
@@ -4177,7 +4177,7 @@
           ],
           "options": [],
           "returnType": "string",
-          "replaces": "nothing — needed by TOTP ([ADR 0060](../adr/0060-application-security-protocols.md))",
+          "replaces": "nothing — needed by TOTP (`rule:security/protocol-roster`)",
           "notes": "",
           "qualifier": "",
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
@@ -4215,7 +4215,7 @@
           ],
           "options": [],
           "returnType": "bytes",
-          "replaces": "nothing — needed by TOTP ([ADR 0060](../adr/0060-application-security-protocols.md))",
+          "replaces": "nothing — needed by TOTP (`rule:security/protocol-roster`)",
           "notes": "",
           "qualifier": "",
           "section": "7. `Core\\Encoding` and `Core\\Bytes`",
@@ -4245,7 +4245,7 @@
       "implemented": true,
       "slug": "encoding",
       "url": "/docs/core/encoding/",
-      "summaryHtml": "<p><code>Core\\Encoding</code> sits exactly at the <code>bytes</code>↔<code>string</code> boundary, which is the one place a conversion can honestly fail (<a href=\"/docs/adr/0009/\" data-adr=\"0009\">ADR 0009</a>).</p>",
+      "summaryHtml": "<p><code>Core\\Encoding</code> sits exactly at the <code>bytes</code>↔<code>string</code> boundary, which is the one place a conversion can honestly fail (<code>rule:types/bytes</code>).</p>",
       "surfaceHtml": ""
     },
     {
@@ -4602,11 +4602,11 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Serializes <code>$value</code> as JSON text — scalars, arrays and instances of classes carrying <code>#[Json\\Derive]</code> — on one line unless <code>pretty</code> is set.",
+            "shortHtml": "Serializes <code>$value</code> as JSON text — scalars, arrays, shape literals and instances of classes carrying <code>#[Json\\Derive]</code> — on one line unless <code>pretty</code> is set.",
             "params": [
               {
                 "name": "value",
-                "descHtml": "The value to encode: <code>null</code>, <code>bool</code>, <code>int</code>, <code>uint</code>, <code>float</code>, <code>decimal</code>, <code>string</code>, an array, or an instance of a class carrying <code>#[Json\\Derive]</code>."
+                "descHtml": "The value to encode: <code>null</code>, <code>bool</code>, <code>int</code>, <code>uint</code>, <code>float</code>, <code>decimal</code>, <code>string</code>, an array, a <code>{name: value}</code> shape, or an instance of a class carrying <code>#[Json\\Derive]</code>."
               },
               {
                 "name": "pretty",
@@ -4792,7 +4792,7 @@
       "id": "Math",
       "name": "Core\\Math",
       "section": "3. `Core\\Math`",
-      "summary": "`**` is exponentiation and `%` is integer modulo, so neither has a member (R17). Division by zero throws\n`ArithmeticError` (R4) — in `intDiv`, in `mod`, and in the `/` operator whatever the operand types, which\nis exactly why `fdiv` *is* a member here: it is the one spelling left for IEEE's `INF`, and PHP has it for\nthe same reason. Overflow throws rather than becoming a `float`\n([ADR 0007](../adr/0007-explicit-type-system.md) § 4).",
+      "summary": "`**` is exponentiation and `%` is integer modulo, so neither has a member (R17). Division by zero throws\n`ArithmeticError` (R4) — in `intDiv`, in `mod`, and in the `/` operator whatever the operand types, which\nis exactly why `fdiv` *is* a member here: it is the one spelling left for IEEE's `INF`, and PHP has it for\nthe same reason. Overflow throws rather than becoming a `float`\n(`rule:types/arithmetic`).",
       "surface": "",
       "adrs": [],
       "enums": [
@@ -6675,7 +6675,7 @@
       "implemented": true,
       "slug": "math",
       "url": "/docs/core/math/",
-      "summaryHtml": "<p><code>*<em></code> is exponentiation and <code>%</code> is integer modulo, so neither has a member (R17). Division by zero throws <code>ArithmeticError</code> (R4) — in <code>intDiv</code>, in <code>mod</code>, and in the <code>/</code> operator whatever the operand types, which is exactly why <code>fdiv</code> </em>is* a member here: it is the one spelling left for IEEE's <code>INF</code>, and PHP has it for the same reason. Overflow throws rather than becoming a <code>float</code> (<a href=\"/docs/adr/0007/\" data-adr=\"0007\">ADR 0007</a> § 4).</p>",
+      "summaryHtml": "<p><code>*<em></code> is exponentiation and <code>%</code> is integer modulo, so neither has a member (R17). Division by zero throws <code>ArithmeticError</code> (R4) — in <code>intDiv</code>, in <code>mod</code>, and in the <code>/</code> operator whatever the operand types, which is exactly why <code>fdiv</code> </em>is* a member here: it is the one spelling left for IEEE's <code>INF</code>, and PHP has it for the same reason. Overflow throws rather than becoming a <code>float</code> (<code>rule:types/arithmetic</code>).</p>",
       "surfaceHtml": ""
     },
     {
@@ -7495,7 +7495,7 @@
       "id": "Regex",
       "name": "Core\\Regex",
       "section": "5. `Core\\Regex`",
-      "summary": "Semantics — the two-tier engine, the step budget, why the *pattern* is a sink while the subject is not —\nare [ADR 0056](../adr/0056-regex-engine-policy.md). `preg_match`'s `$matches` out-parameter is a returned\n`?Match` (R3), and there are no `PREG_*` flag constants (R11).",
+      "summary": "Semantics — the two-tier engine, the step budget, why the *pattern* is a sink while the subject is not —\nare `rule:core-classes/regex-two-tiers`. `preg_match`'s `$matches` out-parameter is a returned\n`?Match` (R3), and there are no `PREG_*` flag constants (R11).",
       "surface": "",
       "adrs": [],
       "enums": [],
@@ -8025,7 +8025,7 @@
       "implemented": true,
       "slug": "regex",
       "url": "/docs/core/regex/",
-      "summaryHtml": "<p>Semantics — the two-tier engine, the step budget, why the <em>pattern</em> is a sink while the subject is not — are <a href=\"/docs/adr/0056/\" data-adr=\"0056\">ADR 0056</a>. <code>preg_match</code>'s <code>$matches</code> out-parameter is a returned <code>?Match</code> (R3), and there are no <code>PREG_*</code> flag constants (R11).</p>",
+      "summaryHtml": "<p>Semantics — the two-tier engine, the step budget, why the <em>pattern</em> is a sink while the subject is not — are <code>rule:core-classes/regex-two-tiers</code>. <code>preg_match</code>'s <code>$matches</code> out-parameter is a returned <code>?Match</code> (R3), and there are no <code>PREG_*</code> flag constants (R11).</p>",
       "surfaceHtml": ""
     },
     {
@@ -8116,11 +8116,11 @@
           "options": [],
           "returnType": "int",
           "replaces": "",
-          "notes": "where the whole match starts, in [ADR 0009](../adr/0009-string-and-bytes.md) § 2's unit — not `PREG_OFFSET_CAPTURE`'s bytes",
+          "notes": "where the whole match starts, in `rule:types/string-is-utf8`'s unit — not `PREG_OFFSET_CAPTURE`'s bytes",
           "qualifier": "",
           "section": "5. `Core\\Regex`",
           "implemented": true,
-          "notesHtml": "where the whole match starts, in <a href=\"/docs/adr/0009/\" data-adr=\"0009\">ADR 0009</a> § 2's unit — not <code>PREG_OFFSET_CAPTURE</code>'s bytes",
+          "notesHtml": "where the whole match starts, in <code>rule:types/string-is-utf8</code>'s unit — not <code>PREG_OFFSET_CAPTURE</code>'s bytes",
           "doc": {
             "shortHtml": "Answers where the whole match starts in the subject — <code>PREG_OFFSET_CAPTURE</code>'s position, counted in graphemes rather than bytes.",
             "returnHtml": "The grapheme index of the match's first character; <code>0</code> for a match at the start of the subject."
@@ -8163,7 +8163,7 @@
       "id": "Str",
       "name": "Core\\Str",
       "section": "1. `Core\\Str`",
-      "summary": "`string` is guaranteed-valid UTF-8 ([ADR 0009](../adr/0009-string-and-bytes.md)), so **no member takes an\nencoding argument** (R13) and there is no `mb_` twin of anything. Indexing granularity — what `length`, `at`\nand `slice` count in — is [ADR 0009](../adr/0009-string-and-bytes.md) § 2's, not this file's: **extended\ngrapheme clusters**. Every signature below is written granularity-agnostically, so nothing here changes if\nthat ADR's own *Revisiting* ever re-opens it.",
+      "summary": "`string` is guaranteed-valid UTF-8 (`rule:types/bytes`), so **no member takes an\nencoding argument** (R13) and there is no `mb_` twin of anything. Indexing granularity — what `length`, `at`\nand `slice` count in — is `rule:types/string-is-utf8`'s, not this file's: **extended\ngrapheme clusters**. Every signature below is written granularity-agnostically, so nothing here changes if\nthat ADR's own *Revisiting* ever re-opens it.",
       "surface": "",
       "adrs": [],
       "enums": [
@@ -10250,14 +10250,14 @@
       "implemented": true,
       "slug": "str",
       "url": "/docs/core/str/",
-      "summaryHtml": "<p><code>string</code> is guaranteed-valid UTF-8 (<a href=\"/docs/adr/0009/\" data-adr=\"0009\">ADR 0009</a>), so <strong>no member takes an encoding argument</strong> (R13) and there is no <code>mb_</code> twin of anything. Indexing granularity — what <code>length</code>, <code>at</code> and <code>slice</code> count in — is <a href=\"/docs/adr/0009/\" data-adr=\"0009\">ADR 0009</a> § 2's, not this file's: <strong>extended grapheme clusters</strong>. Every signature below is written granularity-agnostically, so nothing here changes if that ADR's own <em>Revisiting</em> ever re-opens it.</p>",
+      "summaryHtml": "<p><code>string</code> is guaranteed-valid UTF-8 (<code>rule:types/bytes</code>), so <strong>no member takes an encoding argument</strong> (R13) and there is no <code>mb_</code> twin of anything. Indexing granularity — what <code>length</code>, <code>at</code> and <code>slice</code> count in — is <code>rule:types/string-is-utf8</code>'s, not this file's: <strong>extended grapheme clusters</strong>. Every signature below is written granularity-agnostically, so nothing here changes if that ADR's own <em>Revisiting</em> ever re-opens it.</p>",
       "surfaceHtml": ""
     },
     {
       "id": "Task",
       "name": "Core\\Task",
       "section": "16. Network, data and crypto",
-      "summary": "Semantics are [ADR 0072](../adr/0072-core-task-structured-concurrency.md) — what cancellation does and does\nnot run, why control never leaves a call with work still running, and the `[deferred]` bound. This section\nowns the signatures only. Nothing here needs a capability; it needs the M5 scheduler, which is why it sits\nin Part II and lands at **M5** rather than M8.",
+      "summary": "Semantics are `rule:concurrency/one-scheduler` — what cancellation does and does\nnot run, why control never leaves a call with work still running, and the `[deferred]` bound. This section\nowns the signatures only. Nothing here needs a capability; it needs the M5 scheduler, which is why it sits\nin Part II and lands at **M5** rather than M8.",
       "surface": "§ 19 below — `all`, `map`, `afterResponse`",
       "adrs": [
         "0072"
@@ -10465,14 +10465,14 @@
       "implemented": true,
       "slug": "task",
       "url": "/docs/core/task/",
-      "summaryHtml": "<p>Semantics are <a href=\"/docs/adr/0072/\" data-adr=\"0072\">ADR 0072</a> — what cancellation does and does not run, why control never leaves a call with work still running, and the <code>[deferred]</code> bound. This section owns the signatures only. Nothing here needs a capability; it needs the M5 scheduler, which is why it sits in Part II and lands at <strong>M5</strong> rather than M8.</p>",
+      "summaryHtml": "<p>Semantics are <code>rule:concurrency/one-scheduler</code> — what cancellation does and does not run, why control never leaves a call with work still running, and the <code>[deferred]</code> bound. This section owns the signatures only. Nothing here needs a capability; it needs the M5 scheduler, which is why it sits in Part II and lands at <strong>M5</strong> rather than M8.</p>",
       "surfaceHtml": "§ 19 below — <code>all</code>, <code>map</code>, <code>afterResponse</code>"
     },
     {
       "id": "Time",
       "name": "Core\\Time",
       "section": "4. `Core\\Time`",
-      "summary": "PHP has ~40 `date_*` procedural functions that are aliases of `DateTime` methods, *and* a\n`DateTime`/`DateTimeImmutable` mutable/immutable pair. Both duplications are gone (R17, R20): there are\nobjects only, and every one is immutable. There is **no ambient timezone** — no process default, no\nper-request default — so a `Zone` is an explicit argument at every instant↔calendar conversion.\n\n**Two arithmetics, and the type says which one you get.** An `Instant` moves by a `Duration`, which is an\nexact count of nanoseconds; a `DateTime` moves by a count of a `Unit`, which is a calendar step that a DST\nboundary or a short month can make longer or shorter than its nominal length. `Time::now()->plus(72h)` and\n`Time::now()->in($zone)->plus(3, Unit::Day)` are different operations, and PHP's `\"+3 days\"` is ambiguous\nbetween them. There is no relative-expression string anywhere in this class: everything `strtotime` spells\nis a typed call, and [ADR 0070](../adr/0070-duration-literals.md)'s `72h`/`30d` literal is what keeps them\nshort.",
+      "summary": "PHP has ~40 `date_*` procedural functions that are aliases of `DateTime` methods, *and* a\n`DateTime`/`DateTimeImmutable` mutable/immutable pair. Both duplications are gone (R17, R20): there are\nobjects only, and every one is immutable. There is **no ambient timezone** — no process default, no\nper-request default — so a `Zone` is an explicit argument at every instant↔calendar conversion.\n\n**Two arithmetics, and the type says which one you get.** An `Instant` moves by a `Duration`, which is an\nexact count of nanoseconds; a `DateTime` moves by a count of a `Unit`, which is a calendar step that a DST\nboundary or a short month can make longer or shorter than its nominal length. `Time::now()->plus(72h)` and\n`Time::now()->in($zone)->plus(3, Unit::Day)` are different operations, and PHP's `\"+3 days\"` is ambiguous\nbetween them. There is no relative-expression string anywhere in this class: everything `strtotime` spells\nis a typed call, and `rule:types/duration-literal`'s `72h`/`30d` literal is what keeps them\nshort.",
       "surface": "",
       "adrs": [],
       "enums": [
@@ -10939,7 +10939,7 @@
       "implemented": true,
       "slug": "time",
       "url": "/docs/core/time/",
-      "summaryHtml": "<p>PHP has ~40 <code>date_<em></code> procedural functions that are aliases of <code>DateTime</code> methods, </em>and* a <code>DateTime</code>/<code>DateTimeImmutable</code> mutable/immutable pair. Both duplications are gone (R17, R20): there are objects only, and every one is immutable. There is <strong>no ambient timezone</strong> — no process default, no per-request default — so a <code>Zone</code> is an explicit argument at every instant↔calendar conversion.</p>\n<p><strong>Two arithmetics, and the type says which one you get.</strong> An <code>Instant</code> moves by a <code>Duration</code>, which is an exact count of nanoseconds; a <code>DateTime</code> moves by a count of a <code>Unit</code>, which is a calendar step that a DST boundary or a short month can make longer or shorter than its nominal length. <code>Time::now()-&gt;plus(72h)</code> and <code>Time::now()-&gt;in($zone)-&gt;plus(3, Unit::Day)</code> are different operations, and PHP's <code>&quot;+3 days&quot;</code> is ambiguous between them. There is no relative-expression string anywhere in this class: everything <code>strtotime</code> spells is a typed call, and <a href=\"/docs/adr/0070/\" data-adr=\"0070\">ADR 0070</a>'s <code>72h</code>/<code>30d</code> literal is what keeps them short.</p>",
+      "summaryHtml": "<p>PHP has ~40 <code>date_<em></code> procedural functions that are aliases of <code>DateTime</code> methods, </em>and* a <code>DateTime</code>/<code>DateTimeImmutable</code> mutable/immutable pair. Both duplications are gone (R17, R20): there are objects only, and every one is immutable. There is <strong>no ambient timezone</strong> — no process default, no per-request default — so a <code>Zone</code> is an explicit argument at every instant↔calendar conversion.</p>\n<p><strong>Two arithmetics, and the type says which one you get.</strong> An <code>Instant</code> moves by a <code>Duration</code>, which is an exact count of nanoseconds; a <code>DateTime</code> moves by a count of a <code>Unit</code>, which is a calendar step that a DST boundary or a short month can make longer or shorter than its nominal length. <code>Time::now()-&gt;plus(72h)</code> and <code>Time::now()-&gt;in($zone)-&gt;plus(3, Unit::Day)</code> are different operations, and PHP's <code>&quot;+3 days&quot;</code> is ambiguous between them. There is no relative-expression string anywhere in this class: everything <code>strtotime</code> spells is a typed call, and <code>rule:types/duration-literal</code>'s <code>72h</code>/<code>30d</code> literal is what keeps them short.</p>",
       "surfaceHtml": ""
     },
     {
@@ -11059,11 +11059,11 @@
           "options": [],
           "returnType": "string",
           "replaces": "",
-          "notes": "[ADR 0057](../adr/0057-intrinsic-literal-folding.md) intrinsic, CLDR patterns. Replaces `date`, `gmdate`, `idate`, `strftime`, `date_format`",
+          "notes": "`rule:expressions/intrinsic-literals` intrinsic, CLDR patterns. Replaces `date`, `gmdate`, `idate`, `strftime`, `date_format`",
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "implemented": true,
-          "notesHtml": "<a href=\"/docs/adr/0057/\" data-adr=\"0057\">ADR 0057</a> intrinsic, CLDR patterns. Replaces <code>date</code>, <code>gmdate</code>, <code>idate</code>, <code>strftime</code>, <code>date_format</code>",
+          "notesHtml": "<code>rule:expressions/intrinsic-literals</code> intrinsic, CLDR patterns. Replaces <code>date</code>, <code>gmdate</code>, <code>idate</code>, <code>strftime</code>, <code>date_format</code>",
           "doc": {
             "shortHtml": "Renders the civil date and time through a CLDR pattern — <code>yyyy-MM-dd HH:mm:ss</code>, <code>EEEE, d MMMM yyyy</code> — replacing <code>date</code>, <code>gmdate</code>, <code>idate</code>, <code>strftime</code> and <code>date_format</code>; names render in CLDR's root locale, since there is no <code>setlocale</code>.",
             "params": [
@@ -11760,11 +11760,11 @@
           "options": [],
           "returnType": "Duration",
           "replaces": "",
-          "notes": "plus `nanoseconds`, `microseconds`, `milliseconds`, `minutes`, `hours`, `days`, `weeks` — for a **computed** count; a literal one is [ADR 0070](../adr/0070-duration-literals.md)'s `30s`",
+          "notes": "plus `nanoseconds`, `microseconds`, `milliseconds`, `minutes`, `hours`, `days`, `weeks` — for a **computed** count; a literal one is `rule:types/duration-literal`'s `30s`",
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "implemented": true,
-          "notesHtml": "plus <code>nanoseconds</code>, <code>microseconds</code>, <code>milliseconds</code>, <code>minutes</code>, <code>hours</code>, <code>days</code>, <code>weeks</code> — for a <strong>computed</strong> count; a literal one is <a href=\"/docs/adr/0070/\" data-adr=\"0070\">ADR 0070</a>'s <code>30s</code>",
+          "notesHtml": "plus <code>nanoseconds</code>, <code>microseconds</code>, <code>milliseconds</code>, <code>minutes</code>, <code>hours</code>, <code>days</code>, <code>weeks</code> — for a <strong>computed</strong> count; a literal one is <code>rule:types/duration-literal</code>'s <code>30s</code>",
           "doc": {
             "shortHtml": "Builds a <code>Duration</code> of <code>$n</code> seconds, for a count computed at run time; a constant one is written as the literal <code>30s</code>.",
             "params": [
@@ -12653,11 +12653,11 @@
           "options": [],
           "returnType": "int",
           "replaces": "",
-          "notes": "`Instant` implements `Comparable` ([ADR 0013](../adr/0013-comparable-interface.md)), so `<`/`>` work directly",
+          "notes": "`Instant` implements `Comparable` (`rule:classes/comparable`), so `<`/`>` work directly",
           "qualifier": "",
           "section": "4. `Core\\Time`",
           "implemented": true,
-          "notesHtml": "<code>Instant</code> implements <code>Comparable</code> (<a href=\"/docs/adr/0013/\" data-adr=\"0013\">ADR 0013</a>), so <code>&lt;</code>/<code>&gt;</code> work directly",
+          "notesHtml": "<code>Instant</code> implements <code>Comparable</code> (<code>rule:classes/comparable</code>), so <code>&lt;</code>/<code>&gt;</code> work directly",
           "doc": {
             "shortHtml": "Orders two instants on the timeline, as <code>Comparable</code> requires.",
             "params": [
@@ -13127,6 +13127,44 @@
           "url": "/docs/core/uri/encodecomponent/"
         },
         {
+          "id": "Uri.decodeComponent",
+          "name": "decodeComponent",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "decodeComponent(string $s): bytes",
+          "params": [
+            {
+              "kind": "param",
+              "name": "s",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "bytes",
+          "replaces": "`rawurlencode`, `rawurldecode`",
+          "notes": "",
+          "qualifier": "",
+          "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Reverses <code>Core\\Uri::encodeComponent</code>, as <code>rawurldecode</code> does: every <code>%XX</code> escape becomes its byte, and a <code>+</code> stays a literal <code>+</code>.",
+            "params": [
+              {
+                "name": "s",
+                "descHtml": "The text to decode."
+              }
+            ],
+            "returnHtml": "The decoded octets, as <code>bytes</code> — percent-decoding is defined over octets, so <code>%FF</code> has an answer here and text is one <code>as string</code> away. A malformed escape such as <code>%G1</code> or a trailing <code>%</code> decodes to itself."
+          },
+          "slug": "decodecomponent",
+          "url": "/docs/core/uri/decodecomponent/"
+        },
+        {
           "id": "Uri.encodeFormValue",
           "name": "encodeFormValue",
           "static": true,
@@ -13165,6 +13203,44 @@
           "url": "/docs/core/uri/encodeformvalue/"
         },
         {
+          "id": "Uri.decodeFormValue",
+          "name": "decodeFormValue",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "decodeFormValue(string $s): bytes",
+          "params": [
+            {
+              "kind": "param",
+              "name": "s",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "bytes",
+          "replaces": "`urlencode`, `urldecode` (the `+`-for-space variant)",
+          "notes": "",
+          "qualifier": "",
+          "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
+          "implemented": true,
+          "notesHtml": "",
+          "doc": {
+            "shortHtml": "Reverses <code>Core\\Uri::encodeFormValue</code>, as <code>urldecode</code> does: a <code>+</code> is a space, <code>%2B</code> is a <code>+</code>, and every other <code>%XX</code> escape becomes its byte.",
+            "params": [
+              {
+                "name": "s",
+                "descHtml": "The text to decode."
+              }
+            ],
+            "returnHtml": "The decoded octets, as <code>bytes</code>, exactly as <code>decodeComponent</code> answers them; a malformed escape decodes to itself, and <code>%20</code> reads as a space too."
+          },
+          "slug": "decodeformvalue",
+          "url": "/docs/core/uri/decodeformvalue/"
+        },
+        {
           "id": "Uri.parseQuery",
           "name": "parseQuery",
           "static": true,
@@ -13197,11 +13273,11 @@
                 "descHtml": "The query text, without its leading <code>?</code>."
               }
             ],
-            "returnHtml": "An array whose every value is a <code>string</code> or a nested <code>array&lt;mixed&gt;</code>; a pair without <code>=</code> has the empty string for its value, a pair whose name decodes to nothing is dropped, and a repeated name without brackets keeps the last value.",
+            "returnHtml": "An array whose every value is a <code>bytes</code> or a nested <code>array&lt;mixed&gt;</code> — a value is percent-decoded by the same decoder <code>decodeFormValue</code> is, so it answers octets; a pair without <code>=</code> has empty <code>bytes</code> for its value, a pair whose name decodes to nothing is dropped, and a repeated name without brackets keeps the last value.",
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "A name's or a value's escapes decode to octets that are not valid UTF-8."
+                "descHtml": "A name's escapes decode to octets that are not valid UTF-8, and a name is the array key the pair is placed under, which is a <code>string</code>. A value has no such refusal."
               }
             ]
           },
@@ -13605,96 +13681,6 @@
           },
           "slug": "tostring",
           "url": "/docs/core/uri/tostring/"
-        },
-        {
-          "id": "Uri.decodeComponent",
-          "name": "decodeComponent",
-          "static": true,
-          "receiver": null,
-          "generics": null,
-          "signature": "decodeComponent(string $s): string",
-          "params": [
-            {
-              "kind": "param",
-              "name": "s",
-              "type": "string",
-              "default": null,
-              "optional": false,
-              "variadic": false
-            }
-          ],
-          "options": [],
-          "returnType": "string",
-          "replaces": "`rawurldecode`",
-          "notes": "",
-          "qualifier": "",
-          "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
-          "fromOverride": true,
-          "implemented": true,
-          "notesHtml": "",
-          "doc": {
-            "shortHtml": "Reverses <code>Core\\Uri::encodeComponent</code>, as <code>rawurldecode</code> does: every <code>%XX</code> escape becomes its byte, and a <code>+</code> stays a literal <code>+</code>.",
-            "params": [
-              {
-                "name": "s",
-                "descHtml": "The text to decode."
-              }
-            ],
-            "returnHtml": "The decoded text; a malformed escape such as <code>%G1</code> or a trailing <code>%</code> decodes to itself.",
-            "errors": [
-              {
-                "error": "RuntimeError",
-                "descHtml": "The escapes decode to octets that are not valid UTF-8, which a <code>string</code> cannot hold."
-              }
-            ]
-          },
-          "slug": "decodecomponent",
-          "url": "/docs/core/uri/decodecomponent/"
-        },
-        {
-          "id": "Uri.decodeFormValue",
-          "name": "decodeFormValue",
-          "static": true,
-          "receiver": null,
-          "generics": null,
-          "signature": "decodeFormValue(string $s): string",
-          "params": [
-            {
-              "kind": "param",
-              "name": "s",
-              "type": "string",
-              "default": null,
-              "optional": false,
-              "variadic": false
-            }
-          ],
-          "options": [],
-          "returnType": "string",
-          "replaces": "`urldecode`",
-          "notes": "",
-          "qualifier": "",
-          "section": "12. `Core\\Uri`, `Core\\Validate`, `Core\\Csv`, `Core\\Out`",
-          "fromOverride": true,
-          "implemented": true,
-          "notesHtml": "",
-          "doc": {
-            "shortHtml": "Reverses <code>Core\\Uri::encodeFormValue</code>, as <code>urldecode</code> does: a <code>+</code> is a space, <code>%2B</code> is a <code>+</code>, and every other <code>%XX</code> escape becomes its byte.",
-            "params": [
-              {
-                "name": "s",
-                "descHtml": "The text to decode."
-              }
-            ],
-            "returnHtml": "The decoded text; a malformed escape decodes to itself, and <code>%20</code> reads as a space too.",
-            "errors": [
-              {
-                "error": "RuntimeError",
-                "descHtml": "The escapes decode to octets that are not valid UTF-8, which a <code>string</code> cannot hold."
-              }
-            ]
-          },
-          "slug": "decodeformvalue",
-          "url": "/docs/core/uri/decodeformvalue/"
         }
       ],
       "unparsed": [],

@@ -64,17 +64,12 @@ item (`[the store](Cache::store)`, `[CLASS]`) has no `/` in it, and a link to a 
 
 Fragments (`file.md#a-heading`) are checked as far as the file; the heading itself is not verified.
 
-A file carrying the repository's `GENERATED FILE` marker in its head is skipped. `website/`'s ADR
-mirror is written by `npm run sync:adrs`, and the transform rewrites every relative link into a site
-route (`/docs/adr/0106/`) that resolves in Astro's router and never on disk. Checking those cost 2,682
-findings, all of them false, and left this gate red in CI's `docs` job for as long as the site
-existed — while the links they are generated *from* are checked here in their source form, which is
-the spelling a human actually edits.
-
-Its sync script, `website/scripts/sync-adrs.mjs`, reads the frozen records at `docs/decisions/NNNN.md`
-(the docs migration's unit C8 re-pointed it from `docs/adr/`), so the mirror on disk is whatever the
-last `npm run sync:adrs` produced. The skip here is unaffected either way: the mirror's pages carry
-the marker whatever they were generated from.
+A file carrying the repository's `GENERATED FILE` marker in its head is skipped. `website/`'s
+rulebook pages are written by `npm run sync:rules` from `docs/rules/`, and the transform rewrites
+every citation into a site route (`/docs/rules/security/tainted-data/#tainted-sources`) that resolves
+in Astro's router and never on disk. Checking those cost thousands of findings, all of them false,
+and left this gate red in CI's `docs` job for as long as the site existed — while the links they are
+generated *from* are checked here in their source form, which is the spelling a human actually edits.
 """
 
 from __future__ import annotations
