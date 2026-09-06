@@ -1786,6 +1786,34 @@ impl Signatures {
     }
 }
 
+/// Whether `symbol` is the name this backend gave the function `label`.
+///
+/// A function is emitted as `nvs<index>_<sanitize(label)>` — the index only
+/// because [`sanitize`] can collide, and it is handed out by the walk over
+/// `nvs_ir::Program::functions` rather than by anything a reader of the file
+/// holds. So a loader cannot *derive* a function's symbol name the way
+/// [`class_desc_symbol`] lets it derive a descriptor's; it can only recognise
+/// one, which is what this answers, and it is `pub` for exactly the reason that
+/// one is: the object backend's loader lives in another crate and a name two
+/// crates must spell identically is a function one of them exports.
+///
+/// ADR 0042 § 2 names `nvs_ir::lower::ENTRY_SCRIPT_LABEL` as the label the
+/// entry frame carries, and that is the only `label` any caller outside this
+/// crate has a reason to ask about.
+#[must_use]
+pub fn is_function_symbol(symbol: &str, label: &str) -> bool {
+    let Some(rest) = symbol.strip_prefix("nvs") else {
+        return false;
+    };
+    let digits = rest.len() - rest.trim_start_matches(|c: char| c.is_ascii_digit()).len();
+    if digits == 0 {
+        return false;
+    }
+    rest[digits..]
+        .strip_prefix('_')
+        .is_some_and(|tail| tail == sanitize(label))
+}
+
 /// The symbol name a class descriptor's address is relocated against.
 ///
 /// **This is a mangling scheme, unlike [`sanitize`]**, and it has to be: both
@@ -1923,6 +1951,28 @@ mod tests {
         assert_eq!(class_desc_symbol("Foo\\Bar"), "nvs_class_desc_Foo_5cBar");
         assert_eq!(class_desc_symbol("Foo_Bar"), "nvs_class_desc_Foo_5fBar");
         assert_eq!(class_desc_symbol("Point"), "nvs_class_desc_Point");
+    }
+
+    #[test]
+    fn the_entry_frame_s_symbol_is_recognised_and_no_other_is() {
+        // ADR 0042 § 3's loader finds the frame to enter by walking the symbol
+        // table, because the index in the name is the emitter's and not
+        // derivable. What it must not do is accept a *helper* the payload leaves
+        // undefined, or the frame of some other function whose sanitized name
+        // happens to start the same way.
+        let entry = nvs_ir::lower::ENTRY_SCRIPT_LABEL;
+        assert!(is_function_symbol(
+            &format!("nvs0_{}", sanitize(entry)),
+            entry
+        ));
+        assert!(is_function_symbol(
+            &format!("nvs17_{}", sanitize(entry)),
+            entry
+        ));
+        assert!(!is_function_symbol("nvs_echo_str", entry));
+        assert!(!is_function_symbol(&class_desc_symbol("Point"), entry));
+        assert!(!is_function_symbol("nvs0_Widget__g", entry));
+        assert!(is_function_symbol("nvs0_Widget__g", "Widget::g"));
     }
 
     #[test]
