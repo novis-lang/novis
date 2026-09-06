@@ -736,8 +736,8 @@ pub fn remove_dir(ctx: &Ctx, path: &Path, member: &str) -> Result<(), Fault> {
     std::fs::remove_dir(path).map_err(|err| io_failure(member, path, &err))
 }
 
-/// § 2's temporary-directory door: a new, empty, private directory under the system temporary root,
-/// once [`Cap::FsWrite`] has been shown to cover **the path it is about to create**.
+/// § 2's temporary-directory door: a new, empty, private directory under the root Novis owns, once
+/// [`Cap::FsWrite`] has been shown to cover **the path it is about to create**.
 ///
 /// The check is the ordinary one and the argument is the ordinary argument, which is the whole
 /// decision here: a member that creates a directory the program never named could plausibly have
@@ -752,23 +752,39 @@ pub fn remove_dir(ctx: &Ctx, path: &Path, member: &str) -> Result<(), Fault> {
 /// rather than after it, so there is no window in which the directory is readable by anyone else; on
 /// Windows the per-user temporary root already carries that ACL and the directory inherits it.
 ///
-/// The caller owns what it gets. Nothing here registers the directory for later cleanup — a program
-/// removes what it made, and a runtime that swept temporary directories at request end would be
-/// deciding the lifetime of data it knows nothing about.
+/// **The root is Novis's own** ([ADR 0131] § 2): `[io] temp_root` when an operator configured one,
+/// else a `novis` subdirectory of the platform temporary directory, created private on first use.
+/// That the runtime is the only writer there is the whole safety argument for § 4's orphan sweep,
+/// which deletes entries a dead process left behind — sweeping a shared `/tmp`, with anyone's names
+/// and anyone's symlinks in it, is the classic TOCTOU surface and is what the owned root forbids.
+///
+/// A root that **already exists** is used as it stands and its ownership is not re-examined here.
+/// That costs nothing an entry relies on — each one is still created atomically and privately, so a
+/// root somebody else made cannot expose what a program puts inside one — but § 4's sweep is the
+/// part that leans on exclusivity, and examining the root is that slice's to own.
 ///
 /// # Errors
 ///
 /// [`require`]'s catchable `RuntimeError` when the configuration does not grant `fs.write` for the
-/// temporary root, or [`io_failure`]'s `IOError` when every attempt to create one failed.
+/// path being created, or [`io_failure`]'s `IOError` when the root could not be created or every
+/// attempt to create a directory under it failed.
+///
+/// [ADR 0131]: ../../../docs/adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md
 pub fn temp_dir(ctx: &Ctx, member: &str) -> Result<PathBuf, Fault> {
     /// Enough attempts that exhausting them means something other than a collision — a full disk, a
     /// root that is not writable, a temporary directory someone has filled with our names.
     const ATTEMPTS: u32 = 16;
 
-    let root = std::env::temp_dir();
-    for _ in 0..ATTEMPTS {
+    let root = temp_root(ctx);
+    for attempt in 0..ATTEMPTS {
         let path = root.join(format!("nvs-{}-{:016x}", std::process::id(), nonce()));
         require(ctx, Cap::FsWrite, Scope::Path(&path), member)?;
+        if attempt == 0 {
+            // After the check and never before it. Creating the root is itself a write, so a
+            // program the grant refuses leaves nothing behind — and the check is asked of the entry
+            // rather than of the root because that is the path the member hands back (§ 2).
+            create_private_root(&root).map_err(|err| io_failure(member, &root, &err))?;
+        }
         match create_private_dir(&path) {
             Ok(()) => return Ok(path),
             Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => continue,
@@ -796,6 +812,37 @@ fn nonce() -> u64 {
     // An odd multiplier so consecutive counter values do not produce consecutive names, which is
     // what would let one process's directories be guessed from another's.
     ticks.wrapping_add(counted.wrapping_mul(0x9e37_79b9_7f4a_7c15))
+}
+
+/// [ADR 0131] § 2's owned root: `[io] temp_root` where a tree set it, else a `novis` subdirectory of
+/// the platform temporary directory.
+///
+/// Read off the snapshot rather than through the request's overlay because `io.temp_root` is
+/// `System`-class and `Boot` (`nvs_config::directive`), so there is no spelling by which a request
+/// could have written one — and a context with no configuration at all gets the default rather than
+/// a refusal, since this decides *where* and the grant still decides *whether*.
+///
+/// An empty string is treated as unset. It is what a `temp_root = ""` in a file means to every other
+/// path key here, and joining a name onto it would otherwise create the directory in the process's
+/// working directory, which is the one place a temporary must never land.
+///
+/// [ADR 0131]: ../../../docs/adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md
+fn temp_root(ctx: &Ctx) -> PathBuf {
+    ctx.config()
+        .and_then(|config| config.snapshot().config.io.as_ref())
+        .and_then(|io| io.temp_root.as_deref())
+        .filter(|root| !root.is_empty())
+        .map_or_else(|| std::env::temp_dir().join("novis"), PathBuf::from)
+}
+
+/// The owned root, created on first use — and a no-op every time after that.
+///
+/// `recursive` for both halves of that sentence: it makes an existing root success rather than
+/// `AlreadyExists`, and it creates the components of a configured `temp_root` an operator pointed at
+/// a directory that is not there yet. On Unix the private mode applies to every component this call
+/// creates, so a root made here is never briefly world-readable.
+fn create_private_root(root: &Path) -> std::io::Result<()> {
+    private_builder().recursive(true).create(root)
 }
 
 /// [`temp_dir`]'s one create, with the mode applied by the create itself rather than after it.
@@ -906,7 +953,9 @@ pub fn io_failure(member: &str, path: &Path, err: &std::io::Error) -> Fault {
 mod tests {
     use std::sync::Arc;
 
-    use super::{Cap, Ctx, Fault, Path, Scope, ThrownClass, exec, granted, require, shell_target};
+    use super::{
+        Cap, Ctx, Fault, Path, Scope, ThrownClass, exec, granted, require, shell_target, temp_dir,
+    };
 
     /// The member a case refuses on behalf of. `run` and not `spawn` for no reason beyond being the
     /// one the fixture calls; the door does not know which it is serving.
@@ -1046,5 +1095,99 @@ mod tests {
             MEMBER,
         )
         .expect("the door agrees with the reporter, which is what makes `granted` honest");
+    }
+
+    /// A directory this process alone is using, for the two cases below to point `[io] temp_root`
+    /// at. Under the platform root and never under Novis's own, so that a case asserting where a
+    /// temporary landed cannot pass by accident.
+    fn scratch(name: &str) -> std::path::PathBuf {
+        std::env::temp_dir().join(format!(
+            "nvs-capability-test-{name}-{}-{:016x}",
+            std::process::id(),
+            super::nonce()
+        ))
+    }
+
+    /// A context granting every write and naming `root` as the owned root. The grant is written as
+    /// an operator would write it, per [`snapshot_of`]; the root goes in as a TOML *literal* string,
+    /// because a Windows path in a basic string is a sequence of escapes.
+    fn rooted_at(root: &Path) -> Ctx {
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(snapshot_of(&format!(
+            "[capabilities.fs]\nwrite = true\n\n[io]\ntemp_root = '{}'\n",
+            root.display()
+        )));
+        ctx
+    }
+
+    /// ADR 0131 § 2: the root is the configured one, and the platform default is not consulted when
+    /// a tree named one. The negative half matters as much as the positive — a member that ignored
+    /// `[io] temp_root` would still hand back a directory that exists and is private, and only
+    /// *where* it is says whether the sweeps can ever reach it.
+    #[test]
+    fn temporary_dir_creates_under_the_configured_temp_root_not_the_platform_default() {
+        let root = scratch("configured");
+        let ctx = rooted_at(&root);
+
+        let made = temp_dir(&ctx, "Core\\IO::temporaryDir").expect("`write = true` covers it");
+
+        assert!(
+            made.starts_with(&root),
+            "§ 2 creates under `[io] temp_root`: {} is not under {}",
+            made.display(),
+            root.display()
+        );
+        assert!(
+            !made.starts_with(std::env::temp_dir().join("novis")),
+            "and the default root is not consulted at all when one is configured"
+        );
+        assert!(
+            made.is_dir()
+                && made
+                    .read_dir()
+                    .is_ok_and(|mut entries| entries.next().is_none()),
+            "the answer is a directory that exists and holds nothing"
+        );
+
+        std::fs::remove_dir_all(&root).expect("the case removes what it made");
+    }
+
+    /// § 2's "created private on first use": the root need not exist, and creating it is the
+    /// runtime's own doing rather than something an operator has to prepare. The Unix half asserts
+    /// the mode, which is the whole reason the root is created by the private builder — a root left
+    /// at the process umask would make every entry under it enumerable by anyone on the machine,
+    /// even though each entry is itself `0o700`.
+    #[test]
+    fn the_owned_root_is_created_private_on_first_use() {
+        // A component below the scratch directory as well, so this also pins that a `temp_root`
+        // pointing somewhere not yet on disk is made rather than refused.
+        let root = scratch("first-use").join("owned");
+        assert!(!root.exists(), "the case starts with nothing on disk");
+        let ctx = rooted_at(&root);
+
+        let made = temp_dir(&ctx, "Core\\IO::temporaryDir").expect("`write = true` covers it");
+
+        assert!(root.is_dir(), "the first use created the root");
+        assert!(made.starts_with(&root), "and put the directory inside it");
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+
+            let mode = |path: &Path| {
+                std::fs::metadata(path)
+                    .expect("both exist, having just been created")
+                    .permissions()
+                    .mode()
+                    & 0o777
+            };
+            assert_eq!(mode(&root), 0o700, "the root is owner-only from creation");
+            assert_eq!(mode(&made), 0o700, "and so is the directory under it");
+        }
+
+        let scratch = root
+            .parent()
+            .expect("`root` was joined onto the scratch path");
+        std::fs::remove_dir_all(scratch).expect("the case removes what it made");
     }
 }

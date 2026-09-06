@@ -10604,7 +10604,7 @@ Every entry of the tree under `$path`, as an `Iterable<string>` of paths relativ
 Core\IO::temporaryDir(): string
 ```
 
-Creates a new, empty, private directory under the system temporary root and answers its path — `sys_get_temp_dir` and `tempnam` in one member, and the directory is made rather than merely named, so there is no window between choosing a name and owning it. Needs the `fs.write` capability **for the path it creates**: the name is chosen first and asked about second, so a configuration granting only the working directory does not reach the temporary root.
+Creates a new, empty, private directory under the root Novis owns — `[io] temp_root`, or a `novis` subdirectory of the platform temporary directory — and answers its path. `sys_get_temp_dir` and `tempnam` in one member, and the directory is made rather than merely named, so there is no window between choosing a name and owning it. Needs the `fs.write` capability **for the path it creates**: the name is chosen first and asked about second, so a configuration granting only the working directory does not reach the temporary root.
 
 **Returns** `string` — The absolute path of a directory that exists, holds nothing, and belongs to this process. Removing it is the program's own job — `remove` each entry, then `removeDir` — because a runtime that swept it would be deciding the lifetime of data it knows nothing about.
 
@@ -20596,6 +20596,7 @@ long-running host — at a reload, or only at boot.
 | `cache.shared` | operator only — a request cannot change it | at boot only |
 | `cache.local` | operator only — a request cannot change it | at reload |
 | `control.socket` | operator only — a request cannot change it | at boot only |
+| `io.temp_root` | operator only — a request cannot change it | at boot only |
 | `server` | operator only — a request cannot change it | at boot only |
 | `opcache` | operator only — a request cannot change it | at reload |
 | `session` | operator only — a request cannot change it | at boot only |

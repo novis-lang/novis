@@ -90,6 +90,8 @@ pub struct Config {
     pub extension: Vec<Extension>,
     /// `[debug]` — the probe set, default and ceiling in one (ADR 0018).
     pub debug: Option<Debug>,
+    /// `[io]` — the root the runtime creates temporary directories under (ADR 0131 § 2).
+    pub io: Option<Io>,
     /// `[log]` — the handler ladder's rungs (ADR 0020) and the record's shape (ADR 0092).
     pub log: Option<Log>,
     /// `[http.*]` — the five sub-blocks ADRs 0020 § 7 and 0074 own.
@@ -339,6 +341,20 @@ pub struct Debug {
     /// `[]` is off; any subset of `coverage`, `branch`, `trace`, `profile`. `RuntimeTighten`, so a
     /// request may narrow this and can never turn a bit on.
     pub mode: Option<Vec<String>>,
+}
+
+/// `[io]` — ADR 0131 § 2's owned root: the one directory `Core\IO::temporaryDir` creates under.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+#[serde(default, deny_unknown_fields)]
+pub struct Io {
+    /// Where a temporary directory is created. Unset is a `novis` subdirectory of the platform
+    /// temporary directory, which is what an unconfigured deployment gets; an operator writes this
+    /// to put temporaries on a particular filesystem — a larger disk, or a tmpfs.
+    ///
+    /// `Boot`, per `crate::directive`'s `io.temp_root` row: § 4's orphan sweep runs at `nvs serve`
+    /// boot over the root it was started with, so moving the root under a running server would
+    /// leave the old one holding entries nothing sweeps.
+    pub temp_root: Option<String>,
 }
 
 /// `[log]` — the escalation ladder's two configured rungs (ADR 0020 §§ 3, 5) and the record's own

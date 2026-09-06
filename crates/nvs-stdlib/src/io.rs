@@ -997,12 +997,13 @@ const WALK_DOC: MethodDoc = MethodDoc {
 
 /// `Core\IO::temporaryDir`'s reference card — ADR 0117.
 const TEMPORARY_DIR_DOC: MethodDoc = MethodDoc {
-    short: "Creates a new, empty, private directory under the system temporary root and answers its \
-            path — `sys_get_temp_dir` and `tempnam` in one member, and the directory is made rather \
-            than merely named, so there is no window between choosing a name and owning it. Needs \
-            the `fs.write` capability **for the path it creates**: the name is chosen first and \
-            asked about second, so a configuration granting only the working directory does not \
-            reach the temporary root.",
+    short: "Creates a new, empty, private directory under the root Novis owns — `[io] temp_root`, \
+            or a `novis` subdirectory of the platform temporary directory — and answers its path. \
+            `sys_get_temp_dir` and `tempnam` in one member, and the directory is made rather than \
+            merely named, so there is no window between choosing a name and owning it. Needs the \
+            `fs.write` capability **for the path it creates**: the name is chosen first and asked \
+            about second, so a configuration granting only the working directory does not reach \
+            the temporary root.",
     params: &[],
     ret: "The absolute path of a directory that exists, holds nothing, and belongs to this process. \
           Removing it is the program's own job — `remove` each entry, then `removeDir` — because a \
