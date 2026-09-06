@@ -324,6 +324,14 @@ pub fn migration(driver: nvs_db::Driver) -> Option<&'static [Migration]> {
 /// in a column that cannot hold it. `engine=innodb` is named for § 4's sake rather than for
 /// storage's: `for update skip locked` is a row lock, and it is the engine that has them.
 ///
+/// **Every unbounded column is `longtext` and none is `text`**, which is the one place this list
+/// follows `nvs_db::schema`'s vocabulary rather than MySQL's own range of widths. That vocabulary
+/// has a single unbounded text type and on this backend it is `longtext`
+/// (`nvs_db::ddl::column_type`), so a `text` column is one `nvs schema plan` cannot name at all —
+/// it refuses the whole read rather than reporting a difference it has no vocabulary for, and the
+/// two tables here would then be the reason an operator could not introspect their own database.
+/// A path fits either width; being readable by the tool that is about to own this schema does not.
+///
 /// `id bigint not null auto_increment` is the identity column, `longtext` carries the two payloads
 /// that are a caller's JSON rather than a name — `args` and the dead-letter `errors` array — and
 /// every instant stays the `bigint` of epoch milliseconds this module's own doc argues for, which
@@ -334,7 +342,7 @@ pub const MIGRATION_MYSQL: &[Migration] = &[
         sql: "create table if not exists nvs_jobs (\
               id bigint not null auto_increment primary key, \
               queue varchar(255) not null, \
-              script text not null, \
+              script longtext not null, \
               args longtext, \
               state smallint not null, \
               attempts int not null, \
@@ -355,7 +363,7 @@ pub const MIGRATION_MYSQL: &[Migration] = &[
         sql: "create table if not exists nvs_dead_jobs (\
               id bigint not null primary key, \
               queue varchar(255) not null, \
-              script text not null, \
+              script longtext not null, \
               args longtext, \
               attempts int not null, \
               max_attempts int not null, \
