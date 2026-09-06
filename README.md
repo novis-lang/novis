@@ -67,11 +67,17 @@ behind each design decision — is [docs/implementation-plan.md](docs/implementa
 
 ## Contributing
 
-[CONTRIBUTING.md](CONTRIBUTING.md) is the developer's half of this file: the design in one page, the
-repository layout, how to build and check the tree, and the conventions a change is expected to follow.
-Start there, then [AGENTS.md](AGENTS.md) — it carries the priority ordering every design choice is judged
-against, the invariants that are easy to break, and a table pointing at the *one* document to open for a
-given piece of work.
+Novis is early enough that an opinion is worth as much as a patch, and most ways of helping involve no
+code: ideas, questions and disagreements go to
+[Discussions](https://github.com/novis-lang/novis/discussions), bugs and concrete proposals to
+[Issues](https://github.com/novis-lang/novis/issues), and [Discord](https://discord.gg/8ftMjPeH8h) is
+where the day-to-day conversation happens.
+
+[CONTRIBUTING.md](CONTRIBUTING.md) routes all of that, and its second half is the developer's half of this
+file: the design in one page, the repository layout, how to build and check the tree, and the conventions a
+change is expected to follow. Start there, then [AGENTS.md](AGENTS.md) — it carries the priority ordering
+every design choice is judged against, the invariants that are easy to break, and a table pointing at the
+*one* document to open for a given piece of work.
 
 ## Licence
 

@@ -1,14 +1,55 @@
 # Contributing to Novis
 
-This is the technical half of [README.md](README.md): how the workspace is laid out, what the compiler
-does with a `.nvs` file, and how to build and check the tree. The README says what Novis is for; this file
-says how to work on it.
+Novis is pre-alpha. Nothing runs yet and most of the language is still being decided, which makes this the
+point where an opinion is worth as much as a patch. **Most ways of helping involve no code at all** — this
+file routes all of them, and the second half is for the ones that do.
 
 > **Status: pre-alpha, milestone M0.** The language does not run yet — `Hello World` is M3. Nothing is
-> stable, and the crates listed below are mostly the shape the workspace grows into rather than code you
-> can read today.
+> stable, and the crates listed further down are mostly the shape the workspace grows into rather than
+> code you can read today.
 
-## Read this first
+## Where to take what you have
+
+| You have | Take it to |
+|---|---|
+| An idea, an opinion, a question, a "why is it like that?" | [Discussions](https://github.com/novis-lang/novis/discussions) |
+| A bug, something broken, a doc that is wrong, a concrete proposal | [Issues](https://github.com/novis-lang/novis/issues) |
+| A hole in one of the language's security claims | **neither of those** — [SECURITY.md](SECURITY.md), privately |
+| The wish to hang around, follow along, or help day to day | [Discord](https://discord.gg/8ftMjPeH8h) |
+| A code change | [Working on the code](#working-on-the-code), below |
+
+If you are not sure which of the first two it is, open a discussion. Someone will move it.
+
+## Helping without writing code
+
+A language is decided long before it is compiled, and what decides whether Novis is any good is mostly not
+Rust:
+
+- **Say what you think of the design.** The type system, the `tainted`/`secret` rules, the naming of the
+  `Core` library, the decision that every function is a method — all of it is written down and none of it
+  is set in stone. [docs/adr/](docs/adr/README.md) is one file per decision, each with the reasoning behind
+  it; disagreeing with one, in a discussion, is a contribution.
+- **Say what would stop you using it.** A missing feature, a migration you cannot see a path through, a
+  guarantee you would not trust. That is the most useful thing an outsider can report, and the hardest
+  thing for the people inside to notice.
+- **Report anything wrong.** A broken link, a doc that contradicts itself, an example that could not
+  possibly work, a claim on the website that overstates what is true. Every fact here is supposed to have
+  exactly one home; two files disagreeing is a bug, and a report of one is welcome.
+- **Ask questions.** A question that is hard to answer usually means the documentation is missing, and the
+  answer becomes the fix.
+- **Improve the writing.** The docs, the website, the error messages: clearer wording is a pull request
+  like any other, and needs no Rust.
+- **Be around.** Answering someone else's question on [Discord](https://discord.gg/8ftMjPeH8h) or in a
+  discussion, or telling people the project exists, is real work and it is short-handed.
+
+None of this needs permission, an introduction or a plan. Open the discussion.
+
+## Working on the code
+
+The rest of this file is the developer's half of [README.md](README.md): how the workspace is laid out,
+what the compiler does with a `.nvs` file, and how to build and check the tree.
+
+### Read this first
 
 [AGENTS.md](AGENTS.md) carries the priority ordering every design choice is judged against, the invariants
 that are easy to break, and a table pointing at the *one* document to open for a given piece of work. It is
@@ -23,7 +64,7 @@ python tools/brief.py                  # the plan's status, one line per module,
 python tools/brief.py --where <word>   # which file owns a topic
 ```
 
-## Building
+### Building
 
 Requires the pinned toolchain in [`rust-toolchain.toml`](rust-toolchain.toml), which `rustup` installs on
 the first `cargo` command in the tree. Everything else a development machine needs — the MSVC build tools,
@@ -50,7 +91,7 @@ cargo bench -p nvs-abi-probe                                   # track the numbe
 first failure — one call instead of the four above.
 [docs/agent/commands.md](docs/agent/commands.md) is the full set of tools this repo is driven by.
 
-## Repository layout
+### Repository layout
 
 Four of these exist today. The rest are the shape the workspace grows into; the right-hand column is
 the milestone that creates each one, since a crate is added when its milestone starts rather than
@@ -119,7 +160,7 @@ a wasm guest cannot read past the host heap or outlive its deadline, that an OS 
 of magnitude more than a task — and that native unwinding through JIT frames is still unavailable, which is
 the premise the calling convention exists for.
 
-## Design in one page
+### Design in one page
 
 | | |
 |---|---|
@@ -142,7 +183,7 @@ This is the short form. The fuller decision table, with the sequencing each choi
 [docs/implementation-plan.md](docs/implementation-plan.md); the reasoning behind each choice and the
 measurements backing it are in [docs/adr/](docs/adr/README.md).
 
-## Making a change
+### Making a change
 
 - [docs/agent/conventions.md](docs/agent/conventions.md) is the *shape* of what you are about to
   write — a commit message, a `.nvst` case, a `Core` member, an ADR, a diagnostic code. Read it instead of
