@@ -78,7 +78,6 @@ from the commit bodies of c7a9afca6 through 44ba60ce9, re-anchored to the lines 
 - crates/nvs-types/src/routes.rs:535 — `RouteTable::named`'s doc comment states the pre-0110 unconditional duplicate-name rule.
 - docs/decisions/0085.md §3 — spells `nvs build --openapi <path>` as an output path; the command takes the source and writes to stdout. Record defect.
 - docs/decisions/0077.md §4, 0102 §8 — give `Core\Router\Match` `method` and `access` members; the shipped class has neither. Record defects.
-- tools/adr.py:89 — spells `ADR 0102 SS 9`, which no pass reads.
 - (no file) — 0110 §3 is shipped and unguarded: no fixture declares a shared-name route.
 
 ## B16 — config

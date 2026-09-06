@@ -1,133 +1,130 @@
 #!/usr/bin/env python3
-"""Write, amend and audit the ADR set.
+"""Audit the decision records, and answer questions about the set.
 
-The ADRs are the project's one home for every settled decision, and they are read far more
-often than they are written -- by an agent that has one orientation call to spend. This tool is
-what keeps that set mechanically honest: it answers the questions a human cleanup pass used to
-answer by reading ninety files, and it answers them the same way every time.
+A decision record, `docs/decisions/NNNN.md`, is the reasoning behind a rule: what was asked, what was
+considered, why this answer, and what it costs. The rule itself lives in `docs/rules/`, so a record is
+where a reader goes to *change* a rule and never to learn one. A record is **frozen on acceptance**:
+nothing in it is maintained afterwards except its `status:` line. There is no `Amends:`, no `Amended
+by:` and no folding -- a later decision that changes a rule edits the rule's fragment and names the
+earlier record only through the rule's `because` list, which the rulebook holds and `tools/rules.py`
+validates. This tool is what keeps the records mechanically honest against that shape, and it
+answers the same way every time the questions a cleanup pass used to answer by reading 143 files.
 
-    python tools/adr.py                 the full audit, grouped by check, exit non-zero on an error
-    python tools/adr.py --stats         one line per ADR: size, section shape, trim candidates
-    python tools/adr.py --graph 0077    what one ADR amends, is amended by, cites, and is cited by
-    python tools/adr.py --orphans       ADRs nothing links to, and ADRs missing from the two indexes
-    python tools/adr.py --index         README.md's index table, derived from the ADR titles
-    python tools/adr.py --residue       changelog/overlay prose an ADR body should not carry
-    python tools/adr.py --check         audit, quiet on success -- the CI shape
+    python tools/adr.py                 the full audit, grouped by check, exit non-zero on a finding
+    python tools/adr.py --check         the same, quiet on success -- the CI shape
+    python tools/adr.py --only links    one named check, by the name the audit prints
+    python tools/adr.py --stats         one line per record: size, section shape, rationale share
+    python tools/adr.py --graph 0066    the rules a record creates and modifies, and who else shaped them
+    python tools/adr.py --orphans       records no other record links to, and the most cited
+    python tools/adr.py --residue       changelog prose a frozen body should not carry
 
-WRITING ONE
+THE SHAPE A RECORD IS HELD TO
 
-README.md § *Adding a decision* is seven steps, and six of them are a form: claim the number nobody
-else took, derive the slug, date it, fold the back-link into the ADR you amend, add a routing row,
-add a ground-rules bullet, regenerate the index, re-audit. The seventh -- the ADR's own prose -- is
-the only one worth a turn. So write that, and let this do the rest:
+    ---
+    date: 2026-08-23
+    status: accepted                    accepted | retired | superseded-by NNNN
+    changes:
+      creates:
+        - expressions/nullable-conversion
+      modifies:
+        - types/conversion
+    ---
+    # ADR 0066 — the decision as a statement, not a topic
 
-    python tools/adr.py --draft > .agent-tmp/adr.md     a draft to fill in
-    python tools/adr.py --new .agent-tmp/adr.md         claim a number and index it everywhere
-    python tools/adr.py --new FILE --dry-run            say what it would touch, write nothing
+    - **Scope:** ...                    then `Depends on` and `Validated by`, where the record has them
 
-The draft *is* the ADR, with `NNNN` where the number goes -- there is no second format to learn, and
-conventions.md § *An ADR* deliberately keeps no copy of it: it holds the rules behind the fields, this
-holds the fields. Four extra fields are consumed and never
-written to the file: `Slug:` overrides the derived filename, and `Route:`, `Rule:` and
-`Divergence:` are the rows this adds to README.md's routing table, ground-rules.md and
-divergences.md. `NNNN` anywhere in the draft expands to the number it claims, which is what lets
-the routing row link to the file being created.
+    > **In short:** ...
 
-    python tools/adr.py --fold 0110 --into "[0033](0033-...md) § 4 — what changed there"
-    python tools/adr.py --set-status 0033 Superseded
-    python tools/adr.py --next-section 0007
+    ## Context ... ## Decision ... ## Consequences ... ## Alternatives rejected ... ## Verification
 
-`--fold` writes **both** halves of an amendment -- the clause in the amending ADR and the bare
-number in the amended one's `Amended by:` -- because writing one and not the other is what the
-`amend symmetry` check reports, and it is a check because a reader of the amended ADR is the one
-who never finds out. `--set-status` moves the index cell that quotes the status with it.
-`--next-section` says where a new section goes in an ADR whose `§ N` anchors are cited from
-`crates/` and from `loop-goal.toml`: appending is free, renumbering breaks all of them silently.
-
-**Every write is a transaction.** The tool applies the lot, re-runs the audit, and if the tree
-gained one finding it did not have before, restores every byte and says which. A refusal never
-leaves an index row pointing at a body that is not there. What it does *not* do is judge prose:
-folding the amended ADR's body so it reads as currently true is the author's, and both commands
-say so on the way out.
+`changes:` is the record's one machine field. It names, by rule id, what the decision created and what
+it modified; every rule's `because` names the records back, and its first entry is the creator. That
+relation is never maintained by hand in either direction beyond writing the two lists once: `--graph`
+derives from it the history `Amends:`/`Amended by:` used to carry, and the `changes` check reports the
+two lists disagreeing. `python tools/rules.py --show <id>` is the other side of the same question.
 
 WHAT IT CHECKS, AND WHY EACH ONE IS HERE RATHER THAN IN A REVIEWER'S HEAD
 
-  metadata   Every ADR opens with the same field block. `Status` must be a bare value, because a
-             status carrying a paragraph is a status nobody can filter on. Unknown field names are
-             refused for the reason `deny_unknown_fields` refuses an unknown config key (`rule:config/the-file-is-nvs-toml-and-it-is-toml`
-             SS 3): a typo'd `Amended-by:` reads as "nothing amends this".
+  metadata   The YAML block opens the file and closes; `date` is ISO; `status` is one of the allowed
+             values and nothing more, because a status carrying a paragraph is a status nobody can
+             filter on; the metadata bullets after the title are `Scope`, `Depends on` and
+             `Validated by` and nothing else, since a typo'd field name reads as "this record has
+             none"; the `In short` block is there, because it is the record's front page.
+
+  changes    Every id under `changes:` is `<topic>/<slug>`, resolves in the rulebook, and that rule's
+             `because` names the record back -- and every `because` entry is a record whose `changes:`
+             names the rule. The reverse index is how a reader of a rule finds the decisions behind
+             it, so a one-directional entry is the one-directional fold this replaced amend symmetry
+             to catch, and it is a check because the reader of the rule is the one who never finds out.
 
   structure  The heading set is closed and its order is fixed, so a reader who has found
-             *Alternatives rejected* once knows where it is in every other ADR. The corpus had
+             *Alternatives rejected* once knows where it is in every other record. The corpus had
              four different placements for `## Verification` before this ran. No section is empty.
 
-  links      Every `[NNNN](NNNN-slug.md)` must resolve, and every `SS N` reference must name a
-             section the target ADR actually has. A cross-link into a section that was renumbered
-             is the failure mode this set is most exposed to, because sections are cited by number
-             from other ADRs, from `loop-goal.toml`, and from code comments.
+  links      Every link to a record must resolve, from a record or from the two index documents in
+             `docs/adr/` that link to records without being one, and every `../` link from any of
+             them must name a file that is on disk.
 
-             A `SS N` counts as citing *another* ADR only when that ADR is named directly in front
-             of it -- `[0067] SS 13`, ``rule:concurrency/one-scheduler` SS 6`, `[0104]'s SS 3`. Prose in between means the
-             section belongs to the ADR doing the writing, which is how 0044 and 0084 cite their
-             own SS 7 and SS 8 a clause after naming someone else. Reading across that clause finds
-             1,031 more citations than matching the link text alone, and four of them are wrong;
-             refusing to costs three citations of a shape nobody writes twice. A gate that cries
-             wolf gets ignored, so this takes the narrow rule and 1,288 checked citations.
+  section    Every `§ N` citing another record must name a section that record actually has. A
+  refs       section number is a public identifier -- cited from other records, from `crates/` and
+             from the goal manifests -- and one that was renumbered is the failure this set is most
+             exposed to, because nothing else notices.
 
-  symmetry   `Amends: A` in B obliges `Amended by: B` in A. One-directional folds are how an ADR
-             ends up describing a rule that a later one already replaced.
+             A `§ N` counts as citing *another* record only when that record is named directly in
+             front of it: `[0067] § 13`, `[0104]'s § 3`. Prose in between means the section belongs
+             to the record doing the writing, which is how 0044 and 0084 cite their own § 7 and § 8 a
+             clause after naming someone else. Reading across that clause finds 1,031 more citations
+             than matching the link text alone, and four of them are wrong; refusing to costs three
+             citations of a shape nobody writes twice. A gate that cries wolf gets ignored, so this
+             takes the narrow rule and 1,288 checked citations.
 
-  indexes    Retired by the docs migration's unit C2, and quiet since: the routing table, the
-             index table and the authored ground-rules.md are gone, and a record is reached
-             through the rules whose `because` names it (docs/ground-rules.md is generated from
-             them). The check and `--index`/`--sync` stay only until C5 removes them.
+  residue    A frozen body states the decision as it was made -- git holds the history. Prose like
+             "previously said", "is withdrawn", "used to" is an overlay from the folding era, when a
+             body was rewritten in place, and a reader would still have to apply it in their head.
 
-  residue    An ADR body states the *current* rule and nothing else -- git holds the history. Prose
-             like "previously said", "is withdrawn", "used to" is an overlay a reader must apply in
-             their head, which is exactly what folding exists to prevent.
+  counters   A count restated in more than one file goes stale; one such total had been wrong in
+             seven places before this ran. Any spelled-out running total in a body is reported.
 
-  counters   A count restated in more than one file goes stale. `rule:routing/the-servers-match-dispatches-nothing` SS 9 found one that had
-             been wrong in seven places. Any spelled-out running total in a body is reported.
-
-Nothing here measures prose against a length. doc-style.md SS *Length targets* is explicit that
+Nothing here measures prose against a length. doc-style.md § *Length targets* is explicit that
 nothing in this repository does, and `--stats` prints sizes so a human can judge, never a verdict.
 """
 
 from __future__ import annotations
 
 import argparse
-import datetime
 import glob
 import io
 import os
 import re
 import sys
-import textwrap
 from collections import defaultdict
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import rules as rulebook  # noqa: E402  -- the rulebook library; `changes:` resolves against it
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-#: The frozen decision records, `docs/decisions/NNNN.md`, since the docs migration's unit C1. A
-#: record opens with a YAML block (`date:`, `status:`, `changes:`) and carries no `Amends:`; the
-#: metadata bullets that remain are `Scope`, `Depends on` and `Validated by`.
+#: The frozen decision records, one file per number.
 ADR_DIR = os.path.join(ROOT, "docs", "decisions")
-#: Where the index documents still live -- README.md's tables, the authored ground-rules.md and
-#: divergences.md, tooling-parity.md -- until unit C2 retires them.
+#: The two documents that link *to* records without being one -- the set's README and the tooling
+#: parity table. They sit in `docs/adr/` for historical reasons and are checked alongside the set,
+#: because they are where a link to a record is written last and looked at least.
 INDEX_DIR = os.path.join(ROOT, "docs", "adr")
-#: A link to a record in either spelling: `(0066-slug.md)` from inside the old tree, or
-#: `(../decisions/0066.md)` / `(0066.md)` since the freeze. The group is the number.
-RECORD_LINK_RE = re.compile(r"(?:\(|/)(\d{4})(?:-[a-z0-9-]+)?\.md(?:#[^)]*)?\)")
+INDEX_DOCS = ["README.md", "tooling-parity.md"]
+#: A link to a record, from a record (`(0066.md)`) or from an index document (`(../decisions/0066.md)`).
+#: The group is the number.
+RECORD_LINK_RE = re.compile(r"\]\((?:\.\./decisions/)?(\d{4})\.md(?:#[^)]*)?\)")
 
-# The closed field set. A field outside this list is a typo, per the module doc. `Relates to:` was
-# retired -- 743 numbers across 95 ADRs that `--graph` derives -- and `Supersedes:` was a second
-# spelling of `Amends:`.
-FIELDS = ["Status", "Date", "Scope", "Depends on", "Amends", "Amended by", "Validated by"]
-STATUSES = {"Accepted", "Proposed", "Rejected", "Superseded", "Retired"}
+#: The metadata bullets a record may carry between its title and its `In short` block. A name outside
+#: this list is a typo, per the module doc; `Status` and `Date` live in the YAML block and are
+#: parsed into the same `fields` dict so a caller reads one shape.
+FIELDS = ["Scope", "Depends on", "Validated by"]
+STATUS_RE = re.compile(r"^(?:accepted|retired|superseded-by (\d{4}))$")
+DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
-# The closed heading set, in canonical order. Front-loading is the `In short` block's job, not
-# the section order's -- README.md says a reader who only needs the rule stops there -- so `Context`
-# leading is the house shape and what this enforces is that every ADR uses the same one.
+# The closed heading set, in canonical order. Front-loading is the `In short` block's job, not the
+# section order's -- a reader who only needs the rule has the rulebook -- so `Context` leading is the
+# house shape and what this enforces is that every record uses the same one.
 CANONICAL = [
     "Context",
     "Investigation",
@@ -139,7 +136,7 @@ CANONICAL = [
     "Revisiting",
     "Verification",
 ]
-# Sections a reader skips unless they intend to overturn the decision -- the trim surface.
+# Sections a reader skips unless they intend to overturn the decision -- what `--stats` sizes.
 RATIONALE = {"Context", "Investigation", "Options considered", "Alternatives rejected", "Revisiting"}
 
 RESIDUE = [
@@ -153,6 +150,9 @@ RESIDUE = [
     (r"\bin (?:an|its) earlier draft\b", "describes a prior version"),
     (r"\bthis ADR (?:first|originally) (?:said|admitted|specified)\b", "describes a prior version"),
 ]
+# *Alternatives rejected* and *Verification* name rejected and withdrawn things for a living, so
+# residue is looked for everywhere in the body but there.
+RESIDUE_SKIP = {"Alternatives rejected", "Verification"}
 COUNTERS = [
     r"\bthe (?:tenth|eleventh|twelfth|thirteenth|fourteenth) divergence\b",
     r"\bnow holds (?:three|four|five|six|seven|eight|nine|ten) names\b",
@@ -160,23 +160,23 @@ COUNTERS = [
     r"\bthe (?:third|fourth|fifth|sixth|seventh) forcing case\b",
 ]
 
-
-#: A markdown link's target, as `](../decisions/0007.md)`. `section_refs` collapses it so a
-#: citation reads as `[0007] § 4`; the `.md` in it is otherwise a sentence break to any scan.
-LINK_TARGET_RE = re.compile(r"\]\((?:\.\./decisions/)?\d{4}(?:-[a-z0-9-]+)?\.md(?:#[^)]*)?\)")
+#: A markdown link's target, as `](0007.md)` or `](../decisions/0007.md)`. `section_refs` collapses it
+#: so a citation reads as `[0007] § 4`; the `.md` in it is otherwise a sentence break to any scan.
+LINK_TARGET_RE = re.compile(r"\]\((?:\.\./decisions/)?\d{4}\.md(?:#[^)]*)?\)")
 SECTION_CITE_RE = re.compile(r"§§?\s*(\d+[a-z]?)")
-
-#: A `§ N` cites *another* ADR only when that ADR is named right in front of it -- `[0067] § 13`,
-#: ``rule:concurrency/after-response-outlives-the-connection``, `[0104]'s § 3`. Anything else between the two is prose, and prose means the `§`
-#: belongs to the ADR doing the writing: 0044 § 199 says "`rule:security/tainted-qualifier` ... already carry: every
-#: ported call site in § 7's table", and that § 7 is 0044's own. A window wide enough to reach
-#: across a clause reads every one of those as a cross-reference and reports it as dangling.
-#: `E0122` is a diagnostic code, so a digit run preceded by a letter never counts; `2026` is a
-#: year, so an ADR number always leads with a zero.
+#: A `§ N` cites *another* record only when that record is named right in front of it -- `[0067] § 13`,
+#: `[0104]'s § 3`. Anything else between the two is prose, and prose means the `§` belongs to the
+#: record doing the writing. A window wide enough to reach across a clause reads every one of those as
+#: a cross-reference and reports it as dangling. `E0122` is a diagnostic code, so a digit run preceded
+#: by a letter never counts; `2026` is a year, so a record number always leads with a zero.
 CROSS_CITE_RE = re.compile(r"(?<![A-Za-z0-9])(0\d{3})\]?(?:'s)?[\s,]*$")
 
 
 class Adr:
+    """One record, parsed. `fields` carries `Status` and `Date` from the YAML block -- `Status`
+    capitalised, so `decisions.py`'s filter on `Accepted` reads the same value it always has -- and
+    the metadata bullets by name; `status`, `date` and `changes` are the block's own values."""
+
     def __init__(self, path: str, text: str | None = None) -> None:
         self.path = path
         self.file = os.path.basename(path)
@@ -184,11 +184,15 @@ class Adr:
         self.text = open(path, encoding="utf-8").read() if text is None else text
         self.lines = self.text.split("\n")
         self.title = next((l.lstrip("# ").strip() for l in self.lines if l.startswith("# ")), "")
+        self.front_matter = False
+        self.status = ""
+        self.date = ""
+        #: `{"creates": [rule ids], "modifies": [rule ids]}`, exactly the lists written; a list the
+        #: block does not carry is absent, which `check_changes` reports.
+        self.changes: dict[str, list[str]] = {}
         self.fields: dict[str, str] = {}
         self.field_line: dict[str, int] = {}
-        #: (first line, last line) of each field, 1-based inclusive, continuations included.
-        #: `field_line` says where a finding is; this says what a rewrite has to replace.
-        self.field_span: dict[str, tuple[int, int]] = {}
+        #: Lines the shape does not admit: an unknown bullet name, an unknown YAML key.
         self.unknown: list[tuple[int, str]] = []
         self.headings: list[tuple[int, str]] = []
         self.sections: dict[str, tuple[int, int]] = {}
@@ -196,22 +200,47 @@ class Adr:
         self.in_short = False
         self._parse()
 
+    def _parse_front(self) -> int:
+        """The YAML block, by hand: three keys and two lists is not a parser's worth of shape, and
+        pulling one in would make a check-only tool the one script in `tools/` with a dependency.
+        Returns the line the body starts after, 0 when there is no block."""
+        if not self.lines or self.lines[0] != "---":
+            return 0
+        key = None
+        for i, line in enumerate(self.lines[1:], 2):
+            if line == "---":
+                self.front_matter = True
+                return i
+            m = re.match(r"^(\w+):\s*(.*?)\s*$", line)
+            if m:
+                name, value = m.group(1), m.group(2)
+                key = None
+                if name in ("date", "status"):
+                    setattr(self, name, value)
+                    self.fields[name.capitalize()] = value.capitalize() if name == "status" else value
+                    self.field_line[name.capitalize()] = i
+                elif name == "changes":
+                    self.field_line["changes"] = i
+                else:
+                    self.unknown.append((i, name))
+                continue
+            m = re.match(r"^  (creates|modifies):\s*(.*?)\s*$", line)
+            if m:
+                key, inline = m.group(1), m.group(2)
+                # `modifies: []` is the inline spelling of an empty list; `[a, b]` is the same
+                # shape with members, which nothing writes today but the migration doc shows.
+                self.changes[key] = [x.strip() for x in inline.strip("[]").split(",") if x.strip()]
+                continue
+            m = re.match(r"^    - (\S+)\s*$", line)
+            if m and key:
+                self.changes[key].append(m.group(1))
+                continue
+            self.unknown.append((i, line.strip()[:40]))
+        return 0
+
     def _parse(self) -> None:
+        body_from = self._parse_front()
         cur = None
-        body_from = 0
-        if self.lines and self.lines[0] == "---":
-            # The frozen shape: `date:` and `status:` sit in a YAML block and read as the `Date`
-            # and `Status` fields the audit has always checked; `changes:` is the rulebook's.
-            for i, line in enumerate(self.lines[1:], 2):
-                if line == "---":
-                    body_from = i
-                    break
-                m = re.match(r"^(date|status):\s*(.+?)\s*$", line)
-                if m:
-                    name = m.group(1).capitalize()
-                    self.fields[name] = m.group(2).capitalize() if name == "Status" else m.group(2)
-                    self.field_line[name] = i
-                    self.field_span[name] = (i, i)
         for i, line in enumerate(self.lines, 1):
             if i <= body_from:
                 continue
@@ -221,7 +250,6 @@ class Adr:
                 if name in FIELDS:
                     self.fields[name] = value
                     self.field_line[name] = i
-                    self.field_span[name] = (i, i)
                     cur = name
                 else:
                     self.unknown.append((i, name))
@@ -229,7 +257,6 @@ class Adr:
                 continue
             if cur and line.startswith("  ") and not line.startswith("  -"):
                 self.fields[cur] += " " + line.strip()
-                self.field_span[cur] = (self.field_span[cur][0], i)
                 continue
             cur = None
             if line.startswith("> **In short:**"):
@@ -250,26 +277,26 @@ class Adr:
         return "\n".join(self.lines[start:end])
 
     def refs(self) -> set[str]:
-        """Every ADR this one links to, by number."""
+        """Every record this one links to, by number."""
         return set(RECORD_LINK_RE.findall(self.text))
 
-    def field_nums(self, name: str) -> set[str]:
-        return set(re.findall(r"\b(\d{4})\b", self.fields.get(name, "")))
+    def rules(self) -> list[str]:
+        """Every rule id under `changes:`, created first, in the order written."""
+        return self.changes.get("creates", []) + self.changes.get("modifies", [])
 
     def section_refs(self) -> list[tuple[int, str, str]]:
-        """(line, target ADR number, section number) for every `0007 SS 3`-shaped citation.
+        """(line, target record number, section number) for every `0007 § 3`-shaped citation.
 
         Read backwards from the `§`, not forwards from the number. A citation names its target
-        immediately before the section mark, so the target is the *last* ADR number in the run of
+        immediately before the section mark, so the target is the *last* record number in the run of
         text ahead of it; scanning forward from every number instead makes
         `[0007](...) and [0009](...) § 2` a claim about 0007 as well, which it is not."""
         out = []
         for i, line in enumerate(self.lines, 1):
-            # `[0007](../decisions/0007.md) § 4` is how a citation is nearly always
-            # written, and the `.md` in the link target used to stop the scan dead -- so the one
-            # form in common use was the one form never checked, and nine dangling `§ N` had
-            # accumulated behind it. Collapsing the target to `]` leaves `[0007] § 4` and moves
-            # no column onto another line.
+            # `[0007](0007.md) § 4` is how a citation is nearly always written, and the `.md` in the
+            # link target used to stop the scan dead -- so the one form in common use was the one
+            # form never checked, and nine dangling `§ N` had accumulated behind it. Collapsing the
+            # target to `]` leaves `[0007] § 4` and moves no column onto another line.
             plain = LINK_TARGET_RE.sub("]", line)
             for m in SECTION_CITE_RE.finditer(plain):
                 cite = CROSS_CITE_RE.search(plain[max(0, m.start() - 40):m.start()])
@@ -288,20 +315,67 @@ def load() -> dict[str, Adr]:
 def check_metadata(adrs):
     out = []
     for a in adrs.values():
+        if not a.front_matter:
+            out.append((a.file, 1, "no YAML block -- a record opens with `---` and closes it"))
         for line, name in a.unknown:
-            out.append((a.file, line, f"unknown metadata field `{name}` -- one of {', '.join(FIELDS)}"))
+            out.append((a.file, line, f"unknown metadata field `{name}` -- the bullets are "
+                                      f"{', '.join(FIELDS)}; the block is date, status, changes"))
         for req in ("Status", "Date", "Scope"):
             if req not in a.fields:
-                out.append((a.file, 1, f"missing `{req}:`"))
-        st = a.fields.get("Status", "")
-        if st and st not in STATUSES:
-            short = st if len(st) < 60 else st[:57] + "..."
-            out.append((a.file, a.field_line.get("Status", 1), f"`Status:` is prose, not a value: {short}"))
+                out.append((a.file, 1, f"missing `{req.lower() if req != 'Scope' else req}:`"))
+        if a.date and not DATE_RE.match(a.date):
+            out.append((a.file, a.field_line["Date"], f"`date:` is not ISO: {a.date}"))
+        m = STATUS_RE.match(a.status) if a.status else None
+        if a.status and not m:
+            short = a.status if len(a.status) < 60 else a.status[:57] + "..."
+            out.append((a.file, a.field_line["Status"],
+                        f"`status:` is not accepted | retired | superseded-by NNNN: {short}"))
+        elif m and m.group(1) and m.group(1) not in adrs:
+            out.append((a.file, a.field_line["Status"],
+                        f"superseded by {m.group(1)}, which does not exist"))
         if not a.in_short:
             out.append((a.file, 1, "no `> **In short:**` block"))
-        for f in ("Amends", "Amended by", "Relates to", "Supersedes"):
-            if f in a.fields and not a.fields[f].strip():
-                out.append((a.file, a.field_line[f], f"`{f}:` is present but empty -- omit the field"))
+    return out
+
+
+def check_changes(adrs):
+    out = []
+    book = rulebook.Rulebook()
+    for a in adrs.values():
+        at = a.field_line.get("changes", 1)
+        if "changes" not in a.field_line:
+            out.append((a.file, 1, "no `changes:` block -- name the rules this creates and modifies"))
+            continue
+        for key in ("creates", "modifies"):
+            if key not in a.changes:
+                out.append((a.file, at,
+                            f"`changes:` has no `{key}:` list -- write `{key}: []` for none"))
+        seen: set[str] = set()
+        for rid in a.rules():
+            if not rulebook.ID_RE.match(rid):
+                out.append((a.file, at, f"`changes:` id {rid!r} is not `<topic>/<slug>`"))
+            elif rid in seen:
+                out.append((a.file, at, f"`changes:` names {rid} twice"))
+            elif book.by_id and rid not in book.by_id:
+                out.append((a.file, at, f"`changes:` names {rid}, which the rulebook does not define"))
+            elif book.by_id and a.num not in book.by_id[rid].because:
+                out.append((a.file, at,
+                            f"`changes:` names {rid}, whose `because` does not name {a.num}"))
+            seen.add(rid)
+    for rule in book.by_id.values():
+        for i, num in enumerate(rule.because):
+            a = adrs.get(num)
+            if a is None:
+                out.append((f"docs/rules/{rule.topic}.json", 1,
+                            f"{rule.id}'s `because` names {num}, which is not a record"))
+            elif rule.id not in a.rules():
+                out.append((a.file, a.field_line.get("changes", 1),
+                            f"{rule.id}'s `because` names {num}, "
+                            "but its `changes:` does not name the rule"))
+            elif i == 0 and rule.id not in a.changes.get("creates", []):
+                out.append((a.file, a.field_line.get("changes", 1),
+                            f"{rule.id}'s `because` puts {num} first, "
+                            "but its `changes:` does not create it"))
     return out
 
 
@@ -314,7 +388,8 @@ def check_structure(adrs):
             continue
         for n in names:
             if n not in CANONICAL:
-                out.append((a.file, dict((v, k) for k, v in a.headings)[n], f"non-canonical heading `## {n}`"))
+                at = next(line for line, name in a.headings if name == n)
+                out.append((a.file, at, f"non-canonical heading `## {n}`"))
         ordered = [n for n in names if n in CANONICAL]
         rank = [CANONICAL.index(n) for n in ordered]
         if rank != sorted(rank):
@@ -323,13 +398,6 @@ def check_structure(adrs):
             if not "\n".join(a.lines[s:e]).strip():
                 out.append((a.file, s, f"`## {n}` is empty"))
     return out
-
-
-#: The three files that carry links *to* ADRs without being one. They are checked alongside the set
-#: because they are where an ADR's links are written last and looked at least -- and because
-#: `--new` writes into all three, so a link it got wrong has to be a finding for the write to be
-#: rolled back. They sit in `docs/adr/`, so a relative link resolves exactly as an ADR's does.
-INDEX_DOCS = ["README.md", "ground-rules.md", "divergences.md", "tooling-parity.md"]
 
 
 def _link_sources(adrs):
@@ -346,9 +414,9 @@ def check_links(adrs):
     out = []
     for file, lines, base in _link_sources(adrs):
         for i, line in enumerate(lines, 1):
-            for m in re.finditer(r"\]\((?:\.\./decisions/)?(\d{4})(?:-[a-z0-9-]+)?\.md(?:#[^)]*)?\)", line):
+            for m in RECORD_LINK_RE.finditer(line):
                 if m.group(1) not in adrs:
-                    out.append((file, i, f"broken ADR link -> {m.group(1)}"))
+                    out.append((file, i, f"broken record link -> {m.group(1)}"))
             for m in re.finditer(r"\]\((\.\./[^)#]+)(?:#[^)]*)?\)", line):
                 rel = os.path.normpath(os.path.join(base, m.group(1)))
                 if not os.path.exists(rel):
@@ -362,113 +430,11 @@ def check_section_refs(adrs):
         for line, num, sec in a.section_refs():
             t = adrs.get(num)
             if t is None:
-                out.append((a.file, line, f"cites ADR {num}, which does not exist"))
+                out.append((a.file, line, f"cites record {num}, which does not exist"))
             elif t.subsections and sec not in t.subsections:
                 have = ", ".join(sorted(t.subsections, key=lambda s: (len(s), s)))
-                out.append((a.file, line, f"cites {num} § {sec}; that ADR has §§ {have}"))
+                out.append((a.file, line, f"cites {num} § {sec}; that record has §§ {have}"))
     return out
-
-
-def check_symmetry(adrs):
-    out = []
-    for a in adrs.values():
-        for t in a.field_nums("Amends"):
-            if t in adrs and a.num not in adrs[t].field_nums("Amended by"):
-                out.append((a.file, a.field_line.get("Amends", 1), f"amends {t}, but {t} does not list `Amended by: {a.num}`"))
-        for t in a.field_nums("Amended by"):
-            if t in adrs and a.num not in adrs[t].field_nums("Amends"):
-                out.append((a.file, a.field_line.get("Amended by", 1), f"claims {t} amends it, but {t} has no `Amends: {a.num}`"))
-    return out
-
-
-def _read_index_doc(name: str) -> str:
-    """An index document's text, or "" once the docs migration has retired it (unit C2 removed
-    the authored ground-rules.md and README.md's two tables; the rulebook renders both now)."""
-    path = os.path.join(INDEX_DIR, name)
-    return open(path, encoding="utf-8").read() if os.path.exists(path) else ""
-
-
-def _index_text():
-    return _read_index_doc("README.md"), _read_index_doc("ground-rules.md")
-
-
-def index_rows(adrs):
-    """The index table, derived. An ADR's title already *is* its decision as a statement
-    (conventions.md § *An ADR*), so a hand-written Decision cell is a second copy of it -- and the
-    26 cells that had drifted past 200 bytes, one to 836, are what a second copy does."""
-    yield "| # | Decision | Status |"
-    yield "|---|---|---|"
-    for num, a in sorted(adrs.items()):
-        decision = a.title.split("—", 1)[-1].strip().replace("|", r"\|")
-        yield f"| [{num}](../decisions/{a.file}) | {decision} | {a.fields.get('Status', '?')} |"
-
-
-#: Both the check and the write find the table through this one anchor, so there is no way for
-#: them to disagree about which block is the index.
-INDEX_TABLE_RE = re.compile(r"^\| # \| Decision \| Status \|\n(?:\|.*\n)+", re.M)
-
-
-def check_index_table(adrs):
-    readme = _read_index_doc("README.md")
-    want = "\n".join(index_rows(adrs))
-    m = INDEX_TABLE_RE.search(readme)
-    if not m:
-        return []  # retired at C2: docs/ground-rules.md is the generated index now
-    if m.group(0).strip() != want.strip():
-        return [("README.md", readme[: m.start()].count("\n") + 1,
-                 "index table is stale -- write it with `python tools/adr.py --sync`")]
-    return []
-
-
-def sync_index_table(adrs):
-    """Write the derived table into README.md, in place of whatever block is there.
-
-    Every cell of it comes off the ADR files -- the number, the title as its decision, the
-    `Status:` field -- so this replaces the block whole rather than merging into it. `--check`
-    is what reports the drift and this is what closes it; before, `--index` printed the table
-    and a reader pasted it, which is a hand copy of derived data at the one moment the reader
-    has least reason to look at it closely."""
-    path = os.path.join(INDEX_DIR, "README.md")
-    readme = open(path, encoding="utf-8").read()
-    m = INDEX_TABLE_RE.search(readme)
-    if not m:
-        print("adr.py: no `| # | Decision | Status |` table in README.md to replace. "
-              "`--index` prints one to paste in where it belongs.")
-        return 1
-    want = "\n".join(index_rows(adrs)) + "\n"
-    if m.group(0) == want:
-        print(f"adr.py: the index table already states all {len(adrs)} ADRs -- nothing to write")
-        return 0
-    was = max(m.group(0).count("\n") - 2, 0)
-    with open(path, "w", encoding="utf-8", newline="") as fh:
-        fh.write(readme[: m.start()] + want + readme[m.end():])
-    print(f"adr.py: README.md's index table rewritten from the ADR files, "
-          f"{was} -> {len(adrs)} rows")
-    return 0
-
-
-def check_indexes(adrs):
-    out = []
-    readme, rules = _index_text()
-    if not rules and "| Doing this | Open this |" not in readme:
-        return []  # both indexes retired at C2; a record is reachable through its rules' `because`
-    routed = set(RECORD_LINK_RE.findall(readme))
-    ruled = set(RECORD_LINK_RE.findall(rules))
-    for num, a in adrs.items():
-        if num not in routed:
-            out.append((a.file, 1, "no row in README.md § *Where to look*"))
-        if num not in ruled:
-            out.append((a.file, 1, "no bullet in ground-rules.md"))
-    for target in sorted(routed | ruled):
-        if target not in adrs:
-            out.append(("README.md/ground-rules.md", 1, f"index points at ADR {target}, which does not exist"))
-    return out
-
-
-# The metadata block's `Amends:` clause says what changed in the ADR it names -- that is its job.
-# *Alternatives rejected* and *Verification* name rejected and withdrawn things for a living. Residue
-# is prose in the ADR's own **body** that narrates a prior version of itself.
-RESIDUE_SKIP = {"Alternatives rejected", "Verification"}
 
 
 def check_residue(adrs):
@@ -492,19 +458,18 @@ def check_counters(adrs):
         for i, line in enumerate(a.lines, 1):
             for pat in COUNTERS:
                 if re.search(pat, line, re.I):
-                    out.append((a.file, i, f"running count in prose -- keep the total in one home: {line.strip()[:90]}"))
+                    out.append((a.file, i, "running count in prose -- keep the total in one home: "
+                                           f"{line.strip()[:90]}"))
                     break
     return out
 
 
 CHECKS = [
     ("metadata", check_metadata),
+    ("changes", check_changes),
     ("structure", check_structure),
     ("links", check_links),
     ("section refs", check_section_refs),
-    ("amend symmetry", check_symmetry),
-    ("index coverage", check_indexes),
-    ("index table", check_index_table),
     ("changelog residue", check_residue),
     ("stale counters", check_counters),
 ]
@@ -542,21 +507,44 @@ def stats(adrs):
         shape = " ".join(n[:4] for _, n in a.headings)
         pct = f"{100 * rat // b if b else 0}%"
         print(f"{num:<6}{len(a.lines):>6}{b:>8}  {rat:>6} {pct:>2}  {shape}")
-    print(f"\n{len(adrs)} ADRs, {tot_l} lines, {tot_b} bytes; "
+    print(f"\n{len(adrs)} records, {tot_l} lines, {tot_b} bytes; "
           f"{tot_r} bytes ({100 * tot_r // tot_b}%) in rationale sections")
 
 
 def graph(adrs, num):
+    """One record's place in the set, derived from `changes:` and the rulebook's `because`. This is
+    the amend history the retired `Amends:`/`Amended by:` fields carried, read off the relation
+    instead of maintained beside it: for each rule the record touches, who created it and who else
+    shaped it. `because` is creator-first and otherwise unordered, so the others are listed by
+    number, which is the order the decisions were taken in."""
     a = adrs.get(num)
     if a is None:
-        print(f"no ADR {num}")
+        print(f"no record {num}")
         return 1
+    book = rulebook.Rulebook()
     cited_by = sorted(n for n, o in adrs.items() if num in o.refs() and n != num)
     print(f"{a.file}\n  {a.title}\n")
+    print(f"  {'date:':<15}{a.date}\n  {'status:':<15}{a.status}")
     for f in FIELDS:
         if f in a.fields:
             v = a.fields[f]
-            print(f"  {f + ':':<15}{v[:110]}{'...' if len(v) > 110 else ''}")
+            print(f"  {f.lower() + ':':<15}{v[:110]}{'...' if len(v) > 110 else ''}")
+    for key in ("creates", "modifies"):
+        ids = a.changes.get(key, [])
+        print(f"\n  {key} ({len(ids)}):")
+        for rid in ids:
+            rule = book.by_id.get(rid)
+            if rule is None:
+                print(f"    {rid:<58} not in the rulebook")
+                continue
+            others = sorted(n for n in rule.because if n != num)
+            if key == "creates":
+                note = f"also shaped by {', '.join(others)}" if others else "no other record"
+            else:
+                creator = rule.because[0] if rule.because else "?"
+                rest = [n for n in others if n != creator]
+                note = f"created by {creator}" + (f"; also {', '.join(rest)}" if rest else "")
+            print(f"    {rid:<58} {note}")
     print(f"\n  links to:      {', '.join(sorted(a.refs() - {num})) or '-'}")
     print(f"  cited by:      {', '.join(cited_by) or '-'}")
     print(f"  sections:      {', '.join(sorted(a.subsections, key=lambda s: (len(s), s))) or '-'}")
@@ -569,583 +557,27 @@ def orphans(adrs):
         for t in a.refs():
             if t != n:
                 inbound[t].add(n)
-    readme, rules = _index_text()
-    routed = set(RECORD_LINK_RE.findall(readme))
-    ruled = set(RECORD_LINK_RE.findall(rules))
-    print("ADRs no other ADR links to:")
+    print("records no other record links to:")
     for n in sorted(adrs):
         if not inbound[n]:
             print(f"  {n}  {adrs[n].title[:88]}")
-    print("\nmissing from an index:")
-    for n in sorted(adrs):
-        miss = [w for w, s in (("routing table", routed), ("ground-rules", ruled)) if n not in s]
-        if miss:
-            print(f"  {n}  {', '.join(miss)}")
     print("\nmost-cited:")
     for n, s in sorted(inbound.items(), key=lambda kv: -len(kv[1]))[:12]:
         print(f"  {n}  {len(s):>3} inbound")
 
 
-# ---------------------------------------------------------------- writing
-#
-# Everything above answers questions about the set. Everything below changes it, and it exists
-# because the seven-step recipe in README.md § *Adding a decision* is a form, not a decision: pick
-# the number nobody else took, derive the slug, date it, fold the back-link into the amended ADR,
-# add a routing row, add a ground-rules bullet, regenerate the index, then run the audit. Six of
-# the seven are mechanical, three of them are edits to files the author has no other reason to
-# open, and the one that is not mechanical -- the ADR's own prose -- is the only one worth a human
-# turn. The failure this replaces is not a typo: it is an ADR that lands with a `Amends:` and no
-# matching `Amended by:`, or missing from an index, which is `--check`'s whole finding list.
-#
-# Every write is a transaction. The tool applies the lot, re-runs the audit, and if the tree gained
-# a single finding it did not have before, puts every byte back and says which. So a refusal never
-# leaves an index row pointing at a body that is not there.
-
-
-DIRECTIVES = ["Slug", "Route", "Rule", "Divergence"]
-
-FIELD_RE = re.compile(r"^- \*\*([^:*]+):\*\*\s*(.*)$")
-WHERE_TABLE_RE = re.compile(r"^\| Doing this \| Open this \|\n\|---\|---\|\n(?:\|.*\n)+", re.M)
-
-DRAFT = """# ADR NNNN — <the decision as a statement, not a topic>
-
-- **Status:** Accepted
-- **Scope:** what this decides, then explicitly what it does *not* — with the file that owns each
-  excluded thing.
-- **Depends on:** <NNNN, only if this has nothing to decide without it — delete otherwise>
-- **Amends:** [NNNN](NNNN-slug.md) § N — what changed there, one clause per target. Delete unless
-  this changes a prior ADR's rule. Adding it back-links the other ADR for you; editing that ADR's
-  body to state the new rule is still yours to do.
-- **Validated by:** <the test that holds a claim this makes, by path — delete otherwise>
-- **Route:** the keywords and PHP spellings a reader arrives with | the one file that owns it, as
-  the routing table's right-hand cell
-- **Rule:** <ground-rules section> | **the one sentence**, only if this is a hard invariant
-- **Divergence:** <divergences section> | what PHP does | what Novis does
-
-> **In short:** the whole decision, in one blockquote. A reader who needs only the rule stops here,
-> so this paragraph is the ADR's front page and is worth more care than any section below it.
-
-## Context
-
-## Decision
-
-### 1. The first rule
-
-## Consequences
-
-## Alternatives rejected
-
-## Verification
-"""
-
-
-#: Words a truncated slug must not end on. `...-the-name-is-the-identity-not-a` is a filename that
-#: reads as though it were cut off, because it was; ending a word earlier says the same thing.
-SLUG_TAIL = {"a", "an", "and", "as", "at", "but", "by", "for", "from", "in", "is", "it", "its",
-             "not", "of", "on", "or", "so", "than", "that", "the", "then", "to", "with"}
-
-
-def slugify(title: str, limit: int = 62) -> str:
-    """The filename half of an ADR, from its title. Whole words only and never past `limit`, so a
-    long title truncates where a reader would rather than mid-word; `Slug:` overrides it when the
-    derived one reads badly, which is why 0044 is `core-process-argv-only-no-shell`."""
-    out: list[str] = []
-    n = 0
-    for w in re.sub(r"[^a-z0-9]+", " ", title.lower()).split():
-        if out and n + 1 + len(w) > limit:
-            break
-        n += (1 if out else 0) + len(w)
-        out.append(w)
-    while len(out) > 1 and out[-1] in SLUG_TAIL:
-        out.pop()
-    return "-".join(out) or "untitled"
-
-
-def render_field(name: str, value: str) -> str:
-    """One metadata field, folded at the width the rest of `docs/` is written to. A link is one
-    whitespace-free token, so folding can never land a newline inside `[0033](0033-....md)`."""
-    return "\n".join(textwrap.wrap(
-        f"- **{name}:** {value}", width=100, subsequent_indent="  ",
-        break_long_words=False, break_on_hyphens=False,
-    ))
-
-
-def parse_block(lines) -> list[list]:
-    """The metadata block as `[name, value, first line, last line]`, in the order written.
-
-    Shared by the draft and by an ADR already on disk, so the two can never disagree about where
-    a field ends -- which is the question every rewrite below has to answer."""
-    out: list[list] = []
-    cur = None
-    for i, line in enumerate(lines, 1):
-        if line.startswith("## "):
-            break
-        m = FIELD_RE.match(line)
-        if m:
-            out.append([m.group(1).strip(), m.group(2).strip(), i, i])
-            cur = out[-1]
-            continue
-        if cur and line.startswith("  ") and not line.startswith("  -"):
-            cur[1] += " " + line.strip()
-            cur[3] = i
-            continue
-        cur = None
-    return out
-
-
-def set_field(text: str, name: str, value: str) -> str:
-    """Write one field, replacing it whole if it is there and inserting it in `FIELDS` order if it
-    is not. The order matters to nothing but a reader, and a reader is who the block is for."""
-    lines = text.split("\n")
-    spans = {b[0]: (b[2], b[3]) for b in parse_block(lines) if b[0] in FIELDS}
-    new = render_field(name, value).split("\n")
-    if name in spans:
-        s, e = spans[name]
-        return "\n".join(lines[:s - 1] + new + lines[e:])
-    rank = FIELDS.index(name)
-    above = [f for f in spans if FIELDS.index(f) < rank]
-    below = [f for f in spans if FIELDS.index(f) > rank]
-    if above:
-        at = spans[max(above, key=lambda f: spans[f][1])][1]
-    elif below:
-        at = spans[min(below, key=lambda f: spans[f][0])][0] - 1
-    else:
-        raise ValueError("no metadata block to insert a field into")
-    return "\n".join(lines[:at] + new + lines[at:])
-
-
-def add_amended_by(text: str, num: str) -> str:
-    """`Amended by:` is bare numbers, sorted, comma-separated -- README.md is explicit that an
-    explanation there would be repeating the fold rule. So this is a set union, not an append."""
-    block = {b[0]: b[1] for b in parse_block(text.split("\n"))}
-    have = set(re.findall(r"\b\d{4}\b", block.get("Amended by", ""))) | {num}
-    return set_field(text, "Amended by", ", ".join(sorted(have)))
-
-
-def _section_bounds(lines, section: str):
-    start = next((i for i, l in enumerate(lines) if l.strip() == f"## {section}"), None)
-    if start is None:
-        return None
-    end = next((i for i in range(start + 1, len(lines)) if lines[i].startswith("## ")), len(lines))
-    return start, end
-
-
-def append_bullet(text: str, section: str, bullet: str):
-    """Append a bullet at the end of a `## ` section, above the blank line that separates it from
-    the next one. ground-rules.md grows a bullet per ADR and nothing reads it in full, so where in
-    the section it lands does not matter; which section does."""
-    lines = text.split("\n")
-    bounds = _section_bounds(lines, section)
-    if bounds is None:
-        return None
-    _, end = bounds
-    while end > 0 and not lines[end - 1].strip():
-        end -= 1
-    return "\n".join(lines[:end] + bullet.split("\n") + lines[end:])
-
-
-def append_row(text: str, section: str, row: str):
-    """Append a row to the last table in a `## ` section -- divergences.md's shape."""
-    lines = text.split("\n")
-    bounds = _section_bounds(lines, section)
-    if bounds is None:
-        return None
-    start, end = bounds
-    last = max((i for i in range(start + 1, end) if lines[i].startswith("|")), default=None)
-    if last is None:
-        return None
-    return "\n".join(lines[:last + 1] + [row] + lines[last + 1:])
-
-
-def sections_of(text: str) -> list[str]:
-    return [l[3:].strip() for l in text.split("\n") if l.startswith("## ")]
-
-
-class Tx:
-    """All of it or none of it.
-
-    A half-applied ADR is the one failure worth engineering against: an index row pointing at a
-    body that is not there, or an `Amends:` whose other half never landed. `rollback` restores
-    every touched file byte for byte and deletes anything this run created."""
-
-    def __init__(self) -> None:
-        self.before: dict[str, bytes | None] = {}
-        self.wrote: list[str] = []
-
-    def write(self, path: str, text: str) -> None:
-        if path not in self.before:
-            self.before[path] = open(path, "rb").read() if os.path.exists(path) else None
-        with open(path, "w", encoding="utf-8", newline="") as fh:
-            fh.write(text)
-        if path not in self.wrote:
-            self.wrote.append(path)
-
-    def rollback(self) -> None:
-        for path, data in self.before.items():
-            if data is None:
-                if os.path.exists(path):
-                    os.remove(path)
-            else:
-                with open(path, "wb") as fh:
-                    fh.write(data)
-
-
-def write_index(tx: Tx) -> bool:
-    """Regenerate README.md's index table *inside* the transaction. `--sync` writes it directly,
-    which is right for a standalone call and wrong for every caller here: an index rewritten
-    outside the transaction survives a rollback, and then the table states a status the ADR does
-    not. That is the one inconsistency this whole file is built to make impossible."""
-    path = os.path.join(INDEX_DIR, "README.md")
-    readme = open(path, encoding="utf-8").read()
-    m = INDEX_TABLE_RE.search(readme)
-    if not m:
-        return False
-    tx.write(path, readme[:m.start()] + "\n".join(index_rows(load())) + "\n" + readme[m.end():])
-    return True
-
-
-def findings_now() -> set:
-    """Every check's findings as `(check, file, message)`. The line number is dropped on purpose:
-    appending a row to README.md moves every finding below it, and a moved finding is not a new
-    one. What this compares is whether the tree gained a *defect*."""
-    adrs = load()
-    return {(name, f, msg) for name, fn in CHECKS for f, _, msg in fn(adrs)}
-
-
-def guard(tx: Tx, baseline: set, what: str) -> int:
-    """Re-audit, and undo everything if the tree gained a finding it did not already have."""
-    gained = findings_now() - baseline
-    if not gained:
-        return 0
-    tx.rollback()
-    print(f"adr.py: rolled back -- {what} would have left {len(gained)} new finding(s):\n")
-    for name, f, msg in sorted(gained):
-        print(f"  [{name}] {f}  {msg}")
-    return 1
-
-
-def fail(msg: str) -> int:
-    print(f"adr.py: {msg}")
-    return 1
-
-
-def validate_body(title: str, lines, problems: list[str]) -> None:
-    """The draft against the shape `--check` will hold the landed file to. Caught here, a
-    misordered heading costs a sentence; caught after the write, it costs a rollback."""
-    if "—" not in title and " - " in title:
-        problems.append("the title separator is an em dash `—`, not a hyphen")
-    heads = [l[3:].strip() for l in lines if l.startswith("## ")]
-    if "Decision" not in heads:
-        problems.append("no `## Decision` -- an ADR that decides nothing is not an ADR")
-    for h in heads:
-        if h not in CANONICAL:
-            problems.append(f"non-canonical heading `## {h}` -- the set is {', '.join(CANONICAL)}; "
-                            "anything else is a `###` subsection under Decision")
-    rank = [CANONICAL.index(h) for h in heads if h in CANONICAL]
-    if rank != sorted(rank):
-        problems.append("sections are out of canonical order: "
-                        + " -> ".join(h for h in heads if h in CANONICAL))
-    if not any(l.startswith("> **In short:**") for l in lines):
-        problems.append("no `> **In short:**` block -- it is the ADR's front page")
-
-
-def cmd_new(adrs, path: str, dry_run: bool) -> int:
-    """One draft in, an indexed ADR out. See the module doc for what it touches and in what order."""
-    if not os.path.exists(path):
-        return fail(f"no draft file at {path} -- `--draft` prints one to fill in")
-    text = open(path, encoding="utf-8").read()
-    lines = text.split("\n")
-
-    m = re.match(r"^# ADR (?:NNNN|\d{4}) [—-] (.+?)\s*$", lines[0] if lines else "")
-    if not m:
-        return fail("the draft's first line must read `# ADR NNNN — <the decision as a statement>`")
-    title = m.group(1).strip()
-
-    block = parse_block(lines)
-    fields = {b[0]: b[1] for b in block}
-    problems: list[str] = []
-    for name in fields:
-        if name not in FIELDS and name not in DIRECTIVES:
-            problems.append(f"unknown field `{name}:` -- the ADR set is {', '.join(FIELDS)}; "
-                            f"this tool also consumes {', '.join(DIRECTIVES)}")
-    if not fields.get("Scope"):
-        problems.append("no `Scope:` -- it must say what this does *not* decide, and who owns that")
-    status = fields.get("Status") or "Accepted"
-    if status not in STATUSES:
-        problems.append(f"`Status:` must be one of {', '.join(sorted(STATUSES))}, not {status!r}")
-    validate_body(title, lines, problems)
-
-    # The three index payloads, each `section | text`-shaped, checked against the file they land in
-    # before anything is written -- a section name that does not exist is the likely typo.
-    rules_path = os.path.join(INDEX_DIR, "ground-rules.md")
-    div_path = os.path.join(INDEX_DIR, "divergences.md")
-    route = rule = diverge = None
-    if fields.get("Route"):
-        parts = [p.strip() for p in fields["Route"].split("|")]
-        if len(parts) != 2 or not all(parts):
-            problems.append("`Route:` is `<what a reader is doing> | <the one file that owns it>`")
-        else:
-            route = parts
-    if fields.get("Rule"):
-        parts = [p.strip() for p in fields["Rule"].split("|", 1)]
-        if len(parts) != 2 or not all(parts):
-            problems.append("`Rule:` is `<ground-rules section> | <the one sentence>`")
-        elif parts[0] not in sections_of(open(rules_path, encoding="utf-8").read()):
-            problems.append(f"ground-rules.md has no `## {parts[0]}` section; it has "
-                            + ", ".join(sections_of(open(rules_path, encoding="utf-8").read())))
-        else:
-            rule = parts
-    if fields.get("Divergence"):
-        parts = [p.strip() for p in fields["Divergence"].split("|")]
-        if len(parts) != 3 or not all(parts):
-            problems.append("`Divergence:` is `<section> | <what PHP does> | <what Novis does>`")
-        elif parts[0] not in sections_of(open(div_path, encoding="utf-8").read()):
-            problems.append(f"divergences.md has no `## {parts[0]}` section")
-        else:
-            diverge = parts
-
-    for dep in re.findall(r"\b\d{4}\b", fields.get("Depends on", "")):
-        if dep not in adrs:
-            problems.append(f"`Depends on:` names ADR {dep}, which does not exist")
-    amends = sorted(set(re.findall(r"\b\d{4}\b", fields.get("Amends", ""))))
-    for t in amends:
-        if t not in adrs:
-            problems.append(f"`Amends:` names ADR {t}, which does not exist")
-    if fields.get("Amends") and not amends:
-        problems.append("`Amends:` names no ADR by number -- link the target as `[NNNN](NNNN-slug.md)`")
-
-    if problems:
-        print(f"adr.py: {len(problems)} problem(s) in {path} -- nothing was written\n")
-        for pr in problems:
-            print(f"  {pr}")
-        return 1
-
-    # The number is claimed by creating the file, and it is re-derived here rather than taken from
-    # the draft: another agent working the same tree derives the same answer from the same
-    # directory, and the loser of that race is the one whose `open` finds a file already there.
-    num = f"{max(int(n) for n in adrs) + 1:04d}"
-    slug = fields.get("Slug") or slugify(title)
-    file = f"{num}-{slug}.md"
-    dest = os.path.join(ADR_DIR, file)
-    if os.path.exists(dest):
-        return fail(f"{file} already exists -- another agent claimed {num} first; re-run")
-
-    # Rebuild the metadata block: the directives are consumed, `Status` and `Date` are defaulted,
-    # and everything else keeps the author's own wrapping.
-    # `NNNN` is how a draft names an ADR that does not have a number yet -- its own. Expanding it
-    # here is what lets the `Route:` cell carry a link to the file being created, which is the one
-    # link in the whole set the author provably cannot write by hand.
-    def expand(s: str) -> str:
-        return re.sub(r"NNNN-[a-z0-9-]*\.md", file, s).replace("NNNN", num)
-
-    route = [expand(x) for x in route] if route else None
-    rule = [rule[0], expand(rule[1])] if rule else None
-    diverge = [diverge[0], expand(diverge[1]), expand(diverge[2])] if diverge else None
-
-    drop: set[int] = set()
-    for name, _value, first, last in block:
-        if name in DIRECTIVES:
-            drop.update(range(first, last + 1))
-    body = "\n".join([f"# ADR {num} — {title}"]
-                     + [expand(l) for i, l in enumerate(lines[1:], 2) if i not in drop])
-    body = set_field(body, "Status", status)
-    if not fields.get("Date") or fields["Date"].startswith("<"):
-        body = set_field(body, "Date", datetime.date.today().isoformat())
-    if not body.endswith("\n"):
-        body += "\n"
-
-    touches = [f"create docs/adr/{file}"]
-    touches += [f"fold `Amended by: {num}` into {adrs[t].file}" for t in amends]
-    if route:
-        touches.append("add a row to README.md § *Where to look*")
-    touches.append("regenerate README.md's index table")
-    if rule:
-        touches.append(f"add a bullet to ground-rules.md § *{rule[0]}*")
-    if diverge:
-        touches.append(f"add a row to divergences.md § *{diverge[0]}*")
-    if dry_run:
-        print(f"adr.py: would claim ADR {num} as docs/adr/{file}\n")
-        for t in touches:
-            print(f"  {t}")
-        if not route:
-            print("\n  no `Route:` -- nothing will route a reader to this ADR by keyword")
-        return 0
-
-    baseline = findings_now()
-    tx = Tx()
-    tx.write(dest, body)
-    for t in amends:
-        tx.write(adrs[t].path, add_amended_by(open(adrs[t].path, encoding="utf-8").read(), num))
-
-    readme_path = os.path.join(INDEX_DIR, "README.md")
-    if route:
-        readme = open(readme_path, encoding="utf-8").read()
-        mt = WHERE_TABLE_RE.search(readme)
-        if not mt:
-            tx.rollback()
-            return fail("no `| Doing this | Open this |` table in README.md to add a routing row to")
-        row = f"| {route[0]} | {route[1]} |\n"
-        tx.write(readme_path, readme[:mt.end()] + row + readme[mt.end():])
-    if rule:
-        sentence = rule[1].rstrip().rstrip(".")
-        bullet = "\n".join(textwrap.wrap(f"- {sentence} ([{num}]({file})).", width=100,
-                                         subsequent_indent="  ", break_long_words=False,
-                                         break_on_hyphens=False))
-        out = append_bullet(open(rules_path, encoding="utf-8").read(), rule[0], bullet)
-        if out is None:
-            tx.rollback()
-            return fail(f"ground-rules.md has no `## {rule[0]}` section")
-        tx.write(rules_path, out)
-    if diverge:
-        row = f"| {diverge[1]} | {diverge[2]} | [{num}]({file}) |"
-        out = append_row(open(div_path, encoding="utf-8").read(), diverge[0], row)
-        if out is None:
-            tx.rollback()
-            return fail(f"divergences.md has no `## {diverge[0]}` section with a table")
-        tx.write(div_path, out)
-
-    if not write_index(tx):
-        tx.rollback()
-        return fail("no index table in README.md -- `--index` prints one to paste in where it belongs")
-
-    if guard(tx, baseline, f"ADR {num}"):
-        return 1
-
-    print(f"adr.py: ADR {num} landed as docs/adr/{file}\n")
-    for t in touches:
-        print(f"  {t}")
-    print(f"\n  files: {' '.join(os.path.relpath(p, ROOT).replace(os.sep, '/') for p in tx.wrote)}")
-    if amends:
-        print(f"\n  STILL YOURS: edit {', '.join(adrs[t].file for t in amends)} so the body states "
-              f"the new rule.\n  Folding means the earlier ADR reads as currently true -- not a note "
-              f"saying what changed.")
-    if not route:
-        print("\n  no `Route:` was given, so nothing routes a reader here by keyword.")
-    return 0
-
-
-def cmd_fold(adrs, source: str, clause: str, dry_run: bool) -> int:
-    """Both halves of an `Amends:`, in one call: the clause in the amending ADR and the bare number
-    in the amended one. Writing one and not the other is what `amend symmetry` reports, and it is
-    reported because it is what a reader of the amended ADR never finds out."""
-    a = adrs.get(source)
-    if a is None:
-        return fail(f"no ADR {source}")
-    targets = sorted(set(re.findall(r"\b\d{4}\b", clause)) - {source})
-    missing = [t for t in targets if t not in adrs]
-    if missing:
-        return fail(f"the clause names ADR {', '.join(missing)}, which does not exist")
-    if not targets:
-        return fail("the clause names no ADR -- write the target as `[NNNN](NNNN-slug.md) § N — what "
-                    "changed there`")
-    if dry_run:
-        print(f"adr.py: would add the clause to {a.file}'s `Amends:` and fold "
-              f"`Amended by: {source}` into {', '.join(adrs[t].file for t in targets)}")
-        return 0
-
-    baseline = findings_now()
-    tx = Tx()
-    # One clause per target, separated by `; `. The existing clause's own terminator goes, so a
-    # second target does not land as `... share a slot.; [0035] ...`.
-    have = a.fields.get("Amends", "").strip().rstrip(".;")
-    tx.write(a.path, set_field(a.text, "Amends", f"{have}; {clause}" if have else clause))
-    for t in targets:
-        tx.write(adrs[t].path, add_amended_by(open(adrs[t].path, encoding="utf-8").read(), source))
-    if guard(tx, baseline, f"folding {source} into {', '.join(targets)}"):
-        return 1
-    print(f"adr.py: {a.file} now amends {', '.join(targets)}, and each names {source} back.\n")
-    print(f"  files: {' '.join(os.path.relpath(p, ROOT).replace(os.sep, '/') for p in tx.wrote)}")
-    print(f"\n  STILL YOURS: edit {', '.join(adrs[t].file for t in targets)} so the body states the "
-          f"new rule.\n  A cross-link with an unedited body is the state README.md calls the bug.")
-    return 0
-
-
-def cmd_status(adrs, num: str, status: str) -> int:
-    """A status and the index cell that quotes it, which is the copy that goes stale."""
-    a = adrs.get(num)
-    if a is None:
-        return fail(f"no ADR {num}")
-    if status not in STATUSES:
-        return fail(f"`Status:` must be one of {', '.join(sorted(STATUSES))}, not {status!r}")
-    if a.fields.get("Status") == status:
-        return fail(f"{a.file} is already {status}")
-    was = a.fields.get("Status")
-    baseline = findings_now()
-    tx = Tx()
-    tx.write(a.path, set_field(a.text, "Status", status))
-    if not write_index(tx):
-        tx.rollback()
-        return fail("no index table in README.md -- `--index` prints one to paste in where it belongs")
-    if guard(tx, baseline, f"setting {num} to {status}"):
-        return 1
-    print(f"adr.py: {a.file} is {was} -> {status}, and README.md's index cell with it")
-    print(f"\n  files: {' '.join(os.path.relpath(p, ROOT).replace(os.sep, '/') for p in tx.wrote)}")
-    return 0
-
-
-def cmd_next_section(adrs, num: str) -> int:
-    """Where a new section goes in an ADR whose sections are cited from `crates/` and from
-    `loop-goal.toml`. A section number is a public identifier: appending is free, renumbering
-    silently breaks every citation, so this prints the appends and never a renumbering."""
-    a = adrs.get(num)
-    if a is None:
-        return fail(f"no ADR {num}")
-    have = sorted(a.subsections, key=lambda s: (int(re.match(r"\d+", s).group()), s))
-    if not have:
-        print(f"{a.file} has no numbered sections; the first is `### 1.`")
-        return 0
-    tops = sorted({int(re.match(r"\d+", s).group()) for s in have})
-    print(f"{a.file}\n  sections:  {', '.join('§ ' + s for s in have)}")
-    print(f"  at the end: § {tops[-1] + 1}")
-    print("  in between: " + ", ".join(
-        f"§ {t}{chr(ord('a') + sum(1 for s in have if re.match(rf'^{t}[a-z]$', s)))} (after § {t})"
-        for t in tops))
-    print("\n  Never renumber: `0007 § 3` is cited from other ADRs, from docs/spec/, from")
-    print("  docs/agent/loop-goal.toml and from doc comments in crates/.")
-    return 0
-
-
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    p.add_argument("--stats", action="store_true", help="size and section shape, one line per ADR")
-    p.add_argument("--graph", metavar="NNNN", help="one ADR's amend/cite graph")
-    p.add_argument("--orphans", action="store_true", help="unlinked and unindexed ADRs")
-    p.add_argument("--index", action="store_true", help="print README.md's index table, derived")
-    p.add_argument("--sync", action="store_true",
-                   help="write that derived table into README.md, replacing the block that is there")
+    p.add_argument("--stats", action="store_true", help="size and section shape, one line per record")
+    p.add_argument("--graph", metavar="NNNN",
+                   help="the rules one record creates and modifies, and who else shaped them")
+    p.add_argument("--orphans", action="store_true", help="records nothing links to, and the most cited")
     p.add_argument("--residue", action="store_true", help="changelog prose only")
     p.add_argument("--check", action="store_true", help="quiet on success; exit non-zero on a finding")
     p.add_argument("--only", metavar="CHECK", action="append", help="run one named check")
-
-    w = p.add_argument_group("writing")
-    w.add_argument("--draft", action="store_true", help="print a draft ADR to fill in")
-    w.add_argument("--new", metavar="FILE",
-                   help="claim the next number for that draft and index it everywhere")
-    w.add_argument("--fold", metavar="NNNN",
-                   help="that ADR amends another; --into is the clause. Writes both sides")
-    w.add_argument("--into", metavar="CLAUSE",
-                   help="`[NNNN](NNNN-slug.md) § N — what changed there`, for --fold")
-    w.add_argument("--set-status", metavar=("NNNN", "STATUS"), nargs=2,
-                   help="set one ADR's `Status:` and resync the index table")
-    w.add_argument("--next-section", metavar="NNNN",
-                   help="where a new `### N.` goes in that ADR, appending and never renumbering")
-    w.add_argument("--dry-run", action="store_true", help="with --new/--fold: say what it would do")
     args = p.parse_args()
 
     adrs = load()
-    if args.draft:
-        print(DRAFT, end="")
-        return 0
-    if args.new:
-        return cmd_new(adrs, args.new, args.dry_run)
-    if args.fold:
-        if not args.into:
-            return fail("--fold needs --into '<clause naming the amended ADR and what changed>'")
-        return cmd_fold(adrs, args.fold, args.into, args.dry_run)
-    if args.set_status:
-        return cmd_status(adrs, args.set_status[0], args.set_status[1])
-    if args.next_section:
-        return cmd_next_section(adrs, args.next_section)
     if args.graph:
         return graph(adrs, args.graph)
     if args.stats:
@@ -1154,18 +586,13 @@ def main() -> int:
     if args.orphans:
         orphans(adrs)
         return 0
-    if args.sync:
-        return sync_index_table(adrs)
-    if args.index:
-        print("\n".join(index_rows(adrs)))
-        return 0
     if args.residue:
         return 1 if report(adrs, only={"changelog residue"}) else 0
     n = report(adrs, only=set(args.only) if args.only else None, quiet=args.check)
     if n:
-        print(f"\n{n} finding(s) across {len(adrs)} ADRs")
+        print(f"\n{n} finding(s) across {len(adrs)} records")
     elif not args.check:
-        print(f"\nclean: {len(adrs)} ADRs")
+        print(f"\nclean: {len(adrs)} records")
     return 1 if n and args.check else 0
 
 
