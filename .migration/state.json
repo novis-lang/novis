@@ -869,6 +869,24 @@
         "0142 \u00a75": "core-classes/db-unix-socket-path",
         "0142 \u00a76": "config/net-local-is-named-and-not-on-the-roster"
       }
+    },
+    "B17": {
+      "status": "in-flight"
+    },
+    "B18": {
+      "status": "in-flight"
+    },
+    "B19": {
+      "status": "in-flight"
+    },
+    "B20": {
+      "status": "in-flight"
+    },
+    "B21": {
+      "status": "in-flight"
+    },
+    "B22": {
+      "status": "in-flight"
     }
   },
   "snapshot": "2026-09-06"
