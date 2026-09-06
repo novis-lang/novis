@@ -1,0 +1,26 @@
+{
+  "started": "2026-09-06",
+  "units": {
+    "A1": {
+      "status": "done",
+      "applied": "2026-09-06"
+    },
+    "A2": {
+      "status": "done",
+      "applied": "2026-09-06"
+    },
+    "A3": {
+      "status": "done",
+      "applied": "2026-09-06"
+    },
+    "A4": {
+      "status": "done",
+      "applied": "2026-09-06"
+    },
+    "A5": {
+      "status": "in-flight",
+      "note": "map proposed for 960 anchors; 99 UNASSIGNED. awaiting the user's review before phase B opens."
+    }
+  },
+  "snapshot": "2026-09-06"
+}
