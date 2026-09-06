@@ -72,7 +72,7 @@ Files: `crates/nvs-codegen/src/lib.rs`, `crates/nvs-codegen/src/emit.rs`.
 
 ## Standing decisions
 
-- **This goal opens no new ADR number.** It folds its amendment into
+- **This goal opens no new ADR number.** Its one record's `changes:` block names
   `rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header` and `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable` and nothing else.
 - **The object backend is a second `Module`, never a second lowering.** If the two cannot share the
   `nvs_ir::Program` walk, the goal stops and says so rather than forking `emit.rs` — a second

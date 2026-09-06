@@ -89,8 +89,8 @@ Goal 19's whole acceptance list — the parity program, never traded.
 
 - **This goal opens no new ADR number.** `rule:config/cache-shared-is-the-grant-over-the-configured-store`
   is written and its cross-links are landed; every question this goal meets is answered in one of its six
-  sections. A gap found in it is a folded edit to *that* ADR's body, never a new number and never an
-  overlay.
+  sections. A gap found in it is an edit to *that* rule's fragment, with a record whose `changes:` block
+  names it, never an overlay.
 - **`cache.shared` is unscoped and stays unscoped.** A deployment has one shared store, which
   `ratelimit.rs`'s module doc already states; a scope with one possible value reads as a decision nobody
   made.

@@ -74,8 +74,8 @@ Goal 7's whole acceptance list — the parity program and the temp sweep, never 
 - **The formula is fixed and is not re-derived**: `BLAKE3(unit content hashes in program order ‖
   env_hash)`, spelled as all 32 bytes in lowercase hex — 64 characters. Userland truncates if it wants
   fewer; the runtime never does.
-- **This goal may open `rule:programs/no-runtime-autoload` for one
-  folded amendment and no new ADR number**: a section giving `Core\Program` its first and only runtime
+- **This goal may change `rule:programs/no-runtime-autoload` through one
+  record whose `changes:` block names it, and open no other number**: a section giving `Core\Program` its first and only runtime
   member, carrying the formula and the reason it *cannot* be a compile-time-folded constant — folding the
   id into any unit as a literal would change that unit's bytes, hence its content hash, hence the id it
   just folded. Circularity, not preference.

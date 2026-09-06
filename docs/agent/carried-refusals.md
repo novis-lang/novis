@@ -18,7 +18,9 @@ goal's `.md` should not restate it.
 
 An entry leaves this file exactly one way: the refusal is closed, in the goal that writes that crate
 again. This is not an exemption list — `refusals.rs`'s `ALLOWLIST` is the only one of those, it is empty,
-and adding to it is the move that gate forbids outright.
+and adding to it is the move that gate forbids outright. Each entry ends with the `[until: ...]` trailer
+[tools/playbook.py](../../tools/playbook.py)'s module doc defines, naming the state of the tree that
+closes it; `python tools/playbook.py --check` reads it and `--retire` deletes the entry when it holds.
 
 901. **M4's carried lowering refusals — seventeen when this entry was written, fifteen now.**
     `nvs-ir` type-checks each of these shapes and then refuses it. M4's own item list anchored every one,
@@ -56,4 +58,4 @@ and adding to it is the move that gate forbids outright.
     instead. Each closes the way M4 required — it lowers, or a diagnostic naming its rule refuses it,
     never a panic however well worded — in the first goal that writes `nvs-ir` lowering again, and goal 10
     is the first entry on the chain that does. A goal that is not that one has taken the wrong slice if it
-    finds itself editing a file above.
+    finds itself editing a file above. [until: exists crates/nvs-ir/tests/refusals.rs:const CEILING: usize = 0;]

@@ -135,8 +135,8 @@ required key names the key, and a shape whose `tainted` promises nothing is refu
   read as a claim it is not making.
 - **A conversion is `as` and only `as`.** No coercion table is written for this member. If a row is
   missing, the fix is `rule:types/conversion`'s table, where every other conversion in the language already reads.
-- **This goal may open [ADR 0140] and no other new number.** Everything else is an amendment folded into
-  the existing body: `rule:types/shape-type` (the optional marker, and the two spellings it distinguishes), `rule:security/tainted-qualifier`
+- **This goal may open [ADR 0140] and no other new number.** Everything else is a change to a rule that already stands, through a record whose `changes:` block
+  names it: `rule:types/shape-type` (the optional marker, and the two spellings it distinguishes), `rule:security/tainted-qualifier`
   (the qualifier grammar), `rule:types/arrays` (the third member at the type-argument door), `rule:core-api/shape-rules` R15's
   worked list, and spec §§ 6 and 15's rosters.
 - **Goal 16's `json(): tainted mixed` is settled here, not there.** `rule:security/tainted-qualifier`'s grammar admits that

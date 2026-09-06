@@ -510,6 +510,11 @@ def validate(sections: list[Section]) -> list[str]:
             if not s.body.lstrip().startswith("-"):
                 errors.append(f"`## playbook: {s.arg}` -- a playbook entry is a `- ` bullet")
             else:
+                if playbookmod.declaration(s.body) is None:
+                    errors.append(
+                        f"`## playbook: {s.arg}` -- the bullet declares nothing that retires it. "
+                        f"End it with `[until: <kind> <arg>]`; the five kinds are in "
+                        f"tools/playbook.py's module doc.")
                 for sel in playbook_collisions(s.arg, s.body):
                     errors.append(
                         f"`## playbook: {s.arg}` -- appending this bullet leaves "

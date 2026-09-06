@@ -9,7 +9,7 @@ yet.** Goal 12's whole list is this goal's Stage 1 floor. Both designs are writt
 **One thing is already known and is stage 0.** `rule:expressions/pipeline-substitution`'s table assigns `E0124`, `E0125` and `E0126`, and
 all three were allocated to other diagnostics after it was written — `rule:iteration/for-init-clause`'s two `for`-header codes and
 `rule:expressions/catch-expression`'s catch-arm code, in `crates/nvs-diagnostics/src/lib.rs`. The registry is the allocator, so the
-pipeline's codes move to the next free numbers in the parser band and `rule:expressions/pipeline-substitution`'s body is folded to match.
+pipeline's codes move to the next free numbers in the parser band and `rule:expressions/pipeline-substitution`is rewritten to match.
 Do that before writing a single case.
 
 ## Next group
@@ -18,7 +18,7 @@ Do that before writing a single case.
 `crates/nvs-diagnostics/src/lib.rs`, `crates/nvs-syntax/src/token.rs`,
 `crates/nvs-syntax/src/parser/expr.rs`, and `docs/decisions/0098.md`.
 
-- [ ] **The three codes, reassigned**, in the registry and folded into `rule:expressions/pipeline-substitution`'s table in its own body.
+- [ ] **The three codes, reassigned**, in the registry and written into `rule:expressions/pipeline-substitution`'s table.
       No overlay note and no new ADR number; the retired-code rule means the old numbers are not shuffled.
 - [ ] **The `|>` token, the `$_` hole, § 2's precedence, and the substitution** in the parser. The
       acceptance list's first test is the design's whole claim: the AST is the nested spelling's AST.

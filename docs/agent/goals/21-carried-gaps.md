@@ -209,7 +209,7 @@ One file set: `crates/nvs-stdlib/src/uri.rs`, `crates/nvs-runtime/src/routes.rs`
 
 ## Standing decisions
 
-- **This goal opens no new ADR number.** It may fold an amendment into
+- **This goal opens no new ADR number.** It may change, each through a record whose `changes:` block names it,
   `rule:security/db-pool-reset-is-a-boundary` (item 10's pool bounds),
   `rule:core-classes/db-capabilities` (item 5's wildcard, if the ADR's own wording needs
   sharpening to match what lands) and `docs/spec/01-core-library.md` § 12 (item 19), and no others.

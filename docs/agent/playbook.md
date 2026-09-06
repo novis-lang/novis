@@ -25,7 +25,7 @@ is why" — is this file.
   loop's acceptance check paid this seven times a session, 28s of rebuilds in front of 25s of tests,
   which is why `Goal.crate_tests` in `tools/loop.py` runs a crate's test executables off one workspace
   build instead. When you scope by hand, scope `verify.py -p` and every `cargo` call the same way for
-  the whole session, or budget the rebuild each time you switch.
+  the whole session, or budget the rebuild each time you switch. [until: reviewed 2026-09-06]
 - **`.agent-tmp/` is shared between concurrent writers, so a fixed scratch filename hands you their
   file.** `git commit -F .agent-tmp/msg.txt` picked up a *stale* message another session had left
   there and committed this tree's handoff under "the handoff says the benchmark material is
@@ -33,13 +33,13 @@ is why" — is this file.
   scratch file for the thing it holds (`wrap-msg-handoff.txt`), never `msg.txt`/`patch.txt`, and read
   `git log --oneline -1` after any `-F` commit. The same applies to a `--patch` file handed to
   `splice.py`. Better still, let `python tools/session.py --wrap` write the commits: it takes the
-  message inline and never touches a shared path.
+  message inline and never touches a shared path. [until: reviewed 2026-09-06]
 - **`orient.py` prints less than `brief.py` on purpose, and the gap is a bug in the goal, not in the
   tool.** If it did not print a module, an ADR section, a convention shape or a playbook section you turned
   out to need, do not conclude the orientation is broken and re-run `brief.py` for everything — fetch the
   one thing, and say in the handoff which `[context]` field in `loop-goal.toml` was missing its selector.
   A manifest that nobody corrects becomes a manifest every session works around, which costs more than the
-  wide orientation it replaced.
+  wide orientation it replaced. [until: reviewed 2026-09-06]
 - **A goal's number is read from its `name`, and falls back to its *position* when the name does not
   start with a bare number.** `plan.py`'s `GOAL_NUM_RE` is `^\s*(\d+)\b`, so `"19b unix-sockets"` does
   not match — the `b` kills the word boundary — and the entry is numbered by where it sits instead.
@@ -48,10 +48,10 @@ is why" — is this file.
   number, which is the drift the suffix was meant to prevent. Insert with a real number and renumber, or
   leave a gap ahead of time — the dossier sits at 50 with 21–49 free for exactly this, and
   `dossier.py`'s emitter numbers what it appends from `max(number) + 1`, so a hand-written entry landing
-  in front of it never moves the generated ones.
-- **A whole ADR is about 7,000 tokens; one of its `###` sections is about 1,000.** `sed -n` between the
+  in front of it never moves the generated ones. [until: reviewed 2026-09-06]
+- **A whole decision record is about 7,000 tokens; one of its `###` sections is about 1,000.** `sed -n` between the
   heading and the next one, not `cat`. The same goes for a 1,100-line module: `grep -n` for the anchor
-  first. This is the largest single line item in `loop-stats.py --attribute` every time it is measured.
+  first. This is the largest single line item in `loop-stats.py --attribute` every time it is measured. [until: reviewed 2026-09-06]
 - **Another session may be writing this tree right now, and `ls` will not tell you.** Two sessions once
   reached for the same ADR number on the same day: an ADR referenced `0084` and `0085` by name before those
   files existed, and the second author only noticed because `git status` showed them untracked. **Claim a
@@ -59,11 +59,11 @@ is why" — is this file.
   creating the file. The same applies to committing: `git commit -a` sweeps in whatever the other session
   has in flight, which is not wrong — the tree is only internally consistent with all of it — but the
   commit message then describes half of what it contains, so say so in the message rather than letting
-  `git log` imply one author.
+  `git log` imply one author. [until: reviewed 2026-09-06]
 - **`D:` fills up.** `target/debug` reached 33 GB and `cargo test` failed as a wall of `link.exe` 1180/1318
   errors — the real message (`no space on device`) only appears without a `Select-String` filter. `cargo
   clean` frees it in seconds; the rebuild is a few minutes. Check `Get-PSDrive D` before diagnosing a
-  linker failure.
+  linker failure. [until: reviewed 2026-09-06]
 - **A Python `str.index` anchor that is not unique cuts the wrong region and *duplicates* the file, with
   no error.** A one-off script that spliced a block out of `lower/stmt.rs` with `s[:a] + s[b:]` found an
   earlier `other => panic!(` for `b`, so `b < a`, the "removed" block measured zero characters, and the
@@ -71,7 +71,7 @@ is why" — is this file.
   `git diff --stat` reporting three times the expected insertions. Two rules follow: **use the Edit tool
   to remove a block** (it refuses a non-unique `old_string`, which is the whole point), and if a script
   really must cut, `assert a < b` and print the slice length. Recovery is `git checkout -- <file>` plus
-  re-applying the edits, which costs less than reading the damage.
+  re-applying the edits, which costs less than reading the damage. [until: reviewed 2026-09-06]
 - **The Bash tool eats a backslash inside a heredoc**, and an em dash or apostrophe in one can defeat an
   exact-match splice — a `\\` written in a `python - <<'PY'` heredoc arrives as `\`, and a `"\n"` arrives
   as a real newline, so a block containing either will silently fail to match. Use the Write/Edit tools, or
@@ -80,138 +80,138 @@ is why" — is this file.
   `cat > f <<'EOF'` to save a call is how the mangling gets in. `splice.py` matches the anchor **exactly**,
   trailing newline included — the Write tool ends a file with one, so strip it when splicing
   mid-paragraph, and use `--dry-run` if you are unsure the anchor is still current. A Rust string holding
-  a `Core\Name` label needs `r"..."`, or the backslash is an unknown escape.
+  a `Core\Name` label needs `r"..."`, or the backslash is an unknown escape. [until: reviewed 2026-09-06]
 - **A file edited by a script comes back into your context whole.** The harness notices the on-disk
   change it did not make and re-prints the file as a "changed on disk" reminder — an 900-line module is
   about 10k of context, twice the cost of the edit itself, and the Edit tool never triggers it. So the
   heredoc/`splice.py` route is for an edit Edit genuinely cannot express (a non-unique anchor, a
-  whole-field rewrite), not a shortcut for one it can.
+  whole-field rewrite), not a shortcut for one it can. [until: reviewed 2026-09-06]
 - **`cargo test` does not always relink `target/debug/nvs.exe`** — `cargo build -p nvs-cli` before running
-  a fixture or a `.nvst` case by hand, or a stale binary reports a member you just registered as `mixed`.
+  a fixture or a `.nvst` case by hand, or a stale binary reports a member you just registered as `mixed`. [until: reviewed 2026-09-06]
 - **`wsl.exe` needs PowerShell** and a **script file**; an inline `bash -lc "…"` mangles, and WSL's
   default shell has no `grep`/`sed` on `PATH` from a bare `bash -c`. Whole suite:
   `python tools/loop.py --leg-only` (background it; minutes) — every fixture, both suites and the
   valgrind sweep against a Linux build, and it needs no script because it drives `wsl.exe` for you.
   One fixture: `tools/leak-check.sh <paths>` — a file passed by path, for the reason above — and it
-  takes `.nvs` files only, so a `.nvst` passed to it reports a failure that is not a leak.
+  takes `.nvs` files only, so a `.nvst` passed to it reports a failure that is not a leak. [until: reviewed 2026-09-06]
 - **Another agent may be editing this repo at the same time.** Check the ADR directory for the next free
   number immediately before writing one, stage your own paths explicitly, check `git show --stat` after
   committing, and re-read a shared doc immediately before rewriting it. `tools/brief.py` prints a loud
-  banner when `.loop/running` exists — if it does, stop and tell the user rather than editing alongside it.
+  banner when `.loop/running` exists — if it does, stop and tell the user rather than editing alongside it. [until: reviewed 2026-09-06]
 - **A second writer can replace a file you created *this session*, and the only notice is a "changed on
   disk" line.** A `Core` slice run twice concurrently produced two whole implementations of the same new
   module and two conformance cases for it; the second Write silently won. Do not revert — the tree is only
   internally consistent with the newer one — but *re-read the file before every later edit*, delete the
   duplicate case rather than shipping both (a padded conformance count is worse than a missing one), and
   say in the commit message that it carries two authors. The `git status --short` you run before staging is
-  where a duplicate shows up, and it is the only place.
+  where a duplicate shows up, and it is the only place. [until: reviewed 2026-09-06]
 - **After touching either spec file, `python tools/check-migration.py`**; after moving or renaming any doc,
-  `python tools/check-links.py` — broken *and* mis-cased relative links.
-- **A moved module takes its `insta` snapshots with it** — they resolve relative to the module's own file.
+  `python tools/check-links.py` — broken *and* mis-cased relative links. [until: reviewed 2026-09-06]
+- **A moved module takes its `insta` snapshots with it** — they resolve relative to the module's own file. [until: reviewed 2026-09-06]
 - **A `Core\Name` inside a `python - <<'PY'` heredoc is a Python escape error, not just a Bash one.**
   The heredoc bullet above is about the Bash tool eating a backslash; this is the second half of the
   same trap and it fails differently — `"""… Core\Uri …"""` reaches Python intact and *Python* then
   rejects `\U` as a truncated `\UXXXXXXXX`, so a patch script that quotes any `Core\U…`/`Core\N…`
   path dies at parse time with nothing about the real edit in the message. Use the Edit tool for a
-  targeted replacement, or `splice.py` with a Write-tool patch file.
+  targeted replacement, or `splice.py` with a Write-tool patch file. [until: reviewed 2026-09-06]
 - **A test failing in a file your slice never touched is probably inherited, not caused.** A red
   `-p nvs-stdlib --lib` arrived this session from the previous one's `validate.rs`, and the first
   instinct — "my registry rows broke something" — costs a bisect. `git status --short` showing that
   file unmodified is the whole diagnosis. Fix it, but in **its own commit**, so `git log` does not
-  read as though the feature slice touched it.
+  read as though the feature slice touched it. [until: reviewed 2026-09-06]
 - **`plan.py --get <Field>` prints a field whole, so weigh it against what the field costs.** It was
   once flatly not worth it: `Open now` had grown to 44 KB — one logical line of about 11,000 tokens,
   five per cent of a session's ceiling to confirm a sentence you already wrote. That field is 5 KB
   now (its record of landed work is playbook bullets), so `--get` is the right call when you need
   the field's exact wording, which is what a `## plan-edit:` fragment has to quote. To confirm an
   edit *landed*, still `grep -n` the phrase in `docs/implementation-plan.md` — the surrounding
-  `> `-prefixed lines are the same fact for a fraction of the cost, and `--wrap` already told you.
+  `> `-prefixed lines are the same fact for a fraction of the cost, and `--wrap` already told you. [until: reviewed 2026-09-06]
 - **A plan status field is *one* logical line, and three renderings of it disagree.** `plan.py --get`
   hands back the unwrapped line, `orient.py` re-wraps it again, and on disk it is a `> `-prefixed
   blockquote wrapped at ~100 columns. So an anchor copied out of either *rendering* never matches the
   file: to change one sentence with the Edit tool, `grep -o` the phrase in `docs/implementation-plan.md`
   and copy the `> `-prefixed lines around it. `plan.py --set FIELD --from <file>` rewrites the whole
   field from a file written with the Write tool, which is the other way and the only one for a field-wide
-  change.
+  change. [until: reviewed 2026-09-06]
 - **A `**Bold phrase:**` inside a field body silently becomes an eighth status field.** `plan.py` finds
   fields with `^> \*\*([^*:]+):\*\*`, and it re-wraps what you `--set`, so a bolded lead that ends in a
   colon and happens to land at the start of a wrapped line is parsed as a new field name on the next read —
   which AGENTS.md's fixed field set forbids. Write `**Bold phrase** —` instead; the colon outside the
   asterisks is invisible to the regex. The symptom is `python tools/plan.py` listing eight fields, and the
-  fix is `git checkout -- docs/implementation-plan.md` followed by the `--set` again.
+  fix is `git checkout -- docs/implementation-plan.md` followed by the `--set` again. [until: reviewed 2026-09-06]
 - **Making a type `pub` owes it a `#[derive(Debug)]`.** The workspace denies `missing_debug_implementations`,
   so promoting a private struct to the public API compiles and then fails at clippy — step 3 of four, after
-  the tests have already run. Add the derive in the same edit as the `pub`, not after `verify.py` says so.
+  the tests have already run. Add the derive in the same edit as the `pub`, not after `verify.py` says so. [until: reviewed 2026-09-06]
 - **`/tmp` is not the same directory to Bash and to Python here.** A file written by `>` in the Bash tool is
   invisible to a `python -` heredoc in the same call, which resolves `/tmp` to `%TEMP%`. Stage a scratch
-  file under `.agent-tmp/` — both halves agree on a repo-relative path.
+  file under `.agent-tmp/` — both halves agree on a repo-relative path. [until: reviewed 2026-09-06]
 - **`nvs-ir` cannot name `nvs_hir::QName`** — `nvs-hir` is a *dev*-dependency there, on purpose, so a
   lowering helper that wants one in its signature does not compile even though `nvs_types::Ty::Enum`
   hands it a `&QName` to pattern-match. Destructure it at the call site and pass what the callee actually
   needs (an `&EnumInfo`, or the name already rendered with `to_string`); `nvs_types` re-exports the enum
-  and layout tables but not `QName`, and adding the dependency to get one is the wrong direction.
+  and layout tables but not `QName`, and adding the dependency to get one is the wrong direction. [until: reviewed 2026-09-06]
 - **Teaching `nvs-ir` a new receiver or value shape is two edits, and the second one panics somewhere
   else.** Recording a new `ExprInfo` variant gets the *access* lowering; what still fails is
   `erase_checked_ty`, which owns the `nvs_types::ty::Ty` → `nvs_ir::Ty` representation map, and whose
   panic names "a resolved call's parameter or return type" — so the message points at a call boundary,
   a `var` binding or a `foreach` element rather than at the feature you just built. `Ty::Shape` needed
-  exactly that: `ExprInfo::ShapeProperty` plus one arm erasing a shape to `Ty::Object`.
+  exactly that: `ExprInfo::ShapeProperty` plus one arm erasing a shape to `Ty::Object`. [until: reviewed 2026-09-06]
 - **A class synthesized while lowering an *expression* has four exits, not one.** `Lowering` builds
   one function, so a `crate::ir::Class` an expression invents (a closure's environment, a shape
   literal's) has nowhere to go until `lower_file` — it rides out of `lower_method`/`lower_hook`/
   `lower_script` at each of their three identical `std::mem::take(&mut low.closures)` sites, *and* out
   of `lower_closure`'s own recursion, or a body nested one level deeper silently contributes no class
   and codegen fails much later on a `New` naming a label the table has no entry for. Grep the take
-  sites, not the struct field.
+  sites, not the struct field. [until: reviewed 2026-09-06]
 - `python`, not `python3`. `gen` is reserved in Rust 2024. `cargo insta test --accept -p <crate>`; a renamed
-  test needs its old `.snap` deleted. `cargo test --release -p nvs-abi-probe` takes over two minutes.
+  test needs its old `.snap` deleted. `cargo test --release -p nvs-abi-probe` takes over two minutes. [until: reviewed 2026-09-06]
 - **One call reads many places: `python tools/peek.py A.rs:120-160 B.rs:@sym C.md:"## 4"`.** Locators are
   `120-160`, `120+30`, `@symbol`, `re:pattern` (`re:pattern:3` for context lines), `"## Heading"`, or
   nothing for a whole file under 400 lines; the path may be a glob, so one target can sweep a crate.
   `--locate <symbol> ...` answers with `file:line` and no bodies, which is what a handoff's anchors are
   made of. Reach for it instead of a `grep` and then a `sed` and then another `grep`: measured over a full
   run, sessions issued 3,647 tool calls and put two in one message **zero** times, including runs of 52 and
-  57 consecutive reads, so the batching rule in `AGENTS.md` has never once been collected by hand.
+  57 consecutive reads, so the batching rule in `AGENTS.md` has never once been collected by hand. [until: reviewed 2026-09-06]
 - **Prefer `re:pattern` to `/pattern/` in a `peek.py` target on Windows.** Git Bash rewrites any argument
   that *starts* with a slash into a Win32 path before the process sees it, so `file.rs:/fn foo/` arrives as
   `file.rs;C:/Program Files/Git/fn foo/` and the tool reports no such file. Quoting does not help — the
   conversion happens in the shell's argv handling, not its parser. The same trap catches any tool argument
-  spelled as a leading-slash path.
+  spelled as a leading-slash path. [until: reviewed 2026-09-06]
 - **The end of a session is one call: `python tools/session.py --wrap <file>`.** Write one markdown file
   whose `## ` headings are instructions — `## plan: <Field>`, `## playbook: <Heading>`, `## handoff`,
   `## commit: <paths>` once per slice, `## status` — and it applies all of them in a fixed order, or
   validates one of them as broken and writes *nothing*. `--check` first says what the tree still owes,
   including any plan field whose prose names a conformance or differential count the tree contradicts.
   Doing this by hand measured 33 of a session's 98 calls, and because context peaks by then, 42% of its
-  whole token bill.
-- **A `[context] playbook` entry may name one bullet, not just a whole section.** `"Tooling > A whole ADR"`
+  whole token bill. [until: reviewed 2026-09-06]
+- **A `[context] playbook` entry may name one bullet, not just a whole section.** `"Tooling > a whole decision record"`
   prints that bullet; `"Tooling"` still prints all 11 KB of the section. The playbook grew 61% during one
   run and its four selected sections were 35% of the entire orientation pack, so a goal that needs three
-  traps should name three traps. `python tools/orient.py --audit` prices the difference.
+  traps should name three traps. `python tools/orient.py --audit` prices the difference. [until: reviewed 2026-09-06]
 - **A commit message carries no attribution trailer, and two gates enforce it.**
   `tools/session.py` strips `Co-Authored-By`, `Signed-off-by`, `Generated-with` and the prose
   `🤖 Generated with [tool](url)` out of any message it commits; `tools/git-hooks/commit-msg` rejects one
   arriving by `-m`, `-F`, an editor or a merge. Enable the hook once per clone with
   `git config core.hooksPath tools/git-hooks` — `verify.py` says so when it is not set. The rule and its
-  reasoning are conventions.md § *A commit message*.
+  reasoning are conventions.md § *A commit message*. [until: reviewed 2026-09-06]
 - **Git runs a hook with `LC_CTYPE=C.UTF-8`, and gawk's `[^a-z]` does not match an emoji under it.** A
   pattern anchored as `^[^a-z]*(generated|created)…` therefore passed every test run from the Bash tool —
   which has no locale set — and silently failed to match `🤖 Generated with [...]` when git itself ran it.
   Two lessons, both expensive: run a hook's test the way *git* invokes it, and prefer locating a phrase
   with `match()` and asking a pure-ASCII question about the text before it over any character class that
-  has to step across multibyte input.
+  has to step across multibyte input. [until: reviewed 2026-09-06]
 - **An awk fatal inside `$(…)` leaves the variable empty, and a hook that only checks the variable then
   fails OPEN.** `\[` in a *dynamic* awk regex (one built from a string) is consumed by the string literal
   first, so awk sees a bare `[`, dies with `invalid regexp`, and the surrounding `[ -z "$offenders" ] &&
   exit 0` cheerfully allows the commit. Write it `[[]`, and always capture `$?` from the awk itself and
-  refuse on a non-zero status — a gate must fail closed.
+  refuse on a non-zero status — a gate must fail closed. [until: reviewed 2026-09-06]
 - **A plan field can disagree with `loop-goal.toml`, and the toml wins.** `Open now` opened with
   "Catch-up is done … every `stage = "0 catch-up"` check in `loop-goal.toml` passes" while **six** of
   the tests those checks name did not exist in any crate — a session that believed it would have
   opened a Stage 3 `Core` slice behind a gate `loop.py` short-circuits before reaching. The toml
   names each test literally, so one `grep -rn "<test_name>" --include=*.rs` over the block settles
   the question for one call; `handoff.md` § *State* was the half that was right, and the prose was
-  corrected rather than the toml.
+  corrected rather than the toml. [until: reviewed 2026-09-06]
 - **An untracked *directory* under `benches/` breaks the whole cargo workspace, and the first symptom
   is a stale binary.** The root manifest globs `members = ["crates/*", "benches/*"]`, so
   `benches/userland/` — Novis and PHP benchmark *sources*, left untracked by an earlier session — made
@@ -220,7 +220,7 @@ is why" — is this file.
   follows uses whatever `target/debug/nvs.exe` was built last, so the session diagnoses a phantom
   language bug instead. `cargo metadata --no-deps >/dev/null; echo $?` is the one-call check, and the
   fix is an `exclude = [...]` line beside the glob. The same hazard waits for any new non-crate
-  directory under a globbed member path.
+  directory under a globbed member path. [until: reviewed 2026-09-06]
 - **A `grep … | head` that finds nothing is not the same as a grep that finds nothing, and a handoff
   that reports one as the other sends the next session in with the wrong scope.** This session's item
   opened with "`Uri::isValid` is not written yet (`grep isValid` finds only `Encoding` and `Json`), so
@@ -230,7 +230,7 @@ is why" — is this file.
   deleting a member touches the spec table, the ratchet, two conformance cases and the ADR that
   claimed the two spellings were one predicate. Two rules: **never `| head` a grep whose result you
   are about to assert is empty** (use `-c`, or `-l`, or no pipe at all), and treat "X is not written
-  yet" in a handoff as a claim to re-check in one call before scoping around it.
+  yet" in a handoff as a claim to re-check in one call before scoping around it. [until: reviewed 2026-09-06]
 - **A `loop-goal.toml` check's *comment* is not the specification, and it can contradict a settled
   ADR.** Item 13's comment read "`==` normalizes per RFC 3986 § 6.2.2 and then compares components",
   which `rule:expressions/object-identity-equality` forbids outright — `==` on two objects is identity, there is no `__equals`, no
@@ -238,14 +238,14 @@ is why" — is this file.
   toml wins over a **plan field** (the bullet above), because both are status; it does not win over an
   ADR, because only one of those is a decision. One `peek.py <adr>:"## 4"` before writing the member
   settles it, and the comment is the thing to fix. Implementing what the comment said would have put a
-  per-class equality hook in `nvs_runtime::identity` and re-opened an ADR from inside the loop.
+  per-class equality hook in `nvs_runtime::identity` and re-opened an ADR from inside the loop. [until: reviewed 2026-09-06]
 - **`verify.py` can be red on a tree you did not touch, and `fmt` is where it happens.** A docs-only
   session hit `cargo fmt --check` failing on committed code — a four-line `nvs_array_get_index` signature
   rustfmt wanted on one line — which means the slice that added it was committed without step 3 ever being
   green. Do not treat that as "my change broke it" and do not skip the fix: it is one hunk, it goes in its
   own commit named for what it is, and the session's own slices stay clean. Check the blast radius first
   with `grep -c "^Diff in" .agent-tmp/verify-fmt.log` — one file means fix it here, a dozen means say so in
-  the handoff instead of reformatting the workspace inside an unrelated slice.
+  the handoff instead of reformatting the workspace inside an unrelated slice. [until: reviewed 2026-09-06]
 - **Widening an operand's *representation* in `nvs-ir` moves a refcount decision you did not edit.**
   `lower_array_key` returned `(ValueId, bool)` where the `bool` meant "aliases storage someone else
   owns", and its four call sites read the `false` case as "a fresh buffer this frame owes a release
@@ -255,13 +255,13 @@ is why" — is this file.
   fix is to return the operand's `Ty` alongside and guard on `ty.is_refcounted()`, and the general
   rule is that a widened operand's every consumer has to be re-read for a decision phrased as the
   *negation* of the old invariant. Nothing catches this: it builds, and the IR snapshots are the only
-  place it shows.
+  place it shows. [until: reviewed 2026-09-06]
 - **`cargo insta accept` accepts *every* pending snapshot in the tree, including a previous
   session's.** Item 19 renamed three lowering tests and left their `.pending-snap` files behind, so
   one `cargo insta accept --workspace` after adding two new tests materialized five `.snap` files —
   three of them orphans naming tests that no longer exist, which nothing then fails on. `git status
   --short` immediately after is the whole diagnosis: any `??` snapshot whose name you did not just
-  write is one to delete.
+  write is one to delete. [until: reviewed 2026-09-06]
 - **An acceptance check in `loop-goal.toml` can be red on a *name* rather than on a claim, and the
   difference costs a session to tell apart.** Item 20's three tests and item 21's two were all listed
   under names predicted before anyone wrote them; the implementations had landed sessions earlier
@@ -273,7 +273,7 @@ is why" — is this file.
   anything**: `grep -n "    fn " crates/<crate>/src/<file>.rs` costs one call and can turn a slice
   into a two-line edit. Correct the *list* when the tree's name is truer, and say so in the toml
   comment; a predicted name is status, not a decision, and the playbook's neighbouring bullet about a
-  check's *comment* is the same rule one field over.
+  check's *comment* is the same rule one field over. [until: reviewed 2026-09-06]
 - **A `goal check:` line that repeats verbatim across sessions *is* the work, whatever the handoff
   says.** The acceptance test short-circuits at its first failure, so everything after that check is
   not red — it is unmeasured, which reads identically from the ledger. Sessions 0014–0030 of the
@@ -284,7 +284,7 @@ is why" — is this file.
   read `loop-goal.toml` once at start-up, so the rename the bullet above records never reached the
   running driver, and `drive()` now re-reads the list before every check. A repeat can just as
   easily be a real red check nobody has opened. Either way `python tools/loop.py --goal-only`
-  answers it in one call, and it is worth one call the moment the same line lands twice.
+  answers it in one call, and it is worth one call the moment the same line lands twice. [until: reviewed 2026-09-06]
 - **`gaps.py --errors` matches a site by the literal run of its message *before the first
   format hole*, so closing one member can silence siblings that are still unasserted.** A case
   echoing `Core\Time\DateTime::format(): …` contains the stem `Core\Time\DateTime::`, which is
@@ -293,7 +293,7 @@ is why" — is this file.
   **seven** real closures, five of them (`time.rs:1968` and four `fatal` at `:1950`-`:1973`)
   merely hidden. The list is a worklist, not a ledger: when the drop is larger than the number
   of sites you asserted, diff it against the tree with your new cases moved aside and name the
-  hidden ones in the handoff, or the next session inherits a shorter worklist than the tree has.
+  hidden ones in the handoff, or the next session inherits a shorter worklist than the tree has. [until: reviewed 2026-09-06]
 - **Never write a `## plan: Open now` section into a wrap file.** That field is 40 KB, `--wrap`
   replaces a field whole, and retyping it is both a fifth of a session's ceiling and a chance to
   silently drop a paragraph. Edit the one sentence in place in `docs/implementation-plan.md` with
@@ -301,7 +301,7 @@ is why" — is this file.
   over `--get`. The one rule a hand edit has to respect: **a bare `>` line is the field separator**,
   so a blank line added for readability inside a field splits it in two and `plan.py --check`
   reports six fields where there were seven. Keep the paragraph continuous, and run
-  `python tools/plan.py --check` after — it prints the field count and each field's size.
+  `python tools/plan.py --check` after — it prints the field count and each field's size. [until: reviewed 2026-09-06]
 
 - **A plan field is patched, not retyped: `## plan-edit: <Field>` with `--- old` / `--- new`.**
   `## plan: <Field>` still exists and still replaces the field whole, but a replacement over 1.5 KB
@@ -313,7 +313,7 @@ is why" — is this file.
   paragraph however it is wrapped on disk (`python tools/plan.py --get "Open now"` prints it); it
   must match exactly once, and the refusal says whether it matched none or several. A deliberate
   *trim* is exempt — cutting a field to under 60% of its size is all-verbatim by definition and
-  goes through as a `## plan:` — and so is a real rewrite, which overlaps less than 70%.
+  goes through as a `## plan:` — and so is a real rewrite, which overlaps less than 70%. [until: reviewed 2026-09-06]
 - **One field gets one `## plan-edit:` section, however many fragments it moves in.** "Repeat the
   pair per place the field moved" in the template means repeat `--- old`/`--- new` *inside* the
   section; a second `## plan-edit: Open now` further down the wrap file is not merged with the
@@ -322,20 +322,20 @@ is why" — is this file.
   which reads as if the fragments failed to match the field, so the next thing you do is go and
   check the field's line wrapping, and that is not it either (the matcher single-spaces the field
   first, so a fragment crossing a wrapped line is fine). Two wrap cycles. If a rejection's numbers
-  do not move after an edit, check that the section it names appears once.
+  do not move after an edit, check that the section it names appears once. [until: reviewed 2026-09-06]
 - **`gaps.py --differential` reads a `Core\X::member` spelling *inside a comment* as a call**, so a
   case whose prose names a neighbouring member silences that member's own row. `called_members`
   (`tools/gaps.py:159`) is one regex over the whole case text and never looks for a `(`. One
   sentence of comment in a new `Core\Path::basename` case — "only `Core\Path::normalize` resolves
   them" — took the list from 8 members to 5, which reads exactly like a session that closed three.
   Name a neighbour without its class (`normalize`), or cite the case *file* that owns it, and re-run
-  `--differential` after writing a case so the drop you see is the one you earned.
+  `--differential` after writing a case so the drop you see is the one you earned. [until: reviewed 2026-09-06]
 - **`gaps.py --differential` matches text, so a member can leave the list without a case of its
   own.** The `Core\Json::isValid` oracle's fallback calls `json_decode` — `json_validate` is PHP
   8.3+ and the other leg's version is unknown — and that one call dropped **`Core\Json::decode`**
   from the list too, in the same run, before anything pinned it. The list is a worklist and not a
   ledger (the plan's *Open now* says so for the `--errors` half as well): when the drop is larger
-  than the number of members the session actually asked about, the extra one is still owed a case.
+  than the number of members the session actually asked about, the extra one is still owed a case. [until: reviewed 2026-09-06]
 - **A fact restated across ADRs goes stale, and the two shapes that always do it are a running
   count and an ordinal.** `rule:core-classes/derive-attribute` said its closed attribute list "opens with exactly those four
   names", 0077 § 1 said it "now holds five", and 0085/0086/0096 each added entries without touching
@@ -345,7 +345,7 @@ is why" — is this file.
   `grep -rn "holds .* names\|forcing case\|opens with exactly" docs/adr/`. The fix that sticks is a
   **table in the owning ADR** plus a rule that amending ADRs say "joins the list" and state no
   number — 0071 § 1 is now that table, and it names `nvs_types::derive::ATTRIBUTES` as the registry
-  it must agree with.
+  it must agree with. [until: reviewed 2026-09-06]
 - **A registry-reading tool can be blind to most of the registry and say so in a confident total.**
   `gaps.py`'s `CLASS_RE` matched only the inline spelling `CoreClass { name: r"Core\Arr"`, and the
   majority of the tree names its class through a file-level const instead (`name: NAME`, with
@@ -356,7 +356,7 @@ is why" — is this file.
   count it printed; it was a true count of what it could see. When a tool reads Rust with a regex,
   check what it found against the thing it is reading — `registry()` against `grep -c CoreClass` — before
   believing a total, and give an unresolvable name an empty owner rather than letting its members fall
-  to the class above it.
+  to the class above it. [until: reviewed 2026-09-06]
 - **`gaps.py --coverage` attributes a case to a class only when the case *text* names that class,
   so a class whose values are never spelled out reads as zero and its "no case calls" list is a
   false alarm.** `Core\Time\Instant` prints `0.00  0  9 … no case calls compareTo, in, minus` while
@@ -366,8 +366,7 @@ is why" — is this file.
   `Core\Time\DateTime` reads 0.06 for the same reason. The number is trustworthy for a class a
   program has to name — `Core\Time\Duration::ofSeconds`, `Core\Uri::parse`, `Core\Validate` — and
   is a floor, never a count, for the rest. Check with `python tools/gaps.py --member compareTo`
-  before writing a case the ranking says is missing.
-- **An ADR index **Decision** cell is derived from the ADR's own title, not written.** `adr.py --check` reports the whole index table stale when a cell says anything else, and the message names `--index` without saying why the row you just added is the one it dislikes. `python tools/adr.py --index | grep NNNN` prints the row it wants; paste that. Writing a richer sentence there and letting the title stay short is the natural move and it fails every time.
+  before writing a case the ranking says is missing. [until: reviewed 2026-09-06]
 - **`alloc::Pooled` recycles a freed block, so a memory checker over it cannot see a
   use-after-free — and exactly one leg of four is affected.** ASAN and valgrind both work on memory
   that reaches `free`: one poisons it and quarantines it, the other unmaps it. A block Novis frees
@@ -381,7 +380,7 @@ is why" — is this file.
   left on the platform heap, and `nvs-codegen`/`nvs-stdlib` link the runtime with `cfg(test)` off,
   so every one of those sees every free already. Before changing any of it, read `counting_alloc`'s
   module doc, which is the home of the reasoning — the wrong version of this bullet costs a session
-  either way round.
+  either way round. [until: reviewed 2026-09-06]
 - **Making a previously infallible instruction fallible moves two guards that name neither it
   nor the operator.** `rule:types/arithmetic`'s overflow throw gave `+`/`-`/`*` and unary `-` an
   `Inst::on_error` edge, and the build then failed twice a long way from the change.
@@ -393,7 +392,7 @@ is why" — is this file.
   contain this function's name", which a landing block's `propagate "Box::$n::get() at …"` frame
   label now satisfies without any recursion existing; read for a `call` naming it instead. Both
   are string-shaped assertions over rendered IR, so `grep` for the *edge* (`! bb`, `propagate`)
-  rather than for the operator when a change widens the fallible set.
+  rather than for the operator when a change widens the fallible set. [until: reviewed 2026-09-06]
 - **A `python - <<'PY'` heredoc mangles non-ASCII in the *matched* string, so a `str.replace`
   whose `old` contains a `§` or an em dash silently finds nothing.** Writing one out is fine —
   the same script wrote `§` and `—` into three files correctly in the same session — but an
@@ -401,7 +400,7 @@ is why" — is this file.
   and the obvious next move is to re-`grep` the file and confirm the text *is* there, which
   costs two more calls. That is AGENTS.md rule 1 collecting its price: use Edit for anything
   whose anchor is prose. A heredoc is still fine when every matched byte is ASCII, which is
-  what the `Helper::X => "symbol"` table edits in this session were.
+  what the `Helper::X => "symbol"` table edits in this session were. [until: reviewed 2026-09-06]
 - **`nvs-ir` cannot synthesize a local**, so "evaluate the base into a temporary and rewrite the
   target over that" is not a move a lowering has. `ExprKind::Variable` holds a `Span` and
   `lower_expr` reads the name back out of `self.src`, so a name no source file spells has no
@@ -411,7 +410,7 @@ is why" — is this file.
   expression's kind. Two halves make it safe and neither is optional — `aliasing_read` must answer
   `true` for a staged span, or the second read releases a base the first one still needs, and the
   stager must `own_temporary` a refcounted staged value, because it is a fresh producer precisely
-  when it could not be re-read.
+  when it could not be re-read. [until: reviewed 2026-09-06]
 - **`InstKind::ArrayGet` answers a missing key with `Value::default()`, so any lowering that
   descends through one and then treats the result as a pointer aborts the process.** The
   symptom is not a null-deref: it is *"an Novis array pointer is never null"* followed by
@@ -423,26 +422,26 @@ is why" — is this file.
   *same* in the present and the absent case — `Helper::ArrayRowForWrite` retains what it found
   or allocates what it did not, so the caller emits no retain and needs no branch — and the
   general rule is that a borrowing read is not a building block for a write path, however
-  well it reads.
+  well it reads. [until: reviewed 2026-09-06]
 - **A heredoc through the shell doubles a backslash, and a Rust `\`-continuation survives
   the doubling as a literal `\n` that still compiles.** AGENTS.md rule 1 — "a shell never
   carries file content into the tree" — is protecting you from exactly this, and the
   failure is silent: a rewritten `panic!` string came back as one physical line with `\n`
   printed as two characters, `cargo build` was green, and only reading the region back
   showed it. Three calls to undo. Use Write/Edit or `python tools/splice.py`; if an edit
-  genuinely has to be scripted, build the backslash as `chr(92)` rather than writing one.
+  genuinely has to be scripted, build the backslash as `chr(92)` rather than writing one. [until: reviewed 2026-09-06]
 - **`grep -rn <pattern> .` from the repo root walks `target/` and times out.** It is minutes of
   I/O over build artifacts for an answer the source tree gives in under a second, and the shell
   call comes back with nothing at all. Name the roots (`grep -rn <pat> crates docs tests`), or use
   the harness `Grep` tool, which respects the ignore file. `python tools/peek.py
-  "crates/**/*.rs:re:pattern"` is the version that answers several such questions in one call.
+  "crates/**/*.rs:re:pattern"` is the version that answers several such questions in one call. [until: reviewed 2026-09-06]
 - **`holes.py --item N` groups a refusal site by the *file* an item anchors, so an item's own
   site living in a file another item names is silently filed under that other item.** Item 19
   printed three sites and had four: the closure-capture panic is in `lower/expr.rs`, which item
   17 anchors, so it is listed there and the item reads as closed when its headline half is not
   written. The tool's totals are right; only the attribution is a guess. When an item's prose
   names a shape, grep the shape (`grep -rn '&\$x' crates/nvs-ir/src`) before believing the site
-  list is the whole item.
+  list is the whole item. [until: reviewed 2026-09-06]
 - **`holes.py` counts a site by the *words* in its message, so an assert that has become an
   internal-consistency check still reads as a hole until it stops saying "does not lower".** The
   regex is `does not (yet )?lower|only lowers|no lowering for` (`tools/holes.py`, `REFUSAL`), and
@@ -450,7 +449,7 @@ is why" — is this file.
   of a slice that answers a hole *at the checker* is to reword the assert the way item 19's three
   were reworded: state what reached lowering and name the code that refuses it ("… reached
   lowering: … refuses this where it is written, as `E0494`"). Skip it and the worklist you quote in
-  the plan is one higher than the tree.
+  the plan is one higher than the tree. [until: reviewed 2026-09-06]
 - **`Lowering::untag_receiver` is unchecked, so a *new* erased receiver may not go through it.**
   Every tagged receiver that reached a member used to arrive with a tag `nvs_types` had already
   proved — a narrowed `?T`, a `?->`'s non-`null` arm — so the untag compares nothing and
@@ -460,7 +459,7 @@ is why" — is this file.
   `crates/nvs-ir/src/lower/expr.rs` is the switch, and the check belongs in the runtime helper that
   already checks the *name* rather than in a fallible untag of its own — a throwing untag would
   have to have the receiver staged as an owned temporary before it, which is an ordering nothing
-  else in that file has.
+  else in that file has. [until: reviewed 2026-09-06]
 
 - **A panic's own message names one route to it, and there is usually a second.**
   `lower_property_access`'s catch-all said "erased to a plain `object` or to a shape that does not
@@ -469,7 +468,7 @@ is why" — is this file.
   `class_qname_of` cannot resolve falls through the same hole. Three `nvs run` calls on scratch
   files, one per receiver family, cost less than the fix did and are what turned a one-answer slice
   into two: a lowering for the case that must be deferred, a diagnostic for the ones a declared
-  type already answers. Do that sweep before deciding what a refusal site owes.
+  type already answers. Do that sweep before deciding what a refusal site owes. [until: reviewed 2026-09-06]
 - **Only the *outermost* annotation has a recorded checked type, so `lower_decl_type` over a
   nested `Type` node silently answers from the AST instead.** `nvs_types::lower::lower_type`
   calls `record_type` once, at its own entry point, and recurses through `lower_type_at_depth`
@@ -479,7 +478,7 @@ is why" — is this file.
   died on `Tagged as ?Object` for exactly that reason, and the message points at a missing
   conversion row rather than at the missing table entry it actually is. Read the **whole**
   annotation's `declared_ty` and take the piece you want off the checked type — `?T` interns as
-  `T|null`, so its target is that union minus `CheckedTy::Null`.
+  `T|null`, so its target is that union minus `CheckedTy::Null`. [until: reviewed 2026-09-06]
 - **A refusal for a *name-shaped* expression fires on every `Foo::bar()` in the program unless
   the class side is taken off the value walk first.** `Class::method()`, `Class::CONST`,
   `Class::$prop`, `Class::class` and `$x instanceof Class` all carry the class as an ordinary
@@ -490,7 +489,7 @@ is why" — is this file.
   one helper over five call sites; `nvs_types` has the identical five
   (`expr/mod.rs:264`, `:292`, `expr/calls.rs:143`, `expr/members.rs:85`, `:211`) and has not
   needed it only because its arms answer `mixed` in silence. Nothing catches this: it builds, and
-  the first sign is a conformance case that used to pass reporting an extra error.
+  the first sign is a conformance case that used to pass reporting an extra error. [until: reviewed 2026-09-06]
 - **A value handed to an `rule:classes/property-hooks` `set` hook is *transferred*, so there is no "afterwards" in
   which to retain it.** Every other assignment target leaves the target itself owning what was
   stored — a local's slot, an `inout` pointee, a field, an array entry — so a lowering that wants a
@@ -500,20 +499,20 @@ is why" — is this file.
   hook already released, and nothing catches it — it builds, it runs, and only a valgrind fixture
   whose hook *discards* its argument shows anything. That is why `lower_store` takes an
   `extra_owner` flag instead of handing the value back for its caller to retain: the retain has to
-  be emitted where each arm still holds a reference, which for that one arm is *before* the call.
+  be emitted where each arm still holds a reference, which for that one arm is *before* the call. [until: reviewed 2026-09-06]
 - **A `splice.py` patch cannot carry a patch, so an edit to prose *about* the patch format is one
   the `Edit` tool has to make.** A block runs from `<<<<<<< OLD` to the first `=======` after it,
   and a block whose own text quotes those markers — a doc showing the format, a bullet like this
   one — ends in the middle of itself. The failure does not look like a parse error: it looks like
   a stale anchor in whatever file the truncated block landed on, which is a confusing thing to
   read when the file was correct a second ago. Everything else about the tool is worth reaching
-  for from three edits up, across as many files as the edit spans; this is its one edge.
+  for from three edits up, across as many files as the edit spans; this is its one edge. [until: reviewed 2026-09-06]
 - **The `E04xx` type-diagnostic band is full: `E0499` is the last number in it.** The next
   type diagnostic is a band decision, not a `brief.py` lookup — `E05xx` is IR and codegen
   and `E03xx` is name resolution, so neither absorbs it. `brief.py`'s "next free" line will
   happily print `E0500`, which belongs to another phase; do not take it. Widening the band
   (`E04xxx`, or a second types band) is a decision the session that needs one takes, in
-  `docs/adr/README.md` § *Decisions taken at project start*, with the reason.
+  `docs/adr/README.md` § *Decisions taken at project start*, with the reason. [until: reviewed 2026-09-06]
 - **A `## Next group` item's rationale is a hypothesis, not a specification, and one `php -r`
   settles it.** The `exit` item said "`finally` must still run, which is what makes this an
   unwind rather than a `return`" — and PHP runs no `finally` on an `exit` at all:
@@ -522,7 +521,7 @@ is why" — is this file.
   the wrong one, and the cheap shape — a helper whose success is a non-`OK` status, riding the
   status check that already exists — was PHP-exact. Priority 2 decides these and PHP is on
   `PATH`: run the twin *before* costing the design. Same rule the neighbouring
-  `loop-goal.toml` bullet states for a check's comment, one file over.
+  `loop-goal.toml` bullet states for a check's comment, one file over. [until: reviewed 2026-09-06]
 - **`holes.py`'s per-item refusal sites are the file's *catch-all* panics, not the item's own
   hole**, so an item can read "N sites still standing" long after the feature runs. Items 1, 4,
   6, 7 and 25 all did this session: `$x++`, `--$x`, the bitwise five, `<=>` over two `int`s and
@@ -531,7 +530,7 @@ is why" — is this file.
   hole closes. The tool ranks *candidates*; the ground truth is four lines in a scratch
   `.agent-tmp/*.nvs` and one `nvs run`, and that is what a session should spend before it picks
   an item off the list. `holes.py --cases` is the half that does not lie — a named case either
-  exists on disk or does not.
+  exists on disk or does not. [until: reviewed 2026-09-06]
 - **A fact `nvs-ir` and `nvs-runtime` both need lives in one of them and is held to the other by a
   test in `nvs-codegen`.** Neither crate names the other — `nvs-ir` depends on `nvs-syntax`/
   `nvs-types`/`nvs-diagnostics` and nothing below, and `nvs-runtime` depends on neither — so a
@@ -542,7 +541,7 @@ is why" — is this file.
   `nvs_runtime::Tag` discriminants on the reading side, held together by
   `param_tag_nibbles_are_the_runtime_tag_bytes` in `crates/nvs-codegen/src/ty.rs`. Reaching for a
   new dependency edge to avoid the pair is the wrong direction; a `pub fn` in `nvs-ir` plus a
-  `#[test]` in `nvs-codegen` is the shape that already exists.
+  `#[test]` in `nvs-codegen` is the shape that already exists. [until: reviewed 2026-09-06]
 
 - **A closure object's slot layout has a third party, and it is a test in `nvs-stdlib`.**
   `closure_of` in `crates/nvs-stdlib/tests/allocation_policy.rs` hand-builds a closure — a class
@@ -550,28 +549,28 @@ is why" — is this file.
   no compiler in front of it. Adding a reserved slot in `nvs-ir` therefore breaks it, and the
   failure arrives as `field slot N is out of range for a class with N slots` from
   `nvs_runtime::object`, three crates from the edit. `grep -rn CLOSURE_ARITY_SLOT --include=*.rs
-  crates/` finds every builder in one call; do that before moving the layout, not after.
+  crates/` finds every builder in one call; do that before moving the layout, not after. [until: reviewed 2026-09-06]
 - **`nvs_ir::Ty` is `#[non_exhaustive]`, so a `match` on it outside `nvs-ir` cannot be
   exhaustive** — the "a new representation is a decision, not a default" guard can only live in
   `nvs-ir` itself, and `nvs_ir::lower::param_tag_nibble` already *is* that guard. `nvs-codegen`'s
   `ty.rs` cannot hold a second copy: both `clif_ty` and `tag_of` end in a `_ =>` arm because the
-  compiler requires one there.
+  compiler requires one there. [until: reviewed 2026-09-06]
 - **A hole item names one spelling, and the panic can be under a different one.** Item 29 says
   `$a?->b = v` panics; it has been `E0479` since `c5a8761`, and what still panicked was
   `$a?->b++` — `check_write_target` was called from the plain and compound assignment arms and
   not from `PreIncDec`/`PostIncDec`. Three scratch files (`= v`, `+= v`, `++`) run against
   `target/debug/nvs.exe` in one call told the whole story, where editing the site the item named
   would have closed nothing. Ask every spelling that reaches the same lowering before you believe
-  the item's, and `git log -S` on the code the item quotes says whether its half already landed.
+  the item's, and `git log -S` on the code the item quotes says whether its half already landed. [until: reviewed 2026-09-06]
 - **A `splice.py` anchor copied out of `peek.py`'s output can carry a line break `peek` added.**
   `peek` wraps a long prose line for display, so a two-line anchor taken from a `.md` file may be
   one line on disk — the refusal then reads *"the anchor matches for its first 100 character(s) …
   the file has: ' pass', the anchor wants: ''"*, which is that wrap and nothing else. Keep a prose
-  anchor inside one displayed line, or take it from `grep -n`.
+  anchor inside one displayed line, or take it from `grep -n`. [until: reviewed 2026-09-06]
 - **`holes.py` keys on the refusal *phrase*, not on the macro.** A site reworded from `panic!` to
   `unreachable!` still counts as a language hole while its message says "only lowers", "does not
   lower" or "no lowering for" (`tools/holes.py`'s `REFUSAL`) — so a session that proves a site dead
-  has to word the proof without those, or the tool keeps handing the site to the next session.
+  has to word the proof without those, or the tool keeps handing the site to the next session. [until: reviewed 2026-09-06]
 - **A `?T` row that can carry a fault has to be emitted with `emit_fallible`, or a `catch` wrapped
   straight round the conversion never sees the throw.** `Lowering::convert_or_null` emitted every
   row with a plain `emit` on the strength of "the helper answers `null` where the throwing row
@@ -580,7 +579,7 @@ is why" — is this file.
   the program prints `Uncaught Exception` and exits 1 *with* a `try`/`catch (Throwable $e)` around
   it, because a non-fallible `HelperCall` discards the status word rather than branching on it. So
   when a new row makes a uniform emit site fallible, the scratch file to write is one that throws
-  from inside the new row and catches it — not one that checks the row's own value.
+  from inside the new row and catches it — not one that checks the row's own value. [until: reviewed 2026-09-06]
 - **A `Core` class can render as text without a `toString` row, and the second rule is
   `nvs_runtime::is_carrier`.** A refusal written off the registry's member rosters alone
   looks right, compiles, and then turns four green `Core\Out::capture` cases red at the
@@ -590,7 +589,7 @@ is why" — is this file.
   render" is two rosters, not one; `nvs_stdlib::registry::class_renders` is where they
   are joined, and `nvs-types` has no `nvs-runtime` dependency to reach the second
   directly. The general shape: a rule stated over `registry.rs`'s rows is not the whole
-  rule wherever `nvs_runtime` answers for a class on its own.
+  rule wherever `nvs_runtime` answers for a class on its own. [until: reviewed 2026-09-06]
 - **A diagnostic constant named in a doc comment may not exist**, so a `grep` for the name is not
   evidence that the rule behind it is future work. `reject_unrelated_class_conversion`'s own comment
   named `E_MARKUP_NOT_LITERAL`; the code is `E_MARKUP_REQUIRES_LITERAL`, it lives in
@@ -598,28 +597,28 @@ is why" — is this file.
   today** — even though `Core\Html` declares no class and the conversion still panics one crate
   down, which is what makes it look unimplemented from `nvs run`. Grep
   `crates/nvs-diagnostics/src/lib.rs` for the band's `Code::new` rows, or the crate's own `tests/`
-  for the behaviour: a name in prose is a pointer somebody wrote, not a fact the tree holds.
+  for the behaviour: a name in prose is a pointer somebody wrote, not a fact the tree holds. [until: reviewed 2026-09-06]
 - **A `loop-goal.toml` check runs before the program legs only if its `stage` string starts with `0`.**
   `tools/loop.py:830` builds its catch-up class with `str(c.get("stage", "")).startswith("0")` — nothing
   else about the block matters, not its position in the file and not what the prose calls it. A stage
   named `"S inout"` sitting physically above the Stage 0 blocks still ran after the whole Stage 1 floor.
   Name a stage that must be reported first `0`-something (`"0a inout"`), and say in the block's comment
   that the digit is load-bearing, or the next person renames it back. `python tools/loop.py --list` prints
-  the real run order and is the only way to see this.
+  the real run order and is the only way to see this. [until: reviewed 2026-09-06]
 - **`cargo insta` is not installed in this environment**, so a snapshot the playbook's
   `cargo insta accept` bullet assumes you can accept has to be accepted by hand: `cargo test`
   writes each new one beside its `.snap` as `.snap.new`, and accepting it is replacing the `.snap`
   with that file minus the `assertion_line:` header field, whose `source:` line also differs (the
   new one names the test file, the old one names the module). Doing that for the six pending at
   once is a five-line script; doing it by hand is two calls per snapshot. `cargo install
-  cargo-insta` would fix it once for every future session and nobody has run it.
+  cargo-insta` would fix it once for every future session and nobody has run it. [until: reviewed 2026-09-06]
 - **A Python rename script must open with `newline=""` at both ends, or it rewrites every line of
   every file it touches.** `Path.read_text()` / `write_text()` default to `newline=None`, which is
   universal-newlines on the way in and `os.linesep` on the way out — so on Windows an LF file comes
   back CRLF and `git diff --numstat` reads the whole file as changed, burying the six lines you
   meant. `git status` says *"CRLF will be replaced by LF the next time Git touches it"* and that
   warning is the whole diagnosis. `tools/splice.py` already gets this right; a one-off script beside
-  it does not inherit that.
+  it does not inherit that. [until: reviewed 2026-09-06]
 - **`cargo insta` is not installed in this tree**, so `cargo insta accept` and `cargo
   insta review` both fail with *"a command with a similar name exists: `init`"* rather
   than with anything about snapshots. Accepting one by hand is two steps and the second
@@ -629,21 +628,21 @@ is why" — is this file.
   is a diff away from every other snapshot in the tree. The neighbouring bullet about
   accepting *every* pending snapshot still applies whichever way you accept: run
   `git status --short` first, and any `.snap.new` you did not just produce is one to
-  delete rather than to accept.
+  delete rather than to accept. [until: reviewed 2026-09-06]
 - **`cargo insta accept` does not exist on this box** — `cargo-insta` is not installed, and the
   failure reads as a mistyped cargo subcommand rather than as a missing tool. The pending
   snapshots are still written, as `*.snap.new` beside the `*.snap` (not `.pending-snap`), and
   accepting one by hand is copying it over its neighbour minus the `assertion_line:` header line
   insta strips. `diff` each pair first: that is the review the tool would have shown you, and the
   neighbouring bullet's warning about accepting a *previous* session's leftovers applies to a
-  by-hand sweep exactly as much.
+  by-hand sweep exactly as much. [until: reviewed 2026-09-06]
 - **A new `nvs_ir::Helper` variant is four edits and the fourth one is not a `match`.** Three are
   exhaustive matches the compiler makes you write — the variant itself, `nvs-ir`'s `print.rs` name and
   `nvs-codegen`'s symbol name — and the fourth is a row in `nvs_runtime::helpers::symbols()`, a hand-kept
   `Vec` nothing checks. Miss it and the workspace builds clean, every unit test passes, and the first
   program that reaches the helper dies inside `cranelift-jit` with *"can't resolve symbol
   nvs_your_helper"*, which reads like a linker problem rather than a missing line. Grep the symbol name
-  you just added and expect **three** hits outside the runtime's own definition.
+  you just added and expect **three** hits outside the runtime's own definition. [until: reviewed 2026-09-06]
 - **A `gaps.py` "no case calls X" is a claim about the cases it *attributed* to that class,
   and attribution is not the same thing as coverage.** It used to be "the case spells the
   class name", which misses every value reached through a factory on another class — the
@@ -655,7 +654,7 @@ is why" — is this file.
   real: a member exercised only through a closure, or through a helper class the walk
   cannot follow, still reads as uncalled. `python tools/gaps.py --member <name>` prints
   the cases that already ask about one, and it reads the whole corpus rather than one
-  class's share — one call, before writing a case the tree already has.
+  class's share — one call, before writing a case the tree already has. [until: reviewed 2026-09-06]
 - **`gaps.py --coverage`'s ranking was class *size*, not depth, and a whole named group was
   written off it that was already on disk.** The column divided a class's case-file count by its
   member count, so `Core\Math` led the table at 1.00 (38 files, 38 members) while every one of its
@@ -669,7 +668,7 @@ is why" — is this file.
   member**, with `FLOOR` (its worst member) and the three thinnest members named with anchors on
   every row — so a group is taken from *members*, not from a class. Whatever the tool says, one
   `python tools/gaps.py --member 'Core\X::member'` before writing is what tells a claim that is
-  missing from one that is already frozen.
+  missing from one that is already frozen. [until: reviewed 2026-09-06]
 - **Triage a stale guard name by grepping `fn <name>` over the crate's `src` *and* `tests`, then by
   looking for a `.nvst` case of the same name — and expect the answer to be cause 2 more often than
   the debt file's own "likely" hint suggests.** Of twelve names triaged in one session, seven had
@@ -681,7 +680,7 @@ is why" — is this file.
   claim differs from the landed test's — `a_nested_element_write_separates_only_the_inner_array`
   against `writing_through_a_nested_subscript_separates_every_level` — is two different assertions,
   not a rename. `cargo test -p X -- --list` is the authority but costs a build; the grep answers the
-  same question for nothing, and `python tools/loop.py --list` re-parses the toml afterwards.
+  same question for nothing, and `python tools/loop.py --list` re-parses the toml afterwards. [until: reviewed 2026-09-06]
 - **A guard name that looks like a rename is often a `.nvst` case instead, and the roster that
   settles it is two greps, not `cargo test -- --list`.** `grep -rhoE "fn [a-z_]+"` over a crate's
   `src` and `tests` gives the cargo half in one call, and `ls tests/conformance/*/ | grep -iE
@@ -690,7 +689,7 @@ is why" — is this file.
   match (`reject_arguments_to_implicit_constructor` is `expr/calls.rs`'s, and nothing calls it from a
   test), and a case whose file name shares the topic still has to be read — Stage 5's ambiguous
   attribute retrieval is `E0728` inside `an-attribute-retrieval-is-refused-where-it-cannot-be-folded`,
-  which its name does not say.
+  which its name does not say. [until: reviewed 2026-09-06]
 - **A `loop-goal.toml` comment can be stale about the *tree*, not just about an ADR — check the
   crate before believing "none of that surface exists yet."** The Stage 7 comment on
   `a-test-attribute-builds-a-table-the-runner-reports.nvst` said `#[Test]` was not on
@@ -700,7 +699,7 @@ is why" — is this file.
   `.nvst` cases already exercise the assertion surface and all three of § 22's renderings. The
   handoff had copied the comment forward, so the item arrived predicting cause 3 where every name
   was cause 2. One `grep -rn` per claim the comment makes is the whole check, and it costs less than
-  writing the wrong triage down.
+  writing the wrong triage down. [until: reviewed 2026-09-06]
 - **A snapshot diff that is only *added releases in a landing block* can still be a double
   release, and accepting all nineteen of them by hand is how it lands.** The forget that takes a
   transferred argument off `Lowering::owned_temporaries` has to run **before**
@@ -711,7 +710,7 @@ is why" — is this file.
   is the only one: ask which instruction the changed `bbN` is the `! bb` of. If it is the call
   that consumed the value, the release does not belong there. Moving it earlier made all nineteen
   diffs vanish — a correct fix here changes no fixture that has nothing fallible *after* a staged
-  argument.
+  argument. [until: reviewed 2026-09-06]
 - **`tools/holes.py` reads 160 raw bytes back from a literal for the words
   `CodegenError::Unsupported`, and a *comment* counts.** So a catch-all reclassified to
   `CodegenError::Internal` whose comment explains "this is an `internal` rather than a
@@ -719,21 +718,21 @@ is why" — is this file.
   two when you closed three. The recognizer cannot tell a comment from code — it is a
   window over the raw text, deliberately, so that a constructor wrapped by rustfmt is still
   found. Write the justification as "rather than an `Unsupported`", or put it further than
-  160 bytes away; `python tools/holes.py` immediately after the edit is the whole check.
+  160 bytes away; `python tools/holes.py` immediately after the edit is the whole check. [until: reviewed 2026-09-06]
 - **The driver's acceptance verdict now rides in the pack, and a red one outranks your item.**
   `orient.py`'s RUN section prints the last `goal check:` line out of `.loop/log.md`. Before it
   did, the driver was the only thing that saw a failing check — it writes the verdict to the
   ledger and starts the next session, whose item comes from the handoff — so `abi-probe` stayed
   red across sessions 0055, 0056 and 0057 while each of them worked on something else. A check
   naming a test that "did not run" is an item still open and is this goal's ordinary state; any
-  other failure is a regression, and the run cannot end until it is green.
+  other failure is a regression, and the run cannot end until it is green. [until: reviewed 2026-09-06]
 
 - **Do not write files through the shell — it is measured now, and it was 205 calls in one run.**
   `python tools/loop-stats.py` counts every heredoc, `>` redirect and `sed -i`, and 44 of 57
   sessions of the 20260828-112939 run used one where AGENTS.md rule 1 asks for Write/Edit or
   `python tools/splice.py --patch`. It works right up until an apostrophe in a doc comment closes
   the quote early. It also used to hide the session that did it: a heredoc is not an `Edit`, so
-  session 0053 read as 52 orientation calls and no work at all until `MUTATORS` learned about it.
+  session 0053 read as 52 orientation calls and no work at all until `MUTATORS` learned about it. [until: reviewed 2026-09-06]
 - **`holes.py`'s count is not the number of `panic!`s, and a session widening its recognizer will
   want it to be.** "Match the construct, not the wording" is the right instinct and half the answer:
   89 panic-family sites sit in `nvs-ir` and `nvs-codegen` and **62 are engine invariants** —
@@ -746,7 +745,7 @@ is why" — is this file.
   "has no arm for" — and the mechanical fix, whenever a session wants one, is to make the *source*
   declare which kind it is, as `CodegenError` already does with `Internal` versus `Unsupported`.
   Budget an audit of all 89 before touching that regex; the classification is the work, not the
-  pattern.
+  pattern. [until: reviewed 2026-09-06]
 - **`verify.py`'s test step can be red before you have touched anything, and the failure names
   `nvs-ir` rather than the goal switch that caused it.** `crates/nvs-ir/tests/refusals.rs` attributes
   every `nvs-ir` lowering refusal to an open item in `docs/agent/loop-goal.md`, so installing a new
@@ -755,7 +754,7 @@ is why" — is this file.
   --unattributed` says whether it is yours: if every site sits in a crate your diff does not touch, it
   is not. The gate stops at the first failure, so this one hides the `.nvst` trees and clippy behind
   it; run those by hand until it is closed. That test refuses its own allowlist as the fix, and it is
-  right to.
+  right to. [until: reviewed 2026-09-06]
 - **A fixture named in `loop-goal.toml`'s `files` but not yet on disk aborts the *whole* acceptance
   check, before the first build.** `LoopGoal.begin` (`tools/loop.py:1589`) walks `files` and returns
   early on the first missing one, so the ledger reads `0s over 1 check(s)` and not one of the 61
@@ -763,7 +762,7 @@ is why" — is this file.
   regression coverage at all** until every one of them exists. Two consecutive sessions ran that way
   after the goal switch. The fix is to write the fixture the moment the goal names it, red or not:
   `loop-goal.toml`'s own header says a fixture's source is not frozen precisely because "its author
-  had to write it without being able to compile it".
+  had to write it without being able to compile it". [until: reviewed 2026-09-06]
 - **A `loop-goal.toml` check can name a test in a crate that cannot host it, and its `args` is the
   half that is wrong.** Stage 0's `-p nvs-hir` check listed
   `an_implementor_without_a_no_argument_constructor_is_named`, but `E0744` is reported by
@@ -771,21 +770,21 @@ is why" — is this file.
   signature, so `required() > 0` is a question no `nvs-hir` test can ask. Move the name to the check
   whose crate owns the diagnostic rather than inventing a test where it was filed, and then copy
   `docs/agent/loop-goal.toml` over `docs/agent/goals/<goal>.toml` — they are byte-identical by
-  construction, and the chain's next `goal-switch.py` restores the goal file over the live one.
+  construction, and the chain's next `goal-switch.py` restores the goal file over the live one. [until: reviewed 2026-09-06]
 - **`holes.py` only sees a numbered item whose bold title fits on one line, and a wrapped one fails
   *silently and backwards*.** `ITEM` is `^(\d+)\. \*\*(.+?)\*\*` with no `re.DOTALL`, so an item written
   `15. **a title that wraps\n    before its closing stars**` matches nothing — and because an item's body
   runs to the *next* item mark, all of its anchors are absorbed by the item above it. The observable
   result is the opposite of a failure: `--unattributed` drops to 0 and the summary attributes the sites
   to some earlier number, so the gate goes green while the ownership it reports is a fiction. `python
-  tools/holes.py --item N` is the check — it prints "no item N" for the item you just wrote.
+  tools/holes.py --item N` is the check — it prints "no item N" for the item you just wrote. [until: reviewed 2026-09-06]
 
 - **`verify.py` short-circuits, so the session that turns a red step green inherits every failure the
   steps after it were hiding.** Closing the refusal gate at step 3 let step 5 (`cargo doc`, `-D
   warnings` with `rustdoc::broken_intra_doc_links`) run for the first time in some while, and it failed
   on two intra-doc links in `crates/nvs-stdlib/src/router.rs` that no session that iteration had
   written. Budget for it: a gate that has been red is not a gate that has been passing up to that
-  point, and "did I cause this" is answered by the line number, not by the timing.
+  point, and "did I cause this" is answered by the line number, not by the timing. [until: reviewed 2026-09-06]
 - **A `loop-goal.toml` stage's *comment header* can carry a rule the orientation pack never prints, and
   stage 2's forbids the obvious fix.** The route-table check names nine tests, and six of the behaviours
   were already asserted in `crates/nvs-types/tests/routes.rs` under better names — so renaming those to the
@@ -794,7 +793,7 @@ is why" — is this file.
   how the loop finishes its item. Do not rename one to something already green."* `orient.py` prints the
   item, the standing decisions and the ADR sections; it does not print the TOML's own comments. When an
   acceptance failure names a test that "did not run", `sed -n` the twenty lines around its `[[check]]`
-  block before deciding what the failure means — that block, comment included, is the specification.
+  block before deciding what the failure means — that block, comment included, is the specification. [until: reviewed 2026-09-06]
 - **Two slices over the same file cannot be split into two commits, so commit the first before
   starting the second.** `session.py --wrap` stages a `## commit:` by *pathspec*, so if slice 1 and
   slice 2 both edit `routes.rs`, the first section sweeps both slices' changes and the second
@@ -802,7 +801,7 @@ is why" — is this file.
   set, so this is the normal case rather than the odd one. Either accept one commit with two
   clauses — house style already allows it — or `git commit` slice 1 by hand once its own crate's
   tests are green, and let the wrap commit the rest. What does not work is writing two
-  `## commit:` sections over the same path and hoping git splits them.
+  `## commit:` sections over the same path and hoping git splits them. [until: reviewed 2026-09-06]
 - **A `loop-goal.toml` acceptance check can fail on the *driver*, not on the tree — and a check whose
   failure detail is a bare `True` is that.** Stage 4's `nvs build --openapi emits 3.1` was reported
   failing after four sessions in a row while passing by hand at every one of those commits, and two
@@ -812,7 +811,7 @@ is why" — is this file.
   failed exactly when it passed and printed the word `True` as its reason. No command check had ever
   passed since the kind was introduced in `058c1f0`. When an acceptance failure's detail is not a
   sentence about your code — `True`, an empty string, a bare number — read the branch in `loop.py` that
-  produced it before touching the tree, and check the other call sites of whatever helper it names.
+  produced it before touching the tree, and check the other call sites of whatever helper it names. [until: reviewed 2026-09-06]
 - **`orient.py`'s "THE DRIVER'S LAST ACCEPTANCE CHECK FAILED" can be a record from the *previous* run,
   already repaired.** The pack opened this session with stage 4's `nvs build --openapi emits 3.1` failing
   and the bare-`True` detail the bullet above explains — but the three `True` records in `.loop/log.md` all
@@ -820,7 +819,7 @@ is why" — is this file.
   tree now started 06:33:25 with no acceptance line yet. The ledger keeps the last *recorded* result across
   the `## run started` boundary, so a failure repaired at the end of a run is what the next run's first
   session reads. Two calls settle it: `git log --format=%ad --date=iso <the fixing commit>` against the
-  `started:` line the pack prints, and running the check's own `argv` by hand.
+  `started:` line the pack prints, and running the check's own `argv` by hand. [until: reviewed 2026-09-06]
 - **`python tools/gaps.py --coverage` does not list every registered class, and the classes it drops
   are the ones a floor gate then finds.** Its table printed 30 classes; `nvs_stdlib::registry::CLASSES`
   holds more, and `Core\Attributes` and `Core\Program` were in neither the ranking nor the "thinnest
@@ -830,7 +829,7 @@ is why" — is this file.
   counted and not reported as uncovered. The same read explains smaller drifts in the numbers: it put
   `Core\Test::assertEquals` at 3 where the registry-driven count says 2. Treat the tool as a *ranking*
   over most of the tree, not as the roster; anything that has to be true of **every** member reads
-  `registry::CLASSES` directly.
+  `registry::CLASSES` directly. [until: reviewed 2026-09-06]
 
 - **The `regex` crate supports no look-around, and this tree carries `fancy-regex` for exactly that.**
   A pattern with `(?!...)` — the obvious way to write an identifier boundary — compiles fine and then
@@ -838,7 +837,7 @@ is why" — is this file.
   the crate. Both crates are `nvs-stdlib` dependencies, so the import that fails and the import that
   works differ by one word. For a right-hand boundary specifically, neither is needed: a
   `match_indices` walk plus one `chars().next()` check is what `conformance_coverage.rs`'s `mentions`
-  already does.
+  already does. [until: reviewed 2026-09-06]
 - **`gaps.py --errors` reads past a `Fault::` call into the next item's doc comment, so one of its
   rows is a phantom.** `test.rs`'s `Fault::thrown_as(ThrownClass::TestFailure, text)` carries no
   literal at all — its message is `format!`ed six lines above it — and the tool's 700-byte window
@@ -847,7 +846,7 @@ is why" — is this file.
   `crates/nvs-stdlib/tests/conformance_coverage.rs` stops its window at a line-leading `///` for that
   reason, so it reads 71 sites where the tool lists 72 and the difference is that one row. A
   `Fault::` whose message is built above the call is outside both, the same way a message opening on
-  its own format hole is: neither can be matched against a case by its stem.
+  its own format hole is: neither can be matched against a case by its stem. [until: reviewed 2026-09-06]
 - **`DECLARATION_WINDOW` is 8 lines counted from the `Fault::` line, not from the guard's first
   line, so a nine-line comment sits silently outside it.** `conformance_coverage.rs` slices
   `lines[fault - 9 .. fault - 1]`, and a `Fault::thrown(format!(` two lines below `let x = …` leaves
@@ -855,7 +854,7 @@ is why" — is this file.
   enclosing `fn` is always outside the window when the body does anything at all before the guard —
   put it in the body, immediately above the `let`, and keep it to seven lines. The failure names the
   right site and reads like the phrase is missing, which is the misleading part: it was present and
-  one line too high.
+  one line too high. [until: reviewed 2026-09-06]
 - **A `<<'PY'` heredoc is not literal enough to carry a Rust string escape, and it fails as a
   mismatch rather than as a corruption.** AGENTS.md rule 1 already says a shell never carries file
   content into the tree; the reason worth knowing is that the *quoted* heredoc — the construct you
@@ -864,7 +863,7 @@ is why" — is this file.
   matching a one-backslash string and found zero of twenty-two rows. It costs three calls to
   rediscover because the script asserts and changes nothing, which reads like the file having moved
   under you. Anything holding a `\\`, a backtick or an apostrophe goes through Write/Edit or
-  `python tools/splice.py --patch`.
+  `python tools/splice.py --patch`. [until: reviewed 2026-09-06]
 - **`python tools/check-migration.py --seed` is a candidate list, not rows to paste.** It attributes
   every backticked PHP name on a line to whatever that line is *about*, so a member's own prose drags
   its neighbours in: it emits `acos` → `Core\Math::asin`, `acosh` → `Core\Math::sinh` and `array_map`
@@ -874,7 +873,7 @@ is why" — is this file.
   domain the other way round: read 01-core-library.md's table for the class once, then write one row
   per name `--report` still lists. The checker catches a member spelling 01 does not have, so a wrong
   *name* fails immediately — but a right name against the wrong PHP function passes silently, and that
-  is exactly what `--seed` produces.
+  is exactly what `--seed` produces. [until: reviewed 2026-09-06]
 - **`gaps.py`'s per-member numbers are cases already written, not cases owed — and a handoff can
   turn them into an item that is already on disk.** The *Next group* this session opened with named
   "`Core\Random::float`'s bounds (`random.rs:285`, 3 cases)" and "`::int`'s inclusive pair
@@ -886,14 +885,14 @@ is why" — is this file.
   do sed -n '2p' $f; done` prints every sibling case's one-line claim, which is what says whether
   the shape exists. Do it before writing a line, and again before believing a case is new — the
   overlap the second pass found here was a two-line one inside a case whose own title did not
-  mention it.
+  mention it. [until: reviewed 2026-09-06]
 - **`cargo deny check` is not installed on this machine**, so the standing decision a new
   Rust dependency owes cannot be run locally — `cargo` answers *no such command: `deny`*
   and installing it is a multi-minute build. The substance of the check is doable by hand
   in one call: `python tools/gen-attribution.py` rewrites `THIRD-PARTY-LICENSES.txt` with a
   resolved-license column per crate, so `grep -n -E "(crate|names)" THIRD-PARTY-LICENSES.txt`
   against `deny.toml`'s `[licenses] allow` list settles the license half, and the advisory
-  half is CI's. Say in the handoff which crates were cleared that way.
+  half is CI's. Say in the handoff which crates were cleared that way. [until: reviewed 2026-09-06]
 - **`gaps.py --coverage` counts cases per member, not depth, so its *thinnest members* column can
   name work that is already finished.** A handoff group built off it named `Core\Math`'s `lcm`,
   `hypot` and `atan2` at three cases each; all three were already pinned to depth —
@@ -903,7 +902,7 @@ is why" — is this file.
   `grep -rn 'Class::member' tests/conformance` per named member, before believing the column, is
   the whole check and costs one call. A member with three *deep* cases needs a new boundary, not a
   fourth table — and the check belongs in the session that *writes* the next group, since it is the
-  one holding the context.
+  one holding the context. [until: reviewed 2026-09-06]
 - **A goal switch orphans whatever a carried check's green depended on, and `cargo test -p nvs-ir
   --test refusals` is where you find out.** `goal-switch.py` carries the outgoing goal's `[[check]]`
   blocks forward as the next goal's floor and its unclosed *items* not at all, so `nvs-ir (no refusal
@@ -914,7 +913,7 @@ is why" — is this file.
   from 900 so `--item 901` names the entry the document shows, and a goal's own `.md` must not
   restate it. If this test goes red on you, check whether the sites are *new* before writing
   anything: `python tools/holes.py --unattributed` says, and `CEILING` in `refusals.rs:66` is what
-  catches a genuinely new one even when attribution claims its file.
+  catches a genuinely new one even when attribution claims its file. [until: reviewed 2026-09-06]
 - **A `cargo-named` `loop-goal.toml` check names *test names*, so a test that pins the same
   behaviour under a different name does not close it.** Stage `0 containment` asked for
   `a_panic_in_a_worker_task_is_contained_at_the_task`; the behaviour was fully pinned on disk as
@@ -922,7 +921,7 @@ is why" — is this file.
   not run" every iteration. `grep` the check's `tests = [...]` before writing anything, and
   **rename** the existing test rather than adding a second copy of it — the check is the contract
   for the name, and two tests asserting one thing is how the next session loses an hour deciding
-  which is authoritative.
+  which is authoritative. [until: reviewed 2026-09-06]
 - **A `[dev-dependencies]` addition owes `deny.toml` an answer but owes `THIRD-PARTY-LICENSES.txt`
   nothing, and the two are checked in opposite directions.** `tools/gen-attribution.py` walks normal
   and build dependencies only — its own docstring is the home of that — so `--check` stays green
@@ -933,7 +932,7 @@ is why" — is this file.
   --all-features` — against `deny.toml`'s `allow` list. Adding `rustls` and `rcgen` on the `ring`
   provider put twenty crates in the lock file across `Apache-2.0 AND ISC`, `ISC` and
   `MIT OR Apache-2.0`, every one of them already allowed; `ring` also builds clean on
-  windows-msvc from the pregenerated assembly it ships, with no nasm and no perl on `PATH`.
+  windows-msvc from the pregenerated assembly it ships, with no nasm and no perl on `PATH`. [until: reviewed 2026-09-06]
 - **A `python - <<'PY'` heredoc eats a backslash, so a patch script cannot carry Rust or
   Novis escapes.** `<<'PY'` is quoted and the *shell* expands nothing, but something between
   it and Python still collapses `\\x` to `\x` and `\\n` to a newline — a `sed`-style Python
@@ -942,7 +941,7 @@ is why" — is this file.
   not only `>` and `sed -i` that mangle content, it is any content at all crossing the shell.
   Write the new text with Write to a file under `.agent-tmp/`, then have the shell only
   *name* both files — `python -c "open(dst,'a').write(open(src).read())"` — or use Edit,
-  which never goes near a shell.
+  which never goes near a shell. [until: reviewed 2026-09-06]
 - **An edit made after `verify.py --start` invalidates the run, and `fmt` is where you find out.**
   The loop's own step 3 says to start the verification and write the wrap while it runs — which is
   right, because prose cannot fail — but a source edit in that window is compiled at whatever moment
@@ -950,9 +949,9 @@ is why" — is this file.
   after `--start`, and the background run failed at `fmt` (step 2 of 7) against the *pre-format*
   text: a red verdict describing a tree that no longer existed. There is nothing to debug and
   nothing to fix — `--start` again once the tree is final, and only then write prose. The rule is
-  simply that `--start` marks the end of editing, not the start of the tail.
-- **`Path.write_text` turns every `\n` into `\r\n` on Windows, and a test that reads the tree sees it.** A one-off script that rewrites `.rs` files must open them with `newline=""` (or write bytes): `.gitattributes` says `eol=lf`, git normalizes on commit so `git diff` looks fine, but `crates/nvs-stdlib/tests/conformance_coverage.rs` scans the working copy and reports every multi-line message as "neither asserted nor declared unreachable" with `\r\n` inside the quoted text. That is the signature; the fix is a byte-level `\r\n` → `\n` pass over the files the script touched, and it cost one full `verify.py` run.
-- **Two sessions in one tree: a file both edit is committed by whichever stages it first, with the other's hunks inside.** `rule:core-api/reference-card`'s enum-and-constant amendment first landed inside a commit about `rule:core-api/shape-rules`, because the other session staged the whole file while this one still held it dirty — that session then redid its commit without the foreign hunks, which is the right repair but cost both sessions a turn. `git status --short` a file before editing it; if it is already dirty and the hunks are not yours, either wait for that session's commit or stage your own hunks alone — `git show HEAD:<path>` plus your change through `git hash-object -w --stdin` and `git update-index --cacheinfo 100644,<blob>,<path>` stages a version the working tree never holds, which is also how two slices that touch one file get one commit each.
+  simply that `--start` marks the end of editing, not the start of the tail. [until: reviewed 2026-09-06]
+- **`Path.write_text` turns every `\n` into `\r\n` on Windows, and a test that reads the tree sees it.** A one-off script that rewrites `.rs` files must open them with `newline=""` (or write bytes): `.gitattributes` says `eol=lf`, git normalizes on commit so `git diff` looks fine, but `crates/nvs-stdlib/tests/conformance_coverage.rs` scans the working copy and reports every multi-line message as "neither asserted nor declared unreachable" with `\r\n` inside the quoted text. That is the signature; the fix is a byte-level `\r\n` → `\n` pass over the files the script touched, and it cost one full `verify.py` run. [until: reviewed 2026-09-06]
+- **Two sessions in one tree: a file both edit is committed by whichever stages it first, with the other's hunks inside.** `rule:core-api/reference-card`'s enum-and-constant amendment first landed inside a commit about `rule:core-api/shape-rules`, because the other session staged the whole file while this one still held it dirty — that session then redid its commit without the foreign hunks, which is the right repair but cost both sessions a turn. `git status --short` a file before editing it; if it is already dirty and the hunks are not yours, either wait for that session's commit or stage your own hunks alone — `git show HEAD:<path>` plus your change through `git hash-object -w --stdin` and `git update-index --cacheinfo 100644,<blob>,<path>` stages a version the working tree never holds, which is also how two slices that touch one file get one commit each. [until: reviewed 2026-09-06]
 - **`splice.py` writes LF, so splicing a CRLF working copy leaves the file mixed — and a gate that
   reads source *bytes* then fails somewhere you did not touch.** Putting a `names:` line on
   `crates/nvs-stdlib/src/str.rs`'s registry rows (line ~160) made
@@ -963,7 +962,7 @@ is why" — is this file.
   `python -c "b=open(p,'rb').read(); print(b.count(b'\r\n'), b.count(b'\n')-b.count(b'\r\n'))"` says
   whether a file is mixed; the repository stores LF, so normalizing the whole file is the fix and not a
   reversion. Do **not** reach for `git stash` to bisect this — the loop driver may hold the tree, and a
-  stash sweeps its in-flight work into yours.
+  stash sweeps its in-flight work into yours. [until: reviewed 2026-09-06]
 - **`rand_core` 0.10 renamed the core trait and inverted which half you implement**, so the shape
   every guide writes fails twice here, one call apart. `RngCore` is gone (a deprecated stub);
   `rand::Rng` is now the infallible core trait, `rand::TryRng` the fallible one, and `Rng` is a
@@ -974,7 +973,7 @@ is why" — is this file.
   in the same corner: `RngExt`'s methods are declared on a `Sized` receiver, so a `&mut dyn
   rand::Rng` parameter compiles and then offers `next_u64` and nothing else —
   `crates/nvs-stdlib/src/random.rs`'s `Generator` newtype is the way round it, and its doc says
-  why a generic parameter is not.
+  why a generic parameter is not. [until: reviewed 2026-09-06]
 - **`gaps.py`'s depth column is cases per *member*, so a class with two members looks thin however
   deeply each one is tested — and the corpus is now dense enough that the ranking's top rows are
   mostly this artefact.** Every one of its first eight rows was checked this way and `Core\Uuid`,
@@ -987,18 +986,18 @@ is why" — is this file.
   Three of the four claims `crates/nvs-stdlib/src/csv.rs`'s module doc makes had no case at all —
   quoting *minimality*, the `{header: …}` round trip it names as a composition, and the dialect rule
   being one rule both members are asked — and each was one case. A claim a module doc bothers to
-  argue for is a claim someone thought could go wrong; that is a better worklist than a median.
+  argue for is a claim someone thought could go wrong; that is a better worklist than a median. [until: reviewed 2026-09-06]
 
 - **A variable lowers inside a `Core` options shape.** `{separator: $sep, quote: $quote}` and
   `{header: $names}` both compile, so a dialect or a header sweep can be driven from a table rather
   than from one literal per row — which is what makes an agreement case over nine dialects one loop
   instead of eighteen pasted calls. Probed with `nvs run` before the three `Core\Csv` cases were
-  written.
+  written. [until: reviewed 2026-09-06]
 - **`peek.py --locate` is a mode, not a flag you can add to a read.** A call written as
   `python tools/peek.py "docs/decisions/0088.md:### 2" file.rs:79-120 --locate report_mismatch` prints the
   anchors and *silently drops both read targets* — `--locate` takes the rest of argv, so the questions you
   batched with it are never answered, and a symbol it cannot find exits 1 on top of that. Ask for anchors
-  in their own call, and keep the reads in another.
+  in their own call, and keep the reads in another. [until: reviewed 2026-09-06]
 - **A missing entry in `loop-goal.toml`'s `files` aborts the whole acceptance check, not one fixture.**
   `tools/loop.py:1779`'s `begin` walks that list before anything is built and returns on the first path
   that is not on disk, so `check()` never reaches the build, the stages or a single `[[check]]`. The
@@ -1008,7 +1007,7 @@ is why" — is this file.
   `files` names a fixture a later stage will write needs that file to exist from the first session, even
   as a program that cannot compile yet: the source is not frozen and only the expected output is, so an
   early stand-in costs nothing and buys back every earlier stage's check. `python tools/loop.py --list`
-  does not show this, because the list is checked before the plan is.
+  does not show this, because the list is checked before the plan is. [until: reviewed 2026-09-06]
 - **The handoff's own next-group item can contradict a settled ADR, and the ADR still wins — the same
   rule the `loop-goal.toml` bullet above states, arriving through the other artifact.** An item read
   "the unknown-key refusal is a new `E06xx` (next free E0605) naming the block", and `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one` says
@@ -1019,7 +1018,7 @@ is why" — is this file.
   costs six lines: `serde` cannot name the block, because by rejection time the deserializer knows
   the struct and not what the file called it, so `nvs_config::file::block_at` scans back to the
   nearest header and adds it as a note. The general shape — an item that asks for a new number is
-  asking a question the ADR has usually already answered, and one `peek.py <adr>:"## 3"` settles it.
+  asking a question the ADR has usually already answered, and one `peek.py <adr>:"## 3"` settles it. [until: reviewed 2026-09-06]
 - **A `Files`-style trait in a crate is the seam a new filesystem question goes through, and its
   test fakes are where the question actually gets asked.** `rule:config/an-application-is-its-entry-file-path` needs a canonical path
   *without* § 6's trust check, so `nvs_config::resolve::Files` gained `canonical` beside `trust`
@@ -1031,7 +1030,7 @@ is why" — is this file.
   because the real
   `Path::exists` `stat`s rather than `lstat`s and an include naming a symlink was otherwise
   `E0605`. Grep `impl <Trait> for` before adding a method, and give the fake the resolving
-  behaviour rather than the identity one.
+  behaviour rather than the identity one. [until: reviewed 2026-09-06]
 - **`Edit` strips a trailing space from `new_string`, so a `replace_all` that narrows a keyword eats
   the space after it.** `pub const ` → `pub(crate) const ` arrived as `pub(crate) constMAGIC`, and
   the same edit re-applied to repair it is refused as "old and new are identical", because the tool
@@ -1039,7 +1038,7 @@ is why" — is this file.
   as one `python tools/splice.py --patch` file — which is the rule for three or more edits anyway,
   and which was the fix here. A new module in a bin crate needs that run: with no caller yet it
   trips `unreachable_pub` on every item under `-D warnings`, and then `dead_code` on all of them
-  again once they are `pub(crate)`.
+  again once they are `pub(crate)`. [until: reviewed 2026-09-06]
 - **A `Resolved`/`Snapshot` field is not enough to make a value reach a reader: `Snapshot::retype`
   rebuilds the typed tree from the merged *table*, so anything the resolver put on
   `Resolved::config` and nowhere else is dropped at the snapshot boundary.** That is the whole of
@@ -1049,7 +1048,7 @@ is why" — is this file.
   build, would have been dropped again on the next `Boot` carry. The fix shape that survives both:
   carry the value beside the table and re-apply it *inside* `retype`, which is the one place every
   deserialization goes through. Before believing a config value is lost in the resolver, check
-  whether it is in `Snapshot::table` — `nvs config dump --toml` prints exactly that table.
+  whether it is in `Snapshot::table` — `nvs config dump --toml` prints exactly that table. [until: reviewed 2026-09-06]
 - **The handoff's own `## Next group` can be stale about the tree, exactly as a `loop-goal.toml`
   comment can — and the check that costs nothing is `nvs.exe test` on the case the goal already
   names.** Item 32's group listed P7 `throw "x"` and P8 `clone $a` as panics to refuse; both were
@@ -1057,7 +1056,7 @@ is why" — is this file.
   P3 landed too, so four findings were ticked in `docs/reference/findings.md` without writing a line
   of Rust. A `loop-goal.toml` `[[check]]` block's `cases` list is the cheapest probe there is: run the
   ones ahead of the failing case, because the acceptance check names only the *first* thing missing
-  and says nothing about what the rest of the list already proves.
+  and says nothing about what the rest of the list already proves. [until: reviewed 2026-09-06]
 - **`INSTA_FORCE_UPDATE=1` rewrites all 118 of `nvs-ir`'s snapshots, not the three your change
   moved — use `INSTA_UPDATE=always` alone.** The extra variable makes insta rewrite every snapshot
   it *passes* as well, and their `source:` headers still say `crates/nvs-ir/src/lower.rs` from
@@ -1066,7 +1065,7 @@ is why" — is this file.
   nvs-ir --lib` touches only what actually differs. If it already happened, `git status --porcelain
   <snapshot dir>` piped through a `grep -v` of the ones you meant, then `git checkout --`, puts the
   rest back; do it before the wrap, because `session.py --wrap` stages the paths you name and
-  sweeps everything else into the last commit.
+  sweeps everything else into the last commit. [until: reviewed 2026-09-06]
 - **A `docs/reference/core/<Class>.md` page is hand-written prose, not a render of that class's
   cards, so the two go stale apart and a finding that says "the card" means three files.** `Json.md`
   still said `decodeAs<T>` "names a class and nothing else: a document whose top level is a JSON
@@ -1075,14 +1074,14 @@ is why" — is this file.
   `Json::decodeAs<array<P>>` today. The fact can be right in the `MethodDoc`, right in the
   `docs/reference/lang/` chapter and wrong on the class page, so check all three and let the binary
   break the tie — a probe under `.agent-tmp/` costs one call and is the only one of the four that
-  cannot be out of date.
+  cannot be out of date. [until: reviewed 2026-09-06]
 - **A `## Next group` item whose work is entirely in `docs/` cannot satisfy `session.py --wrap`, and
   the refusal does not say why.** `orient.ANCHOR_RE` matches only `crates|tools|tests|benches|
   examples|fuzz`, so `docs/reference/lang/20-types.md:398` is not an anchor to it and the wrap
   reports the item as carrying none at all. This is not a hole to work around: stage 0c's items are
   documentation, and the anchor the gate is asking for is the *code that fixes the fact* — the
   escape roster, the diagnostic's `Code::new`, the row the card describes. Name that beside the doc
-  path and the next session opens the source of truth rather than the third copy of it.
+  path and the next session opens the source of truth rather than the third copy of it. [until: reviewed 2026-09-06]
 - **A `loop-goal.toml` check can fail on a file no session wrote — the user edits this tree too.**
   Session 5 opened on `check-migration at 33%` failing, and the cause was an uncommitted
   `docs/spec/02-php-migration.md` row for `clamp` from a by-hand `rule:php-migration/a-deprecation-is-a-refusal` pass: the row is right and
@@ -1090,14 +1089,14 @@ is why" — is this file.
   things follow. `git status --short` before diagnosing says whose change it is, and a fix that lands
   in a *tool* is committable on its own without touching the user's in-flight files — never stage
   them to make a check pass. The tool's own answer is `check-migration.py`'s `AHEAD_OF_THE_BUILD`,
-  beside `UNAUDITED`: a named hole rather than a hand-edited inventory.
+  beside `UNAUDITED`: a named hole rather than a hand-edited inventory. [until: reviewed 2026-09-06]
 - **A handoff item's `file.rs:NN` anchors are inlined by `orient.py` at the top of the pack, so a
   stale one arrives as code that does not match the item's own prose.** Stage 10 item 37 named
   `crates/nvs-types/src/expr/calls.rs:1088` for `NewTarget::Expr`, which had drifted to 1194, and the
   pack dutifully printed a window of unknown-member diagnostics under the heading "the code your item
   anchors". The line numbers were written before the previous session's own edits moved them. When a
   printed window does not match the item, do not read around the number: `python tools/peek.py
-  --locate <symbol> ...` or a `:re:` target lands first time and costs one call.
+  --locate <symbol> ...` or a `:re:` target lands first time and costs one call. [until: reviewed 2026-09-06]
 - **An `Edit` anchored on a `fn` line lands *inside* that function's doc comment, and nothing
   reports it.** Inserting a new item before `fn lower_checked_downcast(` in
   `crates/nvs-ir/src/lower/convert.rs` put it between the head of that function's thirty-line `///`
@@ -1106,7 +1105,7 @@ is why" — is this file.
   comments. Rust has no marker for where a doc block *starts*, so an anchor of `fn name(` is only
   safe for a function with no doc comment — which, in this tree, is none of them. Anchor on the
   **blank line after the previous function's closing brace**, or on that function's own first `///`
-  line, and put the new item before it.
+  line, and put the new item before it. [until: reviewed 2026-09-06]
 - **`crates/nvs-ir/tests/refusals.rs`'s `CEILING` never rises, so a new `assert!`/`panic!` refusing
   a shape in `nvs-ir` or `nvs-codegen` turns `verify.py` red however well the refusal is written.**
   The message says "16 against a ceiling of 15" and names no file; `python tools/holes.py --sites`
@@ -1116,13 +1115,13 @@ is why" — is this file.
   `convert_or_null`'s own two refusals, with better messages than the new one. What the count does
   *not* include is an internal-consistency `panic!` ("this is a checker that did not run"), so a
   guard against the checker disagreeing with itself is free and a guard against a language shape is
-  not.
+  not. [until: reviewed 2026-09-06]
 - **A fixture that exits nonzero *by design* fails the valgrind sweep, and the failure reads as a
   leak.** `tools/loop.py`'s sweep runs `valgrind --error-exitcode=1` and grades the fixture on its
   exit status, which is the only signal valgrind has left once the program itself exited nonzero — so
   a `FATAL` fixture reports as `valgrind <file>: exit 1` with its own stderr as the "error". That is
   what `[valgrind] skip` in the goal file is for, and every such fixture has to be named there. Do not
-  go looking for the leak first: check whether the fixture's own `[[check]]` says `exit = "nonzero"`.
+  go looking for the leak first: check whether the fixture's own `[[check]]` says `exit = "nonzero"`. [until: reviewed 2026-09-06]
 - **A missing acceptance *fixture* aborts the whole acceptance run before a single check runs, and that
   is the ordinary state of a goal's first session.** `loop.py`'s `begin` walks the goal's `files` list
   and returns on the first path not on disk, so the ledger reads `0s over 1 check(s)` and every other
@@ -1131,7 +1130,7 @@ is why" — is this file.
   is meant to be and let it fail its own `exact` check with a real diagnostic; goal 3 opened exactly
   this way (`examples/config.nvs`, `error[E0405]: Core\Config has no member named get`, for four
   sessions). Writing only the file the message names buys one iteration, because the next message names
-  the next one — write the whole `files` list in one slice.
+  the next one — write the whole `files` list in one slice. [until: reviewed 2026-09-06]
 - **A `loop-goal.toml` check can name something that is not a test at all, and the tell is the *check
   count* rather than the message.** Stage 0's `cargo-named` check listed `examples/limits.nvs` beside
   three real test names; a program leg cannot appear in `cargo test -p nvs-stdlib`'s output, so the
@@ -1142,7 +1141,7 @@ is why" — is this file.
   `orient.py` calls the ordinary state of the goal, so it reads as work rather than as a bug. That
   same file already measured the fixture properly, as a `contains` check on the same path. Before
   writing a test to satisfy a name, check that the name *could* be a `#[test]`; and fix
-  `docs/agent/goals/<goal>.toml` alongside the live copy, or the next `goal-switch.py` restores it.
+  `docs/agent/goals/<goal>.toml` alongside the live copy, or the next `goal-switch.py` restores it. [until: reviewed 2026-09-06]
 - **A `Fault::` message whose format string *starts* with an interpolation is invisible to
   `every_error_path_is_asserted_or_declared_unreachable`, and that is a way to fail closed by
   accident.** `conformance_coverage.rs`'s `fault_sites` takes the message's stem as everything
@@ -1153,13 +1152,13 @@ is why" — is this file.
   `Core\IO::` can only be matched by a case that writes that backslash *unescaped*, which a Novis
   double-quoted string does not. Write the literal head of a refusal as a backslash-free sentence
   naming the rule — `"a path must stay inside the base it is resolved against: …"` — and put the
-  member name inside the interpolated tail, where both problems go away at once.
+  member name inside the interpolated tail, where both problems go away at once. [until: reviewed 2026-09-06]
 - **`peek.py --locate` takes over the whole call: the file targets in it are read for symbols and
   never printed.** `python tools/peek.py a.rs b.rs --locate implementing` answered only the places
   `implementing` is defined and said nothing about `a.rs` or `b.rs`, which reads as two files that
   produced nothing rather than as a flag that changed the mode. It is one call wasted every time,
   because the natural batch is "read these two files, and where is that symbol". Two calls, or put
-  the anchors last.
+  the anchors last. [until: reviewed 2026-09-06]
 - **`python tools/disk.py --clean` refuses while `.loop/running` exists, which is every loop
   session — so a full disk inside one is cleared by hand.** D: reached 24 MB free mid-session and
   the failure did not read as a disk failure at all: `cargo test` reported `LNK1140: Grenzwert für
@@ -1169,7 +1168,7 @@ is why" — is this file.
   *concurrent build*, not about the driver: check `Get-Process cargo,rustc,link` first, then
   `Remove-Item -Recurse -Force target/debug/incremental`, which is a pure cache and costs one cold
   build. Adding six crates to the lock file is what tipped it over, so a slice taking a dependency
-  is the one that should run `python tools/disk.py` before it starts.
+  is the one that should run `python tools/disk.py` before it starts. [until: reviewed 2026-09-06]
 - **A `.rs` the Write tool creates on Windows lands with CRLF, and the gate that catches it names
   something else entirely.** `.gitattributes` normalises on commit, so the *committed* file is fine
   and only the working copy is wrong — which means the failure looks like a logic bug, not a
@@ -1180,7 +1179,7 @@ is why" — is this file.
   no matter how right the case is. The tell is `\\\r\n` inside the `{:?}` stem the failure prints.
   One `python -c` rewrite of `\r\n` to `\n` fixes it; do it to any new source file before the first
   `cargo test` rather than after reading the case four times. The `.nvst` files written in the same
-  session came out LF, so this is not reliably visible by inspecting one file.
+  session came out LF, so this is not reliably visible by inspecting one file. [until: reviewed 2026-09-06]
 - **An item names one of its stage's checks, and the stage names the rest — including ones in another
   crate.** `Core\Jwt`'s item named `a_jwt_with_an_unexpected_algorithm_is_refused` and nothing else, so
   the obvious reading is that the slice owes one `#[test]` in `nvs-stdlib`. Stage 4 in
@@ -1189,7 +1188,7 @@ is why" — is this file.
   it is the only assertion that `rule:security/verification-does-not-launder`'s qualifier reaches the signature at all. The orientation
   pack prints the item, not the stage, so the check costs one `grep -n -i <topic> docs/agent/loop-goal.toml`
   before starting: the driver stops at the first failure, so a named test left unwritten in a crate the
-  item never mentions holds the whole acceptance list at that stage the way a misfiled fixture does.
+  item never mentions holds the whole acceptance list at that stage the way a misfiled fixture does. [until: reviewed 2026-09-06]
 - **`peek.py` takes its options *after* its targets, and mixing them is
   "unrecognized arguments" naming a target that is perfectly well formed.**
   `peek.py A.rs:re:x --window 4 B.rs:re:y` fails with `unrecognized arguments:
@@ -1197,7 +1196,7 @@ is why" — is this file.
   and will not resume. The message points at the second target, so the obvious
   reading is that the *target* is malformed — quoting it differently, escaping
   the `::`, dropping the `re:` all fail the same way. Put every target first and
-  every `--window`/`--in` last, and a run of probes goes out in one call.
+  every `--window`/`--in` last, and a run of probes goes out in one call. [until: reviewed 2026-09-06]
 - **A driver-side fix does not reach the leg that is already going.** `tools/loop.py` is read off
   disk once per leg, by a process that then lives for up to `--probe-every` sessions, so an edit to
   it — a new fixture service, a changed check, a fixed helper — is invisible to every remaining
@@ -1207,7 +1206,7 @@ is why" — is this file.
   itself fixes this — it re-spawns the driver at the next leg boundary, which is what the boundary
   is for — so when the thing you changed is the driver rather than the tree, verify it by hand, say
   in the handoff that it lands at the next leg, and expect the acceptance line to stay red until
-  then.
+  then. [until: reviewed 2026-09-06]
 - **An acceptance check reading `E0405: Core\X has no member named y` can be a stage nobody has
   started, not a regression — the tell is whether `crates/nvs-stdlib/src/<x>.rs` exists at all.**
   `examples/reflect.nvs` failed on `Core\Reflect::forObject` for a session that had touched nothing
@@ -1216,7 +1215,7 @@ is why" — is this file.
   registers a single member of it, so every member of an unwritten class fails with that same
   sentence. One `ls crates/nvs-stdlib/src/<class>.rs` separates "a row went missing" from "the stage
   is unstarted", and the second is ordinary state that a group has to be planned for rather than a
-  failure to bisect.
+  failure to bisect. [until: reviewed 2026-09-06]
 - **`target/release/nvs.exe` is not rebuilt by anything, and a check that measures it fails with a
   sentence about your *config* rather than about staleness.** Stage 1's
   `a warm-cache CLI start stays under 10ms` failed after session 0003 with
@@ -1228,7 +1227,7 @@ is why" — is this file.
   last `cargo build --release` did not have**. The tell is the `warning: nvs.exe is N h older than
   the newest file under crates/` line the tool prints directly above the failure — it is one line up
   and reads as boilerplate. `cargo build --release` and re-run before believing any part of the
-  error underneath it.
+  error underneath it. [until: reviewed 2026-09-06]
 - **The driver's acceptance report walks the stages in order and stops at the first failure, so a
   `did not run` naming an *early* stage is the frontier having moved backwards past the handoff's
   next group.** Session 0004 closed the last stage-1 check and the report went from `[8
@@ -1240,14 +1239,14 @@ is why" — is this file.
   earlier stages pass (51 → 131 → 147), so a rising count with an earlier stage named is the report
   advancing, not regressing. Two `peek.py` calls settle it — grep the named test across
   `crates/**/*.rs`, then read the check's block in `loop-goal.toml` for the rest of its `tests` list
-  — and the answer decides whether the session takes the handoff's group at all.
+  — and the answer decides whether the session takes the handoff's group at all. [until: reviewed 2026-09-06]
 - **A `"` inside a `peek.py` pattern is eaten before Python sees it, and the error names the
   *regex* rather than the quoting.** `python tools/peek.py 'file.rs:re:name: "[a-z]' 'other:re:x'`
   comes back as `bad regex /name: [a-z] other:re:x/: multiple repeat` — Windows re-quotes a native
   command's arguments after PowerShell has finished with them, so the embedded double quote opens a
   quoted region that swallows the *next* target as well. The tell is a regex in the message that is
   visibly two targets joined. Write the pattern without `"` (`name: .[a-z]` matches the same rows),
-  which costs nothing, rather than hunting for an escape that survives both layers.
+  which costs nothing, rather than hunting for an escape that survives both layers. [until: reviewed 2026-09-06]
 - **`docs/agent/loop-goal.toml` and `docs/agent/goals/<goal>.toml` drift, and the live one is the
   half that is right.** They are byte-identical by construction and the next `goal-switch.py`
   restores the goal file over the live one, so every session that improves a check and does not copy
@@ -1256,7 +1255,7 @@ is why" — is this file.
   renamed to `net.rs`/`blocking.rs`), a `mailpit` service in `[docker]` that stage 9 no longer
   needs, and `examples/uncaught.nvs`'s expectations, which had been rewritten for `rule:errors/renderings`'s
   JSON Lines rendering. `git diff docs/agent/goals/` right after the `cp` is the whole check, and
-  what it prints is other sessions' work about to be lost rather than your own.
+  what it prints is other sessions' work about to be lost rather than your own. [until: reviewed 2026-09-06]
 - **A `loop-goal.toml` acceptance test can name *two* bounds, and splitting it across two
   `#[test]`s fails the check.** `the_engine_floor_rotates_and_rate_limits_itself` is one name
   for `rule:http-server/the-floor-cannot-fill-the-disk`'s two bullets, so the rate limit and the rotation are asserted in one
@@ -1264,7 +1263,7 @@ is why" — is this file.
   "cargo-named"` and matches the test's *name*: a `the_engine_floor_rotates` beside a
   `the_engine_floor_rate_limits` reads better, passes `cargo test`, and leaves the driver
   reporting "did not run" forever. Read the `tests = [...]` list before deciding how many
-  functions the work becomes.
+  functions the work becomes. [until: reviewed 2026-09-06]
 - **`nvs-ir`'s refusal ceiling is a ratchet over what a panic's *message says*, not over how many
   `panic!`s exist, so rewording one can turn `verify.py` red with no new site.**
   `crates/nvs-ir/tests/refusals.rs`'s `CEILING` is fed by `tools/holes.py`, whose `REFUSAL` regex
@@ -1275,7 +1274,7 @@ is why" — is this file.
   is a red `-p nvs-ir --test refusals` naming a ceiling while `python tools/holes.py` reports
   `UNATTRIBUTED: 0`. Neither the allowlist nor the ceiling may be edited to pass, so a *claim* of a
   lowering gap belongs in the slice that removes the site; until then the crate docs' known-gaps
-  section is where it goes, and the panic keeps whatever it already said.
+  section is where it goes, and the panic keeps whatever it already said. [until: reviewed 2026-09-06]
 - **The handoff's own item text can contradict a settled ADR, exactly as a `loop-goal.toml` comment
   can — and the ADR still wins.** The `Core\Mail` item said "its `net.connect` declaration beside it
   at `registry.rs:1392`", and `rule:programs/framework-core-half` says the endpoint is "named in root-owned `nvs.toml`
@@ -1285,7 +1284,7 @@ is why" — is this file.
   read the section yet; the ADR is a decision. One `peek.py <adr>:"### N"` on every ADR § the item
   cites, *before* writing the row, is the whole check — and it is the same bullet as the
   `loop-goal.toml` one three above, generalized: **anything in the pack that is status can be stale
-  about a decision.**
+  about a decision.** [until: reviewed 2026-09-06]
 - **A `peek.py` `re:` target over a wide glob prints every matching file's hits, and
   `tests/conformance/**/*.nvst` is 1,255 of them.** One probe for a Novis spelling —
   `'tests/conformance/**/*.nvst:re:bytes \$'` — came back as 23 KB and roughly 9,000 tokens, about
@@ -1293,13 +1292,13 @@ is why" — is this file.
   with context. The narrow forms cost nothing: name one file, or ask a question whose answer is a
   handful of lines. When the question really is "what is the spelling for X across the corpus",
   send a subagent — that is exactly the read whose *findings* are three lines and whose *reading*
-  is enormous.
+  is enormous. [until: reviewed 2026-09-06]
 - **`tools/reference.py` reads the *built* binary, so a card edit it has not been rebuilt for is
   reported as `docs/novis.md unchanged`.** The generator asks `nvs meta` for the registry rather than
   parsing `registry.rs`, so after fixing a `MethodDoc` the sequence is `cargo build` and *then*
   `reference.py` — run the other way round it writes the stale card, says nothing changed, and the
   wrong text is what gets committed. `cargo test -p nvs-stdlib` does not rebuild the binary either,
-  so a card fix that passes its own gate can still ship the old sentence to `docs/novis.md`.
+  so a card fix that passes its own gate can still ship the old sentence to `docs/novis.md`. [until: reviewed 2026-09-06]
 - **`nvs-stdlib`'s gates scan `io.rs`'s *prose*, not just its rows, and two of them read a doc
   comment as code.** `no_member_dispatches_on_a_uri_scheme` fails on the string `php://stdin` inside
   a reference card's `short` — the scan is for the scheme spelling anywhere in the module, because
@@ -1307,7 +1306,7 @@ is why" — is this file.
   capability` failure naming a line number in a doc comment reads like a code bug for a minute.
   Name what PHP's spelling *did* ("the standard-input wrapper") rather than writing it. Its sibling
   `no_registry_card_cites_an_adr` is the same shape one file over, and both fail a run that the
-  member's own conformance cases pass.
+  member's own conformance cases pass. [until: reviewed 2026-09-06]
 - **`cargo deny check` cannot be run on this machine, and the goal's standing decisions ask a new
   dependency for it.** `cargo-deny` is not installed — `error: no such command: deny` — and installing
   it to add one crate costs more than the check answers. What answers the same question in one call is
@@ -1315,7 +1314,7 @@ is why" — is this file.
   *edge* and no package, so the license set, the advisory set and the ban list are all exactly what
   they were, and CI's own leg is what actually runs the tool. `unicode-width` arrived that way, as
   `wasm-encoder`'s. A crate whose diff adds a `[[package]]` block is the case where this shortcut does
-  not apply, and it still owes `python tools/gen-attribution.py`, which does run here.
+  not apply, and it still owes `python tools/gen-attribution.py`, which does run here. [until: reviewed 2026-09-06]
 
 - **`verify.py`'s reference step regenerates `docs/novis.md`, so a new `Core` member leaves the tree
   dirty *after* the wrap.** The page is built from the registry's reference cards, and the run that
@@ -1323,7 +1322,7 @@ is why" — is this file.
   wrap file has been written and, if the wrap is applied straight afterwards, after every `##
   commit:` has been staged. `session.py` reports it as `uncommitted after the wrap`; it is a real
   change and it is yours. Name `docs/novis.md` in the member's own `## commit:` when the slice adds
-  a row, and the sweep takes it with the rest.
+  a row, and the sweep takes it with the rest. [until: reviewed 2026-09-06]
 - **`python tools/try.py` dies with a `UnicodeDecodeError` on a case whose output is not the
   console codepage, and the traceback is Python's, not the case's.** It reads the child's stdout
   through the ambient encoding — `cp1252` here — so a case printing anything the terminal sink
@@ -1332,7 +1331,7 @@ is why" — is this file.
   and re-running it changes nothing. Run one case through the real runner instead:
   `target/debug/nvs.exe test tests/conformance/core/<case>.nvst`, which reads the file itself, is
   what `verify.py` calls, and prints `1 passed` or the expected/actual diff. Keep `try.py` for
-  scratch snippets whose output is ASCII.
+  scratch snippets whose output is ASCII. [until: reviewed 2026-09-06]
 - **A session that died leaves its whole slice on disk, and the next pack hands you the item as if
   nothing had been done.** Session 0001 of one run wrote 288 lines across eight crates plus two
   `.nvst` cases, then exited without a commit and without `.loop/status.txt`; `orient.py` quoted the
@@ -1341,7 +1340,7 @@ is why" — is this file.
   beside it, `0` in that run — and the check is `git status --short` **before the first edit**, which
   is worth it for what it changes: the owed work becomes `verify.py`, the commit messages nobody
   wrote, and the next slice, rather than a second implementation of what is already there. Do not
-  assume such a tree is wrong because it is uncommitted; verify it first and only then judge it.
+  assume such a tree is wrong because it is uncommitted; verify it first and only then judge it. [until: reviewed 2026-09-06]
 - **A handoff's `## Next group` can describe work that is already on disk, and `gaps.py`'s own
   depth number is the tell.** The `Core\Totp` group named three slices as unasked while quoting
   `python tools/gaps.py`'s `depth 4.0 ... check 4, code 4` in the same paragraph — and that number
@@ -1352,7 +1351,7 @@ is why" — is this file.
   those files — against the context a session spends discovering it after writing half a duplicate
   case. It falls on the session *writing* the handoff as much as the one reading it: a group's claim
   is about the tree, and the tree moves under a handoff that was true when it was written. Read the
-  four existing `--TEST--` lines before proposing a fifth case, never the file names alone.
+  four existing `--TEST--` lines before proposing a fifth case, never the file names alone. [until: reviewed 2026-09-06]
 - **`tools/try.py` runs the `--FILE--` body and the `--FILE nvs.toml--` body as one program**, so
   any `.nvst` case carrying a capability grant fails there with a dozen invented diagnostics —
   `error[E0319]: read is not a constant that exists` pointing at `read = ["."]`, which reads exactly
@@ -1360,7 +1359,7 @@ is why" — is this file.
   `Core\IO` case has that section, so this is the whole class rather than a corner of it. The runner
   that does understand the format is `target/debug/nvs.exe test <path.nvst>`, it takes a single file
   as happily as a tree, and it is the same binary and the same harness `verify.py` uses — so reach
-  for it directly and keep `try.py` for a snippet with no config block.
+  for it directly and keep `try.py` for a snippet with no config block. [until: reviewed 2026-09-06]
 - **A handoff's *next group* can already be on disk, and `gaps.py`'s ranking is what leads a session
   there.** The tool ranks a class by its **case count** — the median and the worst member — and the floor
   is 3, so a class whose every question has already been asked keeps being nominated for as long as its
@@ -1371,7 +1370,7 @@ is why" — is this file.
   `replaceRange`/`underlay`/`withoutFirst` are the same story — each already has a case file named for
   the question. **One `ls tests/conformance/core/ | grep <class>` before taking the group is the whole
   check**: a purpose-named file is the tell, and reading the two it names costs one call against a
-  session spent rewriting a case that exists.
+  session spent rewriting a case that exists. [until: reviewed 2026-09-06]
 - **`cargo metadata` reports a build dependency whether or not the feature that uses it is on,
   and `links` is not a C signal at all.** Writing `rule:packaging/a-c-dependency-answers-two-questions`'s ledger gate
   (`python tools/gen-attribution.py --check-c-deps`) over the resolved graph turns up four
@@ -1382,7 +1381,7 @@ is why" — is this file.
   **signal** and the ledger entry is the finding — and a `no-native-code` verdict that rests on a
   feature has to name that feature, which is what `C_DEPENDENCIES`'s `requires` column checks
   against the node's active features. Reading the crate's `Cargo.toml` comment settles each in
-  one look; guessing from the crate name does not.
+  one look; guessing from the crate name does not. [until: reviewed 2026-09-06]
 - **A `loop-goal.toml` `nvs-suite` check's `cases` list can name `.nvst` paths in a *directory
   layout the corpus never adopted*, and the failure reads exactly like unwritten work.** Stage 10's
   conformance check named `tests/conformance/io/…` and `tests/conformance/cli/…`; neither directory
@@ -1393,7 +1392,7 @@ is why" — is this file.
   already named by an earlier `cargo-named` check in the same file, because an internal panic is not
   something a `.nvst` case can survive to assert. So before writing a case to satisfy a name in
   `cases`, `sed -n 2p` the plausible neighbours: the drafted name describes the *claim*, and the
-  file that pins it is usually already there under the name the corpus actually took.
+  file that pins it is usually already there under the name the corpus actually took. [until: reviewed 2026-09-06]
 - **`check-migration.py` checks a `Core\X::y` spelling in a Novis cell against `01-core-library.md`'s
   backticked words, not against the stdlib registry — and § 14's handle methods are not in that set.**
   The spec writes them as `` `$file->read` ``, `` `->readLine` ``, `` `->seek` ``, and only the first
@@ -1402,7 +1401,7 @@ is why" — is this file.
   is reached through the object `Core\IO::open` returns. The same hole swallows `Core\Storage` and
   `Core\Socket`, which are ADR-only classes with no entry in that spec file at all. Ten lines of
   `importlib` over the tool's own `core_surface()` answer "is this spelling legal" for a whole table
-  before it is written, which beats discovering it one row at a time.
+  before it is written, which beats discovering it one row at a time. [until: reviewed 2026-09-06]
 - **`check-migration.py` validates a `Core\X::y` cell against `01-core-library.md`'s *backticked
   words*, not against the registry** — so a member the spec only ever spells with a generic parameter
   cannot be named in a row at all. `Core\Program::implementing` is the case: 01 § 13 writes
@@ -1411,7 +1410,7 @@ is why" — is this file.
   `Core\Program::implementing`, which 01-core-library.md does not", which reads as a misspelling
   rather than as a spec-side gap. `Core\Attributes::get`/`::all` have the same shape. Widening the
   regex is the wrong fix: either name the class and leave the member in prose, or give 01 a spelling
-  a machine can read.
+  a machine can read. [until: reviewed 2026-09-06]
 - **A migration cell's ADR link is guessed, and nothing checks it.** `check-migration.py` validates the
   `Core\X::y` spellings in a cell against `01-core-library.md` and looks at nothing else in it, and
   `verify.py`'s `doc` step is `cargo doc`'s intra-doc links — Rust doc comments, not markdown — so its
@@ -1424,7 +1423,7 @@ is why" — is this file.
   `sys.path.insert(0, 'tools')` then `importlib.import_module('check-migration').core_surface()` hands
   back the exact class and word sets the checker will use. Re-deriving those with your own regex inside a
   shell heredoc does not work — the backslash in `Core\Xml` is eaten before Python sees the pattern, and
-  every class comes back missing, which reads as "01 names no classes at all".
+  every class comes back missing, which reads as "01 names no classes at all". [until: reviewed 2026-09-06]
 - **`cargo deny check`'s advisories leg can fail on a crate no session added, and the failure
   arrives inside the diff of the one you just added.** Adding `bcrypt` for `rule:security/bcrypt-read-roster` made the first
   `cargo deny check` of that dependency print `advisories FAILED`, and the finding was
@@ -1433,7 +1432,7 @@ is why" — is this file.
   touched, so this leg goes red on its own schedule. Read the finding's own package before
   suspecting the dependency in your diff; `cargo update -p <crate>` to the next patch is the whole
   fix when it is a yank rather than an advisory, and it belongs in the same commit as the
-  `Cargo.lock` you were already writing.
+  `Cargo.lock` you were already writing. [until: reviewed 2026-09-06]
 - **`goal-switch.py` carries a list across only if the list is written on more than one line, and a
   union that kept nothing looks exactly like a union with nothing to add.** Its `union_list` matched
   `^field = [ ... ^]` — the `]` anchored at the start of its own line — so `files`, which this repo writes
@@ -1442,7 +1441,7 @@ is why" — is this file.
   leak, and an acceptance run failed on a fixture no session had touched, four days later. Two readings:
   a `[valgrind] skip` entry is load-bearing for every fixture written to fail, and a text-edit union over
   TOML has to say which shapes it matches — this one now matches both and returns `None` for a missing
-  field so the caller refuses instead of passing through.
+  field so the caller refuses instead of passing through. [until: reviewed 2026-09-06]
 - **The `examples/*.nvs` line that `goal-switch.py` carries into a `cargo-named` check comes back with the
   next goal, and the fix in the previous goal's file does not travel.** The playbook already records this
   for goal 4's Stage 0 — a program leg cannot appear in `cargo test`'s output, so the check fails forever
@@ -1450,7 +1449,7 @@ is why" — is this file.
   `examples/limits.nvs` sitting under `args = ["test", "-p", "nvs-types"]` beside the three real test
   names, and the floor section twenty lines below carried the comment explaining why it had been removed
   from *that* list. Read your own stage's `tests = [...]` for a path-looking entry on the first session of
-  a new goal, and fix `docs/agent/goals/<goal>.toml` alongside the live copy.
+  a new goal, and fix `docs/agent/goals/<goal>.toml` alongside the live copy. [until: reviewed 2026-09-06]
 
 - **A session that adds a crate or a dependency leaves `Cargo.lock` dirty after `session.py --wrap`, and
   the wrap's sweep will not catch it.** The sweep is over files the *wrap* wrote — the handoff, the plan,
@@ -1458,20 +1457,20 @@ is why" — is this file.
   session that created `crates/nvs-db` verified green, wrapped three commits, and still ended with
   `M Cargo.lock` in the tool's own "uncommitted after the wrap" line, which is the only place it shows.
   Name `Cargo.lock` in the `## commit:` of whichever slice touched a manifest, and expect the same for any
-  other generated file a build step rewrites.
+  other generated file a build step rewrites. [until: reviewed 2026-09-06]
 - `tools/splice.py` and `tools/session.py` take a patch in **two different formats**, and the wrap
   skeleton is the one you will have read most recently. A splice patch is git conflict markers —
   `--- <path>`, then `<<<<<<< OLD` / `=======` / `>>>>>>> NEW` around each block — while a wrap
   file's `## plan-edit:` is `--- old` / `--- new`. Writing the wrap form into a splice patch fails
   with `no <<<<<<< OLD block`, which names the fix but not the shape. `python tools/splice.py
   --help` prints the shape — the invocation forms and the patch format, stopping above the
-  rationale.
+  rationale. [until: reviewed 2026-09-06]
 - **`peek.py --locate` does not compose with `path:target` windows in the same call, and the
   failure reads as a missing symbol rather than as a misuse.** `python tools/peek.py a.rs:800-960
   b.rs:@Sym --locate PgTarget time_zone` printed one anchor, `time_zone: NOT FOUND`, and exited 1 —
   the two windows were never read, and the `--locate` names were merged with what the shell had
   already parsed as targets. Nothing said which half was dropped. Give `--locate` a call of its
-  own; it is cheap, because it returns anchors and no bodies.
+  own; it is cheap, because it returns anchors and no bodies. [until: reviewed 2026-09-06]
 - **A `[db.<name>]` field has a second home in the reference chapter, and `docs/novis.md` is
   generated from it.** `docs/reference/tools/20-config.md`'s block table lists every key each
   block accepts, one row per block, and `verify.py`'s `reference` step regenerates `docs/novis.md`
@@ -1479,7 +1478,7 @@ is why" — is this file.
   user-facing list of accepted keys wrong with nothing failing. Nothing checks the two against each
   other: `deny_unknown_fields` refuses a key the struct lacks, and no test refuses a struct field
   the table lacks. Edit the chapter row in the same slice as the field, and let `verify.py` write
-  `docs/novis.md` rather than editing that file by hand.
+  `docs/novis.md` rather than editing that file by hand. [until: reviewed 2026-09-06]
 - **`session.py --wrap` cannot commit `docs/novis.md`, because it did not write it — `verify.py`'s
   reference step did.** Adding a `Core` member regenerates `rule:core-api/reference-card`'s reference page as a *side
   effect of verifying*, which happens before the wrap and outside it, so the wrap's "anything it
@@ -1488,13 +1487,13 @@ is why" — is this file.
   someone else's edit leaves the slice half-committed. Two consecutive sessions each paid three
   calls rediscovering it. Name `docs/novis.md` in the member's own `## commit:` line up front —
   the page is part of the slice that registers the member, exactly as
-  `crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt`'s struck line is.
+  `crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt`'s struck line is. [until: reviewed 2026-09-06]
 - **`peek.py` takes every target *before* any option, and a target after one is an argparse
   refusal rather than a miss.** `python tools/peek.py a.rs:1-5 --window 20 .gitignore` dies with
   `unrecognized arguments: .gitignore` — the positional list is `nargs="*"` and closes at the first
   flag, so anything after `--window`/`--in` is orphaned. It reads as a rejected *path* (a
   dotfile, a glob the shell ate) and the second guess is wrong too. Put all targets first, then the
-  options.
+  options. [until: reviewed 2026-09-06]
 - **A program-leg acceptance failure can name a fixture from a *later, wholly unlanded stage*, and
   that is not the regression the driver's wording implies.** The program legs run in the goal file's
   own order across every stage and the sweep stops at the first one that fails, so the moment a stage's
@@ -1505,7 +1504,7 @@ is why" — is this file.
   `rule:concurrency/enqueue-commits-with-your-write` implementation anywhere). The tell is one `grep -rn` for the name it refuses: a *regression*
   names something the tree still holds. It also means every check behind that fixture — the cargo
   checks, the WSL leg, the valgrind sweep, the corpus floors — is dark until the whole stage lands, so
-  a session's own guard tests are `python tools/verify.py`'s job and never the driver's.
+  a session's own guard tests are `python tools/verify.py`'s job and never the driver's. [until: reviewed 2026-09-06]
 - **A `splice.py` anchor copied out of `peek.py`'s output carries the wrong indentation, and the
   refusal names a line in a different function.** `peek.py` prefixes every line with its number, so
   a continuation line inside a `format!` reads as though indented by whatever is left after the
@@ -1515,7 +1514,7 @@ is why" — is this file.
   the real column instead of counting the printout: `awk 'NR>=A && NR<=B { match($0, /[^ ]/);
   print NR": indent="RSTART-1 }' <file>`. Splice is all-or-nothing, so this costs one retry and
   never a half-written file — but the message points at the wrong place, which is the expensive
-  half.
+  half. [until: reviewed 2026-09-06]
 - **A handoff item can predict that the spec is silent about something the spec declares, because
   § 18's enums are in a fenced block rather than in a members table.** This item arrived saying
   "the spec holds no `ColumnType` at all — so the fourteen cases are `rule:core-classes/db-column-types`'s type map read
@@ -1525,16 +1524,16 @@ is why" — is this file.
   cites the type (`->type(): ColumnType`) without defining it, so a reader who greps the table
   region finds the reference and concludes there is no definition. One `grep -rn ColumnType docs/`
   is the whole check and it costs one call — and here it also refuted the fallback, since § 9 is a
-  map to *values* and cannot induce `Json` or `Other`.
+  map to *values* and cannot induce `Json` or `Other`. [until: reviewed 2026-09-06]
 - **`python tools/peek.py --locate` swallows the windows in the same call.** A call written as
   `peek.py A.rs:120-160 B.rs:@sym --locate OTHER` prints the `file:line` anchors for `OTHER` and
   *nothing else* — the two windows are silently dropped rather than printed above them, so it reads
   as "those files have no such region" and costs a second call to re-issue them. Ask for anchors in
-  their own call, or read the windows in their own; do not mix the two modes.
+  their own call, or read the windows in their own; do not mix the two modes. [until: reviewed 2026-09-06]
 - `python tools/peek.py --locate` cannot be mixed with read targets in one call. `--locate` takes
   every remaining word as a symbol, so `peek.py a.rs:120-160 --locate foo` prints locations for
   `foo` and never reads `a.rs` — it does not warn, it just answers the smaller question. Ask for
-  bodies in one call and anchors in another.
+  bodies in one call and anchors in another. [until: reviewed 2026-09-06]
 - **`git commit -F .agent-tmp/<name>.txt` can silently commit a *previous* session's message.**
   `.agent-tmp/` is not cleaned between sessions and every session reaches for the same obvious file
   names, so a `-F` naming one you have not written this session succeeds — with someone else's
@@ -1544,7 +1543,7 @@ is why" — is this file.
   regenerated for `Core\Db\ErrorKind`. Write the message file in the same call sequence you commit
   it in, and never mask a `git commit`'s exit status. `session.py --wrap` is immune — it writes and
   commits from one validated file — so this only bites the hand-rolled commit for something the
-  wrap did not name, such as the reference leg's regenerated `docs/novis.md`.
+  wrap did not name, such as the reference leg's regenerated `docs/novis.md`. [until: reviewed 2026-09-06]
 - **A hand-rolled tool's `--help` is worth one look before you trust its absence.** `splice.py`
   used to answer `--help` with three usage lines that omitted its own `--dry-run`, and
   `check-migration.py` ignored `--help` and ran the full inventory instead, hiding `--report`,
@@ -1552,21 +1551,21 @@ is why" — is this file.
   their docstring's flag block and exit 0, so `--help` is the cheap first move again — but the
   argparse tools are the ones that get this for free, and anything hand-rolled can drift the same
   way. `loop.py`'s `tools_still_load` probes every changed `tools/*.py` with `--help` and reads a non-zero
-  status as a broken script, so a new hand-rolled tool must exit 0 on it.
+  status as a broken script, so a new hand-rolled tool must exit 0 on it. [until: reviewed 2026-09-06]
 - **A `peek.py` window's first printed line is a bad `splice.py` anchor when it lands inside a doc
   comment.** The window starts at the line you asked for, and a wrapped `///` sentence almost always
   began on the line above it — so the anchor you copy starts mid-sentence (`/// declares § 8's
   ...`), reads perfectly, and `splice.py` refuses it with "the anchor matches for its first 7
   character(s)" because it silently prefixed the `It` that lives at the end of the previous line.
   The tell is that the reported prefix length is tiny while the block looks verbatim. Ask for one
-  line more than you think you need whenever the region is prose.
+  line more than you think you need whenever the region is prose. [until: reviewed 2026-09-06]
 - **`splice.py`'s `OLD` block wants the file's real indentation, and `peek.py`'s gutter is easy to
   mis-count by exactly four.** `peek.py` prints `<line number><two spaces><the line>`, so a line inside
   a nested block reads as if it were one level deeper than it is — copying the visual indent out of a
   four-level-deep `match` arm produced two blocks that were four spaces wrong and the whole 12-block
   patch was refused. The refusal is precise and cheap to act on (it names the target line and the
   character the anchor stopped at), so the fix is to read the message rather than re-derive the block;
-  but the *count* is worth knowing up front: subtract two from the column `peek.py` shows, not six.
+  but the *count* is worth knowing up front: subtract two from the column `peek.py` shows, not six. [until: reviewed 2026-09-06]
 - **Editing a `MethodDoc` rewrites `docs/novis.md`, not `docs/reference/`, and the wrap will not have
   the file yet.** `verify.py`'s reference step regenerates the book in place, so a session that
   reworded one card left `docs/novis.md` dirty after `session.py --wrap` had already committed
@@ -1575,7 +1574,7 @@ is why" — is this file.
   Name `docs/novis.md` in the `## commit:` that carries the card. And if you do commit it by hand
   afterwards, write a **new** message file: `.agent-tmp/` holds other sessions' leftovers, so a
   plausible-looking name like `novis-msg.txt` already exists and `git commit -F` will take it
-  silently — the message that landed was a previous session's, about a different class.
+  silently — the message that landed was a previous session's, about a different class. [until: reviewed 2026-09-06]
 - **A `loop-goal.toml` `command` check reports its *first line of stderr* as the failure, and a
   tool that opens with a `warning:` buries the real one there.** Stage 1's `a warm-cache CLI start
   stays under 10ms` was reported for three runs as `exit 1 -- warning: nvs.exe is 41.7 h older than
@@ -1587,7 +1586,7 @@ is why" — is this file.
   its stderr before believing the one line the ledger shows. `target/release/nvs.exe` is now built
   by the driver (`Goal.release_cli`, in the same background thread as the release test profile), so
   a stale one has stopped being the answer — but nothing else in the loop produces it, and
-  `bench.py` deliberately builds nothing.
+  `bench.py` deliberately builds nothing. [until: reviewed 2026-09-06]
 - **`peek.py --locate` answers `NOT FOUND` for a target it cannot take, and that reads exactly like a
   name which is nowhere in the tree.** `--locate` takes *symbols* and paths; hand it a
   `path:re:pattern` target — the form the same tool accepts happily in its ordinary mode — and it
@@ -1596,14 +1595,14 @@ is why" — is this file.
   so the answer read as "this acceptance check names a test nobody ever filed anywhere" while the
   name was sitting at `docs/agent/loop-goal.toml:2764` the whole time. Mix the two forms in one call
   and only the `re:` targets lie, which is the part that makes it convincing. Use `--locate` for
-  symbols and an ordinary `peek.py` target or a `grep` for a pattern.
+  symbols and an ordinary `peek.py` target or a `grep` for a pattern. [until: reviewed 2026-09-06]
 - **`peek.py --locate` swallows the positional targets in the same call.** A call spelling both —
   `python tools/peek.py a.rs:120-160 b.rs:@sym --locate postgres_of QueryWatch` — prints the anchor
   list and *nothing else*, so the two windows you asked for silently do not arrive and it reads as
   two empty files rather than as a mode that took over. The fix is one call for the windows and, if
   you still need bodiless anchors, a second for `--locate`; usually the `re:` target form
   (`file.rs:re:fn postgres_of`) is what you actually wanted, because it prints `file:line` *and* the
-  matching line in the same call as the windows.
+  matching line in the same call as the windows. [until: reviewed 2026-09-06]
 - **A `loop-goal.toml` check can name a test that no crate can host *yet*, and the two reasons look
   identical from the driver's report.** Stage 2's `-p nvs-types` check named three tests and all
   three "did not run": one because it was filed against the wrong crate (a capability question, and
@@ -1611,37 +1610,29 @@ is why" — is this file.
   all — `Env` carries no capability set), and two because the feature under them does not exist
   (`Core\Db::open`, blocked on a registry type for a shape parameter — `nvs_stdlib::db` known gap
   1). The first is a filing bug you fix in one edit; the second is an open item and staying open is
-  correct. Read the *known gaps* of the crates named before assuming either.
+  correct. Read the *known gaps* of the crates named before assuming either. [until: reviewed 2026-09-06]
 - `peek.py --locate` takes **symbols only**, and a file path in that list is read as one more symbol
   to search the whole repository for. `--locate a b c crates/nvs-stdlib/src/db/mod.rs` therefore walks
   every file in the tree looking for a symbol named after the path, which ran past a 120-second
   timeout in one measured call. The scoping flag is `--in <glob>`, as in
   `python tools/peek.py --locate postgres_of --in 'crates/nvs-stdlib/**/*.rs'`; a plain `grep -n` over
-  the one file you meant is cheaper still.
+  the one file you meant is cheaper still. [until: reviewed 2026-09-06]
 - A `[context] adrs` gap does not close by naming the section in the handoff item. `orient.py` slices
   that list and nothing else — it never reads an item's own ``rule:core-classes/db-transactions`` — so four consecutive
   sessions asked for § 7 and § 8 in the handoff, four re-sliced them by hand, and the list was
   unchanged the whole time. Edit `docs/agent/loop-goal.toml` in the session that discovers the gap;
-  `tools/loop.py` expects a session to rewrite that file and reloads it every iteration.
+  `tools/loop.py` expects a session to rewrite that file and reloads it every iteration. [until: reviewed 2026-09-06]
 - `python tools/peek.py --locate <sym>` silently drops every `path:target` given in the same call.
   The two forms look composable — one is "anchors, no bodies" and the other is "these regions" — and
   a call carrying both prints only the `--locate` lines, with no note that the rest was ignored. It
   reads as "those files hold nothing matching", which is the wrong conclusion to draw twice in one
-  session. Issue the `--locate` as its own call.
+  session. Issue the `--locate` as its own call. [until: reviewed 2026-09-06]
 - `python tools/peek.py` reads inside this repository only, and a path outside it answers "NO SUCH
   FILE" rather than an error you can act on — including a glob that resolved fine in the shell a
   call earlier. Reading a dependency's own source (`~/.cargo/registry/src/index.crates.io-*/<crate>-<version>/src/…`,
   found with `ls -d`) is the Read tool's job, and that is worth doing before writing a wire field by
   hand: `mysql_common` already models MariaDB's second capability word, `COM_STMT_BULK_EXECUTE` and
-  its indicator bytes, so a slice that looked like packet composition was a `.with_…` call.
-- **`python tools/adr.py --index` *prints* the regenerated index table; it does not write it.** The audit
-  reports `index table is stale -- regenerate with python tools/adr.py --index`, which reads as a fix-it
-  command, and running it emits 130-odd rows to stdout and changes nothing — so the audit still fails and
-  the rows are now in your context for nothing. The table in `docs/adr/README.md` is edited by hand: append
-  the one row for the ADR you just added, directly after the highest-numbered row. The other two findings a
-  new ADR raises (`no bullet in ground-rules.md`, `no row in README.md § *Where to look*`) are hand edits
-  too and say so plainly; only this one names a tool that looks like it will do the work. Budget four
-  edits per new ADR, then `--check` for `exit=0`.
+  its indicator bytes, so a slice that looked like packet composition was a `.with_…` call. [until: reviewed 2026-09-06]
 - **A `## plan-edit:` `--- old` fragment cannot span a run of two spaces in the field, and
   the refusal reads as if the words were wrong.** `session.py` runs its fragments through
   `normalize` — `" ".join(text.split())` — but `plan.py`'s `find_fields` joins the field's
@@ -1650,7 +1641,7 @@ is why" — is this file.
   a refusal quoting your fragment back word for word as the thing it could not find. Quote a
   shorter run on one side of the anomaly, or two runs as two pairs, rather than re-reading the
   field for a typo you did not make: `python tools/plan.py --get 'Open now'` prints the joined
-  field, and the double space is invisible in it.
+  field, and the double space is invisible in it. [until: reviewed 2026-09-06]
 - **A `loop-goal.toml` check can name a test whose crate is wrong because the *rule* is in another
   layer, not because the test was misfiled by hand.** Stage 4's `-p nvs-db` check listed § 9's four
   "rows that are rules" beside four real wire-level ones, and the four read as ordinary open work for
@@ -1660,7 +1651,7 @@ is why" — is this file.
   field, both `nvs_stdlib::db`. The tell is not the `args` here but the ADR section the check's own
   comment cites: a check citing § 6 under a crate that only implements § 9 is filed one layer down.
   Read the cited section before writing the test, and split the check rather than moving all of it —
-  half of that list really was `nvs-db`'s.
+  half of that list really was `nvs-db`'s. [until: reviewed 2026-09-06]
 - **When a `loop-goal.toml` check names a test the tree pins under a different name, grep the *drafted*
   name before deciding which side to fix — a `///` in a third file may already have voted.** Stage 5's
   check named `mariadb_uses_its_own_code_table_and_not_mysqls`, which `crates/nvs-db/src/maria.rs` had
@@ -1669,7 +1660,7 @@ is why" — is this file.
   drafted name too. Two references to one definition means renaming the *test* is the one edit that
   leaves nothing dangling, where correcting the check leaves a doc link pointing at a test that does not
   exist — and a broken link in a `///` is invisible to every gate this repo runs. One
-  `grep -rn '<drafted name>' crates/` is the whole decision.
+  `grep -rn '<drafted name>' crates/` is the whole decision. [until: reviewed 2026-09-06]
 - **The handoff's own next-group item can already be on disk, and the anchor it names is where you
   find that out.** Item 1 of a re-scoped group read "§ 8's `sql` is the fifth raw value and no throw
   carries it" and pointed into what is now `crates/nvs-stdlib/src/db/bind.rs`; the doc comment `orient.py` inlined
@@ -1679,7 +1670,7 @@ is why" — is this file.
   because the handoff is written by the session that held the context and not by the tree, and a
   re-scope can carry an item forward without re-checking it. `git log --oneline -S '<the symbol the
   item is about>'` settles it in one call, which is cheaper than the four greps that establish it a
-  fact at a time; then say "already landed" in the next handoff, or the third session pays again.
+  fact at a time; then say "already landed" in the next handoff, or the third session pays again. [until: reviewed 2026-09-06]
 - **A `loop-goal.toml` check name can be a *conjunction*, and then it reports one open item where
   there are two — one landed, one unwritable.** Stage 7's
   `mysql_and_mssql_reset_through_the_protocol_and_lose_theirs` was the driver's reported failure for
@@ -1690,7 +1681,7 @@ is why" — is this file.
   `sp_reset_connection` to lose it through. A conjunction reports `did not run` while *either* half is
   missing, so the landed half earns nothing and the report cannot say which one is the work. The tell
   is the `_and_` in the name: grep each half's claim separately, and split the entry into one name per
-  half rather than waiting for a single test to become writable.
+  half rather than waiting for a single test to become writable. [until: reviewed 2026-09-06]
 - **Proving a framed `crates/nvs-stdlib/tests/queue.rs` case actually *runs* costs one filtered
   `cargo test`, not a `db-matrix.py` leg — but `NVS_DB_MATRIX_CA` has to be an absolute path.** The
   six variables are the ones `tools/db-matrix.py` sets, their values are in `tests/db/compose.yaml`
@@ -1700,7 +1691,7 @@ is why" — is this file.
   *relative* `NVS_DB_MATRIX_CA` resolves against the crate directory the test binary runs in rather
   than the repository root, and the failure blames the wrong thing twice over: the first case
   panics inside `open` with a bare `NotFound`, and every case after it reports `Once instance has
-  previously been poisoned` from `schema`, which reads as a broken fixture rather than a bad path.
+  previously been poisoned` from `schema`, which reads as a broken fixture rather than a bad path. [until: reviewed 2026-09-06]
 - **A handoff item can already be on disk, green, and still be the next item — one `--locate` says
   which.** Stage 7's `mssql_resets_through_sp_reset_connection_and_loses_its_cache` was named as the
   next slice by the session that had already written it, and `loop-goal.toml`'s comment beside the
@@ -1710,7 +1701,7 @@ is why" — is this file.
   `grep` of the file you were about to write it into. What the session then owes is the *comment*,
   in both `docs/agent/loop-goal.toml` and the live goal's twin under `docs/agent/goals/`: they carry
   the same check text, and fixing one leaves the other saying the feature does not exist. (It was
-  `5-database.toml` when this happened; that entry has since been retired and the file is gone.)
+  `5-database.toml` when this happened; that entry has since been retired and the file is gone.) [until: reviewed 2026-09-06]
 - **Taking a C dependency fails `--check-c-deps` on more crates than you took, and one of them is
   never compiled.** Adding `rusqlite` to `nvs-db` put *two* `links =` crates in the shipped graph:
   `libsqlite3-sys`, which is the real one, and `sqlite-wasm-rs`, which `libsqlite3-sys` names only
@@ -1720,7 +1711,7 @@ is why" — is this file.
   where the wasm crate got linked in; write it a `no-native-code` row naming the target gate, the
   way `defmt`'s row names Cargo's one-version token. And run `python tools/gen-attribution.py`
   after, not only `--check-c-deps`: new crates in the graph change `THIRD-PARTY-LICENSES.txt`, and
-  that is a second gate with a separate failure.
+  that is a second gate with a separate failure. [until: reviewed 2026-09-06]
 - **The oracle PHP build will tell you an extension's real signatures, and a migration row written
   from memory instead is wrong in a way no test catches.** `docs/spec/02-php-migration.md` owes one
   audited row per PHP name, and `pgsql`'s 120 arrived as a bare name list from
@@ -1732,14 +1723,14 @@ is why" — is this file.
   came from, and it is one call against ten guesses. The other half of getting a row right is
   cheaper still — `check-migration.py` validates every `Core\X::y` a cell names against
   `01-core-library.md` and fails the audit on a spelling that does not exist, so copy the member
-  spellings out of an already-green sibling section rather than inventing them.
+  spellings out of an already-green sibling section rather than inventing them. [until: reviewed 2026-09-06]
 - **A `$` in a `wsl.exe -- bash -lc '…'` command string does not reach WSL, so `$?` reads 0 and a
   measured exit code is a fiction.** Single quotes do not protect it:
   `wsl.exe -- bash -lc 'false; echo "CODE=$?"'` prints `CODE=0`, and a `for f in a b; do … $f …; done`
   runs with `$f` empty every iteration. Three valgrind runs read as green that way before the same
   command, written `valgrind … && echo OK || echo FAILED`, read red — and the sweep those runs were
   meant to clear had been failing for the whole run. Use `&&`/`||` or `if cmd; then … fi`, never `$?`;
-  and put the varying part in `xargs -I@`, which substitutes before any shell sees it.
+  and put the varying part in `xargs -I@`, which substitutes before any shell sees it. [until: reviewed 2026-09-06]
 - **The loop driver runs the `tools/loop.py` it read when its leg started, so a fix to the
   acceptance sweep itself cannot go green until the *next leg*.** Session 0004 gave the valgrind
   sweep an anchored `tools/valgrind.supp` and moved its error exit code from 1 to 97, verified
@@ -1750,7 +1741,7 @@ is why" — is this file.
   `True`-detail bullet above and a different cause — there the check was wrong, here the tree was
   right and the *process* was old. The tell is a failure whose text the current source could not
   emit; when that happens the check is unclosable from inside the run, so say so in the handoff
-  instead of spending the session re-fixing what is already fixed.
+  instead of spending the session re-fixing what is already fixed. [until: reviewed 2026-09-06]
 - **A goal document can state a dependency's graph as fact, and only `cargo tree -i` knows.** Goal 6's
   § *Two things every session must hold* said `hyper` at `default-features = false, features = ["http1",
   "server"]` depends "on no `tokio`". It does: 1.11 takes `tokio` unconditionally at `features = ["sync"]`
@@ -1761,7 +1752,7 @@ is why" — is this file.
   `~/.cargo/registry/src/*/<crate>-<version>/Cargo.toml` says whether that parent's dependency is
   `optional` or feature-gated. Do both *before* writing the manifest comment that claims the graph, because
   the comment is what the next reader trusts instead of re-measuring — and check the goal's own prose
-  against the answer, since a claim there is what the acceptance data was named after.
+  against the answer, since a claim there is what the acceptance data was named after. [until: reviewed 2026-09-06]
 - **The item `orient.py` hands you can already be on disk, uncommitted, from a session that died
   before its wrap.** Session 0006 wrote `crates/nvs-config/src/mount.rs` and its 385-line test file,
   declared `E0621` in `nvs-diagnostics`, and moved the acceptance check's name onto `-p nvs-config` —
@@ -1770,7 +1761,7 @@ is why" — is this file.
   green on the first `cargo test`. Read the untracked and modified files your item names *before*
   writing a line of it: finishing and committing a dead session's slice is the cheapest session there
   is, and re-deriving it would have thrown that work away and left two designs for one rule. The tell
-  is a `0 commit(s) | (no status written)` line for the previous session in `.loop/log.md`.
+  is a `0 commit(s) | (no status written)` line for the previous session in `.loop/log.md`. [until: reviewed 2026-09-06]
 - **A "next free diagnostic" carried in a handoff is per *band*, and a band is by compiler phase —
   the next number in the list is not the next number for your rule.** This session's item named
   `E0503` for a `nvs-types` refusal; `E05xx` is IR and codegen, and both types bands were full
@@ -1779,7 +1770,7 @@ is why" — is this file.
   had set `E08xx` aside and recorded that `rule:types/callable-signature` claimed `E0800` for work that has not landed. So
   when `brief.py`/`orient.py` reports every band FULL for your phase, read that README section rather
   than taking a neighbouring band's number: the decision exists, and one `grep -n E0500
-  docs/adr/README.md` finds it.
+  docs/adr/README.md` finds it. [until: reviewed 2026-09-06]
 - **A program leg for a *later stage*'s fixture fails from the day the goal starts, and
   `orient.py`'s banner asks you to close it first.** `examples/upload.nvs`'s frozen `want` is `rule:http-server/an-upload-is-received-only-through-files`'s whole surface — `Core\Request::files()`, a `Part`, `saveTo` — and `crates/nvs-stdlib` has
   no `request.rs` at all, so no Stage 4 session can close it. It has been the reported failure for
@@ -1788,7 +1779,7 @@ is why" — is this file.
   not start with `0`. The tell is that the stdout it *got* is a deliberate placeholder rather than
   an error: the fixture compiles and runs, it just answers the question the stage that wrote it
   could answer. Check whether the surface the `want` names exists before reading "CLOSE THIS FIRST"
-  as this session's work.
+  as this session's work. [until: reviewed 2026-09-06]
 - **`splice.py` refuses an anchor that matches more than once, and a run of identical test call
   sites is exactly that.** Adding one argument to `nvs_server::serve_on_this_core` meant editing
   seven call sites in `crates/nvs-server/src/serve.rs`'s test module whose argument lists are
@@ -1798,7 +1789,7 @@ is why" — is this file.
   *text* unchanged and turned seven edits into two: the helper that builds one, and the one case
   that built its own. When an edit's anchor is not unique, the cheap fix is usually a change of
   shape that removes the edit rather than a bigger anchor — and here it also kept the function off
-  `clippy::too_many_arguments`, which an eighth parameter would have tripped.
+  `clippy::too_many_arguments`, which an eighth parameter would have tripped. [until: reviewed 2026-09-06]
 - **A handoff item's "this does not exist yet" can be contradicted by the anchor window
   `orient.py` printed directly beneath it, and the check costs nothing.** This session's item said
   `crates/nvs-config/src/tree.rs:366` is `Http`, "which has no `cookies` field" — and the code
@@ -1808,7 +1799,7 @@ is why" — is this file.
   *live*; when they disagree the anchor is right by construction. Read the window the pack already
   gave you before believing the sentence above it — that is not a `grep`, it is scrolling up. The
   existing bullets about a stale `loop-goal.toml` comment are the same failure one file over, and
-  the tell is the same: the claim is about the *tree*, so something in the pack already answers it.
+  the tell is the same: the claim is about the *tree*, so something in the pack already answers it. [until: reviewed 2026-09-06]
 
 - **A crate doc's `ADR NNNN § N` citation can be off by one, and the handoff will copy it forward
   rather than check it.** `nvs-config`'s `tree.rs` cited `rule:http-server/cors-is-closed-until-origins-are-named` for `[http.headers]`, § 3 for
@@ -1819,7 +1810,7 @@ is why" — is this file.
   `[http.headers]` defaults and the cookie and override rules", which is the shifted reading. One
   `peek.py <adr>:"re:^### "` prints every heading in a few hundred bytes and settles the whole
   file's citations at once; do it before writing a doc comment that cites two or more sections of
-  one ADR.
+  one ADR. [until: reviewed 2026-09-06]
 - **An anchor window — `orient.py`'s inlined code, or a `peek.py` line range — carries no `impl`
   header, so the receiver type in it is a guess.** The handoff named "the reader is `Ctx::body`" with
   one anchor into what is now `crates/nvs-runtime/src/ctx/inbound.rs`, and the pack inlined that
@@ -1828,18 +1819,18 @@ is why" — is this file.
   `error[E0599]: no method named 'body' found for '&mut nvs_runtime::Ctx'` after a full rebuild —
   they are `Inbound`'s, whose `impl` opens 58 lines above the window. `peek.py --locate` answers the
   symbol, not its owner, so it does not close this either. One `grep -n '^impl ' <file>` filtered to
-  the lines around the anchor costs nothing and says which type you are actually adding a call to.
+  the lines around the anchor costs nothing and says which type you are actually adding a call to. [until: reviewed 2026-09-06]
 - **`python tools/peek.py --locate` and window targets in one call: only the locate prints.** A
   call carrying both `A.rs:120-160` windows and `--locate sym …` answered the five symbols and
   dropped the two windows without saying so, so the two questions cost two calls instead of the
-  one the tool exists to save. Ask for anchors or for code, never both in the same call.
+  one the tool exists to save. Ask for anchors or for code, never both in the same call. [until: reviewed 2026-09-06]
 - **A `cargo-named` check reports only the *first* of its missing names, so one "did not run" can be
   four tests of work.** The driver's line after session 0008 named
   `a_connection_future_is_driven_by_block_on_over_the_parking_stream` and nothing else, and the
   `nvs-server (the connection seam)` check it came from lists four; all four were unwritten. One
   `grep -rn` over the whole `tests` list is what said so, and it costs one call. Size the item from
   the check's list rather than from the report's one name — and the same grep is what separates a
-  name the tree pins elsewhere from one nobody has written.
+  name the tree pins elsewhere from one nobody has written. [until: reviewed 2026-09-06]
 - **A `loop-goal.toml` check whose comment says a slice is unlanded can be right, and then the
   cheapest triage is the *crate's own manifest plus one grep for the surface*.** The
   `nvs-server (the peer, and who may speak for it)` check named
@@ -1851,7 +1842,7 @@ is why" — is this file.
   which four doc comments would go stale the moment it was. The sibling bullets are about checks
   that are *misfiled*; this is the other outcome, and it is worth knowing that the same one grep
   settles it either way. Its second use is the edit list: a rule stated as unlanded in four module
-  docs is four edits, and the grep that found the gap is also the one that finds them.
+  docs is four edits, and the grep that found the gap is also the one that finds them. [until: reviewed 2026-09-06]
 - **A `loop-goal.toml` check can name a crate that *depends* on the surface and still cannot host the
   test, and `Cargo.toml` will not settle it — what settles it is what kind of test that crate's
   `tests/` already hold.** `rule:security/response-body-is-one-typed-member`'s `each_body_member_sets_its_own_content_type` was filed under
@@ -1863,7 +1854,7 @@ is why" — is this file.
   The tell is in the ADR row itself: half of § 4 is a refusal (a compiler question) and half is an
   effect on the response head (the members' own crate), so one check naming both was always two.
   `sed -n '1,20p'` of any existing test in the named directory answers this faster than the manifest
-  does.
+  does. [until: reviewed 2026-09-06]
 - **`peek.py --locate` and a `file:re:pattern` target do not mix, and the mismatch reports `NOT
   FOUND` rather than an error.** In `--locate` mode every argument is read as a *symbol name*, so
   `python tools/peek.py --locate carrier "crates/nvs-host/src/*.rs:re:OutputSink"` answered
@@ -1871,7 +1862,7 @@ is why" — is this file.
   mentions `OutputSink`", and `isolate.rs` mentions it eight times including the two lines the whole
   slice turned on. The tell is the target being echoed back verbatim with `NOT FOUND` after it,
   where a real miss prints the file and the pattern separately. Keep `--locate` in a call of its
-  own; a call that wants bodies and anchors at once wants two calls or no `--locate` at all.
+  own; a call that wants bodies and anchors at once wants two calls or no `--locate` at all. [until: reviewed 2026-09-06]
 - **A failing acceptance check can name a feature with no foundation anywhere in the tree, and
   then the cheapest triage is one `grep -rn` for the ADR number across `crates/*/src`.** The
   `nvs-server (match once, and the two answers)` check names four `rule:routing/the-servers-match-dispatches-nothing` tests; the grep found
@@ -1883,7 +1874,7 @@ is why" — is this file.
   the third outcome, and the tell is that the grep finds the surface *named* in a module doc's
   "known gaps" rather than implemented or absent. Two of the four names additionally cannot be
   hosted by `-p nvs-server`: `Core\Request::route()` is `nvs-stdlib`'s and that crate is in
-  neither the dependencies nor the dev-dependencies of `crates/nvs-server/Cargo.toml`.
+  neither the dependencies nor the dev-dependencies of `crates/nvs-server/Cargo.toml`. [until: reviewed 2026-09-06]
 - **A `loop-goal.toml` check can name a *status* an ADR forbids anything to send, and the sentence
   that settles it is in the section the check itself cites.** Stage 5's
   `no_methods_for_a_path_is_404_and_some_is_405_with_allow` is filed `-p nvs-server` and reads as
@@ -1895,7 +1886,7 @@ is why" — is this file.
   `OPTIONS`, and § 8 names a *dispatcher* rather than the server as the enforcer. So the two answers
   are a computation the table performs and the *program* sends. The general shape: when a check name
   contains a wire-level effect (a status, a header, a close), find who is allowed to emit it before
-  writing the test — the crate in `args` is where a session will otherwise put it.
+  writing the test — the crate in `args` is where a session will otherwise put it. [until: reviewed 2026-09-06]
 - **A `loop-goal.toml` check filed in a crate that may not host it has a *third* repair, and it is
   the one to reach for when the ADR forbids the *effect* rather than the crate lacking a
   dependency: move the check, and let the test name that effect as what a sender does with the
@@ -1907,7 +1898,7 @@ is why" — is this file.
   lives beside the walk (`crates/nvs-runtime/src/routes.rs:506`) and writes the sender's arithmetic
   out as a closure the crate does not otherwise contain. The check moves to the crate that owns the
   computation, and a comment on the moved block records why the wire-level spelling in its name is
-  not a claim about who sends it.
+  not a claim about who sends it. [until: reviewed 2026-09-06]
 - **`cargo fmt --all` mid-session re-prints every file you had already read.** The harness sees each
   file the formatter rewrote as "changed on disk since you last read it" and pastes its current
   content back into the context: one run after four edits reformatted two files and cost about 8k for
@@ -1916,7 +1907,7 @@ is why" — is this file.
   re-print once, inside the gate, and never a second run; the `formatted N file(s)` line is the tell
   that it happened. Write formatted code and there is nothing to re-print. The same trap applies to
   any tool that rewrites a file you have open: `session.py --wrap` is safe only because the session
-  ends there.
+  ends there. [until: reviewed 2026-09-06]
 - **A `loop-goal.toml` check whose name is a conjunction can have its two halves in two *crates*, and
   the tell is that one half names a compile-time fact.** § 7's
   `a_mounts_captures_reach_the_handler_as_tainted_values` was filed `-p nvs-server`, and the door's
@@ -1927,7 +1918,7 @@ is why" — is this file.
   crate *can* host a test; this one asks it of each half separately, because a name with an "as …"
   or an "and …" in it is often two claims that landed a crate apart. Splitting the check is the
   repair, and the second half then names where the qualifier is declared rather than where the value
-  was carried.
+  was carried. [until: reviewed 2026-09-06]
 - **A `loop-goal.toml` check can name a test for a feature no ADR has decided yet, and then the
   first slice is the ADR rather than the test.** Stage 5's `a_session_is_never_backed_by_the_local_cache_tier`
   read as an ordinary open item; `Core\Session` had no module in `nvs-stdlib`, no `[session]` block
@@ -1940,7 +1931,7 @@ is why" — is this file.
   nothing — it is to decide the thing, which for a `[context]`-listed goal is pre-authorized under
   the goal's own § *Standing decisions*. One `grep -rn` for the class name across `crates/` and
   `docs/spec/` costs less than the triage, and a `Verification` section naming `M8:` for a check
-  filed in an M7 goal is the sentence that says the ADR is the missing half.
+  filed in an M7 goal is the sentence that says the ADR is the missing half. [until: reviewed 2026-09-06]
 - **A `loop-goal.toml` check can name a test its crate may not *write*, and `Cargo.toml` naming the
   right dependency does not settle it — read the `[lints]` block underneath.**
   `an_after_response_tree_outlives_its_connection` was filed `-p nvs-server`, whose manifest does
@@ -1953,7 +1944,7 @@ is why" — is this file.
   chose `deny` instead. The second half of the same triage: the check assumed the *connection* held
   the request's context, and it never does — a request is an isolate, its tree lives on the task
   `nvs_host::isolate` spawned, and the connection only joins it. When a check's crate cannot host
-  the fixture, ask which crate holds the state the claim is about before moving it.
+  the fixture, ask which crate holds the state the claim is about before moving it. [until: reviewed 2026-09-06]
 - **`python tools/verify.py` can fail on a *concurrent session's* half-written file, and the repair
   is never to format it.** `--wait` came back on a `cargo fmt` diff in
   `crates/nvs-config/tests/secret.rs`, a file this session had not opened; `git status --porcelain`
@@ -1964,13 +1955,13 @@ is why" — is this file.
   land their unfinished work under this session's commit message. What is honest instead is the same
   checks scoped to the crates you touched — `cargo fmt -p A -p B -- --check`, `cargo test -p A -p B`,
   `cargo clippy -p A -p B --all-targets` — plus one line in the handoff saying the full gate was not
-  reached and why. `git status --porcelain` is the whole triage and it is one call.
+  reached and why. `git status --porcelain` is the whole triage and it is one call. [until: reviewed 2026-09-06]
 - **`peek.py --window` is a global flag, not a per-target one, so a second `--window` later in the
   same argv is an argparse error that discards the whole call.** `peek.py A.rs:re:x --window 40
   B.rs:re:y --window 8` exits 2 with `unrecognized arguments`, having read nothing — the cost is a
   round trip, and the reflex it teaches is the wrong one (split into two calls, which is what this
   tool exists to stop). Pick the one window the widest target needs and let the narrow ones overshoot;
-  an extra twenty lines of a file you were going to open anyway is cheaper than the second call.
+  an extra twenty lines of a file you were going to open anyway is cheaper than the second call. [until: reviewed 2026-09-06]
 - **A `## plan-edit:` section takes exactly ONE `--- old`/`--- new` pair, and a second one makes the
   tool report the *first* fragment as missing — with a hint that looks like your fragment and is
   not.** The wrap skeleton's own comment says "Repeat the pair per place the field moved", so three
@@ -1982,7 +1973,7 @@ is why" — is this file.
   makes it worse. Collapsing to one pair applied first time with the same `--- old` text that had
   just been rejected, which is what identifies the parser rather than the fragment. So: one pair per
   wrap, and if the field's byte ceiling needs a trim to afford an addition, make the trim part of
-  the *same* contiguous run rather than a second pair.
+  the *same* contiguous run rather than a second pair. [until: reviewed 2026-09-06]
 - **`peek.py --locate` is a *mode*, not an addition: a call that also names file windows
   prints only the anchors.** `python tools/peek.py crates/nvs-runtime/src/host.rs:1-120
   --locate Host upgrade` answered with the `file:line` list alone and said nothing about
@@ -1990,7 +1981,7 @@ is why" — is this file.
   is one call spent to learn that two questions do not share this call. The two forms are
   each a whole call's worth on their own (`--locate` takes as many symbols as you have,
   windows take as many targets), so ask anchors in one and bodies in the next; do not try
-  to save the round trip by mixing them.
+  to save the round trip by mixing them. [until: reviewed 2026-09-06]
 - **A `loop-goal.toml` check can name a test for a feature the tree's own module doc says is
   *blocked*, and then the check is right, the doc is the specification, and the slice is the one the
   doc already named.** `rule:concurrency/an-upgrade-is-spawn-shaped` and `rule:concurrency/a-connection-is-a-loop`'s check named
@@ -2004,7 +1995,7 @@ is why" — is this file.
   already done the design, so the check is asking for the implementation rather than for a filing
   correction. Read the module doc's own gap section before reaching for `Cargo.toml`: it answers
   "impossible", "unwritten" and "decided but unlanded" in one call, and only the third looks like a
-  misfiling from outside.
+  misfiling from outside. [until: reviewed 2026-09-06]
 - **A `python - <<'PY'` regex over a whole source file is AGENTS.md rule 1's breach with a different
   spelling, and it fails the same way a `sed -i` does: silently, far from where you were looking.**
   A non-greedy `plan\((.*?)\)\s*\.expect_err\(` written to repair six call sites in a test module
@@ -2015,7 +2006,7 @@ is why" — is this file.
   of it: the other half is that a pattern has no idea what a Rust item is. Repairing a repeated API
   mismatch is what `Edit` with `replace_all` is for when the string is *literal and unique*, and what
   `tools/splice.py --patch` is for when it is not. If a script really is the only shape, make every
-  replacement an exact literal with an asserted count — never a regex with `.` in it.
+  replacement an exact literal with an asserted count — never a regex with `.` in it. [until: reviewed 2026-09-06]
 - **A `[context] adrs` entry of `§3a` printed § 3, silently, and the pack looked complete.**
   `orient.py`'s `normalize` split a leading number off its letter, so `3a` became the key `3 a` —
   and *`### 3. A mode selects defaults ...`* normalizes to `3 a mode selects ...`, which starts
@@ -2023,7 +2014,7 @@ is why" — is this file.
   same regex is in `peek.py`'s `heading_span`, so `peek.py <adr>:"### 3a"` gave the wrong section
   too and confirmed nothing. Both now read `^(\d+[a-z]?)`. The general shape: a section slice that
   comes back plausible is not evidence the selector matched — check the heading line the slicer
-  printed against the one you asked for, because every other check in the loop trusts that pack.
+  printed against the one you asked for, because every other check in the loop trusts that pack. [until: reviewed 2026-09-06]
 - **A chain-switch failure in `.loop/log.md` numbers its check in the *folded* goal, not in the goal
   file you will open — and the reason may already be fixed.** The run that closed goal 6 ended on
   `chain: 21 carried-gaps's acceptance list is not runnable -- check 252, the durable gap list exists
@@ -2036,7 +2027,7 @@ is why" — is this file.
   `goal-switch.py` prints on its first line, to get the index in the file you can edit. The other
   half is that a by-hand commit had fixed it an hour before the session read the ledger: run
   `python tools/chain.py --check`, which validates every queued entry in one call, before spending
-  anything on what the message says.
+  anything on what the message says. [until: reviewed 2026-09-06]
 - **A test you are about to write may already have its name fixed by `loop-goal.toml`, and the
   handoff item will not carry it.** Stage 2's item said "an outstanding key carries its owner in a
   column" and named the file and the line; the goal's own `[[check]]` for that stage named three
@@ -2048,7 +2039,7 @@ is why" — is this file.
   synthetic input and the stale direction is asserted separately, which is more than the item asks
   for. The sibling bullets are all about a check that names a test the tree cannot host; this is the
   cheap opposite — before writing a new test for a goal item, `grep -n -A8 'stage = "<the stage>"'
-  docs/agent/loop-goal.toml` and take the names from the `tests = [` block.
+  docs/agent/loop-goal.toml` and take the names from the `tests = [` block. [until: reviewed 2026-09-06]
 - **A goal's § *Standing decisions* can be right about the ruling and wrong about the reason it
   gives, and a frozen test name can carry the wrong reason with it.** Goal 21's item 5 forbids a
   `net.connect` wildcard because that capability "is asked of a *resolved address*
@@ -2061,7 +2052,7 @@ is why" — is this file.
   outlives the goal file that seeded it. Write the doc from what the code does — here the real reason
   is `rule:http-server/allow-url-pins-the-address`'s pinned address, which bounds what one *named* host may turn out to be and says
   nothing about how many names a pattern admits — keep the frozen test name, and say in the handoff
-  that the wording was wrong rather than the decision.
+  that the wording was wrong rather than the decision. [until: reviewed 2026-09-06]
 - **A module doc's known gap can give its reason as "`docs/agent/loop-goal.md` § *Standing
   decisions* keeps it out of scope", and that reason expires at the next goal switch.**
   `crates/nvs-stdlib/src/router.rs`'s gap 3 said `Core\Router::match` was deliberately absent and
@@ -2071,7 +2062,7 @@ is why" — is this file.
   only a stale one, and it was the thing standing between a frozen acceptance line — a route capture
   a CLI program reads — and the member that could produce it. One `grep -n` of `loop-goal.md` for
   the name settles it, and it is worth doing before treating any gap note as a decision: a reason
-  that names a goal file is true for one goal, unlike one that names an ADR.
+  that names a goal file is true for one goal, unlike one that names an ADR. [until: reviewed 2026-09-06]
 - **A `loop-goal.toml` `cargo-named` check's *other* test names are the specification for the
   design question the ADR left open.** Stage 6 named four tests over `rule:errors/log-write`'s log envelope,
   and the one that decides the design is `a_cli_runs_record_is_still_level_and_msg_alone`: § 6
@@ -2081,7 +2072,7 @@ is why" — is this file.
   compares a `Ctx::buffered()` line against `floor::uncaught`'s byte for byte. The goal's own
   § *Standing decisions* had already ruled the same way ("the two-key envelope a CLI run
   produces"). Read a check's whole `tests` list as one sentence before writing the first of them:
-  the names bound each other, and a sibling name is cheaper than re-deriving the bound from the ADR.
+  the names bound each other, and a sibling name is cheaper than re-deriving the bound from the ADR. [until: reviewed 2026-09-06]
 - **A `loop-goal.toml` check filed in a crate that cannot reach the surface has a *fourth* repair,
   and it is the one to reach for when the crate owns the *loop* but not the *store*: leave the check
   where it is and make the surface a parameter the binary fills.** Stage 7's three fleet-lease tests
@@ -2095,7 +2086,7 @@ is why" — is this file.
   crate owns the *decision* and a crate it may not name owns only the *data* the decision reads —
   then adding the dependency really would put the test one layer above its rule, and inverting it
   puts the test exactly on it. `nvs-cli` names both sides, which is not a coincidence and is the
-  same reason it is `Fires`'s only implementor.
+  same reason it is `Fires`'s only implementor. [until: reviewed 2026-09-06]
 - **A bare ADR number in `[context] adrs` prints the *In short* and nothing else**, so a manifest
   reading `adrs = ["0042"]` under a comment saying *0042 whole* is a goal whose every session
   re-slices by hand the sections its work lives in. `orient.py`'s `run_adrs` calls `slice_head` when
@@ -2105,7 +2096,7 @@ is why" — is this file.
   to write — one entry per section (`"0042 §2"`, `"0042 §3"`) *beside* the bare number, never the
   bare number alone. The same field's other failure is loud rather than silent and had stood just as
   long: `"0017 §2"` warned *renamed or renumbered* in every pack, because `rule:config/an-edit-reaches-the-next-request-without-a-restart` has no numbered
-  sections at all — its `## Decision` is one unnumbered block, so no `§` selector could ever match it.
+  sections at all — its `## Decision` is one unnumbered block, so no `§` selector could ever match it. [until: reviewed 2026-09-06]
 - **A `## Next group` anchor is a line number, and the session that wrote it usually went on editing
   that same file.** This goal's item named `crates/nvs-cli/src/cache.rs:1141` for `unit_for` and
   `:1755` for `lowered`; they are at 1194 and 1918, and the two windows `orient.py` inlined were
@@ -2114,14 +2105,14 @@ is why" — is this file.
   so trust the *symbol name* in the item and not the code printed beside it: `python tools/peek.py
   --locate unit_for lowered` re-derives every anchor in the group in one call, which is cheaper than
   reading one window that turns out to be somebody else's. Resolving the next group's anchors after
-  the last commit rather than before it is the other half of the fix.
+  the last commit rather than before it is the other half of the fix. [until: reviewed 2026-09-06]
 - **`python tools/peek.py <targets> --locate <symbol> ...` prints the anchors and silently drops the
   targets.** A call opening with three `file:locator` targets and ending in `--locate temp_dir
   temporary_dir` answered with two `file:line` lines and nothing else — no error, no mention of the
   three regions that were asked for, so it reads as "those files had no match" rather than as "that
   argument was never honoured". `--locate` is a *mode*, not an extra question: ask for anchors in one
   call and for regions in another, and never mix the two, or the expensive half of the call is the
-  half that is discarded.
+  half that is discarded. [until: reviewed 2026-09-06]
 - **A `peek.py` `re:` target over `docs/agent/loop-goal.toml` sweeps every stage in a 4,400-line
   file, and the word you searched for is prose in most of them.** One `re:alive|orphan|liveness`
   looking for stage 3's checks matched inside `[context]`, in six unrelated stage comments and in a
@@ -2130,7 +2121,7 @@ is why" — is this file.
   rather than on the word — `re:stage = "3` for a stage's own blocks, `re:pub fn <name>` for a
   definition — or read the window once you know the line, since `orient.py` already printed the line
   number of the check that opened the session. A bare word is only cheap in a file where that word is
-  rare.
+  rare. [until: reviewed 2026-09-06]
 - **A `loop-goal.toml` check can be filed in the crate whose *name* matches the subcommand, and the
   subcommand lives in `nvs-cli`.** Stage 3's `serve_boot_removes_a_dead_owners_entry_and_skips_a_live_one`
   was filed `-p nvs-server`, which reads right — `nvs serve` boots a server — and is wrong: `nvs serve`
@@ -2141,14 +2132,14 @@ is why" — is this file.
   that answers it — and it is quicker than the sibling bullets' manifest and `[lints]` checks, both of
   which *pass* here: nvs-cli does depend on nvs-server, which is exactly why the name resemblance
   survives every test but this one. Triage a check naming a `nvs <verb>` behaviour by where the entry
-  point is, not by what the crate may do.
+  point is, not by what the crate may do. [until: reviewed 2026-09-06]
 - **A `loop-goal.toml` acceptance list is not all under `crates/` and `tests/` — `benches/abi-probe/`
   hosts a whole leg of it.** Sanity-checking the current goal's list by grepping `fn <name>` over
   `crates tests` reported 19 of its 610 named tests missing, all of them phantom: `perf_guards.rs`
   and `invariants.rs` under `benches/abi-probe/tests/` are the ABI and cost-class guards, they are a
   workspace member the goal names like any other, and they are the only tests in the tree outside
   those two roots. Grep the repository root, or you will file a slice to write a test that has
-  existed since M2.
+  existed since M2. [until: reviewed 2026-09-06]
 - **A goal's own new fixture blocks the *entire* acceptance sweep until it exists — and then masks every
   cargo check until it passes.** `tools/loop.py`'s `begin()` refuses before anything is built if a `files`
   entry is not on disk (`tools/loop.py:2159`), so goal 9's first two sessions each ran **1 check** and the
@@ -2158,7 +2149,7 @@ is why" — is this file.
   goal's own `cargo-named` stages still never run. Until that fixture passes, the frontier is the handoff's
   `## Next group` and `verify.py` rather than the driver's report, and an acceptance line naming the goal's
   own fixture every session is the ordinary state and not a regression. Write it anyway: while it is
-  absent, the ~30 program fixtures that would otherwise still be guarding the floor do not run either.
+  absent, the ~30 program fixtures that would otherwise still be guarding the floor do not run either. [until: reviewed 2026-09-06]
 - **A new goal's TOML is validated by `python tools/chain.py --check` and by nothing else, so run it
   before you believe the file.** Two mistakes look identical to every other tool and to a reading eye:
   a `[[check]]` `kind` the driver does not know (the set is `cargo-named`, `command`, `contains`,
@@ -2166,7 +2157,7 @@ is why" — is this file.
   check runs), and a `kind = "command"` naming a tool that a *later* goal builds. `--check` catches the
   first and cannot catch the second, so prefer a `cargo-named` check against a test that exists today
   over a `command` against a tool that does not — goal 28's `tools/owners.py` is the standing example
-  of the latter, and the test behind it (`every_outstanding_key_names_an_owner`) is the former.
+  of the latter, and the test behind it (`every_outstanding_key_names_an_owner`) is the former. [until: reviewed 2026-09-06]
 - **An ADR citation has four spellings in this tree, and anything that rewrites one has to know all
   four.** The obvious two are an inline link (`[ADR 0092](/docs/adr/0092-….md)`) and a bare
   `ADR 0092`. The two that break a naive rewriter are a *reference-style* `[ADR 0095]` carrying a
@@ -2176,25 +2167,25 @@ is why" — is this file.
   On top of those, a section reference is a *list*: `§§ 2-3`, `§§ 3, 5`, `§§ 1, 3 and 4`. The docs
   migration's rewriter matched one section number and stranded the rest as prose in 33 of 804
   sites, and none of it failed a gate, because the token it emitted resolved fine and only a reader
-  would ever notice. `grep -nE '§§|\[ADR [0-9]{4}\][^(]'` finds the awkward ones before you start.
+  would ever notice. `grep -nE '§§|\[ADR [0-9]{4}\][^(]'` finds the awkward ones before you start. [until: reviewed 2026-09-06]
 - **A bulk edit that shortens Rust lines makes `cargo fmt` dirty, so format before you verify.**
   Replacing a 48-character ADR link with a 23-character `rule:` token unwraps doc comments and
   `panic!` arguments that rustfmt had wrapped correctly, so a transaction right in every other way
   would have failed on fmt alone; `verify.py`'s first step now formats the tree itself and names the
   files. `cargo fmt --all -- -l` is that same listing by hand, for when you are recording originals
-  for a rollback before the gate runs.
+  for a rollback before the gate runs. [until: reviewed 2026-09-06]
 - **Writing a tree file through Python's text mode rewrites every line ending on this checkout.**
   `Path.read_text` maps `\r\n` to `\n` and `write_text` writes back what it was handed, so a script
   that changed one word in 250 files reports 250 modified files with an empty `git diff`. Harmless
   in a commit — git normalizes to LF in the index, so the blobs match and the files drop out — but
   it buries the real change in `git status`, and it makes any "restore the original bytes" rollback
-  a lie. Open with `newline=""` in both directions.
+  a lie. Open with `newline=""` in both directions. [until: reviewed 2026-09-06]
 - **A generated index that reads prose line by line truncates every hard-wrapped sentence.**
   `rules.py`'s ground-rules index took the first line of a fragment and cut it at 220 characters,
   so a sentence whose period was on the next line came out mid-clause with no terminator — "and
   errors travel in its". Join the paragraph before you take a sentence out of it, and skip a fenced
   block rather than reading its first line as prose. The same function has to reduce a `rule:`
-  citation to its id, or the index shows a raw token where the reader expects a name.
+  citation to its id, or the index shows a raw token where the reader expects a name. [until: reviewed 2026-09-06]
 - **An optional group in a rewriting regex is currency the engine will spend to satisfy a guard
   further along — write it `?+`.** `(?:\([^)]*\))?` holding a markdown link's URL got shed from the
   match twice, by two different lookaheads: a `(?!\s*:)` meant to exclude a reference-link
@@ -2207,7 +2198,7 @@ is why" — is this file.
   keeping: **a script that rewrites the tree needs patterns for the shapes of damage, not only a
   check that the result still parses.** `migrate-docs.py`'s `DEBRIS` list is that, and it is what
   caught the third instance before it touched 728 files. A validity check is structurally blind to
-  a rewrite that names the wrong thing.
+  a rewrite that names the wrong thing. [until: reviewed 2026-09-06]
 - **Never scan re-wrapped prose line by line for anything holding a space.** `orient.py` and
   `brief.py` fill a plan field at width 100, so a change *anywhere earlier in the field* reflows
   every line after it and the wrap lands wherever it lands. `migrate-docs.py`'s loss test read a
@@ -2219,29 +2210,29 @@ is why" — is this file.
   extra cost is nil and the alternative is a result that depends on a column. The same applies to
   anything else that consumes a digest rather than a source file: `file.rs:NN` anchors, `§ N`
   spellings, a `Core\Foo::bar` split at its `::`. Line-oriented reading is only safe for things a
-  line *is* — a heading, a table row, an indent.
+  line *is* — a heading, a table row, an indent. [until: reviewed 2026-09-06]
 
 ## Running things
 
 - **Verification is one call:** `python tools/verify.py` — build, fmt, test, the two `.nvst` trees and
   clippy in order, stopping at
   the first failure, ~10 lines when green. `-p <crate>` scopes it, `--fast` drops clippy and fmt for a
-  mid-work check, and every step's full output lands in `.agent-tmp/verify-<step>.log` either way.
+  mid-work check, and every step's full output lands in `.agent-tmp/verify-<step>.log` either way. [until: reviewed 2026-09-06]
 - **The whole acceptance test in one command:** `python tools/loop.py --goal-only` (both legs plus the
-  valgrind sweep, naming the first failure), or `--list` to see it without running it.
+  valgrind sweep, naming the first failure), or `--list` to see it without running it. [until: reviewed 2026-09-06]
 - **One case, quickly:** `nvs test tests/conformance/core/str-case-members.nvst`, or
-  `nvs test tests/ --filter str-` over the tree.
+  `nvs test tests/ --filter str-` over the tree. [until: reviewed 2026-09-06]
 - **A scratch `.nvs` under `.agent-tmp/` run with `nvs run` is the fastest way to find out whether a shape
   lowers**, and is worth doing before writing a batch of cases around it. A scratch file is top-level
   statements, like `examples/*.nvs` — there is no `Main::main` entry point, and a `for` header takes
-  *expressions* only, so the loop variable is declared on the line above it.
+  *expressions* only, so the loop variable is declared on the line above it. [until: reviewed 2026-09-06]
 - **`nvs run` printing the right output and exiting **127** is a heap corruption at teardown**, not a
   missing command: Windows reports a double release that way, with nothing on stderr. So check `$?` on a
   scratch run rather than reading the output and moving on — a refcount bug is otherwise completely silent
   until the WSL valgrind leg catches it. `try { … } catch (Throwable $e) { … $e->message … }` **does**
   lower at file scope now, which is what `tests/conformance/core/time-datetime-is-a-civil-time-in-a-zone.nvst`
   and both `Date`/`TimeOfDay` cases write; the class-method shape
-  `tests/conformance/lang/a-lossy-conversion-throws.nvst` uses is no longer needed for that.
+  `tests/conformance/lang/a-lossy-conversion-throws.nvst` uses is no longer needed for that. [until: reviewed 2026-09-06]
 - **A leak whose "definitely lost" size is `16 + strlen(a literal in the probe)` is a temporary abandoned
   on a throwing edge, and the allocating stack carrying no `nvs_` frame at all is the confirmation.** That
   is the whole recognition test, and it is worth knowing because bisecting to it costs an hour. Most of
@@ -2250,14 +2241,14 @@ is why" — is this file.
   probe that `catch`es a throw from a `Core` member taking a `string` is therefore *green* now and is a
   fair leak check. What is still open is narrower and named in that field's own doc comment (an argument
   being **transferred** when a later one throws) plus the producers that still release inline — a
-  normalized subscript key, a `match` subject.
+  normalized subscript key, a `match` subject. [until: reviewed 2026-09-06]
 - **A field or element read off a *temporary* is a fresh producer, not an aliasing read.**
   `$h->peek()->name` and `$m->rows()["0"]` each used to leak one value per run; neither does now,
   because `lower_property_access`/`lower_index` retain what they read and release the base, and
   `Lowering::aliasing_read` therefore recurses into both a property access's and an index's own base
   and answers `false` for these shapes. So a consumer must not retain such a read a second time —
   every retain decision in `nvs-ir` already goes through `aliasing_read`, and a new one that reaches
-  for the syntactic `is_aliasing_read` instead is how the double-retain gets back in.
+  for the syntactic `is_aliasing_read` instead is how the double-retain gets back in. [until: reviewed 2026-09-06]
 - **`verify.py` executes the `.nvst` trees, so nothing else needs running before the wrap.** Its
   `conformance` and `differential` steps are `target/debug/nvs test tests/<tree>` — the very
   command `tools/loop.py`'s acceptance check judges a session by — and their two lines are the
@@ -2268,7 +2259,7 @@ is why" — is this file.
   opposite — `cargo test`'s `conformance_coverage.rs` asserts only that a case *exists* naming each
   registry member, so a rewritten case body could leave every verify step green and fail at
   `loop.py` a stage later. That hole is what the two steps close. While *writing* a case, one at a
-  time is still fastest: `./target/debug/nvs.exe test <path>`, under a second.
+  time is still fastest: `./target/debug/nvs.exe test <path>`, under a second. [until: reviewed 2026-09-06]
 - **A before/after measurement is worth a `git stash`, and the base half is what makes it an
   A/B rather than two readings** — stash, `cargo build --release -p nvs-cli`, `bench.py <cases>
   --reps 9`, pop, rebuild. Item 22's base run reproduced the ledger's own sweep to within 0.02×
@@ -2276,34 +2267,26 @@ is why" — is this file.
   is indistinguishable from a quiet machine. Two costs to budget for: the two release rebuilds
   are about two minutes each, and the harness re-prints **every stashed file it has seen** into
   the session as an on-disk change, twice — that was about 16k of context for four files. A
-  `git worktree` avoids the re-print and pays a full cold build instead, which is worse.
+  `git worktree` avoids the re-print and pays a full cold build instead, which is worse. [until: reviewed 2026-09-06]
 
 - **`bench.py` says when the machine was busy, and it means it.** A sweep whose min and median
   differ by more than 25% on `00-baseline` prints a note, and since the baseline is subtracted
   from every row, that run's ratios are all shifted — one such sweep read `20-method-dispatch`
   at 0.67× and the clean re-run put it back at 0.71×. Re-run before quoting, and do not reason
-  about a 5% row move from a sweep carrying that note.
+  about a 5% row move from a sweep carrying that note. [until: reviewed 2026-09-06]
 - **A `#[global_allocator]` in a test target must be `#[cfg(debug_assertions)]`.** `nvs-runtime`
   installs its pooled allocator under `all(not(test), not(debug_assertions))`, so a second one in a
   `nvs-stdlib` test binary links fine under `cargo test` and fails to link under
   `cargo test --release` with *"cannot define multiple global allocators"*. `verify.py` runs the
   debug profile, so the guard runs; the release profile compiles it out.
   `crates/nvs-stdlib/tests/allocation_policy.rs` is the worked example, and counting allocations is
-  worth the setup — it turned "I think this allocates once" into a test.
+  worth the setup — it turned "I think this allocates once" into a test. [until: reviewed 2026-09-06]
 
 - **A release build relinking the runtime moves a bench row by about ±6%, with no code change.**
   `06-string-split-join`'s work figure read 87.3 ms and 93.3 ms across two builds whose `join` was
   byte-identical, and `04-string-format` moved 82.4 to 86.9 with nothing of its own touched. So an
   A/B on a single row is only worth reading when the delta is well past that, and the *median* is
-  the statistic to quote. Re-run the base binary once before believing a small regression.
-- **`python tools/verify.py` is not deterministic, and the one test that makes it so is a real
-  use-after-free rather than a flake to re-run past.** `-p nvs-codegen --test throwing`'s
-  `an_uncaught_throw_leaves_the_status_and_the_message_on_the_context` fails about 7% of runs inside
-  `verify.py` and 22 of 40 run on its own, either as a wrong `ctx.pending()` message or as a bare
-  *"misaligned pointer dereference"* panic in `crates/nvs-runtime/src/object.rs:1220` with nothing
-  naming the throw. So a red `verify.py` in a session that touched no Rust is worth **one** re-run to
-  identify — and if that is the test, it is inherited: say so and leave it to the slice that owns it,
-  because a second green run does not mean the tree is clean.
+  the statistic to quote. Re-run the base binary once before believing a small regression. [until: reviewed 2026-09-06]
 - **A `Ctx` that outlives the `Unit` whose code it ran reads freed class descriptors, and the crash lands
   nowhere near the cause.** Compiled code bakes each `ClassDesc`'s *address* in as a constant, so an
   exception object left on the context points into the `Rc<ClassTable>` the `Unit` owns and nothing else
@@ -2314,13 +2297,8 @@ is why" — is this file.
   a flake is that `nvs run` never hits it — `nvs-cli` installs the table. **`nvs_codegen::Unit::install_in`
   is now the one spelling and its doc comment is the rule**: call it before running any of a unit's code,
   whether or not you care about `catch`. A harness that builds a `Ctx`, runs a unit and then reads anything
-  off the context is the shape to watch for.
+  off the context is the shape to watch for. [until: reviewed 2026-09-06]
 
-- **`tools/leak-check.sh` used to report a fixture's own non-zero exit as a leak.** `examples/uncaught.nvs`
-  ends in an uncaught throw and so exits 1 by design, which under valgrind's `--error-exitcode=1` was
-  indistinguishable from a definite leak — the `definitely lost: 0 bytes in 0 blocks` line printed right
-  beside the "failure" was the only tell. It uses 97 now, a status no Novis program produces, so a throwing
-  fixture is a fair leak subject.
 - **`target/release/nvs.exe` is whatever the *last* session built, and rebuilding it costs two
   minutes for a verdict the debug binary already gives.** A `.nvst` case a stale binary fails may
   simply predate it — one session's was two hours and four commits old and reported
@@ -2332,13 +2310,13 @@ is why" — is this file.
   built, and it is the *same* binary `tools/loop.py`'s acceptance check judges you by, so it is the
   more faithful answer as well as the cheap one. `git status --short` showing the case unmodified
   says the failure was not *caused* here, which is the neighbouring bullet's rule; only a current
-  binary says it is not real.
+  binary says it is not real. [until: reviewed 2026-09-06]
 - **A scratch `.nvs` still needs its `<?nvs` tag, and without one the panic names a construct you did
   not write.** A file under `.agent-tmp/` that opens straight into `echo` lowers as a single
   `InlineHtml(0:0..139)` statement and dies in `nvs-ir`'s control-flow slice listing every statement it
   *does* lower — which reads as "`echo` is unsupported" rather than "this file is all text". The
   `.nvst` harness supplies the tag for you inside `--FILE--`, so the omission only ever bites on a
-  scratch run, which is exactly where a session is trying to find out whether a shape lowers.
+  scratch run, which is exactly where a session is trying to find out whether a shape lowers. [until: reviewed 2026-09-06]
 - **`wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh …` fails from the Bash tool and works from
   PowerShell.** Git Bash rewrites any argument that looks like a POSIX path before `wsl.exe` ever
   sees it, so the documented command arrives as `bash: C:/Program Files/Git/mnt/…/tools/
@@ -2353,7 +2331,7 @@ is why" — is this file.
   § *Fuzzing and callgrind on Windows* spells the command itself; this is only what the shell in
   front of it does to the argument. **Five sessions wrote this bullet, one each.** That is what
   `python tools/playbook.py --dupes` now exists to catch: an append-mostly file cannot notice that
-  it already knows something, and every copy is charged to every session afterwards.
+  it already knows something, and every copy is charged to every session afterwards. [until: reviewed 2026-09-06]
 - **A `holes.py` site guarded by a predicate over the same list it matches is an
   internal-consistency check, and the reachable holes are its *neighbours*.**
   `closed_literal_set`'s `other => panic!` was on the worklist and owed a
@@ -2364,66 +2342,66 @@ is why" — is this file.
   aborted in `erase_checked_ty` (`lower/mod.rs`, naming a representation rather than the
   feature), and `$x as ?"a"` in `convert_or_null`. Four scratch files under `.agent-tmp/`
   cost less than reading either function, so run the item's spellings **before** designing
-  anything — the panic a worklist item names is often not the one that fires.
+  anything — the panic a worklist item names is often not the one that fires. [until: reviewed 2026-09-06]
 - **A new `Core` member owes four things**, and the third is the one that bites: the registry row, the
   `nvs_helper!` body, an arm in that module's own `address()` (a miss is a *runtime* panic naming the
   symbol, not a link error), and a `.nvst` case that calls it — `crates/nvs-stdlib/tests/conformance_coverage.rs` fails
   `cargo test -p nvs-stdlib` without one. An instance member is covered by a case writing `->name(`.
   [conventions.md](conventions.md) writes all four out; `python tools/brief.py`'s *anchors* block
-  resolves each spelling to a file and line.
+  resolves each spelling to a file and line. [until: reviewed 2026-09-06]
 - **A spec §§ 1-12 member owes a *fifth* thing: striking its line from
   `crates/nvs-stdlib/tests/spec-members-outstanding.txt`.** That file is the outstanding-member ratchet
   `crates/nvs-stdlib/tests/spec_registry_coverage.rs` reads, and the test fails on a **stale** line — one naming a member
   that is registered now — exactly as loudly as on an unregistered member the file does not list. So the
   failure you see after landing a member is not a regression; it is the list telling you it did not
   shrink. Its keys are `§<section> <the spec's own Member-cell spelling>`, which is why `§1 chunk` and
-  `§2 chunk` are two different lines.
+  `§2 chunk` are two different lines. [until: gone crates/nvs-stdlib/tests/spec-members-outstanding.txt]
 - **A `Core` instance's slots hold only values Novis already holds, so a member wanting native mutable
   state has to accumulate instead** — there is no destructor to free a `sha2::Sha256` context with, and
   `digest 0.10` cannot serialize one into a slot. The COW-correct read/write of a slot that holds an
   array is `identity_store::borrow`/`edit`/`replace`, which are generic over `(receiver, index, class,
   member)` despite that module being named for § 9's store; `instance::set_slot` is the raw write and
-  `instance::slot` the borrowed read. `Core\Hash\Stream` is the worked example.
+  `instance::slot` the borrowed read. `Core\Hash\Stream` is the worked example. [until: reviewed 2026-09-06]
 - **A new domain module is `mod`, not `pub mod`, so its `CLASS`/`NAME` are `pub(crate)`.** The
   workspace warns `unreachable_pub`, and half of `nvs-stdlib`'s modules are `pub mod` while the newer
   half is not — copying `uuid.rs`'s `pub const NAME` into a privately-declared module is a warning at
-  build time, before `verify.py` says anything. `objmap.rs:36` is the shape to copy.
+  build time, before `verify.py` says anything. `objmap.rs:36` is the shape to copy. [until: reviewed 2026-09-06]
 - **A `Core` symbol that is not a member breaks `every_registered_member_has_an_implementation_address`.**
   `nvs_stdlib::symbols()` used to be exactly one entry per `CLASSES` member, and that test asserts the
   count — so a constructor symbol from `registry::CONSTRUCTORS`, or anything else chained in beside the
   members, has to be added to the sum on the test's right-hand side in the same edit. The failure is a
-  bare `left: 213, right: 211` in `-p nvs-stdlib --lib`, with nothing naming the symbol.
+  bare `left: 213, right: 211` in `-p nvs-stdlib --lib`, with nothing naming the symbol. [until: reviewed 2026-09-06]
 - **A `CoreTy::Array(&CoreTy::Uint)` parameter receives `Tag::Int` elements**, so a helper that reads
   each one through `as_uint` alone answers the member's most obvious call site with a fatal. A written
   `[97, 98]` type-checks against `array<uint>` and stays int-tagged all the way into the helper — a
   scalar `uint` parameter does not have this problem, because the call site materializes the literal at
   the declared type. Read both tags (`str.rs`'s `code_point`), and probe the literal spelling in a
-  scratch `.nvs` before writing the case.
+  scratch `.nvs` before writing the case. [until: reviewed 2026-09-06]
 - **A registry row's arity and its helper's `args: [N]` are two numbers that must agree**, and an
   options bag flattens to one argument per option — so `round(float, {precision, mode})` is
   `args: [3]`. A **variadic tail is one argument**, whatever the call writes. **An instance member's
   receiver is argument slot 0 and is not in `params`**, so `plus(Duration)` is `args: [2]`. A mismatch is
-  an index-out-of-bounds panic at the first call.
+  an index-out-of-bounds panic at the first call. [until: reviewed 2026-09-06]
 - **A member on `registry::WRITTEN_CLASS_MEMBERS` takes one argument its row does not declare** — the
   class its call site wrote, in slot 0 — so its helper's `args: [N]` is `params` + 1 (+ the options bag's
   flattening). `crates/nvs-stdlib/tests/conformance_coverage.rs` looks for such a member spelled `Class::name<`, not
-  `Class::name(`, because that is what every call site writes.
+  `Class::name(`, because that is what every call site writes. [until: reviewed 2026-09-06]
 - **Registering a `Core` class narrows `Core`'s blanket trust for that name.** An unregistered
   `Core\X::y()` is waved through by `nvs_hir::members`; once `X` is in `registry::CLASSES`, an unknown
   member on it is a diagnostic. So adding a class can turn a fixture that "compiled" into one that
-  reports — which is the point, but check the fixtures that name it.
+  reports — which is the point, but check the fixtures that name it. [until: reviewed 2026-09-06]
 - **A new dependency owes three things**: a `[workspace.dependencies]` line with a comment saying why that
   crate, `cargo deny check`, and `python tools/gen-attribution.py` (`rule:packaging/the-third-party-notice-is-generated-never-written-by-hand` — the notice is committed). A
   license identifier new to the tree must be added to **both** `deny.toml`'s allow list and
   `tools/gen-attribution.py`'s `PREFERENCE`, in the same commit: that script fails if the two disagree.
-  The dependency *sweep* is a pass the user fires by hand (`rule:packaging/a-dependency-break-is-absorbed-never-forwarded`); never start it as a side effect.
+  The dependency *sweep* is a pass the user fires by hand (`rule:packaging/a-dependency-break-is-absorbed-never-forwarded`); never start it as a side effect. [until: reviewed 2026-09-06]
 - **A registry rule quoted by test name may not be that rule, or may not exist.** A handoff opened
   `rule:types/array-combination`'s slice with "`registry`'s own `a_union_is_only_ever_a_parameter` says a union cannot be a
   return type", which would have forced `array<mixed>` on four members. There is no test by that name —
   the real one is `a_union_option_excludes_null`, which restricts an **option's** type and
   nothing else, and `CoreTy::Union`'s doc says "legal in **either** direction" outright. One
   `grep -n 'fn [a-z_]*(' registry.rs` over the test names costs one call and settles it; designing around
-  a constraint that is not there costs a member's whole surface.
+  a constraint that is not there costs a member's whole surface. [until: reviewed 2026-09-06]
 - **Adding a row to `nvs_hir::errors::TREE` fails a test in `nvs-ir`, and the message names neither
   the tree nor the class you added.** Spec § 10's exception tree is restated as a hard-coded label
   list in `lower/mod.rs`'s `a_file_with_no_class_still_carries_every_compiler_declared_class`, so
@@ -2431,7 +2409,7 @@ is why" — is this file.
   `-p nvs-ir --lib` with nothing pointing back at the one-line `errors.rs` edit that caused it. The
   full roster a new § 10 class owes is: the `TREE` row, `nvs_runtime::ThrownClass`'s variant, its
   `name()` arm, its `ALL` entry, that assertion, and the spec's own tree drawing. Nothing else
-  restates it — `nvs_types::error_lib` seeds whatever `TREE` holds.
+  restates it — `nvs_types::error_lib` seeds whatever `TREE` holds. [until: reviewed 2026-09-06]
 - **A second *read* is not cheaper than the `memcpy` it saves, at `Core\Str` sizes.** Both obvious
   ways to make a result's length exact before writing it measured as losses, and each cost a full
   release build plus a bench sweep to find out: counting `Core\Str::replace`'s matches with a second
@@ -2440,7 +2418,7 @@ is why" — is this file.
   to **0.45×**. Both are arithmetic now and both rows are far above where they started. The rule to
   carry: reach for arithmetic or for a good capacity guess, never for "measure it first" — and if a
   member's length genuinely costs a data-structure walk to learn, as `Core\Str::join`'s does, leave
-  it alone. `crates/nvs-stdlib/src/str.rs` § *A result is written once* holds all of it.
+  it alone. `crates/nvs-stdlib/src/str.rs` § *A result is written once* holds all of it. [until: reviewed 2026-09-06]
 - **`Value::as_str_bytes` and `Value::as_text` make the *same* tag check, so a `from_utf8` after the
   first can never catch anything.** Both go through `Value::str_ptr`, which answers for `Tag::Str`
   alone — and since `Tag::Bytes` became its own row over the shared allocation, a `bytes` argument
@@ -2449,7 +2427,7 @@ is why" — is this file.
   which had quietly stopped being true. A defence a later ADR made unreachable reads exactly like a
   live one, and grepping for the *tag* it claims to catch is the cheap way to tell them apart.
   `crates/nvs-stdlib/tests/allocation_policy.rs`'s `no_member_revalidates_a_string_argument` is the
-  source scan that keeps the pair out now.
+  source scan that keeps the pair out now. [until: reviewed 2026-09-06]
 - **A roster probe binds its subject; it never `echo`s it, and it gets one panic per run.**
   Sweeping "which `BinaryOp` reaches this catch-all" over a scratch file, an `echo $subject`
   line goes through `concat_operand` first — so an `array<int>` operand reported *that*
@@ -2458,7 +2436,7 @@ is why" — is this file.
   at different rates: the checker reports every diagnostic in the file at once, so one run
   enumerates all of the *refused* shapes, while lowering panics on the first shape that gets
   that far, so each panicking shape costs its own edit-and-run. Put the shapes you expect to
-  be refused in one file and the ones you expect to lower in another.
+  be refused in one file and the ones you expect to lower in another. [until: reviewed 2026-09-06]
 - **`return $local;` retains nothing — it hands the binding's own reference out and tells
   `release_all_locals` to skip that name.** So any binding `release_all_locals` was never going to
   release anyway silently loses the retain: an `inout` parameter is a `Ty::Ref` cell, not
@@ -2469,7 +2447,7 @@ is why" — is this file.
   cost: an exit 127 is worth `git stash`-ing *before* you assume it is yours — this one predated
   the session that found it by a long way — and a `return`/`release_all_locals` exemption keyed on
   a **name** has to be re-read whenever a new binding *representation* enters `Env`, because the
-  exemption is only sound for a binding that would otherwise have been released.
+  exemption is only sound for a binding that would otherwise have been released. [until: reviewed 2026-09-06]
 - **A non-UTF-8 file in the PHP corpus failed `corpus_parse.rs` with no message at all**, and a real-world
   corpus has them — Symfony ships a class named with the latin-1 byte `0xA9` and a deliberately binary
   string fixture. `SourceMap::load` reads UTF-8 only, and the `unwrap_or_else(|err| panic!(…))` that used
@@ -2477,20 +2455,20 @@ is why" — is this file.
   per-file parser panics, so its message was swallowed: a bare `FAILED`, no summary line, no filename to
   chase. Such a file is now counted and named as `unreadable`. The durable trap is the shape rather than
   the file — **any `panic!` between that `set_hook` and its matching `set_hook(prev_hook)` reports
-  nothing**, so a new failure path in that loop must return a value the summary can print.
+  nothing**, so a new failure path in that loop must return a value the summary can print. [until: reviewed 2026-09-06]
 - **A `static` method's slot 0 is the *called class*, not an empty receiver.** Calling one from Rust
   (`nvs_runtime::abi::call` on a `Unit::function("Class::method")` address) with a `null` first slot
   segfaults inside the callee rather than faulting anywhere a message could be printed: `rule:statements/static-is-a-member-modifier`'s late
   static binding puts a `ClassDesc` there, `nvs_ir::lower` seeds it as `Param(0)` at `Ty::ClassDesc`, and
   `Value::class_desc` is the encoding a compiled call site uses. An instance method's slot 0 is the
-  receiver as expected, so the trap only shows up the first time native code calls a `static` one.
+  receiver as expected, so the trap only shows up the first time native code calls a `static` one. [until: reviewed 2026-09-06]
 - **A scratch `.nvs` file needs its `<?nvs` opener, and without one it "runs" and exits 0.**
   Everything before the opening tag is *inline HTML*, which lowers to an `echo` of the raw
   span — so a scratch file written without it prints its own source back and reports
   success, which reads as "the shape lowered" when nothing was compiled at all. Check that
   the output is the program's answer and not the program, or copy the first line from
   `examples/targets.nvs`. A `.nvst` case's `--FILE--` section has the same requirement and
-  is harder to get wrong, every case in the tree carrying it.
+  is harder to get wrong, every case in the tree carrying it. [until: reviewed 2026-09-06]
 - **A `FATAL` cannot be triggered mid-run by the safepoint, because the flag can only be set before
   the run and the script frame's own entry poll fires first** — which is why
   `a_fatal_is_never_caught` sees empty output. The stack limit is no better: `arm_stack_limit`'s
@@ -2498,7 +2476,7 @@ is why" — is this file.
   fatal tier. What *is* reachable from source, after locals are already live, is a
   `Fault::fatal` from `nvs-stdlib` — `Core\Arr::countBy` over an `array<float>` is one
   (`FATAL: Core\Arr::countBy expected an `int|string` key, got tag 4`). Reach for that when a test
-  needs a fatal to happen at a chosen point in a program rather than at its first instruction.
+  needs a fatal to happen at a chosen point in a program rather than at its first instruction. [until: reviewed 2026-09-06]
 - **Windows compiles none of a crate's `#[cfg(unix)]` half, so `verify.py` on this host is silent
   about it** — a Unix-only type can be green here and not compile at all. The check is one call,
   `wsl.exe -- bash -lc 'cd /mnt/<drive>/<repo> && CARGO_TARGET_DIR=/var/tmp/nvs-target-wsl cargo test -p
@@ -2507,7 +2485,7 @@ is why" — is this file.
   `NvsUnix` was being written: `mio::net::UnixStream::peer_addr` returns
   `std::os::unix::net::SocketAddr` and **`mio::net` re-exports no address type at all**, so the
   symmetric-looking `mio::net::SocketAddr` is `E0425` — invisible to every Windows leg, including
-  the acceptance check.
+  the acceptance check. [until: reviewed 2026-09-06]
 - **A thread-local whose `Drop` joins threads deadlocks on Windows, and the symptom is a test that
   runs its whole body and then never reports.** `blocking.rs`'s pool is reached from a free function
   through a `thread_local!`, exactly as the reactor is, so its `Drop` runs from a TLS destructor —
@@ -2517,7 +2495,7 @@ is why" — is this file.
   running is what says the binary hung rather than the build. Read the *last* line the test body
   produced before suspecting the code under test — everything after it is teardown. The fix is to
   detach (drop the `JoinHandle`s) and let the threads see a shutdown flag, which is what a pool that
-  may be torn down from anywhere has to do anyway.
+  may be torn down from anywhere has to do anyway. [until: reviewed 2026-09-06]
 - **A `loop-goal.toml` acceptance check reports the *first* diagnostic, not the tree's whole
   distance from passing.** Stage 6's check on `examples/isolate.nvs` has said
   `E0703 — 'spawn script' is not compiled yet` for several sessions, which reads as one construct
@@ -2525,7 +2503,7 @@ is why" — is this file.
   (`await` is not a constant that exists) and `E0101` on the very next line, because `await` is
   not a keyword — it is nowhere in `nvs-syntax`'s AST, so the example does not even parse past it.
   One `nvs check` of a failing `exact` check's own file, before planning the group that closes it,
-  is the difference between a group and a milestone.
+  is the difference between a group and a milestone. [until: reviewed 2026-09-06]
 - **A valgrind sweep that goes red on *every* fixture at once is one allocation on the startup path,
   and the stack names it in one call.** After the run that landed the script-resolver seam, all 33
   targets reported the same `56 bytes in 1 blocks are definitely lost`; a single
@@ -2535,14 +2513,14 @@ is why" — is this file.
   per process and inside `rule:programs/memory-priority`'s bound, so it reads like something to accept — but the sweep is
   all-or-nothing and a gate with one known-red fixture is a gate nobody reads. A `Box::leak` that
   exists only to widen a borrow to `&'static` has a scoped form that costs nothing
-  (`nvs_runtime::script::scoped`); reach for that before reaching for a suppression.
+  (`nvs_runtime::script::scoped`); reach for that before reaching for a suppression. [until: reviewed 2026-09-06]
 - **`Wake::current()` decides which of two isolate boundaries you just measured**, and a
   `#[test]` or a criterion `b.iter` has no scheduler under it, so it takes the inline one:
   `nvs_host::Isolate::run` outside a task runs the child on the caller's stack and reads about
   **80 ns**, against **0.44 us** for the real path with a stack of its own. Both figures are true and
   only the second is about the boundary a program crosses. The shape that fixes it is
   `benches/abi-probe/shared/isolate.rs`: build the scheduler and the task outside the clock, run the
-  timing loop *inside* the task body, and hand criterion a batch through `iter_custom`.
+  timing loop *inside* the task body, and hand criterion a batch through `iter_custom`. [until: reviewed 2026-09-06]
 - **A refcount cycle that is still live at exit is a `definitely lost` under valgrind and always will
   be — read the fixture before you read the runtime.** `examples/serialize.nvs` builds a `Ring` whose
   `$self` points at itself, and does it twice (the original and its decoded copy), so the sweep
@@ -2552,7 +2530,7 @@ is why" — is this file.
   says the same of an isolate's teardown drain), so a self-referential object's last reference is its
   own field and dropping the local frees nothing. The fixture now breaks both rings by hand before it
   ends. A leak stack whose top frame is an object allocation is the shape to suspect — grep the `.nvs`
-  for a cycle before opening the Rust.
+  for a cycle before opening the Rust. [until: reviewed 2026-09-06]
 - **A checkout on a non-system Windows drive grants `Authenticated Users` modify, so this repository's own
   `nvs.toml` fails `rule:config/ownership-is-the-trust-boundary`.** The check is right and the drive is what is unusual: such a drive's root
   carries that ACE by default and everything under it inherits it, which is the hole § 6 closes. Nothing reads
@@ -2562,13 +2540,13 @@ is why" — is this file.
   `icacls <path> /remove:g "<the account>"` for the checkout's `nvs.toml` **and** for its root itself, since the
   containing directory carries the same rule. Account names are localized — `icacls <path>` prints the
   spelling this machine uses. Ask the user before changing a machine's ACLs; a scratch tree under
-  `%TEMP%` passes the check as it is, which is where `crates/nvs-config/tests/trust.rs` works.
+  `%TEMP%` passes the check as it is, which is where `crates/nvs-config/tests/trust.rs` works. [until: reviewed 2026-09-06]
 - **`tools/bench.py --warm-start` measures `target/release/nvs.exe`, and nothing builds it.** Stage 5's
   acceptance check runs the bench with no `--nvs`, so on a machine that has only ever built debug it
   fails with `no Novis binary at …` rather than with a number — `cargo build --release -p nvs-cli`
   once is the fix, and the header of `bench.py` says why the harness refuses to build anything itself.
   A release binary older than `crates/` still measures: the staleness warning goes to stderr and the
-  check stays green, so a start-up regression can hide behind a binary nobody rebuilt.
+  check stays green, so a start-up regression can hide behind a binary nobody rebuilt. [until: reviewed 2026-09-06]
 - **`verify.py` in an interactive session fails at build with `failed to remove file … nvs.exe`
   (os error 5) while the unattended loop is mid-session.** The loop's own test run holds the binary,
   and cargo cannot replace a running exe on Windows — the error is contention, not a broken tree.
@@ -2576,7 +2554,7 @@ is why" — is this file.
   the finished slices *before* verifying so the loop's wrap cannot sweep them, and retry the verify
   when the binary frees; never kill the loop's `nvs.exe` to win the race. A docs-only session can
   also lean on `python tools/adr.py` and `python tools/reference.py`, which prove the docs side
-  without touching cargo.
+  without touching cargo. [until: reviewed 2026-09-06]
 - **`tools/try.py` cannot run a case that carries a second `--FILE <name>--` section, and what it
   prints reads as if the case itself were broken.** It hands everything after `--FILE--` to the
   compiler, so a `--FILE nvs.toml--` capability grant arrives as Novis source and the case answers
@@ -2586,7 +2564,7 @@ is why" — is this file.
   case with only the one file, `try.py` is still the right tool and is the cheap way to capture an
   `--EXPECTF-ERROR--` block: write the section as a placeholder, run it, and paste the diagnostic
   it prints — only the `error[...]` line and the `--> case.nvs:L:C` under it, since `%A` covers the
-  snippet between them.
+  snippet between them. [until: reviewed 2026-09-06]
 - **A new `Core` member trips two gates the five-edit recipe does not name, one of them in another
   crate, and each costs a whole verification run to find.** The first is
   `registry::tests::no_registry_card_cites_an_adr`: `nvs meta --json` ships a card verbatim to a
@@ -2598,7 +2576,7 @@ is why" — is this file.
   a failure whose message is about `rule:security/verification-does-not-launder` and JWT claims and reads like a regression in
   neither. Widening it is the point — the set is where a promise invisible from every other row
   gets looked at — but the edit is in `crates/nvs-types`, which a `-p nvs-stdlib` loop never
-  compiles.
+  compiles. [until: reviewed 2026-09-06]
 - **`tools/origin.py` exits the moment its stdin closes, so a backgrounded launch is already gone
   before you run the example — and the failure reads exactly like never having started one.** The
   shutdown protocol *is* stdin EOF (`origin.py`'s own module doc says so), which is what keeps a
@@ -2607,7 +2585,7 @@ is why" — is this file.
   `examples/http.nvs` then fails with the same `connecting to 127.0.0.1:8099 failed` line the
   no-origin case gives. Hold the pipe open — `tail -f /dev/null | python -u tools/origin.py` — or run
   it in the foreground of its own call. `tools/loop.py`'s `local_origin` holds a real pipe, which is
-  why the driver never meets this and a session checking the example by hand does.
+  why the driver never meets this and a session checking the example by hand does. [until: reviewed 2026-09-06]
 - **An isolate reads the configuration in force where it was *spawned*, so an `[[app]]` block keyed
   on the child's own path never reaches it.** `Ctx::isolate` clones the parent's `Request` — that is
   `rule:security/isolate-shares-nothing`'s overlay direction and its doc comment says so — and the snapshot was resolved once, for
@@ -2618,14 +2596,14 @@ is why" — is this file.
   whole block minus `root`/`entry`/`mode`/`origin` and merges it onto the global table, so making
   `[log]` per-application was one field on `nvs_config::tree::App` and nothing else. Grep for the
   field on `App` before assuming a block cannot carry a table — `deny_unknown_fields` is the only
-  thing refusing it.
+  thing refusing it. [until: reviewed 2026-09-06]
 - **A `.nvst` case run by hand needs `cargo build --bin nvs`, not `cargo build -p nvs`** — there is
   no package called `nvs` (the binary lives in `nvs-cli`), and `cargo build -p nvs` fails with
   *"package ID specification `nvs` did not match any packages"* while `target/debug/nvs.exe` stays
   at whatever commit the driver last built it from. The tell is the case failing on a member you
   just added with `E0405: ... has no method named ...`, which reads exactly like the row not
   landing rather than like a stale binary. `--bin nvs` resolves it in one call from anywhere in the
-  workspace.
+  workspace. [until: reviewed 2026-09-06]
 - **A `conformance_coverage` unreachability declaration has to be one line, and within eight of the
   `Fault::` it declares.** `every_error_path_is_asserted_or_declared_unreachable` looks for the literal
   `unreachable from source` in a single comment line inside `DECLARATION_WINDOW` — 8 — lines above the
@@ -2635,7 +2613,7 @@ is why" — is this file.
   produce the identical failure a site nobody has judged produces, so the message does not distinguish
   "you have not thought about this" from "you thought about it two lines too far up". Put the phrase
   whole, on its own line, immediately above the expression that constructs the `Fault` — a comment may
-  sit between a `match`'s closing brace and its `.map_err`, which is usually the only place that fits.
+  sit between a `match`'s closing brace and its `.map_err`, which is usually the only place that fits. [until: reviewed 2026-09-06]
 - **`nvs_helper!` takes exactly one function per invocation, and a second one inside the block fails
   naming the *next* member's doc comment rather than yours.** `crates/nvs-stdlib/src/cli.rs` reads as
   one long list of bodies, but each is its own `nvs_runtime::nvs_helper! { … }` block, so an added
@@ -2643,7 +2621,7 @@ is why" — is this file.
   that existing member's `///` line — "outer doc comments expand to `#[doc = "..."]`, which is what
   this macro attempted to match" — with nothing at all pointing at what you wrote. The macro's rule
   in `crates/nvs-runtime/src/abi.rs` is a single `fn`, no repetition. Close your block and open a new
-  one; that is also why the file has three `nvs_helper!` invocations rather than one.
+  one; that is also why the file has three `nvs_helper!` invocations rather than one. [until: reviewed 2026-09-06]
 - **`target/debug/nvs.exe run` on a three-line scratch file answers "can this reach lowering
   at all" in one call, and it is the cheap half of writing an unreachability proof.** A checker
   arm that returns a type without recording an `ExprInfo` is only safe while no compiled program
@@ -2651,7 +2629,7 @@ is why" — is this file.
   smallest program that would take it is not: a local `var $k = "email" as property<User>;` stops
   at `crates/nvs-ir/src/lower/mod.rs`'s known-gap panic, which names the type it will not lower —
   so the tree answered "no key value exists in a lowered program" before a line of the new arm was
-  written, and the doc comment that carries the proof could name the panic that enforces it.
+  written, and the doc comment that carries the proof could name the panic that enforces it. [until: reviewed 2026-09-06]
 - **A lowering arm that hands back its own operand owes a retain, and skipping it is a heap
   corruption that passes `nvs.exe run` and fails only under the conformance runner.** The exit
   status is `-1073740940` (`0xC0000374`, `STATUS_HEAP_CORRUPTION`) with no message and no Rust
@@ -2661,7 +2639,7 @@ is why" — is this file.
   the `as` node and treats the result as a value it owns — so any *new* arm that returns its
   operand instead of a fresh value has to repeat that `aliasing_read`/`emit_retain` pair. Copying
   `lower_class_reference`, which owes none, is the way to get this wrong: a descriptor is immortal
-  and a `string` is not.
+  and a `string` is not. [until: reviewed 2026-09-06]
 - **A stale `target/debug/nvs.exe` answers `E0405: Core\Foo has no member named bar` for a member
   you just registered, which reads as a registration bug rather than as a stale binary.** The
   class name still resolves — `QName::is_reserved_global_class` knows the `Core\` prefix without
@@ -2671,7 +2649,7 @@ is why" — is this file.
   "package ID specification `nvs` did not match any packages" and leaves the old executable in
   place; if that failure scrolled past, the `.nvst` run that follows looks like a code problem.
   Plain `cargo build` is the whole fix, and the driver's own build is why `orient.py` can promise
-  the binary is current *at the session's starting commit* and not after your first edit.
+  the binary is current *at the session's starting commit* and not after your first edit. [until: reviewed 2026-09-06]
 - **`cargo deny check` is not installed on this machine, and when it is, `advisories` fails on
   something that is not yours.** `cargo install cargo-deny --locked` takes about five minutes and
   neither Windows nor the WSL distro has it; the item that sends you there does not say so. When it
@@ -2680,7 +2658,7 @@ is why" — is this file.
   `Cargo.lock` since long before this goal and arrives through `rand`. A dependency slice owns
   `licenses`, `bans` and `sources`; read those three and say in the handoff that the fourth was
   already red, rather than either fixing an unrelated lockfile entry or reporting your own change as
-  the failure.
+  the failure. [until: reviewed 2026-09-06]
 - **A missing acceptance *fixture* holds the whole check list to one check, and the ledger's
   check count is the only tell.** `examples/cycles.nvs` was added to `loop-goal.toml`'s `files`
   list by the user along with stage 11, and until it existed `.loop/log.md` read
@@ -2689,7 +2667,7 @@ is why" — is this file.
   entry that is not on disk stops the run before any leg — so the 164 checks that would have
   passed never ran, and no regression anywhere else could have been reported for as long as it
   lasted. The failure message reads like the ordinary "an item is still open" state; the check
-  count does not. Treat any iteration reporting fewer than a dozen checks as a stopped list.
+  count does not. Treat any iteration reporting fewer than a dozen checks as a stopped list. [until: reviewed 2026-09-06]
 - **A `.nvst` case whose program branches on the platform is only half-run by
   `target/debug/nvs.exe`, and the other half is one call away rather than a CI round trip.**
   `/var/tmp/nvs-linux/debug/nvs` is a *built* Linux binary — the loop's own valgrind leg keeps it
@@ -2700,7 +2678,7 @@ is why" — is this file.
   `Core\Process\Result` cases start `/bin/sh` on two of CI's three runners and
   `C:\Windows\System32\cmd.exe` on the third, and a Windows-only run proves nothing about the branch
   two thirds of CI takes. Check the binary's date first — it is as old as the last valgrind sweep,
-  so it does not carry Rust you changed this session.
+  so it does not carry Rust you changed this session. [until: reviewed 2026-09-06]
 - **A `verify.py` failure in `nvs-host`'s deadline tests can be a measurement flake, and the tell is
   that the test passes when run alone.** `net::tests::a_read_past_its_deadline_reports_a_timeout`
   failed the full gate with `left: Some((Err(TimedOut), false))` — the timeout *was* reported, and
@@ -2712,7 +2690,7 @@ is why" — is this file.
   early one. It is fixed now (`Instant::now() >= deadline`, against the deadline the socket was
   given), but the shape recurs: a timing assertion must measure from the instant the clock was set,
   never from one taken after a scheduler hop. Before diagnosing a timing failure as a regression,
-  re-run that one test alone — it costs one call and tells the two apart.
+  re-run that one test alone — it costs one call and tells the two apart. [until: reviewed 2026-09-06]
 - **Write a goal's acceptance fixture red, but never write its `nvs.toml` block red.** The two look
   like halves of one slice and they are not. A `.nvs` fixture naming a member that does not exist yet
   fails at `E0405` and costs only itself, which is why the playbook's *A missing acceptance fixture*
@@ -2720,7 +2698,7 @@ is why" — is this file.
   does not know is different in kind: `deny_unknown_fields` sits on every struct in
   `crates/nvs-config/src/tree.rs`, so an unrecognised `[db.main]` fails at *boot*, for every program
   in the repository, and turns one red fixture into fifty. The config block belongs to the slice that
-  adds the struct that reads it.
+  adds the struct that reads it. [until: reviewed 2026-09-06]
 - **A `Core\Db` fixture's first failure is `nvs.toml` and its second is the trust anchors — neither is the
   server, and neither is visible from the crate you just landed.** `examples/transaction.nvs` compiled and
   ran, so the previous handoff recorded "a reachable Docker daemon is all that stands between it and the
@@ -2735,20 +2713,20 @@ is why" — is this file.
   Other(OtherError(CaUsedAsEndEntity))`, because that file's `certs` service copies `server.crt` to
   `ca.crt` and the leaf is therefore a CA certificate no trust store may accept as end-entity. The general
   shape: a fixture that talks to a server has three preconditions in three files nobody edits together, and
-  running it once is cheaper than reasoning about any of them. `target/debug/nvs.exe` is already built.
+  running it once is cheaper than reasoning about any of them. `target/debug/nvs.exe` is already built. [until: reviewed 2026-09-06]
 - **`docker` under Git Bash needs `MSYS_NO_PATHCONV=1`, and the error names a path you never
   wrote.** `docker run --entrypoint /bin/sh …` fails with `stat C:/Program Files/Git/usr/bin/sh: no
   such file or directory` — MSYS rewrote the *container's* `/bin/sh` into a Windows path before
   `docker` saw it. Every argument that starts with `/` is affected, so a `docker compose exec`, a
   `cp` of `/certs/ca.crt` and an `--entrypoint` all need the prefix; a relative `-f
-  tests/db/compose.yaml` does not.
+  tests/db/compose.yaml` does not. [until: reviewed 2026-09-06]
 - `tests/db/compose.yaml`'s header claimed MariaDB 11.4 turns TLS on by itself, and the running
   container disagrees: `show variables like 'ssl_%'` comes back entirely empty on `mariadb:11.4.13`
   as that file configures it, and there is no `*.pem` anywhere in the image's own tree. MySQL 8.4
   does generate one, at `/var/lib/mysql/ca.pem`, and SQL Server keeps its inside the instance rather
   than on the filesystem. Ask the running container what it serves — `docker compose exec <svc>` —
   before writing anything that verifies a certificate against it; a compose comment is a claim about
-  the image, not about the service as configured, and the header is now the corrected one.
+  the image, not about the service as configured, and the header is now the corrected one. [until: reviewed 2026-09-06]
 - **A live matrix case that silently skipped is indistinguishable from one that passed.**
   `tools/db-matrix.py` captures `cargo test -q`'s output and prints one `postgres: ok`
   either way, and the skip is this crate's own rule — `NVS_DB_MATRIX_DRIVER` unset means
@@ -2761,7 +2739,7 @@ is why" — is this file.
   older *cannot build a `PgConn`* bullet predates: with a socket and an anchor a case
   **can**, and an integration test under `crates/nvs-db/tests/` is where — a `tests/`
   target links the package's ordinary dependencies too, so `nvs_runtime::pool` is
-  reachable from one without a dev-dependency.
+  reachable from one without a dev-dependency. [until: reviewed 2026-09-06]
 - **`[queue]` is a *root* table, so `workers` starts a worker for every `nvs run` over that tree —
   all fifty of `examples/`, not just the queue fixture.** There is no per-`[[app]]` spelling of it:
   `[app.capabilities.db]` is scoped to an entry file and `[queue]` deliberately is not, because `rule:core-classes/queue-storage-is-a-table`'s `workers` is a property of the *instance*. So a worker that opens its connection
@@ -2770,7 +2748,7 @@ is why" — is this file.
   `crates/nvs-cli/src/worker.rs`'s connect deadline is two seconds rather than `queue.rs`'s ten, and
   why a failed open reports one line and returns instead of retrying. The same shape bites anything
   else read out of a root table at `nvs run`: grep for the table's own `[[app]]` twin before
-  assuming a block only reaches the program it was written for.
+  assuming a block only reaches the program it was written for. [until: reviewed 2026-09-06]
 - A crate taken with `default-features = false` can lose a *backend* its own defaults were
   choosing, and the failure is a `compile_error!` inside a dependency you never named.
   `mysql_common`'s `default` set is `["flate2/zlib", "derive"]`, so turning it off — which this
@@ -2779,7 +2757,7 @@ is why" — is this file.
   `mysql_common` feature that selects the pure-Rust one, so the fix is a *direct* workspace entry
   for `flate2` with `features = ["rust_backend"]`, which unifies onto `miniz-oxide`. Read the
   vendored crate's own `[features] default` before assuming `default-features = false` is only a
-  slimming.
+  slimming. [until: reviewed 2026-09-06]
 - A `tools/db-matrix.py` leg can report `ok` without ever having opened a connection. Every case in
   `nvs-db` returns without asserting on a leg testing another driver, so until the first *connecting*
   case for that driver exists the leg is green over nothing — `mysql: ok` meant exactly that for the
@@ -2788,20 +2766,20 @@ is why" — is this file.
   `NotValidForNameContext { presented: [] }`, and no client that verifies a name can accept it however
   good the anchor it was handed is. The fix is the `certs` volume `tests/db/compose.yaml` already
   builds for PostgreSQL, plus `--ssl-ca`/`--ssl-cert`/`--ssl-key` on the server and the matching
-  `anchor=` in `tools/db-matrix.py`'s driver row. MariaDB and SQL Server are still in that position.
+  `anchor=` in `tools/db-matrix.py`'s driver row. MariaDB and SQL Server are still in that position. [until: reviewed 2026-09-06]
 - **A `cargo` command that dies with `failed to load manifest for workspace member` is naming a
   directory nobody put a crate in, and it fails the *whole* workspace rather than that directory.**
   The root `Cargo.toml` has `members = ["crates/*", "benches/*"]`, and cargo expands that glob before
   it reads a single crate — so a `.nvs`/data tree added under `benches/` breaks every build, test and
   clippy run in the repository until it is named in `exclude`, beside `benches/userland`. The tell is
-  that nothing you touched is in the message, and the user edits this tree too.
+  that nothing you touched is in the message, and the user edits this tree too. [until: reviewed 2026-09-06]
 - **`NVS_DB_MATRIX_CA` has to be an absolute path when you run one matrix leg by hand.** A relative
   one resolves against the *test binary's* cwd, which is the crate directory and not the repo root,
   and the case then dies on a `NotFound` naming a path rather than on anything about a certificate.
   `python tools/db-matrix.py --list` prints the endpoints, and
   `docker compose -f tests/db/compose.yaml cp mariadb:/certs/ca.crt <dir>` is the export the tool
   itself does per run — the anchor belongs to a Docker volume and is reissued with it, so a copy kept
-  in the tree is right only until the next `down -v`.
+  in the tree is right only until the next `down -v`. [until: reviewed 2026-09-06]
 - **`python tools/db-matrix.py` captures every suite's output, so a case that *skipped* reads
   exactly like a case that asserted — both are `ok`.** The whole file returns early when
   `NVS_DB_MATRIX_DRIVER` names a driver its gate does not want, which is correct and invisible: a
@@ -2813,7 +2791,7 @@ is why" — is this file.
   the one home for those ports and credentials. To prove the case reached the server, flip one
   expected value and re-run the leg: a `FAILED` naming your case is the proof, and reverting it
   costs one edit. Wall clock says nothing — six real cases over TLS to a container finish in
-  0.07s, the same as six skips.
+  0.07s, the same as six skips. [until: reviewed 2026-09-06]
 - **`python tools/db-matrix.py` reports `ok` for a case that never ran, so a green matrix proves
   nothing about a case you just wrote.** Every case in `crates/nvs-stdlib/tests/queue.rs` returns
   early when its gate answers `None`, and the tool runs `cargo test -q`, so a case that skipped and a
@@ -2821,7 +2799,7 @@ is why" — is this file.
   helper that returned before the assertions, a `framed()` where `postgres()` was meant — all read as
   green. Confirm once by *breaking* the case's own assertion and re-running the tool: a leg that names
   your case in its `FAILED` line ran it, and everything above the broken line passed on a real server.
-  Then revert. Two calls, and it is the only evidence the matrix can give you.
+  Then revert. Two calls, and it is the only evidence the matrix can give you. [until: reviewed 2026-09-06]
 - **`tools/db-matrix.py` cannot run one test, and hand-setting `NVS_DB_MATRIX_*` to do it has two
   traps that both surface as a failing assertion rather than as a bad setup.** `cargo test` runs
   with the *crate* as its working directory, so `NVS_DB_MATRIX_CA=tests/db/ca.crt` resolves under
@@ -2830,7 +2808,7 @@ is why" — is this file.
   and their siblings are its one home, which is why `matrix.rs` carries no default for one. Give
   the anchor as an absolute path, take the password out of the compose file, and treat
   `python tools/db-matrix.py --driver <name> --no-up` as the authoritative answer — the by-hand
-  run is only for reading the panic message a whole-suite `FAILED` line does not print.
+  run is only for reading the panic message a whole-suite `FAILED` line does not print. [until: reviewed 2026-09-06]
 - **A red valgrind sweep is `ring`'s assembly before it is your refcounts, and its second cause is
   the fixture's own exit status.** Every fixture whose queue worker lives long enough to open
   `[db.main]` over TLS reports two contexts — `Memcheck:Cond` in `ring::aead::…::open_within`, and a
@@ -2841,7 +2819,7 @@ is why" — is this file.
   through, so under `--error-exitcode=1` `examples/limits.nvs` — which exists to cross the memory
   ceiling and so exits 1 — was indistinguishable from a leak. The sweep uses 97 now, as
   `tools/leak-check.sh` always did. Before reading a red sweep as a refcount bug,
-  `grep -c "definitely lost"` its stderr: `0` means neither cause is yours.
+  `grep -c "definitely lost"` its stderr: `0` means neither cause is yours. [until: reviewed 2026-09-06]
 - **A valgrind stack whose allocation site is `NvsArray::make_unique` under `nvs_array_set`
   names an array *literal*, not the array write path.** Since the empty array became a
   per-thread singleton, `nvs_array_new` hands back a header whose count is never 1, so
@@ -2853,7 +2831,7 @@ is why" — is this file.
   stale from before the singleton landed (`emit_array_new`'s "the pointer never actually
   changes here", `nvs_array_row_for_write`'s "a fresh empty array with a count of one") and
   now say it. The general shape: after a representation changes to share a header, every
-  "this is solely owned" claim written before it is a suspect.
+  "this is solely owned" claim written before it is a suspect. [until: reviewed 2026-09-06]
 - **`tools/leak-check.sh` prints one grep across *every* loss record, so the frames under its
   `exit 97` are usually not the leaking stack.** Its filter is
   `grep -E "definitely lost|nvs_stdlib|nvs_ir|nvs_runtime::" | head -12`, which matches
@@ -2865,7 +2843,7 @@ is why" — is this file.
   returned by a job, in a different crate. **Read the record, not the summary**: the script leaves
   the whole run in `/tmp/leak-err` inside WSL, so
   `wsl.exe -- grep -n -B2 -A14 "definitely lost" /tmp/leak-err` is the next call after any
-  `exit 97`, and only a block headed `… are definitely lost in loss record N` is yours.
+  `exit 97`, and only a block headed `… are definitely lost in loss record N` is yours. [until: gone tools/leak-check.sh:head -12]
 - **A `loop-goal.toml` fixture check whose frozen `want` belongs to a later stage cuts the
   acceptance sweep off at that fixture, and the orientation banner calls it a regression.**
   `native examples/upload.nvs` is checked against stage 5's `parts=2 / field=title / …` while
@@ -2879,13 +2857,13 @@ is why" — is this file.
   fixture whose expected output is frozen ahead of the frontier, so read the `[[check]]` block's
   `stage` before believing it; and the fix is never to rewrite the fixture to print the frozen
   strings, because the file's header says the output is frozen and the *source* is not. The
-  fixture goes green when the stage that owns it lands.
+  fixture goes green when the stage that owns it lands. [until: reviewed 2026-09-06]
 - **`try.py` runs `target/debug/nvs.exe` and never builds it, so the first run of a case for a
   member you have just added reports `E0405: \`Core\Response\` has no member named \`setHeader\``.**
   The driver builds that binary at session start and nothing you do afterwards refreshes it — a
   green `cargo test -p nvs-stdlib` does not, because a test binary is its own. So the failure reads
   exactly like a registry row that never landed, three `E0405`s deep, and the fix is one `cargo
-  build` before `try.py` rather than anything in `registry.rs`.
+  build` before `try.py` rather than anything in `registry.rs`. [until: reviewed 2026-09-06]
 - **The `novis-db` compose stack can be *stopped* rather than broken, and then a `[1 floor]`
   acceptance check fails naming a database the program under test never opens.** The driver
   reported `native examples/cache.nvs [1 floor]: exit 1 -- warning: no queue worker started:
@@ -2897,7 +2875,7 @@ is why" — is this file.
   same timestamp, which is a Docker daemon or host restart and not anything a session did.
   `docker compose -f tests/db/compose.yaml up -d` restored it and the check went green with no tree
   change at all. The sibling bullets are about checks that are *misfiled*; this is the third
-  outcome — the check is right, the tree is right, and the machine moved underneath both.
+  outcome — the check is right, the tree is right, and the machine moved underneath both. [until: reviewed 2026-09-06]
 - **An acceptance failure whose stderr names a path nothing in the repository references is the
   shared test database talking, and the *exit code* beside it is the real finding.** `native
   examples/pool.nvs [1 floor]` failed with `error: could not read scripts/receipt.nvs`, a path
@@ -2912,7 +2890,7 @@ is why" — is this file.
   worth their minute: a hex address that decodes as ASCII (`0x74696d6d6f632d` is `-commit`) is a
   freed allocation reused by a `String`, and it names the string, so it says which allocation died;
   and an `Rc<T>` allocation is 24 bytes with the data at offset 16, which is why a 23-byte queue name
-  landed exactly on top of a one-word `LiveList`.
+  landed exactly on top of a one-word `LiveList`. [until: reviewed 2026-09-06]
 - **`php-cgi -b` exits after 500 requests, and `php -S` frames its body by closing the
   connection — so a benchmark client sees a reset socket and an empty body rather than either
   fact.** Both cost a debugging pass while building `tools/bench.py`'s `--serve-vs-fpm` leg. The
@@ -2922,7 +2900,7 @@ is why" — is this file.
   defaults to. Separately, PHP's built-in server answers `Connection: close` with **no**
   `Content-Length`, so a reader that frames by content-length alone hands back `b""` and an
   agreement gate then reports a `DIFF` that is the client's bug and not the server's — read to EOF
-  when a response carries neither header, and count the reopen rather than hiding it.
+  when a response carries neither header, and count the reopen rather than hiding it. [until: reviewed 2026-09-06]
 - **A `cargo test` failure whose panic is inside `cranelift-jit`'s `compiled_blob.rs` —
   `` called `Result::unwrap()` on an `Err` value: TryFromIntError(NegOverflow) `` — is the machine,
   not the tree, and re-running is the whole diagnosis.** It is a relocation whose target landed more
@@ -2934,7 +2912,7 @@ is why" — is this file.
   `tests/db/compose.yaml`'s five containers plus a parallel build. Two facts save the bisect: the
   failing test is always a JIT-heavy one (`ten_thousand_concurrent_cold_requests_compile_the_file_exactly_once`),
   and the panic frame names a crates.io path rather than anything under `crates/`. Re-run
-  `verify.py --no-cache` before touching a line.
+  `verify.py --no-cache` before touching a line. [until: reviewed 2026-09-06]
 - **A full `python tools/verify.py` can fail `-p nvs-cli --bin nvs` with a cranelift panic that is
   the machine, not the tree.** `called Result::unwrap() on an Err value: TryFromIntError(NegOverflow)`
   at `cranelift-jit-0.135.0/src/compiled_blob.rs:142` is a relocation that did not fit in 32 bits —
@@ -2943,7 +2921,7 @@ is why" — is this file.
   `script::tests::ten_thousand_concurrent_cold_requests_compile_the_file_exactly_once` and
   `revalidation_is_lazy_and_rate_capped`, both of which the plan lists as green, and both passed
   immediately on `cargo test -p nvs-cli --bin nvs`. Re-run the crate before believing a JIT panic
-  whose message names a `cargo` registry path rather than a file in this tree.
+  whose message names a `cargo` registry path rather than a file in this tree. [until: reviewed 2026-09-06]
 - **`-p nvs-cli`'s `ten_thousand_concurrent_cold_requests_compile_the_file_exactly_once` can fail
   with a panic from inside `cranelift-jit`, and it is address layout, not your change.** The message
   is `called Result::unwrap() on an Err value: TryFromIntError(NegOverflow)` at
@@ -2955,14 +2933,14 @@ is why" — is this file.
   same commit. Re-run before you go looking: nothing in `nvs-codegen` that leaves the emitted code
   byte-identical can have caused it, and `--dump-asm` settles that quickly — a class descriptor and
   every runtime helper reach the code as `load_ext_name`, which is `movabs` and an `Abs8` under
-  `is_pic = false`, so neither is the relocation that overflowed.
+  `is_pic = false`, so neither is the relocation that overflowed. [until: reviewed 2026-09-06]
 - **`cargo test -p nvs-cli --lib` is `error: no library targets found in package`, and the unit
   tests it was meant to run are all in the bin target.** `nvs-cli` has no `lib.rs` — `main.rs` is
   the only target — so a module's own `#[cfg(test)] mod tests` runs under
   `cargo test -p nvs-cli --bin nvs <filter>`, and
   `crates/nvs-cli/tests/meta.rs`/`crates/nvs-cli/tests/openapi.rs` drive the built binary instead
   of linking to anything. The same call with no `--lib`/`--bin` works but builds and runs both,
-  which is the slow way to iterate on one module. The same is true of every binary-only crate here.
+  which is the slow way to iterate on one module. The same is true of every binary-only crate here. [until: exists crates/nvs-cli/src/lib.rs]
 - **When the question is "what does this backend actually emit", a throwaway `#[test]` that prints
   it costs one build and settles it; guessing costs a design.** `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable`'s loader turns on the
   relocation kinds `nvs_codegen::compile_object` produces, and the plausible answer — ELF-style
@@ -2971,7 +2949,7 @@ is why" — is this file.
   so the only two kinds present are `Relative`/32 and `Absolute`/64, both with **implicit** addends
   that live in the field and must be added to `Relocation::addend()` rather than replacing it. A
   loader written from the guess would have been wrong twice over. Delete the probe once it has
-  answered; what it found belongs in the module doc.
+  answered; what it found belongs in the module doc. [until: reviewed 2026-09-06]
 - **The cranelift `NegOverflow` flake is reproducible on demand, and one flag disproves it in a single
   call: `-- --test-threads=1`.** The bullets above say a `compiled_blob.rs:142`
   `TryFromIntError(NegOverflow)` is address layout rather than the tree, and say to re-run; what none of
@@ -2984,7 +2962,7 @@ is why" — is this file.
   recompiles, and 1,025 of the 10,000 did. Measured at that test's peak: **14.5 GB** of reserved virtual
   address space against 91 MB resident — about 1.45 MB of reserved stack per spawned task, 10,000 tasks —
   which is the mechanism behind "the JIT's blobs landed more than 2 GB apart". `left: 8083, right: 10000`
-  and a panic count that sums to 10,000 with it are one event, not two.
+  and a panic count that sums to 10,000 with it are one event, not two. [until: reviewed 2026-09-06]
 - **`nvs-cli`'s `cache::tests::a_warm_start_is_faster_than_a_cold_one_by_the_margin_this_test_names`
   asserts a *ratio*, so a loaded machine fails it from either side and the failure reads like a cache
   that stopped working.** It wants warm at no more than a quarter of cold and arrived as `cold
@@ -2994,7 +2972,7 @@ is why" — is this file.
   in a quiet moment, and the two halves do not run at the same moment. `cargo test -p nvs-cli --bin
   nvs cache::tests::a_warm_start` passes in half a second and settles it, which is cheaper than the
   second full `verify.py` this cost. The tell is the inversion: a real regression narrows the gap
-  toward 1x, it does not cross it.
+  toward 1x, it does not cross it. [until: reviewed 2026-09-06]
 - **A wall-clock regression in `nvs run` can sit entirely outside the code that caused it, and one
   `Instant::now()` per phase in a *release* build is what says so.** Wiring `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s artifact
   cache took `tools/bench.py --warm-start`'s figure from 3.9 ms of Novis work to 21.6 ms and
@@ -3007,7 +2985,7 @@ is why" — is this file.
   them lied outright, because a `file_cache_dir` under the repo is a directory § 5 refuses and
   that run had no cache at all. A throwaway `eprintln` per phase and one two-minute
   `cargo build --release -p nvs-cli` printed the answer in a single run. Reach for the
-  instrumented build before the third external measurement.
+  instrumented build before the third external measurement. [until: reviewed 2026-09-06]
 - **A new `examples/*.nvs` acceptance fixture is a capability denial until the repository's own
   `nvs.toml` grants it, and the driver reports that as the fixture's *output* being wrong.**
   `examples/tempdir.nvs` calls `Core\IO::temporaryDir`, which `rule:security/capability-question-is-grant-and-scope` denies by default, so the
@@ -3015,7 +2993,7 @@ is why" — is this file.
   have read as "stdout was [], wanted [...]" with nothing pointing at the config. Every example that
   touches the operating system already has an `[[app]] entry = "examples/<name>.nvs"` block with the
   narrowest grant that fixture needs; `grep -n 'entry = "examples' nvs.toml` lists them and the
-  neighbouring block is the one to copy. Writing the fixture and the block is one slice, not two.
+  neighbouring block is the one to copy. Writing the fixture and the block is one slice, not two. [until: reviewed 2026-09-06]
 
 ## Writing a test case
 
@@ -3023,25 +3001,25 @@ is why" — is this file.
   `var $x = …` infers; a declared type is `T $x = …;` with no `var` at all — so
   `var Core\Regex\Pattern $p = …` is four diagnostics (`E0101` three times and then `E0301` for a name
   that was never declared), none of which says "drop the `var`". The trap is that the *inferring*
-  spelling is the one every case reaches for, so the typed one looks like it should take a keyword too.
+  spelling is the one every case reaches for, so the typed one looks like it should take a keyword too. [until: reviewed 2026-09-06]
 - **An array literal written *directly* as a `Core` argument infers `array<mixed>` and is refused.**
   `Core\Arr::replaceRange($a, 1, 2, ["X"])` is `E0401: expected array<string>, found array<mixed>` — the
   parameter's type is not pushed into the literal, whether the parameter is `array<T>` or concrete. Declare
   a typed local one line above and pass it, which is what every existing case already does; a scratch probe
-  written the obvious way fails at the checker before it ever reaches the member you are testing.
+  written the obvious way fails at the checker before it ever reaches the member you are testing. [until: reviewed 2026-09-06]
 - **A case cannot index into an `array<mixed>`'s elements, and `Core\Json::encode` is the way round
   it.** `$q["b"] as array<string>` panics `nvs-ir` outright — *"got `Tagged as Array`"*, `rule:types/conversion`'s
   `array<T> as array<U>` row being the one still missing — so a member answering a nested shape has no
   spelling that reaches past the first level. `Core\Json::encode($q)` renders the whole structure in one
   line and it is byte-identical to PHP's `json_encode` over `parse_str`'s array, which makes it the
   strongest assertion available as well as the only one. `$q["a"] as string` on a top-level scalar does
-  lower.
+  lower. [until: reviewed 2026-09-06]
 - **A named class does not satisfy a shape type**, whatever its properties are called: `View::y(new
   Point(3, 4))` against a `{y: int}` parameter is `E0401: expected {y: int}, found Point`. `rule:types/shape-type`'s
   width subtyping is shape-to-shape only (`nvs_types::expr::assign`), so the *one* way a shape receiver's
   static layout differs from the value's own is a narrower shape — which is the only widening a case
   testing § 4's name-keyed read can write. Several doc comments claimed the class direction worked; they
-  were wrong and are fixed, so do not design a case around it.
+  were wrong and are fixed, so do not design a case around it. [until: reviewed 2026-09-06]
 - **A `?array<T>` *is* indexable after a `!= null` guard, and so is every other `?T`.** This bullet
   used to say the opposite and is kept because the shape it warns about moved rather than went away:
   `narrow` drops `null` whatever the residue now, and the read is untagged once at the variable
@@ -3051,12 +3029,12 @@ is why" — is this file.
   narrow, so bind it (`?array<string> $row = Core\Arr::first($rows); if ($row != null) { … }`) rather
   than reaching for the old workarounds. **Under a `??` even the untested one is fine**, and that is the
   one exception: every level of a subscript chain below a `??` is guarded, so `$a["nope"]["j"] ?? "d"`
-  and `$m["k"] ?? "d"` over a plain `?array<string> $m = null;` both answer `"d"` with no test at all.
+  and `$m["k"] ?? "d"` over a plain `?array<string> $m = null;` both answer `"d"` with no test at all. [until: reviewed 2026-09-06]
 - **Registering a `Core` member and writing its conformance case are one slice, not two.**
   `crates/nvs-stdlib/tests/conformance_coverage.rs` fails the moment a registry row has no `.nvst` case
   calling it, so a plan that lands the rows in one session and the cases in another leaves the tree red
   in between — and `verify.py` reports it as a `-p nvs-stdlib` test failure with nothing about the
-  member in the message. A class constant counts too: `Core\Path::SEPARATOR` needs a case that writes it.
+  member in the message. A class constant counts too: `Core\Path::SEPARATOR` needs a case that writes it. [until: reviewed 2026-09-06]
 - **A multi-file `.nvst` case runs every file's statements, each in its own variable scope.**
   `--FILE <relative/path>--` repeats and writes another file into the case's working directory
   (`crates/nvs-test`'s module doc), and `nvs-cli`'s `front_end` resolves, checks and lowers the whole
@@ -3064,18 +3042,18 @@ is why" — is this file.
   `echo` at its file scope prints, where the `require` is written and once per time that statement is
   reached. Two things a case still cannot assume: a required file's `$x` is not the caller's (`rule:statements/a-required-file-shares-declarations-not-locals` — declarations cross, variables do not), and an *autoloaded* file is reached by no
   statement at all, so only its declarations ever run. This bullet used to say the opposite half of the
-  first sentence.
+  first sentence. [until: reviewed 2026-09-06]
 - **A `--EXPECTF-ERROR--` case must not also *use* what the broken declaration would have provided.**
   Diagnostics are ordered by phase, not by file, so an `E0303` from the entry point's reference is printed
   *before* the resolution error the case exists to pin, and the block no longer matches at its first line.
   A compile-error case's entry file should do the least that reaches the diagnostic — often a bare
-  `require` and nothing else. Between two diagnostics `%A` covers the span, notes included.
+  `require` and nothing else. Between two diagnostics `%A` covers the span, notes included. [until: reviewed 2026-09-06]
 - **A rule added to `nvs_syntax::check_declarations` reaches far less of the corpus than a grep
   suggests.** Only `nvs-cli` and `nvs_hir::requires` call that walk, so every `nvs-types` fixture, every
   parser test and every `nvs-codegen` fixture goes straight past it — `rule:core-api/written-visibility`'s estimated "sixty inline
   snippets to rewrite" turned out to be eleven, all in `casing.rs`'s own tests. Grep for the *callers*
   before budgeting a corpus rewrite; a `<?nvs` snippet in a Rust string is not automatically subject to
-  everything the compiler enforces.
+  everything the compiler enforces. [until: reviewed 2026-09-06]
 - **A row the checker accepts is not a row that runs.** `nvs-codegen` refuses a binary operator over two
   representations with *"does not lower a binary operator over mismatched representations"*. Equality is
   out of that hole, and so is `rule:types/arithmetic`'s whole promotion table: `$n + $f`, `$n * $f`, `$n ** $f`,
@@ -3085,13 +3063,13 @@ is why" — is this file.
   no diagnostic names — a `Ty::Tagged` operand under an operator, mostly. So a conformance case
   written straight off an ADR's compiling rows can still fail at run time: run the rows in a scratch
   `.agent-tmp/*.nvs` before writing the case, and if one does not lower, pin it in the crate's own
-  `tests/` and say in the case comment why it is not here.
+  `tests/` and say in the case comment why it is not here. [until: reviewed 2026-09-06]
 - **`"…" as bytes` is how a case writes a `bytes` it can read, and `Core\Encoding::fromHex("…")` is how
   it writes one it cannot.** There is no `bytes` literal at all (`00-overview` § 5), so those are the two
   spellings; `as bytes` is total and free and only reaches octets that are valid UTF-8, which is why an
   arbitrary buffer — a lone `ff`, a truncated sequence — still has to come from `fromHex`. Assert the
   result with `toHex` either way, since `echo` has no `bytes` row: `rule:types/conversion` makes `bytes as string`
-  *checked*, and an implicit render is not that check.
+  *checked*, and an implicit render is not that check. [until: reviewed 2026-09-06]
 - **`<`/`<=`/`>`/`>=`/`<=>` over two `string`s is `E0715` where it is written**, and this bullet used to
   say it compiled and then failed at run time — it does not any anymore, and the diagnostic names the
   member that does say what was meant. `Core\Str::compare` is the ordering two strings have; the same
@@ -3099,12 +3077,12 @@ is why" — is this file.
   while the object family keeps `E0411` however the receiver was spelled. So a case that wants to assert
   text ordering asserts `Core\Str::compare`, and one that wants a fixed slice still uses `==`. Watch the
   neighbouring trap too: a `Core` member answering `uint` (`Core\Str::length`) in `$int + …` is `E0407`,
-  not a widening.
+  not a widening. [until: reviewed 2026-09-06]
 - **`emit_binop`'s `integral` set is `Int | Uint | Bool`, so an enum operand needs the reinterpretation
   first.** `==` over two enum values lowers today because `nvs-ir` compares one representation down —
   `InstKind::Reinterpret` to the backing integer is free, and it is the row `$m as int` already uses — so
   a new lowering that emits a `BinOp` over `Ty::Enum` directly still fails with *"a `Eq` over
-  representation Enum(Int)"*.
+  representation Enum(Int)"*. [until: reviewed 2026-09-06]
 - **Never put `--ORACLE--` in a `tests/conformance/` case** — CI runs that suite on all three hosted
   runners and none of them has PHP, so an oracle section makes the runner *skip the whole case* there,
   subtracting from the very count Stage 4 measures. Verify against PHP while authoring — `php -r '…'` is
@@ -3113,39 +3091,39 @@ is why" — is this file.
   `tests/differential/`, which is where an oracle belongs. The `.nvst` format
   is `crates/nvs-test`'s module doc; a `--EXPECTF-ERROR--` block must reproduce the diagnostic's own
   indentation, which widens with the line number. A trailing space before a `\n` is unreliable in an
-  `--EXPECT--` block — echo a sentinel character after it.
+  `--EXPECT--` block — echo a sentinel character after it. [until: reviewed 2026-09-06]
 - **The `php` on Windows `PATH` has no `mbstring`**, so every `mb_*` oracle a `Core\Str` slice reaches
   for — `mb_convert_case`, `mb_strtolower`, `mb_str_split` — dies with *"Call to undefined function"*
   rather than answering. The byte-wise half (`strcmp`, `strnatcmp`, `substr_count`, `str_replace`) is
   all there, so a member replacing both spellings can still be checked on its ASCII rows. For the
   Unicode rows, cite the UCD table the member implements (folding is UAX #44's `C`+`F` mappings) and
   say so in the case's comment; do not silently assert whatever the implementation printed. WSL's
-  `php` may have the extension — worth one `php -m | grep mbstring` before writing the rows off.
+  `php` may have the extension — worth one `php -m | grep mbstring` before writing the rows off. [until: reviewed 2026-09-06]
 - **A `nvs-types` test that asserts an interned type's `describe` string is fragile.** A union orders its
   members by type id, so registering a member anywhere can flip `T|null` to `null|T`. Compare against
-  `interner.make_union([...])` instead.
+  `interner.make_union([...])` instead. [until: reviewed 2026-09-06]
 - **`NvsStr::from_raw`/`NvsArray::from_raw` return an *owning* handle.** Reading a refcount through one in
   a unit test releases a reference when it drops — wrap it in `std::mem::ManuallyDrop`, or the test ends in
   a heap corruption rather than an assertion failure. `crate::arr::borrowed` is that wrapper for an
-  argument, and `crate::instance::slot` is the borrowed read of an object's slot.
+  argument, and `crate::instance::slot` is the borrowed read of an object's slot. [until: reviewed 2026-09-06]
 - **`Core\Path` emits a platform separator**, so a fixture or case asserting a built path must normalize it
   (`Core\Str::replace($p, Core\Path::SEPARATOR, "/")`) — otherwise it passes one leg and fails the other.
   A `Core\Time` case has the same hazard in a different place: never assert `Zone::system()`'s answer, and
-  never assert a wall-clock value.
+  never assert a wall-clock value. [until: reviewed 2026-09-06]
 - **Clippy refuses a float literal that approximates π or e**, and refuses `assert!` over two constants —
-  a compile-time invariant belongs in `const _: () = assert!(…);`, not a `#[test]`.
+  a compile-time invariant belongs in `const _: () = assert!(…);`, not a `#[test]`. [until: reviewed 2026-09-06]
 - **A property's declared default runs now, and the constant is checked — but only a literal or `[]`
   is one.** `public int $n = 4;` reaches the slot of every fresh instance, inherited defaults
   included, because `nvs_runtime::NvsObj::new` writes a per-class image the descriptor carries; there
   is no IR instruction for it and nothing between `new`'s allocation and its constructor call. What
   is *refused* is everything else: `= null`, an enum case, a `decimal`, a non-empty array literal and
   a `Class::CONST` are all `E0472`, so a case reaching for one gets a diagnostic rather than a wrong
-  value. A `static` property is skipped entirely — it occupies no instance slot.
+  value. A `static` property is skipped entirely — it occupies no instance slot. [until: reviewed 2026-09-06]
 - **Two `foreach` headers in one file may reuse a binding name only at the same type.** A binding is
   function-scoped, so `foreach ($names as string $n)` followed later by `foreach ($heap as int $n)` is
   `E0406: `$n` is already declared` pointing at the *second* header — while a second `string $n` walk is
   fine, which is why the rule looks like it is not there until the third loop. A case walking two
-  differently-typed collections needs two names.
+  differently-typed collections needs two names. [until: reviewed 2026-09-06]
 - **`live_bytes()` cannot see an allocation that is freed again inside the call under test**, so a
   guard named "…allocates no key" written as a `live_bytes` delta passes whether or not the key was
   built. `nvs_array_set` renders an `NvsStr`, hands it to the packed arm, which has no use for it,
@@ -3153,7 +3131,7 @@ is why" — is this file.
   allocated at all. `counting_alloc::allocated_bytes()` is the monotone total that tells the two
   apart, and any measured claim about a *transient* cost needs it rather than `live_bytes`. The
   control matters as much as the claim: assert the old spelling **does** allocate in the same test,
-  or a broken counter reads as a passing guard.
+  or a broken counter reads as a passing guard. [until: reviewed 2026-09-06]
 - **A compiled function called with an empty argument slice faults.** `nvs_runtime::call(f, &mut
   ctx, &[])` on a *method* looked like the obvious way to observe a return value, and it is an
   access violation (`0xc0000005`, a bare `STATUS_ACCESS_VIOLATION` from `cargo test` with no test
@@ -3161,19 +3139,19 @@ is why" — is this file.
   hands it a dangling pointer. Give the fixture's method one parameter it ignores and pass
   `Value::int(0)`; `nvs-codegen`'s `stack_limit.rs` fixtures all declare one, which is why nothing
   had hit this. `run_with`/`output_of` are unaffected — the script frame is entered the same way but
-  never faulted, so the crash arrives only when a test reaches for `unit.function("Class::member")`.
+  never faulted, so the crash arrives only when a test reaches for `unit.function("Class::member")`. [until: reviewed 2026-09-06]
 - **An allocation guard over a member that *builds* something measures the result's own storage
   first.** A `counting_alloc::allocated_bytes` delta over one `map`-shaped walk into a fresh
   `NvsArray` read 448 bytes with no key rendered at all: the output's own `Vec` doubling on the way
   to 16 entries is an allocation the guard cannot tell from the one it exists to catch. Walk twice
   and measure the *second* pass, where every write lands at a position that already exists — then
   the only thing left that can allocate is the thing under test.
-  `a_callback_that_does_not_want_a_key_synthesizes_none` is the shape.
+  `a_callback_that_does_not_want_a_key_synthesizes_none` is the shape. [until: reviewed 2026-09-06]
 - **A `cargo test` that dies with a bare `STATUS_ACCESS_VIOLATION` may not reproduce**, so run it
   again before bisecting. One arrived in `-p nvs-codegen --test throwing` on the first run after a
   relink and never returned in four subsequent runs, including the full workspace sweep; the
   `.loop` logs hold an identical one-off in `--test strings`. The deterministic cause below (an
-  empty argument slice) reproduces every time, which is how the two are told apart.
+  empty argument slice) reproduces every time, which is how the two are told apart. [until: reviewed 2026-09-06]
 - **A test binary outside `nvs-runtime` measures allocations through `nvs_runtime::budget`, and may not
   install a `#[global_allocator]` of its own.** `budget::live_bytes`, `::allocated_bytes` and
   `::allocations` are `pub` and maintained in *every* profile, because the memory limit is read off the
@@ -3185,14 +3163,14 @@ is why" — is this file.
   `crates/nvs-codegen/tests/throwing.rs` and
   `crates/nvs-stdlib/tests/allocation_policy.rs` all read the shared counters now; they keep their
   `#[cfg(debug_assertions)]` gates, but only because their numbers are pinned against an unoptimized
-  build's inlining, never because a counter is missing.
+  build's inlining, never because a counter is missing. [until: reviewed 2026-09-06]
 
 - **Measure compiled code's allocations as a difference between two run lengths, never as an absolute
   zero.** A run allocates its array, its locals and its output buffer once whatever the loop count is, so
   "this script allocated nothing" is not a claim that can hold; "400 passes allocated exactly what 4 passes
   allocated" is, and it is the same claim, because a per-access cost is O(accesses) and a setup cost cancels
   out of the difference. Pair it with a control arm that *does* allocate per access — the same accesses
-  through a rendered key — or a counter stuck at zero passes the test for you.
+  through a rendered key — or a counter stuck at zero passes the test for you. [until: reviewed 2026-09-06]
 - **A `-p nvs-stdlib` test can hand a `Core` member a real `callable` without a compiler in front of
   it.** `nvs_runtime::call_closure` reads exactly two things off a closure value — slot
   `CLOSURE_ARITY_SLOT`, and the `CLOSURE_INVOKE` method's address in its class — so a
@@ -3201,14 +3179,14 @@ is why" — is this file.
   have. `crates/nvs-stdlib/tests/allocation_policy.rs`'s `closure_of` is the shape; leak the table,
   because a descriptor's address is its identity. The callee owes the exit sweep — release the
   receiver and each parameter, which `call_closure` retained on the way in — or the case leaks one
-  reference per element and the WSL valgrind leg catches it much later.
+  reference per element and the WSL valgrind leg catches it much later. [until: reviewed 2026-09-06]
 
 - **Measuring "no allocation per element" is a *difference*, not a zero, whenever a closure is
   called.** `call_closure` allocates the argument slice it retains, once per call, whatever the
   callback declares — so a key-free `Core\Arr::map` over 64 entries spends 70 allocations, not 6, and
   an assertion of zero fails for the wrong reason. Assert the gap between two arities instead
   (`keyed >= quiet + entries`), and where there is no callback at all — `sort($list)` — assert the
-  absolute bound, because nothing is left that could scale with the entry count.
+  absolute bound, because nothing is left that could scale with the entry count. [until: reviewed 2026-09-06]
 - **An array literal is `array<mixed>`, and a `var` is the function's, not the block's.** Two
   spellings a depth case reaches for and neither is scoped the way it reads. `foreach (["a", "b"]
   as string $t)` is `E0401: expected string, found mixed` — the literal carries no element type,
@@ -3216,20 +3194,20 @@ is why" — is this file.
   And a second `for` loop reusing the first loop's `var $t` is `E0406: already declared`, because
   a `var` binding is function-scoped exactly as the `catch` binding the loop goal's standing
   decisions name; give the second loop its own name. Separate `try` statements each binding `$e`
-  at file scope are fine — four in one case compile — so it is only `var` that bites.
+  at file scope are fine — four in one case compile — so it is only `var` that bites. [until: reviewed 2026-09-06]
 - **A `catch` binding declared inside a loop body still belongs to the function, so a later file-scope
   `catch` cannot reuse its name.** Several file-scope `try`s each binding `$e` compile — that much is
   already true — but the moment one of them is inside a `for` or `foreach`, every later clause reporting
   `E0406: `$e` is already declared` points at the *loop's* clause as the first declaration. Give each
   `catch` in a case its own name (`$capped`, `$zero`, `$beyond`), which is what the older `Core\Json` case
   already does. In the same family: `Core\Str::repeat` takes a `uint`, so a `for` counter declared `int`
-  needs `Core\Str::repeat("[", $d as uint)` and not `$d` — the diagnostic is `E0401`, at the argument.
+  needs `Core\Str::repeat("[", $d as uint)` and not `$d` — the diagnostic is `E0401`, at the argument. [until: reviewed 2026-09-06]
 - **A `.nvst` case's own helper has to be a `public static function` inside a class.** A case is top-level
   statements, so the instinct when two steps want the same rendering is a plain `function render(...)` at
   file scope — which is `E0215: a function must be a method` (`rule:classes/no-free-functions-or-constants`), caught only when the case is
   run. Wrap it in a `final class` and call it `Render::pairs($m)`; a compiler-owned generic type
   (`Core\ObjectMap<Tag, int>`) is accepted in that method's parameter list, so the helper can take the
-  collection the case is about.
+  collection the case is about. [until: reviewed 2026-09-06]
 - **A case that sweeps a table can factor the sweep into a closure now, but `function (…) { … }` is
   still `E0222` outright** — `fn (…) => …` or `fn (…) => { … }` is the one closure literal (`rule:types/closure-literal`).
   Calling one through the variable holding it lowers (it used to panic), and so does `$f(...$args)`;
@@ -3240,28 +3218,28 @@ is why" — is this file.
   `var`**, because an array literal is `array<mixed>` and `var` refuses to infer an element type
   (`E0414`), and `foreach ($rows as string $row)` over the literal directly is `E0401` for the same
   reason. Counting agreements into an `int` declared above the loop is how the sweep is then asserted,
-  since there is no compound assignment either.
+  since there is no compound assignment either. [until: reviewed 2026-09-06]
 - **Deepening a `.nvst` case in place does not move Stage 4's count.** The gate counts case *files*, so a
   depth slice that rewrites an existing thin case makes real progress the acceptance test cannot see —
   `nvs test tests/conformance` read 478 both before and after two sessions' worth of work. Land the new
   claim as its **own file**, named for the claim, and leave the thin case where it is with a one-line
-  comment pointing at the deep one. Splitting after the fact is free; noticing after the run is not.
+  comment pointing at the deep one. Splitting after the fact is free; noticing after the run is not. [until: reviewed 2026-09-06]
 - **An `--ORACLE--` helper must not be named after a PHP built-in, and the failure does not say so.**
   `pos` is an alias of `current()`, so a case whose oracle declared `function pos(int|false $f)` failed
   with `--ORACLE--: PHP exited 255` and **`php stderr: <empty>`** — PHP writes *Cannot redeclare
   function* to stdout, which the runner is comparing rather than reporting. The Novis half compiles and
   runs, so the failure reads as a broken PHP install. Name an oracle helper for what it renders
   (`render`, `show`) and check `php -r 'var_dump(function_exists("<name>"));'` if in doubt; `key`,
-  `next`, `end`, `reset`, `current` and `compact` are the other easy collisions.
+  `next`, `end`, `reset`, `current` and `compact` are the other easy collisions. [until: reviewed 2026-09-06]
 - **A differential case checks itself, so write the rows and run it rather than pricing PHP's answer
   by hand first.** An `--ORACLE--` case's failure output prints both columns side by side, which is
   the whole comparison in one call; three `php -r '…'` calls spent pre-computing what a matching case
   was going to assert told this session nothing the first `nvs test <case>` did not. Reach for
   `php -r` for the *divergence* half instead, where the frozen `--EXPECT--` is Novis's own output and
   PHP's answer only appears in the case's prose — that is the one place the runner cannot check the
-  sentence you wrote.
-- **An `int` literal does not reach an `array<float>`'s element type**, so a differential case about Novis's *one numeric domain* has to declare the subject `array<int|float>`. `Core\Arr::contains($floats, 1)` against an `array<float>` is `E0401: expected float, found int` at the argument — the needle is typed `T`, and the widening `1 == 1.0` gets in an expression is not one an argument position performs. Declaring `array<int|float> $numeric = [1.0, 2.5];` makes `T` the union, the literal fits, and `contains($numeric, 1)` then answers `true` — which is the `rule:expressions/equality-semantics` row worth pinning, since `in_array(1, [1.0], true)` is `false` and the loose `in_array(1, [1.0])` is `true`, so Novis matches neither of PHP's two modes.
-- **A `Core` member's refusal is a `FATAL:` line on standard error, not a `Throwable`, so `try`/`catch` cannot pin it.** `Fault::fatal` is what `key_bytes` and every argument-shape guard in `nvs-stdlib` raise, and it unwinds past `catch (Throwable $e)` untouched: a case wrapping `Core\Arr::countBy($floats)` in a `try` prints nothing from its handler and exits 1. Pin it with `--EXPECT-ERROR--` instead, whose presence is also what tells the runner this case's run is *meant* to fail — the stdout before the fatal still has to match `--EXPECT--`, so the agreeing rows can sit in the same case. Get the message by running the scratch under `2>` and `cat -A`: it is one line, `FATAL: ` then the member's own text, and it can carry an internal detail (`got tag 4`) that no other section would let you assert.
+  sentence you wrote. [until: reviewed 2026-09-06]
+- **An `int` literal does not reach an `array<float>`'s element type**, so a differential case about Novis's *one numeric domain* has to declare the subject `array<int|float>`. `Core\Arr::contains($floats, 1)` against an `array<float>` is `E0401: expected float, found int` at the argument — the needle is typed `T`, and the widening `1 == 1.0` gets in an expression is not one an argument position performs. Declaring `array<int|float> $numeric = [1.0, 2.5];` makes `T` the union, the literal fits, and `contains($numeric, 1)` then answers `true` — which is the `rule:expressions/equality-semantics` row worth pinning, since `in_array(1, [1.0], true)` is `false` and the loose `in_array(1, [1.0])` is `true`, so Novis matches neither of PHP's two modes. [until: reviewed 2026-09-06]
+- **A `Core` member's refusal is a `FATAL:` line on standard error, not a `Throwable`, so `try`/`catch` cannot pin it.** `Fault::fatal` is what `key_bytes` and every argument-shape guard in `nvs-stdlib` raise, and it unwinds past `catch (Throwable $e)` untouched: a case wrapping `Core\Arr::countBy($floats)` in a `try` prints nothing from its handler and exits 1. Pin it with `--EXPECT-ERROR--` instead, whose presence is also what tells the runner this case's run is *meant* to fail — the stdout before the fatal still has to match `--EXPECT--`, so the agreeing rows can sit in the same case. Get the message by running the scratch under `2>` and `cat -A`: it is one line, `FATAL: ` then the member's own text, and it can carry an internal detail (`got tag 4`) that no other section would let you assert. [until: reviewed 2026-09-06]
 - **A `Core` member's *ordering* refusal is the other kind of `Fault` and a `catch` does reach it.**
   `Fault::thrown` — what `nvs_stdlib::ordering::compare_values` raises for a pair with no natural
   order, and so what `Core\Arr::min`/`max`/`sort` raise over a mixed-type subject — unwinds as an
@@ -3269,7 +3247,7 @@ is why" — is this file.
   prints and the case carries on. That is the opposite of the neighbouring bullet's `Fault::fatal`,
   which no handler sees, and it is what lets a divergence case render its refusals inline beside its
   agreeing rows instead of ending at an `--EXPECT-ERROR--`. Which one a member raises is decided in
-  the helper, not by the member, so check the `Fault::` constructor at the site rather than assuming.
+  the helper, not by the member, so check the `Fault::` constructor at the site rather than assuming. [until: reviewed 2026-09-06]
 
 - **A `?bool` cannot be tested for truth, so a member answering one has no `yn` rendering at all.**
   `if ($found as bool)` on a `?bool` parameter panics `nvs-ir`'s truthy-condition slice at
@@ -3278,19 +3256,19 @@ is why" — is this file.
   (`return $found as string;`) has no counterpart here because the condition is what fails. The
   `yn` helper in `arr-any-and-all-match-array_any-and-array_all` takes a plain `bool` for this
   reason. Keep a `bool`-valued subject out of a case about a `?T`-answering member, or render it
-  through a member that answers `string`.
+  through a member that answers `string`. [until: reviewed 2026-09-06]
 - **Neither leg's PHP has `gmp`**, so `Core\Math::gcd` and `::lcm` have no callable twin: `gmp_gcd`/`gmp_lcm`
   die with *"Call to undefined function"* on the Windows `php` and inside WSL alike, exactly as `mb_*` does
   on Windows. One `php -r 'echo function_exists("gmp_gcd");'` before designing the case is the check; when
   the twin is missing, either compute the expectation with an explicit loop in the `--ORACLE--` block — PHP
   still computes it, so the case is a real differential — or leave the member for a conformance case and say
-  so in its comment. `bcmath` *is* present on both legs.
+  so in its comment. `bcmath` *is* present on both legs. [until: reviewed 2026-09-06]
 
 - **An `--ORACLE--` case must never `echo` a `NAN`.** PHP 8.4 and later emit *"Warning: unexpected NAN value
   was coerced to string"* onto the same stream as the output, so the oracle's expectation carries a warning
   Novis's side has no way to print and the case fails on a row that actually agrees. `INF` is fine. Render the
   value through a guard instead — `$v == $v` is false for exactly one `float`, on both sides — and echo a
-  sentinel, which is what `math-int-div-and-mod-match-intdiv-and-fmod`'s `Show::real` does.
+  sentinel, which is what `math-int-div-and-mod-match-intdiv-and-fmod`'s `Show::real` does. [until: reviewed 2026-09-06]
 
 - **A `CoreTy::Var("T")` signature binds `T` to the first argument, so a mixed-type pair does not reach the
   runtime at all.** `Core\Math::min`, `max` and `clamp` declare every parameter and their return as one
@@ -3299,7 +3277,7 @@ is why" — is this file.
   `nvs_stdlib::ordering::compare_values`'s throw. Declare the union on the bindings (`int|string $zero = 0;`)
   and the same call becomes the runtime refusal the case is trying to pin. In the same family: a `float`
   parameter does not widen an `int` literal, so `Core\Math::mod(7, 2.0)` is `E0401` and `7 as float` or a
-  `float` binding is the spelling.
+  `float` binding is the spelling. [until: reviewed 2026-09-06]
 - **A PHP notice or deprecation lands on the oracle's *stdout*, so an `--ORACLE--` case that trips one
   can never match.** PHP's base conversions are the sharpest instance — `hexdec("beefy")` and
   `base_convert("-255", 10, 16)` each emit `Deprecated: Invalid characters passed for attempted
@@ -3308,8 +3286,8 @@ is why" — is this file.
   the repaired inputs in an `--ORACLE-DIVERGES--` file with a frozen `--EXPECT--` and leaving only the
   quiet rows under `--ORACLE--`. Check by running the oracle body through `php -r` while authoring: a
   notice is visible there and invisible in the `.nvst` diff, which reports only that the two outputs
-  differ.
-- **A frozen `--EXPECT--` cannot hold a decomposed grapheme cluster, and nothing warns you.** `"cafe\u{0301}"` sliced at its last cluster renders as `é` — byte-identical in a terminal to the precomposed `é` a keyboard types into the expectation block, and a different string. The case reads as passing-looking and fails with an "expected"/"actual" pair whose two halves are visually the same, which is a long minute to diagnose. Echo `Core\Encoding::toHex($s as bytes)` for any cell whose content is not plainly ASCII; the hex is also the thing a reader of a grapheme-versus-byte case wants to see. The neighbouring rule about a trailing space before a `\n` is the same class of trap.
+  differ. [until: reviewed 2026-09-06]
+- **A frozen `--EXPECT--` cannot hold a decomposed grapheme cluster, and nothing warns you.** `"cafe\u{0301}"` sliced at its last cluster renders as `é` — byte-identical in a terminal to the precomposed `é` a keyboard types into the expectation block, and a different string. The case reads as passing-looking and fails with an "expected"/"actual" pair whose two halves are visually the same, which is a long minute to diagnose. Echo `Core\Encoding::toHex($s as bytes)` for any cell whose content is not plainly ASCII; the hex is also the thing a reader of a grapheme-versus-byte case wants to see. The neighbouring rule about a trailing space before a `\n` is the same class of trap. [until: reviewed 2026-09-06]
 - **A `?string` does not narrow into a `string` return position, and the fix is `as` rather than a
   different `if`.** A case rendering a nullable through a helper writes the obvious
   `if ($v == null) { return "<none>"; } return $v;` and gets `E0403: this method declares `string` but
@@ -3319,15 +3297,15 @@ is why" — is this file.
   `str-last-index-of-matches-strrpos` already does for a `?uint` through `$found as string`. The same
   `as` re-supplies the type inside an expression too — `Core\Str::join([$head as string, $tail as
   string], $cut)` and `Core\Str::slice($s, ($at as uint) as int)` both check, so a nullable answer can
-  be fed straight into the next member without a local.
-- **`preg_split("//u", $s, -1, PREG_SPLIT_NO_EMPTY)` is the mbstring-free code point splitter**, and it works on the Windows `php` where every `mb_*` the neighbouring bullet names does not — PCRE carries its own UTF-8 support, so a `Core\Str` slice that needs PHP to count *code points* has a real oracle rather than a frozen `--EXPECT--`. What it cannot give you is a code point's *number* (`mb_ord`) or a grapheme (`grapheme_strlen`: no `intl` either), so an oracle needing those still decodes UTF-8 by hand in the `--ORACLE--` block or freezes the rows and cites the UCD table.
+  be fed straight into the next member without a local. [until: reviewed 2026-09-06]
+- **`preg_split("//u", $s, -1, PREG_SPLIT_NO_EMPTY)` is the mbstring-free code point splitter**, and it works on the Windows `php` where every `mb_*` the neighbouring bullet names does not — PCRE carries its own UTF-8 support, so a `Core\Str` slice that needs PHP to count *code points* has a real oracle rather than a frozen `--EXPECT--`. What it cannot give you is a code point's *number* (`mb_ord`) or a grapheme (`grapheme_strlen`: no `intl` either), so an oracle needing those still decodes UTF-8 by hand in the `--ORACLE--` block or freezes the rows and cites the UCD table. [until: reviewed 2026-09-06]
 - **A PHP *notice* lands in the oracle leg's stdout, so a deprecated twin cannot be swept in an
   `--ORACLE--` file.** On 8.5.9 `chr()` deprecates an argument outside `0..255` and prints
   `Deprecated: chr(): Providing a value not in-between 0 and 255 …` for **every** such call, so a
   sweep over code points past 255 fails on text neither side computed rather than on the answers.
   One `php -r '…'` before freezing a sweep is what catches it — and when the twin is deprecated at
   exactly the rows a case wants, that is usually the same boundary the divergence already sat on,
-  so the rows belong in an `--ORACLE-DIVERGES--` file with a frozen `--EXPECT--` anyway.
+  so the rows belong in an `--ORACLE-DIVERGES--` file with a frozen `--EXPECT--` anyway. [until: reviewed 2026-09-06]
 
 - **A typed declaration *inside* a loop body is fine; it is the second loop that collides.**
   `uint $want = $cp as uint;` and `array<uint> $points = …;` in a `for` body run 128 times without
@@ -3335,14 +3313,14 @@ is why" — is this file.
   neighbouring function-scope bullet means and not what it looks like it means. What collides is a
   *later* loop reusing the name. In the same family: `foreach (Core\Str::codePoints($s) as uint
   $point)` lowers, where the same shape over an array literal is `E0401`, because a member's
-  declared `array<uint>` return carries the element type a literal does not.
+  declared `array<uint>` return carries the element type a literal does not. [until: reviewed 2026-09-06]
 - **`Core\Json::encode` refuses a `bytes` value**, so it is the way round an `array<mixed>` only
   while every element is a scalar or a string. `Core\Bytes::unpack`'s answer is exactly where that
   bites: a format holding an `a`, `A` or `Z` field yields a buffer element, and encoding the list
   throws *"Core\Json::encode(): tag 11 has no JSON encoding"* — which reads as a bug in the case
   rather than as the missing row it is. Render such a case with `Core\Arr::count` for the shape and
   a separate `Core\Encoding::toHex` for each buffer, and keep `Json::encode` for the numeric
-  formats, where it prints the whole list in one line.
+  formats, where it prints the whole list in one line. [until: reviewed 2026-09-06]
 - **A `.nvst` helper cannot take a `Core` enum parameter, and the diagnostic names the same type
   twice.** `public static function m(string $s, Core\Charset $c)` called with `Core\Charset::Ascii`
   is `E0401`, reading *expected `Core\Charset`, found `Core\Charset`* — a source-declared annotation does
@@ -3350,7 +3328,7 @@ is why" — is this file.
   at the `Core` call inside. `var $c = Core\Charset::Ascii;` *does* infer correctly and passes, so
   the hole is specifically the declared type. A case sweeping several charsets therefore writes the
   enum at each call site with an inline `try`/`catch` per row — each `catch` taking its own binding
-  name — rather than folding the rendering into the `final class` helper the neighbouring cases use.
+  name — rather than folding the rendering into the `final class` helper the neighbouring cases use. [until: reviewed 2026-09-06]
 
 - **A frozen `--EXPECT--` must not render an invisible byte either, and a refusal that quotes its
   operand back will.** `Core\Encoding::encodeText`'s message spells the offending character through
@@ -3358,7 +3336,7 @@ is why" — is this file.
   *subject* back unescaped, which puts a raw C1 control in the expectation where no reader can see
   it and no editor shows it. Assert the printable half with
   `Core\Str::contains($e->message, "(U+0080) at offset 0 of")` and echo a `yes`, exactly as the
-  neighbouring decomposed-cluster bullet does for the other kind of invisible.
+  neighbouring decomposed-cluster bullet does for the other kind of invisible. [until: reviewed 2026-09-06]
 - **A `gaps.py --errors` row marked `thrown_as` carries a *class*, and asserting which one is the
   whole point of the row.** `Fault::thrown_as(ThrownClass::Logic, …)` and `…::Parse` are ordinary
   `Throwable`s, so a `catch (Throwable $e)` reaches both and says nothing about either; the clause
@@ -3369,7 +3347,7 @@ is why" — is this file.
   this worth a case rather than a row is that one member throwing two classes is a *partition*:
   `Core\Time::parse` answers `LogicError` for its pattern argument and `ParseError` for its text,
   and counting each table into the other's class is what a member throwing one class for everything
-  fails.
+  fails. [until: reviewed 2026-09-06]
 - **A case that has to name a `Core\Class::member` inside a *string* writes the literal single-quoted.**
   `'Core\Time::fromIso(): '` is exactly those characters — the lexer treats only `\\` and `\'` as
   escapes in a single-quoted string, PHP's rule, so every other backslash stays literal. This matters
@@ -3377,7 +3355,7 @@ is why" — is this file.
   site only when the literal run before the message's first format hole appears somewhere in the suite,
   so a case that asserts `jiff`'s or `regex`'s sentence with `Core\Str::startsWith($e->message, '…')`
   has to spell the prefix out, and cannot instead echo the whole message and freeze a tail the next
-  dependency bump will rewrite.
+  dependency bump will rewrite. [until: reviewed 2026-09-06]
 - **`echo "label=", <a call that may throw>` prints the label before it throws**, so a `try` body
   written the obvious way leaks its own prefix into stdout on exactly the rows the case exists to
   refuse — `not refused=Core\Json::encode(): …` on one line, with the refusal's own text welded to
@@ -3385,7 +3363,7 @@ is why" — is this file.
   the refusing row prints nothing at all and the `--EXPECT--` block stays a list of the rows that
   answered. In the same family, a local declared in a case obeys `E0112`: `var $written_nan` is
   refused and `$writtenNan` is the spelling, which bites when a sweep needs one `var` per row and
-  reaches for snake_case to keep them apart.
+  reaches for snake_case to keep them apart. [until: reviewed 2026-09-06]
 - **Check a `gaps.py --errors` site's own parameter types before taking it as catchable.** A
   `Fault::thrown` guarding an *element* of a typed parameter may have no program that can reach
   it: `Core\Csv::format`'s "column N holds a value that is not a `string`" is guarded by an
@@ -3395,7 +3373,7 @@ is why" — is this file.
   it panics `nvs-ir` at `crates/nvs-ir/src/lower/expr.rs:877` (`array<T> as array<U>` is the
   conversion row still missing). The tool's own header says an entry is a candidate rather than a
   plan; this is the cheapest way to judge one, and it is four `nvs run` calls on a scratch file
-  rather than a written case that will not compile.
+  rather than a written case that will not compile. [until: reviewed 2026-09-06]
 - **`Core\Bytes::join`'s allocation refusal cannot be reached from source, and the obvious probe
   reports the wrong member.** Its size is the sum of parts that must already be in memory, so a case
   reaching for it by handing it a huge separator — `Core\Bytes::join($parts, Core\Bytes::fill(1e12,
@@ -3404,7 +3382,7 @@ is why" — is this file.
   `Core\Str::repeat`, `Core\Str::padStart`/`padEnd`, `Core\Bytes::repeat`, `Core\Bytes::fill` and
   `Core\Random`'s two; a member whose size is a *product* reaches both sentences (past `isize::MAX` is
   `nvs_runtime::affordable`'s, below it the allocator's), while one whose size is its own `uint`
-  argument — `fill` — can only ever reach the second.
+  argument — `fill` — can only ever reach the second. [until: reviewed 2026-09-06]
 - **An agreement case gets its sweep from a `mixed`-taking helper and `Core\Json::encode`, not from
   a closure.** The shape with the most room left is the one that asks one question of many members
   and asserts they *agree*, and the obstacle is that each member answers a different type — a
@@ -3415,7 +3393,7 @@ is why" — is this file.
   differ, and returns 0 or 1. The case then reads `$ok = $ok + Sweep::same("count", …);` per member
   — one line each, no closure stored anywhere — and asserts `$ok` against a literal total, which is
   the counting the shape asks for. `mixed` accepts every `Core` return type tried, nullable
-  included, and a multi-line call with a trailing comma parses.
+  included, and a multi-line call with a trailing comma parses. [until: reviewed 2026-09-06]
 
 - **Do not put an append past `9223372036854775806` in a case: it kills the run.** A key of
   `9223372036854775807` followed by `$a[] = v` trips `Table::append`'s
@@ -3423,7 +3401,7 @@ is why" — is this file.
   and `nvs run` dies mid-file, so every later row of the case is lost and the failure reads as the
   harness rather than as the bound being probed. The last *accepted* append is the one after a key
   of `9223372036854775806`, which lands at `9223372036854775807`; the plan's `Open now` owns why the
-  first refused one is a crash rather than PHP's `Error`.
+  first refused one is a crash rather than PHP's `Error`. [until: reviewed 2026-09-06]
 - **`php -m` before designing an oracle around an extension's function.** The `php` on the Windows
   `PATH` is 8.5.9 with `json` and **no `gmp`**, so `Core\Math::gcd`/`lcm` — whose spec **Replaces**
   column names `gmp_gcd`/`gmp_lcm` — cannot be asked their twin at all, and a case calling one would
@@ -3432,27 +3410,27 @@ is why" — is this file.
   is not the thing under test. That still closes the gap, because `gaps.py --differential` looks for
   a call to the **Novis member** in `tests/differential/`, not for the twin's name in the oracle —
   so the judgement about whether the twin is reachable is entirely the session's. The same check is
-  what the `mbstring` bullet above is a second instance of.
+  what the `mbstring` bullet above is a second instance of. [until: reviewed 2026-09-06]
 - **A counter declared `uint` cannot be incremented by a literal**: `uint $n = 0; $n = $n + 1;` is
   `E0407: int and uint have no representable common type in arithmetic`, because the literal is an
   `int`, followed by an `E0401` on the same line reporting the result as `mixed`. The spelling that
   compiles is `$n = $n + (1 as uint);` — parenthesised, since `as` binds looser than `+`. A `uint`
   counter is worth the trouble whenever the total is compared against `Core\Arr::count`, which
   answers `uint`; the alternative is an `int` counter and `Core\Arr::count($rows) as int` at every
-  use.
+  use. [until: reviewed 2026-09-06]
 - **An `--ORACLE-DIVERGES--` block is *one line*, however long the prose is.** The harness answers
   `not a valid case: line 3: `--ORACLE-DIVERGES--` is one line` and refuses the whole file, so a
   divergence written as the four paragraphs it wants to be has to be folded back into a single
   paragraph before it will run. Write it as one line from the start and use a capitalised lead-in
   (`THE INTEGER BAND:`) where a `**bold**` heading would otherwise have earned a paragraph break —
   `json-decode-refuses-the-number-band-json_decode-degrades.nvst` is the worked shape. The `--TEST--`
-  line has the same rule and always did; this is the block that looks like it does not.
+  line has the same rule and always did; this is the block that looks like it does not. [until: reviewed 2026-09-06]
 - **`Core\Str::length` counts characters, and a CRLF is one of them** — so it is the wrong ruler for
   a round trip. A `Core\Csv` probe measuring `"a\r\nb"` read 3 on both sides and the obvious reading
   was "the reader normalized the CRLF away"; it had not, and
   `Core\Encoding::toHex($s as bytes)` says `610d0a62` before and after. Any claim about *which bytes*
   survived a member is written with `toHex`, and `length` is kept for what it answers, a count of
-  characters.
+  characters. [until: reviewed 2026-09-06]
 - **A case that asserts two float computations agree has to pick rows whose *intermediate* is exactly
   representable, or it is pinning one libm rather than a property.** `Core\Math::hypot($x, $y)` against
   `Core\Math::sqrt($x * $x + $y * $y)` agreed on all 21 rows of a first table here, including `[0.3, 0.4]`
@@ -3460,7 +3438,7 @@ is why" — is this file.
   nothing says glibc's does on the WSL leg. Restricting the table to Pythagorean triples, zeros and
   dyadic fractions makes `$x * $x + $y * $y` exact, so both members are computing the correctly rounded
   square root of the *same* double and IEEE 754 requires them to agree — a property of the table, not of
-  the host. The same test applies to any "these two spellings answer the same thing" float case.
+  the host. The same test applies to any "these two spellings answer the same thing" float case. [until: reviewed 2026-09-06]
 - **A `Core` member accepts a `tainted` argument wherever its row's mark says so, and what a case has to
   get right is the declared type of the *answer*.** `rule:security/unclassified-parameter-refuses-tainted`'s classification reaches the checker
   (`MethodSig::param_quals`), so a `Contagious`, `Neutral` or `Launder` parameter takes a tainted
@@ -3472,7 +3450,7 @@ is why" — is this file.
   is not one. Two refusals that are also not bugs in the case: `secret` is refused at every one of those
   positions, and a tainted argument is refused wherever the answer has nowhere to carry it —
   `Core\Uri::parse`, `Core\Json::decode`, `Core\Bytes::unpack`. `tests/conformance/reject/` has one case
-  per row of this.
+  per row of this. [until: reviewed 2026-09-06]
 - **`Core\Math::atanh` is not exactly odd, and the two legs disagree about which rows it fails on.**
   Every other member of the family is: `sin`, `tan`, `sinh`, `tanh`, `asin`, `atan`, `asinh`, `cbrt`
   and `sign` satisfy `f(-$x) == 0.0 - f($x)` bit for bit on every row of a swept table, and `cos`/`cosh`
@@ -3484,14 +3462,14 @@ is why" — is this file.
   infinite row taken by exact equality, since infinities negate exactly), which is host-independent
   and still says the member is odd. This is the neighbouring `hypot` bullet's rule met from the other
   side: there the two spellings were different computations, here they are the same computation on
-  arguments that are exact — and it is still not enough when the member's own formula is asymmetric.
+  arguments that are exact — and it is still not enough when the member's own formula is asymmetric. [until: reviewed 2026-09-06]
 
 - **`int as float` is checked and refuses past 2^53, not past `int`'s own range.**
   `nvs_runtime`'s `int_to_float` is `value.unsigned_abs() <= F64_EXACT_INT_LIMIT`, so
   `Core\Math::INT_MIN as float` throws `cannot convert `int` -9223372036854775808 to `float`` even
   though -2^63 is exactly representable as a double. A case sweeping a `float`-typed member over an
   `int` table is therefore bounded at ±9007199254740992, and reaching `int`'s own extremes on the
-  float side needs a `float` *literal* — `0.0 - 9223372036854775808.0` — rather than a conversion.
+  float side needs a `float` *literal* — `0.0 - 9223372036854775808.0` — rather than a conversion. [until: reviewed 2026-09-06]
 - **`Core\Math::cbrt` is not one of IEEE 754's correctly rounded operations and the two legs
   disagree, so an *irrational* cube root's round trip cannot be frozen either way.**
   `Core\Math::cbrt(2.0)` cubed is exactly `2.0` under glibc on the WSL leg and
@@ -3502,7 +3480,7 @@ is why" — is this file.
   `4.4408920985006E-16` over 2 everywhere. A *perfect* cube does round trip on both legs — 18 rows
   of both signs, including the dyadic ones — because the answer is representable and every libm's
   final refinement lands on it; that half is safe to assert, the irrational half is not. Same
-  reading as the `hypot` and `atanh` bullets beside this one: pick the rows, not the member.
+  reading as the `hypot` and `atanh` bullets beside this one: pick the rows, not the member. [until: reviewed 2026-09-06]
 
 - **Float `<`, `>`, `&&` and `||` all lower, and `0.0 / 0.0` answers `NAN` rather than throwing** —
   which together are what let a case assert "near, not equal" without a member. The neighbouring
@@ -3511,7 +3489,7 @@ is why" — is this file.
   `float $tol = 0.000000000001 * ($mag + 1.0);` then `if (($d < $tol) && ($d > 0.0 - $tol))`, with
   the magnitude taken by hand (`if ($mag < 0.0) { $mag = 0.0 - $mag; }`) because
   `Core\Math::abs` answers the `int|float` union and not a `float`. `-0.0` echoes as `-0` and is
-  read through `1.0 / $x` when it has to be told from `0.0`, as the parity case does.
+  read through `1.0 / $x` when it has to be told from `0.0`, as the parity case does. [until: reviewed 2026-09-06]
 - **A float landmark is exact on both legs, and `php` inside WSL says so without a Linux build of
   `nvs`.** PHP calls the same libm Rust's `f64` methods do, so
   `wsl.exe -- bash -lc "php /mnt/<drive>/<repo>/.agent-tmp/rows.php"` answers the "does glibc round this the
@@ -3521,7 +3499,7 @@ is why" — is this file.
   `exp(1.0) == E` and `log(E) == 1.0` — every one a domain endpoint or a halving, which is the same
   "pick the rows, not the member" reading as the `hypot` and `cbrt` bullets. The *interior* of the
   circle is not: `sin($x) * sin($x) + cos($x) * cos($x)` needs the tolerance spelling above even
-  though it agreed on all 20 rows of one table.
+  though it agreed on all 20 rows of one table. [until: reviewed 2026-09-06]
 - **A float round trip has a well-conditioned direction and an ill-conditioned one, and the case
   picks the direction rather than loosening the tolerance.** Composing a member with its inverse
   amplifies the inner answer's last digits wherever the outer member is steep, so the same claim is
@@ -3534,7 +3512,7 @@ is why" — is this file.
   quarter radian clear of a turning point (`±PI/2` for `asin`, `0` and `PI` for `acos`), where
   `atan(tan($x))` is well conditioned even beside the pole because `tan`'s blow-up and `atan`'s
   contraction cancel. This is the `hypot` and `atanh` bullets' "pick the rows, not the member" met
-  from the composition side.
+  from the composition side. [until: reviewed 2026-09-06]
 
 - **The hyperbolic and inverse-circular rows that are exact on both legs, so a case can assert them
   as equalities.** Measured through `php` natively and inside WSL, alongside the list in the
@@ -3545,14 +3523,14 @@ is why" — is this file.
   well and are properties rather than digits: `tanh(20.0) == 1.0` — past about 19 the two
   exponentials are a double's whole precision apart, so the ratio *is* one — while `cosh(20.0)` is
   still finite, and at 1000 both `cosh` and `sinh` answer `INFINITY` rather than refusing, a
-  hyperbolic member having no domain to leave on that side.
+  hyperbolic member having no domain to leave on that side. [until: reviewed 2026-09-06]
 - **A spread argument lowers now, so a case that composes a variadic member composes it.**
   `Core\Path::join(...Core\Path::split($p))` is how `path.rs`'s own doc comment writes the round
   trip, and it used to panic `nvs-ir`; it does not any more. The fold this bullet used to prescribe
   — a `public static function` helper walking the `array<string>` — is still what a case reaches for
   when the *pieces* are the subject, and two spellings inside it are still worth knowing: an array is
   indexed by the *string* of the offset (`$parts["0"]`, `$parts[$i as string]` inside a loop), and
-  `Core\Arr::count($parts) as int` is what an `int` counter may be compared against.
+  `Core\Arr::count($parts) as int` is what an `int` counter may be compared against. [until: reviewed 2026-09-06]
 
 - **A count that compares a library-built path against its input string is leg-dependent, and length
   is the way round it.** `Core\Path`'s members re-render with `Core\Path::SEPARATOR`, so "the rebuilt
@@ -3560,13 +3538,13 @@ is why" — is this file.
   one — a non-vacuity counter that means two different things. `Core\Str::length($rebuilt) !=
   Core\Str::length($p)` counts only what was genuinely dropped (a repeated or trailing separator),
   which is 4 on both. The goal's *Path and the two legs* decision covers what a case may *print*;
-  this is the same trap one step earlier, in what it may *count*.
+  this is the same trap one step earlier, in what it may *count*. [until: reviewed 2026-09-06]
 
 - **`Core\Path::split` keeps `.` and `..` as elements**, so `join` of what it returned is the path
   with its separators respelled and **not** its normal form — resolving them is `normalize`'s job
   alone. The round trip is therefore an identity *through* the normal form (`normalize($rebuilt) ==
   normalize($p)` on every row) and exact only on a path that is already normal. A case asserting
-  `join(split($p)) == normalize($p)` fails on 8 of 20 ordinary rows.
+  `join(split($p)) == normalize($p)` fails on 8 of 20 ordinary rows. [until: reviewed 2026-09-06]
 - **A `!= null` guard does not re-type a nullable local for an *argument* position; `as string` inside
   the guarded branch is what does.** `rule:expressions/nullable-conversion`'s narrowing is what lets `->` reach a member of a `?Foo`,
   and `tests/conformance/lang/a-null-test-narrows-a-nullable-local.nvst` only ever pinned that shape —
@@ -3576,14 +3554,14 @@ is why" — is this file.
   narrowing that would silently start working later: `$r as string` inside the branch, a checked
   conversion (`rule:types/conversion`) that would throw rather than lie if the guard above it were wrong, and
   `$r ?? "<null>"` where the value is only being echoed — which is also how a case prints the refusal
-  itself, since `echo` has no `null` row.
+  itself, since `echo` has no `null` row. [until: reviewed 2026-09-06]
 - **A green conformance case can be pinning the bug you are about to fix.**
   `reading-an-absent-array-key-throws.nvst` asserted `$maybe["gone"] ?? "stored-null"` *throws* —
   it was written to pin `rule:php-migration/every-divergence-is-deliberate-and-listed` row 11 and reached for `??` as a convenient way to spell
   the read, freezing the exact divergence from PHP that row was not claiming. So when a case
   goes red under a fix, check its expectation against PHP (`php -r '…'`) before adjusting
   either side: a `--EXPECT--` block is only as authoritative as the session that wrote it, and
-  a case using a construct incidentally is where a wrong one hides.
+  a case using a construct incidentally is where a wrong one hides. [until: reviewed 2026-09-06]
 - **`python tools/loop.py --list` names the exact `.nvst` *filenames* each stage owes, and a case
   written under a different name does not count toward them.** `python tools/holes.py --item N`
   prints the same names under "cases that may belong to it", which is the cheapest place to see them
@@ -3592,26 +3570,26 @@ is why" — is this file.
   stage was owed `a-named-argument-binds-by-name-and-a-spread-by-position` and
   `a-named-and-spread-argument-match-phps`; renaming afterwards is a `git mv` plus a re-run, but the
   owed name is also a *specification* — it said "and a spread by position", which is a row the first
-  draft did not have.
+  draft did not have. [until: reviewed 2026-09-06]
 - **`echo` writes its arguments one at a time, so a throwing call inside an `echo` list prints
   everything to its left first.** A `try { echo "did not throw, ", $f(1) as string, "\n"; }` that is
   *meant* to throw leaves `did not throw, ` on stdout ahead of the `catch`'s own line, and the
   `--EXPECT--` you then freeze pins that as correct. Bind the call first — `string $s = $f(1) as
   string; echo "did not throw, ", $s, "\n";` — so the negative branch prints nothing at all when the
-  positive one is what happens.
+  positive one is what happens. [until: reviewed 2026-09-06]
 - **Two `catch` bindings of the same name at file scope are fine only while they name the same
   class.** `catch (LogicError $e)` twice compiles, and so do fourteen of them — which is what makes
   a counted refusal sweep possible at all, since a closure cannot be called through the variable
   holding it and the sweep cannot be factored. Add one `catch (Throwable $e)` after them and it is
   `E0406: $e is already declared`, pointing at the first: a `catch` binding is the function's, and
   the class it names is part of the declaration that clashes. Give a differently-typed handler its
-  own name.
+  own name. [until: reviewed 2026-09-06]
 - **Two file-scope `catch`es may share a binding name only while they name the same class.** The
   neighbouring bullet says several file-scope `try`s each binding `$e` compile, and that holds — but
   `catch (ArithmeticError $e)` followed by `catch (LogicError $e)` is `E0406: `$e` is already declared`,
   pointing at the first clause, with no loop anywhere in the file. `rule:types/declaration`'s declare-once rule is
   about the *binding*, so a case that catches two different classes needs two names (`$a` for every
-  `ArithmeticError` clause, `$l` for every `LogicError` one) and can keep reusing each within its class.
+  `ArithmeticError` clause, `$l` for every `LogicError` one) and can keep reusing each within its class. [until: reviewed 2026-09-06]
 - **A property default is a scalar literal or `[]`, and a *hooked* property takes none at
   all.** `public array<string> $rows = ["a"];` is `E0472`: a default is written into every
   fresh instance's slot at compile time, so a case that needs a seeded `array<T>` property
@@ -3620,7 +3598,7 @@ is why" — is this file.
   a `{ get => …; set { … } }` block after a default is then a *parse* error that cascades into
   six more, so the hook block reads as broken syntax rather than as the illegal default it
   follows. Copy the shape from
-  `tests/conformance/lang/every-write-spelling-agrees-on-a-refused-element-target.nvst`.
+  `tests/conformance/lang/every-write-spelling-agrees-on-a-refused-element-target.nvst`. [until: reviewed 2026-09-06]
 - **A parser refusal that yields `ExprKind::Error` doubles its own `--EXPECTF-ERROR--` block.**
   `Error` types as `mixed`, so every binding fed by one reports an `E0401` right beside the refusal
   that caused it — `@$n * 2` printed `E0236` *and* "expected `int`, found `mixed`" at the same span,
@@ -3628,14 +3606,14 @@ is why" — is this file.
   the *operand* back in place of the whole prefix is the fix at the source and the better recovery
   besides; the legacy cast in `nvs-syntax/src/parser/expr.rs`'s `parse_unary` keeps `Error` only
   because `(int)$x` names a target type it cannot honestly produce a value of. Decide which of the
-  two a new refusal wants *before* writing the expected block, not after pasting it.
+  two a new refusal wants *before* writing the expected block, not after pasting it. [until: reviewed 2026-09-06]
 - **`lower_first_method` lowers `T`'s *first* method, so a lowering fixture puts the method
   under test first and its helpers after it.** The instinct is to declare the callee at the
   top the way a `.nvst` case does, and the snapshot that comes back is then the callee's own
   three-line body — which looks like a lowering that produced nothing rather than like the
   wrong function, because a `static function m(): void { }` lowers to exactly a `safepoint`, a
   `param` per declaration and a `return`. Recognizing it costs one `cargo insta` cycle;
-  reordering the two members is the whole fix.
+  reordering the two members is the whole fix. [until: reviewed 2026-09-06]
 - **A named case a stage owes may be pinning a hole rather than a landed feature, and the
   failure mode is a *missing* line rather than a wrong one.**
   `a-finally-runs-when-its-catch-body-throws` was handed over as the group's easy third
@@ -3644,26 +3622,26 @@ is why" — is this file.
   would have pinned the divergence as the expectation. So run a new case's shapes in a
   scratch `.agent-tmp/*.nvs`, write the same program as `.php`, and **diff the two** before
   filling in `--EXPECT--` — a conformance case takes no `--ORACLE--`, which is exactly why
-  its expectation is the one nothing else checks against PHP.
+  its expectation is the one nothing else checks against PHP. [until: reviewed 2026-09-06]
 - **An array literal's key arrow is `=>`, not the shape literal's `:`.** `rule:types/object-top`'s
   anonymous object is `{x: 1}` and it is easy to carry that colon into the array
   form, where `["a": 1, "b": 2]` is not a near-miss but a parse failure that
   reports `E0102`/`E0101` three times over one line and hides whatever else the
   case was actually asserting. `examples/arrays.nvs:12` is the spelling —
-  `["alpha" => 1, "beta" => 2]` — and PHP's own arrow is the one Novis kept.
+  `["alpha" => 1, "beta" => 2]` — and PHP's own arrow is the one Novis kept. [until: reviewed 2026-09-06]
 - **An `--EXPECTF-ERROR--` section is matched whole, not as a prefix**, so a sweep that
   ends at its last `error[...]` line fails against a compiler that then prints
   `error: aborting due to N errors`. End the section with `%A` and that line — the count
   included, which is also a second assertion that no *extra* diagnostic crept in. The
   existing `a-void-call-is-not-an-operand.nvst` has the shape; a case written from the
-  conventions' skeleton alone does not.
+  conventions' skeleton alone does not. [until: reviewed 2026-09-06]
 - **An inline-HTML run is assertable as a *value*, which is what lets a case about one count
   rather than read.** `Core\Out::capture(fn (): void => { ?>text<?nvs })` lowers — a run is a
   statement, and a closure's block body is a statement list, so the `?>` inside an array literal
   of `array<callable>` parses fine — and the `Core\Cli\Text` it answers takes `as string`, so
   `Core\Str::compare($t as string, "text")` is the comparison. That is the only way to put a raw
   span and an `echo` of the same literal side by side, since a run writes straight to the output
-  and has no other spelling.
+  and has no other spelling. [until: reviewed 2026-09-06]
 - **The coverage gate matches a member's *fully qualified* call spelling, so a case written
   entirely through `use Core\Test;` leaves every member it calls uncovered.**
   `crates/nvs-stdlib/tests/conformance_coverage.rs` greps the `--FILE--` sections for
@@ -3671,7 +3649,7 @@ is why" — is this file.
   answers for nothing and `cargo test` fails with "N registered `Core` member(s) are never
   used by a conformance case" long after the case itself is green. Write each new member
   once in the `Core\…` spelling somewhere in the case — which is worth a line of its own
-  anyway, since the two spellings being one member is a fact about `use`.
+  anyway, since the two spellings being one member is a fact about `use`. [until: reviewed 2026-09-06]
 - **A `--ORACLE-DIVERGES--` section is one line**, and the runner refuses the case
   before it runs anything otherwise (`line N: `--ORACLE-DIVERGES--` is one line`). The
   standing cases read as paragraphs because they are one very long line that a viewer
@@ -3680,7 +3658,7 @@ is why" — is this file.
   The neighbouring fact, worth knowing before choosing the twin: the `php` on this box
   has **no `mbstring`** (the playbook bullet above owns that) but **does** have `iconv`,
   and `strptime` was removed from PHP outright, so `DateTime::createFromFormat` is the
-  twin a `Core\Time::parse` oracle is written against.
+  twin a `Core\Time::parse` oracle is written against. [until: reviewed 2026-09-06]
 - **A `Core` enum case cannot be held in a binding of its own type**, so a case that sweeps a
   table of them writes each row out rather than looping. `Core\Charset $c = Core\Charset::Ascii;`
   and `array<Core\Charset> $sets = [Core\Charset::Ascii, …]` are both `E0401` reading "expected
@@ -3688,7 +3666,7 @@ is why" — is this file.
   type and that enum's own type fails where the identical shape over a user-declared `enum Mode`
   passes. The way round is to write the case inline at every call site, which is what the three
   `encoding-*` differential cases do and why their sweeps are eight `if` lines rather than a
-  `foreach`. It is a checker hole rather than a rule, and the handoff's `## Backlog` carries it.
+  `foreach`. It is a checker hole rather than a rule, and the handoff's `## Backlog` carries it. [until: reviewed 2026-09-06]
 - **A `for` header's initialiser cannot declare a typed local.** `for (int $i = 0; $i <
   200000; $i = $i + 1)` is twelve diagnostics in one line — `E0102`/`E0101` at the type
   keyword, then `E0301` and `E0401` on the `$i` that never got declared — because the
@@ -3696,7 +3674,7 @@ is why" — is this file.
   binding declared. Declare it above the loop and leave the clause empty, or write the
   `while` the loop already is: `int $i = 0; while ($i < 200000) { … $i = $i + 1; }`. The
   first error's span points at the type keyword, which reads like the type is unknown
-  rather than unexpected, so it is worth knowing before the eleven that follow it.
+  rather than unexpected, so it is worth knowing before the eleven that follow it. [until: reviewed 2026-09-06]
 - **A `Core` enum cannot be a parameter's declared type**, so a sweep over `Core\Unit` or
   `Core\Weekday` cannot be factored into a closure or a helper that takes the case. `fn
   (Core\Unit $u): string => …` compiles, and the *call* is then `E0401: expected
@@ -3705,14 +3683,14 @@ is why" — is this file.
   is `E0708` for the same reason, where `$d->weekday() as int` off the member's own return
   type runs. A user-declared `enum Local: int` is fine both ways, so it is `Core`-specific.
   The way round is to factor the *comparison* instead: pass the two formatted strings, or
-  two `DateTime`s and an `int`, and write the enum case at each call site.
+  two `DateTime`s and an `int`, and write the enum case at each call site. [until: reviewed 2026-09-06]
 - **A `$` inside a double-quoted string interpolates, and the escape is `\$`.** A case
   about a character class writes the class out — RFC 5322's `atext` is
   `!#$%&'*+-/=?^_` plus a backtick and `{|}~` — and the bare `$%` in the middle of it is
   read as a variable rather than as two bytes. `"!#\$%&'*+-/=?^_`{|}~"` is the spelling
   that compiles; a backtick and an apostrophe need nothing inside double quotes, and
   `'q\'s'` is the single-quoted form. One scratch `nvs run` settles which of these a
-  version of the lexer takes.
+  version of the lexer takes. [until: reviewed 2026-09-06]
 - **`echo` writes its operands one at a time, so a throwing call in the middle of one
   leaves half a line on stdout.** `try { echo "[", $t, "] port=", Show::port($t), "\n"; }
   catch (Throwable $e) { echo "[", $t, "] refused\n"; }` prints
@@ -3720,7 +3698,7 @@ is why" — is this file.
   threw, and the catch starts a second line's worth of text on the same line. It reads as
   a case whose expectation is subtly wrong rather than as a case written in the wrong
   order. Evaluate the throwing call into a local *inside* the `try` and echo the whole
-  line after it: `string $shown = Show::port($t); echo "[", $t, "] port=", $shown, "\n";`.
+  line after it: `string $shown = Show::port($t); echo "[", $t, "] port=", $shown, "\n";`. [until: reviewed 2026-09-06]
 - **A `Core` enum reaches a `Core` member only as the case written at the call site.** A
   `Core\Unit` is `E0401` the moment it travels through anything the program declares: an
   `array<Core\Unit>` literal refuses every element, and a helper's own
@@ -3731,7 +3709,7 @@ is why" — is this file.
   `.agent-tmp/` is the cheap way to author 22 of them) and let counters carry the
   assertion, exactly as the *invariance over a sweep* shape asks. `Core\Weekday` behaves
   the same; the case-to-parameter direction at a *`Core` member's own* row is fine, which
-  is what makes the restriction easy to miss.
+  is what makes the restriction easy to miss. [until: reviewed 2026-09-06]
 - **`Core\ObjectSet`'s `union`/`intersect`/`diff` answer an *unparameterized*
   `Core\ObjectSet`, so an algebra result can only be consumed by chaining off it.**
   `objset.rs:89` spells the return type `CoreTy::Instance(NAME)`, which carries no type
@@ -3742,7 +3720,7 @@ is why" — is this file.
   *declared* position. So "are these two sets the same" is written inline as
   `$a->diff($b)->count() == 0 && $b->diff($a)->count() == 0` plus the counts, and a case
   that wants a set-equality helper takes its two operands as the parameterized type and
-  never as an algebra result. `Core\ObjectMap`'s members have the same shape.
+  never as an algebra result. `Core\ObjectMap`'s members have the same shape. [until: reviewed 2026-09-06]
 - **A counting sweep adds `$b ? 1 : 0`, never `$b as int`.** `bool` converts to `string` and to
   `bool` alone (`E0708`, `rule:types/conversion`), so the *invariance over a sweep* shape — the one that
   asserts a property by counting agreements rather than reading them off a line — spells its
@@ -3750,7 +3728,7 @@ is why" — is this file.
   costs a compile to find out. The rest of the shape does work: an
   `array<Core\Time\Duration> $each = [0s, 1ns, …]` of `Core` instances iterates with a typed
   `foreach` binding, `continue` skips the row a law does not apply to, and a bare
-  `Core\X::member($arg);` is a legal statement when the case only wants the throw.
+  `Core\X::member($arg);` is a legal statement when the case only wants the throw. [until: reviewed 2026-09-06]
 - **A handoff's named group can be already landed, and `gaps.py`'s depth number will not
   say so.** The `Core\Math` group named three slices — `abs`/`sign`/`intDiv`/`mod` at the
   ends of `int`, `clamp`/`min`/`max` agreeing on one ordering, `toBase`/`fromBase` at the
@@ -3764,7 +3742,7 @@ is why" — is this file.
   implementation, not after. When they are all taken, do not write a fourth row of the
   same shape: find the claim no case makes (here, that `Core\Math` splits into an
   `int`-parameter family that reaches both ends of `int` and a `float`-parameter family
-  that stops at 2^53), and say in the handoff that the group's premise was stale.
+  that stops at 2^53), and say in the handoff that the group's premise was stale. [until: reviewed 2026-09-06]
 - **A top-level element of an `array<mixed>` reads fine as a `mixed` argument, which is how a
   sweep over heterogeneous rows is written.** The neighbouring bullet — a case cannot index
   into an `array<mixed>`'s *elements* — is about the second level only: `$lefts[$i as string]`
@@ -3773,14 +3751,14 @@ is why" — is this file.
   $lefts`, `array<mixed> $rights`) plus a `while` counter and a `public static function` that
   asks the members about one row. In the same family, and cheap to trip over in a scratch
   probe: a file-scope `catch (Throwable $e1)` collides with a *later* `array<mixed> $e1 = …`
-  (`E0406`), because the catch binding is the function's — name each catch for what it caught.
+  (`E0406`), because the catch binding is the function's — name each catch for what it caught. [until: reviewed 2026-09-06]
 - **A closure is an object of a compiler-synthesized class, so `shown`'s `a closure` arm is
   unreachable from source.** `Core\Test::assertSame($f, $g)` over two `callable`s prints
   ``a `Script$fn0` `` and ``a `Script$fn1` `` — `rule:types/closure-literal`'s closure lowering makes a literal an
   object with one field per capture, so the value carries `Tag::Object` and the class name it
   reports is the synthesized label. Keep a `callable` out of a case about how a value renders:
   the row pins a name no ADR owns. The same goes for `Tag::Resource` and `Tag::Unset`, which no
-  file-scope expression produces at all.
+  file-scope expression produces at all. [until: reviewed 2026-09-06]
 - **A `Core` enum case will not go in an array or through a parameter, but a `var` binding takes
   one — and a `match` on an index is how a case sweeps a whole roster.** A source-written
   `Core\Charset` does not unify with the registry's own enum type, so both
@@ -3790,14 +3768,14 @@ is why" — is this file.
   `var $cs = match ($i) { 0 => Core\Charset::Utf8, …, default => … };` inside a `for` over the
   case count — which is what let the two encoding cases cross 41 charsets with a table of texts.
   Both `encoding-text-round-trips-through-every-charset-the-registry-names.nvst` and
-  `encoding-isvalidtext-is-decodetext-s-verdict-over-the-whole-roster.nvst` carry the spelling.
+  `encoding-isvalidtext-is-decodetext-s-verdict-over-the-whole-roster.nvst` carry the spelling. [until: reviewed 2026-09-06]
 - **A `Core` member's numeric parameter is often `uint`, and a helper factoring a sweep has to
   declare it that way.** A literal `64` places as `uint` at the call site, so
   `Core\Str::repeat("36", 64)` compiles and hides the rule — but the moment the count comes
   through a helper parameter typed `int`, `E0401` says "expected `uint`, found `int`" at every
   call. Type the parameter `uint`; the arithmetic on it (`$block - 5`) stays `uint` and is fine.
   The mirror of the same rule on the way out: `Core\Str::length` *returns* `uint`, so a loop
-  counter fed from it wants `as int` or a `uint` of its own.
+  counter fed from it wants `as int` or a `uint` of its own. [until: reviewed 2026-09-06]
 - **A `Core` member whose parameter is an enum-case union will not take the whole enum.**
   `Core\Hash::hmac`'s third parameter is `rule:types/enum-case-type`'s
   `Core\Digest::Sha256|Core\Digest::Sha384|Core\Digest::Sha512`, not `Core\Digest`, so a helper
@@ -3805,7 +3783,7 @@ is why" — is this file.
   `Core\Digest` is refused at the forward even though every value reaching it is one of the
   three. The union spelling parses in a parameter position and widens to `Core\Digest` for the
   members that take the whole enum, so one helper can forward to both `hmac` and
-  `Core\Hash::stream`.
+  `Core\Hash::stream`. [until: reviewed 2026-09-06]
 - **A member's *case count* does not say which shapes those cases already assert.**
   `gaps.py --coverage` ranks by cases-per-member, so a member can sit at 2 and already have
   both halves of its bound pinned — `Core\Bytes::at` did, in
@@ -3815,7 +3793,7 @@ is why" — is this file.
   writing the shape a handoff line asks for: what was actually left there was the index
   *type*'s ends, `i64::MAX` and `i64::MIN`, where `addressed`'s count-back-from-the-end could
   wrap into range, and that is two echo lines appended to the case that already owns the
-  boundary rather than a new file duplicating it.
+  boundary rather than a new file duplicating it. [until: reviewed 2026-09-06]
 - **An enum declares its cases without the `case` keyword, and a map literal uses `=>`.**
   `enum Level: int { Off = 0, On = 1, }` — writing PHP's `case Off = 0;` is `E0220` plus an
   `E0101` per case, eight diagnostics for a four-line declaration, and none of them names the
@@ -3826,7 +3804,7 @@ is why" — is this file.
   **an enum case behind a `mixed` reads *falsy* in a condition when its backing integer is `0`**,
   because `rule:types/literal-types` spends no representation on hiding it and the runtime table dispatches on
   the tag — while the same case behind its declared type is truthy, which is what `rule:enums/truthiness`
-  actually decided. Do not assert the erased row as if it were the ADR's answer.
+  actually decided. Do not assert the erased row as if it were the ADR's answer. [until: reviewed 2026-09-06]
 - **A `!= null` narrowing does not survive into a loop body, so a nullable receiver is
   nullable again inside a `foreach`.** `var $found = Core\Regex::match(…); if ($found !=
   null) { $found->groups() … }` narrows fine, and `$found->group($key)` one line further in,
@@ -3837,7 +3815,7 @@ is why" — is this file.
   is over a `?T`-answering member declares its helper's parameter `?Core\Regex\Match` and
   reads it with `?->` plus a `??`, rather than narrowing once at the top and trusting it. In
   the same family and cheaper to hit: `foreach ($m?->groups() as …)` is `E0443` outright, the
-  nullsafe chain's own `null` being part of the iterated type.
+  nullsafe chain's own `null` being part of the iterated type. [until: reviewed 2026-09-06]
 - **How a case counts what a callback did: `rule:types/implicit-capture`'s `Counter` object, at file scope, in a
   block-bodied `fn`.** A closure captures by value and there is no `use (&$n)`, so "was this callback
   called, and how often" looks unaskable from a `.nvst` case — but a captured *object* is still shared,
@@ -3847,7 +3825,7 @@ is why" — is this file.
   turns "the answer looks right" into "the callback ran exactly `min(limit, matches)` times". Three
   spellings to get right on the way: a block-bodied `fn` must declare its return type, there is no `++`
   or `+=` so it is `$t->n = $t->n + 1`, and the closure may be declared fresh inside a `foreach` body
-  (the binding is the function's, but re-executing its declaration is not a second declaration).
+  (the binding is the function's, but re-executing its declaration is not a second declaration). [until: reviewed 2026-09-06]
 - **The handoff's named group may already be on disk, under a filename that does not say so.**
   Two of this group's three items — the four encoders' round-trip sweep and `with` agreeing with
   the seven readers — were already written, as
@@ -3858,14 +3836,14 @@ is why" — is this file.
   seconds and belongs before the first read of the implementation: `ls tests/conformance/core/ |
   grep -i <class>` and then `sed -n '2p'` over every hit — the `--TEST--` line is written to be
   exactly this index. Take the ranking off `gaps.py`, but take *which property is still open* off
-  those lines.
+  those lines. [until: reviewed 2026-09-06]
 - **`echo` writes its earlier operands before a later one throws**, so
   `try { echo "accepted [", Core\Uri::decodeComponent($bad), "]\n"; } catch ...` prints the
   `accepted [` prefix of *every* refused row and the expected output grows a run of them —
   which reads as the member having accepted the row. Bind the call on the line above
   (`var $read = ...;`) and echo only after it returned. This is the throwing-row twin of the
   `--EXPECT--` block's trailing-space rule: what a case prints before a refusal is part of
-  what it pins.
+  what it pins. [until: reviewed 2026-09-06]
 
 - **A `Core` class with a `compareTo` is still not `Comparable` to the checker.**
   `Core\Uri` has the member, its doc comment names `rule:classes/comparable`, and `$a < $b` over two of them is
@@ -3875,7 +3853,7 @@ is why" — is this file.
   spaceship all refuse a `Core` object, so `$x->compareTo($y)` written out is the only order
   such a pair has; and a `{comparator: ...}` closure over them must declare its parameters as
   the class itself, because `mixed as Core\Uri` is `E0711` ("this target names no class to
-  test the value against") — `rule:types/conversion` tabulates no conversion into an object.
+  test the value against") — `rule:types/conversion` tabulates no conversion into an object. [until: reviewed 2026-09-06]
 - **A multi-argument `echo` prints its arguments as it evaluates them, so a `try` whose
   `echo` mixes a label with the call being tested prints the label and then throws**,
   leaving a half-written line above the `catch`'s own output that no amount of reading
@@ -3884,7 +3862,7 @@ is why" — is this file.
   helper that returns a `string` — `"= " . …` on the answering path, `"! " . $e->message`
   in the `catch` — and echoes that; which is also what lets the verdicts be *compared* to
   each other rather than read off the block, since the same message pinned once can then
-  be counted over a whole corpus.
+  be counted over a whole corpus. [until: reviewed 2026-09-06]
 - **`gaps.py --coverage` counts cases per member, and a member sitting at 2 may already be
   at its bound.** A handoff derived `Core\Bytes::at`'s slice from that count — "the last
   in-range index and the first out-of-range one, at both ends and over an empty receiver" —
@@ -3894,20 +3872,20 @@ is why" — is this file.
   things about one member scores as one. `grep -rn "Class::member" tests/conformance/` over
   the item before writing costs one call; a duplicate case costs a session and then has to
   be told apart from the real one forever after. If the item is already answered, say so in
-  the handoff and take the next one.
+  the handoff and take the next one. [until: reviewed 2026-09-06]
 - **A `for` header takes expressions only, so a swept counter is a `while` with the
   counter declared above it** — `for (uint $w = 0; $w < 9; $w = $w + 1)` is six parse
   errors pointing at the `uint`. Declared once at file scope it is the function's, so a
   nested sweep resets it (`$w = 0;`) at the top of the outer body rather than redeclaring.
   In the same family: incrementing a `uint` needs a `uint` to add, so the case declares
   `uint $one = 1;` and writes `$w = $w + $one` — a bare `1` is an `int` with no
-  representable common type.
+  representable common type. [until: reviewed 2026-09-06]
 - **A `--EXPECT--` block written by hand gets *precomposed* accented letters and the case
   emits *decomposed* ones**, which render identically in every terminal and in the diff
   the runner prints — so the failure reads as "expected X, actual X" and looks like a
   line-ending bug. Any case whose subject is `rule:types/string-is-utf8`'s grapheme unit has combining
   marks in its output; build the block from the binary's own bytes rather than by typing
-  it.
+  it. [until: reviewed 2026-09-06]
 - **`Core\Str::slice`'s third argument is a *length*, not an end offset, and getting it
   wrong still counts plausibly.** A sweep walking an alphabet one symbol at a time reaches
   for `Core\Str::slice($alphabet, $i, $i + 1)` — which is "from `$i`, take `$i + 1`
@@ -3917,7 +3895,7 @@ is why" — is this file.
   was meant) said anything was wrong. So a counting sweep should echo the *set* it counted
   as well as the count, and the spelling is `Core\Str::slice($s, $i, 1)`. The existing
   `Core\Str::slice("YWJjZAYW", 0, $k)` reads as either semantics, which is why it is not
-  the place to check.
+  the place to check. [until: reviewed 2026-09-06]
 - **`gaps.py` ranks a class by *cases per member*, and a sweep case is one case however many
   members it asserts.** A handoff group derived from that rank can name work that is already
   done: `Core\Random` ranked thin at 7 cases over 7 members, but
@@ -3927,7 +3905,7 @@ is why" — is this file.
   writing a ranked member's case, read the *bodies* of the class's existing cases and not only
   their `--TEST--` lines — a sweep names the members it covers nowhere else. What was actually
   left in that class was found by reading the member doc comments for a rule with no case:
-  a divergence from PHP that every existing case's *list* subject cannot observe.
+  a divergence from PHP that every existing case's *list* subject cannot observe. [until: reviewed 2026-09-06]
 - **A nesting sweep is spelled `array<array<array<mixed>>>`, and `flatten` cannot be
   iterated in a loop.** `Core\Arr::flatten($x)` over an `array<mixed> $x` is `E0401`
   — its parameter is `array<array<T>>`, so the flat answer it converges on no longer
@@ -3941,14 +3919,14 @@ is why" — is this file.
   the string of the offset), and `Core\Str::countOf($json, "[") == 1` is how a case
   asserts an answer holds no nested array at all. `key_bytes`'s refusal, meanwhile, is
   `Fault::fatal` — so `Core\Arr::column`'s "an `indexBy` cell that is not an `int|string`"
-  bullet is owed no case, no handler reaching it.
+  bullet is owed no case, no handler reaching it. [until: reviewed 2026-09-06]
 - **A `for` header cannot *declare* its counter**, so `for (int $i = 0; $i < $n; $i = $i + 1)` is
   twelve errors starting with `E0102: expected an expression` pointing at the `int`, and the later
   ones (`E0301` on `$i`, `E0401: expected int, found mixed`) read as if the counter were the
   problem rather than its declaration. Declare it on the line above and use a `while`:
   `int $i = 0; while ($i < $n) { … $i = $i + 1; }` — which is what an index-walked sweep over two
   parallel `array<string>`s wants anyway, since the arrays are still indexed by the *string* of the
-  offset (`$hays[$i as string]`).
+  offset (`$hays[$i as string]`). [until: reviewed 2026-09-06]
 - **Two strings that look identical in a failed `--EXPECT--` diff can differ by a
   normalization form, and a `Core\Str` case is where that happens.** Echoing
   `Core\Str::reverse("cafe\u{301}")` prints `éfac`, the expectation written by hand in the
@@ -3957,7 +3935,7 @@ is why" — is this file.
   against the `--EXPECT--` block is the only way to see it. The fix is not to widen the
   expectation but to stop echoing the cluster: assert it against a source-escaped literal
   (`Core\Str::reverse("cafe\u{301}") == "e\u{301}fac" ? "1" : "0"`) and echo the composed
-  spelling of the same row instead, so every byte in the expect block is one you typed.
+  spelling of the same row instead, so every byte in the expect block is one you typed. [until: reviewed 2026-09-06]
 - **`--EXPECT-ERROR--`/`--EXPECTF-ERROR--` means "this run must fail", so a program that exits 0
   has no way to state what it wrote to standard error.** `nvs_test::Case::expects_failure` is
   literally `self.expect_error.is_some()` (`crates/nvs-test/src/case.rs:127`), and
@@ -3968,7 +3946,7 @@ is why" — is this file.
   program with a deliberate `throw new RuntimeError(...)`, match the dumps byte for byte and
   absorb the fatal report with a trailing `%A` under `--EXPECTF-ERROR--`. 163 cases carry an error
   section and many of them also carry `--EXPECT--`, so there is no discriminator to relax the rule
-  with; a section meaning "stderr of a run that succeeded" would be a new one.
+  with; a section meaning "stderr of a run that succeeded" would be a new one. [until: reviewed 2026-09-06]
 - **A `.nvst` case cannot hold `Core` instances in an `array<mixed>`** — `$one as Core\Uri`
   on an element is `E0711` ("`rule:types/conversion` tabulates no conversion into an object"), so a
   sweep that builds many objects and then asks one question of each has to collect the
@@ -3977,7 +3955,7 @@ is why" — is this file.
   header cannot declare a typed local (`for (uint $i = 0; …)` is `E0102` at the type name,
   so declare it above and use a `while`), and `Core\Uri::with` takes one options bag, so
   it is `$u->with({scheme: "ftp"})` — `$u->with(scheme: "ftp")` names no parameter of it
-  and is `E0486`, the bag itself being callable only as `options:` (`rule:core-api/shape-rules` R2).
+  and is `E0486`, the bag itself being callable only as `options:` (`rule:core-api/shape-rules` R2). [until: reviewed 2026-09-06]
 - **A `--EXPECT--` block cannot tell a composed `é` from a decomposed one, and the failure
   prints as two identical-looking blocks.** A case over `Core\Str` that echoes a subject built
   with `\u{301}` (or any combining mark) will fail against an expectation typed as the composed
@@ -3986,7 +3964,7 @@ is why" — is this file.
   `Core\Str::length` over the pieces against the subject's, which is the cluster property the case
   wanted anyway — and keep the eyeball line on a subject whose characters have one spelling. The
   neighbouring bullet about a trailing space before a `\n` is the same family of invisible
-  mismatch.
+  mismatch. [until: reviewed 2026-09-06]
 - **A sweep over `Core\Json::decodeAs<T>` needs one helper per `T`, not one helper.** The class is
   written at the call site (`rule:core-api/shape-rules` R4, and `WRITTEN_CLASS_MEMBERS` hands the helper a `ClassDesc`
   ahead of the declared parameters), so there is no parameter a probe could carry the class in and
@@ -3994,7 +3972,7 @@ is why" — is this file.
   `try { … return true; } catch (Throwable $bad) { return false; }` over the same document builder,
   and sweep the *documents* instead — that is what
   `json-decode-as-admits-exactly-its-declared-type.nvst` does. In the same family: `Core\Str` has
-  `padEnd`/`padStart` and no `padRight`, and no `concat` at all — `.` is the concatenation.
+  `padEnd`/`padStart` and no `padRight`, and no `concat` at all — `.` is the concatenation. [until: reviewed 2026-09-06]
 - **`Core\ObjectSet`'s `union`, `intersect` and `diff` answer a set no declared type
   accepts, so a derived set can only be *chained*.** Their rows are
   `return_ty: CoreTy::Instance(NAME)` with no type argument
@@ -4005,7 +3983,7 @@ is why" — is this file.
   the same `E0401`. What *does* take it is a `Core` member's own parameter, whose type is
   the same bare `Instance`, so every law over a derived set is written as one chain
   (`$a->diff($b)->union($a->intersect($b))->diff($a)->count() == 0`), and a "these two
-  sets are equal" check is that chain in both directions rather than a named helper.
+  sets are equal" check is that chain in both directions rather than a named helper. [until: reviewed 2026-09-06]
 - **`Core\Uri::parse` refuses a stray `%`, so `normalized`'s malformed-escape branch is
   owed no case.** The module doc says "two references that both wrote the same stray `%`
   are still the same reference", which reads as behaviour a `compareTo` case can pin —
@@ -4016,7 +3994,7 @@ is why" — is this file.
   member, the seven component readers are **methods** (`$uri->path()`), and only five
   of them can hold a percent-escape — a scheme is `ALPHA *( ALPHA / DIGIT / "+" / "-" /
   "." )` and a port is digits — which is what a denominator in a swept `Core\Uri` case
-  has to say out loud.
+  has to say out loud. [until: reviewed 2026-09-06]
 - **`gaps.py`'s depth number counts cases per member, not questions per member, and at the top of
   its table those have come apart.** A handoff item derived from that ranking can name an "unasked
   half" that is already a landed case: this session's own group opened with `Core\Bytes::startsWith`
@@ -4026,7 +4004,7 @@ is why" — is this file.
   one `cat`, and the same check then disqualified the thinnest members of `Core\Test`, `Core\Random`,
   `Core\Time` and `Core\Regex` in turn — `quote` at 2 cases already has a full escape-set sweep *and*
   a `preg_quote` differential. So read the candidate member's existing case *bodies* before writing,
-  and prefer a question no existing case's `--TEST--` line states over a member with a low count.
+  and prefer a question no existing case's `--TEST--` line states over a member with a low count. [until: reviewed 2026-09-06]
 - **A mechanical sweep over the `.nvst` corpus has to treat each `--SECTION--` as its own program.**
   `rule:iteration/for-init-clause`'s migration moved 55 `for` counters into their headers across 29 files, and the one rule
   that decides a case correctly is "is this counter read outside its own loop" — which is a question
@@ -4039,20 +4017,20 @@ is why" — is this file.
   a nested header's declaration is re-entered once per outer iteration with no complaint, `rule:iteration/for-counter-scope`
   making it function-scoped either way. And `core.autocrlf=true` here means every rewritten file draws
   a loud `CRLF will be replaced by LF` warning from git that says nothing about your edit — read
-  `git diff --stat`, not the warnings.
+  `git diff --stat`, not the warnings. [until: reviewed 2026-09-06]
 - **An interface method needs `public` in a `.nvst` case but not in a `nvs-types` unit fixture**, so
   a shape checked green by `crates/nvs-types/tests/common`'s `check_src` can still fail the case
   runner with `E0122` ("a method must declare `public`, `protected` or `private`"). `check_src`
   runs `parse` → `resolve` → `check_program` and nothing else; the casing/visibility pass
   `nvs-cli`'s `front_end` runs is not in it. So `interface Labelled { function label(): string; }`
-  is a fine unit fixture and a broken case file, and the fix is one keyword rather than a hunt.
+  is a fine unit fixture and a broken case file, and the fix is one keyword rather than a hunt. [until: reviewed 2026-09-06]
 - **A nested `instanceof` guard *replaces* the residue rather than intersecting with it.** There is no
   intersection type, so inside `if ($v instanceof Labelled) { if ($v instanceof Counted) { ... } }` the
   subject is a `Counted` and nothing else, and `$v->label()` there is `E0405: \`Counted\` has no method
   named \`label\``, pointing at the *inner* interface for a member the outer guard proved. Read what the
   outer guard bought into a local before writing the second test —
   `tests/conformance/lang/an-instanceof-guard-narrows-to-an-interface.nvst` writes it that way and says
-  so in the case.
+  so in the case. [until: reviewed 2026-09-06]
 - **Two sort keys that look different usually agree, and a case that does not separate them pins
   nothing.** `rule:programs/implementing`'s `implementors` sorts by `QName::segments()`, and the obvious
   counter-example to a rendered-string sort — a deeper name against a shallower sibling, `App\Sub\A`
@@ -4061,14 +4039,14 @@ is why" — is this file.
   the other and the longer one's next byte is below `\` (0x5C), which every upper-case letter and
   every digit is: `App\Sub\A` against `App\SubA` is the shortest such pair. Work the divergence out
   on paper before writing the fixture, because a case that does not contain one passes against
-  either implementation and reads exactly like a case that does.
+  either implementation and reads exactly like a case that does. [until: reviewed 2026-09-06]
 - **`use Core;` does not place a bare `#[Command]`, and the failure reads as if the roster edit did
   not land.** A `use` aliases one *name*, so the import that lets a file write `#[Command]` is
   `use Core\Command;` exactly as `#[Test]`'s is `use Core\Test;`; with only `use Core;` in scope the
   attribute resolves to `\Command` and the answer is `E0303: `Command` is not declared` — the
   ordinary undeclared-name refusal, which looks nothing like "this is not on the recognized roster"
   and points at the wrong file. Fully qualified (`#[\Core\Command(...)]`) needs no import and is the
-  spelling to reach for when a case is about the match rather than about the import.
+  spelling to reach for when a case is about the match rather than about the import. [until: reviewed 2026-09-06]
 - **A new compile-time refusal can break a green `.nvst` written for the *runtime* half of the
   same ADR sentence, and the case will read as if it were always wrong.** `rule:routing/an-absolute-link-takes-a-configured-origin` says two
   things in one breath — a non-capture `$params` key becomes the link's query string, and a key
@@ -4079,7 +4057,7 @@ is why" — is this file.
   every one of its seven lines into `E0759` at the full verify, long after `-p nvs-types` was
   green. The fix was to declare the keys the case was already relying on, not to weaken the rule.
   Before adding a refusal, `grep -rl` the corpus for the *feature* it refuses — a case written for
-  the permissive half of a two-half rule is invisible to the crate's own test run.
+  the permissive half of a two-half rule is invisible to the crate's own test run. [until: reviewed 2026-09-06]
 - **A new compiler rule that every existing fixture violates is one test-helper edit and a handful of
   line numbers, not N rewrites.** `rule:attributes/access-is-a-required-sibling`'s "a `#[Route]` without an `#[Access]` does not compile"
   turned 19 of `crates/nvs-types/tests/routes.rs`' tests red at once, and the fixtures are all built by
@@ -4090,7 +4068,7 @@ is why" — is this file.
   below it and the failure reads as a diagnostic that moved rather than as a case that grew a line; and
   a `tests/conformance/reject/` case must still fail for its *own* reason, which means the new rule has
   to be satisfied there rather than asserted. Count the inline fixtures before budgeting the rewrite —
-  the helper is usually 25 of the sites and the manual ones are 5.
+  the helper is usually 25 of the sites and the manual ones are 5. [until: reviewed 2026-09-06]
 - **A `printf` fixture written in a Novis `"…"` string loses `%1$s` to interpolation, and the
   diagnostics blame the *variable*.** `Core\Str::format("%1$s %2$d", …)` in a double-quoted
   Novis literal is three `E0301`s about undeclared `$s` and `$d` — the template never
@@ -4099,7 +4077,7 @@ is why" — is this file.
   `ConstArg::Str` and interpolates nothing. This is a real collision between two grammars
   rather than a fixture quirk, so it is also what a *program* writing positional
   placeholders has to do; `crates/nvs-types/tests/intrinsics.rs` says so at the one case
-  that needs it.
+  that needs it. [until: reviewed 2026-09-06]
 
 - **Making a member an `rule:expressions/intrinsic-literals` intrinsic breaks the conformance case that pinned its runtime
   throw, and the failure names the *case*.** `str-format-refuses-every-mismatch.nvst` caught
@@ -4108,7 +4086,7 @@ is why" — is this file.
   not match / actual: <empty>` with four `E0769`/`E0770`s above it. The fix is § 2's own
   division rather than deleting the case: read the template out of a `string $t` variable and
   the runtime path is back, unchanged. Expect one such case per grammar as the remaining rows
-  land — `grep` the throw's own message text in `tests/conformance/` before writing the arm.
+  land — `grep` the throw's own message text in `tests/conformance/` before writing the arm. [until: reviewed 2026-09-06]
 - **Putting a member on `rule:expressions/intrinsic-list-is-closed`'s list breaks every conformance case that made it throw from a
   *literal*.** Landing the `Grammar::DateFormat`, `Regex` and `Uri` arms turned six green cases red at the
   full verify — `time-three-format-members-share-one-pattern-compiler`, `time-cldr-patterns-render-and-read`,
@@ -4119,7 +4097,7 @@ is why" — is this file.
   `tests/conformance/` **before** adding the arm and the whole set is visible in one call — the checker
   reports at most one file at a time, so discovering them from the failure log costs a verify run each.
   The same reasoning applies in reverse to a case that must *stay* literal: `Core\Time\Date::format` is not
-  on the list, so its inline malformed pattern still throws, and a case can assert both halves side by side.
+  on the list, so its inline malformed pattern still throws, and a case can assert both halves side by side. [until: reviewed 2026-09-06]
 - **A case can *look* like it exercises `rule:expressions/intrinsic-literals`'s fold and exercise nothing, because § 1's list names the
   member that reads the pattern and not its siblings.** `examples/intrinsics.nvs` demonstrated the regex row
   with `Core\Regex::matches("order-4711", "^order-\\d+$")` under a comment naming `Core\Regex::compile`;
@@ -4127,13 +4105,13 @@ is why" — is this file.
   asserted only that two runtime calls agree. The spelling that folds is `Core\Regex::compile("…")`, whose
   handle `matches` then takes. Check such a line against the `INTRINSICS` table
   (`crates/nvs-types/src/intrinsics.rs:107`) rather than against the argument's shape, and prove it the cheap
-  way: the same text with a deliberate error is an `E0769` from `nvs check`, or the row is not being read.
+  way: the same text with a deliberate error is an `E0769` from `nvs check`, or the row is not being read. [until: reviewed 2026-09-06]
 - **A fixture that needs a route table does not need an `autoload` root.** The table is collected over
   every declaration the program checks, so a class declared in the entry file itself lands in it —
   `crates/nvs-cli/tests/fixtures/api/base.nvs` is one file with a class and an `echo`, and
   `nvs build --openapi` emits both its operations. `examples/routes.nvs` splits across a root because it
   is demonstrating `rule:packaging/autoload-probes-fold-into-the-cache-key`'s scan, not because an emitter fixture has to. Three near-identical
-  fixtures are then three files rather than six, and they read as a diff of each other.
+  fixtures are then three files rather than six, and they read as a diff of each other. [until: reviewed 2026-09-06]
 - **A test helper that names a file in `CARGO_TARGET_TMPDIR` after its *input* races the other
   tests that ask for the same input.** `crates/nvs-cli/tests/openapi.rs`'s `document(stem)` wrote
   `{stem}.json`, three of its tests ask for `base`, and `cargo test` runs them on their own threads:
@@ -4142,7 +4120,7 @@ is why" — is this file.
   message that reads like a diff bug. It reproduces roughly one run in three and never under
   `cargo test -- <one test name>`, which is the trap: the obvious triage — stash the change, run the
   named test, watch it pass — points at your own diff. Run the **whole** test binary on the stashed
-  tree before believing that. The fix is a per-call counter in the file name, not a lock.
+  tree before believing that. The fix is a per-call counter in the file name, not a lock. [until: reviewed 2026-09-06]
 - **The exception tree has no `Core\Error`, and naming one in a `catch` is an ICE rather than a
   diagnostic.** `nvs_hir::errors::TREE`'s roots are `Throwable`, `LogicError` and `RuntimeError` —
   `errors.rs`' own module doc says there is deliberately no `Error` and no `Exception` — but
@@ -4153,14 +4131,14 @@ is why" — is this file.
   `catch (RuntimeError $e)`, and **`message` is a property, not a method** — `$e->message()` is
   `E0405` with a help line naming all four (`message`, `previous`, `backtrace`, `location`). Two
   wrong guesses in a row cost two runs; the diagnostic for the second one is excellent and there is
-  none at all for the first.
+  none at all for the first. [until: reviewed 2026-09-06]
 - **An `array` key that is `bytes` panics in `nvs-ir` instead of being diagnosed**, the same
   shape as the `catch (Core\Error $e)` bullet above: `bytes $k = "a" as bytes; $pairs[$k] = "z";`
   reaches `lower/expr.rs:1972`'s *"an array key lowered to Bytes — nvs_types::check_program is
   trusted to have already rejected a float/bool/null key (`rule:types/arrays`)"*. The assertion names
   the pass that should have refused it, so the fix is a `nvs-types` diagnostic beside the
   float/bool/null one. Worth knowing when a probe asks "can this key be invalid UTF-8": the
-  answer is no, but the reason is an ICE rather than a refusal.
+  answer is no, but the reason is an ICE rather than a refusal. [until: reviewed 2026-09-06]
 - **The `unreachable from source` phrase must be within 8 lines of the `Fault::` line *and* the
   gate counts from the line the `Fault::` sits on, not from the statement it belongs to.** Two
   declarations written this session were refused after they were written: a seven-line comment above
@@ -4172,7 +4150,7 @@ is why" — is this file.
   is on. Put the phrase on the comment's **last** couple of lines when the guard is a builder chain,
   or keep the whole comment to five lines — and re-run
   `cargo test -p nvs-stdlib --test conformance_coverage every_error_path` after writing a batch,
-  which is where both were caught.
+  which is where both were caught. [until: reviewed 2026-09-06]
 - **A `Fault::fatal` that a case can reach is pinned with `--EXPECT-ERROR--`, and the program's
   own `try`/`catch` around it is worth writing anyway.** `FATAL:` goes to standard error and the
   process stops there, so the case's `--EXPECT--` holds only what was printed *before* it and
@@ -4182,14 +4160,14 @@ is why" — is this file.
   assertion rather than a claim, since a fatal that ever became catchable would print that line.
   `tests/conformance/core/test-an-object-comparison-names-its-depth-bound-and-refuses-a-compare-to-that-answers-no-int.nvst`
   is the shape, and `tests/differential/core/arr-count-by-refuses-what-array_count_values-warns-and-skips.nvst`
-  was the only other case in either suite using the section.
+  was the only other case in either suite using the section. [until: reviewed 2026-09-06]
 
 - **A stem that has to reach `conformance_coverage.rs`'s corpus needs `Core\Test` spelled with
   one backslash, which a Novis string literal will not give you.** The gate reads every case
   file as raw text and looks for the site's message stem, so the stem has to appear literally.
   An `--EXPECT--` line is plain text and carries it; a `"Core\\Test::…"` written in the program
   would land as two backslashes and match nothing. Echo the message (or `Core\Str::slice` of its
-  opening, when the message carries a 64-segment path) and let the expectation hold the stem.
+  opening, when the message carries a 64-segment path) and let the expectation hold the stem. [until: reviewed 2026-09-06]
 - **`Core\Attributes` retrieval reads a *recognized* attribute's payload, so `#[Core\Command]` and
   `#[Core\Option]` are readable from a program even though the table itself is nominal.** `rule:attributes/structural-retrieval` and `rule:attributes/retrieval-folds-while-checking`'s retrieval is structural and does not care that a name is on `nvs_types::derive::ATTRIBUTES`:
   `Core\Attributes::get<{name: string, about: string}>(Deploy::deploy(...))` answers a `#[Core\Command]`'s
@@ -4199,7 +4177,7 @@ is why" — is this file.
   works). And a payload-*less* `#[Option]` is indistinguishable from a parameter carrying no attribute
   at all — there is nothing for a shape to match — which is exactly why `rule:tooling/commands-are-compiled`'s table is built
   off the nominal roster rather than out of this pass.
-  `tests/conformance/core/a-command-table-answers-its-own-help.nvst` is the worked example.
+  `tests/conformance/core/a-command-table-answers-its-own-help.nvst` is the worked example. [until: reviewed 2026-09-06]
 
 - **A new case can fail a test in a file you never opened, and the message is the fix.** Asking a member
   a second question can take it to item 10's floor of three, and
@@ -4207,7 +4185,7 @@ is why" — is this file.
   reached — "delete these lines" naming the member. It cost a whole `verify.py` cycle to learn, and the
   cheap habit is to check the case's members against `crates/nvs-stdlib/tests/conformance_coverage.rs`'s
   two rosters *before* the run rather than after it. The ratchet is working when this happens, not
-  broken.
+  broken. [until: reviewed 2026-09-06]
 - **An `--ORACLE--` helper named after a PHP built-in is a fatal, and the runner reports it as a
   *case* failure.** A `function pos($v)` in the oracle half — the obvious name for "render a
   `?uint` position" — is `Cannot redeclare function pos()`, because `pos()` is `current()`'s alias
@@ -4215,7 +4193,7 @@ is why" — is this file.
   stderr, which is legible once you read it and reads like a case bug for the first few seconds.
   The cheap habit is to prefix every oracle helper with `php` (`phpAfter`, `phpLines`, `phpSort`) as
   the existing `str-before-and-after` and `arr-*` cases already do, and to keep the un-prefixed
-  spellings for the Novis side, where a `Show::`/`Render::` class can never collide with anything.
+  spellings for the Novis side, where a `Show::`/`Render::` class can never collide with anything. [until: reviewed 2026-09-06]
 
 - **A bare array literal in argument position is `array<mixed>` and does not narrow, so a `Core\Arr`
   member that takes a second array needs a typed local.** `Core\Arr::diff($a, [4, 2])` is
@@ -4223,7 +4201,7 @@ is why" — is this file.
   replacement, `appendAll`'s operand and `fromKeysAndValues`' two arguments — five sites in one file,
   all reported at once. `array<int> $against = [4, 2];` on the line above fixes each. The subject
   argument never has this problem because it comes from a declared variable, which is why the shape
-  only bites on the members taking *two* arrays.
+  only bites on the members taking *two* arrays. [until: reviewed 2026-09-06]
 - **A `foreach` binding is a declaration in the enclosing scope, so one `.nvst` case cannot sweep two
   differently-typed corpora under the same variable name.** `foreach ($reals as float $n)` followed
   later by `foreach ($whole as int $n)` is `E0406: '$n' is already declared`, pointing at the first
@@ -4231,12 +4209,12 @@ is why" — is this file.
   one-declaration-per-name rule applied to a header. Repeating `foreach ($reals as float $n)` with the
   *same* type is fine, so a roster case that sweeps floats and ints alike wants one name per type
   (`$n` for the float rows, `$i` for the integer ones) rather than one per loop. The same bites twice
-  in one file when two blocks both destructure a pair into `$a`/`$b`.
+  in one file when two blocks both destructure a pair into `$a`/`$b`. [until: reviewed 2026-09-06]
 - A parameter default at a **literal or union** declared type is `E0451`, so a route case writing
   `#[\Core\Query] "asc"|"desc" $order = "asc"` does not compile — `nvs_types::defaults::literal_default`
   decodes a default against the *declared* type and has no arm for `Ty::StringLiteral` or `Ty::Union`. A
   `#[Query]` with no default is simply required, and a link is not obliged to supply one, so write the
-  parameter without a default until that hole is closed.
+  parameter without a default until that hole is closed. [until: reviewed 2026-09-06]
 - **A member `gaps.py` calls thin can already have its obvious bound pinned, and the depth number
   does not say which *shape* is missing.** `Core\Validate::isPrintable` stood at 4 cases with
   `validate-ascii-and-printable-name-their-own-bounds.nvst` already naming both ends of both `Cc`
@@ -4244,7 +4222,7 @@ is why" — is this file.
   existed. `ls tests/conformance/core/ | grep <member>` before designing is the whole check, and it
   is one call. What was genuinely missing there was the *category* the range is — `U+2028` and a
   bidi override are printable, `NEL` and `TAB` are not — which is a different case and the one that
-  landed. Read the member's existing case before choosing the shape, not after writing one.
+  landed. Read the member's existing case before choosing the shape, not after writing one. [until: reviewed 2026-09-06]
 - **Widening a union of enum-case types rewrites every `E0401` that names it, and a
   `--EXPECTF-ERROR--` case has the whole list frozen in it.** `Core\StrongDigest` went from
   three cases to ten and `tests/conformance/core/hash-hmac-refuses-a-weak-digest.nvst`
@@ -4255,19 +4233,19 @@ is why" — is this file.
   the caret line but never the message itself. Before adding a case to a `CoreTy::EnumCase`
   union in `nvs-stdlib`, `grep -rn "<the union's first case>" tests/conformance/` and expect
   to update every hit; the `.nvst` suite is the only leg that catches it, and it catches it
-  as a diff of two very long lines.
+  as a diff of two very long lines. [until: reviewed 2026-09-06]
 - **`Core\Test::assertSame`'s two parameters are one `CoreTy::Var("T")` bound to argument 1, so the
   symmetric spelling `assertSame(null, $x)` does not exist.** Writing the literal first binds `T` to
   `null` and the subject is then `E0401: expected 'null', found 'mixed'` at the *second* argument, which
   reads as "this member refuses a null comparison" and is only the signature. `mixed $nothing = null;`
   then `assertSame($nothing, $subject)` is the other direction, and it is the only way to ask identity's
   symmetry through this member at all. Same cause as the `Core\Math::min` bullet above, different
-  consequence: there the pair is unreachable, here the *argument order* is.
+  consequence: there the pair is unreachable, here the *argument order* is. [until: reviewed 2026-09-06]
 - **An inline array literal in a `foreach` is `array<mixed>`, so a typed value binding refuses.**
   `foreach ([1, 2, 3] as string $k => int $n)` is `E0401: expected 'int', found 'mixed'` pointing at the
   binding rather than at the literal, because element types are not inferred into the literal's own type;
   `array<int> $steps = [1, 2, 3];` and then looping over `$steps` compiles unchanged. The key binding is a
-  separate and well-diagnosed question — always `string`, `E0723` with `rule:types/arrays` in the help line.
+  separate and well-diagnosed question — always `string`, `E0723` with `rule:types/arrays` in the help line. [until: reviewed 2026-09-06]
 - **Taking a member to the floor of three is two edits, and the second one is a
   `BELOW_THE_FLOOR` line you did not write.** `crates/nvs-stdlib/tests/conformance_coverage.rs`
   carries an explicit worklist of the members still under the floor, and
@@ -4278,21 +4256,21 @@ is why" — is this file.
   rebuild after the work looked finished. Grep that constant for the member's name *before*
   starting a floor-closing slice: the list is also the cheapest confirmation that the member
   you picked is the one the tree is actually waiting on, and its remaining entries are the next
-  session's group.
+  session's group. [until: reviewed 2026-09-06]
 - **A `.nvst` case's bindings are function-scoped, not block-scoped, so a second sweep cannot reuse the
   first one's names.** A `for`/`foreach` body that declares `string $subject` makes a later, entirely
   separate loop's `string $subject` an `E0406: '$subject' is already declared`, with the two lines
   pointed at as if one statement were a duplicate of the other — which reads as a copy-paste slip rather
   than as the scoping rule it is. Renaming the second sweep's bindings is the whole fix, and it is worth
   doing by hand: a blind textual `$c` → `$meta` also rewrites `$codes` and `$cells`, and the case then
-  fails on names that never existed.
+  fails on names that never existed. [until: reviewed 2026-09-06]
 - **`target/debug/nvs test <one-case.nvst>` runs a single case and prints its actual stdout on a
   mismatch**, so an `--EXPECT--` is frozen by writing the case with an *empty* one, running it once and
   pasting back what it printed. That is cheaper than keeping a parallel `.nvs` scratch under
   `.agent-tmp/`, which costs writing the body twice. Two cautions: the report indents the actual output
   by four spaces, so the paste is de-indented by hand; and a value that can be empty or end in a space
   needs a delimiter around it in the `echo` (`"[", $x, "]"`), because a trailing space is invisible in
-  the report and exact in the comparison.
+  the report and exact in the comparison. [until: reviewed 2026-09-06]
 - **A `.nvst` case's bindings are script-scoped, and that includes a `catch`'s.** A case is top-level
   statements, so `int $left = 12;` inside the second sweep collides with the `var $left` the first
   sweep declared — `E0406: '$left' is already declared`, pointing at a line eighty above — and two
@@ -4301,7 +4279,7 @@ is why" — is this file.
   second failure mode is worse than the first, because a shadowed name that *does* typecheck reads as
   a working case: `$left <=> $right` over two still-in-scope `TimeOfDay` values is
   `E0411: does not implement Comparable`, which reads as a fact about the class rather than as the
-  name collision it is.
+  name collision it is. [until: reviewed 2026-09-06]
 - **A `Core\Time\TimeOfDay`'s four slots are not readable as properties, and the bottom of every one
   of its fields is a *checker* refusal rather than a runtime one.** `$t->hour` is
   `E0405: `Core\Time\TimeOfDay` has no property named `hour`` even though `slots` lists all four
@@ -4311,14 +4289,14 @@ is why" — is this file.
   much of a "refuses one past either end" case can exist at all: `at`'s two parameters and both its
   options are `uint`, so `at(-1, 0)` is `E0401: expected `uint`, found `int`` and never reaches the
   member. A bound named on both sides has a runtime half at the top only, and the floor is worth one
-  sentence of comment saying where it is enforced instead.
+  sentence of comment saying where it is enforced instead. [until: reviewed 2026-09-06]
 - **A `.nvst` case's locals are function-scoped, not block-scoped, so a second `for` loop cannot reuse
   the first one's names.** `string $index = $row as string;` in one sweep and the same spelling in the
   next is `E0406: '$index' is already declared`, pointing at both lines — which is a good diagnostic and
   still costs a run, because a case that sweeps two tables is the ordinary shape here and every sweep
   wants to call its cursor the same thing. Name the second sweep's locals for what that sweep is
   counting (`$slot`, `$point`, `$whole`), or hoist the body into a `public static function` that owns
-  the names, which is what the four-way sweeps in `time-datetime-*` do.
+  the names, which is what the four-way sweeps in `time-datetime-*` do. [until: reviewed 2026-09-06]
 
 - **The calendar interval a `Core\Time\Date` spans is wider at both ends than the one a `DateTime`
   reaches, so a case sweeping the range ends must build the two halves differently.**
@@ -4329,14 +4307,14 @@ is why" — is this file.
   `Core\Time::at()` and says the conversion overflowed, which reads like a bound on the *year* and is
   not one. Pinned by
   `tests/conformance/core/time-datetime-leap-year-is-februarys-last-day-and-the-years-length.nvst`,
-  which is why that case reads the year's length from March rather than from December.
+  which is why that case reads the year's length from March rather than from December. [until: reviewed 2026-09-06]
 - **`as` binds tighter than arithmetic, and `false as string` is the empty string.** Two `.nvst`
   spellings that cost a run each. `$which[$i - 1 as string]` parses as `$which[$i - (1 as string)]`
   and fails `E0716: '-' has no meaning for 'string'` — an index that computes needs its own
   parentheses, `($i - 1) as string`. And a `bool` printed with `as string` renders `1` for true and
   **nothing** for false, so a column of booleans in `--EXPECT--` silently changes width and reads as
   a missing field rather than as a `false`; `$b ? "y" : "n"` is the spelling that keeps such a row
-  legible. Both are invisible until the case runs, and the second one passes review.
+  legible. Both are invisible until the case runs, and the second one passes review. [until: reviewed 2026-09-06]
 - **A `.nvst` case configures the run it makes through `--FILE <path>--`, and a scratch probe at the
   repo root does not.** `Core\Router::urlAbsolute` reads `rule:routing/an-absolute-link-takes-a-configured-origin`'s origin out of `[app] origin`
   in `./nvs.toml` — the *working directory's*, resolved by `boot_snapshot` at
@@ -4350,7 +4328,7 @@ is why" — is this file.
   is worse, because it passes: **the repo's own `nvs.toml` already sets
   `origin = "https://example.test"`**, so `target/debug/nvs run scratch.nvs` from the repo root
   answers an absolute link and proves nothing about the case, which will run without one. Probe from
-  a scratch directory carrying the `nvs.toml` the case will carry.
+  a scratch directory carrying the `nvs.toml` the case will carry. [until: reviewed 2026-09-06]
 - **`BELOW_THE_FLOOR` in `crates/nvs-stdlib/tests/conformance_coverage.rs` fails the build when you
   *fix* one of its members, and nothing points at it from the case you just wrote.** The list is a
   ratchet asserted in both directions — a member below the floor and not listed fails, and a listed
@@ -4359,7 +4337,7 @@ is why" — is this file.
   floor of 3`. The fix is to delete the line, which is the point; the cost is a whole `verify.py`
   cycle if you meet it at the end of the group rather than at the start. `grep -n <member>
   crates/nvs-stdlib/tests/conformance_coverage.rs` before writing the cases is the cheap check, and
-  a group aimed at a member `gaps.py --coverage` shows below 3 should assume it is listed.
+  a group aimed at a member `gaps.py --coverage` shows below 3 should assume it is listed. [until: reviewed 2026-09-06]
 - **An array subscript whose key is a `string|int` union is an ICE, not a diagnostic, on both the
   read and the write — and it is the type `foreach` binds over `array<string|int>`.** `rule:types/arrays`
   makes `int|string` the key type and `nvs_types::check_array_key_type` accepts the union, so
@@ -4371,14 +4349,14 @@ is why" — is this file.
   spelling array normalization maps an integer key onto, so a hand-built key table agrees with the
   member's entry for entry. Same family as the `bytes` array key ICE. What makes it expensive is
   that `Core\Arr::hasKey($seen, $k)` — the *member* taking the same union — accepts it happily, so
-  the failing half of a two-line idiom is the half that looks unremarkable.
+  the failing half of a two-line idiom is the half that looks unremarkable. [until: reviewed 2026-09-06]
 - **A `--EXPECT--` is byte-exact, and a loop that echoes its separator *after* each item leaves a
   trailing space nothing shows you.** `echo $a, "/", $b, " ";` inside a `foreach` costs a run: the
   expected block cannot carry a trailing space (an editor or a hook strips one, and the diff prints
   identically on both sides), so the row loop collects into an `array<string>` and the line is
   `Core\Str::join($rows, " ")` instead. The value a fold member answers — `Core\Arr::sum`'s
   `int|float|decimal` — concatenates with `.` and `echo`es fine even where `as string` on that union
-  does not, so building the row string is available wherever echoing it is.
+  does not, so building the row string is available wherever echoing it is. [until: reviewed 2026-09-06]
 - **A zero-width match that starts where the previous match ended is dropped, and all four of
   `Core\Regex`'s iterating members drop it together.** `replace`, `replaceWith`, `matchAll` and
   `split` are each built on the `regex` crate's `captures_iter`/`split`, whose documented rule is
@@ -4388,21 +4366,21 @@ is why" — is this file.
   agree with *each other*, so every conformance case passes and only an oracle case sees it — which
   is why it survived eighteen `.nvst` cases over the class. Until it is fixed, a differential row
   over § 5 must not put a zero-width match after a wide one; the three cases that name this
-  divergence in their comments are the ones to update when it is.
+  divergence in their comments are the ones to update when it is. [until: reviewed 2026-09-06]
 - **A bare array literal in a `foreach` header is `mixed`, and the binding's type annotation is
   what reports it.** `foreach ([0, 1, 2] as int $n)` is `E0401: expected 'int', found 'mixed'`
   pointing at `int $n` rather than at the literal, which reads as if the binding were wrong. The
   literal has no element type until something declares one, so the spelling is a typed binding on
   the line above — `array<int> $starts = [0, 1, 2];` — and then `foreach ($starts as int $n)`.
   Cost two compiles in one case; every `foreach` in the corpus goes over a named variable for
-  exactly this reason.
+  exactly this reason. [until: reviewed 2026-09-06]
 - **`Ctx::take_pending` answers an empty string for a *throw* in a hand-built context**, so a test
   outside the compiler pipeline cannot assert on a thrown message. `nvs_runtime::Ctx::buffered()`
   has no runtime error class installed, `Thrown::message()` returns `String::new()` when its
   object is null, and the failure looks like the member said nothing rather than like the harness
   is missing a class. Assert the `rule:errors/propagation` *status* — `THROWN` against `FATAL` — which is the half
   a bare harness can see and is usually the claim anyway;
-  `benches/abi-probe/tests/invariants.rs`'s `decode_on_this_stack` is the worked shape.
+  `benches/abi-probe/tests/invariants.rs`'s `decode_on_this_stack` is the worked shape. [until: reviewed 2026-09-06]
 - **A concurrency test that is the *first* one to run wide is worth writing even where the behaviour
   is already landed, and `a_blocking_call_goes_to_a_pool_bounded_at_twice_the_core_count` is the
   worked example.** Every earlier `nvs-host` test drove one or two parked tasks; that one drives
@@ -4412,7 +4390,7 @@ is why" — is this file.
   come back ready over an empty queue, which is the common case exactly when the pool is saturated.
   When a `run_until_idle` returns with tasks still parked, suspect the turn's "nothing woke, so
   nothing can" exit before suspecting the wake that did not arrive — and read the two conditions
-  together, because the entry test and the retry test have to be the same one.
+  together, because the entry test and the retry test have to be the same one. [until: reviewed 2026-09-06]
 
 - **Two adjacent `Instant::now()` calls can return the same instant, and `Timers::publish` turns a
   deadline equal to its base into one a nanosecond later** (`timer.rs:@publish` — the `.max(NOTHING +
@@ -4422,7 +4400,7 @@ is why" — is this file.
   `watchdog::tests::a_second_wedge_on_a_later_deadline_reports_again` failed that way — only under a
   loaded machine, and only inside the full suite, which is the expensive kind of flake. Arm strictly
   after the base (`Instant::now() + Duration::from_millis(1)`) whenever a sweep instant is derived
-  from the armed one.
+  from the armed one. [until: reviewed 2026-09-06]
 - **A frozen `--EXPECTF-ERROR--` block's line numbers are read off the runner, not counted by hand.**
   `--FILE--`'s first line — the `<?nvs` — is `case.nvs:1`, so the number is the case file's own line
   minus the header, and miscounting the prose comment above the code by one is the whole failure mode.
@@ -4430,7 +4408,7 @@ is why" — is this file.
   the real `case.nvs:NN:CC` in the actual half, so writing the block with any plausible numbers and
   running it once is cheaper and more reliable than counting. The columns are already right if the
   scratch probe under `.agent-tmp/` used the same indentation, since a column does not shift with the
-  header.
+  header. [until: reviewed 2026-09-06]
 - **A `nvs-host` test makes a context *fail* with `Ctx::set_pending("message")`, not with `Thrown::new`.**
   That constructor is `unsafe fn new(class: *const ClassDesc, message: &str)` and needs a descriptor you
   would have to build first; `set_pending` takes a bare message and `take_thrown` promotes it through the
@@ -4441,32 +4419,32 @@ is why" — is this file.
   `closure::` anything, it is a class carrying the `CLOSURE_INVOKE` method row, so
   `ClassTable::define` + `set_methods` + `NvsObj::new` is the whole fixture — leak the table, because a
   descriptor's address is its identity. `crates/nvs-runtime/src/graph.rs:925` and
-  `crates/nvs-host/src/isolate.rs`'s `closure_value` are the two copies of it.
+  `crates/nvs-host/src/isolate.rs`'s `closure_value` are the two copies of it. [until: reviewed 2026-09-06]
 - **`await 5` does not parse, so a fixture that wants a badly-typed operand binds one first.**
   `await` is contextual (`docs/spec/00-overview.md` § 2) and is read as the operator only before
   what the production needs, so a bare literal after it leaves `await` read as an identifier and the
   parse fails with `E0101 expected ';'` pointing past the literal — not with anything naming
   `await`. `int $n = 5;` then `await $n` is the spelling that reaches the type checker, and
   `crates/nvs-types/tests/isolates.rs`'s `await_refuses_an_operand_no_spawn_produced` is the worked
-  example. The same applies to `spawn script` before anything that is not a string expression.
+  example. The same applies to `spawn script` before anything that is not a string expression. [until: reviewed 2026-09-06]
 - **A `.nvst` case runs in a temp working directory, so a relative path inside one resolves against
   *that*, not against the repository root.** A case that needs a second file writes it with a
   `--FILE <name>--` section — `tests/conformance/isolate/a-handle-is-collected-once-and-the-second-await-throws.nvst`
   is the worked example, and `crates/nvs-test`'s `RESERVED_NAMES` is the list of names it may not
   claim. The trap is that a case asserting a path *fails* passes either way: the first version of
   the sibling case spawned `"examples/isolate/capture.nvs"` and was green only because the file was
-  missing there too.
+  missing there too. [until: reviewed 2026-09-06]
 - **`await $handle;` as a bare statement does not parse as an `await`** — the contextual keyword in
   statement position reads as a type name, so the case reports "`$handle` is already declared" at
   the second mention. Bind it: `var $ignored = await $handle;`. `spawn script …;` as a statement is
-  fine, since nothing follows the construct that could start a declaration.
+  fine, since nothing follows the construct that could start a declaration. [until: reviewed 2026-09-06]
 - **A `.nvst` case that spawns a child script writes the child into the case**, as a `--FILE
   child.nvs--` section beside `--FILE--`. The runner puts every auxiliary file into the workdir it
   then runs the case from (`crates/nvs-test/src/run.rs:99`), and `spawn script` resolves a relative
   path against the working directory (`crates/nvs-cli/src/script.rs`'s module doc), so `spawn script
   "child.nvs"` finds it — no fixture directory beside the cases, and no `../../examples/` path out
   of the suite. `--FILE <path>--` may appear any number of times and takes a forward-slash relative
-  path, so a child that needs its own `require` graph is the same mechanism.
+  path, so a child that needs its own `require` graph is the same mechanism. [until: reviewed 2026-09-06]
 - **A new `Core` member owes `conformance_coverage.rs` three things, and `verify.py` reports them
   one gate at a time only after `cargo test` is otherwise green** — so budget for the round trips.
   A member needs (1) a case naming it, (2) **three** cases naming it, because
@@ -4479,7 +4457,7 @@ is why" — is this file.
   one `format!("Core\\Member(): {why}")` prefix: the gate keys a site on the literal stem before
   its first hole, so one case discharges both — and check the judgement is *true* before writing
   `unreachable from source`, which here it was only for `Core\Time::now`'s fixed-clock guard,
-  both writers of that field validating before they store.
+  both writers of that field validating before they store. [until: reviewed 2026-09-06]
 - **An object does not cross an isolate boundary today, even when both files declare the identical
   class.** A child that `return`s an instance comes back as `ok=false` with `` `Node` on the
   receiving side is a different class, so an instance of this one has no meaning there`` — two
@@ -4487,13 +4465,13 @@ is why" — is this file.
   gap (`crates/nvs-runtime/src/graph.rs` § *Known gaps*) seen from the return-value side, and it cost
   a whole case its second half: `a-graph-copy-round-trips-a-cyclic-value.nvst` was written with the
   arena-to-arena carrier alongside the byte one and had to be rewritten around bytes alone. Until it
-  is closed, a cross-boundary case carries a scalar or an array, never an instance.
+  is closed, a cross-boundary case carries a scalar or an array, never an instance. [until: reviewed 2026-09-06]
 - **Three front-end spellings each cost a run while writing `.nvst` cases, and none of them is what
   PHP would have you write.** The constructor is `constructor`, not `__construct` (E0114, and the
   follow-on E0409 for every property it would have assigned). `var $x = [1, 2, 3];` is E0414 — an
   array literal has no target type to infer from, so it is `array<int> $x = [1, 2, 3];`. Two `catch`
   clauses in one scope may share a variable name while their classes match and are E0406 the moment
-  they differ, so a case with a `TimeoutError` arm and a `LogicError` arm needs two names.
+  they differ, so a case with a `TimeoutError` arm and a `LogicError` arm needs two names. [until: reviewed 2026-09-06]
 - **A `Qual` classification is enforced on the `tainted` axis only, so a `secret` claim still has to be
   probed before a case is written against it.** `nvs_types::expr::quals::admits_tainted_argument` reads
   the row's mark and lets a tainted argument through a `Contagious`, `Neutral` or `Launder` parameter;
@@ -4501,14 +4479,14 @@ is why" — is this file.
   refuses it, and that refusal is deliberate rather than pending. The probe is one file and one call —
   a scratch `.nvs` under `.agent-tmp/`, run with `./target/debug/nvs.exe run <path>`, which prints every
   diagnostic the case would otherwise have had to predict, and prints them for *every* line at once so
-  one probe answers a whole group of members.
+  one probe answers a whole group of members. [until: reviewed 2026-09-06]
 - **`as array<SomeClass>` is refused with `E0711`, and the diagnostic's own help is the fix: convert to
   `array<mixed>` and convert each element where it is read.** `rule:types/conversion`'s `array<T> as array<U>` row
   checks every element against `U` as it walks, and what checks one element is its runtime tag — which a
   class is not decided by. `as array<int>` is fine for exactly that reason, so the refusal only shows up
   once a case rounds a container of *objects* through something answering `mixed`, which
   `Core\Serialize::decode` is. The spellings that compile are `... as array<mixed>` and then `$copy[0] as
-  Cell`, and a nested one parenthesizes: `($outer[0] as array<mixed>)[0] as Cell`.
+  Cell`, and a nested one parenthesizes: `($outer[0] as array<mixed>)[0] as Cell`. [until: reviewed 2026-09-06]
 - **A `.nvst` case can carry its own `nvs.toml`, so a change to a configuration spelling breaks tests
   that no `grep` over `crates/` will show you.** `--FILE nvs.toml--` writes one into the case's working
   directory, and four `router-url-absolute-*.nvst` cases do exactly that — one of them pinning the
@@ -4516,12 +4494,12 @@ is why" — is this file.
   `cargo build` and `cargo test` and cost a whole `verify.py` cycle at the `conformance` step. When you
   move a spelling that appears in a config file or in a diagnostic, `grep -rl` over `tests/` and
   `examples/` in the same call as `crates/`, and remember the message text is pinned in two places: the
-  `Fault` in the crate and the `--EXPECT--` of the case that catches it.
+  `Fault` in the crate and the `--EXPECT--` of the case that catches it. [until: reviewed 2026-09-06]
 - **A relative path in an *included* configuration file resolves against that file's own directory**
   (`rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`), and an `[[app]] root` is the one where it does not look like a path at all. A case
   writing `root = "srv/www/shop"` into `conf.d/shop.toml` is keyed on `conf.d/srv/www/shop`, and the
   refusal it gets is `E0605 cannot read` — which reads as a broken fixture rather than as § 5 doing
-  exactly what it says. Write the `..` the operator would have to write.
+  exactly what it says. Write the `..` the operator would have to write. [until: reviewed 2026-09-06]
 - **A `--FILE nvs.toml--` section is now read by the real configuration reader, so an invalid one
   fails the whole case before the program starts.** The bullet above is still true about *where* it
   is mounted; what changed is who parses it. Three router-origin cases had been written against the
@@ -4531,7 +4509,7 @@ is why" — is this file.
   further rules a fixture has to keep: every `[[app]]` needs `root` or `entry` (§ 1 keys a block on
   an entry file path), and two blocks may not carry the same key (§ 2 has no order between them, so
   it refuses rather than picking). `entry = "nvs.toml"` is a legal narrower key that matches no
-  program, which is the shape a "this block must not apply" decoy wants.
+  program, which is the shape a "this block must not apply" decoy wants. [until: reviewed 2026-09-06]
 - **A path rule cannot be tested against a real symlink on Windows, and `nvs-config`'s `Files` trait
   is the seam that makes that a non-problem.** Creating one needs a privilege CI does not have, so
   `a_path_reaching_a_granted_root_through_dotdot_or_a_symlink_does_not_match` splits: the `..` half
@@ -4540,7 +4518,7 @@ is why" — is this file.
   it, and the symlink half runs against a seven-method fake whose `canonical` maps one path to
   another. The fake asserts the same thing the symlink would — that the comparison is against the
   canonicalizer's *answer*. `crates/nvs-stdlib/tests/capability.rs`'s `Fake` is the shape; six of
-  its methods are `unreachable!()` with a sentence saying why that call would be a bug.
+  its methods are `unreachable!()` with a sentence saying why that call would be a bug. [until: reviewed 2026-09-06]
 - **A `.nvst` case can carry its own `nvs.toml`, and once a capability guards a construct it has
   to.** `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 2 finds the configuration at `./nvs.toml` in the working directory, and
   the multi-file form writes files into the case's own directory — so `--FILE nvs.toml--` with
@@ -4550,12 +4528,12 @@ is why" — is this file.
   every one of them reported the *denial* rather than anything about the case, which reads as
   "spawn is broken". The inverse is what makes a denial assertable: a case with **no** `nvs.toml`
   grants nothing, which is what `tests/conformance/core/file-*.nvst` rests on, so the harness must
-  never grant anything by default.
+  never grant anything by default. [until: reviewed 2026-09-06]
 - **`python tools/try.py` does not reproduce a multi-file case's working directory**, so it reports
   a spurious failure for one that reads a sibling file — it copies the `--FILE--` body to
   `.agent-tmp/` and runs that alone. Check a multi-file case with `target/debug/nvs test
   tests/conformance/<tree>` instead, which is what `verify.py` runs; `try.py` is for the
-  single-file shape it was built for.
+  single-file shape it was built for. [until: reviewed 2026-09-06]
 - **A `.nvst` case can ship its own `nvs.toml`, and `Core\Config::restore` inside one can end the
   case with a `FATAL`.** `--FILE nvs.toml--` writes the file `nvs run` discovers in the working
   directory — with no `--config`, step 2 is `./nvs.toml` — so a case can state `[limits]` and
@@ -4567,13 +4545,13 @@ is why" — is this file.
   may carry `--EXPECT--` *and* `--EXPECTF-ERROR--` together: `crates/nvs-test/src/run.rs:147` asks only
   that a case stating an error expectation exits nonzero, so one case can pin the stdout printed before
   a `FATAL` and the `FATAL` line itself — which is what makes a refused ceiling provable in the runtime
-  and not only in `Core\Config::get`.
+  and not only in `Core\Config::get`. [until: reviewed 2026-09-06]
 - **A closure captures by value, so a `.nvst` case cannot count anything by incrementing a captured
   variable.** `var $seen = 0; var $f = fn (): void => { $seen = $seen + 1; };` compiles, runs, and
   leaves `$seen` at `0` however many times `$f()` is called — the case fails on a line that looks
   like a bug in the member under test rather than in the fixture. Whatever the closure has to report,
   it has to `echo` from inside itself, or the case has to count on the outside. The counting shape
-  conventions.md recommends still works; it just cannot run its counter through a capture.
+  conventions.md recommends still works; it just cannot run its counter through a capture. [until: reviewed 2026-09-06]
 - **A `loop-goal.toml` check naming a crate with no `tests/` directory is not the wrong-`args` trap
   next to this one.** Stage 4's `-p nvs-host` block names seven tests and `crates/nvs-host` had no
   integration-test directory at all, which reads like the check was filed against the wrong crate —
@@ -4582,7 +4560,7 @@ is why" — is this file.
   the ABI compiled code calls with no compiler and no `dev-dependencies` edit. The question that
   separates the two cases is *can this crate reach the thing the test asks about*, never *does a
   test like it already live here*: `nvs-hir` genuinely could not ask `required() > 0`, and `nvs-host`
-  can reach every seam a request's limits are enforced at.
+  can reach every seam a request's limits are enforced at. [until: reviewed 2026-09-06]
 - **A `[limits]` reader answers off `Snapshot::table`, the raw `toml::Table`, and not off the typed
   `Config` beside it.** `Ctx::configured_memory_limit` and `::configured_cpu_time` go through
   `nvs_config::Request::get`, which reads `self.base.table` — so a case that builds
@@ -4590,7 +4568,7 @@ is why" — is this file.
   reports *no ceiling*, because the half it filled in is a different reader's. Build both halves from
   one TOML string (`written.parse::<toml::Table>()`, then `table.clone().try_into()`), which is what
   `crates/nvs-runtime/tests/configured_limits.rs` does; that also needs `toml` as a dev-dependency of
-  the crate under test.
+  the crate under test. [until: reviewed 2026-09-06]
 - **A `static` a test handler records into is shared by every test in that binary, and cargo runs
   them on threads of their own.** `crates/nvs-host/tests/limits.rs`'s `SEEN_LIMIT` was documented as
   "one test uses it, so nothing here has to survive another running beside it" — which stopped being
@@ -4600,7 +4578,7 @@ is why" — is this file.
   and a recorder **per test**, not a lock held longer: compiled code is called through a bare
   `extern "C"` pointer, which captures nothing, so "the same handler aimed at another slot" is not
   expressible and the recorder has to be copied. The counter at the top of that file is read as a
-  *difference* for exactly this reason, and that note is the one that should have been read first.
+  *difference* for exactly this reason, and that note is the one that should have been read first. [until: reviewed 2026-09-06]
 - **A capability is invisible through the request overlay, so a case that "narrows one" through
   `Core\Config::set` is pinning nothing.** `nvs_runtime::capability::refusal` asks
   `config.snapshot().config.capabilities` — the typed tree — and never
@@ -4610,7 +4588,7 @@ is why" — is this file.
   therefore cannot narrow a capability at all; the narrowing in `a_child_cannot_widen_a_capability_its_parent_narrowed`
   is the operator's, in the snapshot the parent already holds, and what the case asks is the
   child's side of it. The general shape: a directive that is `RuntimeTighten` in the registry is
-  not thereby settable — the value has to have a quantity for the comparison to mean anything.
+  not thereby settable — the value has to have a quantity for the comparison to mean anything. [until: reviewed 2026-09-06]
 - **A `cfg(unix)`-only test cannot satisfy a `cargo-named` acceptance check**, because the driver
   reads "did not run" as a failure and this loop runs on Windows. `crates/nvs-config/tests/trust.rs`
   gates its two negative cases on Unix and is right to — nothing names them — but stage 5's
@@ -4621,7 +4599,7 @@ is why" — is this file.
   the SID rather than as `Everyone`: `icacls` is localized, and this machine's prints German. Then
   assert on `Untrusted::Breach` and on the directory's own last component — not on the canonical
   path, because `fs::canonicalize` yields `\\?\C:\…` on Windows where the refusal's message does
-  not.
+  not. [until: reviewed 2026-09-06]
 - **A path helper that normalizes `..` defangs the very escape the case was written to assert.** The
   `p()` in `crates/nvs-config/tests/request.rs` resolves `.` and `..` away so an ADR's `/a/b` spells
   itself host-natively, and reaching for the same helper in a case about a `..` escape hands
@@ -4629,12 +4607,12 @@ is why" — is this file.
   sibling-root rule and never on `rule:security/path-scope-canonicalise-then-prefix`'s canonicalise-then-prefix. It fails no test and looks
   right in review. `crates/nvs-config/tests/capability.rs` keeps the two apart: `raw()` is what the
   caller wrote, `lexical()` is what the filesystem answers, and only the fake `Files` may turn one
-  into the other.
+  into the other. [until: reviewed 2026-09-06]
 - **An array literal is `mixed`, so `foreach (['a', 'b'] as string $path)` does not compile** — the
   binding's declared type is checked against the element type the literal *has*, and E0401 points at
   the binding rather than at the literal that produced it. Two `try` blocks written out cost nothing
   and read the same; a case that genuinely wants the loop has to name the array's type where it is
-  built, not where it is walked.
+  built, not where it is walked. [until: reviewed 2026-09-06]
 - **A `--RUN-- test` case resolves no configuration tree, so `Core\Config` answers as the empty
   configuration inside every `#[Test]`.** The runner does give each test method an isolate of its own —
   which is the only thing in the CLI that runs two requests in one process — but
@@ -4643,7 +4621,7 @@ is why" — is this file.
   read by nobody, and `Core\Config::get` is `null` rather than the file's value — the stdlib module doc's
   "a context nobody configured answers as an empty configuration", reached from an unexpected direction.
   Two sequential `spawn script` children are the shape that does work, and they *do* see the
-  configuration: `tests/conformance/config/config-set-is-invisible-to-the-next-request.nvst`.
+  configuration: `tests/conformance/config/config-set-is-invisible-to-the-next-request.nvst`. [until: reviewed 2026-09-06]
 - **A memory-limit breach is observed at the first `run_helper` member call after it, and an
   `$a[] = …` is not one.** A fixture that grows an array past `[limits] memory` and expects the
   `FATAL` there gets it at whatever `Core` member or `echo` runs *next* instead — which is how one
@@ -4653,28 +4631,28 @@ is why" — is this file.
   where you want the breach reported, and expect nothing printed before it, since `run_helper`
   asks its question ahead of the body. A handler registered with `Core\Fatal::onLimit` only runs
   when the reading is still under `[limits] memory` *plus* the reserve, so a fixture that overshoots
-  the ceiling by 2× sees no handler at all.
+  the ceiling by 2× sees no handler at all. [until: reviewed 2026-09-06]
 - **A diagnostic's help text is pinned byte for byte by an `--EXPECTF-ERROR--` case in a tree that
   never names the crate you edited.** Rewording `E0319`'s help in `crates/nvs-hir/src/members.rs`
   failed `tests/conformance/lang/a-bare-global-name-is-a-compile-error.nvst`, and `cargo test` does
   not run the `.nvst` trees — so the failure waits for `verify.py` or an explicit
   `nvs test tests/conformance/`, long after the edit looks finished. `grep -rn` a distinctive phrase
   of the help under `tests/` before changing it; the pin is one line of the case's expectation and
-  updating it is the whole fix.
+  updating it is the whole fix. [until: reviewed 2026-09-06]
 - **A `reject` case pins the *first* diagnostic, and the recovery type behind it writes the second
   one.** `check_read` answers `mixed` after reporting, so a `static` method declared `: int` whose
   body reads `$this->size` reports the refusal *and* `E0403 declares int but returns mixed`, and
   `%A` does not cover the trailing `aborting due to 2 errors` line. Two ways out, and the choice is
   about what the case is for: declare the surrounding position `mixed` so the recovery satisfies it
   (what `this-is-not-read-in-a-static-method.nvst` does, in a comment saying why), or pin both
-  errors deliberately. Writing the case against one error and discovering the second costs a build.
+  errors deliberately. Writing the case against one error and discovering the second costs a build. [until: reviewed 2026-09-06]
 - **A `--FILE--` body starts at byte 0 of the file the runner writes, with no leading newline — which
   is the only reason an offset-0 case can be written at all.** `crates/nvs-test/src/case.rs`'s section
   reader takes the lines *after* the header as the body verbatim, so
   `a-shebang-line-opens-code.nvst` really does hand the lexer `#!` at offset 0. Worth knowing before
   writing any case whose subject is the first bytes of a file: if the harness had kept the separator's
   newline, the case would have passed while testing nothing, because the rule it pins (`rule:tooling/shebang-opens-code-mode`)
-  is exact about the offset and every other position is ordinary text.
+  is exact about the offset and every other position is ordinary text. [until: reviewed 2026-09-06]
 - **A `namespace` in Novis is a statement and not a block, so a case that needs two of them needs two
   files.** `namespace App { … }` is `E0243`, *"write `namespace X;` once, before any declaration, and
   put a second namespace in a second file"* — which turns a one-file draft into a `--FILE app.nvs--`
@@ -4682,7 +4660,7 @@ is why" — is this file.
   so the classes are reachable and only the root file's statements print, which is what makes this the
   cheap shape for "the same name means two different things in two scopes". `try.py` cannot run the
   result — the neighbouring bullet says why — but `target/debug/nvs test <path>.nvst` takes a **single
-  case path**, not only a tree, and reproduces its working directory.
+  case path**, not only a tree, and reproduces its working directory. [until: reviewed 2026-09-06]
 - **`conformance_coverage.rs`'s floor of three reads only a case's *main* `--FILE--` section, so a
   member exercised in an auxiliary file counts for nothing.** `case_sources()` takes
   `nvs_test::case::parse(…).file` — the last, unnamed section — deliberately, so a member named in a
@@ -4693,7 +4671,7 @@ is why" — is this file.
   disk and all three green. What closes it is a question the *parent* asks in its own section — for
   `Core\Script::args()` that was the root's own absence, relaying its answer back through `args:`, and
   asserting that handing a value to a child does not put one on the giver. Three real questions, not
-  three spellings of one.
+  three spellings of one. [until: reviewed 2026-09-06]
 - **A new `Core` member owes three cases, not one, and one of them has to be an error path.**
   `conformance_coverage.rs` runs two gates a single case cannot pass:
   `every_core_class_has_a_conformance_floor_of_three` wants three cases *asking different
@@ -4702,7 +4680,7 @@ is why" — is this file.
   is empty and may only shrink, so there is no third answer. Budget for that when the design has a
   refusal a `.nvst` cannot reach: an `.nvst` case cannot write an `nvs.toml` (there is no config
   section in the format), so a refusal that only a directive can trigger is unassertable, and the
-  gate is telling you the check belongs where a program can reach it or nowhere yet.
+  gate is telling you the check belongs where a program can reach it or nowhere yet. [until: reviewed 2026-09-06]
 - **A new `Core` member owes *three* conformance cases, not one, and the second gate says so only
   after the first is green.** `crates/nvs-stdlib/tests/conformance_coverage.rs` has two tests over
   the same corpus: `every_part_one_member_has_a_conformance_case` wants one case naming the member,
@@ -4711,7 +4689,7 @@ is why" — is this file.
   question again does not". So budget a member's slice as the four in-module edits plus three cases
   along three different shapes (agreement, the boundary it refuses, the row that parts it from its
   neighbour), or `verify.py` spends a full run telling you the member is "asked by 1 case(s)".
-  `BELOW_THE_FLOOR` in that file only shrinks and is never where a new member goes.
+  `BELOW_THE_FLOOR` in that file only shrinks and is never where a new member goes. [until: reviewed 2026-09-06]
 - A `Core\Fatal::onLimit` handler only runs when the breach lands *inside* `rule:errors/on-limit`'s reserve, so a
   case that overshoots by more than `[limits] fatal_reserve_memory` sees no handler output at all and
   looks like a tier that never fires. `Ctx::run_limit_handler` adds the reserve back to the *reduced*
@@ -4720,7 +4698,7 @@ is why" — is this file.
   word. Size the ballast to land between the ordinary allowance (`memory` minus the reserve) and
   `memory`: under the 16M/1M defaults three 8 MiB slabs overshoot by 14,662 bytes and print nothing,
   while one 16,000,000-byte string prints. The message the `FATAL` carries is identical either way,
-  which is why the difference reads as "the handler is not implemented".
+  which is why the difference reads as "the handler is not implemented". [until: reviewed 2026-09-06]
 - **A checker fixture whose subclass declares its own constructor must call `parent::constructor(...)`
   on every path, or `E0410` fails the fixture instead of the rule under test.** A `class Dog extends
   Animal { public function constructor(string $n, int $age) {} }` written to make `rule:classes/constructor-compatibility`'s
@@ -4728,7 +4706,7 @@ is why" — is this file.
   ("a path through its constructor never calls `parent::constructor(...)`") that has nothing to do
   with what the test asserts — so an `assert!(!diags.has_errors())` in the same test fails on a
   diagnostic the author never considered. One `parent::constructor($n);` line fixes it. This bites
-  hardest in a *negative* fixture's control half, where the whole point is that nothing else is wrong.
+  hardest in a *negative* fixture's control half, where the whole point is that nothing else is wrong. [until: reviewed 2026-09-06]
 - **`gaps.py`'s two sections measure two different suites, and an item that mixes them asks for a
   case that already exists.** The *conformance depth by class* block is `tests/conformance/`; the
   *differential gap* block is `tests/differential/`. A member at the depth floor of 3 in the first
@@ -4737,7 +4715,7 @@ is why" — is this file.
   `math-hypot-and-atan2-match-hypot-and-atan2.nvst`, when a handoff item named them as needing one.
   Only the *differential gap* block's roster ("a PHP twin and no oracle case") answers the question
   the Stage 8 differential count asks. One `ls tests/differential/core/ | grep <class>` before
-  writing settles it, and the members with no differential case at all are the ones with room.
+  writing settles it, and the members with no differential case at all are the ones with room. [until: reviewed 2026-09-06]
 - **A `Core` member arrives owing *three* conformance cases, not one, and the floor counts files
   rather than assertions.** `every_core_class_has_a_conformance_floor_of_three` in
   `crates/nvs-stdlib/tests/conformance_coverage.rs` counts the `.nvst` **cases** that name each
@@ -4748,7 +4726,7 @@ is why" — is this file.
   worth knowing before writing any of them: a case grants capabilities with a `--FILE nvs.toml--`
   section, `read = true` / `write = true` is an unrestricted grant (`nvs_config::tree::Setting`), and
   `--FILE sub/keep.txt--` creates a directory to test against, which is the only way to have one
-  before `makeDir` exists.
+  before `makeDir` exists. [until: reviewed 2026-09-06]
 - **Rewording a `Fault::` message breaks the cases that match a *substring* of it, and the sweep
   that catches you prints a number rather than the sentence.** Giving
   `Core\Encoding::decodeText`'s refusal a backslash-free literal head (the
@@ -4761,7 +4739,7 @@ is why" — is this file.
   helper asserting `Core\Str::startsWith($message, "Core\\Encoding::decodeText(): ")`, which prints
   as a column of `|` with nothing after it. Grep the corpus for a *distinctive interior phrase* of
   the old message, and for `startsWith`, as well as for its head — a case that pins a property of a
-  message deliberately holds a fragment rather than the line, and both trees carry them.
+  message deliberately holds a fragment rather than the line, and both trees carry them. [until: reviewed 2026-09-06]
 - **An `examples/` acceptance fixture can be wrong about the *language*, not just early for its
   stage — and the driver's check message then names the fixture's own bug rather than the member
   the stage owes.** `examples/cli.nvs` failed stage 3 with `error[E0215]: a function must be a
@@ -4770,7 +4748,7 @@ is why" — is this file.
   closed roster holding `Core\Command` and `Core\Option` and no `Argument` at all. None of that is
   what the stage owes. Under the corrected declaration the honest failure was two missing members,
   which is the message the next session actually needed. One `nvs run` over a fixture that has
-  never compiled, before reading its failure as a statement about what is missing.
+  never compiled, before reading its failure as a statement about what is missing. [until: reviewed 2026-09-06]
 - **A brand-new `Core` member needs its first case to ask it three times, not once.**
   `conformance_coverage.rs`'s `every_core_class_has_a_conformance_floor_of_three` counts *asks*
   rather than files — one case calling `Core\Command::help` twice reports "asked by 2 case(s)" —
@@ -4778,20 +4756,20 @@ is why" — is this file.
   `Fault::thrown_as` the body reaches asserted by a case or declared unreachable within eight lines
   above the site. So the shape that lands green is two cases: the happy page, and one that catches
   the refusal. Both gates run under `cargo test -p nvs-stdlib --test conformance_coverage`, which is
-  seconds, so run that before the full verify rather than after it.
+  seconds, so run that before the full verify rather than after it. [until: reviewed 2026-09-06]
 - **A `.nvst` section listed under `NOT_YET` can become honourable, and the entry names its own
   blocker — read it before writing around one.** `--ARGS--` was refused with "argv is unreachable
   until `Core\Cli` lands at M8", which had just stopped being true: `nvs run <file> [args...]` now
   carries a command line, so honouring the section was four lines in `crates/nvs-test/src/case.rs`
   and one in `run.rs`. The alternative on the table was declaring an error path "unreachable from
   source" that a real command line reaches, to get past `conformance_coverage.rs`'s gate — a gate
-  answered with a lie because the section that would have answered it honestly looked closed.
+  answered with a lie because the section that would have answered it honestly looked closed. [until: reviewed 2026-09-06]
 - **`echo "status: ", Core\Command::run()` prints the label before whatever the callee echoes.**
   `echo`'s arguments are written as they are evaluated, so a member that produces output *inside*
   the call interleaves with the text around it: the expectation reads `status: greet: Hello…` with
   the handler's own line spliced into the middle. Take the value into a variable first. Every
   dispatching or callback-taking member has this shape, and it looks like a matcher bug rather than
-  an evaluation-order one.
+  an evaluation-order one. [until: reviewed 2026-09-06]
 - **A `-p nvs-stdlib` test can hand a `Core` member a *compiled class* as well as a `callable`, and
   the installation point is named for something else.** `Ctx::class_desc` — the one route from a
   native member to a class the program wrote, and so the whole of how `nvs_runtime::call_static`
@@ -4804,14 +4782,14 @@ is why" — is this file.
   the called class as a `Value::class_desc`, and the callee owes the exit sweep for every slot
   including that one. `crates/nvs-stdlib/src/command.rs`'s `dispatching` is the shape; unlike
   `allocation_policy.rs`'s `closure_of` it does not leak, because an `ErrorClass` holds the `Rc` for
-  as long as the context lives.
+  as long as the context lives. [until: reviewed 2026-09-06]
 - **A `.nvst` case's program name is `case`, and that is stable enough to freeze in an
   `--EXPECT--`.** `nvs-test` writes every case to disk as `case.nvs` and runs `nvs run case.nvs`
   over it (`crates/nvs-test/src/run.rs:238`), so anything reading `nvs_runtime::Ctx::program_name`
   — today `Core\Command::completions`, whose scripts register against it — answers `case` in a
   conformance case and the file's own stem everywhere else. The four completion cases print it in
   full. Worth knowing before writing a case around a program name: it is neither the `.nvst` file's
-  name nor `nvs`, and guessing either produces a diff that looks like a bug in the member.
+  name nor `nvs`, and guessing either produces a diff that looks like a bug in the member. [until: reviewed 2026-09-06]
 
 - **An error path only a *non-`nvs run`* context reaches still owes a case, and `--RUN--` is how one
   reaches it.** `conformance_coverage.rs`'s `every_error_path_is_asserted_or_declared_unreachable`
@@ -4824,7 +4802,7 @@ is why" — is this file.
   `Core\Test::assertThrows`, because `rule:testing/runner-is-strict` fails a test whose ledger is empty. Two things
   cost time on the way: the runner's report is the expectation, so the echoed line sits at column 0
   above the indented `✓` row, and an empty `--EXPECTF-ERROR--` section is the claim that the run
-  *failed* rather than a section left blank.
+  *failed* rather than a section left blank. [until: reviewed 2026-09-06]
 - **A `Core` member owes three conformance cases and every `Fault` site owes an assertion or a
   declaration, and both gates fire only on the *whole* `-p nvs-stdlib` run.** A new class passes
   `cargo build`, passes its own `#[test]`s, passes `nvs test` on the case you just wrote, and then
@@ -4838,7 +4816,7 @@ is why" — is this file.
   the gate matches against is the whole text of every case file, `--EXPECT--` and comments alike,
   so the honest way to satisfy it is `catch (LogicError $e) { echo $e->message, "\n"; }`. Two catch
   clauses in one case may not share a variable name (`E0406`), and a `'single-quoted'` string is
-  the way to write a PHC literal, since `"$argon2id$v=19$…"` interpolates four variables.
+  the way to write a PHC literal, since `"$argon2id$v=19$…"` interpolates four variables. [until: reviewed 2026-09-06]
 - **An acceptance fixture written ahead of its members can name a member that never existed, and two
   of `examples/crypto.nvs`'s six lines did.** It called `Core\Encoding::toBytes(…)` — there is no
   such row; the `string`→`bytes` conversion is `rule:types/conversion`'s `as bytes` cast, total and free — and
@@ -4846,7 +4824,7 @@ is why" — is this file.
   `slice`'s third parameter is `int|null`, so the obvious arithmetic is `E0401: expected int|null,
   found uint` and the spelling is `(Core\Bytes::length($b) as int) - 1`. A fixture on disk reads
   like landed work and is not: it has never compiled, because the members it calls did not exist
-  when it was written. Compile it first, before writing a `.nvst` case that copies its idioms.
+  when it was written. Compile it first, before writing a `.nvst` case that copies its idioms. [until: reviewed 2026-09-06]
 
 - **`conformance_coverage.rs`'s error-path gate reads eight lines above the `Fault::` line and stops
   at the first `Fault::` on the way up, so one comment cannot declare two sites.** A block comment
@@ -4855,7 +4833,7 @@ is why" — is this file.
   count — and a second site further down never sees it at all, because the scan halts at the first
   one. The gate's message says "within the 8 lines above the site" and reads as generous; it is
   measured from the `Fault::` line, not from the statement. One short declaration immediately above
-  each site, each ending with its own reason, is what passes.
+  each site, each ending with its own reason, is what passes. [until: reviewed 2026-09-06]
 - **A new `Core` class owes *three* conformance cases per member on the day it lands, and the check
   that says so runs only in the full verify.** `every_core_class_has_a_conformance_floor_of_three`
   in `crates/nvs-stdlib/tests/conformance_coverage.rs` counts cases per *member*, not per class, so
@@ -4863,7 +4841,7 @@ is why" — is this file.
   `cargo test -p nvs-stdlib --lib` does not run it at all, because it is an integration test. Budget
   the two extra cases into the slice rather than discovering them at the gate: the floor's own
   message says a case asking the same question again does not count, so they have to be genuinely
-  different shapes, which is a design job and not a copy-paste one.
+  different shapes, which is a design job and not a copy-paste one. [until: reviewed 2026-09-06]
 - **A `?T` a `Core` member answered cannot be passed straight back into a `T` parameter, and the
   diagnostic arrives at the *argument* rather than at the declaration.** `?int $step =
   Core\Totp::check($code, $secret);` then `Core\Totp::check($code, $secret, $step)` is
@@ -4871,7 +4849,7 @@ is why" — is this file.
   row is wrong when it is the case that owes a narrowing. The fix is to put the second call inside
   the `else` of `if ($step == null)`, where the type is narrowed; that is also what a real caller
   writes, so the case gets more honest as well as compiling. Worth knowing before designing a
-  member's answer as `?int`: every case that round-trips the value pays one `if`.
+  member's answer as `?int`: every case that round-trips the value pays one `if`. [until: reviewed 2026-09-06]
 - **A `.nvst` case can write its own `nvs.toml`, so a capability-gated member's *granted* error
   paths are assertable from the conformance suite — and they have to be.** `crates/nvs-test`'s
   `--FILE <relative/path>--` section puts any file beside the case's own program, and
@@ -4883,7 +4861,7 @@ is why" — is this file.
   `DECLARATION` comment claims a diagnostic refuses the call first, which is false for a path a
   granted program reaches. Write the grant into the case instead. The corollary is where the time
   actually goes: it changes what a member's *body* may do, because a throw sited in `nvs-stdlib`
-  is read by that gate and one sited in `nvs-runtime` is not.
+  is read by that gate and one sited in `nvs-runtime` is not. [until: reviewed 2026-09-06]
 - **An `--EXPECTF-ERROR--` block needs a `%A` at every gap between literal lines, including the
   last one.** A block ending `%A` / `error: aborting due to N errors` matches, because the `%A`
   swallows the caret excerpt *and* the blank line after it; the same block with a diagnostic's
@@ -4891,7 +4869,7 @@ is why" — is this file.
   line between them. The matcher (`nvs_test::expect`) backtracks properly and the literal lines all
   appeared verbatim in the failure's *actual* column, so the diff reads as "identical text, refused"
   and the eye goes to the line numbers. Pin a help line when it is the claim — the option roster in
-  `no-client-member-accepts-an-unbounded-wait.nvst` is — and put a `%A` on the line after it.
+  `no-client-member-accepts-an-unbounded-wait.nvst` is — and put a `%A` on the line after it. [until: reviewed 2026-09-06]
 - **A `nvs-types` test that has to *compile a snippet* lives in `crates/nvs-types/tests/`, never
   beside the registry tests in `src/`.** The handoff anchored
   `a_post_retried_without_an_idempotency_key_is_a_compile_error` at `core_lib.rs:896`, whose inline
@@ -4899,7 +4877,7 @@ is why" — is this file.
   never sees a diagnostic, so the anchor was for the wrong host. `crates/nvs-types/tests/common/mod.rs`'
   `check_in_method`/`check_src` are the harness, and `crates/nvs-types/tests/core_members.rs` is the file that owns
   every options-bag rule. A `loop-goal.toml` check spelled `args = ["test", "-p", "nvs-types"]` runs
-  both targets, so nothing about *being found* decides this — only which fixture exists.
+  both targets, so nothing about *being found* decides this — only which fixture exists. [until: reviewed 2026-09-06]
 - **A `#[cfg(test)]` module inside `crates/nvs-stdlib/src/` is scanned by
   `crates/nvs-stdlib/tests/capability.rs`'s OS gate, so a case that opens its own socket or temp
   file fails a test in another file.** The message is good — it names the file,
@@ -4910,7 +4888,7 @@ is why" — is this file.
   listener. The scan now stops at the file's `#[cfg(test)]` line and asserts
   there is exactly one per file, so this is fixed rather than worked around;
   what is left of the trap is that a *second* `#[cfg(test)]` higher up in a
-  module now fails that assertion instead.
+  module now fails that assertion instead. [until: reviewed 2026-09-06]
 - **A `.phpt` section that `crates/nvs-test` "parses but does not honour" fails the case
   outright, so a member that needs one is two slices and not one.** `--ENV--` had been parsed
   since the importer landed and every case using it was reported `unsupported: the environment
@@ -4918,7 +4896,7 @@ is why" — is this file.
   could not be written at all until `case.rs`'s `NOT_YET` lost its `ENV` row and `run.rs` threaded the
   pairs into `Command::envs`. `--INI--` is the one still on that list. Before writing a case
   that sets up its own world, check `NOT_YET` rather than the section table in
-  `crates/nvs-test/src/lib.rs`, which lists a section whether or not it does anything.
+  `crates/nvs-test/src/lib.rs`, which lists a section whether or not it does anything. [until: reviewed 2026-09-06]
 - **A file in `nvs-stdlib` gets exactly one `#[cfg(test)]`, and a second one fails a test in another
   crate's directory with no mention of the attribute you added.**
   `crates/nvs-stdlib/tests/capability.rs`'s `nvs_stdlib_reaches_the_os_only_through_the_gate` scans
@@ -4927,7 +4905,7 @@ is why" — is this file.
   second one higher up would hide the whole file rather than just the tests. A `#[cfg(test)]
   pub(crate) fn` added beside `mod tests` as a shared fixture is the natural way to trip it; put the
   fixture **inside** `mod tests` and reach it as `crate::tests::<name>`, which costs nothing and
-  keeps the scan's boundary where it was.
+  keeps the scan's boundary where it was. [until: reviewed 2026-09-06]
 - **A park asserted after the first `sched.run()` can be the *connect*'s, not the read's.**
   `NvsTcp::connect_timeout` goes through `finish_connecting`, which tries a zero-byte write and parks
   wherever the platform says the handshake is still in flight — so a test that spawns a whole outbound
@@ -4939,7 +4917,7 @@ is why" — is this file.
   writes any of the reply back — a signal trailing the bytes can be outrun by the very turn that
   consumes them, and the next turn then waits on readiness the test itself is holding back.
   `a_socket_read_runs_on_the_reactor_and_parks_its_coroutine` in
-  `crates/nvs-stdlib/src/http/transport.rs` is the whole shape, and it runs in 40ms.
+  `crates/nvs-stdlib/src/http/transport.rs` is the whole shape, and it runs in 40ms. [until: reviewed 2026-09-06]
 - **Registering a `Core` class costs three conformance cases per member, and the gate that says so is
   not the one that names the member.** `every_part_one_member_has_a_conformance_case` wants one `.nvst`
   writing `Class::member(` or `->member(`, which reads like the whole obligation — and then
@@ -4951,7 +4929,7 @@ is why" — is this file.
   rows are written. Two smaller gates fire at the same moment and are cheap to fix once seen:
   `no_registry_card_cites_an_adr` refuses an ``rule:classes/two-copy-depths`` in a `MethodDoc` (the citation belongs in the
   module doc or the helper's own comment), and a class declaring `slots` must declare `instance` members
-  too.
+  too. [until: reviewed 2026-09-06]
 - **A `Core` instance has no property a program can reach, so an ADR that writes one is writing a
   member.** `rule:core-classes/ratelimit-gcra` spells `Core\RateLimit\Decision` as `readonly allowed: bool, …`, and
   `examples/cache.nvs` was written against that: `$d->allowed`. There is no spelling of it that
@@ -4959,7 +4937,7 @@ is why" — is this file.
   subclass"), `registry::CoreClass::slots` restates it, and `examples/http.nvs` carries the
   precedent in a comment beside its `$response->status()`. So a `Decision` is four zero-argument
   instance members and the ADR's field list is a *field* list, not a syntax. Check
-  `CoreTy::Instance` before transcribing any ADR that writes a `Core` value's fields with a colon.
+  `CoreTy::Instance` before transcribing any ADR that writes a `Core` value's fields with a colon. [until: reviewed 2026-09-06]
 - **A trailing `%A` on its own line in an `--EXPECTF-ERROR--` does not match nothing.** Two
   `Core\Debug` cases ended `Uncaught Exception: …` / `%A`, where the `%A` was absorbing the
   backtrace lines below. When the tier-4 floor folded the backtrace into the record's own
@@ -4967,7 +4945,7 @@ is why" — is this file.
   and both cases failed with an *identical-looking* expected and actual block — the diff prints
   the pattern rather than what it expanded to, so the only visible difference was the extra
   `%A` line. Delete the wildcard when the output it was covering goes away; a `%A` is an
-  absorber, not an optional tail.
+  absorber, not an optional tail. [until: reviewed 2026-09-06]
 - **A new `Core` class owes three conformance cases *per member*, and the guard that says so fires
   only at `cargo test -p nvs-stdlib`.** `every_core_class_has_a_conformance_floor_of_three` prices a
   class by its thinnest member, so one case exercising all four of a new class's members leaves every
@@ -4979,7 +4957,7 @@ is why" — is this file.
   `MethodDoc` field, because `nvs meta --json` ships the card to a reader with no ADR tree — state
   the fact instead; and `no_member_revalidates_a_string_argument` reads the *source*, so a
   `Value::as_str_bytes` followed by any `from_utf8` spelling fails it even where the second call is a
-  `from_utf8_lossy` in an error message.
+  `from_utf8_lossy` in an error message. [until: reviewed 2026-09-06]
 
 - **An acceptance fixture's *source* is frozen by nothing, so it can name members that were never
   going to exist — and the diagnostic blames the class you just added.** `examples/reflect.nvs` was
@@ -4989,7 +4967,7 @@ is why" — is this file.
   `E0405` against the new class, which reads as "your row is wrong" rather than "the fixture is". The
   fixture's own header says which half is frozen — for these files it is the `[[check]]`'s `want`
   lines and never the program — so a member spelling in a fixture is a *guess* until one `grep -n
-  'name: "…"'` in the owning module confirms it.
+  'name: "…"'` in the owning module confirms it. [until: reviewed 2026-09-06]
 - **A new `Core` member owes *three* conformance cases, not one, and `cargo test -p nvs-stdlib`
   is where you find that out.** `conformance_coverage.rs`'s
   `every_core_class_has_a_conformance_floor_of_three` counts cases per member and fails the whole
@@ -4999,13 +4977,13 @@ is why" — is this file.
   beside `case.nvs` and `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 2 resolves it out of the case's own working directory, so
   `[capabilities.fs]` with `read = ["."]` grants the run. `tests/conformance/core/io-*.nvst` is the
   worked shape, and without it every case for such a member is another spelling of "refused", which
-  is the one thing the floor is designed to reject.
+  is the one thing the floor is designed to reject. [until: reviewed 2026-09-06]
 - **`nvs_stdlib_reaches_the_os_only_through_the_gate` is a *textual* scan, so naming a forbidden
   type is as fatal as calling it.** The list is spellings — `std::fs`, `std::process::Command`,
   `std::env::var` — matched against the source above the file's `#[cfg(test)]` marker, so
   `fn write_chunk(file: &mut std::fs::File, …)` fails a gate about *effects* on a signature that
   performs none, and so does a `use std::fs::File;` at the top. Make the helper generic over
-  `W: Write` (or infer the type from the door that answered it) and the spelling never appears.
+  `W: Write` (or infer the type from the door that answered it) and the spelling never appears. [until: reviewed 2026-09-06]
 - **`conformance_coverage`'s error-path gate reads a message's stem as the text *before its first
   `{`*, and on a CRLF checkout it used to stop at the first line wrap too.** Both make a
   `Fault::thrown` site silently ineligible rather than loudly unasserted, which is the wrong
@@ -5015,7 +4993,7 @@ is why" — is this file.
   constants are worth less here than the gate is. The CRLF half is fixed (`unescape` now treats a
   carriage return as the continuation's newline, which is what let both of `Core\Cli\Live`'s
   refusals be matched to their cases at all); the leading-hole half is a property of the stem rule
-  and is not going away.
+  and is not going away. [until: reviewed 2026-09-06]
 - **A `Core` member's `T` does not bind from an array literal written inline at the call site, and
   the diagnostic reads as if the member were wrong.** `string $one = Core\Cli::select("q", ["a",
   "b"])` is `E0401: expected string, found mixed` — not because `select<T>`'s row is broken, but
@@ -5024,7 +5002,7 @@ is why" — is this file.
   pass. `array<string> $choices = [...]` on its own line binds `T` correctly, and both spellings
   behave identically at run time — a case only notices when it *asserts the type* by binding the
   result to a declared local. Cost a full conformance run to a row that was right: check the
-  spelling against a typed local before suspecting the registry.
+  spelling against a typed local before suspecting the registry. [until: reviewed 2026-09-06]
 - **A `.nvst` case whose program ends in an uncaught throw needs an
   `--EXPECT-ERROR--`/`--EXPECTF-ERROR--` section, or it fails on the exit status with the
   stdout it asked for printed correctly.** `crates/nvs-test`'s module doc is the rule —
@@ -5036,14 +5014,14 @@ is why" — is this file.
   one `%s` for it:
   `{"level":"error","msg":"boom","fields":{"class":"LogicError","backtrace":"%s"}}`.
   `tests/conformance/error/a-limit-fatal-is-not-catchable.nvst` is the same shape for a
-  `FATAL`, whose stderr is a plain sentence rather than a record.
+  `FATAL`, whose stderr is a plain sentence rather than a record. [until: reviewed 2026-09-06]
 - **A negative `decimal` has no literal spelling, and the diagnostic is `E0401: expected `decimal`,
   found `int``.** `rule:types/numeric-literal-placement` target-types the *literal*, and a unary minus in front of one is an
   ordinary operator over an `int`, so the target type never reaches through it: `decimal $d = -4;`
   does not compile. Build it by subtraction from a `decimal` that does —
   `decimal $four = 4; decimal $minusFour = 0 - $four;` — which is what
   `tests/conformance/lang/decimal-arithmetic-is-exact-and-keeps-its-scale.nvst` was already doing
-  with `0 - $price`, where it reads as a style choice and is in fact the only spelling.
+  with `0 - $price`, where it reads as a style choice and is in fact the only spelling. [until: reviewed 2026-09-06]
 - **A green conformance case can be pinning the *absence* of a rule its own ADR requires, and it
   reads as coverage rather than as a gap.** `an-attribute-is-retrieved-by-the-shape-it-satisfies.nvst`
   asserted `param=none` for `Core\Attributes::get<T>(Controller::show(...), "repo")` — a literal
@@ -5054,7 +5032,7 @@ is why" — is this file.
   rule the acceptance list names, grep the `.nvst` corpus for the *spelling* it will start refusing —
   one `grep -rn` over `tests/` is the whole check, and finding it at the full verify instead costs a
   build. The tell that the case is the bug rather than the rule: the ADR paragraph is prose nothing
-  in the tree implemented, not a decision the case was written against.
+  in the tree implemented, not a decision the case was written against. [until: reviewed 2026-09-06]
 - **An ADR's own table row can be stale about the tree exactly the way a `loop-goal.toml` comment can,
   and the fix is different: amend the ADR.** `rule:programs/framework-core-half`'s `Core\Cldr` row read "one member exposing
   the CLDR data `nvs_stdlib::cldr` already holds", and no plural data was ever in that module — it held
@@ -5064,7 +5042,7 @@ is why" — is this file.
   `grep` per claim applies, but AGENTS.md's "an ADR's body always states the current rule" makes the
   stale row a *bug in the ADR* to fix in the same session, not a note in the handoff. Reading the row's
   reason — why the member exists — separately from its claim about the tree is what tells the two apart:
-  the reason survived unchanged here and only the claim was wrong.
+  the reason survived unchanged here and only the claim was wrong. [until: reviewed 2026-09-06]
 - **A refusal only the *environment* can trigger cannot be written, because no case can reach it and
   `every_error_path_is_asserted_or_declared_unreachable` counts it as owed.** `Core\IO::stdin` was
   drafted throwing when standard input is a terminal; a case is spawned through `Command::output`,
@@ -5075,7 +5053,7 @@ is why" — is this file.
   message no case can provoke is the third state it exists to forbid, so either the condition is
   wrong or the rule belongs where it *can* be asserted. Check what a case's environment can actually
   present before writing a guard on it — closed standard input, no terminal on any stream, no
-  command line beyond `--ARGS--`.
+  command line beyond `--ARGS--`. [until: reviewed 2026-09-06]
 - **`python tools/try.py` cannot run a case with more than one `--FILE--` section, and what it
   prints is 36 syntax errors rather than a refusal.** It concatenates every section into one `.nvs`
   and compiles that, so a case carrying `--FILE nvs.toml--` or a fixture file arrives with its TOML
@@ -5083,14 +5061,14 @@ is why" — is this file.
   a line of English inside a `--FILE objects/keep.txt--` block. The runner that reads the sections
   is the shipped binary: `./target/debug/nvs.exe test tests/conformance/core/<case>.nvst` takes one
   path and answers `1 passed, 0 failed, 0 skipped`, and it is already built at the commit the
-  session opens on. `try.py` is for a scratch snippet with no configuration around it.
+  session opens on. `try.py` is for a scratch snippet with no configuration around it. [until: reviewed 2026-09-06]
 
 - **Two `catch` clauses in one function may not bind the same variable name.** `catch (RuntimeError
   $error)` in one `try` and `catch (IOError $error)` in the next is `E0406: `$error` is already
   declared`, naming the first as "first declared here" — a catch binding is scoped to the function
   and not to its block, exactly as an ordinary local is. The diagnostic is clear, but the shape is
   the natural one to write when a case asks two questions of two error classes, so name the second
-  one something else.
+  one something else. [until: reviewed 2026-09-06]
 - **An object cannot cross an isolate boundary *outward* unless it crossed inward first, and the
   refusal reads like a bug in the fixture.** `nvs_runtime::graph`'s `Live::admit` compares the
   *descriptor address*, and `nvs-cli` compiles one unit per written path, so a `class Node` declared
@@ -5100,14 +5078,14 @@ is why" — is this file.
   What *does* work, and is what `examples/cycles.nvs` is built around: pass the object in as
   `args:` — the inward copy has no receiving table to check against, so it adopts at refcount 1 and
   keeps the parent's descriptor — and have the child hand the same object back. Reading the
-  `ScriptResult` needs `$done->error?->message` (the field is nullable) and `$done->value as Node`.
+  `ScriptResult` needs `$done->error?->message` (the field is nullable) and `$done->value as Node`. [until: reviewed 2026-09-06]
 - **A `.nvst` case whose program ends non-zero must carry an `--EXPECTF-ERROR--` section even when it
   writes nothing to standard error.** `nvs_test::Case::expects_failure` is `self.expect_error.is_some()`
   and nothing else, and `crates/nvs-test/src/run.rs:164` is the one rule for the exit status — "a case
   that states an error expectation must fail, and every other case must succeed". So an `exit(42)` case
   whose stdout matches byte for byte still fails, with `expected the run to succeed; it exited 42` and no
   hint that a *section* is what is missing. `%A` matches an empty stderr, so the fix is two lines, and it
-  is also the case saying out loud that this program is meant to end non-zero.
+  is also the case saying out loud that this program is meant to end non-zero. [until: reviewed 2026-09-06]
 
 - **A spawned child never drains its `Core\Script::onExit` queue, so no `.nvst` case can put two of `rule:observability/three-endings-fire-the-exit-queue`'s endings in one file.** `nvs_stdlib::script::run_exit_hooks` has exactly one caller —
   `crates/nvs-cli/src/main.rs:896`, the top-level script frame — so a `spawn script` child ends with
@@ -5115,7 +5093,7 @@ is why" — is this file.
   diagnostic anywhere. Every *bound asserted on both sides* over that table needs two endings and a
   script has exactly one, which makes children the obvious route and it is closed; whether it should be
   is the open question the handoff's backlog carries, since § 2's own words are "at most once per script"
-  and a spawned child is a script.
+  and a spawned child is a script. [until: reviewed 2026-09-06]
 - **A `secret` cannot be measured from source, so a width invariant is asserted through the members
   bounded by it.** `Core\Bytes::length($key)` on a `secret bytes` is `E0401: expected bytes, found
   secret bytes` — `rule:security/secret-qualifier`'s qualifier does not widen downwards and no member reads a length off one,
@@ -5124,13 +5102,13 @@ is why" — is this file.
   other width — with the width itself named separately over plain `bytes` candidates that widen *onto*
   the parameter, `Core\Bytes::fill($n, 65)` being the one-liner for one. The pair
   `crypto-names-the-key-length-bound-on-both-sides.nvst` and
-  `crypto-generate-key-draws-are-distinct-and-each-opens-only-its-own.nvst` is that split.
+  `crypto-generate-key-draws-are-distinct-and-each-opens-only-its-own.nvst` is that split. [until: reviewed 2026-09-06]
 - **A `.nvst` case is one scope, so two `foreach` bodies cannot each declare the same name.** Copying a
   loop body to ask the same question of a second sweep earns `E0406: $candidate is already declared`
   once per local, four at a time, pointing at the copy rather than at the copying — fold the two loops
   into one and select the rows to echo with an `if`. In the same shape: `Core\Bytes::fill` takes a
   `uint`, so a sweep of widths is `array<uint>` bound as `foreach (… as uint $width)`, and an
-  `array<int>` of the same literals is an `E0401` at the call site rather than at the literal.
+  `array<int>` of the same literals is an `E0401` at the call site rather than at the literal. [until: reviewed 2026-09-06]
 - **A `.nvst` case cannot put non-UTF-8 octets on disk, so a binary probe file has no writer today.**
   `Core\IO::write`'s `$content` and `Core\IO\File::write`'s `$data` are both
   `CoreTy::Text(Qual::Neutral)` (`crates/nvs-stdlib/src/io.rs:104` and `:822`), and the checker reads
@@ -5143,7 +5121,7 @@ is why" — is this file.
   `41 00 ff ed a0 80 42` unchanged through a pipe, NUL, lone `0xFF` and unpaired surrogate included —
   so what is missing is only the writer. `Core\Storage::put` (`crates/nvs-stdlib/src/storage.rs:173`)
   is the unchecked candidate; a bytes row on `Core\IO` is the other answer and is a member change, not
-  a case.
+  a case. [until: exists crates/nvs-stdlib/src/io.rs:CoreTy::Bytes]
 - **A `.nvst` case has no clock to move, so any property over more than one time step is a Rust
   test.** `Core\Test::advance` refuses where no `#[Test(at: ...)]` fixed a clock, and a case is
   top-level statements that are never inside one — `test-advance-refuses-without-a-fixed-clock.nvst`
@@ -5154,7 +5132,7 @@ is why" — is this file.
   "the answer is unchanged", or the case is flaky one run in thirty — and, for `Core\Totp`,
   `check($code, $secret, $step)` answering `null`, which is the successor step disagreeing in the one
   direction `$after` exposes. The step axis itself belongs in the module's own `#[cfg(test)] mod
-  tests`, where the derivation takes the step as an argument.
+  tests`, where the derivation takes the step as an argument. [until: reviewed 2026-09-06]
 - **A bound that lands on a wall-clock *second* can be asserted on both sides without a fixed clock,
   by waiting for the second rather than sleeping into it.** The bullet above is right that a `.nvst`
   case has no clock to move, but it stops one step short: where the bound is a whole second — `exp`
@@ -5167,7 +5145,7 @@ is why" — is this file.
   50ms loop until the second turns and assert every reading verified, which is "the whole of its
   lifetime" rather than one sample after signing.
   `tests/conformance/core/jwt-a-token-verifies-for-its-whole-lifetime-and-not-one-second-past-it.nvst`
-  is the shape.
+  is the shape. [until: reviewed 2026-09-06]
 - **A `Core` value type's slots are observable from a program through `Core\Debug::render`, and that
   is how a case asks what a `Cli\Style` or a `Cli\Progress` *holds* when nothing it renders reaches
   the output.** `rule:tooling/the-terminal-profile-resolves-once` leaves a captured stream at `ColorDepth::None`, so every style renders
@@ -5180,7 +5158,7 @@ is why" — is this file.
   `$background` and `$flags`, a `Progress`'s `$total` and `$done` — on every host alike. Compare
   whole renderings rather than reading a slot's value wherever the representation is the module's
   own business: `cli.rs` packs five booleans into one integer and three channels into one `uint`,
-  and neither is a fact the language owes anyone.
+  and neither is a fact the language owes anyone. [until: reviewed 2026-09-06]
 - **An assertion resting on `[cache.local] max_size` has to be sized against a probe, because the
   arithmetic is not the sum of the writes.** The tier prices an incoming entry *before* it removes
   the one it replaces (`crates/nvs-stdlib/src/cache.rs`'s `Local::put` says so), so a rewrite needs
@@ -5189,7 +5167,7 @@ is why" — is this file.
   that total evicts nothing at all. Both halves of a "a rewrite replaces rather than accumulates"
   case are therefore empirical: run it at the cap you chose, then run a copy that writes the same
   values under *distinct* keys, which is the accumulating store — if that copy does not forget the
-  key written first, the cap is too high and the case is vacuous.
+  key written first, the cap is too high and the case is vacuous. [until: reviewed 2026-09-06]
 - **`gaps.py` ranks a class by case *count*, not by question, so a handoff item derived from it can
   name work that is already on disk.** Two of the three items in one group — a counted sweep over
   `Core\Cli\Style::of`'s seven axes, and `Core\Cli\Color`'s bound named on both sides of all four of
@@ -5198,7 +5176,7 @@ is why" — is this file.
   that ranked the members thin. The count cannot tell you which question a case asked; the case
   titles can, and they are one `ls tests/conformance/core | grep -i <class>` away. Do that before
   writing the first line, and when the item turns out to be landed, say so in the handoff rather
-  than writing a second case that asks the same thing.
+  than writing a second case that asks the same thing. [until: reviewed 2026-09-06]
 - **A `..` below a component that does not exist is collapsed on Windows and refused everywhere else,
   so no conformance case may assert either.** `Core\IO::within($base, "nothing/..")` answers `$base`
   on Windows and throws `IOError` on Linux: `nvs_config::capability::resolved` asks the platform
@@ -5208,7 +5186,7 @@ is why" — is this file.
   pins the answer is green locally and red on two of the three hosted runners. The portable spellings
   are a `..` whose parent *does* exist (every platform collapses it, and the existing
   `io-within-resolves-and-then-proves-containment.nvst` uses one) and a name that merely contains
-  `..` without being one.
+  `..` without being one. [until: reviewed 2026-09-06]
 - **`--ARGS--`'s first line is the *launcher's* if it is `--`, and an empty argument cannot be
   written at all.** The section's own doc says a line is one argument whatever it holds, which reads
   as total; two spellings are not. `nvs run`'s `arguments` field is `trailing_var_arg` over clap, so
@@ -5218,14 +5196,14 @@ is why" — is this file.
   with a trailing space are not expressible: a case pinning "an empty word survives" cannot be
   written in this format at all, and the run that discovers it looks like the member ate a word.
   Both halves are now in the two doc comments that own them (`nvs-cli`'s `arguments` field,
-  `nvs_test::case::Case::args`).
+  `nvs_test::case::Case::args`). [until: reviewed 2026-09-06]
 - **`python tools/try.py` ignores `--ENV--`, so an env-dependent case runs against the machine's own
   environment and prints as though the member answered nothing.** The scratch runner honours
   `--FILE--` and the expectations but never sets the section's variables — `grep -n env tools/try.py`
   finds one hit and it is a jobs knob — so a `Core\Env` case comes back `whole: 0 of 4` and reads as a
   broken member rather than as an unset variable. The runner that does honour it is the real one:
   `target/debug/nvs.exe test <path/to/one-case.nvst>` takes a single file as well as a tree, runs in
-  about a second, and is what to check an `--ENV--` case with while authoring it.
+  about a second, and is what to check an `--ENV--` case with while authoring it. [until: exists tools/try.py:--ENV--]
 - **A gate's name records the goal that wrote it, not the set it walks — check the loop before
   believing the name.** `every_part_one_member_has_a_conformance_case` iterates
   `registry::CLASSES` whole, with no Part I filter anywhere in it, because when goal 1 wrote it the
@@ -5234,14 +5212,14 @@ is why" — is this file.
   gates already cover between them, and the way to find that out is one `sed -n` over the named
   test's body rather than a chain of inferences from its name. The twin is still worth having —
   it fails naming a spec section instead of a class — but it is a *direction*, not a hole, and
-  writing its doc as though it were a hole would have been a lie a later session would trip on.
+  writing its doc as though it were a hole would have been a lie a later session would trip on. [until: reviewed 2026-09-06]
 - **Two `.nvst` spellings that will not compile, both found while writing oracle cases over
   `Core\Bytes`.** A case's top-level statements are **one** scope, so a second `bytes $buffer = …` in a
   *different* `foreach` body is `E0406` "`$buffer` is already declared" — declare the variable once above
   the loops and assign inside, or give each loop its own name. And `Core\Bytes::at($b, $i)` takes an
   **`int`** index while `Core\Bytes::length` answers a `uint`, so the obvious
   `uint $i = 0; while ($i < Core\Bytes::length($b))` fails `E0401` at the `at` call — carry the index as
-  `int` and cast the length instead (`… as int`).
+  `int` and cast the length instead (`… as int`). [until: reviewed 2026-09-06]
 - **Write a differential sweep as one `--ORACLE--` case first and let the runner partition it, rather
   than deciding subject by subject which rows will agree.** A `.nvst` oracle failure prints PHP's whole
   output beside Novis's, aligned, so a twelve-subject sweep costs one run to learn which subjects agree
@@ -5257,7 +5235,7 @@ is why" — is this file.
   both sides rather than comparing raw control bytes. That is not only about a *parsed* field: the
   substituted band is wider than CR and LF, and `Core\Json::encode` writes DEL (0x7f) bare because JSON
   requires an escape only below 0x20, so a sweep over an encoder's own output prints `␡` on the Novis
-  side against PHP's raw byte and fails on a row that has nothing to do with the encoder.
+  side against PHP's raw byte and fails on a row that has nothing to do with the encoder. [until: reviewed 2026-09-06]
 - **`Core\Csv::format` takes no `escape` knob, and the module doc's dialect section reads as though
   it does.** `csv.rs`'s *The dialect: three bytes, and each one is the caller's* names
   `{separator?, quote?, escape?}` as "the three knobs every real CSV dialect turns", which is the
@@ -5265,7 +5243,7 @@ is why" — is this file.
   writer's only spelling of an inner quote is doubling. A case planning to turn `{escape:}` on the
   writer against `fputcsv`'s fifth argument therefore has nothing to turn — what it can measure is
   that PHP's `""` dialect is the one this writer has, so a backslash is an ordinary field byte on
-  both sides. The `{escape:}` reading recorded as a gap elsewhere in this file is the reader's alone.
+  both sides. The `{escape:}` reading recorded as a gap elsewhere in this file is the reader's alone. [until: reviewed 2026-09-06]
 - **A `.nvst` case's locals are script-scoped, and `Core\Str::repeat`'s count is `uint`.** Two
   refusals arrive together the first time a case sweeps a length list: `bytes $key = …` inside one
   `foreach` body collides with a `bytes $key` inside a *sibling* `foreach` body further down
@@ -5273,28 +5251,28 @@ is why" — is this file.
   `array<int>` then fails `Core\Str::repeat("0b", $n)` with `E0401: expected `uint`, found `int``.
   The loop *variable* may be reused freely — the landed cases do — it is the body's own declarations
   that share one scope. Declare the length list as `array<uint>` and bind `as uint $n`, and give each
-  loop body's local its own name.
+  loop body's local its own name. [until: reviewed 2026-09-06]
 - **Before writing a depth case, read the landed neighbour's whole `--FILE--`, not the handoff's
   summary of it.** The item that named `Core\Hash\Stream` said the landed case "feeds two chunks",
   and it in fact sweeps five chunk widths — one octet at a time included — across four subjects and
   three algorithms, which is the whole of what the item asked for. The genuinely uncovered claims
   were the two `Core\Str::chunk` cannot express: an *empty* `update`, and the eleven algorithms the
   landed case does not stream. A handoff item is written by a session that had the module open and
-  the neighbour case closed, so its summary of a landed file is the part most likely to be stale.
+  the neighbour case closed, so its summary of a landed file is the part most likely to be stale. [until: reviewed 2026-09-06]
 - A `-p nvs-db` test cannot build a `PgConn`, because its `wire` field is `Wire` at the default type
   parameter — `NvsTls<NvsTcp>` — so anything reachable only through an inherent method on `PgConn`
   needs a socket and a certificate to reach at all, and there is neither in a unit test. Write the
   sequencing as a **free function generic in the stream** (`start_statement(wire, state, …)`,
   `reset_session(wire, state)`) and let `PgConn`'s method be the two-line delegation; `pg.rs`'s
   `Peer` then scripts a server for it with no socket. The same wall is waiting for the statement
-  cache and the pool, and `authenticate` was already shaped this way for the same reason.
+  cache and the pool, and `authenticate` was already shaped this way for the same reason. [until: reviewed 2026-09-06]
 - A crate whose lints are the workspace's cannot free a `nvs_runtime::Value`, so a test in one leaks
   every `string` or `bytes` it builds: `Value::release` is `unsafe`, `unsafe_code` is `forbid` at the
   workspace root, and `forbid` is the one level no `#[expect]` can lift. Split the decision from the
   allocation — a private enum holding the parsed scalar, plus one `into_value` arm per variant — and
   assert the enum. `NvsStr` has a safe `Drop`, so even the owned half of such an enum frees itself; it
   is only the retag into a `Value` that is one-way. `crates/nvs-db/src/pg.rs`'s `PgScalar` is the
-  worked example, and its doc comment says the same thing from the other side.
+  worked example, and its doc comment says the same thing from the other side. [until: reviewed 2026-09-06]
 - **A `.nvst` case that configures anything is a multi-file case, and `python tools/try.py` cannot
   run one — use `target/debug/nvs.exe test <case>.nvst` instead.** A `--FILE nvs.toml--` section is
   the only way to grant a capability or write a `[db.*]` block to a case, and `try.py` concatenates
@@ -5302,7 +5280,7 @@ is why" — is this file.
   errors about `database = "novis"` not being an assignment target. The runner takes a list of
   paths and prints the same expected/actual diff, so nothing is lost by going straight to it. The
   playbook already says `try.py` does not reproduce a multi-file case's *working directory*; this is
-  the louder half of the same fact.
+  the louder half of the same fact. [until: reviewed 2026-09-06]
 - **The coverage gates read a case's `--FILE--` section alone, so a class named only in the
   `--TEST--` title attributes nothing.** `crates/nvs-stdlib/tests/corpus/mod.rs`'s `sources()`
   returns that section by itself — deliberately, so a member named in a title or in an expected
@@ -5312,7 +5290,7 @@ is why" — is this file.
   them. So a case for an **instance** member must write the receiver's class name inside the
   body, in a comment if nowhere else. A three-case set whose titles named the class and whose
   bodies did not would pass `try.py` and fail `every_part_one_member_has_a_conformance_case` with
-  a message naming the member rather than the omission.
+  a message naming the member rather than the omission. [until: reviewed 2026-09-06]
 - **A `use` alias does not reach a `catch`, so a namespaced § 10 tree class has to be written
   out there.** `use Core\Db\RolledBack;` plus `catch (RolledBack $e)` is what
   `examples/transaction.nvs` shipped with, and it fails at *codegen* — "does not lower
@@ -5325,14 +5303,14 @@ is why" — is this file.
   of `nvs_hir::errors::TREE` — `Core\Test\Failure`, `Core\Cli\NotInteractive`,
   `Core\Db\RolledBack` — and never `Throwable` or `LogicError`, whose short name *is* their
   label. Write the class out in a `catch`; the `use` still earns its keep for a `new` and for
-  a parameter type, both of which resolve through `nvs_hir::resolve_ref`.
+  a parameter type, both of which resolve through `nvs_hir::resolve_ref`. [until: reviewed 2026-09-06]
 - A unit test that disables the feature under test can make two distinct names *identical*, and then
   every assertion over the wire passes while the real path is broken. `pg.rs`'s statement tests run
   on a `no_cache()` `StatementCache`, where a `Bind`'s portal and its statement are both the empty
   string — so `frontend::bind`, whose first name is the **portal** and second the statement, called
   with the two swapped sent a `PBDES` that looked exactly right in every case, and drew SQLSTATE
   26000 on the first statement of every connection with a cache of any size. Assert the *names* a
-  message carries and not only its tag, and give the enabled path a case at a non-zero capacity.
+  message carries and not only its tag, and give the enabled path a case at a non-zero capacity. [until: reviewed 2026-09-06]
 - **The conformance coverage gate attributes a case to a class by reading `return_ty:` textually, so
   a new `CoreTy` return-position variant silently drops every case that never spells the class.**
   `Core\Db\Connection::query` moved from `CoreTy::Instance(ROWS_NAME)` to `CoreTy::InstanceAt(...)`
@@ -5342,7 +5320,7 @@ is why" — is this file.
   map, and `tools/gaps.py`'s `RETURNS_RE` is the same rule as a regex; both must learn the variant,
   and the regex means the row has to be spelled *inline* — a `const ROWS_OF_ROW: CoreTy` named in
   `return_ty:` is invisible to the tool while the Rust half resolves it fine, which is the two
-  halves disagreeing in the direction no test catches.
+  halves disagreeing in the direction no test catches. [until: reviewed 2026-09-06]
 - **A `Core` member declaring a written type parameter is invisible to three gates at once, because
   every one of them spells a call `->name(` or `Class::name(`.** Landing `Core\Db\Queryable::queryAs<T>`
   failed `every_part_one_member_has_a_conformance_case`, `every_core_class_has_a_conformance_floor_of_three`
@@ -5351,21 +5329,21 @@ is why" — is this file.
   `conformance_coverage.rs` already had the answer (`method.written().is_empty()` picks `<` over `(` as
   the boundary); the instance loop and the `arrow` regex in `crates/nvs-stdlib/tests/corpus/mod.rs` each needed the same
   three lines. Expect to touch all three the next time a generic member lands, and note that the
-  attribution one is what makes a case count toward the *floor* rather than merely toward coverage.
+  attribution one is what makes a case count toward the *floor* rather than merely toward coverage. [until: reviewed 2026-09-06]
 - **A new `Fault::` site whose message opens with literal text owes a conformance case, and for a
   `Core\Db` member there is no case to write.** `every_error_path_is_asserted_or_declared_unreachable`
   reads the 165 sites whose message starts with enough literal text to grep a case for, and `OWED_A_CASE`
   may only shrink — so a member that needs a live server cannot pay it. `Core\Db` already had the answer and
   it is not an exemption: every runtime refusal there is `format!("{QUERY}: …")` off a `const` naming the
   member, so the message opens on a hole and falls outside the gate's stated limit. Write the `const`
-  (`QUERY_AS` beside `QUERY`) before the message, not after the gate fails.
+  (`QUERY_AS` beside `QUERY`) before the message, not after the gate fails. [until: reviewed 2026-09-06]
 - **A `?T` narrows only inside a bare `if ($x != null)`, and `&&` does not do it.** `E0459` refuses
   `$row->date("d")->format(...)`, and its help names exactly that spelling — but
   `if ($a != null && $b != null)` fails on both receivers just the same, and so does negating the
   test into an `else`. A case reading four `?T`s off one row would need four nested `if`s. The
   compact spelling that works is `$x?->member() ?? "null"`: `examples/db.nvs`'s four `Db\Row`
   readers are written that way, one line a column instead of a four-deep pyramid. Two build cycles
-  to find, because the diagnostic's help is correct and reads as though `&&` were covered by it.
+  to find, because the diagnostic's help is correct and reads as though `&&` were covered by it. [until: reviewed 2026-09-06]
 - **A `Core` class owes a conformance case per member from the moment it is *registered*, even where
   nothing can produce an instance of it yet — and the gate is a text match, not an execution.**
   `crates/nvs-stdlib/tests/conformance_coverage.rs:52` joins every case file into one string and asks
@@ -5377,7 +5355,7 @@ is why" — is this file.
   two. And a case for a database member does not need a server: the landed db cases are type-level —
   `tests/conformance/core/db-rows-answers-the-types-the-results-table-names.nvst` assigns each
   member's answer to a declared type and pins the one mismatch as an `--EXPECTF-ERROR--`, which is
-  what a member whose value only a live PostgreSQL could produce is asserted with.
+  what a member whose value only a live PostgreSQL could produce is asserted with. [until: reviewed 2026-09-06]
 - **A refusal case over an unknown instance member has *two* errors unless the assignment takes
   `mixed`, and the wording is "method" whatever the registry calls it.** `$row->columns()` on a
   class with no such member is `error[E0405]: `Core\Db\Row` has no method named `columns``, and
@@ -5386,7 +5364,7 @@ is why" — is this file.
   which pins the consequence rather than the claim. Assign to `mixed` where the claim is the
   missing member. `python tools/try.py <case>.nvst` prints the exact wording, line and column of
   the block to freeze, for every case in one call, and it reads a `.nvst` in place — there is no
-  scratch copy to keep in step.
+  scratch copy to keep in step. [until: reviewed 2026-09-06]
 - **A memory bound read off `nvs_runtime::budget::live_bytes` alone can be vacuous, and the counter
   that says so is `allocated_bytes`.** A stream measured with the buffer it reuses already allocated
   peaks at *tens of bytes* — `a_large_result_streams_at_constant_memory` reads 56, at ten thousand rows
@@ -5395,18 +5373,18 @@ is why" — is this file.
   counters are not being maintained at all. `budget`'s own module doc names the distinction ("a run that
   allocated nothing has a zero balance too, so a guard reading `live_bytes` alone cannot tell 'released
   everything' from 'never ran'"). The cheap discharge is to assert the *churn* grows with the input
-  while the live peak does not: two counters that have to disagree, which doing nothing cannot fake.
+  while the live peak does not: two counters that have to disagree, which doing nothing cannot fake. [until: reviewed 2026-09-06]
 - A test that reads its own file with `include_str!` must not spell its needle as a literal: the
   scan finds the assertion's own source and answers about that instead of about the code. In
   `crates/nvs-db/src/pg.rs`, `affected_is_the_matched_count_and_changed_is_mysql_only` asserts the
   driver grew no second row count by searching for `concat!("fn ", "changed")` — the same ten bytes
   assembled from two literals that are not those ten bytes. `oid_constants` in the same module
   escapes this only because it counts inside a slice of the file that its own body sits outside of,
-  which is luck rather than a pattern to copy.
+  which is luck rather than a pattern to copy. [until: reviewed 2026-09-06]
 - A sweep over message tags written as `[b'D', b'H', b'q', b'W']` fails `clippy` under `-D warnings`
   (`byte_char_slices`), and the failure arrives three minutes into `verify.py` rather than from
   `cargo test`. Write the tags as `*b"DHqW"` — iterating a dereferenced byte-string literal yields the
-  same `u8`s — and the same lint is waiting for any protocol case that sweeps field or message tags.
+  same `u8`s — and the same lint is waiting for any protocol case that sweeps field or message tags. [until: reviewed 2026-09-06]
 - **`nvs_runtime::call` hands a test back `Result<Value, i32>`, not the helper's `Fault`** — the
   status is the ABI's, and the exception itself is already on the `Ctx`, so a case asserting *what*
   a member threw reads `ctx.pending_class()` (`Core\Db\RolledBack`, and it falls back to
@@ -5414,7 +5392,7 @@ is why" — is this file.
   `ctx.pending()` for the message. Matching on the `Err` looks like the obvious spelling and is
   `expected i32, found Fault`. The pair is worth more than the shorter route: `ctx.take_pending()`
   **is** a `catch (Throwable)` — it clears the pending exception and nothing else — so a case that
-  has to prove something survives a catch performs one rather than describing one.
+  has to prove something survives a catch performs one rather than describing one. [until: reviewed 2026-09-06]
 - **A `catch` variable is a declaration in the enclosing scope, so two sibling `try` blocks cannot
   both name `$e`.** A case pinning one class against four `catch` shapes wrote `$e` in every clause
   and got `E0406: `$e` is already declared` once per repeat — and then a further error that reads
@@ -5424,7 +5402,7 @@ is why" — is this file.
   its own name and both go;
   `tests/conformance/error/a-db-error-is-in-the-tree-beside-a-rolled-back.nvst` is the shape, and
   `nvs-ir`'s `two_catch_clauses_lower_to_an_instanceof_chain_ending_in_a_rethrow` is the assurance
-  that a multi-clause `try` is otherwise fine.
+  that a multi-clause `try` is otherwise fine. [until: reviewed 2026-09-06]
 - **A `Core\Task` child cannot do anything a capability gates, so a fixture that reaches for
   `Core\Task::all` to get two concurrent requests does not work.** `Ctx::child`
   (`crates/nvs-runtime/src/ctx/isolate.rs:116`) copies the statics, the debug flags, the origin, the error
@@ -5435,7 +5413,7 @@ is why" — is this file.
   like a grant-scoping bug in the member rather than a missing field in a constructor two crates
   away. Task children are real tasks otherwise — `nvs_host::Wake::current` answers inside one, so
   parking and `Core\Time::sleep` work — and statics *are* shared, which is what makes the missing
-  field look deliberate when it is not.
+  field look deliberate when it is not. [until: reviewed 2026-09-06]
 - **A fixture cannot observe a state an in-process worker never yields inside, and the tell is a
   counter that polls out at `0` while everything around it is green.** `examples/queue.nvs` waits
   five seconds for `Core\Queue::stats($queue)->claimed()` to be non-zero and printed `claimed 0`
@@ -5445,7 +5423,7 @@ is why" — is this file.
   returns straight away parks on nothing — so the row is `Claimed` only across a window in which
   the polling task is never scheduled, and polling faster cannot reach it. The job has to park:
   `examples/queue/receipt.nvs` sleeps for a beat and says why. The same reasoning covers any state
-  a worker passes through between two of its own statements.
+  a worker passes through between two of its own statements. [until: reviewed 2026-09-06]
 - **A live-server case over `Core\Queue`'s statements cannot live in `crates/nvs-db`, and the
   harness will not run it where it can.** The stage 8 item named
   `crates/nvs-db/tests/queue.rs`, and both halves of that are wrong. `rule:core-classes/db-crate-boundary` makes
@@ -5458,7 +5436,7 @@ is why" — is this file.
   `postgres: ok`. It runs a `SUITES` list now. Either way, prove a new live case actually asserted
   rather than skipped — `docker exec novis-db-postgres-1 psql -U novis -d novis_test -c "select
   …"` for the row it should have written — because a case that skipped and a case that passed are
-  the same green.
+  the same green. [until: reviewed 2026-09-06]
 - **A `loop-goal.toml` check naming `-p <crate>` for a surface another crate owns can still be
   satisfiable where the check points, because the dependency edge is often already there.** Stage 7's
   `the_pool_is_per_core_and_keyed_as_connect_and_open_key` is a `-p nvs-db` check while the pool is
@@ -5468,13 +5446,13 @@ is why" — is this file.
   `pool::{Ticket, admit, release, take}` directly — and over a real `Connection`, which is the half
   `nvs-runtime`'s own cases cannot assert because they file a `Fake` and never exercise the
   `HeldConnection::into_any` downcast `warm_connection` performs. Read the crate's `Cargo.toml`
-  `[dependencies]` before concluding a name is filed against the wrong crate.
+  `[dependencies]` before concluding a name is filed against the wrong crate. [until: reviewed 2026-09-06]
 - A hand-built MySQL greeting must give `scramble_2` its trailing NUL, or the plugin name comes
   back one byte short. `HandshakePacket::new` writes `auth_plugin_data_len = scramble_2.len() + 8`
   while the deserializer reads back `max(13, len - 8)` bytes, so a 12-byte tail round-trips as 13
   and eats the first character of `auth_plugin_name` — the symptom is a refusal naming
   `aching_sha2_password`, which reads like a typo in the driver rather than in the fixture. Pass
-  `NONCE[8..]` plus a `0` byte; `HandshakePacket::nonce()` trims it back off.
+  `NONCE[8..]` plus a `0` byte; `HandshakePacket::nonce()` trims it back off. [until: reviewed 2026-09-06]
 - `mysql_common` 0.38.2's `Column` serializes `column_length` before `character_set` and
   deserializes them the other way round, so a column definition built with `Column::new(..)` and
   written with `MySerialize` comes back from its own reader with those two fields **swapped**. Its
@@ -5483,7 +5461,7 @@ is why" — is this file.
   hand in wire order (`crates/nvs-db/src/mysql.rs`'s `typed_column_def`), not serialize a `Column`.
   Nothing catches this until a case asks about the charset or the width: `rule:core-classes/db-column-types` reads
   `tainted string` against `tainted bytes` off the charset, which is exactly the field the swap
-  corrupts, and a name-only assertion passes either way.
+  corrupts, and a name-only assertion passes either way. [until: reviewed 2026-09-06]
 - A MySQL twin of a PostgreSQL case cannot reuse the PostgreSQL query text, and the failure is a
   panic rather than a failed assertion. `mysql_one_value` reads a **text** column through § 9's
   decoder, and MySQL's binary protocol types `SLEEP()` as `BIGINT`, `CONNECTION_ID()` as
@@ -5493,7 +5471,7 @@ is why" — is this file.
   it for exactly this reason. The *absence* spellings differ too: `to_regclass` answers `NULL` for a
   temporary table PostgreSQL no longer has, where MySQL answers error `1146`, so a twin that needs
   absence as a value marks the session with a user variable and reads `NULL` back — and asserts the
-  missing table separately, as a `ServerError`.
+  missing table separately, as a `ServerError`. [until: reviewed 2026-09-06]
 - **A `-p nvs-stdlib` test that asserts anything a member reads off a *throw's own slot* has to
   install an exception class table first, and the failure blames the member rather than the
   fixture.** `Ctx::pending_slot` answers `None` on a context that never took a
@@ -5504,7 +5482,7 @@ is why" — is this file.
   root's `SLOT_COUNT`, so `Core\Db\DbError` needs those four plus its own five, and a narrower
   descriptor drops the value silently (`Thrown::new_as`). `crates/nvs-stdlib/src/db/transaction.rs`'s
   `retries_recover_an_induced_deadlock` is the shape; the playbook's `Ctx::class_desc` bullet is the
-  same seam reached for a different reason.
+  same seam reached for a different reason. [until: reviewed 2026-09-06]
 - **A fake server that parses the client's own message can be flaky in a way that reads as a driver
   bug, and `cargo test` in a loop will not find it.** `crates/nvs-db/src/pg.rs`'s SCRAM fake took the
   client nonce with `rsplit_once("r=")` out of `n=,r=<nonce>`. `postgres_protocol` draws 24 characters
@@ -5514,7 +5492,7 @@ is why" — is this file.
   check and then passed every re-run, including the whole `-p nvs-db` suite twice. The general shape:
   a fixture that parses with a needle the value it is parsing may contain is a coin flip, not a
   fixture, and the tell is an acceptance failure that does not reproduce at the same commit. Split on
-  the attribute's own delimiter — `,r=` here — which the grammar guarantees the value cannot hold.
+  the attribute's own delimiter — `,r=` here — which the grammar guarantees the value cannot hold. [until: reviewed 2026-09-06]
 - **A matrix case's queue name isolates its rows but not its *locks*, and the failure lands in a
   neighbouring case rather than in the one you wrote.** `crates/nvs-stdlib/tests/queue.rs` gives every
   case its own queue, which is exactly the key every statement is claimed and counted by — and on
@@ -5526,14 +5504,14 @@ is why" — is this file.
   framed leg failed that way, in two different cases, neither of them the case being added. The fix
   is a `Mutex` a framed case holds for its whole body (`FRAMED_WRITES`, taken by the `framed()` gate
   so no case can forget it), and the tell that you need it is a `db-matrix` leg that fails in a case
-  you did not touch — rerun it three times before believing the name it reported.
+  you did not touch — rerun it three times before believing the name it reported. [until: reviewed 2026-09-06]
 - **A TDS request counted in *packets* is not a request.** A case that splits `Script`'s recorded
   bytes at every header and asserts how many requests went out passes on short values and fails the
   moment one is `nvarchar(max)`: 4,001 characters is 8,002 bytes of UCS-2 against a negotiated packet
   size of 4,096, so one `sp_prepexec` leaves as three packets and the count reads 5 where the driver
   sent 3. Reassemble to `Status::EOM` before counting — `crates/nvs-db/src/tds/testing.rs`'s `flushed` is the
   helper — and keep the **first** packet's status, since that is the one
-  `Status::RESET_CONNECTION` rides.
+  `Status::RESET_CONNECTION` rides. [until: reviewed 2026-09-06]
 - **A sans-io driver's own fixture can agree with its parser on a byte order the wire does not
   use, and every gate this repo runs will be green.** `crates/nvs-db/src/tds/stream.rs`'s `login_ack`
   read LOGINACK's `TDSVersion` with `long` — little-endian, the order LOGIN7 *writes* it in — and
@@ -5547,7 +5525,7 @@ is why" — is this file.
   a five-line `.nvs` under `.agent-tmp/` with an `nvs.toml` naming `tests/db/compose.yaml`'s
   endpoint, run with `target/debug/nvs.exe run`, costs three calls. Do it for any slice whose claim
   is that a handshake now reaches a server, and prefer it to a fourth fixture asserting what the
-  third one already assumed.
+  third one already assumed. [until: reviewed 2026-09-06]
 - **A real-SQL-Server case cannot keep its rows in a temporary table, and `sp_reset_connection` does not
   put the isolation level back.** Two traps in one leg, both invisible to `tds/testing.rs`'s scripted peer. A
   `CREATE TABLE #t` goes out inside `sp_prepexec`, so the table is scoped to *that procedure* and is gone
@@ -5557,7 +5535,7 @@ is why" — is this file.
   `SELECT … FROM sys.dm_exec_sessions WHERE session_id = @@SPID` is what proves either way: `rule:security/db-pool-reset-is-a-boundary`
   states the reset as a *property*, so where `sp_reset_connection` falls short of it the driver pays the
   difference — `crates/nvs-db/src/tds/plan.rs`'s `reset_session` now sends the restore itself. A pooled
-  connection is the failure mode: the next request silently runs at `SERIALIZABLE`.
+  connection is the failure mode: the next request silently runs at `SERIALIZABLE`. [until: reviewed 2026-09-06]
 - **A by-value `reset(self)` on a connection whose rows *borrow* the connection cannot be tested
   against a streaming one at all — the borrow checker gets there first, and the case will not
   compile.** `crates/nvs-db/src/sqlite.rs`'s `SqliteRows` holds a `&Cell<State>` into its
@@ -5566,7 +5544,7 @@ is why" — is this file.
   compiles there and this one looks like it should. What is left to assert is the state a caller
   reaches with no rows in hand — set `State::Poisoned` on the connection directly — and that is the
   security-relevant half anyway: § 13 closes a connection that cannot be proven clean, and the
-  streaming half is held by a stronger mechanism than a test.
+  streaming half is held by a stronger mechanism than a test. [until: reviewed 2026-09-06]
 - **A `Scope::Path` capability root in a case's `nvs.toml` has to be absolute, and a relative one
   refuses everything while reading like a grant.** `nvs_config::capability`'s matcher canonicalises
   the *queried* path and then asks `path.starts_with(root)` with the root exactly as written — so
@@ -5576,7 +5554,7 @@ is why" — is this file.
   arm; the design was right and the fixture was not. `Scope::Host` and `Scope::Name` compare the
   entry literally, so this is the one scope where what you write in `nvs.toml` is not what is
   compared. Also: `:memory:` is not a path and cannot be granted at all, so an `open` case that
-  wants a real SQLite database needs a real file under an absolute root.
+  wants a real SQLite database needs a real file under an absolute root. [until: reviewed 2026-09-06]
 - **A `?T` from a `Core\Db\Row` reader narrows through `if ($x != null)` and through nothing else —
   not a declared local, and not an `&&` chain — and the scalar spelling in the case next door looks
   like a counterexample.** `Core\Time\Date $born = $row->date("born");` is an `E0401` — expected
@@ -5586,7 +5564,7 @@ is why" — is this file.
   reader costs a run. `if ($a != null && $b != null) { … }` costs a second one: the body still
   raises `E0459` on both receivers, so the narrowing is per-`if` and does not ride a conjunction.
   One `if` per object receiver is the shape that compiles; a `?decimal` and a `?bool` need none at
-  all, since `echo` and a ternary condition both take them.
+  all, since `echo` and a ternary condition both take them. [until: reviewed 2026-09-06]
 - **A `\` at the end of a line inside a Novis string literal is a literal backslash, not a
   continuation — and a long SQL statement is where that bites.** Rust's `"…\` + newline eats the
   newline and the next line's indentation, so a `create table` wrapped that way in a `.nvst` case
@@ -5594,7 +5572,7 @@ is why" — is this file.
   `unrecognized token: "\"` and the failure names an offset in a statement the case never wrote.
   Keep a statement literal on one line however long it gets, or build it by concatenation; the
   corpus's other long statements are all one line, which is why nothing about this is visible from
-  reading them.
+  reading them. [until: reviewed 2026-09-06]
 - **A `live_bytes` balance taken across a thread's *first* `[]` is off by one `ArrayHeader`.**
   `nvs_array_new` hands out a per-thread singleton (`crates/nvs-runtime/src/array.rs`'s module doc
   § *an empty array is a per-thread singleton*), so the first call on a thread allocates a header
@@ -5603,7 +5581,7 @@ is why" — is this file.
   the run leaked — which is how `a_fatal_releases_the_frames_locals` failed by exactly 112 bytes.
   Call `nvs_runtime::prime_empty_array()` before `let before = live_bytes()`. `nvs-runtime`'s own
   tests never see it, because Rust-side code builds arrays through `NvsArray::new`, which still
-  allocates one each; and an `allocated_bytes` delta is unaffected once the singleton exists.
+  allocates one each; and an `allocated_bytes` delta is unaffected once the singleton exists. [until: reviewed 2026-09-06]
 - **A `loop-goal.toml` `cases` name can already be pinned by an *earlier stage of the same file*, at a
   granularity a `.nvst` case cannot reach.** Stage 10's conformance list named
   `an-enqueue-commits-with-the-write-that-made-it` and
@@ -5615,7 +5593,7 @@ is why" — is this file.
   grepping `tests/`. The same held for `a-two-statement-literal-query-is-refused`, which is stage 9's
   `a_two_statement_literal_query_is_a_diagnostic`. So the search for "is this already pinned" runs over
   the goal file's *other checks* before it runs over the corpus: `grep -n` the drafted name's distinctive
-  words with the underscores swapped in. A claim listed twice reads as open work forever and buys nothing.
+  words with the underscores swapped in. A claim listed twice reads as open work forever and buys nothing. [until: reviewed 2026-09-06]
 - **No `.nvst` case can reach a live queue, and the two that look as though they do point at a dead
   port on purpose — but a `.nvst` case *can* reach a live database.** `Core\Queue`'s statements
   exist for PostgreSQL and MySQL only (`crate::db`'s gap 2: SQLite sends nothing), so a
@@ -5630,7 +5608,7 @@ is why" — is this file.
   missing: a `[db.main]` with `driver = "sqlite"` and `path = ":memory:"` really opens inside a
   case, so §§ 1, 4, 5, 7 and 13 are all assertable with no server, no container and no oracle
   skip — and `:memory:` being per *connection* is the sharpest instrument there is for asking
-  whether two calls answered with one connection or two.
+  whether two calls answered with one connection or two. [until: reviewed 2026-09-06]
 - **An ADR section's own example can contradict the section that owns the spelling, and a test written
   from the example pins the wrong thing.** `rule:http-server/a-mount-carries-no-policy` — *a mount routes and carries nothing else* —
   illustrated itself with `[[server.mount]]` / `path = "/shop"` / `root = "/srv/www/shop"`, and neither
@@ -5640,7 +5618,7 @@ is why" — is this file.
   other section is the one every other file cites; the ADR's own § 3 was right and § 10's example was a
   leftover from before it. Before pinning a rule from a section, read the section that owns the key set
   — one `peek.py` of the ADR's `### N` — and fix the example rather than reconciling it in your head,
-  because the same paragraph is what the next session will write its case from.
+  because the same paragraph is what the next session will write its case from. [until: reviewed 2026-09-06]
 - **Repeating an enclosing frame's `catch` binding name inside a closure is an ICE, and the
   panic names the closure rather than the `catch`.** A `try`/`catch (LogicError $refused)` at
   the top level, and a second `catch (LogicError $refused)` inside a `fn (): void => {…}`
@@ -5649,7 +5627,7 @@ is why" — is this file.
   frame` (`crates/nvs-ir/src/lower/expr.rs:2424`) — the inner `catch` binding is recorded as a
   capture of the outer one. A `catch` inside a closure is fine on its own; only the name
   collision is. Renaming the inner binding is the whole workaround, and it costs a `--EXPECT--`
-  section nothing.
+  section nothing. [until: reviewed 2026-09-06]
 - **`Core\Out::capture` answers a `Core\Cli\Text`, so `==` between two captures is identity and a
   case comparing them counts zero agreements while printing the right bytes.** `rule:expressions/object-identity-equality` makes
   `==` on two objects identity, and the carrier is an object — so an agreement case that captures
@@ -5658,7 +5636,7 @@ is why" — is this file.
   agreeing. Nothing is wrong with the members; the comparison never asked about bytes. Interpolate
   each into a `string` first — `string $s = "{$captured}";` renders the carrier through `rule:security/capture-answers-the-carrier`
   's `value_to_string` and `==` then compares content. The neighbouring `Core\Response` cases
-  hide this by only ever printing a capture, so the corpus is no warning.
+  hide this by only ever printing a capture, so the corpus is no warning. [until: reviewed 2026-09-06]
 - **A `Core` member whose answer no `.nvst` case can reach still owes three of them, so write the
   member's logic as a free function over the carrier and pin it twice.** Every `Core\Request`
   member refuses in a conformance case — a case is a program with no request in front of it — so
@@ -5670,7 +5648,7 @@ is why" — is this file.
   works if the logic is a free function taking `&Inbound` rather than a body inside
   `nvs_runtime::nvs_helper!`, whose `fn` is an `unsafe extern "C"` a unit test cannot call without
   a `Ctx`: `crates/nvs-stdlib/src/request.rs`'s `joined_field`, `grouped_fields` and `cookie_of`
-  are the shape. Decide that before writing the body, not after the floor fails.
+  are the shape. Decide that before writing the body, not after the floor fails. [until: reviewed 2026-09-06]
 - **A `Core` member whose error paths only a *served request* can reach fails
   `conformance_coverage.rs`'s error-path gate, and until now neither of its two answers was true.**
   A `.nvst` case is a program answering no request, so nothing behind `Inbound`'s body — the
@@ -5679,7 +5657,7 @@ is why" — is this file.
   `OWED_A_CASE` claims a case is owed that nobody can write. The gate now takes a third declaration,
   `ASSERTED_OFF_THE_CORPUS` — the phrase "no case can reach this" within 8 lines above the site,
   plus the `#[test]` that asserts it instead. Reach for it only when a case genuinely cannot exist;
-  the phrase is greppable precisely so a wrong use is findable.
+  the phrase is greppable precisely so a wrong use is findable. [until: reviewed 2026-09-06]
 - **An `--EXPECTF-ERROR--` section's `-->` line is indented by the width of the *line number*, and
   `%A` cannot swallow the difference because it comes after.** Every worked example in
   `tests/conformance/core/` shows `  --> case.nvs:9:40` — two spaces — and copying that shape onto a
@@ -5687,14 +5665,14 @@ is why" — is this file.
   The gutter is `" ".repeat(digits) + " --> "`, so a two-digit line takes three spaces and a
   three-digit one takes four. `python tools/try.py <case>` prints the real thing; take the first two
   lines from its output verbatim rather than from a neighbouring case, since the neighbour's line
-  number is what set its width.
+  number is what set its width. [until: reviewed 2026-09-06]
 - **`Ctx::set_memory_limit` in a `-p nvs-stdlib` test bounds the *fixture* too, and the failure
   blames the member.** A test pinning that `Core\Request\Part::readAll` refuses a `max` larger than
   `[limits] memory` set the ceiling to 1,024 bytes — under what building the multipart parse itself
   costs — so `files()` threw first and the assertion read as the walk being broken rather than as
   the fixture being impossible. The ceiling is over everything the context allocates from
   `Ctx::buffered()` onward, not over the one buffer under test. Keep the limit roomy in absolute
-  terms (1 MiB) and put the distance into the number the member is *asked* for (4 MiB).
+  terms (1 MiB) and put the distance into the number the member is *asked* for (4 MiB). [until: reviewed 2026-09-06]
 - **A `Core` class a `foreach` walks is not accepted where a `Core` row declares `Iterable<T>`, and
   the case that assumed otherwise reads as a bug in the member.** `Core\Request\PartContent` — what
   `$part->content()` answers — carries `iterate`/`advance`/`current`, so a `foreach` drives it and
@@ -5707,7 +5685,7 @@ is why" — is this file.
   first one is answered today. The general habit that catches it in one call rather than one
   session: **run a new case before writing its `--EXPECTF-ERROR--` block** —
   `target/debug/nvs test tests/conformance/<dir>/<one>.nvst` prints the actual diagnostics beside
-  the expected ones, with the line and column already in the corpus's own `case.nvs` numbering.
+  the expected ones, with the line and column already in the corpus's own `case.nvs` numbering. [until: reviewed 2026-09-06]
 - **A `-p <crate>` check is *impossible* rather than unwritten when that crate's `Cargo.toml` does not
   name the crate owning the surface, and that list is a one-call answer.** The
   `nvs-server (`rule:http-server/an-upload-is-received-only-through-files`, whole)` check named seven tests about `files()`, a part and its consumers;
@@ -5717,7 +5695,7 @@ is why" — is this file.
   The sibling bullets say to read the named crate's known gaps, or the ADR section the check's comment
   cites; this is the cheaper test and it is decisive, so `sed -n '1,40p' crates/<crate>/Cargo.toml`
   before writing a line of the test. Adding a dev-dependency to make the filing true is the wrong
-  repair: it puts the test one layer above the rule it asserts.
+  repair: it puts the test one layer above the rule it asserts. [until: reviewed 2026-09-06]
 - **A handoff item can name an unknown the same file has already answered, and the fixture is usually
   three lines below the anchor it gave you.** The item for
   `a_part_is_consumed_by_read_all_by_iteration_or_by_save_to` said to "decide the `saveTo` leg first",
@@ -5728,7 +5706,7 @@ is why" — is this file.
   `nvs_config::Snapshot`, `scratch()` owns a directory under `std::env::temp_dir()`, and `save_to()`
   flattens the row's four slots. One `grep -n 'fn ' crates/<crate>/src/<file>.rs | awk -F: '$1>NNNN'`
   over the test module lists every fixture it holds, and it is the first call to make when an item
-  predicts a setup cost — a member that landed with tests brought its fixtures with it.
+  predicts a setup cost — a member that landed with tests brought its fixtures with it. [until: reviewed 2026-09-06]
 - **A `-p nvs-stdlib` test driver may already own the reference you are about to release, and the
   double release panics one crate away with `attempt to subtract with overflow`.**
   `crates/nvs-stdlib/src/request.rs`'s `parts_of` takes `files: Value` **by value** and ends with
@@ -5739,7 +5717,7 @@ is why" — is this file.
   the test's own line except in the backtrace. The tell is the frame list, not the message:
   `dropped` called *directly* from the test body means the driver is the over-releaser. Read the
   last four lines of a `Value`-taking test helper before calling it — whether it releases what it
-  was handed is the whole question, and `#[expect(unsafe_code, reason = …)]` is where it says so.
+  was handed is the whole question, and `#[expect(unsafe_code, reason = …)]` is where it says so. [until: reviewed 2026-09-06]
 - **Editing the comments of an `--EXPECTF-ERROR--` case moves the `-->` line number, and the diff you
   get back shows two identical-looking error lines.** Three lines added to the prose above the code in
   `a-route-capture-is-the-value-the-match-converted-not-the-segment-text.nvst` turned `case.nvs:15:36`
@@ -5747,7 +5725,7 @@ is why" — is this file.
   lines *matched* — so it reads as a mismatch in the message rather than in the caret. The number is
   counted from the first line after `--FILE--`, `<?nvs` included. When a case's expectation changes at
   all, re-run it with `python tools/try.py <case>` and copy the whole location line rather than the
-  part that changed; the two-minute `verify.py` leg is the expensive way to learn this.
+  part that changed; the two-minute `verify.py` leg is the expensive way to learn this. [until: reviewed 2026-09-06]
 - **Closing a conversion gap turns the conformance case that pinned the gap red, and the case's
   name does not say which type it used.**
   `command-run-throws-for-a-parameter-no-argument-converts-into.nvst` declared `decimal $amount`
@@ -5758,7 +5736,7 @@ is why" — is this file.
   roster, and rewrite the case with a type still on the far side of the gap — here an enum, which
   is what `nvs_runtime::commands`' gap 1 now holds. The neighbouring bullet is the other
   direction: that one is a green case pinning an absence its ADR forbids, this one is a green case
-  pinning an absence you have just filled.
+  pinning an absence you have just filled. [until: reviewed 2026-09-06]
 - **A `.nvst` case that reads standard error must end in failure, and the runner blames the
   program rather than the section.** `crates/nvs-test/src/run.rs:165` has one rule for the exit
   status — a case carrying `--EXPECT-ERROR--` or `--EXPECTF-ERROR--` *must* exit non-zero, every
@@ -5767,13 +5745,13 @@ is why" — is this file.
   matches perfectly. The fix is `exit($status as int);` as the case's last statement, not a change
   to the expectation. And prefer `--EXPECTF-ERROR--` with a trailing `%A` over the literal section
   when what the case owns is one sentence: pinning a whole usage page inside a case about argument
-  conversion makes every later layout change that page's owner's problem plus this file's.
+  conversion makes every later layout change that page's owner's problem plus this file's. [until: reviewed 2026-09-06]
 - **`python tools/try.py` runs a case's `--FILE--` and drops its `--ARGS--`.** A `#[Command]` case
   therefore prints the usage page and exits 2 under `try.py` while passing under the real runner,
   which reads as the case being wrong. `target/debug/nvs.exe test <case>.nvst` runs one case with
   every section honoured, costs nothing once `verify.py` has built, and is the same binary the
   driver's acceptance check uses — so it is the answer for any case with `--ARGS--`, `--ENV--`,
-  `--INI--` or `--RUN--`, which is most of the ones worth authoring by hand.
+  `--INI--` or `--RUN--`, which is most of the ones worth authoring by hand. [until: exists tools/try.py:--ARGS--]
 - **A `Core` class whose every member needs a *store* cannot meet the conformance floor with a happy
   path, and that floor is a gate rather than a target.**
   `crates/nvs-stdlib/tests/conformance_coverage.rs:155` fails `cargo test -p nvs-stdlib` for any
@@ -5786,7 +5764,7 @@ is why" — is this file.
   block to write), a backend this core has no connection to (`crate::cache::on_shared`'s `Io` throw,
   `crates/nvs-stdlib/src/cache.rs:717`), and — for the six members that are not `start` — being
   called before `start`. Plan each member with its refusals, or the row lands red on a gate that has
-  nothing to do with the member.
+  nothing to do with the member. [until: reviewed 2026-09-06]
 - **`Diagnostic::with_help` lands in `notes`, not in `suggestions`, and the struct has a
   `suggestions` field to lead you the wrong way.** A refusal test that asserts on the help sentence
   — the shape `session.rs` and `log.rs` both use for the *note* — reads `refused.suggestions` on the
@@ -5795,7 +5773,7 @@ is why" — is this file.
   onto `notes` (`crates/nvs-diagnostics/src/diagnostic.rs:214`) and `suggestions` is only ever a
   machine-applicable replacement with a span. Two build cycles, each of them a full `nvs-config`
   rebuild. Assert a help sentence as `refused.notes.iter().any(...)`; `suggestions` is empty for
-  every configuration diagnostic in the tree, none of which offers a span to rewrite.
+  every configuration diagnostic in the tree, none of which offers a span to rewrite. [until: reviewed 2026-09-06]
 - **A `-p nvs-server` test can drive a real upgrade handshake, and one connection can carry the
   upgradable request *and* an ordinary one after it.** `rule:concurrency/a-connection-is-a-root-isolate`'s offer had to be asserted on
   both sides — a request `hyper` framed an upgrade for gets a slot, the next request on the same
@@ -5808,7 +5786,7 @@ is why" — is this file.
   the accept loop ends after the first. The other half of the same lesson: `hyper` leaves an
   `OnUpgrade` in the request's extensions **only** for a request it framed an upgrade for, so
   `request.extensions().get::<hyper::upgrade::OnUpgrade>()` is the whole of "can this connection be
-  upgraded" and no test or door needs to re-read `Connection:` for itself.
+  upgraded" and no test or door needs to re-read `Connection:` for itself. [until: reviewed 2026-09-06]
 - **A test that asserts memory was *released* fails on the scheduler rather than on the code
   under test, because `nvs_host::Scheduler` keeps every finished task's whole `Ctx`.**
   `CoroutineResult::Return` pushes a `Finished { id, ctx, outcome }` onto `self.finished`
@@ -5822,7 +5800,7 @@ is why" — is this file.
   itself. The tell that it is the scheduler and not the join: the same reading taken after
   `run_until_idle` *returns* — where the `Scheduler` itself is dropped — falls to a few
   hundred bytes. Anything asserting a release before then has to drain the list first, and
-  under a server nobody does, which is the bug rather than the workaround.
+  under a server nobody does, which is the bug rather than the workaround. [until: reviewed 2026-09-06]
 - **A difference of two `nvs_runtime::budget::live_bytes()` readings never comes out as the
   payload exactly, and the shortfall belongs to whoever reads *second*.**
   `the_upgrading_requests_arena_is_released_while_the_connection_is_open` puts two mebibytes of
@@ -5834,7 +5812,7 @@ is why" — is this file.
   against another reading. Name an allowance for the second reader's own footprint rather than
   loosening the payload: 64 KiB against a 2 MiB signal still fails a retained arena by three
   orders of magnitude, where an assertion tuned to the exact number is a false failure the first
-  time either isolate grows a field.
+  time either isolate grows a field. [until: reviewed 2026-09-06]
 - **A `Core` member's throw does not come back from `nvs_runtime::call` — it is on the
   context, and the `Err` is a bare status integer.** A `-p nvs-stdlib` test asserting the
   wording of a refusal wrote `format!("{refused:?}").contains(…)` off the `expect_err`
@@ -5843,7 +5821,7 @@ is why" — is this file.
   `Fault::thrown` records the message on the context and answers the status the caller
   reports, so the reader is `ctx.pending()` — an `Option<Cow<'_, str>>`, taken *after* the
   call and `into_owned()` if the context is borrowed again. `crates/nvs-stdlib/src/socket.rs`'s
-  `an_upgrade_on_a_request_no_connection_offered_a_slot_for_is_refused` is the shape.
+  `an_upgrade_on_a_request_no_connection_offered_a_slot_for_is_refused` is the shape. [until: reviewed 2026-09-06]
 - **`conformance_coverage`'s error-path gate reads the *eight lines above the throw*, and a
   `match` arm is its own site.** A member whose refusals all stand behind a fact no `.nvst`
   case can produce — here a slot only a served connection is offered — owes each of them a
@@ -5852,7 +5830,7 @@ is why" — is this file.
   gate reported `socket.rs:311` after a comment placed three lines above the `resolve` call,
   because the `ResolveError::Refused` arm is eight lines further down. Put the comment on the
   arm. The other half worth knowing: the gate names the message prefix rather than the line, so
-  two arms formatting the same prefix are one entry and go green together.
+  two arms formatting the same prefix are one entry and go green together. [until: reviewed 2026-09-06]
 - **A `.nvst` case cannot annotate a `var` and cannot declare a bare function**, and both failures
   read as parser noise rather than as the rule they are. `var $msg: ?Core\Socket\Message = …`
   produces five `E0101`/`E0102`s pointing at the colon, because `var` infers from its initializer
@@ -5861,7 +5839,7 @@ is why" — is this file.
   is what `Attribution::holders` in `crates/nvs-stdlib/tests/corpus/mod.rs` reads to attribute an
   `->member(` call to a class — names it in a `public static function`'s parameter list inside a
   `class` block. That is also the cheapest way to get a case's arrows counted against a class no
-  member can produce a value of yet.
+  member can produce a value of yet. [until: reviewed 2026-09-06]
 - **A second `#[cfg(test)]` item in an `nvs-stdlib` module fails a test in another file, and the
   message is about a *scan* rather than about the item you wrote.**
   `crates/nvs-stdlib/tests/capability.rs`'s `nvs_stdlib_reaches_the_os_only_through_the_gate` reads
@@ -5873,7 +5851,7 @@ is why" — is this file.
   costs one `use` and nothing else. The tempting shape that trips it is a small helper used only by
   a test and gated so it is not dead code in the binary; the fix is to not need one — move the table
   the helper held into the test's own `for` loop, which is where the two spellings were being held
-  together anyway. `#[allow(dead_code)]` passes the scan and is the wrong trade: it ships the code.
+  together anyway. `#[allow(dead_code)]` passes the scan and is the wrong trade: it ships the code. [until: reviewed 2026-09-06]
 - **A `-p <crate>` test that asserts a *process-wide* ceiling races every other test in the same
   binary, and the repair is to make the count a parameter rather than to serialise the tests.** `rule:concurrency/connection-bounds-are-finite`'s connections-per-process bound is one relaxed `static AtomicU64`, exactly as
   `nvs_server::admit`'s in-flight count is, and the only ceiling small enough to assert against is
@@ -5883,7 +5861,7 @@ is why" — is this file.
   first. The fix costs one line of signature: `take_from(count: &'static AtomicU64, ceiling)` with
   the module's `take(ceiling)` delegating to it, and the test declaring a `static COUNT` of its own.
   The general shape: when a bound lives in a `static`, the *bound* is testable and the *count* is
-  not, so name the count wherever a test has to reach a ceiling.
+  not, so name the count wherever a test has to reach a ceiling. [until: reviewed 2026-09-06]
 - **A `-p nvs-server` test cannot ask for a *second* connection, and what forbids it is
   `run_until_idle` rather than the `|| ControlFlow::Break(())` convention.** A `keep_serving`
   closure counting to two is one line and looks like the whole of it — the accept loop really does
@@ -5896,7 +5874,7 @@ is why" — is this file.
   connection would have shown through something the *server* side reports instead —
   `serve_on_this_core`'s tail parks until every connection it spawned has counted itself back out,
   so a marker pushed after it returns says "the core survived and nothing was left parked" with one
-  socket. `a_connection_whose_isolate_panics_is_contained` is the shape.
+  socket. `a_connection_whose_isolate_panics_is_contained` is the shape. [until: reviewed 2026-09-06]
 - **In every `-p nvs-server` accept-loop test the drain has already begun before the connection's
   isolate runs a line**, so anything a connection keys off `Draining::is_draining()` fires on the
   *first* wait of every one of them. `serve_on_this_core`'s `keep_serving` is `|| ControlFlow::Break(())`
@@ -5908,7 +5886,7 @@ is why" — is this file.
   peer had a frame on the wire the connection never read. What made both true was a *period*: the
   drain caps the wait and the close is what the timeout becomes, which is what § 7's third bullet
   asks for anyway. When a connection-side behaviour reads the drain, assume it is on from the first
-  line of every existing case rather than from the moment a shutdown would really begin.
+  line of every existing case rather than from the moment a shutdown would really begin. [until: reviewed 2026-09-06]
 - **A `loop-goal.toml` check can be misfiled *and* blocked at once, and the second half is settled by
   grepping the ADR's own key type for a production caller.** `rule:concurrency/connection-bounds-are-finite`'s last two names were filed
   `-p nvs-server`, which the sibling bullets' one-call manifest check rules out immediately — no front
@@ -5921,7 +5899,7 @@ is why" — is this file.
   `revalidate_freq` deserialize in `nvs_config::tree` with nothing reading them. The general shape: a
   decided-but-unlanded mechanism leaves exactly that fingerprint — the ADR's types and directives
   present, no production caller — and it is cheaper to find than to read the module that would use them,
-  whose doc may state the missing behaviour as settled policy rather than as a gap. This one did.
+  whose doc may state the missing behaviour as settled policy rather than as a gap. This one did. [until: reviewed 2026-09-06]
 - **Every name in a `cargo-named` check has to *run* on the platform the driver runs `cargo` on,
   so the `#[cfg(unix)]` that a permission claim naturally wants is the one shape that fails the
   check forever.** `rule:config/one-local-control-socket`'s `the_control_socket_is_created_0600` and
@@ -5937,7 +5915,7 @@ is why" — is this file.
   the other side, which for "no other account may reach it" is a mode on Unix and
   `nvs_config::trust::exposure` reading a DACL on Windows. `crates/nvs-cli/src/cache.rs`'s
   `open_to_the_world` is the portable *positive* fixture when a real directory is what you need:
-  a `chmod` on Unix and an `icacls` grant for `S-1-1-0` on Windows.
+  a `chmod` on Unix and an `icacls` grant for `S-1-1-0` on Windows. [until: reviewed 2026-09-06]
 - **A `-p nvs-cli` test whose program `spawn script`s needs a scheduler and a reactor on the
   thread, and `nvs_host::Isolate::run` on its own installs neither.** The two failures arrive one
   at a time and neither names the fixture: first ``  `spawn script` needs the capability
@@ -5950,7 +5928,7 @@ is why" — is this file.
   `nvs_host::reactor::install(Reactor::new()?)`, then `run_until_idle`. `script.rs`'s `run_serving`
   is the twenty-line shape. Worth the bullet because a re-entrant resolve is the only way to
   assert anything about the unit cache *while a program is running*, which is what `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s
-  "never blocks a request-serving core" is a claim about.
+  "never blocks a request-serving core" is a claim about. [until: reviewed 2026-09-06]
 - **Two things bite a `.nvst` case that pins a *rendering*, and both report as an error about the
   case rather than about the member.** First, `Core\Debug::render` answers `Core\Cli\Text` and not
   `string` (`rule:tooling/terminal-output-is-a-sink`'s carrier), so `string $r = Core\Debug::render($v);` is
@@ -5960,7 +5938,7 @@ is why" — is this file.
   `"Vault#1 (2) {\n  $token => …"` is `E0301: $token is not declared` **reported inside a string
   literal** — the double-quoted form interpolates, and an object's snapshot is written `\$token`.
   `Core\Debug::render`'s output is the one place a case routinely meets both at once;
-  `test-assert-matches-inline-never-holds-a-secret-property.nvst` carries the escaped spelling.
+  `test-assert-matches-inline-never-holds-a-secret-property.nvst` carries the escaped spelling. [until: reviewed 2026-09-06]
 
 - **`conformance_coverage.rs` counts only the *fully qualified* call spelling, so three cases that
   write `Test::member(` under a `use Core\Test;` are reported as "asked by 0 case(s)".** The gate
@@ -5968,7 +5946,7 @@ is why" — is this file.
   it, and `corpus::Attribution` indexes a case the same way — an aliased call site is invisible to
   both, which reads as "you wrote no case" rather than as "you wrote it under a `use`". Two tests
   fail together and neither says the word alias. Write the member's FQ spelling at least once per
-  case; the surrounding calls may stay aliased, which is what the landed snapshot cases do.
+  case; the surrounding calls may stay aliased, which is what the landed snapshot cases do. [until: reviewed 2026-09-06]
 - **`Core\Request::route()` throws a `LogicError` where there is no request, and a `.nvst` case that
   catches `RuntimeError` around it does not catch.** The runner fixture
   `crates/nvs-cli/tests/fixtures/runner/in-process-request.nvs` catches `RuntimeError` and is green,
@@ -5978,7 +5956,7 @@ is why" — is this file.
   block rather than at the `try`, so the message ("there is no request here — this program is not
   answering one") is what identifies it and the line number is not. `rule:security/request-state-throws-in-an-isolate` is the rule; the
   general shape is that "no request at all" is a *logic* error in this runtime and "the request sent
-  nothing" is the runtime one.
+  nothing" is the runtime one. [until: reviewed 2026-09-06]
 - **A `-p nvs-cli` runner fixture has no `nvs.toml`, so a `[db.<name>]` block is built in Rust —
   and the boot-time resolution that block normally gets is skipped with it.** `crate::script::granting_ctx`
   is the shape to copy for a capability, and `runner.rs`'s `compose_postgres` is the same call made for
@@ -5986,7 +5964,7 @@ is why" — is this file.
   of the file it was written in at boot, and a tree assembled in Rust was written in no file, so a
   relative `"tests/db/ca.crt"` resolves against whatever directory `cargo test` chose and the handshake
   fails with a missing-bundle error that names no test. Build it from `CARGO_MANIFEST_DIR`. The same
-  applies to `path` on a `sqlite` block, for the same reason and with the same fix.
+  applies to `path` on a `sqlite` block, for the same reason and with the same fix. [until: reviewed 2026-09-06]
 - **A socket fixture that half-closes after writing makes every "exactly one response" assertion
   vacuous, and the tell is that the *control* row fails.** A smuggling case asserts a count — the peer
   got one response, not two — so the fixture has to leave the connection open long enough for a second
@@ -5997,7 +5975,7 @@ is why" — is this file.
   `set_read_timeout` a few hundred milliseconds, read until the server closes or the wait runs out, and
   let the absence of the second response be what the wait proves. Always write the pipelined pair as a
   control row — it is the only thing that tells a door that answers once from a fixture that can only
-  read once.
+  read once. [until: reviewed 2026-09-06]
 - **An isolate that parks on something the connection cannot fail wedges the whole core, and the
   failure is a silent three-minute hang rather than an assertion.** Writing "the request is still
   running when the client disconnects" as a program that parks forever — a `nvs_host::channel` receiver
@@ -6008,7 +5986,7 @@ is why" — is this file.
   whose head promises a hundred bytes and whose client sends four and closes leaves the program inside
   `next_chunk`, which is a park the connection can fail — the supply dies with the connection, the read
   answers `Err`, and the isolate ends through its own frame. That is also the more faithful case, since
-  the body is where a disconnect is noticed at all.
+  the body is where a disconnect is noticed at all. [until: reviewed 2026-09-06]
 - **A state-bleed suite parameterised over a request boundary *and* an isolate boundary cannot have
   a memory row, and that is the row which looks most load-bearing.** M7 asks for one suite run
   twice, so every row has to hold on both arms — and the obvious row, "the next run's ceiling and
@@ -6020,7 +5998,7 @@ is why" — is this file.
   with no compiler in front of it. Memory keeps its own cases for a second reason worth knowing on
   its own: `Ctx::memory_used` is measured from *that context's own* base, so it can never see what
   an earlier run left behind, and only `nvs_runtime::budget::live_bytes()` sampled across the
-  boundary can.
+  boundary can. [until: reviewed 2026-09-06]
 - **A test outside `nvs-runtime` cannot install a current context, so an object it allocates by hand
   lands in no live list and the teardown sweep never sees it.** `NvsObj::new` links the object into
   whatever `CurrentCtx` names, and `crate::ctx::CurrentCtx` is **not** in `nvs_runtime`'s
@@ -6031,7 +6009,7 @@ is why" — is this file.
   as `rule:statements/static-is-a-member-modifier`'s late static binding hands a static method its own.
   `crates/nvs-host/src/isolate.rs`'s `build_a_cycle` is the shape. Getting this wrong does not fail
   where it happens — the pair simply leaks, and what fails is an assertion about bytes several frames
-  away, which reads as though the sweep were broken.
+  away, which reads as though the sweep were broken. [until: reviewed 2026-09-06]
 - **A `.nvst` case gets exactly one in-process request, and the child's deferred output has nowhere
   to go.** `Core\Test::request` is refused from inside the request it answers — that refusal is the
   whole reason a one-file case works, the `catch` branch *being* the child — so a claim needing two
@@ -6044,7 +6022,7 @@ is why" — is this file.
   assertion is that the response is complete and carries none of the deferred bytes. That is the
   property itself and not a weaker reading of it.
   `a-session-survives-a-request-on-another-core.nvst` and
-  `an-after-response-tree-outlives-its-connection.nvst` are the two shapes.
+  `an-after-response-tree-outlives-its-connection.nvst` are the two shapes. [until: reviewed 2026-09-06]
 - **A `Core\X::member` spelling does not survive either of the two splitters you would reach for, and
   both failures are silent rather than loud.** `spec_registry_coverage.rs`'s `cells()` reads a `\` as a
   cell escape and re-emits it *twice* — `Core\Str::trim` comes back as `Core\\Str::trim` — because it
@@ -6055,7 +6033,7 @@ is why" — is this file.
   rather than reusing `cells`. The same character is why an audit script may not go through a shell: a
   `<<'PY'` heredoc collapsed the `\\` of a raw-string regex to a single `\`, so the pattern became
   `Core\[A-Za-z\]+`, found 0 of 259 spellings, and read exactly like a table with no member rows in it.
-  AGENTS.md rule 1 is written for this; a scratch audit goes through Write and a file, not a heredoc.
+  AGENTS.md rule 1 is written for this; a scratch audit goes through Write and a file, not a heredoc. [until: reviewed 2026-09-06]
 - **A differential case's output may not carry a lone carriage return, and the failure reads as the
   member losing it.** Both sides are normalised before comparison
   (`crates/nvs-test/src/expect.rs:40`), and a `\r` that is not part of a `\r\n` survives on the Novis
@@ -6065,7 +6043,7 @@ is why" — is this file.
   *length* instead — `Core\Str::length(Core\Str::trimStart("\r\rx"))` against
   `strlen(ltrim("\r\rx"))` — or keep it out of the subject entirely and let a `lines` case consume it
   as a separator; `tests/differential/core/str-trim-start-and-trim-end-match-ltrim-and-rtrim.nvst` is
-  the shape. This costs nothing to know and about three calls to discover.
+  the shape. This costs nothing to know and about three calls to discover. [until: reviewed 2026-09-06]
 - **A `close`d SQLite `:memory:` connection is handed straight back by the pool, so a case cannot
   assert that a reconnect is a fresh database.** A case written to prove `rule:core-classes/db-connection-is-named`'s memo is
   released — `connect`, create a table, `close`, `connect` again, expect the table to be gone —
@@ -6075,7 +6053,7 @@ is why" — is this file.
   is still refused, the new one runs a statement) and say in the case why it asserts nothing about
   which connection it got. Worth the bullet because `:memory:` reads as "per connection" and the pool
   is invisible from the program's side —
-  `tests/conformance/core/db-a-closed-name-is-free-for-the-next-connect.nvst` carries the note.
+  `tests/conformance/core/db-a-closed-name-is-free-for-the-next-connect.nvst` carries the note. [until: reviewed 2026-09-06]
 - **A `Core` member declared on two classes owes the conformance floor twice, and a case reaching it
   through the wrong receiver counts for neither.** `conformance_coverage.rs`'s floor is per class,
   and `corpus::Attribution` attributes a case's `->member(` to every class the case *mentions* (or
@@ -6086,7 +6064,7 @@ is why" — is this file.
   (Core\Db\Transaction $tx) => …)` half added to a case you were writing anyway — which is also the
   honest question, the delegated row being a second place the rule has to hold. Run `cargo test -p
   nvs-stdlib --test conformance_coverage` before the full gate when a new member lands on a
-  delegating interface.
+  delegating interface. [until: reviewed 2026-09-06]
 - **A `-p nvs-stdlib` test cannot build *any* `nvs_db::Connection`, so a `Core\Db` member is testable
   only in the part of it that is below the driver — and that part is usually where the ADR's promise
   actually lives.** The sibling bullet says a `-p nvs-db` test cannot build a `PgConn` (its `wire` is
@@ -6100,13 +6078,13 @@ is why" — is this file.
   and drive it with `crate::instance::build(&CLASS, [...])` and no connection. `NvsObj::refcount_of`
   then counts what the member is holding, which is how a promise about *memory* — § 4's "does not
   buffer" — is asserted without a server. Check the split really can fail: parking a row with the
-  displaced one retained turns the count from `[999]` into all thousand indices.
+  displaced one retained turns the count from `[999]` into all thousand indices. [until: reviewed 2026-09-06]
 - **A `.nvst` case's second `foreach` cannot re-declare the first one's loop-local, and the error
   points at the *first* declaration rather than at the line you just wrote.** A case is top-level
   statements, which is one `ScriptFrame` (`rule:statements/storage-that-outlives-a-call`), and a block is not a storage scope — so two
   loops each opening with `var $form = …` is `second declaration`, reported against a line ten above
   the one under the cursor. Rename the second loop's locals. Nothing about the member under test is
-  wrong, and the tell is that the caret sits on a line the edit did not touch.
+  wrong, and the tell is that the caret sits on a line the edit did not touch. [until: reviewed 2026-09-06]
 - **A pattern letter the grammar refuses is a shared fixture across three trees and a Rust test, and
   grepping for the *letter* finds only half of them.** Implementing `G` and `Q` broke six cases that
   had used one of them as their example of "a letter this subset does not carry":
@@ -6116,7 +6094,7 @@ is why" — is this file.
   printed the *class* of the refusal, so the letter was in a variable and the message never appeared
   in the file. Grep for both the message and the pattern string (`"yyyy-` and `format(\"`) before
   widening a closed grammar, and pick the replacement letter from the ones the module doc's gap 2
-  still names.
+  still names. [until: reviewed 2026-09-06]
 - **A `<?nvs` fixture inside a Rust string is subject to the whole front end, and two of its rules
   bite a hand-written fixture first: a variable is declared with `var`, and there are no free
   functions.** `$p = new Point();` fails the fixture assert with "`$p` is assigned to but was never
@@ -6124,7 +6102,7 @@ is why" — is this file.
   be a method" — neither of which reads like a syntax rule, because both arrive through
   `nvs_types::check_program` rather than through the parser. Copy the shape from an existing
   fixture in the same crate (`crates/nvs-codegen/tests/objects.rs:127` is one line of both) rather
-  than writing PHP from memory; the round trip is a full test-binary rebuild.
+  than writing PHP from memory; the round trip is a full test-binary rebuild. [until: reviewed 2026-09-06]
 - **A test that a method table was *bound* needs a call the compiler cannot devirtualize, and
   `static::m()` is the reliable one.** An ordinary `$obj->m()` on a statically known class lowers to
   a direct `InstKind::Call`, so it runs the right body whether or not any `ClassDesc` row was ever
@@ -6135,7 +6113,7 @@ is why" — is this file.
   `Derived::shout()` discriminates: bound prints `derived`, unbound falls back to `Base::speak` and
   prints `base`. **Check that it does** — delete the binding call, watch the assertion fail with the
   fallback's answer, put it back. That one round trip is the difference between a test of the
-  feature and a test of the fixture, and it costs two `cargo test` runs.
+  feature and a test of the fixture, and it costs two `cargo test` runs. [until: reviewed 2026-09-06]
 - **A count of a marker in emitted SQL counts that marker inside *other* constructs too, and
   PostgreSQL's identity is the one that bites.** A sweep asserting `create.matches(" DEFAULT ").count()
   equals the number of defaulted columns` is off by one on PostgreSQL alone, and on nothing else,
@@ -6143,7 +6121,7 @@ is why" — is this file.
   construct that is not a default at all. The repair is not a smaller count: split the statement into
   lines, find each column's own clause, strip the dialect's identity spelling, and assert *presence*
   against `Column::default_value().is_some()`. That is strictly stronger than the count it replaces,
-  which passes unchanged when two columns swap their defaults.
+  which passes unchanged when two columns swap their defaults. [until: reviewed 2026-09-06]
 - **A `#[cfg(test)] mod tests` can already hold a `type` alias for the struct your slice is about to
   add, and `use super::*` lets the alias win.** `catalog.rs`'s tests carried
   `type ColumnRow = (String, String, i64, …)` as a placeholder for `rule:core-classes/schema-introspection`'s row shape; adding
@@ -6154,7 +6132,7 @@ is why" — is this file.
   file's own tests already name. When the alias was a placeholder for exactly this — as it was here
   — delete it and move the test's `.0`/`.1` accesses onto the fields rather than renaming either
   side: two vocabularies for one row is what the tree does not keep, and the positional accesses
-  are the half a later slice would otherwise have to rewrite anyway.
+  are the half a later slice would otherwise have to rewrite anyway. [until: reviewed 2026-09-06]
 - **A `.nvst`'s expected output pins line numbers in the `--FILE--` block above it, so a tree-wide
   script that touches case files must preserve their line *count*.** A citation rewrite that joined
   two `//` comment lines into one shifted every `--> case.nvs:NN:CC` below the join, and
@@ -6163,7 +6141,7 @@ is why" — is this file.
   expected output is program text rather than a diagnostic survive the same join, which is exactly
   what makes this look safe when you spot-check it — two of them stayed joined and passed. The
   budget is lines, not bytes: rewrite the token in place and leave the break standing, the way
-  `tools/migrate-docs.py`'s `keep_line_breaks` does, rather than reflowing and re-recording.
+  `tools/migrate-docs.py`'s `keep_line_breaks` does, rather than reflowing and re-recording. [until: reviewed 2026-09-06]
 
 ## Splitting a file that got too big
 
@@ -6171,25 +6149,25 @@ is why" — is this file.
   functions live in several modules of the same crate: each child starts with `use super::*;` (which
   reaches the parent's private imports *and* its siblings' names once `mod.rs` globs them back), and every
   item that crosses a seam becomes `pub(super)` — the reach it had as a private item of one file. A child
-  can also see the parent's private items, so plumbing stays private in `mod.rs`.
+  can also see the parent's private items, so plumbing stays private in `mod.rs`. [until: reviewed 2026-09-06]
 - **A `pub(crate)` item needs an explicit `pub(crate) use` in `mod.rs`** or `crate::thing::name` stops
   resolving for the rest of the crate. A glob `use self::child::*;` covers the in-directory names; the
-  re-export list covers the crate-facing ones, and the two coexist.
+  re-export list covers the crate-facing ones, and the two coexist. [until: reviewed 2026-09-06]
 - **Cut by *entity*, never by line number, and check the count afterwards.** A range that starts one line
   late leaves a `#[test]` attached to the previous item — which is a *silent* lost test, not an error,
   unless the function happens to take arguments. `grep -c '#\[test\]'` before and after, and the test count
-  in `verify.py`'s output, are the two checks that catch it.
+  in `verify.py`'s output, are the two checks that catch it. [until: reviewed 2026-09-06]
 - **A moved test module also *renames* its snapshots**, on top of the *Tooling* bullet above: the file
   name is the test's module path, so `parser::tests::foo` becoming `parser::tests::stmt::foo` needs the
   `.snap` moved *and* its `source:` line updated. Do that by hand instead of accepting the `.new`, and the
-  diff stays a rename rather than a delete plus an unreviewable add.
+  diff stays a rename rather than a delete plus an unreviewable add. [until: reviewed 2026-09-06]
 - **A big file hides doc comments attached to the wrong item.** Two of `nvs-types`' were 120 lines from the
   function they described, invisible in a 3.5k-line file and obvious the moment it became eight. When a
   carve leaves a doc block stranded above an unrelated item, that is a bug the split found, not one it
-  made.
+  made. [until: reviewed 2026-09-06]
 - **Header prose splits with the code.** A module doc that grew a paragraph per ADR slice *is* the split
   plan: each paragraph already names the rule it belongs to. What is left in `mod.rs` afterwards is its
-  charter — see AGENTS.md's length-target table for why the charter is the part that matters.
+  charter — see AGENTS.md's length-target table for why the charter is the part that matters. [until: reviewed 2026-09-06]
 - **A moved file's doc links no longer move with it — leave them exactly as they are.** A `.rs`, `.nvs`
   or `.nvst` file cites a document absolutely from the root (`](/docs/decisions/0067.md)`), so a
   split, a rename or a new directory level changes nothing in the prose. The `../` prefix this replaced
@@ -6198,45 +6176,45 @@ is why" — is this file.
   they were relative to the rustdoc page. `python tools/check-links.py` reads source files now and is
   the gate; `verify.py --doc` never was, because rustdoc's broken-link lint reads intra-doc paths and
   never a URL. A **markdown** file stays relative — a git host renders it. Conventions § *Citing a
-  document* is the home.
+  document* is the home. [until: reviewed 2026-09-06]
 - **A private `const` that falls out of scope becomes a binding pattern, not an error.** `TY_XML` in a
   `match` arm is a *new variable* once the module that holds it is a sibling, so the arm matches
   everything after it. The 20 in that file happened to sit in multi-pattern arms, where `E0408` names
   each one — an arm of its own would have compiled and matched every column type. `pub(super)` on the
-  consts before the first build is the cheap order; reading the first build's errors is the other one.
+  consts before the first build is the cheap order; reading the first build's errors is the other one. [until: reviewed 2026-09-06]
 - **A blanket `pub(super)` pass reaches top-level items and nothing else, and the compiler names the
   rest in one build.** A struct's fields, an `impl` block's methods and an `unsafe fn` all sit outside
   a `^(fn |struct |…)` regex, so the first build after a split is 66 `E0616`/`E0624` errors that are
   one mechanical widening each — cheaper to read than to predict. The one that does *not* show up in a
   build is a doc link: `[`hydrate`]` resolved while `hydrate` was private to the single file and stops
-  resolving when it moves to a sibling, and only `verify.py --doc` says so.
+  resolving when it moves to a sibling, and only `verify.py --doc` says so. [until: reviewed 2026-09-06]
 - **Address a moved test by its *name*, never by its offset.** A test's item block starts at the doc
   comment above it, so an offset table addressed at `#[test]` lines files the first documented case of
   each group into the previous module — four of them, silently, in the tds split. A name table also
-  refuses to run at all when a case is added or renamed, which is the failure you want.
+  refuses to run at all when a case is added or renamed, which is the failure you want. [until: reviewed 2026-09-06]
 - **A line-at-a-time brace counter drifts on a multi-line string literal.** `db.rs` holds one whose
   body is `… [capabilities.net]\nconnect = [\"127.0.0.1\"]\n`, and its unmatched `[` left the scanner
   at depth 1 for the rest of the file, so the last eight items looked like nothing at all. A splitter
   needs a stateful scan over the whole file — string, raw string, char, block comment — not a regex
-  per line, and the reconstruction assertion is what turns that into a loud failure.
+  per line, and the reconstruction assertion is what turns that into a loud failure. [until: reviewed 2026-09-06]
 - **An item scanner keyed on blank lines merges the methods a file wrote with none between them.**
   `ctx.rs`'s last four `Ctx` methods run `}` straight into the next `///`, so a blank-line-only rule
   found no start after the first and filed all four into one slice — silently, because the partition
   still reconstructs. The second condition is *the previous line was the `}` that closed an item*,
   and it has to be `}` specifically: a multi-line `#[expect(…)]` also returns the depth to zero, at
-  the `)]` one line above the item it is attached to.
+  the `)]` one line above the item it is attached to. [until: reviewed 2026-09-06]
 - **A 3,000-line `impl` block is not a seam problem, and splitting one widens nothing.** An inherent
   `impl` may sit in any module of the type's own crate, and a private item is visible in its defining
   module *and every descendant* — so `Ctx`'s 773 lines of private fields stayed in `ctx/mod.rs` and
   not one of them changed. What widens is only what a **sibling** reads: a private method or a private
   type moved away from its caller, eight of them here, each `pub(super)` — the reach it already had.
-  Write each fragment back inside a generated `impl Ctx { … }` and the move is mechanical.
+  Write each fragment back inside a generated `impl Ctx { … }` and the move is mechanical. [until: reviewed 2026-09-06]
 - **A relative reference in a doc comment is the split's own test.** `grep -n "above\|below\|neighbour"`
   over the moved halves finds the sentences that stopped being true, and one of the four hits in
   `ctx.rs` was not stale prose but a **mis-seam**: `set_inbound`'s "the inbound half of the channel the
   three methods above are the outbound half of" was the file saying it did not belong in `output.rs`.
   `DeclaredHeader` was the same finding from the other direction. A comment that describes its own
-  neighbours is the only place a wrong cut announces itself, because the compiler never will.
+  neighbours is the only place a wrong cut announces itself, because the compiler never will. [until: reviewed 2026-09-06]
 
 ## Writing Novis itself
 
@@ -6263,7 +6241,7 @@ sibling in the same namespace unqualified.
   milestone that adds a crate most sessions, that is a generation most sessions, and it is how this tree
   reached 20 GB and zero free disk on 2026-08-25. You do not need to do anything about it in a session —
   the driver refuses to *start* a run under 10 GB free and says what to run — but if you are the one who
-  hits it, `python tools/disk.py --clean` is the answer, not `cargo clean`.
+  hits it, `python tools/disk.py --clean` is the answer, not `cargo clean`. [until: reviewed 2026-09-06]
 - **A `#[global_allocator]` declared in a *library* crate is only picked up by a binary that
   actually links that crate.** `nvs_runtime::alloc::Pooled` is registered from `nvs-runtime`'s
   own `lib.rs`, so every binary in the workspace gets it — except one whose sources never name
@@ -6271,18 +6249,18 @@ sibling in the same namespace unqualified.
   the graph the allocator is chosen from. `benches/abi-probe/tests/perf_guards.rs` happens to
   name it; a *new* test binary measuring allocation might not, and would then silently measure
   the platform heap. `an_allocation_round_trip_stays_in_the_pooled_cost_class` is written to fail
-  loudly in exactly that case — its two sides become the same code, so the ratio goes to 1.
+  loudly in exactly that case — its two sides become the same code, so the ratio goes to 1. [until: reviewed 2026-09-06]
 - **A named `const` holding a `Cell` is `clippy::declare_interior_mutable_const`, which is denied
   here.** The obvious way to build a `thread_local!` array — `const EMPTY: Class = …;` then
   `[EMPTY; N]` — is refused, because a constant is *copied* at each use rather than referenced.
   The spelling that works is an inline const block in the repeat, `[const { … }; N]`, which is
-  also a const-repeat of a non-`Copy` type and so still `const`-initializes the thread local.
+  also a const-repeat of a non-`Copy` type and so still `const`-initializes the thread local. [until: reviewed 2026-09-06]
 - **A block-bodied closure must write its return type, and `fn () => { … }` is `E0450`.** The
   spelling is `fn (): void => { echo "x"; }` — an *expression*-bodied closure infers its type from
   the expression, a block-bodied one cannot, and every `Core` member taking a `callable` whose
   callback does work rather than computing a value meets this. `examples/collect.nvs`'s
   `Core\Out::capture` line was written the short way and sat there uncompiled for several
-  sessions, which is the next bullet's fault as much as this one's.
+  sessions, which is the next bullet's fault as much as this one's. [until: reviewed 2026-09-06]
 
 - **One compile error hides every later one, so "the first red fixture line" moves *backwards* as
   you fix it.** `examples/collect.nvs` was recorded in three places as failing at line 47 on a
@@ -6290,14 +6268,14 @@ sibling in the same namespace unqualified.
   resolution entirely, and behind it sat a `Core\Uuid::isValid` at line 29 that the spec says does
   not exist and an `Arr::first` subscript at 45 that panics `nvs-ir`. Budget a fixture as "run it
   again after every fix until it exits 0", not as "one report, one slice" — and do not trust a
-  handoff's claim about which line a fixture stops at without running it.
+  handoff's claim about which line a fixture stops at without running it. [until: reviewed 2026-09-06]
 - **`var` takes no type annotation, and writing one costs four diagnostics a line.** `var string $s = …`
   is not a declaration with a redundant type: the parser reads `var`, expects a name, finds `string`, and
   emits `E0101` twice, `E0102`, a third `E0101` and then an `E0406` claiming `$` is already declared — per
   line, so a six-line scratch file came back with 24 errors and none of them said "a `var` has no type".
   The two spellings are `var $s = …` (inferred, and what every `.nvst` case writes) and `string $s = …`
   (declared). The sentence to look for in the wall of output is the second `E0101`'s, "`var` infers its
-  type from the initializer".
+  type from the initializer". [until: reviewed 2026-09-06]
 - **`int`'s own minimum has no literal spelling, so a case pinning a 64-bit field's lower bound
   cannot write it.** `-9223372036854775808` is a unary minus applied to a literal that is already
   too large for `int`, so it is `E0429` (*"only legal where a `uint` is expected"*) rather than
@@ -6305,11 +6283,11 @@ sibling in the same namespace unqualified.
   `J`/`P` the accepted range is the union of `int`'s and `uint`'s, so **neither** refusal has an
   argument that can be written, and the honest row asserts the reach — `-9223372036854775807` and
   `18446744073709551615` both landing in the field — instead of inventing a refusal that cannot
-  exist. Narrower widths (`C`, `n`, `v`, `N`, `V`) have both sides spellable and should assert them.
+  exist. Narrower widths (`C`, `n`, `v`, `N`, `V`) have both sides spellable and should assert them. [until: reviewed 2026-09-06]
 - **`bool as string` renders `false` as the empty string**, so a line built out of `as string` over
   predicates silently loses its false columns and still looks like a shorter tally. **`bool as int` is not
   a conversion at all** — it is `E0708`, whose help line says so and names the spelling to use — so the way
-  to *show* a predicate's answer is `$b ? 1 : 0`, or a two-line helper returning a character.
+  to *show* a predicate's answer is `$b ? 1 : 0`, or a two-line helper returning a character. [until: reviewed 2026-09-06]
 - **A `Core` member answering a union cannot be handed straight back to a parameter declared `T`.**
   `Core\Arr::append($a, Core\Arr::sum($empty))` is `E0401: expected int, found int|float|decimal`,
   because `sum`/`product`/`average` answer spec § 2's whole union whatever their subject's element type
@@ -6317,19 +6295,19 @@ sibling in the same namespace unqualified.
   union does not lower. So a case that wants to feed a fold's answer back into the array writes the
   literal (`0`, `1`) and asserts *separately* that the member answers it, which is two claims where one
   was wanted but is the only pair available. Rendering the union is fine: `echo` takes it, and so does
-  `as string`.
+  `as string`. [until: reviewed 2026-09-06]
 - **An array literal written straight into an `array<array<mixed>>` element reads as `array<mixed>`,
   and then does not satisfy an `array<array<T>>` parameter.** `Core\Arr::flatten([$s, $s])` inside a
   `array<array<mixed>> $answers = [...]` literal is `E0401: expected array<array<mixed>>, found
   array<mixed>` pointing at the *inner* literal — the outer literal's expected element type is what
   the inner one is checked against, so the nesting the argument needs is one level short. Bind it
   first (`array<array<string>> $pair = [$s, $s];`) and pass the binding; the same literal in a
-  `var`-free typed binding infers exactly what its declaration says.
+  `var`-free typed binding infers exactly what its declaration says. [until: reviewed 2026-09-06]
 - **An option bag's value may be a variable, and a `uint` parameter accepts an integer literal at
   the call site.** Both were unknowns worth one scratch run: `Core\Arr::from($c, {limit: $limit})`
   lowers with `$limit` a `uint` parameter, so a swept bound does not need one call site per value,
   and `Drive::at(0)` against `public static function at(uint $limit)` needs no `as uint`. The
-  brace literal is an expression like any other — only its *keys* are fixed by the member's row.
+  brace literal is an expression like any other — only its *keys* are fixed by the member's row. [until: reviewed 2026-09-06]
 - **A `== null` guard does not narrow a `?T` binding — `as T` is what states the narrowing.** The
   shape every `?T` differential case needs is a helper that renders absence beside PHP's `false`, and
   the obvious spelling does not compile: `if ($found == null) { return "none"; } return $found;` is
@@ -6337,7 +6315,7 @@ sibling in the same namespace unqualified.
   `if ($found != null) { return $found; }` fails identically at the same line, so the guard is not
   flow-narrowing at all. `return $found as string;` compiles, and it is total in that branch and a
   throw in no other. A `?uint` needs the same cast for a different reason (there is no `uint` row in
-  `echo`), so one `Show::render(?T $found): string` covers both and is worth copying between cases.
+  `echo`), so one `Show::render(?T $found): string` covers both and is worth copying between cases. [until: reviewed 2026-09-06]
 - **A `--release` acceptance check costs a thin-LTO relink of every test binary in the package, not
   just the one holding the guard.** Touching `crates/nvs-runtime/src/lib.rs` and rebuilding
   `nvs-abi-probe` measured 200s for the package and 133s for `--test perf_guards` alone: five binaries
@@ -6349,11 +6327,11 @@ sibling in the same namespace unqualified.
   measurement and not overhead on it. What is left after narrowing is a build, and a build overlaps:
   `loop.py` starts it before the native build and runs the check last, which took a cold sweep from
   326s to 183s. Two cargos on one `target/` do not block each other — only the registry's package
-  cache is briefly contended, and the debug half finishes in its usual time.
+  cache is briefly contended, and the debug half finishes in its usual time. [until: reviewed 2026-09-06]
 - **Measure a build with nothing else touching `target/`.** The same narrowed release build timed
   133s alone and 260s with a `du -sh target` walking the tree beside it. On a link-heavy build the
   disk is the contended resource, so a second reader of the same 1.7 GB doubles it — a timing run
-  that disagrees with an earlier one by 2x is usually this and not the change under test.
+  that disagrees with an earlier one by 2x is usually this and not the change under test. [until: reviewed 2026-09-06]
 - **A `?Instance` *does* narrow, at file scope, and a case reaching for a `?Match` needs no
   helper class.** `var $found = Core\Regex::match($s, $p); if ($found == null) { … } else {
   $found->groups() … }` compiles and runs, and inside the `else` the receiver is the class type,
@@ -6362,7 +6340,7 @@ sibling in the same namespace unqualified.
   after a `!= null` guard — is specifically about a narrowed nullable *array* losing its element
   type, not about narrowing, so do not generalise it into wrapping every nullable in a
   `public static function`. Narrowing a `?string` to compare it with `""` works in the same
-  place, which is what lets a case tell an absent group from one that captured nothing.
+  place, which is what lets a case tell an absent group from one that captured nothing. [until: reviewed 2026-09-06]
 - **`int`'s own low end is not a writable literal, so a case pinning a 64-bit bound spells it
   `-9223372036854775807 - 1`.** `-9223372036854775808` is `E0429: this integer literal is too large
   for `int`; it is only legal where a `uint` is expected` — the minus is an operator applied to a
@@ -6371,7 +6349,7 @@ sibling in the same namespace unqualified.
   unsigned range needs no such trick: `18446744073709551615 as uint` is accepted. A sweep that
   pairs each code with its own bounds carries them in a parallel `array<int>` and reads it by key —
   `foreach ($codes as string $k => string $c)` binds both, and `$high[$k]` indexes the sibling
-  array — since there is no arithmetic on a format string to build one from.
+  array — since there is no arithmetic on a format string to build one from. [until: reviewed 2026-09-06]
 - **A closure held in an array can be handed to a `Core` member's `callable` option**, and
   calling one through the variable holding it lowers too (it used to panic). `array<callable>
   $filters = [fn (Core\Cli\Text $c): int => 7, ...];` then `foreach ($filters as callable
@@ -6381,7 +6359,7 @@ sibling in the same namespace unqualified.
   spellings to get right on the way: a **block-bodied** `fn` must declare its return type
   (`E0450`: `fn (): void => { ... }`), an expression-bodied one takes the expression's; and a
   `mixed` is **not** implicitly assignable to a narrower type, so `array<string> $row = ["a",
-  $cell];` over a `mixed $cell` is `E0401` at the element.
+  $cell];` over a `mixed $cell` is `E0401` at the element. [until: reviewed 2026-09-06]
 - **An integer literal past `int` lowers in a `uint` *argument* and panics `nvs-ir` inside an
   `array<uint>` literal.** `Core\Random::bytes(9223372036854775808)` is fine — the parameter's
   declared type is what decides how the literal lowers — but `array<uint> $counts = [1,
@@ -6389,7 +6367,7 @@ sibling in the same namespace unqualified.
   `int`"*, an element position carrying no such expectation. So a sweep table whose rows run past
   `i64::MAX` has to *compute* them rather than write them, and the multiplier is the second half of
   the trap: `$n * 2` over a `uint` is `E0407` and then `E0401`, the literal `2` being an `int` with
-  no representable common type, so the case declares `uint $two = 2;` and multiplies by that.
+  no representable common type, so the case declares `uint $two = 2;` and multiplies by that. [until: reviewed 2026-09-06]
 - **One `RuntimeSig` may name the signature two different runtime symbols are declared under, and
   changing one symbol's Rust declaration then miscompiles the other in silence.** `nvs_array_unset`
   was emitted through `RuntimeSig::ArrayAppend` because both happened to be two pointers in and one
@@ -6401,7 +6379,7 @@ sibling in the same namespace unqualified.
   and check whether a *second* `runtime_ref` call names it; if one does, give that symbol its own
   entry in `Signatures` first. `nvs_str_concat`/`nvs_str_append`/`nvs_str_concat_n` and the
   `nvs_throwable_*` pair are the other shared entries, and their doc comments say the sharing is
-  deliberate.
+  deliberate. [until: reviewed 2026-09-06]
 - **A closure passed to a `Core` member may call a static method in its body, and `"\u{0000}"` is
   how a case writes a NUL.** Two spellings the neighbouring bullets make one doubt, both measured in
   a scratch `.nvs` and both fine: the closure trap is only about calling a closure *through the
@@ -6411,7 +6389,7 @@ sibling in the same namespace unqualified.
   about it. And the code-point escape is the only way to put a NUL in a case's subject (there is no
   `\0`); `Core\Str::length("a\u{0000}b")` reads **3**, so it is a character in the string rather
   than a terminator, which is the assertion a `Core\Validate` sweep over degenerate subjects rests
-  on.
+  on. [until: reviewed 2026-09-06]
 - **A case that sweeps code points writes `Core\Str::fromCodePoint($c as uint)`, and orders two strings
   with `Core\Str::compare`.** The obvious spellings both fail: `Core\Str::fromCodePoints` takes
   `array<uint>` while `Core\Arr::range` answers `array<int>`, and `array<int> as array<uint>` is the
@@ -6420,7 +6398,7 @@ sibling in the same namespace unqualified.
   `<`/`>` hole over two `string`s is real but no longer the end of it: `Core\Str::compare($a, $b) <= 0`
   is an `int` comparison, it lowers, and over fixed-width zero-padded hex it *is* the numeric comparison —
   which is what lets a case assert that a `Core\Uuid::v7` sweep never goes backwards without leaving for
-  the crate's own `#[test]`.
+  the crate's own `#[test]`. [until: reviewed 2026-09-06]
 - **`Core\Math::INT_MAX as float` throws, so a case reaching for "a huge finite float" has to
   reach for `Core\Math::FLOAT_MAX` instead.** `int as float` is one of `rule:types/conversion`'s *checked*
   conversions and 2^63-1 is not representable in an `f64`, so the row lands as
@@ -6428,7 +6406,7 @@ sibling in the same namespace unqualified.
   nothing said at compile time. `Core\Math`'s roster already has the four floats a numeric table
   wants — `FLOAT_MAX`, `FLOAT_MIN` (the smallest positive *normal*, PHP's name, not `f64::MIN`),
   `INFINITY` and `NAN` — and a derived infinity is spelled `Core\Math::FLOAT_MAX * 10.0` or
-  `Core\Math::log(0.0)`, whose second `{base: …}` argument may be omitted entirely.
+  `Core\Math::log(0.0)`, whose second `{base: …}` argument may be omitted entirely. [until: reviewed 2026-09-06]
 - **A `Core` member declared `CoreTy::Union(NUMBER)` answers `int|float|decimal`, and that union is a
   *representation* no binary operator will meet a plain `int` or `float` across.** `Core\Math::abs` is
   the one a sweep reaches for first: `Core\Math::abs($n) == Core\Math::max($n, 0 - $n)` type-checks and
@@ -6437,7 +6415,7 @@ sibling in the same namespace unqualified.
   — is `E0401: expected float, found int|float|decimal` at compile time instead. Write
   `Core\Math::abs($x) as int` / `as float` at every use; the cast is free, and which arm to write is
   decided by the argument, since the member never crosses arms. `grep -n 'CoreTy::Union' <the module>`
-  says in one call which members owe the cast.
+  says in one call which members owe the cast. [until: reviewed 2026-09-06]
 - **A counting sweep has all the shapes it needs, and none of them is the one that bites.** Two nested
   `foreach`es over the same `array<string>` compile as long as the two bindings are named differently
   (`$leftText`/`$rightText`); a `public static function of(int $n): int` in a `final class` may
@@ -6445,7 +6423,7 @@ sibling in the same namespace unqualified.
   though `0 - $x` still is for a *variable*; and a `bool $flag = false;` declared **inside** a loop body
   is fine, since the `E0406` that bites is a second declaration in the *source*, not a second execution.
   So the shape of an agreement case is: typed array literals above, counters as `int` above, one
-  `if (…) { $n = $n + 1; }` per claim, and one `echo` of the counts against the sweep's own total.
+  `if (…) { $n = $n + 1; }` per claim, and one `echo` of the counts against the sweep's own total. [until: reviewed 2026-09-06]
 - **A `Core`-owned enum cannot be written as a type at all — not as a parameter, not as an
   `array<T>` element — and the diagnostic prints the same name on both sides.** `array<Core\Unit>
   $units = [Core\Unit::Day]` and `public static function step(Core\Unit $u)` are each `E0401:
@@ -6455,14 +6433,14 @@ sibling in the same namespace unqualified.
   specific to `Core\Unit`, `Core\Order` and their siblings. What this costs a case is the sweep
   shape: a table of units cannot be iterated, so a `.nvst` that steps by several units writes the
   case literal at each `plus`/`minus` call site inside a loop over the *other* dimension, which is
-  what both `Core\Time\Date` and `Core\Time\TimeOfDay`'s agreement cases do.
+  what both `Core\Time\Date` and `Core\Time\TimeOfDay`'s agreement cases do. [until: reviewed 2026-09-06]
 - **A local's name is checked, and the diagnostic is `E0112`.** `int $words_n = …` in a case is
   *"local variable names must be camelCase, e.g. `wordsN`"*, with the rename spelled out in the
   suggestion — so a snake_case counter or table name costs a whole run of the case to learn
   something the name itself could have avoided. Reach for `$wordsN`, `$firstOrdered`,
   `$mathMinRefused` from the first draft; a `.nvst` case tends to want several near-identical names
   at once (one `catch` binding per clause, since they are all function-scoped) and that is exactly
-  where the underscore creeps in.
+  where the underscore creeps in. [until: reviewed 2026-09-06]
 - **`rule:types/conversion`'s one implicit conversion was not implemented at all, and it reads as a
   division problem until you probe a plain assignment.** `float $x = $n;` over an `int $n`
   was `E0401: expected float, found int` — `nvs_types::expr::assign::is_assignable` had no
@@ -6472,21 +6450,21 @@ sibling in the same namespace unqualified.
   the shape of the trap for anything similar: the widening **throws** above 2^53, so it could
   not live in `coerce` until `&Env` was threaded through all 17 of its call sites *and*
   `close_nullsafe`, which had none of its own. A conversion that can fail needs the frame's
-  landing block, and `coerce` was written when none of its rows could fail.
+  landing block, and `coerce` was written when none of its rows could fail. [until: reviewed 2026-09-06]
 - **A shift count carries its operand's signedness, so a `uint` shift needs a `uint` count.**
   `$u << 64` is `E0407: int and uint have no representable common type in arithmetic`, because
   `nvs_types::expr::operators::bitwise_result` refuses a mixed-signedness pair for all five
   binary bitwise rows and a count is just the right-hand operand. Declare `uint $width = 64;`
   and shift by that. On the `int` arm a *negative* count is the one refusal PHP has —
   `ArithmeticError: Bit shift by negative number` — and a count of 64 or more answers `0`
-  (or all-sign for an arithmetic `>>`) rather than the masked shift the machine would do.
+  (or all-sign for an arithmetic `>>`) rather than the masked shift the machine would do. [until: reviewed 2026-09-06]
 - **A `decimal` binding takes a plain decimal literal, not a `d` suffix.** `decimal $d = 1.25d;`
   is four errors deep — the lexer reads `1.25d` as a *duration* literal and reports `E0007:
   \`.\` has no meaning in a duration`, then the parser loses the statement and the checker
   reports the wreckage as `E0401: expected \`decimal\`, found \`mixed\``, none of which names
   the real problem. `rule:types/numeric-literal-placement` is why there is no suffix at all: a numeric literal is untyped
   until placed, so `decimal $d = 1.25;` is the whole spelling and the binding's declared type is
-  what makes it a `decimal`.
+  what makes it a `decimal`. [until: reviewed 2026-09-06]
 - **An enum is not spelled the way PHP spells it.** `enum Mode: int { case Read = 1; }` parses
   as a *class* and reports eight errors on four lines, none of which says "wrong enum syntax":
   the Novis shape is `enum Mode { Read = 1, Write = 2 }` — bare names, commas, no `case`
@@ -6495,14 +6473,14 @@ sibling in the same namespace unqualified.
   `public Rank $rank = Rank::Silver;` **does** compile — a property default takes `rule:attributes/payload-is-a-compile-time-constant`'s
   whole constant set, an enum case and another class's `const` included
   (`nvs_types::defaults::const_reference_default`) — but a *parameter* default still takes a
-  literal only, so `function m(Rank $r = Rank::Silver)` is `E0451`.
+  literal only, so `function m(Rank $r = Rank::Silver)` is `E0451`. [until: reviewed 2026-09-06]
 - **A nullable property cannot default to `null`.** `public ?string $s = null;` is `E0472: a property
   default must be a `string|null` constant — not a constant of the declared type`, and the same for
   `?object`, so a class in a case or a fixture cannot open a nullable slot the obvious way. What
   works is declaring it non-nullable and filling it in `constructor`, which is what the help text
   already says for the shapes it does mean to refuse. A **local** `?object $m = null;` is fine — it
   is only the property-default folder that refuses the `null` literal, and it refuses it for every
-  `?T`, not just for an object one.
+  `?T`, not just for an object one. [until: reviewed 2026-09-06]
 - **A write through a property has *two* receivers to untag, and the second one fails in
   cranelift rather than panicking.** `$m->rows = [...]` through a narrowed `?T` local works
   because `lower_reassignment`'s property arm calls `untag_receiver`; `$m->rows["0"] = "w"`
@@ -6512,7 +6490,7 @@ sibling in the same namespace unqualified.
   with `i128` named as the failing operand, **is** the signature of a missing
   `InstKind::Untag`: read it as "a tagged value reached an instruction that wanted an object",
   not as a codegen bug. Nothing above catches it, because the checker is happy and the lowering
-  never panics.
+  never panics. [until: reviewed 2026-09-06]
 - **A `...spread` array-literal element lowers now, and it is PHP-exact on keys** — an
   integer-looking key is renumbered under the destination's counter, every other key is
   preserved (`rule:types/arrays`). So `[...$xs, ...$ys]` concatenates two lists and
@@ -6522,7 +6500,7 @@ sibling in the same namespace unqualified.
   append's: a literal whose explicit key is already `i64::MAX` throws PHP's *"Cannot add
   element to the array as the next element is already occupied"*. A **call** argument
   spread (`f(...$a)`) lowers now too — into a variadic tail at a resolved target, and
-  through `Helper::CallClosureArray` at a `callable`.
+  through `Helper::CallClosureArray` at a `callable`. [until: reviewed 2026-09-06]
 - **A local's slot is re-pointed in four places in `nvs_ir::lower`, and a rule hooked into
   `bind_local_value` catches three.** That function is the funnel for `$x = e` and every
   compound form; `write_back_holder` (an `inout` argument's copy-back) and `write_back_array`
@@ -6533,7 +6511,7 @@ sibling in the same namespace unqualified.
   told the grid — it builds, every single-level case passes, and the wrong answer is a
   silently un-updated outer array. `grep -n "env.insert(" crates/nvs-ir/src/lower/` is the
   whole check, and it is worth doing for any rule phrased as "whenever this name is
-  rebound".
+  rebound". [until: reviewed 2026-09-06]
 - **A `holes.py` site's panic message names one route, and the `assert!` four lines below it is
   often the bigger one.** `lower_instanceof` had two: the missing-`ExprInfo` panic the worklist item
   quoted (the dynamic `$x instanceof $name` form — genuinely a diagnostic) and, right after it,
@@ -6541,7 +6519,7 @@ sibling in the same namespace unqualified.
   the operator exists for. Only a `panic!`/`todo!`/`unimplemented!` is *counted* as a site, so the
   item's prose ("almost certainly a diagnostic rather than a lowering") was written from an
   inventory that could not see the assert. Read the whole function, and spend one scratch
-  `.agent-tmp/*.nvs` per operand shape before believing an item that predicts its own answer.
+  `.agent-tmp/*.nvs` per operand shape before believing an item that predicts its own answer. [until: reviewed 2026-09-06]
 - **A `#[should_panic(expected = "known gaps")]` test is how a lowering hole is pinned, and closing the
   hole turns it red rather than green.** `verify.py`'s `test` step failed on
   `a_mixed_condition_still_panics_naming_the_gap` *after* the panic was replaced by a working lowering —
@@ -6550,7 +6528,7 @@ sibling in the same namespace unqualified.
   this was deliberate, and the right move is to rewrite it as the snapshot test asserting what now
   happens, not to delete it. `cargo insta test -p <crate> --lib` then writes the `.snap.new` files
   (plain `cargo test` stops at the first one), and `git status --short | grep pending-snap` immediately
-  before `cargo insta accept` is what keeps a previous session's orphan out of the commit.
+  before `cargo insta accept` is what keeps a previous session's orphan out of the commit. [until: reviewed 2026-09-06]
 - **An increment in *value* position runs the write where its own branch runs, and `echo` prints
   operand by operand.** Both bit a case that read plausibly and printed something else. `if ($no &&
   ($k++ > 0))` leaves `$k` at `0`, `$absent ?? $s++` runs the increment only when the left side is
@@ -6558,22 +6536,14 @@ sibling in the same namespace unqualified.
   easy to write an expectation against as though the operand were evaluated unconditionally. And
   `echo "made: ", Cell::make()->count++, "\n";` prints `made: ` *before* `make`, because `echo`
   writes each operand as it reaches it rather than evaluating the whole list first; a case whose
-  operand has a side effect has to expect the interleaving.
-- **A static property does not lower, in either direction.** `Reg::$current` as a *read*
-  panics `lower_expr`'s dispatch catch-all with a bare `StaticPropertyAccess { … }`, and
-  `Reg::$count = 1;` panics `lower_stmt`'s reassignment arm naming the same node — so a case
-  reaching for a class-level counter or a class-level flag has no spelling at all, and what
-  works instead is an instance property on a local object (`Counter $c = new Counter();`).
-  The checker accepts both happily, which is why this reads as a checker/lowering mismatch
-  rather than as the missing feature it is; nothing on `python tools/holes.py`'s worklist
-  names it either.
+  operand has a side effect has to expect the interleaving. [until: reviewed 2026-09-06]
 - **`static::$prop` is late-bound in PHP and was not here, and only a redeclaring subclass
   shows it.** `static::$total` inside `Base` answered `Base`'s slot for `Sub::viaStatic()`
   where PHP answers `Sub`'s — the two agree on every class that does *not* redeclare the
   static, which is why a scratch run has to redeclare one to see it at all. It is `E0499`
   now rather than a silent difference. The general shape is worth keeping: a resolved-at-
   compile-time storage and a spelling PHP resolves at run time agree until the two classes
-  disagree, so the scratch file that judges one has to make them disagree.
+  disagree, so the scratch file that judges one has to make them disagree. [until: reviewed 2026-09-06]
 - **A closure's declared parameter types are checked by nobody, and a mismatch is an arbitrary
   dereference rather than a fault.** `Core\Arr::map($ints, fn (string $s): string => $s)` over an
   `array<int>` dies inside `nvs-runtime`'s `string.rs` on a misaligned pointer, and `$f(1)` on a
@@ -6582,7 +6552,7 @@ sibling in the same namespace unqualified.
   `invoke` reads each slot at its own declared representation. So a case or a fixture that hands a
   closure to a `Core` member must spell the element type and the parameter type *the same*, and a
   crash with no Novis frame in it is this before it is anything else. `nvs_runtime::closure`'s module
-  doc owns the hole and what closing it costs.
+  doc owns the hole and what closing it costs. [until: reviewed 2026-09-06]
 - **An integer literal in an array-literal element position keeps `int`, whatever the array's
   declared element type says.** `array<uint> $u = [7, 8];` compiles and its elements carry the
   **`int`** tag, while `array<uint> $u = [7 as uint, 8 as uint];` carries `uint` — so a sweep whose
@@ -6590,27 +6560,20 @@ sibling in the same namespace unqualified.
   answers plausibly. `rule:types/numeric-literal-placement`'s "a numeric literal is untyped until placed" is applied at a
   parameter and at a binding but not at an element, and the only place it is observable today is a
   `callable`'s parameter-tag check, `Core\Reflect::typeOf` not existing yet. Convert in the literal
-  whenever the tag is the subject.
-- **A promoted constructor property does not exist as a property.**
-  `final class M { public function constructor(public string $name) {} }` compiles, and `$m->name`
-  is then `E0405: `M` has no property named `name`` from anywhere, including inside the class — so
-  a scratch file that reaches for one gets a diagnostic naming the *property* and reads as a typo
-  rather than as the missing feature it is. Declare the field (`public string $name = "m";`) when
-  the case only needs an object with a field; `tests/conformance/core/out-capture-refuses-a-through-that-answers-anything-but-the-carrier.nvst`'s
-  `Impostor` has a promoted one and gets away with it only because it never reads it.
+  whenever the tag is the subject. [until: reviewed 2026-09-06]
 - **An Novis enum case carries no `case` keyword**, so PHP's `enum Colour: int { case Red = 1; }`
   is `enum Colour: int { Red = 1, }` here — commas, not semicolons. Getting it wrong does not
   say so: the parser reports `E0220` *"an enum declares only cases and an optional backing
   type"* pointing at the `{`, then `E0101` *"expected a class member"* at the `case`, then one
   more pair per line, which reads like the enum is in a position that does not accept a
   declaration rather than like a spelling error. Check the spelling against a case under
-  `tests/conformance/lang/` before concluding the *position* is what failed.
+  `tests/conformance/lang/` before concluding the *position* is what failed. [until: reviewed 2026-09-06]
 - **A property default may not be an array with entries in it** — `public array<string> $rows =
   ["a" => "x"];` is `E0472` (*"a property default must be a `array<string>` literal"*, which reads
   as if the literal were mistyped), and `[]` is the only array a declaration may carry. So a scratch
   file or a `.nvst` case that wants a pre-filled array property fills it with element writes after
   the `new`, or in `constructor` — and the same rule bites a `public static` one, where there is no
-  constructor to fall back on and the writes have to be top-level statements.
+  constructor to fall back on and the writes have to be top-level statements. [until: reviewed 2026-09-06]
 - **A panic's message names the shape it was written for, not the shape that reaches it.**
   `stmt.rs`'s property-write panic said "its receiver erased to a plain `object`, which `rule:types/erased-member-access`'s erased half still does not lower", and the erased half had landed sessions
   earlier — `$o->name = "z"` through a plain `object`, a `mixed` and a shape all run, and
@@ -6619,7 +6582,7 @@ sibling in the same namespace unqualified.
   property on a class kind the checker excused. Four scratch `.nvs` files under `.agent-tmp/`
   found that in one call each; reading the message and believing it would have rebuilt a
   feature that was already there. Enumerate the arms of whatever *records* the table entry
-  and probe one program per arm, before taking the panic's own account of itself.
+  and probe one program per arm, before taking the panic's own account of itself. [until: reviewed 2026-09-06]
 - **A plan field's "no shape left the checker accepts" is a claim, not a proof, and the cheap way
   to judge one is the roster and the binary rather than the arms.** `StmtKind` has 31 variants and
   `lower_stmt` had arms for 18; four of the thirteen left — `autoload`, `namespace`, `use` and
@@ -6628,7 +6591,7 @@ sibling in the same namespace unqualified.
   `require`d file whose statements never lower. Grep the enum's variant list, subtract the arms,
   then write one scratch `.nvs` per survivor and run it: six `nvs run` calls settled thirteen
   variants, where reading the arms would only have re-derived the claim. The same subtraction is
-  what turns the residue into the doc comment the panic then carries.
+  what turns the residue into the doc comment the panic then carries. [until: reviewed 2026-09-06]
 - **Inside a `namespace`, a qualified name resolves *relative* to it — including `Core\`.** A file
   that opens `namespace App;` and then writes `Core\Str::length("abc")` is `E0303: App\Core\Str is
   not declared`, and so is `Core\Str::class`; the reserved namespace gets no exemption from the
@@ -6636,7 +6599,7 @@ sibling in the same namespace unqualified.
   same line works in a namespace-less scratch file, which is how it cost time. `use Core\Str;` and
   then `Str::length(...)`, or write the leading `\`. The same rule is why `App\User::class` inside
   `namespace App;` is `App\App\User` — PHP resolves both exactly this way, so it is a trap rather
-  than a divergence.
+  than a divergence. [until: reviewed 2026-09-06]
 - **Widening what the *checker* accepts for an integer literal opens a hole in `nvs-ir` one
   crate down.** `lower_int_literal` decides `ConstInt` versus `ConstUint` from the
   `expected: Option<Ty>` its *caller* threads, not from anything the checker recorded — so a
@@ -6645,14 +6608,14 @@ sibling in the same namespace unqualified.
   down. `lower_binary` passes `Some(lty)` to its right operand and only the whole
   expression's `expected` to its left, which is why the left-hand digit run was the half that
   fell over while `$u - 18446744073709551615` was already fine. The two crates have to make
-  the same placement, and the checker's half alone is not the feature.
+  the same placement, and the checker's half alone is not the feature. [until: reviewed 2026-09-06]
 - **`inout ...$rest` does not parse, and spreading into a variadic `inout` tail is accepted in
   silence.** `Parser::parse_arg` tests for `...` *before* it eats `inout`, so the marked spelling
   eats the word and then fails on the ellipsis — `E0714` plus five lines of `E0101`/`E0102`
   cascade, which is not a shape to pin. The unmarked one is worse: `Adder::many(...$rest)` against
   `public static function many(inout int ...$xs)` compiles and runs with no diagnostic at all,
   though nothing is written back. So `E0714`'s "a spread's entries" half is reachable only through
-  a *fixed* `inout` parameter, and a case that wants the variadic row has to wait for that hole.
+  a *fixed* `inout` parameter, and a case that wants the variadic row has to wait for that hole. [until: reviewed 2026-09-06]
 - **A new `nvs_ir::Helper` needs a *fourth* edit, and the three obvious ones build without it.**
   The variant, `nvs_ir::print`'s name and `nvs_codegen::emit`'s `helper_symbol` row all compile
   happily; what fails is at run time, `cranelift-jit` panicking with `can't resolve symbol
@@ -6661,7 +6624,7 @@ sibling in the same namespace unqualified.
   the `(name, address)` table `nvs-codegen` registers with `JITBuilder::symbol` — a `#[no_mangle]`
   helper is *not* found by name in the host process, it is found in that vector. Grep it for a
   neighbouring helper rather than trusting the compiler to notice: `grep -n "nvs_call_closure"
-  crates/` names all four sites at once.
+  crates/` names all four sites at once. [until: reviewed 2026-09-06]
 - **A refusal in `nvs_types` phrased "this operand is not one of the four rows"
   does not cover a `mixed` operand, and the hole opens one crate down.**
   `reject_unary_arith_operand` decides from `equality_domain`, which answers
@@ -6673,7 +6636,7 @@ sibling in the same namespace unqualified.
   of these" leaves the erased operand to the *runtime*, so every such site owes
   a tagged answer one crate down or it owes a diagnostic that names `mixed`
   explicitly. `python tools/holes.py --item N` lists the sites; running the
-  shape in a scratch `.agent-tmp/*.nvs` is what tells the two apart in one call.
+  shape in a scratch `.agent-tmp/*.nvs` is what tells the two apart in one call. [until: reviewed 2026-09-06]
 - **`nvs-codegen` has *two* catch-alls under one operator, and the cheap-looking one is the
   dangerous one.** `emit_binop` reports "a `Sub` over representation `Str`" from a
   representation gate near the top and "the binary operator `Mod`" from the match at the
@@ -6683,7 +6646,7 @@ sibling in the same namespace unqualified.
   to an `iadd` over the `i8` a `bool` is stored in and printed a *number*, where the same hole
   over two `string`s merely refused. So when closing an operator table at the checker, probe
   the `bool` row first and read its answer rather than its exit status; a refusal you can see
-  is the good case.
+  is the good case. [until: reviewed 2026-09-06]
 - **A `catch` binding has no methods at all, and that is now a diagnostic rather than a panic.**
   `catch (Throwable $e) { echo $e->getMessage(); }` is `E0405` where it is written, with a help
   naming the property that answers the same question (`->message`), and so is every other PHP
@@ -6692,7 +6655,7 @@ sibling in the same namespace unqualified.
   typed-expression table"*, a message blaming a `mixed`/union/scalar receiver, because the
   exception tree was exempt from the unknown-member refusal long after `nvs_types::error_lib`
   began seeding it. So a case that wants to show *what* was thrown reads `$e->message`, and the
-  spellings a ported program reaches for are refused where they are written.
+  spellings a ported program reaches for are refused where they are written. [until: reviewed 2026-09-06]
 - **An exemption written for a class family that had no signatures outlives the seeding
   and reads as a checker/lowering mismatch.** The exception tree was skipped by
   `infer_method_call`'s unknown-member refusal (`!qname.is_reserved_global_class()`) long
@@ -6700,15 +6663,7 @@ sibling in the same namespace unqualified.
   `$e->getMessage()` panicked `nvs-ir` while `$e->nope` refused cleanly one module over.
   The cheap diagnosis is to ask the *other* member kind the same question: a property half
   that refuses where the method half panics means the hole is an exemption in the checker,
-  not a missing feature below it.
-- **A promoted constructor parameter is not a property at all yet**, so `private Greets
-  $inner` has to be written out in full in any fixture that reads it back. `public
-  function constructor(private Greets $inner) {}` parses and checks the *declaration*,
-  and then `$this->inner` is `E0313: `Outer` has no property named `inner``, because
-  `nvs_types::layout::own_properties` collects declared `ClassMemberKind::Property`
-  members and nothing else — a reader that gets past the checker (a synthesized `rule:classes/delegation-by-field` forward did) fails one crate down with "nvs-codegen does not lower the property
-  `Outer::inner`, which this unit declares no slot for yet". `rule:classes/delegation-by-field`'s own worked
-  example writes the field out, and so should a case.
+  not a missing feature below it. [until: reviewed 2026-09-06]
 - **A new `nvs_runtime::Tag` discriminant collides with a nibble that was chosen as "one past the
   roster".** `FN_PARAM_TAG_ANY`/`CLOSURE_PARAM_TAG_ANY` — the closure-parameter nibble meaning "no
   argument can be wrong for this one" — was `12` because the tag roster ran to eleven, so adding
@@ -6716,7 +6671,7 @@ sibling in the same namespace unqualified.
   visible from the tag's own crate; what caught it is `nvs-codegen`'s
   `the_any_nibble_denotes_no_tag_at_all`, one test holding three crates' copies of one number
   together, and the five conformance cases that then failed all named closure arguments rather than
-  the tag. Both constants are `15` now, parked at the top of the nibble on purpose.
+  the tag. Both constants are `15` now, parked at the top of the nibble on purpose. [until: reviewed 2026-09-06]
 - **A property access records the class the *receiver* was typed as, not the class that declared the
   property.** `nvs_types::expr::members::check_property_member` writes `ExprInfo::Property { class:
   qname }` from the receiver, which is right for `InstKind::FieldGet` (a slot index computed against
@@ -6724,7 +6679,7 @@ sibling in the same namespace unqualified.
   that label: an inherited `lateinit` read through a subclass answers `false` against the parent's
   own-only record and the guard is silently not emitted. Flatten such a table along the class graph
   where it is recorded, rather than expecting the declaring class at the site — and note the failure
-  is quiet, because a method that never touches `$this` runs perfectly well on a null receiver.
+  is quiet, because a method that never touches `$this` runs perfectly well on a null receiver. [until: reviewed 2026-09-06]
 - **A `nvs-ir` instruction's kind is often bound to a local first, so grepping `self.emit(` for a
   literal `InstKind::` misses sites.** Sweeping every status-returning instruction onto
   `emit_fallible` for item 36, a scanner that parsed the kind out of each `self.emit(...)` call
@@ -6733,19 +6688,19 @@ sibling in the same namespace unqualified.
   rows). What found them was turning `nvs_codegen::emit`'s tolerant `None` arm into an
   `internal(...)` refusal and running the crate's own tests: the backend already knows which
   instructions return a status, so make it say so and let the suite enumerate the producers rather
-  than trusting a grep over the emitters.
+  than trusting a grep over the emitters. [until: reviewed 2026-09-06]
 - **`Class::CONST` is `mixed` at every expression site, whatever the constant declares.**
   `nvs_types::signatures`' own module doc names it as a known gap: the const table holds `rule:types/constant-in-type-position`'s folded *values* and there is no table of a class constant's declared *type*, so `int $n =
   Limits::MAX;` is `E0401` and a payload field holding one satisfies no shape declaring a scalar.
   A `.nvst` that wants a constant in a typed position writes the literal, or an enum case, which
-  does carry its type.
+  does carry its type. [until: reviewed 2026-09-06]
 - **An attribute's name was already load-bearing for two other passes before `rule:attributes/attach-sites-and-forms` got to
   say what it means.** `rule:core-classes/derive-attribute` matches `#[Json\Derive]`/`#[Json\Field]` *nominally* against a
   closed `Core`-owned roster, and `rule:programs/autoload` harvests every attribute name as a reference the
   autoloader then places by prefix. So a rule about what an attribute name may resolve to has to
   exempt the first and leave the second alone — and the tests that pin them are the ones that
   fail first: `tests/conformance/lang/a-class-named-only-by-an-attribute-is-autoloaded.nvst` and
-  the four `json-derive-*` cases.
+  the four `json-derive-*` cases. [until: reviewed 2026-09-06]
 - **A size check is not a loop bound.** `Core\Bytes::repeat` and `Core\Str::repeat` both
   checked the *product* — `affordable` on `len * times`, then the allocator — and then ran
   `for _ in 0..times`. An empty subject makes that product zero for every count there is,
@@ -6756,7 +6711,7 @@ sibling in the same namespace unqualified.
   general shape to look for is a loop whose iteration count is the *caller's count* rather
   than the *result's size*: the two size seams are both about how large the answer is, so
   neither can see it, and nothing else in the tree can either — it builds, it is correct,
-  and it returns.
+  and it returns. [until: reviewed 2026-09-06]
 - **`nvs_runtime::affordable` is not the last check, and the gap is one header wide.** It
   accepts any size up to `isize::MAX` and knows nothing of the container header the
   allocation then prepends, so a `Core\Str` producer handed exactly `isize::MAX` cleared
@@ -6767,7 +6722,7 @@ sibling in the same namespace unqualified.
   it is about to add while `built_fallibly` allocates that run *plus the subject* — and
   the boundary count is the largest the first one accepts, not a round number. The
   `Core\Bytes` and `Core\Arr` families were already clean, their `Vec`-backed reserves
-  being genuinely total.
+  being genuinely total. [until: reviewed 2026-09-06]
 - **An expression-bodied `fn (): void => Something();` panics `nvs-codegen`, and the block-bodied
   form of the same closure does not.** `Core\Out::capture(fn (): void => M::run())` dies with
   `nvs-codegen does not lower an operand used before it is defined`, while
@@ -6775,7 +6730,7 @@ sibling in the same namespace unqualified.
   it is the `void` return rather than the call or the arrow that is unlowerable. Every existing
   `Core\Out::capture` case in the corpus already uses the block body, which is why nothing had
   caught it. Write the braces; the panic names neither the closure nor its return type.
-  Bisecting to it costs a scratch run per candidate.
+  Bisecting to it costs a scratch run per candidate. [until: reviewed 2026-09-06]
 - **A refusal the parser writes takes an `E02xx` code, not the `E01xx` "next free parser code."** The
   bands are by *kind*, not by which crate reports them: `E01xx` is a malformed parse, `E02xx` is
   "rejected PHP constructs", and a PHP spelling Novis declines is the second one however early it is
@@ -6783,7 +6738,7 @@ sibling in the same namespace unqualified.
   `E_IMPORT_GROUP_UNSUPPORTED` (`E0238`) are all reported from `parser/decl.rs`. So a `loop-goal.toml`
   comment naming "the next free parser code" is naming the band `brief.py` prints for `E01xx`, which is
   the wrong half of the registry for a refusal — find the sibling refusal's code first and take the
-  number next to it.
+  number next to it. [until: reviewed 2026-09-06]
 - **A refusal site's *message* can be about a different feature than the item that claims it**, because
   `holes.py` attributes by file. Item 16 was written as "a named argument and a spread argument lower",
   and both of those had landed; all three sites it still claimed were the `let CallArgs::List(list) = args
@@ -6791,7 +6746,7 @@ sibling in the same namespace unqualified.
   branch before believing the item's title, and settle reachability with four scratch runs rather than by
   reasoning: `Class::method(...)` and `$obj->method(...)` both died a whole file earlier at
   `expr.rs`'s "no resolved target recorded" panic, `$m->method(...)` was already a diagnostic, and the one
-  shape that actually reached `lower_call_args` was `new C(...)` — which nothing in the item mentioned.
+  shape that actually reached `lower_call_args` was `new C(...)` — which nothing in the item mentioned. [until: reviewed 2026-09-06]
 - **A function's disassembly holds more cold blocks than its IR does, so "skip the `Propagate`
   blocks" does not skip the cold path.** Counting `call` lines in a whole `--dump-asm` section
   prices an access for three other mechanisms: for `$c->n = $c->n + 1` the extra calls are an
@@ -6803,7 +6758,7 @@ sibling in the same namespace unqualified.
   following that `jnz` gives the path a run that throws nothing takes. Two consequences worth
   knowing before writing a guard: the probe calls are *conditional*, so a "subtract one call per
   `StmtMarker`" correction over a whole-function count is measuring nothing; and `Cell::plainOne`
-  emits 23 calls of which 5 are on that path.
+  emits 23 calls of which 5 are on that path. [until: reviewed 2026-09-06]
 - **A fixture that needed a `mixed` value has probably reached for whatever was `mixed` that
   week, and closing a gap moves it.** `an_array_index_through_a_mixed_base_defers_to_the_tag`
   (`crates/nvs-types/src/expr_table.rs`) used `T::UNTYPED[0]` over an unannotated `const UNTYPED
@@ -6812,14 +6767,14 @@ sibling in the same namespace unqualified.
   on anything about constants. The fix is to give such a fixture the erasure it actually means —
   a `mixed` parameter — rather than to hunt for the next thing that still infers `mixed`. So when
   a slice widens what the checker knows about a shape, `grep` the test tree for that shape used
-  as a *source* and not as a subject.
+  as a *source* and not as a subject. [until: reviewed 2026-09-06]
 - **`Core` is two rosters, not one, and the second is the exception tree.** Narrowing a `Core` name
   from the `is_core()` spelling test to `nvs_stdlib::registry` looks total — the registry's own docs
   call `CLASSES` the whole roster — and it refuses `new Core\Test\Failure(...)`, which lives in
   `nvs_hir::errors::TREE` instead. `QName::is_reserved_global_class`'s doc comment says so out loud
   ("its one namespaced row is trusted to exist through `is_core`"), on the predicate you are *not*
   editing, so it is only found by the conformance leg. Any check that reads `is_core()` as "in the
-  registry" owes `errors::is_exception_class` beside it.
+  registry" owes `errors::is_exception_class` beside it. [until: reviewed 2026-09-06]
 - **"ADR § X makes this return-only" is a rule with two enforcement sites, and a tree can have
   neither while looking like it has one.** `rule:types/grammar`'s `void`/`never` were return-only in the
   grammar's prose and nowhere else: `never $p` panicked `nvs-ir`'s `lower_checked_ty`, and `void $p`
@@ -6829,7 +6784,7 @@ sibling in the same namespace unqualified.
   one failing differently. Two minutes of `nvs run` on a two-line scratch file is what tells the
   three apart — a shape that panics, a shape that is refused, and a shape that reaches codegen and
   dies there is a *third* outcome `crates/nvs-ir/tests/type_atoms.rs` cannot see at all, because it stops at
-  `lower_program`.
+  `lower_program`. [until: reviewed 2026-09-06]
 - **`nvs-ir` does not depend on `nvs-hir`, so an `ExprInfo` variant carrying a `QName` cannot be
   destructured by name there.** `nvs_types::expr_table::ExprInfo` names `nvs_hir::QName` freely —
   `ExprInfo::New`'s `class` is one — and `nvs-ir` gets away with it only because every site it reads
@@ -6837,12 +6792,12 @@ sibling in the same namespace unqualified.
   wants a `&[nvs_hir::QName]` parameter fails with `unresolved module or unlinked crate nvs_hir` at
   the signature, not at the use, which reads as a missing `use` and is not one. Convert to `String`
   at the `self.exprs.lookup(...)` site and let the helper take `&[String]`; adding the dependency to
-  buy one type name would put the whole HIR in the lowering crate's graph for nothing.
+  buy one type name would put the whole HIR in the lowering crate's graph for nothing. [until: reviewed 2026-09-06]
 - **Inside `namespace App;`, `Core\Str` means `App\Core\Str`.** A `Core` name in a namespaced file
   needs the leading `\` — `\Core\Str::upper`, `#[\Core\Route(...)]` — and without it the diagnostic
   is `E0303: 'App\Core\Command' is not declared`, which names the joined path rather than the missing
   backslash. The top-level fixtures never show this because they are in the global namespace, so it
-  first bites on the *autoloaded* half of a two-file example.
+  first bites on the *autoloaded* half of a two-file example. [until: reviewed 2026-09-06]
 - **A `Core` attribute name cannot be an `rule:attributes/attach-sites-and-forms` shape alias, because there is no `Core`-seeded
   alias table.** `nvs_hir::AliasTable` is collected from source `type` declarations and from nothing
   else (`crates/nvs-hir/src/aliases.rs:92`), so `Core\Command` reaches
@@ -6851,7 +6806,7 @@ sibling in the same namespace unqualified.
   `Core`-owned attribute is therefore a *nominal* match on `nvs_types::derive::ATTRIBUTES` and owes a
   pass that checks its payload, which is the one thing that keeps that closed list from admitting
   `#[Command(nmae: "x")]` in silence. A handoff item that says an attribute "becomes a shape-typed
-  `type` alias" is naming the diagnostic, not the mechanism.
+  `type` alias" is naming the diagnostic, not the mechanism. [until: reviewed 2026-09-06]
 - **A `Class::CONST` whose class does not exist passes checking and panics `nvs-ir`.**
   `echo \Core\Http\Method::Get;` type-checks clean today and dies at
   `crates/nvs-ir/src/lower/expr.rs:274` with "a `Class::CONST` … with no value recorded in the
@@ -6859,7 +6814,7 @@ sibling in the same namespace unqualified.
   writes resolves to anything, and `nvs_types::check` reports no `E0405` for the class half of
   that spelling. The same hole is why a payload roster naming an enum the tree does not declare
   (`nvs_types::routes` gap 1) admits a case of the wrong enum rather than refusing it: nothing
-  below the roster is asking whether the name exists.
+  below the roster is asking whether the name exists. [until: reviewed 2026-09-06]
 - **`array<K, V>` is a spelling the docs write and the type system has no form for.**
   `nvs_types::ty::Ty::Array` carries one `TypeId`, and there is no `CoreTy` for a keyed
   array — a Novis array's keys are `int|string` by construction and are not part of its
@@ -6869,13 +6824,13 @@ sibling in the same namespace unqualified.
   nor a `#[Query]` parameter a compile error). Same family, one call earlier:
   `Core\Arr::append`'s second parameter is one *element*, so `Core\Arr::append($a, $b)`
   over two arrays is `E0401: expected int, found array<int>` rather than a concatenation
-  — build the combined array with a `foreach` and one `append` per element.
+  — build the combined array with a `foreach` and one `append` per element. [until: reviewed 2026-09-06]
 - **A field added to `nvs_types::Env` builds clean and fails `--all-targets`.** There are three
   construction sites, and the third (`crates/nvs-types/src/lower.rs:668`) is inside a `#[cfg(test)]`
   module, so `cargo build -p nvs-types` is green while `cargo check -p nvs-types --all-targets` is the
   first thing that reports `E0063: missing field`. The two real sites are `check.rs`'s per-file loop
   and `signatures.rs`, which wants a scratch value for the same reason it passes a placeholder
-  `ExprTypeTable`: its pass runs before anything fills the new table.
+  `ExprTypeTable`: its pass runs before anything fills the new table. [until: reviewed 2026-09-06]
 - **A `Core` implementation symbol that no `CoreMethod` row names is never handed to the JIT, and
   the failure is a `cranelift-jit` panic at run time rather than anything a build reports.**
   `nvs_stdlib::symbols()` (`crates/nvs-stdlib/src/lib.rs:264`) builds the roster it registers by
@@ -6887,7 +6842,7 @@ sibling in the same namespace unqualified.
   member's own — `rule:routing/matching-is-not-dispatching`'s two prepared link entry points, a constructor — owes a `.chain()`
   in that function beside `registry::CONSTRUCTORS`', **and** a term in
   `every_registered_member_has_an_implementation_address`' arithmetic, which is the same sum
-  written out a second time and fails the moment the roster grows.
+  written out a second time and fails the moment the roster grows. [until: reviewed 2026-09-06]
 - **The handoff proposes; the ADR decides — and `nvs.toml`'s location is the worked case.** The handoff
   scoped `[app] origin` as "read `nvs.toml` beside the entry file", which `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 2 forbids
   outright: the root of the configuration tree is `./nvs.toml` in the **working directory**, exactly one
@@ -6896,7 +6851,7 @@ sibling in the same namespace unqualified.
   it. A handoff bullet is the previous session's *plan*, written before it read the ADR the slice lands
   inside; when the two disagree the ADR body wins and the handoff is the bug. `rule:config/an-application-is-its-entry-file-path` is the one to
   read next here — it makes `[[app]]` an array of tables keyed on `root`/`entry`, which `rule:routing/an-absolute-link-takes-a-configured-origin`'s
-  plain `[app] origin` does not know about yet.
+  plain `[app] origin` does not know about yet. [until: reviewed 2026-09-06]
 - **A refusal over a *derived* fact fires on declarations that were already refused for something
   else, and the existing `--EXPECTF-ERROR--` case is what catches it.** `rule:core-classes/derive-generates-what-is-missing`'s "an attribute
   with no effect is a mistake" reads as "refuse a `#[Json\Derive]` class whose field list came out
@@ -6906,13 +6861,13 @@ sibling in the same namespace unqualified.
   than an `Option`, so the empty-contract error fires for a class that chose an empty contract and
   never for one that was already told what is wrong. General shape: before adding a diagnostic
   whose condition is *the absence of a result*, grep the reject tree for a case that already makes
-  that result absent.
+  that result absent. [until: reviewed 2026-09-06]
 - **Renaming a `pub` field breaks intra-doc links written in its *neighbours*, and the only step that
   says so is `verify.py`'s last one.** `Route::query` became `Route::params`; the sibling `access` field's
   doc comment said "exactly as [`Self::query`] does", which builds, tests, clippies and formats cleanly and
   then fails `cargo doc` with `-D rustdoc::broken_intra_doc_links` — a whole verify run spent on a
   four-character edit. Before renaming a `pub` item, `grep -n "Self::<oldname>\|\[\`<oldname>\`\]"` over the
-  crate: an intra-doc link is invisible to every other tool in the gate.
+  crate: an intra-doc link is invisible to every other tool in the gate. [until: reviewed 2026-09-06]
 - **A new `CoreTy` variant that *wraps* another type silently falsifies seven walkers, and `rule:security/unclassified-parameter-refuses-tainted`
   's classification is a leaf variant because of it.** Every recursive `match` over `CoreTy` in
   `crates/nvs-stdlib/src/registry.rs` — `collect_written`, and the six inside `mod tests` — ends
@@ -6924,7 +6879,7 @@ sibling in the same namespace unqualified.
   only two sites that had to change are the ones that name `CoreTy::Str` specifically:
   `nvs_types::core_lib::lower` and one `matches!` in a registry test. **The data landed first and the
   enforcement followed**: `lower` still maps `Text(_)` to the same interned `string` as `Str`, and the
-  mark travels beside the lowered type in `MethodSig::param_quals`, which is what the call check reads.
+  mark travels beside the lowered type in `MethodSig::param_quals`, which is what the call check reads. [until: reviewed 2026-09-06]
 - **`OWED_A_CASE`'s declaration window is eight lines measured from the `Fault::` line, so a
   long comment with the phrase at the top is invisible to the gate.**
   `conformance_coverage.rs`'s scan walks *upward* from the site and stops at the first line
@@ -6934,7 +6889,7 @@ sibling in the same namespace unqualified.
   reasoning needs more than four lines, and note that a helper with several guards needs one
   declaration per guard rather than one at the top of the function — `time.rs`'s `instant_of`
   reads three slots and each needed its own line, two of them a single sentence pointing at
-  the first.
+  the first. [until: reviewed 2026-09-06]
 - **A grapheme count does not decompose into one correction per seam, and regional indicators
   are the whole of why.** Caching `Core\Str::length` in the string header makes a concatenation
   want `left + right - (a cluster spans the join)`, and that is right for every UAX #29 rule but
@@ -6947,7 +6902,7 @@ sibling in the same namespace unqualified.
   refuses the seam outright when a regional indicator sits on both sides, and the caller leaves the
   count uncached; that is one range check each side and it costs flags a scan rather than an
   answer. The general shape: a cached aggregate over Unicode text may only be corrected locally for
-  the rules that *are* local, and there is exactly one that is not.
+  the rules that *are* local, and there is exactly one that is not. [until: reviewed 2026-09-06]
 - **A `Core` call that builds its argument vector by hand must call `account_for_arg` itself, and
   nothing but a valgrind run will tell you it did not.** `nvs_ir::lower::lower_route_link` is the
   only site that does not go through `lower_call_args`, and it lowered `$params` without staging
@@ -6961,7 +6916,7 @@ sibling in the same namespace unqualified.
   wherever lowering hand-rolls what a shared helper normally does, the accounting is the half that
   gets dropped, and `crates/nvs-ir/src/lower/tests.rs`'s
   `a_resolved_route_link_releases_its_params_array` is the assertion shape that pins one — find
-  the call's own argument `ValueId` and require a `Release` of *it*, never a count of releases.
+  the call's own argument `ValueId` and require a `Release` of *it*, never a count of releases. [until: reviewed 2026-09-06]
 - **Classifying a `Core` class can break that class's *own* structural unit test, and the `rule:security/sink-predicate`
   ratchet says nothing about it.** `Core\Test`'s nine rows share one `MESSAGE: &[CoreOption]`, so
   marking the bag is a single edit — and `test::tests::the_only_option_is_a_message_that_defaults_to_absent`
@@ -6970,7 +6925,7 @@ sibling in the same namespace unqualified.
   (`every_member_parameter_carries_a_qualifier_classification`) passes cleanly while that one fails,
   so the failure names a member you did not think you were editing. Grep the class's own `mod tests`
   for `CoreTy::Str` before classifying it; `Core\Path`, `Core\Time` and `Core\Uri` happened not to
-  have one and `Core\Test` does.
+  have one and `Core\Test` does. [until: reviewed 2026-09-06]
 - **A *prepared* `Core` member has two bodies, and the registry names the one that throws.** Reading
   `nvs_stdlib::registry`'s `symbol` for `Core\Router::url` lands on `nvs_core_router_url`, whose whole
   body is `Err(no_such_route(...))` — which reads as "this feature is not built", and the module's own
@@ -6980,13 +6935,13 @@ sibling in the same namespace unqualified.
   the unfolded path because that is the one a computed argument takes. So for any member `rule:expressions/intrinsic-literals`
   *prepares* rather than folds, `grep` the crate for a sibling symbol before believing the body the row
   points at — or just run it: `target/debug/nvs.exe run` on four lines settled in one call what reading
-  three doc comments had got backwards.
+  three doc comments had got backwards. [until: reviewed 2026-09-06]
 - **A class is not generic at the `new` site.** `new Core\Task\Channel<int>(2)` is `E0441: this target
   takes no type arguments` — the `<T>` positions the language has are the built-in ones (`array<T>`,
   `Iterator<T>`, `Core\Program::implementing<T>()`), not a user or `Core` class's constructor. A
   container's element type is therefore carried by the `foreach` binding (`foreach ($chan as int $v)`)
   and by the declared type of what goes in, which is enough for the checker and is what
-  `examples/channel.nvs` is written against.
+  `examples/channel.nvs` is written against. [until: reviewed 2026-09-06]
 - **Dropping a suspended `corosensei` coroutine unwinds its stack, and a `catch_unwind` in the way
   aborts the process.** `Coroutine::drop` raises a private `ForcedUnwind` marker down the coroutine's
   stack and expects to see it come back out; `nvs_runtime::run_task` — which sits under every task
@@ -6998,7 +6953,7 @@ sibling in the same namespace unqualified.
   ordinary worker shutdown with one request still parked, which is why the fix is
   `nvs_runtime::Teardown` (a thread-local depth counter that makes `run_task` re-raise instead of
   contain) held across `Drop for Scheduler`, and not "drain the parked set first". Anything else that
-  gains a `catch_unwind` between a coroutine's root and its suspension points owes the same guard.
+  gains a `catch_unwind` between a coroutine's root and its suspension points owes the same guard. [until: reviewed 2026-09-06]
 - **A non-blocking `connect` cannot be completed by asking `peer_addr`, whatever `mio`'s own example
   says — on Windows that call answers `Ok(the target address)` for a socket whose connect has not
   succeeded and never will.** `take_error` is `Ok(None)` there too until the attempt actually ends
@@ -7007,7 +6962,7 @@ sibling in the same namespace unqualified.
   platforms is `take_error` plus a **zero-length write**: `Ok(0)` on a connected socket having sent
   nothing, `NotConnected`/`WouldBlock` while the handshake is in flight, and on Linux the refusal
   itself. `crates/nvs-host/src/net.rs:155`'s `finish_connecting` is the worked shape and its doc is
-  the home of the reasoning. Cost of finding this by hand: four probe builds across Windows and WSL.
+  the home of the reasoning. Cost of finding this by hand: four probe builds across Windows and WSL. [until: reviewed 2026-09-06]
 
 - **A poll asked to wait a bounded time can come back early, so "0 woken" is not "nothing can wake
   these tasks".** A platform rounds a wait to its own timer granularity and returns a fraction of a
@@ -7016,7 +6971,7 @@ sibling in the same namespace unqualified.
   and the test hung on an assert rather than on the clock. `turn` therefore retries a bounded wait
   until it has genuinely reached the earliest deadline (`crates/nvs-host/src/reactor.rs:332`). The
   giveaway that it is this and not a lost wake: the same code with a *second* runnable task passes,
-  because the extra turn hides the early return.
+  because the extra turn hides the early return. [until: reviewed 2026-09-06]
 - **A task cannot reach the `&mut Scheduler` that is resuming it, and every obvious design for the
   task tree dies on that.** `Scheduler::run` holds `&mut self` for the whole turn, so a running
   task can call neither `spawn` nor `cancel` nor anything else on the scheduler — which means a
@@ -7027,7 +6982,7 @@ sibling in the same namespace unqualified.
   in an `Rc<RefCell<..>>` the scheduler publishes in a thread-local for the length of its turn
   (`scheduler.rs:211` and `:782`), which is the shape `crate::reactor` already uses. The second
   half of the same trap: never call `Coroutine::force_unwind` from a task's own stack. Teardown
-  belongs on the scheduler's stack, which is why cancellation *marks* and the next turn unwinds.
+  belongs on the scheduler's stack, which is why cancellation *marks* and the next turn unwinds. [until: reviewed 2026-09-06]
 - **A running task cannot wake a peer, and `Scheduler::wake` is not the route.** It takes
   `&mut Scheduler`, which is the frame currently resuming the task, so anything that unblocks
   *another* task — `nvs-host`'s channel, and every synchronisation primitive written after it — goes
@@ -7039,7 +6994,7 @@ sibling in the same namespace unqualified.
   only within its own tree, so a thread-local read would cross wakes between two schedulers on one
   thread, which is a shape most of this crate's tests take. And the drain has to run **at the top of
   `run` as well as after every resume**, or a wake issued between turns lands in the queue and nothing
-  ever delivers it, leaving the parked task asleep with no error anywhere.
+  ever delivers it, leaving the parked task asleep with no error anywhere. [until: reviewed 2026-09-06]
 - **One new row in `nvs_stdlib::registry::CLASSES` owes four gates, three of them outside the
   crate you are editing.** `every_registered_member_has_an_implementation_address`
   (`crates/nvs-stdlib/src/lib.rs`) wants a symbol with a real address;
@@ -7054,7 +7009,7 @@ sibling in the same namespace unqualified.
   own site why it was reached and stops. What you must *not* reach for is a placeholder
   `Fault::`, because `every_error_path_is_asserted_or_declared_unreachable` then wants either
   a case freezing that message or a declaration naming the diagnostic that refuses the call
-  first, and a not-implemented-yet body has neither.
+  first, and a not-implemented-yet body has neither. [until: reviewed 2026-09-06]
 - **A bare-message failure with no runtime error class installed loses its message at
   `Ctx::take_thrown`, and answers a *null* `Thrown`.** `set_pending` files a
   `Pending::Message`, and the promotion into an object needs a class descriptor —
@@ -7066,7 +7021,7 @@ sibling in the same namespace unqualified.
   `ClassTable` with one `Throwable` carrying the four slots, handed over with
   `Ctx::set_runtime_error_class`. Worth knowing before writing the test, not after: the same
   promotion is what a compiled `catch` runs, so this is the existing semantics rather than a
-  gap, and a test asserting on `matches!(.., Threw(_))` instead is a weaker test for no reason.
+  gap, and a test asserting on `matches!(.., Threw(_))` instead is a weaker test for no reason. [until: reviewed 2026-09-06]
 - **A `Core` member may not park, because a forced unwind cannot cross its
   `extern "C"` frame.** `nvs_host::Scheduler::tear_down` cancels a *parked* task
   with `corosensei`'s `force_unwind`, and a member that suspended — `Core\Time::sleep`
@@ -7080,8 +7035,8 @@ sibling in the same namespace unqualified.
   pads, so an unwind through it would leak every temporary it owns. The fix is
   the other route Novis already has for exactly this: a cancelled task with
   script frames dies by `rule:errors/propagation`'s return status at its next safepoint, which is
-  what `nvs_safepoint` gives `SafepointFlags::CANCEL`.
-- **A task that dies by `rule:errors/propagation`'s return status leaves a *pending* message on its context, and whatever collects that context must not read it as a throw.** The symptom is a program whose deadline works perfectly printing `uncaught in a cancelled sibling: the request was cancelled` and then an uncaught exception at the `Core\Task::map` call site — a cancelled child, collected by `nvs_host::group::Child::run`, whose `ctx.pending()` was the safepoint's own record of the teardown rather than anything the script threw. `Ctx::cancelled()` is the discriminator and it is asked *before* `pending()`; a cancelled child's slot stays empty, exactly as it does for one a forced unwind tore down. The same trap is waiting for every future collector of a child context — the request boundary under `nvs serve`, and whatever reports a `spawn script`.
+  what `nvs_safepoint` gives `SafepointFlags::CANCEL`. [until: reviewed 2026-09-06]
+- **A task that dies by `rule:errors/propagation`'s return status leaves a *pending* message on its context, and whatever collects that context must not read it as a throw.** The symptom is a program whose deadline works perfectly printing `uncaught in a cancelled sibling: the request was cancelled` and then an uncaught exception at the `Core\Task::map` call site — a cancelled child, collected by `nvs_host::group::Child::run`, whose `ctx.pending()` was the safepoint's own record of the teardown rather than anything the script threw. `Ctx::cancelled()` is the discriminator and it is asked *before* `pending()`; a cancelled child's slot stays empty, exactly as it does for one a forced unwind tore down. The same trap is waiting for every future collector of a child context — the request boundary under `nvs serve`, and whatever reports a `spawn script`. [until: reviewed 2026-09-06]
 - **A `CoreTy::Uint` parameter arrives tagged `Tag::Uint` (3), not `Tag::Int` (2), so `Value::as_int()`
   on one answers `None`.** `uint` is a tag of its own by `rule:types/arithmetic`, and the two are not interchangeable
   at the ABI however interchangeable they look in a signature. The failure is not a compile error and not
@@ -7089,7 +7044,7 @@ sibling in the same namespace unqualified.
   bug and is not one. `Value::as_uint()` is the reader, `Value::uint(…)` is what a `-p nvs-stdlib` test
   has to hand such a member, and `crates/nvs-stdlib/src/arr.rs:1792` is the shape to copy. Worth the
   bullet because the row and the body are written in the same minute and nothing between them says which
-  tag a `CoreTy` lands as.
+  tag a `CoreTy` lands as. [until: reviewed 2026-09-06]
 - **`Qual::Sink` needs no rule of its own in `nvs-types`, and that is not the gap it looks like.** A
   classified `CoreTy::Text(q)`/`Blob(q)` lowers to exactly what its unclassified spelling lowers to
   (`crates/nvs-types/src/core_lib.rs:286`), so the refusal a sink parameter gets is ordinary
@@ -7098,7 +7053,7 @@ sibling in the same namespace unqualified.
   leaves a sink to that plain refusal, so grepping for code that reads `Qual::Sink` still finds
   `crates/nvs-stdlib` and nothing else. What genuinely needs a checker rule is the *opposite* shape: a sink whose parameter is `mixed` (`Core\Debug::dump`,
   `Core\Serialize::encode`), where nothing below the call site can still see the qualifier, which is why
-  those three live in `expr/quals.rs` as call-site walks over the written arguments.
+  those three live in `expr/quals.rs` as call-site walks over the written arguments. [until: reviewed 2026-09-06]
 - **The two `Core` coverage gates run in opposite directions, and a class with no members owes
   neither anything.** `conformance_coverage.rs` walks `registry::CLASSES` and asks the repository
   for a `.nvst` case per *member* (plus a floor of three per member); `spec_registry_coverage.rs`
@@ -7107,20 +7062,20 @@ sibling in the same namespace unqualified.
   green with no spec edit and no case, where the handoff had predicted a spec entry beside it.
   Adding a row to the spec for such a class is the actual trap: it would demand a member the class
   exists in order not to have. A class's *prose* home is still owed, and § 19's own last line says
-  where the concurrency surface's is: `docs/spec/00-overview.md` § 2, not this file.
+  where the concurrency surface's is: `docs/spec/00-overview.md` § 2, not this file. [until: reviewed 2026-09-06]
 - **A `CoreCall` to a symbol with no registry row links only if `nvs_stdlib::symbols()` chains it in** —
   `address_of` is not enough, and the failure is a Cranelift panic at *run* time reading
   `can't resolve symbol nvs_core_script_spawn`, long after everything has compiled and every test
   in the crate has passed. `symbols()` walks `registry::CLASSES` and `CONSTRUCTORS`, so a member with
   a row is found for free; a rowless symbol — `rule:routing/routes-are-compiled-not-registered`'s two prepared link entry points, `rule:security/isolate-shares-nothing`'s
   `spawn script` and `await` — needs its own `.chain([...])` there beside `address`'s arm. Two
-  registrations, not one, and the second has no compile-time gate at all.
-- **The live graph carrier keeps the source object's descriptor, so `rule:classes/graph-copy`'s *unresolvable class* has no counterpart there until someone hands it a receiving table.** `decode` resolves a class by name and refuses one the program does not declare; `copy_graph` never resolved anything, because both sides of a `clone` are one program. At the isolate boundary they are not — `nvs-cli` compiles one unit per written path — so the rule had to be added rather than found: `copy_graph_into(value, Some(&resolve))` and `Live::admit`. Do not read a refusal in `graph.rs` as covering both carriers; the `Carrier` trait is the list of what they share.
-- **A transferred call argument is released by the *landing block*, not by the normal edge.** `release_temporaries_since` skips a `TemporaryKind::Transferred` entry, so a lowering test asserting "the transferred value is never released" fails on the error path, where the frame still owes it: a callee that returned non-OK never took the reference. Assert per block — the call's own block for what the normal edge does, `inst.on_error`'s for what the throw does — and the pair reads as the bound it is.
+  registrations, not one, and the second has no compile-time gate at all. [until: reviewed 2026-09-06]
+- **The live graph carrier keeps the source object's descriptor, so `rule:classes/graph-copy`'s *unresolvable class* has no counterpart there until someone hands it a receiving table.** `decode` resolves a class by name and refuses one the program does not declare; `copy_graph` never resolved anything, because both sides of a `clone` are one program. At the isolate boundary they are not — `nvs-cli` compiles one unit per written path — so the rule had to be added rather than found: `copy_graph_into(value, Some(&resolve))` and `Live::admit`. Do not read a refusal in `graph.rs` as covering both carriers; the `Carrier` trait is the list of what they share. [until: reviewed 2026-09-06]
+- **A transferred call argument is released by the *landing block*, not by the normal edge.** `release_temporaries_since` skips a `TemporaryKind::Transferred` entry, so a lowering test asserting "the transferred value is never released" fails on the error path, where the frame still owes it: a callee that returned non-OK never took the reference. Assert per block — the call's own block for what the normal edge does, `inst.on_error`'s for what the throw does — and the pair reads as the bound it is. [until: reviewed 2026-09-06]
 - **`===` and `!==` do not exist**, and reaching for one in a `.nvst` is `E0232` on the operator
   rather than a type error you can read past: Novis keeps exactly one equality operator, `==`, which
   never converts either operand, so there is nothing for a second one to distinguish. A null test is
-  `$x == null`.
+  `$x == null`. [until: reviewed 2026-09-06]
 - **A new `[limits]` key needs four edits, and the one that is easy to miss makes the other three
   read as a silent default.** `max_script_depth` had its `Limits` field
   (`crates/nvs-config/src/tree.rs`), its `DIRECTIVES` row (`crates/nvs-config/src/directive.rs`) and
@@ -7130,7 +7085,7 @@ sibling in the same namespace unqualified.
   default instead. Nothing refuses: the tree accepted the value, the registry classed it, and only
   the number was wrong. The comment above `unit_of`'s `Duration` arm already says exactly this — it is
   worth reading before adding a key rather than after. The full roster is: the `Limits` field, the
-  `DIRECTIVES` row, the `unit_of` arm, and the reader. Nothing fails to compile without the third.
+  `DIRECTIVES` row, the `unit_of` arm, and the reader. Nothing fails to compile without the third. [until: reviewed 2026-09-06]
 - **`rule:errors/on-limit`'s roster of resource limits is restated in four places, and three of them are
   prose no test reads.** Adding `max_output` as a limit whose breach reaches the tier-1 handler
   meant editing the ADR's own list (`docs/decisions/0020.md` § 1, which also
@@ -7139,7 +7094,7 @@ sibling in the same namespace unqualified.
   three limits are enforced... § 1 lists five"), and `Core\Fatal::onLimit`'s reference card `short`
   in `crates/nvs-stdlib/src/fatal.rs`, which enumerates them for the website. Only the enum's own
   `name()` arm is load-bearing, so nothing fails when the other three drift. `grep -rn "cpu_time"`
-  over `docs/adr crates/nvs-stdlib/src` finds all of them in one call.
+  over `docs/adr crates/nvs-stdlib/src` finds all of them in one call. [until: reviewed 2026-09-06]
 - **`unsafe_code` is `forbid` at the workspace root, so the first `unsafe` in a crate is a
   manifest edit before it is a code edit.** `-F unsafe-code` cannot be turned off by any
   attribute — `#[expect(unsafe_code)]` at the call site still fails with *usage of an unsafe
@@ -7149,7 +7104,7 @@ sibling in the same namespace unqualified.
   `[lints.clippy]` copied verbatim from `Cargo.toml`'s `[workspace.lints.*]`, change the one
   line to `unsafe_code = "deny"`, and say in a comment above it which call needs it. Copy both
   tables or the crate silently loses every clippy lint the workspace sets. `nvs-cli` did this
-  for `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable`'s one `Mmap::map`.
+  for `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable`'s one `Mmap::map`. [until: reviewed 2026-09-06]
 - **A source path is read off the filesystem in more places than the front end, and the
   configuration snapshot is the one that bites.** `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`'s bundled executable resolves its entry
   and its whole `require` graph out of an appended payload, so the path handed to `nvs run` is
@@ -7159,7 +7114,7 @@ sibling in the same namespace unqualified.
   `rule:programs/bundle-trust-domain`'s single trust domain, and the only path an `[[app]]` block could legitimately key
   on there is the executable itself, which `run_run` now substitutes. Before changing a byte
   source, `grep -n 'canonicalize\|read_to_string' crates/` for the *other* readers — there were
-  three, in three crates, and only one of them was in `nvs-hir`.
+  three, in three crates, and only one of them was in `nvs-hir`. [until: reviewed 2026-09-06]
 - **A `Known gap` paragraph in a module doc can outlive the gap, and it reads exactly like a
   decision rather than like a report.** `crates/nvs-types/src/defaults.rs`'s said a written
   `= null` stayed refused because "a type that admits both `null` and a `T` has no IR
@@ -7170,7 +7125,7 @@ sibling in the same namespace unqualified.
   overturn and was one missing match arm. One `grep` for the shape the paragraph says is
   impossible is the whole check — the same check the *a `loop-goal.toml` comment can be stale
   about the tree* bullet asks for one file up, because a sentence written as a reason is still a
-  claim about the tree.
+  claim about the tree. [until: reviewed 2026-09-06]
 - **Making an operator throw is four edits, not one, and the codegen guard is the last of them.**
   Adding the zero-divisor guard to `emit_binop`'s float `/` built and then died at run time with
   `internal error: an arithmetic throw with no error edge`: `raise_arithmetic_error` leaves the block
@@ -7183,14 +7138,14 @@ sibling in the same namespace unqualified.
   down as deliberate), and whatever `.nvst` cases used the old answer as an *instrument* rather than
   as a subject. That last one is the expensive half and no grep for the operator finds it: eight math
   cases read the sign of a zero with `1.0 / $z`, which is exactly the divisor that now throws, so they
-  all had to move to `Core\Math::fdiv`. Grep for the *shape* — `1.0 /`, `/ 0.0` — not for the feature.
+  all had to move to `Core\Math::fdiv`. Grep for the *shape* — `1.0 /`, `/ 0.0` — not for the feature. [until: reviewed 2026-09-06]
 - **Refusing a construct that already parses breaks the tests that used it as a *fixture*, not as a
   subject.** `<>` was a row in `operators_longest_match_wins`, and `new class { … }` was the body two
   `casing.rs` fixtures used to prove the casing pass descends into a nested declaration; all three
   called a helper that asserts the parse was clean, so they failed with the new code rather than with
   anything about the shape they test. Before writing a refusal, grep the crate for the spelling — the
   fix is to move the fixture to the helper that collects both halves (`casing.rs`'s `parse_and_check`)
-  or to hand the shape to the new test outright, never to weaken the new refusal.
+  or to hand the shape to the new test outright, never to weaken the new refusal. [until: reviewed 2026-09-06]
 - **A new refusal is a hypothesis until the whole conformance tree has run it, and the tree is where
   the counterexample lives.** `E0787`'s first shape — refuse *every* write to a property with a
   `get` hook and no `set` — read as obviously right, passed its own new case, and was refuted in one
@@ -7199,7 +7154,7 @@ sibling in the same namespace unqualified.
   arms its own `get`-only property from its constructor. That case is the language's own answer to
   "how does such a property ever hold a value", and it turned the rule scope-shaped (only the
   declaring class writes it) rather than blanket. So: write the refusal, run the whole tree, *then*
-  write the case that pins it — a case written first only pins the rule you already believed.
+  write the case that pins it — a case written first only pins the rule you already believed. [until: reviewed 2026-09-06]
 - **A qualifier written on an element of an array literal is gone before any call-site rule looks at
   it.** `check_array_literal` (`crates/nvs-types/src/expr/literals.rs:718`) joins nothing: with no
   expectation on it a literal infers `array<mixed>`, so `Core\Json::encode(["token" => $secret])`
@@ -7208,7 +7163,7 @@ sibling in the same namespace unqualified.
   lost at the literal, and a call-site walk could not recover it one variable later anyway. So a
   refusal written over the argument's *type* is right and it is not the whole of § 4's "anywhere in
   the value it walks": probe the container spelling with a scratch `.nvs` before writing the case
-  that claims it, or the case pins a refusal that never fires.
+  that claims it, or the case pins a refusal that never fires. [until: reviewed 2026-09-06]
 - **A diagnostic reported at a *read* fires a second time on a declaration another diagnostic
   already refused, and the two cases it turns red look unrelated to what you wrote.** `E0792` — a
   class constant whose value folds to nothing — was written at the read rather than the
@@ -7220,7 +7175,7 @@ sibling in the same namespace unqualified.
   a *use* of a declaration, ask which declared types can never have reached this point cleanly —
   `mixed` here is "already `E0246`" and `bytes` is "no literal exists to write" — and return early
   for each with the other diagnostic named, because a read is not where either mistake is worth
-  saying twice.
+  saying twice. [until: reviewed 2026-09-06]
 - **A hand-built forwarding call must forward the whole calling convention, and the two parameter
   shapes that do not survive one abort inside `nvs-runtime` rather than reporting.** `rule:types/callable-is-a-closure`'s
   `(...)` lowers to a thunk that passes its own parameters straight through, which is right for
@@ -7230,7 +7185,7 @@ sibling in the same namespace unqualified.
   `nvs-runtime/src/array.rs`, naming a slot dereference with nothing pointing back at the callable
   that built it. A scratch that prints the right answer for the ordinary shapes says nothing about
   these, so write one case per *declaration* shape the callee can have — not per call site — and
-  read `nvs_types::signatures::MethodSig`'s own field list for what those shapes are.
+  read `nvs_types::signatures::MethodSig`'s own field list for what those shapes are. [until: reviewed 2026-09-06]
 - **Hand-built IR that needs a `Ty::Tagged` operand emits the bare constant and *then*
   `InstKind::Tag`; the `Ty` on the instruction is not a cast, and skipping the `Tag` fails in
   Cranelift naming nothing you wrote.** `low.emit(b, Ty::Tagged, InstKind::ConstNull)` compiles,
@@ -7241,7 +7196,7 @@ sibling in the same namespace unqualified.
   what produces one for every source-level widening, so a synthesized body is the only place the
   step has to be written by hand; every other `InstKind::ConstNull` under `lower/` is `Ty::Null`
   for exactly this reason. The first place it bit was a synthesized `new LogicError(…)`, whose
-  `previous` parameter spec § 10 types `Throwable|null`.
+  `previous` parameter spec § 10 types `Throwable|null`. [until: reviewed 2026-09-06]
 - **A crate's own `# Known gaps` list can be stale about that crate's body, and the body is the
   rule.** `nvs_types::layout`'s module doc said "a promoted constructor parameter claims no slot
   yet", and `nvs_types::derive`'s gap 1 cited it as half the reason a promoted parameter could not
@@ -7251,7 +7206,7 @@ sibling in the same namespace unqualified.
   `for member in &decl.members` skipping past the constructor; nothing in `layout` or `signatures`
   needed touching. This is the *doc* twin of the `loop-goal.toml` traps above: a `Known gaps`
   bullet is status, an ADR is a decision, and status goes stale silently. One scratch `.nvs` under
-  `.agent-tmp/` proving the gap is still there costs one call and is the whole check.
+  `.agent-tmp/` proving the gap is still there costs one call and is the whole check. [until: reviewed 2026-09-06]
 - **Rewording a `Core` reference card breaks a golden in another crate, and adding a `Fault::fatal`
   whose message starts `internal error:` fails a gate in a third.** Neither shows up in
   `-p nvs-stdlib`. `crates/nvs-cli/tests/meta.rs`'s `the_golden_for_str_length_matches_the_contract`
@@ -7262,7 +7217,7 @@ sibling in the same namespace unqualified.
   in a comment **within eight lines above** the fatal, not further up and not in the function's doc
   comment — the message it fails with says so, but only after a full `verify.py`. Both are cheap to
   pre-empt: `grep -rn "<the card's first clause>" crates/nvs-cli/tests/` before rewording, and copy
-  the comment shape from the twin site you are modelling the new fatal on.
+  the comment shape from the twin site you are modelling the new fatal on. [until: reviewed 2026-09-06]
 - **A new expression level between assignment and the ternary is not one edit — the ternary's `else`
   branch parses at the assignment level and will swallow it.** `rule:expressions/catch-expression`'s `catch` slotted into
   `parse_assignment_inner` in one line, and `f() catch (A) => $y ?: 1 catch (B) => 2` still came out
@@ -7270,7 +7225,7 @@ sibling in the same namespace unqualified.
   The fix is `parse_ternary_else`, the same assignment body over `parse_ternary` instead of
   `parse_catch`, and only for the *else* branch — the `then` branch is delimited by its own `:` and
   cannot trail. Any future level added above the ternary owes the same check, and a unit test in
-  `crates/nvs-syntax/src/parser/tests/expr.rs` is what caught it, not a `.nvst`.
+  `crates/nvs-syntax/src/parser/tests/expr.rs` is what caught it, not a `.nvst`. [until: reviewed 2026-09-06]
 - **An ADR can specify a diagnostic code that is already taken, and the orientation pack's
   next-free-number list does not print the `W1xxx` band at all.** `rule:expressions/bare-throwable-arm-warns` said its unbound-arm
   advisory was `E0778`; `E0778` has been `E_INSTANCE_METHOD_CALLED_STATICALLY` since well before it,
@@ -7278,7 +7233,7 @@ sibling in the same namespace unqualified.
   `crates/nvs-diagnostics/src/lib.rs`, and the pack's band list stops at `E09xx`. So the number an
   ADR states is a claim to check against that file, not a fact to copy; when it is wrong, fold the
   ADR body in the same commit, because the body is the rule. Anything else naming the old code
-  (`loop-goal.md`, the `[[check]]` test name in `loop-goal.toml`) moves with it.
+  (`loop-goal.md`, the `[[check]]` test name in `loop-goal.toml`) moves with it. [until: reviewed 2026-09-06]
 - **A type atom whose first token is already a statement keyword needs the *statement* arm guarded too,
   not just `can_start_type`.** `rule:types/class-reference`'s `class<T>` is recognised by two tokens, so
   `Parser::at_class_reference` went beside `at_negative_int_literal` in `can_start_type` — which is the
@@ -7289,7 +7244,7 @@ sibling in the same namespace unqualified.
   class name. The general shape: `can_start_type` only decides the fallthrough, and every keyword arm
   earlier in that match is a second door the new atom has to be let through. The conversion slot
   (`$x as class<Animal>`) passes with no such edit, so a test that only exercises `as` reports green on
-  half a feature.
+  half a feature. [until: reviewed 2026-09-06]
 - **Adding a `Ty` variant to `nvs-types` breaks exactly one match, and it is not one you would guess.**
   Nearly every `match` over `Ty` in that crate has a `_` arm, so `Ty::ClassRef` compiled everywhere
   except `expr/operators.rs`'s `equality_domain` — `rule:expressions/disjoint-comparison-refused`'s domain partition, which is exhaustive
@@ -7297,7 +7252,7 @@ sibling in the same namespace unqualified.
   new variant owes a *decision* rather than an arm, and it costs two more edits when the answer is a new
   `EqDomain` variant (the enum, `equality_domain`, and `reject_unordered_operand`'s match; the other two
   `EqDomain` matches already have catch-alls). Decide it in the ADR that adds the type, not at the
-  compiler error.
+  compiler error. [until: reviewed 2026-09-06]
 - **A representation that can hold `null` has six lowering sites, not the four a `grep` for
   `Ty::Tagged` finds — and `==` against a written `null` is the one that looks covered and is
   not.** `rule:types/class-reference`'s `?class<T>` erases to `Ty::ClassDesc` with the null descriptor as its
@@ -7311,7 +7266,7 @@ sibling in the same namespace unqualified.
   correctly one line above. The general shape: when a construct has a fast path keyed on one
   operand being a literal, the fast path is a separate site and a `grep` for the operator's own
   lowering will not find it. `truthy_convert` is the one that announces itself, with a panic
-  naming the representation.
+  naming the representation. [until: reviewed 2026-09-06]
 - **A `Core` member that answers `Iterable<T>` owes a *named class*, and `CoreTy::Iterated` is not
   it.** That variant's own doc comment says "parameter position only" — a member returning a
   sequence has nothing else in the registry to spell it with, so the answer is a
@@ -7321,7 +7276,7 @@ sibling in the same namespace unqualified.
   its own, which fails `a_class_with_slots_has_instance_members_and_the_reverse` until it is added
   to that test's `HANDLES` list beside `Core\Script\Handle` — the failure names the class and not
   the rule, so it reads as a half-written class rather than as the roster it is. `Core\IO\Lines` is
-  the worked example, and `crate::cursor::over` does the rest for free.
+  the worked example, and `crate::cursor::over` does the rest for free. [until: reviewed 2026-09-06]
 - **A `Core` member cannot *return* a shape, and a registry row carries no nested `Qual`.** Two
   facts the `CoreTy` enum only states by omission, each an hour of reading `registry.rs` to
   re-derive. There is no `CoreTy::Shape`: `crate::instance::SHAPE_ROSTER` exists for values the
@@ -7334,7 +7289,7 @@ sibling in the same namespace unqualified.
   refuses a tainted element is the ordinary argument check, because `array<tainted string>` is
   not `array<string>`. Third, cheaper but the same shape: a `MethodDoc` field may not cite an
   ADR — `no_registry_card_cites_an_adr` fails the whole `-p nvs-stdlib` lib run over one `ret:`
-  string, because `nvs meta --json` ships a card verbatim to a reader with no ADR tree.
+  string, because `nvs meta --json` ships a card verbatim to a reader with no ADR tree. [until: reviewed 2026-09-06]
 - **A `Core` member may not reach the operating system, and the gate that says so is a list of
   *spellings* rather than a list of effects.** `nvs_stdlib_reaches_the_os_only_through_the_gate`
   (`crates/nvs-stdlib/tests/capability.rs`) forbids nine literals in this crate's `src/` —
@@ -7345,7 +7300,7 @@ sibling in the same namespace unqualified.
   a module there, **not** a `registry::CAPABILITIES` row. `nvs_runtime::terminal` is the shape —
   a module beside `capability` rather than inside it, because a door that asks no `Cap` is not a
   door. Writing the OS half in `nvs-stdlib` first and moving it afterwards costs a whole rewrite of
-  the file; decide which crate it belongs in before the first line.
+  the file; decide which crate it belongs in before the first line. [until: reviewed 2026-09-06]
 - **A `Core` class may not declare a slot before the member that reads it exists**, and the test
   that says so names neither. `a_class_with_slots_has_instance_members_and_the_reverse` holds slots
   and instance members to the same emptiness, with a five-name `HANDLES` list for the classes whose
@@ -7353,7 +7308,7 @@ sibling in the same namespace unqualified.
   `Core\Cli\Text`, `Core\Regex\Pattern`). So a class registered ahead of its readers — a return type
   a row needs before the body that fills it exists — declares `slots: &[]` and gains them in the
   same slice as the members, rather than being added to `HANDLES`: that list is for state read from
-  outside the class, not for state nothing reads yet.
+  outside the class, not for state nothing reads yet. [until: reviewed 2026-09-06]
 - **A `System` block is still readable by a request — it is `Core\Config::set` that refuses one, not
   `get`.** `rule:observability/metrics-and-trace-blocks-are-system` makes the whole `[trace]` block `System`, which reads like "a request cannot
   see it" and is not: `nvs_config::Request::get` answers off the snapshot's own table for any dotted
@@ -7361,7 +7316,7 @@ sibling in the same namespace unqualified.
   `ctx.config().and_then(|c| c.get("trace.propagate"))` is the whole read, with no second reader and
   no plumbing from the boot path — the same shape `http.rs`'s `bound_of` and `redirects_of` already
   use for `Runtime` keys. What `System` buys is that a request cannot *change* it, which is the
-  reconnaissance channel the ADR is closing.
+  reconnaissance channel the ADR is closing. [until: reviewed 2026-09-06]
 - **One `CAPABILITIES` row makes the whole class capability-bearing, and its siblings then owe an
   entry or an exemption.** Adding `(Core\Cache, "shared", NetConnect)` is one line, and it turns
   `every_capability_bearing_member_declares_its_capability` red on `Core\Cache::local` — a member
@@ -7373,7 +7328,7 @@ sibling in the same namespace unqualified.
   a door is one class and the thing behind it is another (`Core\Http\Client` declares nothing behind
   `Core\Http::allowUrl`, and `Core\Cache\Store` declares nothing behind `Core\Cache::shared`); and
   `docs/agent/loop-goal.md` has a byte-for-byte twin under `docs/agent/goals/` differing only in
-  link depth, so the bullet goes in both.
+  link depth, so the bullet goes in both. [until: reviewed 2026-09-06]
 - **A new member on a capability-bearing class must declare a capability, and the allowlist for one
   that reaches nothing is frozen.** `Core\RateLimit::shed` reaches nothing — `rule:core-classes/ratelimit-two-members` puts its
   state in the core's own memory — but `Core\RateLimit` is capability-bearing because `consume`
@@ -7384,7 +7339,7 @@ sibling in the same namespace unqualified.
   "the one move `rule:testing/capability-closure-test` forbids". The sibling readers dodge the question by being a *separate
   class* — `Core\RateLimit\Decision` and `Core\Process\Result` are their own `CoreClass`es and so are
   not capability-bearing at all. Settle it against `rule:testing/capability-closure-test` before writing the row, not after the
-  test goes red.
+  test goes red. [until: reviewed 2026-09-06]
 - **`every_error_path_is_asserted_or_declared_unreachable` scans *upward* for its declaration and
   stops at the first `Fault::` it meets — including one written inside the declaration itself.** A
   comment saying "unreachable from source: … and it is a `Fault::fatal` rather than a throw because
@@ -7398,7 +7353,7 @@ sibling in the same namespace unqualified.
   `value.as_int().and_then(…).ok_or_else(|| Fault::fatal(…))` fits until `cargo fmt` breaks the
   chain onto one method per line and pushes the site to ten. An early `if let … { return Ok(…) }`
   with the comment directly over a bare `Err(Fault::fatal(…))` is immune to reflowing, and reads
-  better anyway: the refusal is the tail of the function rather than a closure inside its answer.
+  better anyway: the refusal is the tail of the function rather than a closure inside its answer. [until: reviewed 2026-09-06]
 - **A reference card may not cite an ADR, and every doc comment around it is expected to.**
   `registry.rs`'s `no_registry_card_cites_an_adr` scans every `MethodDoc`, `EnumDoc`, `CaseDoc`
   and `CoreConst::desc` field for an `ADR` mention and fails the whole `-p nvs-stdlib` leg,
@@ -7408,14 +7363,14 @@ sibling in the same namespace unqualified.
   reads exactly right in the module doc and is a failure in a `CaseDoc`. State the fact without
   the number — "a closure is an ordinary object here" — and note that the conventions' § *A
   `Core` member* lists the card's other rules and not this one, so the first time you meet it is
-  at the full verify.
+  at the full verify. [until: reviewed 2026-09-06]
 - **A new `Core` member owes *three* conformance cases, not the one the five-edit recipe names.**
   Conventions' § *A `Core` member* step 5 asks for "a `.nvst` case that calls it", and
   `conformance_coverage.rs`'s `every_core_class_has_a_conformance_floor_of_three` then fails the
   `-p nvs-stdlib` leg with "asked by 1 case(s)" — the floor is per *member*, counted in cases,
   and a second case asking the same question does not count. So budget the three while the
   member is still fresh: the conventions' four depth shapes are what to spend them on, and for
-  two members landed together one file can ask both, which is three files rather than six.
+  two members landed together one file can ask both, which is three files rather than six. [until: reviewed 2026-09-06]
 - **A `match` over `nvs_syntax::ast` written outside that crate cannot be exhaustive, and the
   compiler will not say so.** `ExprKind`, `StmtKind`, `ClassMemberKind`, `NewTarget` and
   `DestructureElement` are all `#[non_exhaustive]`, which is inert inside `nvs-syntax` and forces a
@@ -7423,20 +7378,7 @@ sibling in the same namespace unqualified.
   silently treats every production added afterwards as a leaf. `Core\Ast`'s walk lives in
   `crates/nvs-syntax/src/walk.rs` for exactly this reason and hands out a rose tree of
   `&'static str` kinds; the general shape is that any per-variant table over another crate's AST
-  belongs in that crate, where a new variant is a build error in the file its author is already in.
-- **An ADR's aside that "we already have that machinery" can be about a *shape* rather than a
-  row — read the struct before pricing the slice.** `rule:tooling/styling-is-a-value-not-a-grammar` ends with "A `Core` class
-  constant that is an instance is machinery `nvs-stdlib` already has", and
-  `nvs_stdlib::registry::CoreConst`'s `value` is a `Const` whose whole roster is scalar and
-  which the compiler inlines at every use site, so `Cli\Color::RED` has no row it could be
-  written as and `Cli\Style`/`Text::styled` sit behind it. What *does* exist is the
-  fold-to-an-allocation shape one crate over:
-  `nvs_types::expr_table::ExprInfo::ProgramInstances` documents itself as "the sibling of
-  `ExprInfo::CoreConst` for a fold whose answer is not a constant", with `nvs-ir` emitting the
-  `InstKind::New` at the use site. So the ADR is right about the mechanism and wrong about the
-  roster, and the slice is a `CoreConst` variant plus a lowering rather than a table entry. One
-  `peek.py 'crates/nvs-stdlib/src/registry.rs:@CoreConst'` settles it before any of that is
-  budgeted as free.
+  belongs in that crate, where a new variant is a build error in the file its author is already in. [until: reviewed 2026-09-06]
 - **A "known gap" in a module doc can be wrong about the tree, and one stale field comment is how it
   gets that way.** `cli.rs`'s gap 3 said `Cli\Color` was blocked on "a `Core` class constant that is
   an instance", contradicting `rule:tooling/styling-is-a-value-not-a-grammar`'s *"machinery `nvs-stdlib` already has"* — and the ADR was
@@ -7447,7 +7389,7 @@ sibling in the same namespace unqualified.
   else"* — which stopped being true when `Built` landed and which reads exactly like the roster's own
   summary. Three sessions carried the gap forward through the handoff. When a doc and an ADR
   disagree about what exists, `grep -n` the enum before believing either: it is one call, and the
-  alternative is a session that designs a mechanism the tree already ships.
+  alternative is a session that designs a mechanism the tree already ships. [until: reviewed 2026-09-06]
 - **A shape-literal field name had to be an `Ident`, so an option the spec spells `default` was
   unwritable at every call site.** `rule:tooling/a-prompt-is-a-core-member`'s prompts take `{default?: string}`, and
   `{default: "ada"}` produced four diagnostics at once — `E0101 expected a field name`, then
@@ -7457,7 +7399,7 @@ sibling in the same namespace unqualified.
   token is followed by a `:` inside an already-open literal, so nothing was ambiguous. Before
   renaming an option away from what its ADR spells, check whether the *parser* is what refused it —
   `crates/nvs-syntax/src/token.rs`'s keyword table is the list to check a spec's option names
-  against, and `match`, `class`, `default` and `for` are all plausible ones.
+  against, and `match`, `class`, `default` and `for` are all plausible ones. [until: reviewed 2026-09-06]
 - **`options` is a reserved parameter name, and a row using it fails a registry gate rather than a
   call.** `rule:core-api/shape-rules` R2 makes `options` the one name every member's trailing bag is callable by
   (`registry::OPTIONS_NAME`), so a *positional* parameter cannot also be called that —
@@ -7465,7 +7407,7 @@ sibling in the same namespace unqualified.
   parameter the trailing bag's own name" with `left: "options"` / `right: "options"`, which reads
   like a tautology until you know what the right-hand side is. `rule:tooling/a-prompt-is-a-core-member` spelled `select`'s list
   `$options`; it is `$choices` now, in that ADR's own table as well as in the row, because the
-  later and wider rule wins.
+  later and wider rule wins. [until: reviewed 2026-09-06]
 - **A row answering a qualified type joins a closed roster in another crate, and the failure names
   neither your row nor the rule.** `nvs_types::core_lib`'s
   `a_verified_signature_does_not_launder_its_claims` pins the *set* of members whose return type
@@ -7474,7 +7416,7 @@ sibling in the same namespace unqualified.
   `-p nvs-types --lib` with nothing pointing back at `cli.rs`. The sibling
   `reveal_and_the_password_helpers_are_the_only_launderers_of_secret` is the same shape on the
   other axis. Adding to either roster is legitimate; it costs the assertion, its message and the
-  paragraph above it saying why the set is the size it is.
+  paragraph above it saying why the set is the size it is. [until: reviewed 2026-09-06]
 - **A rule added to `Core\Cli`'s shared prompt path reaches three of the five prompts, not five.**
   `ask`, `confirm` and `secret` decide nothing before they call `ask_terminal`, so anything added
   there is theirs by construction — but `select` and `multiSelect` ask `watched(ctx)` *first*, since
@@ -7483,7 +7425,7 @@ sibling in the same namespace unqualified.
   and reads as five members. `rule:tooling/a-prompt-is-a-core-member`'s scripted answer queue was the case: drained inside
   `ask_terminal`, it would have been unreachable for exactly the two prompts whose flow a test most
   wants to script. What holds is a second predicate beside `watched` — `answerable`, which is the
-  queue *or* a terminal — that the deciding-early members read instead.
+  queue *or* a terminal — that the deciding-early members read instead. [until: reviewed 2026-09-06]
 - **A rule the compiler enforces at the call site has no enforcement at all on the path where the
   class is unknown, and nothing in the tree says so.** `rule:classes/property-observer-pipeline` makes `onPropertySet` a second
   step over *every* property write, and `nvs_ir::lower` emits it beside the `FieldSet` — which is
@@ -7496,7 +7438,7 @@ sibling in the same namespace unqualified.
   any compile-time-answered rule: *what does the erased path do* — `SlotGet`/`SlotSet`,
   `call_erased_method`, `value_to_string`'s `Tag::Object` arm — and is there a case that goes through
   it. `nvs_runtime::write_erased_property` is where the write half's answer lives now; the read half
-  (`nvs_object_slot_get`, and so `Core\Reflect\ClassInfo::get`) still has the gap.
+  (`nvs_object_slot_get`, and so `Core\Reflect\ClassInfo::get`) still has the gap. [until: reviewed 2026-09-06]
 - **A new `TypeAtom` compiles the whole workspace green and lowers to `mixed`, silently.**
   `nvs_types::lower`'s atom match ends in `_ => env.interner.mixed()`, so adding a variant to
   `nvs_syntax::ast::TypeAtom` does *not* fail the build the way adding one to `nvs_types::ty::Ty`
@@ -7504,7 +7446,7 @@ sibling in the same namespace unqualified.
   Worse, the spelling was probably an error before (`property<User>` was an undefined class), so the
   half-landed atom is a **loosening** no test asks about. Add the `Ty` variant in the same slice, or
   the parser change is not a slice at all. `Ty`'s own matches are exhaustive and the compiler names
-  each one: two arms, both in `expr/operators.rs`'s equality domain, were the whole cascade.
+  each one: two arms, both in `expr/operators.rs`'s equality domain, were the whole cascade. [until: reviewed 2026-09-06]
 - **A `property<T>`/`class<T>` argument's *roster* cannot be asked in `crate::lower`, because that
   pass runs twice and the first run has no table.** `nvs_types::signatures::collect_members` lowers
   every declared property's type at `signatures.rs:886`, while the signature table is still being
@@ -7516,7 +7458,7 @@ sibling in the same namespace unqualified.
   because it reads `env.symbols`, which is complete before either pass. Anything reading
   `env.signatures` or `env.graph` from a lowering has to be sited where the table is real, and the
   two candidates are not equivalent — `check.rs:456` re-lowers a *property* annotation at check
-  time, but a method parameter's annotation is lowered once, during collection, and never again.
+  time, but a method parameter's annotation is lowered once, during collection, and never again. [until: reviewed 2026-09-06]
 - **A slice the plan names as `nvs-ir`'s can be unbuildable there, because that crate holds no class
   table.** `Lowering` carries `exprs`, `checked_types` and an `EnumTable` and nothing else about a
   declaration, so any *set* the checker derived from the hierarchy — `property<T>`'s public property
@@ -7526,7 +7468,7 @@ sibling in the same namespace unqualified.
   by the **annotation's** span rather than the conversion expression's, because `lower_conversion`
   holds the `Type` node and not the `Expr` around it, and `ExprTypeTable`'s `types` and `by_span` are
   separate maps so a declared type and an `ExprInfo` share a span without shadowing. Reading the item
-  as "one arm in `erase_checked_ty` plus one in the `Conversion` arm" costs the discovery twice.
+  as "one arm in `erase_checked_ty` plus one in the `Conversion` arm" costs the discovery twice. [until: reviewed 2026-09-06]
 - **A `Core` class with a slot and no members fails a registry test whose exemption is a
   by-name list, and the failure names your class rather than the rule.** `Core\Html\Markup` is
   `rule:core-classes/html-auto-escape`'s carrier: one slot holding the trusted bytes, and deliberately no member, because
@@ -7537,7 +7479,7 @@ sibling in the same namespace unqualified.
   class, and the fix is the opposite: add the name to that test's `HANDLES` const **and a sentence
   to its doc comment saying who reads the slot**, since seven classes were already there for
   exactly this. The general shape: a registry invariant with a named exemption list is a design
-  question the test is asking, not a rule to satisfy by inventing a member.
+  question the test is asking, not a rule to satisfy by inventing a member. [until: reviewed 2026-09-06]
 - **A `Core` symbol with no registry row must be chained into `nvs_stdlib::symbols()` by hand, and
   forgetting it fails at *run* time rather than at build time.** That function derives the JIT's symbol
   table from `registry::CLASSES`'s member rows plus a few hand-written chains — `registry::CONSTRUCTORS`,
@@ -7547,7 +7489,7 @@ sibling in the same namespace unqualified.
   an `InstKind::CoreCall` on an unchained symbol compiles clean, type-checks clean, and then panics inside
   cranelift-jit — `can't resolve symbol nvs_core_html_markup`, from `backend.rs`, naming neither crate nor
   the one line in `lib.rs` that is missing. Anything a construct reaches rather than a member call owes
-  that line.
+  that line. [until: reviewed 2026-09-06]
 - **`nvs-stdlib`'s OS gate is a *spelling* scan, so a `std::fs` type name fails it while the
   effect on the line above passes.** `crates/nvs-stdlib/tests/capability.rs`'s
   `nvs_stdlib_reaches_the_os_only_through_the_gate` greps every shipped line for `std::fs`, and
@@ -7557,7 +7499,7 @@ sibling in the same namespace unqualified.
   in `lock`'s body is reported as "reaches the operating system directly", which is exactly what
   it does not do, and `use std::fs::TryLockError;` fails the same way. There is no allowlist. The
   fix is to convert through `std::io::Error`, whose `ErrorKind::WouldBlock` is the same answer, and
-  to keep `std::fs` to comments — a `//` or `///` line is skipped and every other line is not.
+  to keep `std::fs` to comments — a `//` or `///` line is skipped and every other line is not. [until: reviewed 2026-09-06]
 - **A `Fault::fatal` in a new `Core` member fails `conformance_coverage`'s error-path gate unless the
   comment above it contains the literal words *unreachable from source*.** The gate greps the eight
   lines above the site for that phrase, not for a reason — so a comment that argues the case
@@ -7566,7 +7508,7 @@ sibling in the same namespace unqualified.
   member owed a `.nvst` case for a path no program can reach. Both arms of one new member cost a full
   `verify.py` cycle here. `Core\Str::length`'s body carries the wording for the second kind — the
   `u64::try_from` arm that no diagnostic refuses at all, because its totality is a property of the
-  target rather than of the call.
+  target rather than of the call. [until: reviewed 2026-09-06]
 - **A row-less `Core` symbol needs two registrations, and missing the second is a JIT panic at run
   time rather than any kind of build error.** The `address()` arm in the domain module is only half:
   `nvs_stdlib::symbols()` builds its roster from `CLASSES`' member rows, so a symbol with no row —
@@ -7578,14 +7520,14 @@ sibling in the same namespace unqualified.
   The `.chain` then owes a third edit: `every_registered_member_has_an_implementation_address`
   counts the rows and adds a **literal** for the row-less ones, so it fails as a bare `left: 471 /
   right: 470` (`crates/nvs-stdlib/src/lib.rs:447`) naming neither the symbol nor the constructs the
-  number stands for.
+  number stands for. [until: reviewed 2026-09-06]
 
 - **Making a `mod` public wakes two rustdoc lints on doc comments that were fine while it was
   private, and they are `-D warnings` in the `doc` step alone.** `pub mod cli;` turned an
   intra-doc link to a `#[cfg(test)]` item into *unresolved link*, and a
   `[`X`](crate::path::X)` whose label already resolves into *redundant explicit link target* —
   neither of which `build`, `test` or `clippy` says anything about, so they land at step 8 of 8
-  after a two-minute run. A module doc that names a test names it in backticks, not brackets.
+  after a two-minute run. A module doc that names a test names it in backticks, not brackets. [until: reviewed 2026-09-06]
 - **A `Read`/`Write` stream that may be upgraded is an enum taken *by value*, not a `&mut` swap.**
   `NvsTls::over` consumes its `NvsTcp`, so a `Session { stream: NvsTcp }` cannot be secured in
   place without a placeholder variant nobody may observe. `nvs_stdlib::mail::Session::secure`
@@ -7593,7 +7535,7 @@ sibling in the same namespace unqualified.
   the compiler is what says so rather than a comment. The buffered-read field is the other half —
   `STARTTLS`'s command-injection class (the 2021 *NO STARTTLS* paper) is exactly bytes held from
   before the handshake being replayed after it, so the upgrade **refuses** a non-empty read buffer
-  rather than clearing it. Any protocol with an in-band upgrade owes both halves.
+  rather than clearing it. Any protocol with an in-band upgrade owes both halves. [until: reviewed 2026-09-06]
 - **An intrusive list whose head lives in the `Ctx` outlives nothing: a survivor must be
   *detached*, not just left alone.** The teardown sweep leaves anything it cannot prove
   unreachable, and a `Value` really does leave a context — `abi::call` answers one to its Rust
@@ -7605,7 +7547,7 @@ sibling in the same namespace unqualified.
   disabling the sweep body and finding the flake unchanged (so the *list*, not the sweep), and
   printing the rejected text rather than the status (the NULs said "sixteen bytes of somebody
   else's write", not "bad parse"). `crates/nvs-runtime/src/object.rs`'s `Detach` guard is the
-  fix and owns the reasoning.
+  fix and owns the reasoning. [until: reviewed 2026-09-06]
 
 - **A field of `Ctx` that owns a Novis reference must be released in `Drop::drop`, not left to
   its own field drop, and the failure is a refcount underflow in `object::drop_one`.** Rust runs
@@ -7614,7 +7556,7 @@ sibling in the same namespace unqualified.
   of that body ran. The panic names `refcount.get() - 1`, which says "released twice" and
   nothing about which field did it. The four `set_*(Value::null())` lines already in `Ctx::drop`
   are that same rule written out; `pending` had never needed to join them, because nothing used
-  to run after it.
+  to run after it. [until: reviewed 2026-09-06]
 - **A debug assertion in `dismantle` may not say "the context releasing this object is the one that
   allocated it" — that is routinely false, and the panic it raises *aborts*.** Two shapes break it
   immediately: `nvs_host::isolate::finish` drops a child's `Thrown` and copies its answer out while
@@ -7624,7 +7566,7 @@ sibling in the same namespace unqualified.
   `thread caused non-unwinding panic. aborting` rather than a failed test — `examples/tasks.nvs`
   died that way. The invariant that *is* true and costs the same is structural: an object is linked
   on the list its stamp names, checked against its list neighbour. `assert_linked_where_it_says` is
-  the home of the reasoning.
+  the home of the reasoning. [until: reviewed 2026-09-06]
 - **A `Core` row can name a class `nvs_stdlib::registry::CLASSES` does not hold, and exactly one test
   stands in the way.** `Core\Script\ExitReport::error(): ?Throwable` needs the *exception tree's*
   root, which lives in `nvs_hir::errors::TREE` and is seeded into the checker's class table by
@@ -7636,7 +7578,7 @@ sibling in the same namespace unqualified.
   class. And note what is *not* available — an ADR that sketches a report as
   `{reason: …, status: …}` cannot be built that way at all, because a `Core`-owned instance has no
   property a program can reach; three accessors is the shape, and `Core\RateLimit\Decision` is the
-  precedent to copy rather than re-derive.
+  precedent to copy rather than re-derive. [until: reviewed 2026-09-06]
 - **`nvs_runtime::capability` has two path resolvers and they answer different *spellings* of the
   same file, which on Windows is a `\\?\C:\…` against a plain `C:\…`.** `capability::canonicalize`
   goes through `nvs_config::capability::resolved` — the walk that pins a not-yet-existing path's
@@ -7647,7 +7589,7 @@ sibling in the same namespace unqualified.
   `Core\IO::canonicalize` was caught answering a path no other member of its own class agreed with.
   The rule: a door that resolves goes through `nvs_config::capability::resolved` and asks any other
   question — existence, in `resolve_existing`'s case — separately. The two doors' own doc comments
-  are the home of the difference.
+  are the home of the difference. [until: reviewed 2026-09-06]
 - **`nvs-stdlib` may not write the string `std::fs` anywhere, a type annotation included, and the
   door's return type had no other spelling.** `nvs_stdlib_reaches_the_os_only_through_the_gate` is a
   literal substring scan over every non-comment line under `crates/nvs-stdlib/src`, so a private
@@ -7658,7 +7600,7 @@ sibling in the same namespace unqualified.
   one `stat`, the type has to be named. The fix is on the *runtime* side and is now on disk:
   `nvs_runtime::capability` re-exports `Metadata`, so the spelling is
   `&nvs_runtime::capability::Metadata`. Reach for that rather than re-deriving each field at the two
-  call sites.
+  call sites. [until: reviewed 2026-09-06]
 - **A landed member's reference card can describe an *unlanded* sibling, and that sentence is a
   claim rather than a note.** `Core\IO::list`'s card said "`walk` is the streaming half" — which is
   the one reading of the `list`/`walk` pair `rule:core-api/shape-rules` R6 forbids, since the same entries in a second
@@ -7667,7 +7609,7 @@ sibling in the same namespace unqualified.
   nobody had decided what it was. So before registering a member, grep the *other* members' cards
   and module docs for its name: what turns up is a prediction made by someone who did not have to
   implement it, and the spec row plus the ADR outrank it. Fix the stale sentence in the same slice
-  — a card is reference documentation and ships.
+  — a card is reference documentation and ships. [until: reviewed 2026-09-06]
 - **`nvs-types` reaches `nvs-config` only in its tests, so a checker rule about a capability name has
   to read the roster through `nvs-stdlib`.** The obvious spelling for `Core\Cap::has`'s compile-time
   refusal is `nvs_config::capability::Cap::parse`, and `crates/nvs-types/Cargo.toml` puts that crate
@@ -7676,7 +7618,7 @@ sibling in the same namespace unqualified.
   the stdlib module that owns the class — `nvs_stdlib::cap::is_capability`, beside
   `nvs_stdlib::cldr::validate`, which `nvs_types::intrinsics` reads for the same reason — and that is
   what the house style wanted anyway: the pass holds no copy of a spelling. Reading the Cargo.toml
-  comment costs one `sed`; learning it from `cargo build` costs a build.
+  comment costs one `sed`; learning it from `cargo build` costs a build. [until: reviewed 2026-09-06]
 - **`ChannelBinding::unrequested()` cannot authenticate against a TLS-enabled PostgreSQL, and it is
   the spelling that reads as correct.** `postgres-protocol`'s SCRAM client takes a `ChannelBinding`,
   and `unrequested` is the gs2 header `y,,`, which asserts *the server does not offer channel
@@ -7684,13 +7626,13 @@ sibling in the same namespace unqualified.
   PostgreSQL offers `SCRAM-SHA-256-PLUS` whenever the connection is SSL and `rule:core-classes/db-capabilities` makes that
   always — reads `y,,` as a stripped-`PLUS` downgrade and fails the exchange with "channel binding
   check failed". `unsupported` (`n,,`) is the one that works without the peer certificate in hand.
-  The reasoning, and what it gives up, is `crates/nvs-db/src/pg.rs`'s module doc.
+  The reasoning, and what it gives up, is `crates/nvs-db/src/pg.rs`'s module doc. [until: reviewed 2026-09-06]
 - Code written through `splice.py` is never rustfmt-shaped, and `verify.py` runs `fmt` and clippy
   *after* the build — so a slice that compiles and tests green still costs two full gate runs if you
   hand it straight to `verify.py`. Run `cargo fmt --all` first. The clippy half is the one that
   surprises: a `match` arm whose body is only `if cond { … }` is `collapsible_match` under
   `-D warnings` even when the arm you copied it from two functions up passes, because that one binds
-  a local before the `if`. The fix is a match guard on the arm.
+  a local before the `if`. The fix is a match guard on the arm. [until: reviewed 2026-09-06]
 - **Registering a `Core` class the spec already names is seven edits, not five, and the two extra
   ones are text files under `crates/nvs-stdlib/tests/`.** `conventions.md`'s *A `Core` member — the
   five edits* is complete for a member on a class that is already registered; a class the spec
@@ -7700,7 +7642,7 @@ sibling in the same namespace unqualified.
   `Core\Db::inList` meant striking `§18 inList` there and, because it was the class's first member,
   `§16 Core\Db` in the other file plus the sentence in its header that counted the rows. Nothing in
   the orientation pack points at those files — `--locate CLASSES` is what surfaced them, because
-  they mention it in their own headers.
+  they mention it in their own headers. [until: gone crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt]
 
 - **A `Core` class with slots and no instance members needs a line in `registry.rs`'s `HANDLES`,
   and the failure names your class rather than the roster.** `a_class_with_slots_has_instance
@@ -7709,7 +7651,7 @@ sibling in the same namespace unqualified.
   listed in the test's own `HANDLES` const with a clause in its doc comment saying why nothing
   reads its slot back. `Core\Db\InList declares 1 slot(s) and 0 instance member(s)` reads as "you
   forgot the members", which for a class the spec calls *opaque* is exactly backwards. The
-  constant naming the class has to be `pub(crate)` for the test to name it.
+  constant naming the class has to be `pub(crate)` for the test to name it. [until: reviewed 2026-09-06]
 - **A `Core` member's registry row has two gates that `conventions.md`'s five edits do not name, and
   both fire only under `cargo test -p nvs-stdlib --lib`.** `CoreTy::Str` reads as the sanctioned
   parameter spelling — its own doc comment says "in parameter position is not a default but a state:
@@ -7722,7 +7664,7 @@ sibling in the same namespace unqualified.
   `no_registry_card_cites_an_adr`: a `MethodDoc`'s `short`/`ret`/`desc` may not say "`rule:core-classes/db-column-types`",
   because `nvs meta --json` ships the card verbatim to a reader with no ADR tree — state the fact
   and leave the citation to the doc comment above the row. Nineteen rows written to the shape in
-  `conventions.md` failed on these two and on nothing else.
+  `conventions.md` failed on these two and on nothing else. [until: reviewed 2026-09-06]
 - **A new `nvs_hir::errors::TREE` row that declares a property of its own owes more than the
   roster the bullet above lists, and two of the extra sites fail in crates that never name the
   class.** `Core\Db\RolledBack` needed all six of the usual ones plus: a type arm in
@@ -7735,7 +7677,7 @@ sibling in the same namespace unqualified.
   assertion in the same test from the class-label list. Then five `nvs-ir` insta snapshots go
   red, because each renders the whole lowered program and every synthesized constructor is in it.
   `cargo insta` is **not installed** in this tree: `INSTA_UPDATE=always cargo test -p nvs-ir --lib`
-  is what rewrites them in place, and it leaves no `.snap.new` behind for `git status` to catch.
+  is what rewrites them in place, and it leaves no `.snap.new` behind for `git status` to catch. [until: reviewed 2026-09-06]
 - **The registry's guards are not all in `registry.rs`, and the one that bit hardest is in
   `crates/nvs-stdlib/src/lib.rs`.** Grepping `registry.rs` for a symbol-uniqueness rule finds
   only `every_constructible_class_is_registered_with_slots`'s constructor-versus-member check,
@@ -7744,7 +7686,7 @@ sibling in the same namespace unqualified.
   plus the five constructs that have no row, and (until this session) no two rows share a
   symbol at all. So before designing anything around *how rows map to symbols*, grep
   `crates/nvs-stdlib/src/lib.rs` too; a design that collides with one of them is found by
-  `cargo test -p nvs-stdlib --lib`, which is 0.2s, and not by anything nearer.
+  `cargo test -p nvs-stdlib --lib`, which is 0.2s, and not by anything nearer. [until: reviewed 2026-09-06]
 - **"`rule:core-classes/derive-attribute`'s derive pass has landed" was the *checking* half, and a `#[Db\Derive]` class's
   mapping reached no descriptor at all.** The plan's Stage 0 line, `nvs_types::derive`'s roster and
   `nvs_types::ExprTypeTable::db_codec` all read as finished — and the table really is filled — but
@@ -7754,7 +7696,7 @@ sibling in the same namespace unqualified.
   that says so out loud is `crates/nvs-types/src/derive.rs`'s own gap 2, thirty lines above the
   attribute roster a grep lands in. The general shape: a front-end table with no back-end reader is
   what a landed-looking gap looks like here, so grep the *consumer* of a table the checker filled
-  before planning the member that spends it.
+  before planning the member that spends it. [until: reviewed 2026-09-06]
 - **Adding a class to `nvs_stdlib::registry::GENERIC_CLASSES` makes its *bare* spelling a compile
   error everywhere, and the failure names `E0442` at the source line rather than the roster row that
   caused it.** `Core\Db\Rows` gained a `T`, and three landed conformance cases that had written
@@ -7764,7 +7706,7 @@ sibling in the same namespace unqualified.
   *written* occurrence of the name, so the roster is a surface and not an internal table: before
   adding a row, grep the bare spelling across `tests/`, `examples/` and `docs/spec/` and budget an
   edit per hit. There is no defaulted type parameter in `Core`, so "leave the old bare form legal" is
-  not an option to weigh — the only question is whether every write site should carry the argument.
+  not an option to weigh — the only question is whether every write site should carry the argument. [until: reviewed 2026-09-06]
 - **A reference card may not cite an ADR, and the doc comment two lines above it must.** The two
   sit together in one `const` block and read as one register, so a `MethodDoc` field arrives
   carrying "the round trip `rule:core-classes/db-column-types`'s type map is written to avoid" — which
@@ -7773,13 +7715,13 @@ sibling in the same namespace unqualified.
   fact instead ("the only way to learn it is a catalog query per statement, and this driver makes
   none") and leave the citation in the doc comment, where a contributor is the reader. The check
   covers `short`, `ret`, every `ParamDoc`/shape `desc`, every `ErrorDoc`, every `CoreConst::desc`
-  and every `EnumDoc` case, so it is the whole card and not just the summary.
+  and every `EnumDoc` case, so it is the whole card and not just the summary. [until: reviewed 2026-09-06]
 - **`docs/novis.md` is generated from the *built binary*, so regenerating it before rebuilding
   writes nothing and says so.** `python tools/reference.py --no-examples` reads `nvs meta --json`
   out of `target/debug/nvs.exe`; run it after a source edit and it prints "docs/novis.md
   unchanged" — which is true of the binary it asked and false of the tree. `python
   tools/verify.py` rebuilds first, so the honest order is verify, then regenerate, then
-  `--check`.
+  `--check`. [until: reviewed 2026-09-06]
 - **Giving a spec § 10 exception class a property of its own is six edits across four crates, and
   the two that are not `match` arms are the ones that bite.** `nvs_hir::errors::OWN_PROPERTIES` and
   a `*_SLOT` beside it are the obvious half; `nvs_types::error_lib::own_properties` `panic!`s at
@@ -7789,7 +7731,7 @@ sibling in the same namespace unqualified.
   build — a hand-kept `vec!` in a crate that depends on neither `nvs-hir` nor `nvs-types`, so
   nothing fails to compile — and that landing the row without the constructor leaves an `rule:classes/definite-property-initialization`
   slot never definitely assigned. Add both in one change. The tell that you got it right is five
-  `nvs-ir` whole-program snapshots going red with only the new constructor in the diff.
+  `nvs-ir` whole-program snapshots going red with only the new constructor in the diff. [until: reviewed 2026-09-06]
 - **`nvs_host::timer::park_until` is not the primitive for "wait for a peer, but no longer than
   `X`" — it is deliberately un-wakeable, and reaching for it fails silently.** Its loop re-arms past
   every early wake (`crates/nvs-host/src/timer.rs:251`), because a caller that asked for an *instant*
@@ -7798,7 +7740,7 @@ sibling in the same namespace unqualified.
   same mechanism with the loop off is `timer::wait_until`, and a `Core` member reaches it as
   `nvs_runtime::host::Host::park(Some(at))`. The general shape: in this tree "park until an instant"
   and "park until something happens, at most until an instant" are two functions on purpose, and the
-  doc comment on each says which it is in its first sentence.
+  doc comment on each says which it is in its first sentence. [until: reviewed 2026-09-06]
 - **A `catch` binding inside a closure that spells a name the enclosing frame also binds is
   lowered as a *capture* of that name, and the compiler panics rather than diagnosing it.**
   `try { … } catch (IOError $full) { … }` written inside an `fn(): string => { … }` whose
@@ -7808,14 +7750,14 @@ sibling in the same namespace unqualified.
   own scope resolved". Nothing about the message points at the `catch`, and the same closure
   compiles the moment the binding is renamed. So a closure inside a `try`/`catch` picks its own
   spelling for the exception, and a program that hits this panic is looking for a shadowed
-  binding rather than for a capture it wrote.
+  binding rather than for a capture it wrote. [until: reviewed 2026-09-06]
 - **`nvs_config::value`'s `Unit::Duration` reads one unit and not a compound, so `"1m30s"` is
   refused where `"90s"` and a bare `90` are the same duration.** `rule:types/duration-literal`'s *literal* is `1h30m`,
   the two spellings look like one feature, and a test asserting that two spellings of a bound agree
   is exactly where the difference surfaces — as `is not a duration` against a value the language
   itself accepts. The parser is `crates/nvs-config/src/value.rs`'s and nothing in a block's own
   module widens it; write the second spelling as a bare count of the base unit instead, which is
-  what `nvs_config::db`'s own bounds do.
+  what `nvs_config::db`'s own bounds do. [until: reviewed 2026-09-06]
 - **A new `Core` *class* trips two registry gates a new `Core` *member* never does, and both fail in
   `cargo test -p nvs-stdlib` rather than at the build.** First:
   `a_class_with_slots_has_instance_members_and_the_reverse` requires a class to declare slots and
@@ -7825,13 +7767,13 @@ sibling in the same namespace unqualified.
   Second: `every_member_parameter_carries_a_qualifier_classification` reads *options* as parameters
   too, so a `{queue?: string}` written as `CoreTy::Str` fails exactly as a positional one would — an
   option's type needs `CoreTy::Text(Qual::…)`/`Blob(Qual::…)` like everything else, and the failure
-  names the member without saying which of its parameters it meant.
+  names the member without saying which of its parameters it meant. [until: reviewed 2026-09-06]
 - **An `#[expect(dead_code)]` on an item whose only reader is `mod tests` warns under `cargo test`.**
   The expectation is unfulfilled there — the tests *are* a use — so the build that has to stay quiet is
   the other one: `#[cfg_attr(not(test), expect(dead_code, reason = "…"))]`. Worth the ceremony over a
   plain `allow` when the item is landed ahead of its caller (a statement written beside the ones it
   belongs with, a helper the next slice calls), because the expectation fires the moment the real
-  reader lands and the attribute removes itself instead of sitting there forever.
+  reader lands and the attribute removes itself instead of sitting there forever. [until: reviewed 2026-09-06]
 - **A job whose program *threw* is `Ok` from `nvs_host::Isolate::run`, and the judgement is
   `Completion::ok`.** `run(ctx)` answers `Result<Completion, GraphError>`, and the `Err` half is only
   the argument graph refusing to cross — a fixture that throws on purpose therefore reads as a
@@ -7840,7 +7782,7 @@ sibling in the same namespace unqualified.
   `dead-lettered` lines waited out their polls and looked like unwritten work rather than a wrong
   reading. `Completion` carries `ok`, `value`, `output` and `error`, and `ok` is already false for a
   throw *and* for a budget teardown — `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`'s "a job exceeding its memory, CPU or time budget
-  is a failed attempt" needs no second reading beside it.
+  is a failed attempt" needs no second reading beside it. [until: reviewed 2026-09-06]
 - **A module's known-gap bullet names the blocker its author hit, not every blocker between there
   and the feature.** `nvs_stdlib::db`'s gap 1 says `Core\Db::open` waits on a registry shape
   *parameter*, which reads as one missing type and so as one slice's work; `rule:core-classes/db-literal-query-checking`'s
@@ -7852,7 +7794,7 @@ sibling in the same namespace unqualified.
   where `nvs_runtime::capability::require` is the only asker. Three greps, one per layer — is the
   member callable, can the pass name the thing, does the pass have the input — cost less than
   reading one gap bullet as a work estimate. The finding is now gap 6 of
-  `crates/nvs-types/src/intrinsics.rs`.
+  `crates/nvs-types/src/intrinsics.rs`. [until: reviewed 2026-09-06]
 - **A `PgRows` holds its `&mut Ctx` borrow to the end of the scope, because it has a `Drop`,
   and the error names neither of those things.** Filing `rule:observability/a-query-is-a-trace-event`'s span on the context
   after the drain is `E0499: cannot borrow *ctx as mutable more than once`, pointing at
@@ -7861,7 +7803,7 @@ sibling in the same namespace unqualified.
   with no destructor, and `PgRows` releases the statement in its own, so the fix is an
   explicit `drop(answered)` between reading the span and touching `ctx`. The general shape:
   anything handed out of `&mut Ctx` that releases something when it falls — a row stream, a
-  held connection — cannot be followed by a second `ctx` call in the same scope without one.
+  held connection — cannot be followed by a second `ctx` call in the same scope without one. [until: reviewed 2026-09-06]
 - Giving a shared type a **defaulted** type parameter breaks every unqualified associated path on
   it, and the two look unrelated. `StatementCache<H = String>` compiles, and then
   `StatementCache::capacity_for(block)` — untouched, three files away — fails with `E0283: cannot
@@ -7872,7 +7814,7 @@ sibling in the same namespace unqualified.
   `DEFAULT_CAPACITY` became the free `statement_cache_for` and `DEFAULT_STATEMENT_CACHE` beside
   `time_zone_for`, which is where a `[db.<name>]` field's reader already lived. A 20-line probe
   under `.agent-tmp/` compiled with `rustc --crate-type lib` answers this in one call, and is worth
-  it before a rename spreads across two crates' doc comments.
+  it before a rename spreads across two crates' doc comments. [until: reviewed 2026-09-06]
 - **`nvs_db::encode` is PostgreSQL's text input format, not a driver-neutral rendering — and the
   MySQL read path cannot reuse it.** It looks neutral: it takes a `Value` and answers
   `Option<Vec<u8>>`, both drivers bind `&[Option<&[u8]>]`, and `mysql::execute`'s own doc says
@@ -7883,7 +7825,7 @@ sibling in the same namespace unqualified.
   `nvs_db::mysql::encode` (`crates/nvs-db/src/mysql.rs:1915`) is the other one. The same trap is in
   `crates/nvs-stdlib/src/db/bind.rs`'s `statement_of`, which hardcodes `nvs_db::Dialect::PostgreSql`
   where `nvs_db::Dialect::of(driver)` is the answer: a second driver's `query` is not one branch in
-  the drain, it is the dialect and the encoder as well.
+  the drain, it is the dialect and the encoder as well. [until: reviewed 2026-09-06]
 
 - **A helper landed one slice ahead of its caller fails `verify.py` on `dead_code`, and
   `#[expect(dead_code, reason = "…")]` is the marker that takes itself off.** `cargo clippy
@@ -7892,7 +7834,7 @@ sibling in the same namespace unqualified.
   the build the day the function *is* used, so the slice that wires it up cannot forget to remove
   it; `#[allow]` is the spelling that goes stale silently. Do not pair it with a `#[cfg(test)]`
   test of the same function: `--all-targets` builds the crate twice, the test build makes the
-  expectation unfulfilled, and `unfulfilled_lint_expectation` is a warning too.
+  expectation unfulfilled, and `unfulfilled_lint_expectation` is a warning too. [until: reviewed 2026-09-06]
 - **Landing a decode path ahead of its caller leaves `#[expect(dead_code)]` on more functions than
   the doc naming the path mentions, and clippy reports the leftover under a message that names the
   one you already fixed.** `nvs_stdlib::db`'s gap 2 named two — `mysql_column_value` and
@@ -7901,7 +7843,7 @@ sibling in the same namespace unqualified.
   string* as its `note:`, which read "as `mysql_column_value`, whose only caller this is". So the
   error appears to be about the function whose attribute you just removed. One
   `grep -n 'expect(' <the module>` for every reason naming the path being enabled, before the build,
-  is the whole check.
+  is the whole check. [until: reviewed 2026-09-06]
 - **A driver's `io::ErrorKind` decides whether a refusal reaches Novis as a `Db\DbError` at all.**
   `nvs_stdlib::db`'s `statement_failure` builds `rule:core-classes/db-error`'s error from its `ErrorKind::Other` arm
   alone and answers an `IOError` for every other kind, so a driver that words the server's own `ERR`
@@ -7909,7 +7851,7 @@ sibling in the same namespace unqualified.
   `sqlState` and the `driverCode` off every refusal a program catches, with every unit test in the
   driver crate still green. A refusal the server worded is `io::Error::other(ServerError { … })`, and
   `ServerError::of` is what tells it from a wire failure — never the `ErrorKind`, which has no room
-  to say which of § 8's eleven conditions this was.
+  to say which of § 8's eleven conditions this was. [until: reviewed 2026-09-06]
 - **Both type diagnostic bands are full, so a new type rule cannot have its own code.** `E04xx`
   is full at `E0499` and `E07xx` — the band that was opened when `E04xx` filled — is full at
   `E0799`, and `python tools/brief.py` prints both as `FULL` rather than as a next number, which
@@ -7918,7 +7860,7 @@ sibling in the same namespace unqualified.
   reuses `E_CORE_CLASS_NOT_STRINGABLE`, whose subject really is "this class is not text") or waits
   on a decision about the band layout, which is an ADR and not a line in a checker. Do not invent
   an `E08xx`: `E09xx` is internal compiler errors, so a third types band is a change to
-  `crates/nvs-diagnostics/src/lib.rs`'s legend and to every tool that groups by band.
+  `crates/nvs-diagnostics/src/lib.rs`'s legend and to every tool that groups by band. [until: reviewed 2026-09-06]
 - **An ADR clause that mandates a wire feature can be un-implementable for reasons only the
   *sibling* driver's code shows, so a "decide whether to build X" item is read out of the tree
   and not out of the ADR.** `rule:core-classes/db-statement-members` mandated `COM_STMT_BULK_EXECUTE` for MariaDB's
@@ -7929,7 +7871,7 @@ sibling in the same namespace unqualified.
   doc says a prepare reports `0` columns for a statement whose result set depends on the data, so
   "does this produce rows" cannot be asked ahead of the execution either. Neither is in the ADR,
   and both are load-bearing. Read the sibling driver and the struct docs *before* budgeting the
-  feature — the previous session sized this one from the ADR and had to stop at the packet.
+  feature — the previous session sized this one from the ADR and had to stop at the packet. [until: reviewed 2026-09-06]
 - **A new `CoreTy` variant does not fail `cargo build`; it fails `cargo test -p nvs-stdlib` in a
   *different module's* test helper.** `CoreTy` is `#[non_exhaustive]`, which binds only other crates, so
   the two out-of-crate matches (`crates/nvs-cli/src/meta.rs:322`, `crates/nvs-types/src/core_lib.rs:516`)
@@ -7937,7 +7879,7 @@ sibling in the same namespace unqualified.
   exhaustive **on purpose**, its own doc requiring that a composite variant added later be a build error
   there rather than a hole a `_` walks past. The error therefore arrives under `#[cfg(test)]`, names
   `ast.rs`, and leaves `registry.rs` clean, so a `cargo check` after adding the variant looks green. Add
-  the arm in the same edit as the variant.
+  the arm in the same edit as the variant. [until: reviewed 2026-09-06]
 - **Adding a driver to `Core\Db` is one match per *member*, not one match, and `open`'s is the arm
   that looks like all of it.** `nvs_db::Connection` is destructured at seven sites in
   `crates/nvs-stdlib/src/db/` — `connect`'s and `open`'s arms (`open.rs`), `warm_connection`'s reset
@@ -7949,7 +7891,7 @@ sibling in the same namespace unqualified.
   them cost more than an arm: `mysql_rows` and `mysql_write` take `&mut nvs_db::MySqlConn` **by
   name**, and `MariaConn` is a distinct type with the same surface over the same framing, so a
   second driver speaking MySQL's protocol needs a sharing seam before it needs an arm. Count the
-  `Connection::` matches before pricing the slice.
+  `Connection::` matches before pricing the slice. [until: reviewed 2026-09-06]
 - **A refusal sentence that looks stale in a second module can be stale about a *different* thing,
   and widening it to the first module's roster is the wrong fix.** `crate::db`'s `driverless` and
   `crate::queue`'s gate carried the same sentence — "only PostgreSQL runs a statement so far" — so
@@ -7961,7 +7903,7 @@ sibling in the same namespace unqualified.
   the answer is "the same statements", the sentence was a copy; where it is "statements it has not
   written", the two are separate facts and the fix is to say which of them is missing. A third copy
   of the same sentence was in `crates/nvs-cli/src/queue.rs`'s `DIALECT` doc, and its own refusal one
-  screen below had already been written the right way round — so grep the sentence, not the roster.
+  screen below had already been written the right way round — so grep the sentence, not the roster. [until: reviewed 2026-09-06]
 - **A `MySqlRows`' column description cannot be *named* outside `nvs-db`, so no caller there can
   write a helper that takes one.** `nvs_db::MySqlRows::columns` answers `&[Column]` where `Column`
   is `mysql_common::packets::Column` — a foreign type the crate re-exports nowhere, unlike
@@ -7971,7 +7913,7 @@ sibling in the same namespace unqualified.
   `nvs_db::MySqlScalar`, which *is* exported. Two smaller edges of the same seam: `MySqlScalar`
   derives nothing, so `read[i]` moving out of a `Vec` does not compile — match it by reference —
   and its `Text`/`Bytes` borrow the row rather than owning octets the way `PgScalar` does, so a
-  value that outlives the loop iteration is a `to_string()` and not an `into_owned()`.
+  value that outlives the loop iteration is a `to_string()` and not an `into_owned()`. [until: reviewed 2026-09-06]
 - **A TLS handshake carried inside another protocol's frames is a `Read`/`Write` adapter that must
   buffer on `write` and frame on `flush`, and the switch that ends it has to be shared *before*
   `rustls` takes the stream.** TDS tunnels the handshake in `PreLogin` packets, and two things about
@@ -7983,7 +7925,7 @@ sibling in the same namespace unqualified.
   `StreamOwned` hands nothing back, so there is no way to reach in and turn the framing off:
   `crates/nvs-db/src/tds/prelogin.rs`'s `Tunnel` keeps the flag in an `Rc<Cell<bool>>` and the caller
   takes its `TunnelEnd` *before* the handshake starts. The adapter then stays in the stream type for
-  the connection's life, transparent — that is the price of the shape, not a leak to clean up.
+  the connection's life, transparent — that is the price of the shape, not a leak to clean up. [until: reviewed 2026-09-06]
 - **A TDS `DONE`'s *type byte* decides whether the answer ended, and its `DONE_MORE` status bit
   does not.** `DONEINPROC` (`0xFF`) ends one statement *inside* a procedure and is never the last
   token of a message — `sp_prepexec` sends the `RETURNVALUE` carrying § 1's handle *after* it — so a
@@ -7992,7 +7934,7 @@ sibling in the same namespace unqualified.
   `Token::Done` exists, which is why `crate::tds::Done` carries an `in_proc` field beside the status
   bits rather than a fourth method over them. The tell is a read that works against a hand-written
   transcript ending in a plain `DONE` and fails the moment the transcript is the shape a real RPC
-  answers with.
+  answers with. [until: reviewed 2026-09-06]
 - **`nvs_stdlib::db::rendering_for` is `crate::queue`'s roster too, so giving a driver an encoder
   fails two tests in a file you never opened.** `queue.rs`'s
   `the_queues_refusal_is_only_ever_about_a_driver_that_cannot_send` and
@@ -8003,7 +7945,7 @@ sibling in the same namespace unqualified.
   encoder that moved. The general shape: a `pub(crate)` predicate that a second module borrows as a
   proxy for *its* roster is a coupling no signature shows, and the borrowing module's own doc is
   where it is written down — `grep -rn '<fn>' crates/<crate>/src` before widening what one answers
-  `Some` for, and read the doc comment on each hit, not just the call.
+  `Some` for, and read the doc comment on each hit, not just the call. [until: reviewed 2026-09-06]
 - **A pass that rewrites `nvs_config`'s typed tree has not changed what a request sees — the
   half that reaches the runtime is the merged *table*.** `Snapshot::retype` deserializes
   `Config` out of `Snapshot::table` afresh (and re-applies § 7's secrets over it, which is why
@@ -8015,7 +7957,7 @@ sibling in the same namespace unqualified.
   `nvs config dump` in a scratch directory prints the table, so a value still spelled the way the
   operator typed it says the rewrite did not land. `app::canonicalize` is the exception that
   makes this look fine from the neighbouring code: `Snapshot::build` reads `resolved.config.app`
-  directly, so its rewrite needs no table write and its shape is not the one to copy.
+  directly, so its rewrite needs no table write and its shape is not the one to copy. [until: reviewed 2026-09-06]
 
 - **Three of the values an operator writes into a `[db]` block's `path` are not paths, and a
   resolver that treats them as one takes four green conformance cases down at once.** `:memory:`,
@@ -8026,7 +7968,7 @@ sibling in the same namespace unqualified.
   shape and is Windows-only: a path written `/no-such/x` has `is_absolute() == false` there
   because it names no drive, so joining it onto a base moves it to the base's *drive* and the
   byte-exact `--EXPECT--` of a case that names one changes on one platform only. `Path::has_root`
-  is the test that answers the same on both.
+  is the test that answers the same on both. [until: reviewed 2026-09-06]
 - **A crate's own *known gaps* list can be stale about the tree in the same way a
   `loop-goal.toml` comment can, and the item that quotes it inherits the error.**
   `nvs_types::intrinsics`' gap 6 said `a_tainted_settings_host_is_a_diagnostic_naming_assert_trusted`
@@ -8037,7 +7979,7 @@ sibling in the same namespace unqualified.
   settled it in a single call, against reading two passes to work out which one owned the refusal
   — and the binary is already built at the commit a session opens on. Probe the claim before
   budgeting the work it implies, and prefer the compiler itself to a grep when the claim is about
-  what a program does.
+  what a program does. [until: reviewed 2026-09-06]
 - **A cancelled task that is parked is usually torn down *where it parked*, and never sees
   `Resumed::Cancelled`.** `Scheduler::run`'s sweep (`crates/nvs-host/src/scheduler.rs:845`) drops an
   unwindable parked task's coroutine outright, so the line after a `suspend_current(Waiting::Parked)` does
@@ -8045,7 +7987,7 @@ sibling in the same namespace unqualified.
   carries is reached only by a stack standing on a `nvs_runtime::HelperFrame`, which cannot be unwound and
   so has to be resumed to die. A test asserting "the wait answered its cancellation" therefore fails on an
   ordinary task and passes only with a `HelperFrame::enter()` guard held across the park — and a park site
-  needs both answers written, because both happen.
+  needs both answers written, because both happen. [until: reviewed 2026-09-06]
 - **A task that spawns children and returns takes them down with it, and the symptom is on the
   *client*.** An accept loop that handed a connection to `nvs_host::spawn_child` and then returned
   produced a `ConnectionReset` at the peer with no error anywhere on the server side: `rule:concurrency/nothing-is-still-running-when-a-call-returns`'s
@@ -8056,7 +7998,7 @@ sibling in the same namespace unqualified.
   the end of its body. Two things that look like they would do instead and do not:
   `children_still_running()` alone leaves the wake to tree bookkeeping whose ordering against the
   child's last instruction is not stated, and a `Waiting::Yielded` spin never lets the core poll the
-  reactor the child is parked on.
+  reactor the child is parked on. [until: reviewed 2026-09-06]
 - **A task holds one timer entry, and a `Ready` poll on a stream's *other* interest used to lift
   it — so an idle read timeout was silently cancelled by the write that answered the request.**
   `nvs_host::NvsStream::answer` disarms the task's timer when a poll ends, which is right for one
@@ -8067,7 +8009,7 @@ sibling in the same namespace unqualified.
   not from the timer. Four probe builds to see it, and the probe that settled it was printing the
   poll order plus `deadline().map(saturating_duration_since)` in the adapter. `NvsStream::timed`
   now records which interest filed the entry; anything else that parks two interests of one stream
-  under one task inherits the same question.
+  under one task inherits the same question. [until: reviewed 2026-09-06]
 - **`nvs_host::run_until_idle` returns while your task is still parked, and a server is the first
   caller for which that is wrong.** It breaks out of its own loop as soon as one blocking poll wakes
   nothing — which is exactly what a connection's socket reports on Windows once the task that owned
@@ -8077,14 +8019,14 @@ sibling in the same namespace unqualified.
   doc says the case is reported rather than handled ("the report says the state instead and the
   caller decides"), so the fix is the caller's: loop while `RunReport::parked > 0`. Measured with
   `(Get-Process nvs).CPU` across six idle seconds, that does not spin — the stale readiness is
-  delivered once, not level-triggered forever. `crates/nvs-cli/src/serve.rs`'s loop is the shape.
+  delivered once, not level-triggered forever. `crates/nvs-cli/src/serve.rs`'s loop is the shape. [until: reviewed 2026-09-06]
 - **A new `Core` class in a private module declares `pub(crate) const CLASS`, not `pub`.**
   `conventions.md`'s worked example is `crates/nvs-stdlib/src/json.rs`, which is a `pub mod`, so
   copying its `pub const CLASS: CoreClass` into a `mod` line — which is most of them — builds and
   then warns `unreachable pub item`, and the workspace lint policy makes that a `verify.py` failure
   rather than a note. Every private domain module already spells it `pub(crate)`
   (`crates/nvs-stdlib/src/env.rs:109`, `cap.rs:79`, `out.rs:66`); `address` is `pub(crate)` in all of
-  them for the same reason.
+  them for the same reason. [until: reviewed 2026-09-06]
 - **`CoreTy::Text(Qual::Contagious)` on a `void` member *refuses* the tainted argument the ADR
   says it admits, and the ADR's word for a row is not always the enum's case.** `rule:security/response-body-is-one-typed-member`
   calls `Core\Response::text`'s body "contagious", but `nvs_types`' `admits_tainted_argument`
@@ -8093,7 +8035,7 @@ sibling in the same namespace unqualified.
   `E0401: expected string, found tainted string` at every tainted call site. The two taxonomies
   are over different things: § 4's column is about the **body**, `Qual` is about the **answer**.
   A writer that answers nothing and takes what it is given is `Qual::Neutral`, which is what
-  `Core\Cli::write`'s `string` arm has been all along (`crates/nvs-stdlib/src/cli.rs:435`).
+  `Core\Cli::write`'s `string` arm has been all along (`crates/nvs-stdlib/src/cli.rs:435`). [until: reviewed 2026-09-06]
 - **An ADR's compile error can be stated over a thing the compiler cannot see, and the corpus tells
   you before the build does.** `rule:security/response-body-is-one-typed-member`'s sixth row — "`echo` and a typed writer on the same
   response is a compile error" — reads as a rule about a *body*, and implementing it that way refuses
@@ -8103,7 +8045,7 @@ sibling in the same namespace unqualified.
   is a run-time fact for every body except a `#[Route]` handler, which `rule:routing/matched-once-before-the-handler` makes a request
   body by declaration. Before implementing a rule an ADR states over a run-time noun, grep the corpus
   for the members it names — a green case exercising the very combination is the cheapest possible
-  statement of the scope you actually have.
+  statement of the scope you actually have. [until: reviewed 2026-09-06]
 - **A `Core` member the spec states in Part Two has a sixth edit, and `conventions.md`'s "five
   edits" does not name it.** `crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt` is a
   ledger of every §§ 13-24 member the spec names and the registry does not yet build, and
@@ -8112,17 +8054,7 @@ sibling in the same namespace unqualified.
   produces: §15 Response::setStatus`. The message is clear once you have it, but it arrives only
   from a full `-p nvs-stdlib` test run, so it costs a whole verify cycle at the very end of a
   session. Delete the line in the same edit as the row. Members in §§ 1-12 do not have this: those
-  sections are `| Member |` tables and a different test reads them.
-- **Nothing in this tree can write one header name twice, and both layers that stop it are named
-  for setting rather than for replacing.** `Ctx::declare_header` searches the list and overwrites
-  in place — its own doc says "set, not add", and points at `addCookie` as the member that will
-  ask the other question — and `nvs_server::serve`'s answer path then calls
-  `response.headers_mut().insert(name, value)`, which is `hyper`'s *replacing* insert rather than
-  its `append`. So a `Set-Cookie` written twice survives neither layer, and it fails silently:
-  the program sets two cookies, the peer gets the second one, and nothing anywhere reports a
-  dropped header. `addCookie` therefore needs an appending path added at **both** ends before it
-  can be a member at all, which makes it a four-crate slice rather than the five edits a `Core`
-  member usually is.
+  sections are `| Member |` tables and a different test reads them. [until: gone crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt]
 - **An ADR citation is right in every doc comment in `registry.rs` except the one place a card is,
   and the whole-suite test that says so is the last thing to run.** A `MethodDoc`/`EnumDoc` field
   is shipped verbatim by `nvs meta --json` to a reader with no ADR tree, so
@@ -8131,7 +8063,7 @@ sibling in the same namespace unqualified.
   rest of the file trains is exactly the thing the card refuses, which is why this costs a build
   cycle rather than being caught while typing: `-p nvs-stdlib --lib` is where it surfaces, after
   fmt and after every conformance case has already passed. State the fact — "a `__Host-` prefix
-  requires `Secure`" — and let the ADR number live in the `///` beside the card.
+  requires `Secure`" — and let the ADR number live in the `///` beside the card. [until: reviewed 2026-09-06]
 - **A field added to `nvs_runtime::Ctx` can stop every coroutine in the workspace from
   starting, and the panic names neither the field nor the crate.** `corosensei` copies a
   coroutine's entry closure onto the new stack and refuses anything over **1024 bytes**
@@ -8145,7 +8077,7 @@ sibling in the same namespace unqualified.
   the closure's first statement, and `start` carries an `assert!` on
   `size_of_val(&entry) <= CORO_TRANSFER_LIMIT` that names the cause. `Finished` is *not* under
   the limit — it is 1040 bytes and always was — so a guard written against it measures the
-  wrong thing; only the entry closure crosses that way.
+  wrong thing; only the entry closure crosses that way. [until: reviewed 2026-09-06]
 - **A `Core` member whose *return* type carries `tainted` fails a test in `nvs-types`, and the
   message names neither the member nor the crate you edited.**
   `nvs_types::core_lib`'s `a_verified_signature_does_not_launder_its_claims` holds a closed
@@ -8156,7 +8088,7 @@ sibling in the same namespace unqualified.
   entry saying *why that member's answer came from outside the process*, and the assertion
   message counts them out loud — so the edit is four places, not one. Same shape as the
   `nvs_hir::errors::TREE` bullet under *Running things*: a roster held in a crate below the one
-  you are writing in.
+  you are writing in. [until: reviewed 2026-09-06]
 - **A `Core` member whose answer carries a qualifier owes a sixth edit, in a crate the slice never
   touches.** `crates/nvs-types/src/core_lib.rs`'s
   `a_verified_signature_does_not_launder_its_claims` holds the roster of every member whose
@@ -8165,7 +8097,7 @@ sibling in the same namespace unqualified.
   never opened — with a diff of two twelve-line sets and nothing naming the registry row that
   caused it. The same shape as the `nvs-ir` label list an `errors::TREE` row breaks, and found the
   same way: run the whole gate rather than `-p nvs-stdlib`. Update the set, the count in the
-  message and the doc comment's enumeration together; they are three statements of one roster.
+  message and the doc comment's enumeration together; they are three statements of one roster. [until: reviewed 2026-09-06]
 - **A handler closure in `nvs-cli` takes its parameter type from its first statement, and the type it
   infers cannot be written down there.** `move |request| { … }` compiles only because
   `table.select(&request, &OnDisk)` pins it to `Request<Incoming>`; a read of the request placed
@@ -8173,7 +8105,7 @@ sibling in the same namespace unqualified.
   moved. The annotation the compiler asks for is unsayable — `nvs-cli` has no `hyper` dependency and
   `rule:packaging/a-c-dependency-answers-two-questions`'s answer is that it should not gain one for a parameter type. `nvs_server` re-exports
   `Request` and `Incoming` for exactly this, so the fix is a `use` and an annotated parameter, not a
-  body reordered around inference.
+  body reordered around inference. [until: reviewed 2026-09-06]
 - **Nothing reached from inside `nvs_server::serve_connection`'s service closure may park on the
   request body, and the deadlock is `hyper`'s shape rather than a slow path.** Its h1 dispatcher
   (`proto/h1/dispatch.rs`'s `poll_inner`) runs `poll_read` then `poll_write` in one loop on one
@@ -8185,7 +8117,7 @@ sibling in the same namespace unqualified.
   warn you — that ADR is about driving *one* future and says nothing about the request body. The way
   out has landed: the service **is** a future that answers `Pending` while the isolate runs as a peer
   task, so a pull may park the *isolate*. What may still never park is the connection's own task —
-  anything written in the service itself, or in `serve_connection` around it.
+  anything written in the service itself, or in `serve_connection` around it. [until: reviewed 2026-09-06]
 - **A request that parks makes `hyper` skip its post-response read, and what breaks is the keep-alive
   clock rather than the response.** `Conn::maybe_notify` (`proto/h1/conn.rs`) reads the socket once
   after a response to decide whether to loop again, and it returns early when `is_read_blocked()` —
@@ -8196,7 +8128,7 @@ sibling in the same namespace unqualified.
   client's patience rather than a wrong response. The fix is one `cx.waker().wake_by_ref()` from the
   service once the answer exists, which costs one extra poll and makes `hyper` read again with the
   dispatcher idle. Debugging it takes timestamps: the trace reads identically without them, because
-  the post-response read *does* eventually happen — ten seconds later, when the client's FIN arrives.
+  the post-response read *does* eventually happen — ten seconds later, when the client's FIN arrives. [until: reviewed 2026-09-06]
 - **A `Core` instance has no property a program can reach, so an ADR that writes `$x->thing` in its
   example is describing a surface the registry cannot express.** `rule:http-server/a-part-is-consumed-in-one-of-three-ways`'s worked block reads
   `$part->filename;` and `foreach ($part->content as $chunk)`, and `CoreClass` has `methods`,
@@ -8206,7 +8138,7 @@ sibling in the same namespace unqualified.
   the reason `CoreTy::Instance` states"), so a session implementing a new class reads the ADR, writes
   the slots, and finds out at the row. Check `CoreTy::Instance`'s doc before believing a spec'd
   property spelling; the fix is a reader with parentheses, folded back into the ADR body and the spec
-  line in the same commit.
+  line in the same commit. [until: reviewed 2026-09-06]
 
 - **A member answering `tainted` is on a closed roster in another crate, and registering one fails
   `-p nvs-types` rather than `-p nvs-stdlib`.** `nvs_types::core_lib`'s
@@ -8217,14 +8149,14 @@ sibling in the same namespace unqualified.
   owes, after `conformance_coverage.rs`'s floor of three and
   `spec-members-part-two-outstanding.txt`, whose line only shrinks and which fails with "names a
   member that is registered now" rather than with anything about the member. Budget all three when
-  the row you are adding is qualified.
+  the row you are adding is qualified. [until: reviewed 2026-09-06]
 - **Two ADRs can describe one wire event, and the one you are handed may state the answer while
   the other states the precondition.** `rule:http-server/cors-is-closed-until-origins-are-named` says what a preflight is answered with; `rule:http-server/a-request-resolves-in-five-steps` is where a preflight is *defined* — an `OPTIONS` carrying `Origin` **and**
   `Access-Control-Request-Method` — and the landed `Cors::preflight` read only the second header,
   so it took the policy's answer for a request 0097 calls an ordinary `OPTIONS`. Nothing failed:
   under a closed policy both readings refuse, and the divergence only became reachable when the
   open half landed. `python tools/peek.py 'docs/adr/*.md:re:<the noun>'` finds every ADR naming
-  the event in one call, and it is worth spending before writing the predicate rather than after.
+  the event in one call, and it is worth spending before writing the predicate rather than after. [until: reviewed 2026-09-06]
 - **A table the compiler builds and a *running* program must read does not reach the runtime by
   adding a dependency — it crosses as a second, runtime-side table, and `nvs_runtime::commands` is
   the worked pattern.** `nvs-runtime` is the bottom of the crate tree and has no `nvs-types`
@@ -8235,7 +8167,7 @@ sibling in the same namespace unqualified.
   crosses — strings plus one closed enum for whatever a matcher needs that no string spells. Anything
   `rule:routing/the-servers-match-dispatches-nothing`'s routes, `rule:concurrency/enqueue-commits-with-your-write`'s jobs or a later table needs is that shape again. Check for the
   sibling before designing the edge: the cost of missing it is a dependency edge in a review rather
-  than a copy nobody argues with.
+  than a copy nobody argues with. [until: reviewed 2026-09-06]
 - **Widening a member's declared type in `nvs_stdlib::registry` moves four expectations, and not one
   of them names the constant you edited.** Adding `decimal` and `Core\Uuid` to `router.rs`'s
   `CAPTURE` union changed a rendering pinned in `crates/nvs-types/src/core_lib.rs`'s tainted-answer
@@ -8246,7 +8178,7 @@ sibling in the same namespace unqualified.
   before the build does. And the rendered order is not the declaration order — `[TaintedStr, Int,
   Uint, Decimal, Instance]` prints as `uint|int|decimal|tainted string|Core\Uuid`, and a nullable one
   puts `null` third rather than first or last — so the new expectation is worth *running* for rather
-  than reasoning about: `python tools/try.py <case>` prints the real one in one call.
+  than reasoning about: `python tools/try.py <case>` prints the real one in one call. [until: reviewed 2026-09-06]
 - **A new `Core` member is five edits in its own crate and two closed sets in `nvs-types`, and the
   second pair fails one crate away from anything you touched.** `Core\Request::mount()` and its
   `Core\Request\Mount` passed `-p nvs-stdlib` whole — the row, the card, the body, the `address()`
@@ -8258,7 +8190,7 @@ sibling in the same namespace unqualified.
   counting it ("closed at nineteen", "closed at six"), and the second one wants a stated reason why
   a new plain row is plain. Any member answering a marked value anywhere, or any member at all under
   `Core\Request`, owes both: `grep -n 'closed at' crates/nvs-types/src/core_lib.rs` finds them for
-  the price of one call, where the full verify finds them for the price of a whole run.
+  the price of one call, where the full verify finds them for the price of a whole run. [until: reviewed 2026-09-06]
 - **A `Core` member is five edits plus a sixth nobody names, and the sixth fails in a test file
   that mentions neither your module nor your class.** Registering `Core\Session::start` built
   clean and passed every gate in `registry.rs`, then `cargo test -p nvs-stdlib` failed
@@ -8269,7 +8201,7 @@ sibling in the same namespace unqualified.
   arrives from `--test spec_registry_coverage` rather than from anything the five edits touched, so
   a session reads it as a gate it broke rather than as the ledger it is. Whole-class work strikes a
   run of lines: `Core\Session` is seven, of which one is gone. `grep -n '<Class>::'` that file
-  before writing the row, and the strike goes in the same commit.
+  before writing the row, and the strike goes in the same commit. [until: reviewed 2026-09-06]
 - **A request's per-request state is not on the context the *door* holds, and the filing that says
   otherwise reads perfectly.** `rule:http-server/a-session-is-loaded-once-and-written-whole`'s write-back arrived filed against
   `crates/nvs-server/src/serve.rs:709` — the line where a request ends with "its `Ctx` still live" —
@@ -8282,7 +8214,7 @@ sibling in the same namespace unqualified.
   crates/nvs-host/src/isolate.rs:@finish` — whatever a request's end owes a context happens there and
   in `nvs run`'s root task, not at the socket. When the two ends reach `nvs-stdlib` differently — the
   CLI names it, `nvs-host` may not — what the second one needs travels as a `fn` pointer on the state
-  itself rather than as a trait method or a second thread-local.
+  itself rather than as a trait method or a second thread-local. [until: reviewed 2026-09-06]
 - **A stub whose *doc* states that some other file has no spelling for something goes stale in
   silence, and the tell is an acceptance check that can never pass.**
   `nvs_config::schedule::configures_a_shared_store` was `fn(_config) -> bool { false }` under a doc
@@ -8293,7 +8225,7 @@ sibling in the same namespace unqualified.
   the wrong answer are the same `false`. The general shape is that a claim about *another* file's
   absence has no compiler behind it, so when triaging a check that has never passed, re-ask the
   absence the code asserts rather than reading its doc — one `grep -n` of the block name in
-  `tree.rs` settled this one, and it changed the triage's answer.
+  `tree.rs` settled this one, and it changed the triage's answer. [until: reviewed 2026-09-06]
 - **`jiff`'s disambiguation does not spell `rule:config/a-missed-fire-is-skipped-and-a-dst-edge-fires-once`'s spring-forward rule, and the nearest option
   is wrong by half an hour.** `AmbiguousZoned::compatible()` shifts a civil time inside a gap
   *forward by the gap's length* — `02:30` becomes `03:30` — and `earlier()` shifts it back to before
@@ -8305,7 +8237,7 @@ sibling in the same namespace unqualified.
   The fall-back half *is* a library call, `earlier()`, so only one of § 6's two rules is one. Two
   smaller shapes from the same crate: `jiff::civil::Date` has no `to_datetime`/`at`, so a date plus a
   time is `DateTime::new(y, m, d, …)`, and `TimeZone` has no `Display` — the name is
-  `iana_name() -> Option<&str>`.
+  `iana_name() -> Option<&str>`. [until: reviewed 2026-09-06]
 - **A `spawn_child` whose parent task returns is torn down with it, and the test sees *nothing*
   rather than a failure.** The schedule ticker's first cut spawned each fire and returned as soon as
   the tick was done; the fire never ran, `Fires::isolate` was never called, and what the assertion
@@ -8315,7 +8247,7 @@ sibling in the same namespace unqualified.
   `while outstanding > 0 { suspend_current(Waiting::Parked) }` ahead of the return.
   `crates/nvs-server/src/serve.rs:1021` is the worked one and `rule:concurrency/nothing-is-still-running-when-a-call-returns` is why. Copy the tail in
   the same edit as the spawn — it is three lines written with the loop and half an hour found
-  afterwards.
+  afterwards. [until: reviewed 2026-09-06]
 - **`nvs_host::sleep` re-arms past a wake on purpose, so a loop that has to return when a *peer*
   changes state needs `nvs_host::timer::wait_until` — which is not in the crate's re-export list and
   therefore does not turn up beside `sleep` where you look for it.** `rule:config/a-missed-fire-is-skipped-and-a-dst-edge-fires-once`'s `queue` holds one
@@ -8325,7 +8257,7 @@ sibling in the same namespace unqualified.
   paragraph — a deadline the caller asked for, versus a deadline that is only the bound on a wait —
   and the repair is one line at the wait rather than a second timer. `nvs_host::` alone will not show
   you `wait_until`: `grep -n "pub fn" crates/nvs-host/src/timer.rs` is the list, and the same is true
-  of every other `pub mod` in that crate whose `pub use` line is a subset.
+  of every other `pub mod` in that crate whose `pub use` line is a subset. [until: reviewed 2026-09-06]
 - **A named-argument binding cannot be done at run time from anything the runtime holds: neither
   `nvs_runtime::MethodRow` nor `nvs_types::ResolvedCall` carries parameter *names*.** The row has
   `arity` and `param_tags`, and the resolved call has `param_tys`, `inout`, `variadic` and
@@ -8336,14 +8268,14 @@ sibling in the same namespace unqualified.
   it is not a read the helper can make from the class descriptor it already reaches through
   `Ctx::class_desc`. The other half of the same fact is what makes a short argument list unsound
   rather than wrong: `nvs_runtime::abi::call` passes a raw pointer and its doc requires "as many
-  values as the callee's arity", so a call built with fewer reads a slot nobody filled.
+  values as the callee's arity", so a call built with fewer reads a slot nobody filled. [until: reviewed 2026-09-06]
 - **Adding a row-less `Core` symbol fails a `-p nvs-stdlib --lib` test whose message is two
   numbers.** `every_registered_member_has_an_implementation_address` (`crates/nvs-stdlib/src/lib.rs`)
   checks `symbols()` against the rosters plus a hand-written `+ 5` for the constructs that have no
   registry row — `spawn script`, `await`, `as Markup`, `Markup + Markup`, `Text + Text` — so a
   sixth arrives as `left: 587 / right: 586` with nothing naming the symbol or the file. The full
   roster a new row-less symbol owes is: the `const`, the `address()` arm, the `.chain([…])` in
-  `symbols()`, and that literal. It is the `nvs_hir::errors::TREE` bullet's shape one crate over.
+  `symbols()`, and that literal. It is the `nvs_hir::errors::TREE` bullet's shape one crate over. [until: reviewed 2026-09-06]
 - **A `Core` helper that returns `Err` must not release its *transferred* argument, and the
   double release aborts the process instead of failing a test.** `spawn script`'s `args:` value
   is `ArgOwnership::Transferred`, and the obvious reading — the lowering emitted no release for
@@ -8354,7 +8286,7 @@ sibling in the same namespace unqualified.
   refusal path into `thread caused non-unwinding panic. aborting.` inside
   `nvs_runtime::value::nvs_value_release`, with the harness reporting the abort and nothing about
   the helper. `nvs_ir::lower::TemporaryKind`'s own doc is the answer and says it in one line —
-  `Transferred` is "released on the error edge only", and that edge is the *caller's*.
+  `Transferred` is "released on the error edge only", and that edge is the *caller's*. [until: reviewed 2026-09-06]
 - **A first-class callable naming a `void`-returning method is an ICE, and the message names two
   crates you did not touch.** `mixed $f = Chat::run(...)` where `run` returns `void` fails with
   "internal error: an operand used before it is defined (this is a bug in nvs-ir or nvs-codegen)" —
@@ -8365,7 +8297,7 @@ sibling in the same namespace unqualified.
   is the convention it should be following. Any fcc of a void method reproduces it with no `Core`
   member in sight, so a fixture that hands one to a member picks a target that returns a value, or
   fixes this first. It surfaced while writing a case for `Core\Socket::upgrade(Chat::run(...))`,
-  where the entry method returning `void` is the natural shape.
+  where the entry method returning `void` is the natural shape. [until: reviewed 2026-09-06]
 - **`hyper`'s `with_upgrades()` cannot drive a connection this server accepts, and the way back to
   the socket is `http1::Connection::into_parts`.** The obvious route to `rule:concurrency/a-connection-is-a-root-isolate`'s hand-over is
   the documented one — take the `OnUpgrade` out of the request's extensions, call
@@ -8380,7 +8312,7 @@ sibling in the same namespace unqualified.
   `Connection` is `Unpin` — `hyper` already boxes the service future in its own dispatcher
   (`proto::h1::dispatch`'s `in_flight: Pin<Box<Option<S::Future>>>`), so the `!Unpin` `async` block
   the service returns never makes the connection `!Unpin`. Reading those two lines of `hyper` first
-  is cheaper than believing the `Send` bound is a fact about upgrades.
+  is cheaper than believing the `Send` bound is a fact about upgrades. [until: reviewed 2026-09-06]
 - **A `CoreTy::Union` parameter carries no qualifier classification, so a text-like union is a
   `tainted`-refusing sink by accident.** `Core\Socket::send` was first written
   `params: &[CoreTy::Union(&[CoreTy::Text(Qual::Neutral), CoreTy::Blob(Qual::Neutral)])]`, which
@@ -8392,7 +8324,7 @@ sibling in the same namespace unqualified.
   qualifiers. The repair is two classified parameters (`send`/`sendBytes`) rather than one union,
   and the general shape is that a `Qual` lives on a *leaf* variant: any wrapper — a union today,
   anything nested tomorrow — silently drops the classification the row thought it wrote. The tell
-  is a refusal naming a qualified type at a parameter whose row spells `Qual::Neutral`.
+  is a refusal naming a qualified type at a parameter whose row spells `Qual::Neutral`. [until: reviewed 2026-09-06]
 - **A `[`Ctx`]` intra-doc link resolves in most of `nvs-runtime` and not in the module you just
   wrote, and `verify.py` is not what tells you.** `crates/nvs-runtime/src/peer.rs`'s module doc
   named `[`Ctx`]` where its siblings write `[`Ctx`](crate::Ctx)`, and the difference is only that
@@ -8401,7 +8333,7 @@ sibling in the same namespace unqualified.
   session is that the doc gate is **not** part of `python tools/verify.py` (that tool says why), so
   a green session leaves it red and the driver reports it every iteration afterwards. `python
   tools/verify.py --doc` is the whole check and it names the file and column; run it once when a
-  session writes a module doc that links a type from another module.
+  session writes a module doc that links a type from another module. [until: reviewed 2026-09-06]
 - **A route table is on the *unit*, not on whichever context is in hand, and a `#[Test]` isolate's
   own context has none.** `rule:routing/matched-once-before-the-handler`'s match for an in-process request was written in the `Core`
   member, off `ctx.routes()`, which is exactly where the door takes it and reads correctly — and it
@@ -8411,7 +8343,7 @@ sibling in the same namespace unqualified.
   an isolate that shares compiled code with the unit and nothing else (`rule:testing/isolate-per-test`). The failure
   looks like the *table* being empty rather than like the wrong table being asked. The rule: match
   on the side that holds the compiled unit, and treat a `ctx.routes()` in a helper that may run
-  under `nvs test` as a bug.
+  under `nvs test` as a bug. [until: reviewed 2026-09-06]
 - **"Which declaration is this expression inside" is a *stamp* on the table, not a field on
   `nvs_types::Ctx`.** `rule:testing/inline-snapshots`'s updater needs each written `assertMatchesInline`'s enclosing
   `Class::method`, and the obvious move — `current_method` beside `current_class` — costs an edit at
@@ -8421,7 +8353,7 @@ sibling in the same namespace unqualified.
   (`ExprTypeTable::inline_snapshot_mark`) and names the owner of everything recorded after it, at
   both of that function's exits. Two lines, no signature moves, and it reaches a call written inside
   a closure inside the method for free. The shape generalises to any per-declaration fact an
-  expression-level table wants.
+  expression-level table wants. [until: reviewed 2026-09-06]
 - **Adding a row to `Core\Db\Connection` fails a test in `db::transaction`, and the failure names
   neither the class nor the member you added.** `rule:classes/no-traits`'s delegation is asserted as a *sweep* —
   `a_transaction_is_a_closure_and_transaction_is_a_queryable` formats every `CONNECTION.instance`
@@ -8433,7 +8365,7 @@ sibling in the same namespace unqualified.
   `crates/nvs-stdlib/src/db/registry.rs`'s `BEYOND_QUERYABLE` — and the case asserts it from both
   ends before sweeping, so a name on it that stops being a connection-only row fails there. The
   general shape: a guard written as "these two rosters are identical" needs its exception set spelled
-  as data the guard also checks, or the first legitimate exception turns it into a weaker guard.
+  as data the guard also checks, or the first legitimate exception turns it into a weaker guard. [until: reviewed 2026-09-06]
 - **A `Core` member that answers a *walk* returns a **registered** memberless class, never
   [`crate::cursor`]'s unregistered one — and a handoff item saying otherwise reads exactly right
   until you try to compile it.** `rule:core-classes/db-statement-members`'s `stream` answers something a `foreach` drives whose
@@ -8446,7 +8378,7 @@ sibling in the same namespace unqualified.
   that same test file, and — for a walk that is its own iterator, as `Core\Request\Files` is — all
   three of `iterate`/`advance`/`current` on `instance`'s dispatch roster rather than a cursor handed
   back. `crate::cursor` is only for a member handing back a *snapshot* it is already holding, which
-  is why `Core\Db\Rows::iterate` uses it and `Core\Db\Stream` cannot.
+  is why `Core\Db\Rows::iterate` uses it and `Core\Db\Stream` cannot. [until: reviewed 2026-09-06]
 - **`crate::instance::build` takes a reference *over*, and `crate::instance::slot` hands one
   *back borrowed* — so parking a value read out of another object's slot into a new instance is a
   double release, and there was no correct example to copy.** `Core\Db\Connection::stream` built its
@@ -8458,7 +8390,7 @@ sibling in the same namespace unqualified.
   `examples/stream.nvs`'s acceptance check would have failed on the exit status alone with its stdout
   byte-perfect. The recognition test is one grep: a `crate::instance::build` whose slot values are
   not all freshly constructed. `crates/nvs-stdlib/src/db/stream.rs:233` is the fix and states the
-  rule.
+  rule. [until: reviewed 2026-09-06]
 - **`mixed as string` does not reach a `bytes`, and the failure is a runtime throw from inside the
   walk rather than a diagnostic at the line.** Changing `Core\Uri::parseQuery` to answer a value as
   `bytes` broke every case that rendered the answer, and the obvious repair — a walk converting each
@@ -8470,7 +8402,7 @@ sibling in the same namespace unqualified.
   `Core\Json::encode` refuses an array holding a `bytes`, so a member that starts answering octets
   invalidates every fixture that rendered its answer as JSON — six of them here, each needing a
   leaf-converting walk declared as a class, since `.nvst` cases have no free functions (`E0215`) and
-  every `foreach` binding needs a type.
+  every `foreach` binding needs a type. [until: reviewed 2026-09-06]
 - **A `Core` member whose return type changes is five edits in the module and then a corpus pass, and
   the corpus pass is the bigger half.** `decodeComponent`/`decodeFormValue` moving from `CoreTy::Str`
   to `CoreTy::Bytes` was nine edits in `crates/nvs-stdlib/src/uri.rs`; it then failed 17 conformance
@@ -8480,7 +8412,7 @@ sibling in the same namespace unqualified.
   shell, and a script written with Write does not). The rest are the ones that pin the *refusal*: a
   member that no longer throws hands its message to `bytes as string`, so their `--EXPECT--` moves to
   `cannot convert `bytes` to `string`: not well-formed UTF-8 at byte N` and their titles have to say
-  the bound moved one member along rather than went away.
+  the bound moved one member along rather than went away. [until: reviewed 2026-09-06]
 - **A `.nvst` case can carry its own `nvs.toml`, so the conformance corpus already pins how a
   *command* behaves under a configuration — grep `--FILE nvs.toml--` before making one read the
   tree.** `rule:core-classes/db-literal-query-checking`'s check-time refusal of an ungranted literal `Core\Db::open` host reads as
@@ -8492,7 +8424,7 @@ sibling in the same namespace unqualified.
   `crates/nvs-test/src/run.rs`'s module doc is why: every case spawns the real binary with the case
   directory as its working directory, so `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 2 finds that file exactly as a user's
   would. The general shape: hoisting a runtime refusal to compile time is a language change wherever
-  the runtime one is catchable, and the corpus is where that gets noticed.
+  the runtime one is catchable, and the corpus is where that gets noticed. [until: reviewed 2026-09-06]
 - **A `Core\Db` statement member is declared *twice*, under one symbol, and changing its arity
   means changing both rows.** `nvs_stdlib::db::registry` gives `query`, `queryAs`, `execute`,
   `executeMany` and `stream` a row on `CONNECTION` and a second row on `TRANSACTION` — `rule:classes/no-traits`
@@ -8503,7 +8435,7 @@ sibling in the same namespace unqualified.
   check and nothing a build would report. The tell that saved it was `splice.py` refusing an
   ambiguous anchor — "block 5 appears 2 times" — which is worth reading as *two rosters* rather
   than as a bad anchor. `grep -c 'name: "<member>"' crates/nvs-stdlib/src/db/registry.rs` before
-  editing any of these five, and expect `2`.
+  editing any of these five, and expect `2`. [until: reviewed 2026-09-06]
 - **A crate's known-gap bullet can state a *reason* that is false about the driver it names, and
   one grep at the named call site settles it.** `crates/nvs-stdlib/src/db/mod.rs`'s gap 6 refused
   `stream`'s `{chunk?: uint}` because "a chunk size has to reach the `Execute` that asks for a row
@@ -8513,7 +8445,7 @@ sibling in the same namespace unqualified.
   walk already streams the whole result set over one round trip while holding one row, so a chunk
   buys no memory and costs round trips. A gap bullet naming *another* crate's mechanism is a claim
   about that crate as it was when the bullet was written; grep the mechanism before implementing
-  the gap or restating its reason, because both readings look equally settled from here.
+  the gap or restating its reason, because both readings look equally settled from here. [until: reviewed 2026-09-06]
 - **`literal_default` does not fold a class constant, and every sibling pass's `folded_str` copies
   that hole forward.** A new compile-time read of a string reaches for
   `crate::intrinsics`'s or `crate::links`'s two-line `folded_str`, which is
@@ -8524,7 +8456,7 @@ sibling in the same namespace unqualified.
   `defaults::fold_const_reference`, which reads `signatures::resolve_const` — the same entry a *read*
   of `Foo::CONST` inlines, which is why a payload and a read cannot disagree — and it needs a
   `&Ctx<'_>`, so the hook has to take one even though its sibling does not.
-  `crates/nvs-types/src/reasons.rs`'s `folded_str` is the shape that answers both.
+  `crates/nvs-types/src/reasons.rs`'s `folded_str` is the shape that answers both. [until: reviewed 2026-09-06]
 - **A `QName::to_string()` at the top of a per-call hook is an allocation per call site, and what
   catches it is `nvs-cli`'s 10k cold-compile guard failing inside cranelift.** A new roster hook in
   `expr::calls` copied `intrinsics::row`'s opening line — `let owner = owner.to_string();` before
@@ -8538,7 +8470,7 @@ sibling in the same namespace unqualified.
   in isolation, and it passes with the change stashed — `git stash push -- crates/<the ones you
   touched>` and one `cargo test -p nvs-cli --bin nvs` is the whole bisect, and it is much cheaper
   than reading the panic. The repair is to test the cheap `&str` half of the roster row first and
-  stringify only after it matches.
+  stringify only after it matches. [until: reviewed 2026-09-06]
 - **A backend flag in `nvs-codegen` is pinned by a *source grep*, not by a symbol, so a refactor can
   unpin a memory-safety policy while every test stays green.**
   `crates/nvs-codegen/tests/backend_policy.rs` reads `crates/nvs-codegen/src/lib.rs` as text and
@@ -8547,7 +8479,7 @@ sibling in the same namespace unqualified.
   flag list out of `UnitBuilder::new` into `host_isa(is_pic)` and the test stayed green only because
   the tuple's *spelling* survived the move. Rewriting the row as `("enable_probestack", probes)` — or
   splitting the list per backend — compiles, runs, and silently unpins the stack-clash guarantee.
-  Grep `crates/nvs-codegen/tests/backend_policy.rs` for the flag before touching that list.
+  Grep `crates/nvs-codegen/tests/backend_policy.rs` for the flag before touching that list. [until: reviewed 2026-09-06]
 - **A value that joins a front-end answer to a configuration digest cannot be computed in the front
   end, and `Cargo.toml` says so before the anchor in the handoff does.** Goal 8's threading item
   anchored the program-id combine at `nvs_hir::resolve_program`
@@ -8558,7 +8490,7 @@ sibling in the same namespace unqualified.
   `crates/nvs-cli/src/main.rs`'s context wiring had `checked.program_files()` and the resolved
   snapshot within thirty lines of each other. When an anchor names the crate holding one input, read
   the `Cargo.toml` of the crate holding the *other* one before opening the file it names — the same
-  one-call test the misfiled-check bullets use, asked of production code rather than of a test.
+  one-call test the misfiled-check bullets use, asked of production code rather than of a test. [until: reviewed 2026-09-06]
 - **SQLite reports no `notnull` for a primary-key column, so an introspected `INTEGER PRIMARY KEY`
   reads back *nullable* and no `Table` can be built from the row.** `pragma_table_info` sets
   `notnull` only where the text said `NOT NULL`; a rowid alias's is implicit, and for the other key
@@ -8567,7 +8499,7 @@ sibling in the same namespace unqualified.
   `p."notnull" = 0 AND p.pk = 0` — and not in the assembly above it, because a reader whose rows
   cannot become a value is the wrong layer to discover that in. The same shape of trap is waiting
   wherever a server records a constraint as a property of something other than the column: assert an
-  introspected fixture against the `Schema` that produced it, never against the catalog's own words.
+  introspected fixture against the `Schema` that produced it, never against the catalog's own words. [until: reviewed 2026-09-06]
 
 ## Divergences and refusals already pinned
 
@@ -8583,35 +8515,35 @@ every session. Nothing below was reworded on the way.
   is why `min`/`max` and `reduce` match PHP over a map as readily as over a list; what parts them
   from their twins is PHP's loose comparison — `min([0, "a"])` is `0`, and two numeral strings
   compare numerically — and `array_reduce`'s callback taking exactly two arguments where Novis's
-  takes the key third.
+  takes the key third. [until: reviewed 2026-09-06]
 - **Four other twins sit outside the key rule**: `array_unique` renumbers nothing at all, so the
   divergence there is `SORT_STRING`'s comparison by *spelling*; `array_count_values` names a bucket
   through the same key normalization `countBy` uses, so that pair parts only where PHP
   warns-and-skips a value `countBy` refuses; `ksort` reads a numeral *key* as a number where `rule:types/arrays` makes every stored key a `string` compared bytewise, so `sortByKey` parts from it over a
   numeral or mixed-key subject and a `comparator` is the way back; and `array_fill` takes a start
   index `fill` drops, so every non-zero start is `Core\Arr::fillKeys` over the keys the caller
-  wanted.
+  wanted. [until: reviewed 2026-09-06]
 - **`Core\Str` and `Core\Regex` are closed, `Core\Math` is down to the `gmp` pair alone, and
   `Core\Path`'s three are now the largest block of the 8.** `Core\Math`'s settled pairs say what
   shape the rest take: nothing there has a key rule, so a member either agrees with its twin
-  outright or parts over a *tie*, a *conversion*, a *guard* or a *repair*.
+  outright or parts over a *tie*, a *conversion*, a *guard* or a *repair*. [until: reviewed 2026-09-06]
 - **PHP's two-argument `min` answers its second argument on a tie and its `max` answers its
   first**, where `nvs_stdlib::math::pick` answers the first to both — visible wherever two equal
   values are distinguishable, `min(1000000000000000000, 1.0e18)` being the sharpest — and
-  `f64::total_cmp` separates `-0.0` from `0.0` where PHP's `<` calls them equal.
+  `f64::total_cmp` separates `-0.0` from `0.0` where PHP's `<` calls them equal. [until: reviewed 2026-09-06]
 - **`Core\Math::mod` throws on a zero divisor where `fmod` answers `NAN`**, spec § 3 making a
   division by zero a throw wherever it appears, while the IEEE *domain* rows — an infinite
   dividend, either operand a `NAN` — stay at IEEE's answer and agree; `intDiv` agrees with `intdiv`
-  on every row including both refusals.
+  on every row including both refusals. [until: reviewed 2026-09-06]
 - **The transcendental pairs are closed and they agree with their twins outright**: `sqrt`, `exp`
   and `log` leave the *argument's* domain unguarded, so a negative root and a negative logarithm
   are `NaN`, a zero logarithm is `-INF`, `exp` overflows to `INF` and underflows to the smallest
   subnormal, and every one of those renders byte-identically on both sides; `hypot` and `atan2`
   agree on the four signed-zero quadrants, on the infinite ones, and on the magnitude where
-  `sqrt($x * $x + $y * $y)` overflows and `hypot` does not.
+  `sqrt($x * $x + $y * $y)` overflows and `hypot` does not. [until: reviewed 2026-09-06]
 - **The one guard this added is `log`'s *base***, which PHP has and Novis did not: a base not greater
   than zero is a `Fault::thrown` where PHP raises a `ValueError`, and base `1.0` is `NAN` on both
-  sides rather than the infinity `ln($n) / ln(1.0)` would answer.
+  sides rather than the infinity `ln($n) / ln(1.0)` would answer. [until: reviewed 2026-09-06]
 - **The base pair and the two predicates are closed too, and each parts from its twins over a
   repair rather than over arithmetic.** `toBase`/`fromBase` agree with
   `decbin`/`dechex`/`decoct`/`base_convert` and their from-halves on every non-negative number
@@ -8623,7 +8555,7 @@ every session. Nothing below was reworded on the way.
   `bindec("")` is `0`, and an answer past `int` is a throw where `hexdec("ffffffffffffffff")`
   widens to a `float`. `isNan` and `isFinite` agree with `is_nan` and `is_finite` outright, and
   PHP's third predicate is the two of them folded, so `is_infinite` is neither — asserted as a
-  *partition* over a table rather than row by row.
+  *partition* over a table rather than row by row. [until: reviewed 2026-09-06]
 - **`toRadians` and `toDegrees` now compute PHP's own expression rather than the accurate one**,
   and that is the only place in `Core\Math` where a spelling was changed to match a twin:
   `($degrees / 180.0) * PI` replaces `f64::to_radians`'s multiply by the correctly rounded `PI /
@@ -8634,11 +8566,11 @@ every session. Nothing below was reworded on the way.
   PHP's spelling a whole-degree round trip lands back on its angle for 19 of 22 sampled angles and
   under the std one for 13, so the ulp is what a ported program comparing a round trip actually
   sees. AGENTS.md's priority 2 — PHP-compatible *observable* behaviour — is what decides it, and
-  the accuracy spent is stated in `nvs_stdlib::math`'s own doc comments at both members.
+  the accuracy spent is stated in `nvs_stdlib::math`'s own doc comments at both members. [until: reviewed 2026-09-06]
 - **Novis's `float` rendering is PHP's**, precision 14 with trailing zeros trimmed — `sqrt(2.0)`
   prints `1.4142135623731`, `exp(-745.0)` prints `4.9406564584125E-324` and `0.1 + 0.2` prints
   `0.3` on both sides — so a `Core\Math` oracle case may echo a float directly and needs no
-  formatting, but never a `NAN`, which PHP 8.4 and later warn about coercing to a string.
+  formatting, but never a `NAN`, which PHP 8.4 and later warn about coercing to a string. [until: reviewed 2026-09-06]
 - **`Core\Str`'s twins part from PHP over a *unit* before they part over anything else**, and
   `slice`/`replaceRange` is the worked pair: `nvs_stdlib::granularity::DEFAULT` is
   `Unit::Grapheme`, so a member's `int $offset` and `?int $length` count clusters where `substr`
@@ -8649,27 +8581,27 @@ every session. Nothing below was reworded on the way.
   frozen `--EXPECT--`, because the `php` on the Windows `PATH` has no `mbstring` and `mb_substr` is
   not callable at all. Both members read one `window` helper, and putting a window's own slice back
   into it reproduces the subject on all 90 ASCII cells and all 72 multibyte ones — **PHP's pair
-  holds that identity too**, which the `replaceRange` doc comment used to deny and no longer does.
+  holds that identity too**, which the `replaceRange` doc comment used to deny and no longer does. [until: reviewed 2026-09-06]
 - **`Core\Str::before`/`::after` and `::compare` are closed, and each parts from a *twin* rather
   than from a rule.** Both cut members exclude the needle where `strstr` keeps it, so the port of a
   program that wanted PHP's shape is `$needle . Str::after(...)`, and an absent needle is `null`
   where `strstr`, `stristr` and `strrchr` all answer `false` — a difference in how "no answer" is
-  spelled, folded to one sentinel on both sides rather than a divergence.
+  spelled, folded to one sentinel on both sides rather than a divergence. [until: reviewed 2026-09-06]
 - **`{last: true}` is `strrchr` only at a one-character needle**: `strrchr` reads the needle's
   first character and nothing else, so `strrchr("a::b::c", "::")` is `":c"` where the member
   answers `"c"`, and `strrchr("banana", "an")` answers `"a"` for a needle that never occurs at all;
   at the empty needle `strrchr` fails outright where `strrpos` answers the subject's length, which
   is the member's answer too. The honest twin past one character is `strrpos` plus a `substr`, and
   both halves rejoin through the needle to the subject on every cell where it occurs — counted, on
-  both sides, under each occurrence rule.
+  both sides, under each occurrence rule. [until: reviewed 2026-09-06]
 - **`stristr` has no twin**, because the pair's one option is `{last}`; the port is
-  `Core\Str::indexOf($s, $n, {caseInsensitive: true})` plus a `slice`, needle-inclusive.
+  `Core\Str::indexOf($s, $n, {caseInsensitive: true})` plus a `slice`, needle-inclusive. [until: reviewed 2026-09-06]
 - **`compare` folds four twins into two independent options and the fold is exact over ASCII** —
   all 144 ordered pairs of a table, in all four corners — but only after a *sign* normalization,
   because PHP's four disagree with each other on magnitude: 8.2 narrowed `strcmp`,
   `strnatcmp`/`strnatcasecmp` were always -1/0/1, and `strcasecmp` on 8.5.9 still returns the byte
   difference, in 84 of those 144 cells. `compare` is always one of three literals, and it is the
-  only ordering two strings have at all, since `<` over two `string`s does not lower.
+  only ordering two strings have at all, since `<` over two `string`s does not lower. [until: reviewed 2026-09-06]
 - **`reverse` and `chunk` are closed, and on those two the unit is the *whole* disagreement**,
   since neither takes an offset: `strrev` and `str_split` walk bytes, so their answer for any
   subject outside ASCII is not well-formed UTF-8 and therefore not a value Novis can hold at all —
@@ -8681,38 +8613,38 @@ every session. Nothing below was reworded on the way.
   three twins, and `chunk_split` is not a fourth member but `Core\Str::join(Core\Str::chunk($s,
   $n), $end) . $end`, which reproduces it on all 30 cells *including the empty subject*, where
   `chunk` gives no chunks and `chunk_split("")` is still the separator alone; a zero size is
-  refused on both sides, PHP's `ValueError` against a catchable `Fault::thrown`.
+  refused on both sides, PHP's `ValueError` against a catchable `Fault::thrown`. [until: reviewed 2026-09-06]
 - **The counted claim that survives a unit change is not the discriminating one**: pieces rejoined
   with nothing between them reproduce the subject under all three units, so what parts the members
   from their twins is the piece *count* — `Core\Str::chunk($s, 1)` answers `Core\Str::length($s)`
-  pieces where `str_split($s, 1)` answers `strlen($s)` of them.
+  pieces where `str_split($s, 1)` answers `strlen($s)` of them. [until: reviewed 2026-09-06]
 - **`replaceAll` and `wrap` are closed too, and each is a fold whose two twins disagree with *each
   other* rather than with Novis.** `replaceAll` folds `str_replace`'s array form and `strtr`, which
   read one table two ways: `strtr` scans the subject once and takes the longest needle matching at
   each position, never rescanning what it produced, where `str_replace` runs each pair over the
-  whole subject in turn and feeds every earlier replacement to every later pair.
+  whole subject in turn and feeds every earlier replacement to every later pair. [until: reviewed 2026-09-06]
 - **The member is `strtr`**, `rule:core-api/shape-rules` R20 being why, and 19 cells of a 48-cell table of cascades,
   swaps, prefix pairs and a growth the next pair re-matches are where the two twins part. The
   cascading reading is not lost and is owed no option: `Core\Str::replace` applied pair by pair in
   a `foreach` reproduces `str_replace`'s array form on all 48, and the property that decides
   between the two readings is *counted* rather than read off a line — the same table written back
-  to front answers the same thing on 48 of 48 cells one-pass and on 29 in sequence.
+  to front answers the same thing on 48 of 48 cells one-pass and on 29 in sequence. [until: reviewed 2026-09-06]
 - **`replaceAll` is also the one `Core\Str` member the unit question does not reach**: it matches a
   needle as a byte sequence, and a valid UTF-8 needle can never begin inside a character, so it
   splits a decomposed cluster exactly as `strtr` does — `"e"` over `"e\u{301}ta\u{301}t"`, a
   subject `Core\Str::length` counts as 4 — and there is no divergence file to write. Its one
   boundary left to the conformance case is the *empty needle*, which both skip but PHP warns while
-  skipping, and a warning on stdout is not a difference in the result.
+  skipping, and a warning on stdout is not a difference in the result. [until: reviewed 2026-09-06]
 - **`wrap` runs `wordwrap`'s own algorithm** with PHP's third and fourth arguments as `{breakWith,
   cutLongWords}`, so 8 subjects × 8 widths under both cutting readings, a multi-character break and
   the default newline agree outright, the rule that a break already present in the subject *resets
   the line* included; both refusals agree as well — an empty break and a zero width that must cut,
   `ValueError` against a catchable `Fault::thrown` — while a zero width *without* cutting is an
   answer on both sides and breaks at every space. What the cutting option is worth is counted: 352
-  of 352 lines are within their width when long words may be cut, and 122 when they may not.
+  of 352 lines are within their width when long words may be cut, and 122 when they may not. [until: reviewed 2026-09-06]
 - **`wrap`'s width counts clusters where `wordwrap` counts bytes**, so its multibyte half is still
   owed as an `--ORACLE-DIVERGES--` file — the last `Core\Str` divergence file not written, and the
-  one item of the closed section that is not counted.
+  one item of the closed section that is not counted. [until: reviewed 2026-09-06]
 - **`codePoints` and `fromCodePoint` close the section, and they are the one pair whose unit the
   *member* chose rather than one the class default imposed**: `codePoints` is `Unit::CodePoint` on
   purpose, `nvs_core_str_code_points`'s doc comment being the home of why, so it parts from
@@ -8722,7 +8654,7 @@ every session. Nothing below was reworded on the way.
   plus `array_map("ord", …)` is `codePoints` and `chr` is `fromCodePoint` over the whole 0–127
   table: the 128 encodings render as bytes sixteen to a line, the round trip holds on all 128, each
   answer is exactly one byte, and both members are injective there — 128 code points giving 128
-  distinct strings.
+  distinct strings. [until: reviewed 2026-09-06]
 - **Past 127 the pair parts in both directions and the reason is the same one read from either
   end.** `ord` reads a byte and `str_split` cuts between them, so `array_map("ord",
   str_split("é"))` is `[195, 169]` where `codePoints("é")` is `[233]`; and `chr` constrains its
@@ -8730,11 +8662,11 @@ every session. Nothing below was reworded on the way.
   function not injective past 255 — with no diagnostic. `fromCodePoint` refuses instead: a
   surrogate in `55296..=57343` and anything past `1114111` are a catchable `Fault::thrown`
   (`nvs_stdlib::str::scalar_value`), never a substituted U+FFFD, `rule:types/conversion`'s
-  checked-not-repaired rule reaching a code point exactly as it reaches a buffer.
+  checked-not-repaired rule reaching a code point exactly as it reaches a buffer. [until: reviewed 2026-09-06]
 - **PHP is retreating from the wrap from its own end**: on 8.5.9 `chr()` *deprecates* an argument
   outside `0..255`, and the notice it prints to stdout is itself why that half cannot be an oracle
   leg. What survives the unit change is the round trip, which holds on every multibyte subject too,
-  `fromCodePoints` being the fused spelling of `fromCodePoint` applied element by element.
+  `fromCodePoints` being the fused spelling of `fromCodePoint` applied element by element. [until: reviewed 2026-09-06]
 - **`Core\Regex`'s two twins are closed, and each parts from PHP over a *shape* rather than over a
   result.** `quote` and `preg_quote` escape different sets outright — 18 characters here,
   `#$&()*+-.?[\]^{|}~`, against 22 there, `!#$()*+-./:<=>?[\]^{|}` — because `&` and `~` are meta
@@ -8745,7 +8677,7 @@ every session. Nothing below was reworded on the way.
   printable-ASCII grid a quoted character matches itself and nothing else, the same holds over a 20
   × 39 grid of metacharacter-carrying literals against the strings their unlaundered reading would
   have reached, every quoted literal is still found *inside* a larger subject, and the one
-  row-level agreement left is that neither launderer touches a word character.
+  row-level agreement left is that neither launderer touches a word character. [until: reviewed 2026-09-06]
 - **`Core\Regex\Match::groups` is `preg_match`'s `$matches` under `PREG_UNMATCHED_AS_NULL` and not
   under PHP's default**: `rule:core-api/shape-rules` R11 removed the `PREG_*` constants, so one of the two readings
   has to be the only one, and the default's trimming of *trailing* unmatched groups plus its `""`
@@ -8753,7 +8685,7 @@ every session. Nothing below was reworded on the way.
   "participated and captured nothing" — the first two being exactly what `group`'s
   throw-versus-`null` split is built on. Over twelve rows the two readings part on six of them, six
   entries short in total, and the flagged one agrees with `groups()` on every key, every value and
-  the order they arrive in, a name before its number.
+  the order they arrive in, a name before its number. [until: reviewed 2026-09-06]
 - **`Core\Bytes::pack`'s refusals are closed, and they are the first block `--errors` has
   emptied**: all six argument sites and all three range sites now have a case asserting the
   *message* each names rather than only that something threw, which is what the older `pack` case
@@ -8764,18 +8696,18 @@ every session. Nothing below was reworded on the way.
   taking an `int`, still looks right on its own line and fails there. An integer field's accepted
   range is the **union** of its width's signed and unsigned ranges, so `-1` and the unsigned top
   write the same octets and the signed bottom writes what its own negation writes, at every width,
-  while the value one past either end is refused on both sides.
+  while the value one past either end is refused on both sides. [until: reviewed 2026-09-06]
 - **The 64-bit codes are the one width whose range refusal is unreachable**, and that is not a gap:
   `int` and `uint` together are exactly what `J` and `P` accept, so a value past the bound is
   `E0429` at the call and never becomes an argument — `-9223372036854775808` is not a writable
-  literal at all, and the field's low end is spelled `-9223372036854775807 - 1`.
+  literal at all, and the field's low end is spelled `-9223372036854775807 - 1`. [until: reviewed 2026-09-06]
 - **A 32-bit float field is the one place `pack` accepts a lossy write**: precision is what a
   caller chose when they wrote four octets, so `0.1` rounds silently, while a finite value that
   would round to an infinity throws and the same argument is an ordinary field under the 8-byte
-  code.
+  code. [until: reviewed 2026-09-06]
 - **`Z` differs from `a` by exactly the octet it reserves**, asserted as an agreement over five
   widths rather than as a row, and `a0` over the empty argument is the sharpest accepted cell
-  against `Z0`, which has nowhere to put its NUL.
+  against `Z0`, which has nowhere to put its NUL. [until: reviewed 2026-09-06]
 - **`bytes.rs`'s reachable list is empty now, and so is `Core\Encoding`'s decoder half.**
   `unpack`'s two bounds, `Core\Bytes::at` and `Core\Bytes::fill` each name the last octet they read
   beside the first they cannot, and each of `fromBase64`, `fromBase64Url`, `fromBase32` and
@@ -8788,31 +8720,31 @@ every session. Nothing below was reworded on the way.
   base64 refusal names is the offending position at each of eight in turn rather than a constant.
   Two boundaries are the compiler's rather than the member's — `fill`'s low end is `E0401` on a
   `uint` parameter, as `pack`'s 64-bit range is `E0429` at the call — and the operand a decoder
-  quotes back is bounded at 32 characters, asserted on both sides of that bound.
+  quotes back is bounded at 32 characters, asserted on both sides of that bound. [until: reviewed 2026-09-06]
 - **`--errors` names no assertable site in `str.rs` or `encoding.rs` at all now.** Spec § 7's
   `encodeText` says which character the charset has no spelling for, its code point and the byte
   offset it sits at, and `decodeText` the offset the first unreadable sequence *starts* at — there
   being no character to quote when the whole point is that these octets spell none. Spec § 1's five
   say what they stopped at: `at`'s index against the length it is outside of, `chunk`'s size,
   `countOf`'s needle, and which of `wrap`'s two options, whose width pair is the sharper because
-  the same width of 0 is an answer or a throw depending only on `cutLongWords`.
+  the same width of 0 is an answer or a throw depending only on `cutLongWords`. [until: reviewed 2026-09-06]
 - **`Core\Str::at`'s message was the one in `nvs-stdlib` missing the `()` every sibling writes**
   and now has it. What the two cases add past their rows is counted. `Latin1` is the one charset
   with no refusal at all, so it reads every one of the 256 octets and each returns as the octet it
   went in as, while `Ascii` reads exactly half — the same bound stated as a partition rather than
   as two rows — and `isValidText` answers `false` at exactly the octets `decodeText` throws for on
-  all 256, which is what makes one the other's question with somewhere to put the answer.
+  all 256, which is what makes one the other's question with somewhere to put the answer. [until: reviewed 2026-09-06]
 - **Both encoding members count their reported offset in bytes**, asserted over eight positions in
   turn on each side, which is the one thing the two messages have to agree about since a caller
   uses one to index what it handed the other; and `encodeText`'s quoted operand is bounded on both
   sides of 32 characters, `rule:security/sink-predicate`'s register being why it is bounded at all. `at`'s accepted set
   is exactly the 2n indices from -n to n-1 and nothing else, over sixteen spanning both bounds, and
   the length it reports agrees with `Core\Str::length` on six subjects whose byte and cluster
-  counts diverge in different places.
+  counts diverge in different places. [until: reviewed 2026-09-06]
 - **Two spellings a case reaching for these cannot use**: a source-declared `Core\Charset`
   parameter does not unify with the registry's own enum type and fails `E0401` naming the same type
   twice, so the enum is written at each call site; and a message quoting a C1 control back cannot
-  be a frozen `--EXPECT--`, so U+0080's row asserts the printable half. Both are playbook bullets.
+  be a frozen `--EXPECT--`, so U+0080's row asserts the printable half. Both are playbook bullets. [until: reviewed 2026-09-06]
 - **`path.rs` holds no assertable site at all now, and neither does `Core\Time`'s rendering half.**
   Spec § 8's `withExtension` refuses four ways, and because two of a call's arguments can be wrong
   at once, what the case pins past the four sentences is the *order* they run in: the extension is
@@ -8824,7 +8756,7 @@ every session. Nothing below was reworded on the way.
   the sharpest cell because the extension it names instead is the empty one the *first* check
   refuses — and every refusal but the empty one quotes what it was handed. Twelve paths against one
   extension leave the nameless ones exactly the six roots, a *trailing* separator not being one,
-  each naming the path back.
+  each naming the path back. [until: reviewed 2026-09-06]
 - **Spec § 4's three `format` members read one pattern compiler** (`nvs_stdlib::cldr`) and each
   wraps its refusal in its own name, which is the half of the sentence the neighbouring § 4 cases
   never asserted: an unknown letter, an unterminated quote and `V` at any count but two are one
@@ -8835,7 +8767,7 @@ every session. Nothing below was reworded on the way.
   the three neither takes are exactly the zonal ones. Over the 52 ASCII letters exactly 15 are
   fields and 36 of the 37 refusals quote the letter they were handed, the odd one out being `V`, a
   pattern letter at the wrong count and saying so. The compile step runs before either narrowing,
-  so an unreadable letter beats a field the value cannot carry.
+  so an unreadable letter beats a field the value cannot carry. [until: reviewed 2026-09-06]
 - **The unknown-zone sentence is spelled three times, each behind the name of the member that would
   speak it, and only `Zone::of`'s is reachable** — the other two read an id this crate wrote
   itself. What that case adds past the sentence is counted twice. Over fourteen ids the six
@@ -8847,19 +8779,19 @@ every session. Nothing below was reworded on the way.
   The second count is the premise the two unreachable siblings rest on: all seventeen `DateTime`
   members that read the zone slot answer for every zone, and each fixed offset rebuilt out of the
   `DateTime` it was stored in is worth what it went in as — which is where the round trip could
-  actually break, a fixed zone's id being rendered rather than looked up.
+  actually break, a fixed zone's id being rendered rather than looked up. [until: reviewed 2026-09-06]
 - **`Core\Time::parse` throws two of § 10's classes and which one is decided by which argument was
   wrong**: a pattern is written by the call site, so a bad one is a `LogicError`, while text
   arrives from elsewhere, so text that does not match a well-formed pattern is a `ParseError`. The
   two tables are asserted as a *partition* — not one of seven bad patterns lands in `ParseError`,
   not one of six bad texts in `LogicError`, and every sentence on both sides is wrapped in the
-  member's own name.
+  member's own name. [until: reviewed 2026-09-06]
 - **One refusal crosses that split, and it is the pattern that names a zone**: `format` accepts
   every zonal field and shares the compiler, so only the reader can refuse it, and a *pattern*
   mistake therefore arrives as a `ParseError`. The compile step runs first, so a call with both
   arguments wrong reports the pattern. A calendar refusal — an impossible date, an hour past 23 —
   is `jiff`'s own wording and is asserted by class and by the name in front of it rather than
-  frozen.
+  frozen. [until: reviewed 2026-09-06]
 - **`Core\Time::fromIso` refuses in `ParseError` too now, and not in the bare `RuntimeError` a
   plain `Fault::thrown` gives** — the one behaviour a session changed here rather than only
   asserting. That member's single argument is text that arrived from somewhere else, so the rule
@@ -8871,7 +8803,7 @@ every session. Nothing below was reworded on the way.
   wrapped in the member's own name. The bound is one character wide, the same civil time being
   refused without an offset and accepted with one; and the five accepted spellings share a *second*
   rather than a point, since a subsecond is read and kept and `toEpochSeconds` is what truncates
-  it.
+  it. [until: reviewed 2026-09-06]
 - **`--errors` now names no assertable site in `math.rs` or `time.rs` either, and `Core\Math`'s
   only guarded arguments are `log`'s base and `format`'s decimal count.** What the two cases add
   past those two sentences is counted. Over the eighteen members whose argument and whose answer
@@ -8887,7 +8819,7 @@ every session. Nothing below was reworded on the way.
   hundred-and-first refused, and its sentence quotes the count it was *handed* rather than its own
   constant twice — asserted at 101, 200 and 1000 in turn — while the accepted count really is the
   fraction's width, one more decimal being exactly one more character over six subjects whose exact
-  binary value terminates before either count.
+  binary value terminates before either count. [until: reviewed 2026-09-06]
 - **`Core\Json`'s two `thrown_as` and `Core\Regex\Match::group` are closed, and two messages
   changed rather than only being asserted.** What `Core\Json::encode` refuses is a partition over
   the *tags* rather than a list: eleven values with a JSON spelling render — both array shapes
@@ -8899,17 +8831,17 @@ every session. Nothing below was reworded on the way.
   through `nvs_runtime::php_float_to_string` rather than Rust's `inf`, and a value whose tag has no
   spelling is named by `Tag::describe` — ``a `bytes` value has no JSON encoding`` — where it
   reported a tag *number* only this crate can read, that arm being where a `bytes` argument lands
-  as `Encodable::text`'s own doc comment already said.
+  as `Encodable::text`'s own doc comment already said. [until: reviewed 2026-09-06]
 - **`decodeAs<T>`'s codec refusal is the same rule read from the other end, and it is asserted as
   an agreement**: `rule:core-classes/derive-reports-every-field` makes one attribute decide both directions of the wire, so over
   three classes declaring the same two fields the two members answer alike on all three and exactly
   one participates. Two claims sit past that — the codec is read *before* the document, so one
   unreadable text is a `LogicError` for a class with no codec and a `ParseError` for one with, and
-  each refusal quotes back the class it was handed rather than a constant.
+  each refusal quotes back the class it was handed rather than a constant. [until: reviewed 2026-09-06]
 - **One wart is left there**: a class carrying the attribute and declaring *no* field has an empty
   codec, so both members refuse it with the sentence that says it does not carry the attribute at
   all — the message is wrong about why, and whether a fieldless class should encode as `{}` instead
-  is the question behind it.
+  is the question behind it. [until: reviewed 2026-09-06]
 - **`Core\Regex\Match::group` splits three ways over a pattern's whole group set**, where PHP's
   absent array entry folds the refusal and two of the answers together: of the eight keys
   `groups()` reports, four are reached, two participate and capture nothing and two are declared
@@ -8919,7 +8851,7 @@ every session. Nothing below was reworded on the way.
   as it stands rather than as that rule implies — and the sentence is rebuilt from the key it was
   handed at three keys in turn. The bound is one number wide, group 4 being the last the pattern
   declares and group 5 the first it does not, and a name and its number reach one group at all
-  three named ones, as do the `int` and `string` spellings of a number.
+  three named ones, as do the `int` and `string` spellings of a number. [until: reviewed 2026-09-06]
 - **`Core\Arr::average`'s one catchable refusal and `Core\Out::capture`'s are closed, and the
   second of them changed the check rather than only asserting it.** `average` divides an exact
   total by the entry count as a `decimal`, so the only subject it has no answer for is one whose
@@ -8927,7 +8859,7 @@ every session. Nothing below was reworded on the way.
   which is why the bound is named on both sides by the same division over the same count: seven
   tenths of `2^96 - 1`, read one place further out, lands on exactly that mantissa with a remainder
   that rounds away, while the total one tenth below has a digit to spare and answers at a wider
-  scale and the one above rounds up and answers at a narrower one.
+  scale and the one above rounds up and answers at a narrower one. [until: reviewed 2026-09-06]
 - **What is refused is a property of the *quotient* and not of the total**, so it is counted rather
   than read off a line: one total against fourteen counts — the entries past the first are zero, so
   every prefix carries the whole of it — and exactly one of the fourteen has no answer, while seven
@@ -8935,7 +8867,7 @@ every session. Nothing below was reworded on the way.
   the rule here. `Core\Arr::sum` agrees on all fourteen, which puts the refusal in the division and
   not in the fold that feeds it, and the same subject in the `float` arm answers, only the exact
   arm having a range to run out of. The neighbouring `arr.rs:4098` `fatal` — more entries than a
-  `uint` counts — is unreachable and owed nothing.
+  `uint` counts — is unreachable and owed nothing. [until: reviewed 2026-09-06]
 - **`Core\Out::capture`'s `through` now refuses by class rather than by objecthood.** A `callable`
   is opaque as to signature (`rule:types/closure-literal`), so nothing static stands between § 12's option and what its
   closure answers, and a check that asked only whether the answer was an *object* let a foreign one
@@ -8945,12 +8877,12 @@ every session. Nothing below was reworded on the way.
   used to report a tag *number* only this crate can read, and an object by its class. The claim is
   a partition and is counted: of the eight answers a `through` can give exactly the identity is
   accepted, all seven refusals are wrapped in the member's own name, and nothing the refusing seven
-  captured reaches the program's output, the capture level being closed on both edges.
+  captured reaches the program's output, the capture level being closed on both edges. [until: reviewed 2026-09-06]
 - **`--errors` names no catchable site a case can still assert anywhere in `nvs-stdlib`.**
   `random.rs:333` was reachable after all: `nvs_runtime::affordable` refuses only a size past
   `isize::MAX`, so every count at or below it that the allocator cannot serve reaches the *second*
   check, and the bound between the two is one count wide with a different sentence on each side of
-  it.
+  it. [until: reviewed 2026-09-06]
 - **`Core\Random::token` ran the same two checks and then drew infallibly**, which is the one
   behaviour a session changed here rather than only asserting: `vec![0; n]` and
   `String::with_capacity` abort the process when the allocator refuses, so a count the seam allowed
@@ -8961,22 +8893,22 @@ every session. Nothing below was reworded on the way.
   sits at exactly half of `bytes`'s — which is what the case counts rather than reads off a line:
   `token($n)` answers as `bytes(2 * $n)` does on all six rows of a table spanning served, the
   allocator's refusal and the seam's, and not one of those counts is past `bytes`'s seam where
-  exactly two are past `token`'s.
+  exactly two are past `token`'s. [until: reviewed 2026-09-06]
 - **The four count-shaped refusals agree** as well — each answers one step inside its bound, throws
   in `RuntimeError` one step outside it, and names both the member and the numbers it was handed,
-  four sentences distinct over all sixteen ordered pairs.
+  four sentences distinct over all sixteen ordered pairs. [until: reviewed 2026-09-06]
 - **The last site, `csv.rs:512`, is not reachable from source at all and is owed no case**:
   `Core\Csv::format` takes an `array<array<string>>` and its `{header:}` an `array<string>`, a
   `mixed` is not implicitly assignable to a narrower type, and `rule:types/conversion`'s `array<T> as
   array<U>` does not lower — so no program can put a non-`string` in a cell, and the column that
-  refusal names cannot be reached until that conversion row lands.
+  refusal names cannot be reached until that conversion row lands. [until: reviewed 2026-09-06]
 - **Every count-shaped producer in the library draws fallibly now, and the last of them needed a
   runtime seam rather than a call-site fix.** `nvs_runtime::affordable` refuses only a size past
   `isize::MAX`, so every count below it that the machine cannot serve used to reach an infallible
   `NvsStr::build`, `vec![…; n]`, `slice::repeat` or `Vec::push` and abort — exit 127, nothing on
   stderr, nothing catchable, every in-flight request with it. Measured, not deduced:
   `Core\Arr::fill(1000000000000, 0)` printed an allocator abort and now throws and is caught, as
-  `Core\Str::repeat("x", 1000000000000)` already did.
+  `Core\Str::repeat("x", 1000000000000)` already did. [until: reviewed 2026-09-06]
 - **The fallible half of the string seam is `NvsStr::try_build`**
   (`crates/nvs-runtime/src/string.rs:317`), which answers `None` where `NvsStr::build` aborts and
   is **exact-capacity only**: a writer past its capacity still grows through the aborting
@@ -8985,7 +8917,7 @@ every session. Nothing below was reworded on the way.
   reach it through `built_fallibly` (`str.rs:707`) and `Core\Bytes`' three through
   `reserved`/`produced_fallibly` (`bytes.rs:459`, `:434`) — the `Vec` reserved with `try_reserve`,
   amortized because `join` reaches it once per part, and the copy out through `try_build` as well,
-  since that second allocation is as able to fail as the first and both are live at that moment.
+  since that second allocation is as able to fail as the first and both are live at that moment. [until: reviewed 2026-09-06]
 - **The array half is `NvsArray::try_reserve`** (`crates/nvs-runtime/src/array.rs:789`), which is
   the same bargain over the entry storage instead of over a payload: `Vec::try_reserve` in the
   packed form, both of the hash form's vectors otherwise, and what it makes infallible is the entry
@@ -8993,13 +8925,13 @@ every session. Nothing below was reworded on the way.
   caller that needs the guarantee appends into a list, which `Core\Arr::fill`, `::padStart` and
   `::padEnd` all do because each builds a fresh array. Those three reach it through `append_copies`
   (`arr.rs:1321`), which now takes the member's own qualified name: the `affordable` call there was
-  hard-coded to `Core\Arr::fill`, so a padding member that refused reported the wrong one.
+  hard-coded to `Core\Arr::fill`, so a padding member that refused reported the wrong one. [until: reviewed 2026-09-06]
 - **Two sentences, and which one a count gets is the bound**: the seam's own past `isize::MAX`, the
   allocator's — `the result is larger than any string`/`buffer`/`array` `this process could hold` —
   below it. Both are reachable for `Core\Str::repeat`, both padding pairs, `Core\Bytes::repeat` and
   `Core\Arr::fill`, whose sizes are products; `Core\Bytes::fill` reaches only the second, its
   length being the size; and `Core\Bytes::join`'s is not reachable from source at all, its parts
-  having to be in memory already to sum past it.
+  having to be in memory already to sum past it. [until: reviewed 2026-09-06]
 - **The agreement is asserted now**
   (`tests/conformance/core/count-shaped-producers-refuse-alike.nvst`): eight members answer a size
   they can serve, the seven that can reach the policy seam speak one sentence there word for word,
@@ -9008,17 +8940,7 @@ every session. Nothing below was reworded on the way.
   that grew its own wording or borrowed a sibling's noun fails the counts while still reading
   plausibly beside its own arguments. Both halves are asserted by construction as well: every
   helper catches `RuntimeError` and nothing wider, and a member that drew infallibly would leave
-  the case with no output at all.
-- **JSON numbers are where `Core\Json` and PHP part, in three places, and none is yet a case.**
-  `1e999` is `INF` to `json_decode` and accepted by `json_validate`; both `Core\Json` readers refuse
-  it, because `serde_json` will not produce an infinite `float`. `9223372036854775808` fits `uint`
-  but not `int`, so it is refused here — *"the integer … is too large for `int`"* — where PHP widens
-  it to a `float`; an integer past **every** integer type (`12345678901234567890123`) is not that
-  row and does agree, both reading it as a `float`. And `-0` is the integer `0` to PHP where it is
-  `-0.0` here. The writer belongs to the same family: PHP's `json_encode` prints a whole-numbered
-  float without its point (`0.0` → `0`, `100.0` → `100`) and `Core\Json::encode` keeps it, so a
-  differential case comparing decoded *values* by re-encoding has to leave every whole float out or
-  it measures the two writers instead of the reader.
+  the case with no output at all. [until: reviewed 2026-09-06]
 - **`Core\Json::decode` refuses a band of integers `json_decode` widens, and reads `-0` as a float
   where PHP reads an integer** (`json-decode-refuses-the-number-band-json_decode-degrades`). The
   refusal band is exactly `i64::MAX`+1 ..= `u64::MAX`: `9223372036854775807` is read exactly by both,
@@ -9030,7 +8952,7 @@ every session. Nothing below was reworded on the way.
   the read where PHP reads `INF` and then fails at the *write*. Separately, and not a reader question
   at all, `Core\Json::encode` keeps a whole-valued float's fractional part — `0.0`, `100.0`,
   `1e+308` — where `json_encode` writes `0`, `100`, `1.0e+308`, so a round-trip *text* comparison
-  between the two languages is measuring the writers unless every row carries a fraction.
+  between the two languages is measuring the writers unless every row carries a fraction. [until: reviewed 2026-09-06]
 
 - **`Core\Arr::flattenDeep` agrees with `iterator_to_array` over a `RecursiveIteratorIterator`
   outright, keys and all** (`arr-flatten-deep-matches-iterator_to_array-over-a-recursive-array-iterator`)
@@ -9039,7 +8961,7 @@ every session. Nothing below was reworded on the way.
   twin's other setting is not a second answer to compare against: `true` re-keys each leaf by its own
   level's key, so `[[1,2],[3,4]]` collapses to `[3,4]` and entries are lost. Both sides also agree
   that an empty level contributes nothing and no hole, that `0`/`""`/`false`/`null` are leaves, and
-  at 300 levels of nesting.
+  at 300 levels of nesting. [until: reviewed 2026-09-06]
 - **`0 - $x` at `int`'s smallest value wraps back to itself in silence** — no throw, no diagnostic, the
   answer is `-9223372036854775808` again. This is what makes `Core\Math::abs` a member rather than sugar
   for `Core\Math::max($x, 0 - $x)`: the composition is *total* at that row and quietly wrong, while `abs`
@@ -9047,7 +8969,7 @@ every session. Nothing below was reworded on the way.
   asserting the divergence should assert that the derivation *answered* and `abs` *refused*, not what the
   arithmetic wrapped to — the overflow policy is a different member's question and pinning it here would
   make this case fail for the wrong reason. `math-abs-and-sign-are-the-ordering-trio-and-part-from-it-only-where-they-refuse.nvst`
-  is the shape.
+  is the shape. [until: reviewed 2026-09-06]
 - **`Core\Uri`'s four percent-coders are inverse in three of their four cross-directions, and the
   fourth is the space.** `decodeFormValue` reads `%20` as well as `+`, so it undoes
   `encodeComponent` over the whole ASCII sweep; `decodeComponent` reads only `%20`, so
@@ -9059,7 +8981,7 @@ every session. Nothing below was reworded on the way.
   `Uri` for which the seven readers do not recompose to `toString()` is one whose port was written
   empty: `http://h:/p` reports `port()` of `null` because § 3.2.3's empty port is not a port, so a
   `with` that never mentions the port drops the `:` — `nvs_core_uri_with`'s own doc comment names
-  this as the single place a round trip through `with` is not the identity. Both are pinned now.
+  this as the single place a round trip through `with` is not the identity. Both are pinned now. [until: reviewed 2026-09-06]
 - **Seven members share one total order, and it is asserted by counting agreements between them.**
   `Core\Arr::sort`/`min`/`max`, `Core\Math::min`/`max`/`clamp` and `Core\Heap` all reach
   `nvs_stdlib::ordering::compare_values`, so over one table the sorted pair's two ends are
@@ -9068,7 +8990,7 @@ every session. Nothing below was reworded on the way.
   were pushed — 432 agreements over 36 ordered pairs, for a `string` table and an `int` one alike.
   A heap drained by `pop` is `Core\Arr::sort`'s sequence entry for entry, which is the same order
   applied n log n times. Pinned by
-  `tests/conformance/core/ordering-is-one-total-order-shared-by-arr-math-and-heap.nvst`.
+  `tests/conformance/core/ordering-is-one-total-order-shared-by-arr-math-and-heap.nvst`. [until: reviewed 2026-09-06]
 - **The ordering refusal is one throw in one wording, and a case only reaches it through `mixed`.**
   `Core\Math::min("a", 1)` never runs — `T` unifies at the first argument, so the second is
   `E0401: expected string, found int` — so both halves of an orderless pair have to be laundered
@@ -9078,7 +9000,7 @@ every session. Nothing below was reworded on the way.
   and a `catch (Throwable …)` reaches all of them. All seven agree about refusing string/int,
   null/int, bool/int, null/string, bool/string and array/int, and about accepting an ordered pair.
   Pinned by
-  `tests/conformance/core/ordering-refuses-a-pair-with-no-order-once-for-all-seven-members.nvst`.
+  `tests/conformance/core/ordering-refuses-a-pair-with-no-order-once-for-all-seven-members.nvst`. [until: reviewed 2026-09-06]
 - **`continue 2` inside a `switch` is PHP's *idiomatic* spelling, not an exotic one, so counting
   `continue N` over loops alone silently breaks ported code.** Novis already reads a bare `continue`
   inside a `switch` as continuing the enclosing loop (docs/adr/README.md), and the obvious
@@ -9089,27 +9011,27 @@ every session. Nothing below was reworded on the way.
   PHP does, then walk *outward* from the frame the level lands on to the nearest loop — level 1
   reduces to the bare-`continue` rule already decided, and nothing new is invented. One
   `.agent-tmp/*.nvs` scratch run beside `php` on the same file is what found it; the checker alone
-  would have shipped the divergence.
+  would have shipped the divergence. [until: reviewed 2026-09-06]
 - **Check every spelling against `php -r` before deciding a family is refused, because PHP does
   not always agree with itself.** `echo $a[];` is *"Cannot use [] for reading"* and `unset($a[])`
   is *"Cannot use [] for unsetting"*, both compile errors — but `$a[] .= "x"` **appends**, silently,
   with no notice even at `error_reporting=-1`, because the element that is not there yet reads as
   `""`. So refusing that third one is a divergence and needed a row of its own (`rule:php-migration/every-divergence-is-deliberate-and-listed` row
   10), not a sentence in a doc comment. Three `php -r` calls settled what an hour of reasoning from
-  the first two would have got wrong.
+  the first two would have got wrong. [until: reviewed 2026-09-06]
 - **Turning a panic into a diagnostic breaks the tests that pinned the panic, and they do not look
   like your change.** `nvs-ir`'s `#[should_panic(expected = "known gaps")]` guard failed with
   *"panic did not contain expected string"* while printing the new diagnostic, and
   `nvs-types`' `expr_table` fixture failed at its own `assert!(!diags.has_errors())` helper —
   neither names the feature. Delete the guard (the `.nvst` case is its replacement) and split the
-  fixture helper so the one test whose point *is* the diagnostic gets the `Diagnostics` back.
+  fixture helper so the one test whose point *is* the diagnostic gets the `Diagnostics` back. [until: reviewed 2026-09-06]
 - **A new refusal in `check_expr` fires before `check_write_target`, so it double-reports every
   receiver that already has a better code.** `$erased->rows["0"] = "z"` printed E0482 *and* E0480;
   `$maybe?->rows["0"] = "z"` printed E0482 *and* E0479. The ordering is fixed — `check_write_target`
   reads the `ExprInfo` the target's own check records — so the suppression has to be a lookup the
   early arm can already do: the chain root's recorded `HookedProperty`/`ShapeProperty`, or a
   syntactic `nullsafe: true`, gated on the level being an assignment target at all so a plain *read*
-  through the same receiver keeps its only diagnostic.
+  through the same receiver keeps its only diagnostic. [until: reviewed 2026-09-06]
 - **A standing case can pin the spec § 10 *class* a refusal arrives in, so a member
   whose classification you change fails `verify.py`'s conformance leg and not its unit
   tests.** `Core\Time::parse`'s zonal-pattern refusal was a `ParseError` because the
@@ -9118,7 +9040,7 @@ every session. Nothing below was reworded on the way.
   already per-member *narrowings* of one shared compiler, so a third one is the shape
   the module has. Read the case's own reasoning before reclassifying, and if the
   reasoning is what is wrong, rewrite that paragraph rather than the expectation
-  alone — the count below it is usually what decides whether the row moved sides.
+  alone — the count below it is usually what decides whether the row moved sides. [until: reviewed 2026-09-06]
 - **`Core\Test::assertCount`'s two `Fault::fatal` sites are unreachable from source and are owed
   no case.** Its parameters are `array<T>` and `uint` (`crates/nvs-stdlib/src/registry.rs`'s row,
   `test.rs:365`), so every way to hand it a non-container or a non-`uint` count stops at the
@@ -9127,18 +9049,18 @@ every session. Nothing below was reworded on the way.
   `Core\Csv::format`'s column guard in the bullet above, and the same three `nvs run` probes on a
   scratch file settle it in one call rather than in a case that will not compile. Worth knowing
   because the assertion members read as if a bad subject were a runtime question; it is a
-  signature question.
+  signature question. [until: reviewed 2026-09-06]
 - **`Core\Arr::withoutFirst` keeps the keys it did not remove, so dropping entry `0` of a list leaves a
   map at key `1`.** PHP's `array_shift` reindexes; this does not, because `rule:core-api/shape-rules` R3 makes the member
   answer a copy rather than mutate, and a copy that silently renumbers its own keys is the surprise the
   rule exists to avoid. `Core\Arr::values` is the reindexing left explicit. Pinned by
-  `tests/conformance/core/arr-the-empty-array-is-what-every-reshaping-member-answers-it-with.nvst`.
+  `tests/conformance/core/arr-the-empty-array-is-what-every-reshaping-member-answers-it-with.nvst`. [until: reviewed 2026-09-06]
 
 - **An `Instant`'s epoch readings truncate toward zero, not toward minus infinity.** 1.5 seconds before
   the epoch reads as `-1` second, `-1500` millis, `-1500000` micros — so the coarse reading stays the
   fine one divided on both sides of the epoch, at the cost of the second reading not being the second
   the instant falls inside. Unix `time_t` convention would floor to `-2`. Pinned by
-  `tests/conformance/core/time-reading-an-instant-in-a-zone-does-not-disturb-the-instant.nvst`.
+  `tests/conformance/core/time-reading-an-instant-in-a-zone-does-not-disturb-the-instant.nvst`. [until: reviewed 2026-09-06]
 - **CLDR's single-count `X` and `x` omit an offset's minutes when they are zero, and no PHP `date()`
   letter does.** `$dt->format("x")` at a zero offset is `+00` where `O` is `+0000`; the two-count and
   three-count forms (`xx` against `O`, `xxx` against `P`) agree outright, and `X` at a zero offset is
@@ -9146,21 +9068,21 @@ every session. Nothing below was reworded on the way.
   has to be computed (`substr($m->format("O"), 0, 3)`), and they sit beside the other three that do:
   `D` is a one-based day of year against a zero-based `z`, and `K`/`k` are hour cycles PHP has no
   letter for at all. `tests/differential/lang/a-date-format-string-renders-as-phps-does.nvst` is where
-  all four are written out.
+  all four are written out. [until: reviewed 2026-09-06]
 
 - **`grep -r --include=<glob> .` through the Bash tool walks this tree and silently finds nothing**,
   returning exit 0 with no output, so it reads as a clean answer rather than a broken search. It found
   0 hits for a pattern that ripgrep found 172 of, across files it had just been pointed at by name.
   Use the **Grep tool** for any repo-wide question whose answer you are about to write down — a shell
   `grep -n` on *one named file* is still fine, and is how the discrepancy surfaced. This cost an ADR a
-  wrong corpus count, stated as a measured fact and committed before the tests disagreed with it.
+  wrong corpus count, stated as a measured fact and committed before the tests disagreed with it. [until: reviewed 2026-09-06]
 - **A name-spelling change has three corpora, not one, and the third only fails at the very end.**
   `.nvs`/`.nvst` fixtures hold the spelling literally; Rust test fixtures hold it **escaped**
   (`"#[\\Core\\Route]"`, two bytes per separator); and a handful hold it in a **raw string**
   (`r#"#[\Core\Route]"#`, one byte). A regex written for either of the first two matches nothing in the
   third, so the sweep looks complete, the workspace builds, and one test in one crate fails on a
   fixture nothing else touches. Sweep for the single-byte form *after* the escaped one and check the
-  hits are only doc comments before believing you are done.
+  hits are only doc comments before believing you are done. [until: reviewed 2026-09-06]
 - **A refusal of a shape the language used to accept has five homes, and two of them are tables.**
   The code in `crates/nvs-diagnostics/src/lib.rs`, the report site, a `tests/conformance/reject/`
   case, a row in `docs/reference/tools/30-php-differences.md` **and** a row in
@@ -9169,7 +9091,7 @@ every session. Nothing below was reworded on the way.
   spelling fails there rather than in `verify.py`. And a shape that *worked* has a test pinning the
   old rule: `parser::tests::stmt::try_multi_catch_and_finally` and
   `an_unannotated_class_constant_reads_at_its_values_type` were each the only thing that failed
-  after the parser changed, and each had to be rewritten to the new rule rather than deleted.
+  after the parser changed, and each had to be rewritten to the new rule rather than deleted. [until: reviewed 2026-09-06]
 - **A handoff item can assert a divergence that does not exist, and `\v`/`\e`/`\f` were it.** Item 35's
   `20-types.md` fix said those three "print literally rather than as control characters"; the binary
   cooks all three to `0x0B`/`0x0C`/`0x1B` and so does PHP, so there is no divergence to write down —
@@ -9180,20 +9102,20 @@ every session. Nothing below was reworded on the way.
   the head of an octal family running to `\777`, and an unrecognized escape such as `\q` keeps its
   backslash. The handoff was right that the binary is the only copy that cannot be stale — the trap is
   that this applies to the item's *premise* and not only to the sentence it asks for. Two probes under
-  `.agent-tmp/`, one `nvs run` and one `php`, settle a whole paragraph before a word of it is written.
+  `.agent-tmp/`, one `nvs run` and one `php`, settle a whole paragraph before a word of it is written. [until: reviewed 2026-09-06]
 - **A `docs/reference/lang/` example is executed, so a claim can be pinned instead of asserted.**
   `tools/reference.py` runs every ` ```nvs ` fence against the binary and checks the ` ```output `
   fence after it, and `verify.py` runs that; ` ```nvs error ` is the fence for a program that must fail
   `nvs check`, with its `output` block a substring of the diagnostic. So `E0406` for two `catch`
   clauses on one name went in as a checked example rather than a sentence, and a chapter edit means
   `python tools/reference.py` to regenerate `docs/novis.md` in the same slice — the generator's
-  `--check` mode is what would otherwise fail the verify.
+  `--check` mode is what would otherwise fail the verify. [until: reviewed 2026-09-06]
 - **A class reference has no readable name: `$cls::class` is `E0702`.** A `class<T>` value is the run-time
   descriptor and `::class` needs a class named at compile time, so the obvious way to print which
   implementor a reference holds does not exist — `nvs-cli` reports *"this names no class the compiler can
   resolve"* and points at `Core\Reflect` (`rule:classes/no-free-functions-or-constants`). A `.nvst` case that wants to show which class was
   selected calls an overridden member and reads the answer, which is what the three class-reference cases
-  under `tests/conformance/class/` do.
+  under `tests/conformance/class/` do. [until: reviewed 2026-09-06]
 - **An interactive session beside the running loop cannot link `nvs-cli`, and the error names a file
   rather than a cause.** `cargo build` stops at `error: failed to remove file
   <repo>\target\debug\nvs.exe` / `Zugriff verweigert (os error 5)`: Windows will not replace a running
@@ -9203,56 +9125,56 @@ every session. Nothing below was reworded on the way.
   leaked process to kill. Retry rather than kill — a loop of `verify.py` retried on that one string,
   sleeping 30s, cleared it. The same collision makes
   `log::tests::the_engine_floor_rotates_and_rate_limits_itself` fail on a missing rotation while passing
-  when run alone: two `cargo test` runs share the rotation path.
+  when run alone: two `cargo test` runs share the rotation path. [until: reviewed 2026-09-06]
 - **A new directory under `benches/` breaks the whole workspace, and the error names a crate you never
   wrote.** `Cargo.toml`'s `members` glob is `benches/*`, so `benches/proxied/` made every `cargo`
   command in the repository fail with *"failed to read `/src/benches/proxied/Cargo.toml`"* — including,
   confusingly, a Docker build whose stage had nothing to do with it. The `exclude` list beside that glob
   is the fix and its comment already warned of exactly this; the trap is that nothing fails until the
   next `cargo` invocation, which may be minutes and one container later. `cargo metadata --no-deps`
-  settles it in a second, and is the cheap check after adding any non-crate directory under `benches/`.
+  settles it in a second, and is the cheap check after adding any non-crate directory under `benches/`. [until: reviewed 2026-09-06]
 - **On Git Bash, an absolute path in a `docker` argument is rewritten to a Windows one before docker
   sees it.** `docker run --rm img cat /etc/debian_version` reads
   `C:/Program Files/Git/etc/debian_version` and reports it missing. MSYS path conversion does this to
   any argument that looks like a POSIX path, so it hits `docker exec`, volume flags and container-side
   commands alike. `MSYS_NO_PATHCONV=1` in front of the call is the whole fix, and the tell is an error
-  naming a path under `C:/Program Files/Git/` that you never typed.
+  naming a path under `C:/Program Files/Git/` that you never typed. [until: reviewed 2026-09-06]
 - **`docker compose build | tail` reports success for a failed build.** The pipeline's status is
   `tail`'s, so the exit code is 0 and the failure is only visible in the text scrolled past. This is the
   `;`-chain rule in AGENTS.md wearing a different hat — redirect to a file and echo `$?`, or read the
-  status before the output.
+  status before the output. [until: reviewed 2026-09-06]
 - **Two PHP-container traps, both silent.** `zend_extension=opcache` in an ini fails in the official
   `php:8.5-fpm` images because OPcache is linked in statically — the settings still apply, so the run
   works and only stderr says *"Failed loading Zend extension"*. And php-fpm interpolates **no**
   environment variable in a pool file: `pm.max_children = $N` fails the whole configuration with
   *"Unable to include"* and no key named, which is why `benches/proxied/php/pool.conf.in` is rendered by
   the driver rather than parameterised. `php -d opcache.enable_cli=1 -r '…opcache_get_status()…'` is how
-  to prove the ini actually took, since `enable_cli=0` makes the obvious check return `false`.
+  to prove the ini actually took, since `enable_cli=0` makes the obvious check return `false`. [until: reviewed 2026-09-06]
 - **`toolchain: none` is not how `dtolnay/rust-toolchain` honours `rust-toolchain.toml` — the action has
   no such case.** It hands the literal word to `rustup toolchain install`, which answers *"invalid value
   'none' for '[TOOLCHAIN]...'"* and takes every Rust job on every platform down in about eight seconds.
   A bare `rustup toolchain install --no-self-update` is the honest form: the `[TOOLCHAIN]` argument is
   optional and defaults to the active toolchain, so the file stays the one home for the version, the
   components *and* the targets. The tell is a wholly red pipeline whose only green jobs are the ones
-  that never wanted a compiler.
+  that never wanted a compiler. [until: reviewed 2026-09-06]
 - **A red CI job is not automatically a regression — ask whether it has *ever* been green.** The asan leg
   had been failing since the commit that introduced it, and reading it as "something recent broke this"
   bought a confident wrong suspect and two builds before the bisect said otherwise. On a repository whose
   CI history is short, `gh run list` cannot answer the question at all, and the run list looking sparse is
   itself the clue. `git log -S "<a flag only that job passes>" -- .github/workflows/ci.yml` finds the
   commit that added the job, and running the failing test *there* settles it in one build — cheapest as
-  the first question, not the last.
+  the first question, not the last. [until: reviewed 2026-09-06]
 - **A test that hands a trust-checked path straight out of `std::env::temp_dir()` passes on Windows and
   cannot pass on Unix.** `nvs_config::trust::check` reads the path *and its parent*, and a Unix `/tmp` is
   mode `1777` — so a cache, socket or config directory created one level under the temp dir is refused
   before the test reaches its own subject, with a `Breach` naming `/tmp` rather than anything the test
   wrote. Nest two levels: a per-process root under the temp dir, then the directory under test inside it.
-  Windows shows none of this, because its temp dir is per-user.
+  Windows shows none of this, because its temp dir is per-user. [until: reviewed 2026-09-06]
 - **A `#[cfg(feature = "…")]` module inside a test file is compiled only by the CI leg that turns the
   feature on.** `perf_guards.rs`'s `wasm_guards` used a helper from its parent without importing it and
   nothing local ever noticed: `cargo build --all-targets`, `verify.py` and clippy all compile the file
   with the module cfg'd out. The tell is a compile error from a job whose name mentions the feature, in a
-  file that has been green for months — check the module's own `use` list before suspecting anything else.
+  file that has been green for months — check the module's own `use` list before suspecting anything else. [until: reviewed 2026-09-06]
 - **A generated file can be current on the machine that wrote it and stale everywhere else.**
   `docs/novis.md` embeds `nvs meta --json`, which answers for the platform the binary was built on, so
   `Core\Env::OS` and `Core\Env::EOL` made a Windows-generated file permanently stale on CI while
@@ -9260,7 +9182,7 @@ every session. Nothing below was reworded on the way.
   it is to regenerate on the other platform — `wsl.exe -- bash -lc "cd /mnt/d/mwl && python3
   tools/reference.py --no-examples"` after copying a Linux `nvs` into `target/debug/` — and read the
   `git diff`. `PLATFORM_VALUES` in that tool is where a newly platform-varying constant gets pinned to
-  one spelling.
+  one spelling. [until: reviewed 2026-09-06]
 - **A compiled method's argument array starts with a receiver, so a hand-built call needs `1 + arity`
   slots.** Slot 0 is `$this` for an instance method and the *called class descriptor* for a `static` one
   — late static binding's whole mechanism — and the first declared parameter is at slot **1**
@@ -9274,14 +9196,14 @@ every session. Nothing below was reworded on the way.
   a timed loop — converting *those* to `call_static` allocates inside a nanosecond-resolution measurement
   and moves two guarded ratios, so leave them. The tell is an answer that is a *neighbouring* argument, or a plausible-looking
   zero — and it hides completely behind a `Value::int(0)` argument, which is what four of the
-  workspace's five hand-built calls passed.
+  workspace's five hand-built calls passed. [until: reviewed 2026-09-06]
 - **A sanitizer changing an answer does not mean the sanitizer is involved.** ASAN turned the above into
   `Some(0)` on the asan leg alone, which read as an ASAN-specific ABI fault; it was an ordinary
   out-of-bounds read that ASAN merely made *deterministic*, because the slot past the array was poisoned
   rather than holding stack litter. The same test passed everywhere else by landing on a neighbour that
   happened to hold the same value. Before theorising about instrumentation, print what the callee
   actually received for **several distinct non-zero arguments** — one run of that named the off-by-one
-  that four sessions of reasoning about calling conventions would not have.
+  that four sessions of reasoning about calling conventions would not have. [until: reviewed 2026-09-06]
 - **`static::` anything inside a closure body panics in `Lowering::lsb`** — `nvs-ir: … names `static`
   but has neither a receiver nor a called class`. A closure is lifted to its own `Class$fnN::invoke`
   frame, and that frame captures neither `$this` nor the called class, so every late-bound spelling
@@ -9290,7 +9212,7 @@ every session. Nothing below was reworded on the way.
   that reaches the same hole. The checker is the layer that is expected to have refused this
   (`lsb`'s own panic message says so) and does not. Whichever way it is closed — capturing the
   enclosing called class, or a diagnostic — the test to write first is a closure inside both a
-  `static` and an instance method, because those two frames carry the descriptor in different slots.
+  `static` and an instance method, because those two frames carry the descriptor in different slots. [until: reviewed 2026-09-06]
 - **A test that reads `nvs_codegen::disassemble` is x86_64-only until it says which backend it means.**
   Cranelift prints the vcode of whichever backend it emitted for, so a scan for lines beginning `call `
   counts zero on aarch64, where a direct call is `bl 0` and an indirect one `blr <reg>`. The failure is
@@ -9299,7 +9221,7 @@ every session. Nothing below was reworded on the way.
   `perf_guards.rs`'s equality against the site count caught it. Branch mnemonics diverge the same way
   (`jmp`/`jnz`/`test` against `b`/`b.ne`/`cbz`, and aarch64 puts the second branch on its own line), so
   anything walking control flow out of the disassembly wants a `target_arch` gate rather than a wider
-  match — `path_calls` has one. macos-aarch64 is in the test matrix, so this is not hypothetical.
+  match — `path_calls` has one. macos-aarch64 is in the test matrix, so this is not hypothetical. [until: reviewed 2026-09-06]
 - **`std::env::temp_dir()` in a test whose path reaches `nvs_config::trust::check` is refused on Unix.**
   `/tmp` is mode 1777, `rule:config/ownership-is-the-trust-boundary` refuses a group- or world-writable directory, and the check runs on
   the directory it is handed *and* on that directory's parent — so a scratch directory of your own with
@@ -9307,4 +9229,4 @@ every session. Nothing below was reworded on the way.
   a rule to relax, and the tell is a `Breach` naming a mode you did not set. Scratch beside the test
   binary instead (`std::env::current_exe()`'s parent, under `target/`), which clears the same bar an
   operator's `/run/nvs` has to. Windows hides this completely: the socket cases name a pipe there and no
-  directory is walked, so the whole class of failure is invisible until a Unix leg runs.
+  directory is walked, so the whole class of failure is invisible until a Unix leg runs. [until: reviewed 2026-09-06]

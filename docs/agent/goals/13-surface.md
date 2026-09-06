@@ -26,8 +26,8 @@ after it was written** — `E_FOR_INIT_MIXES_DECL_AND_EXPR` and `E_FOR_INIT_TWO_
 in `crates/nvs-diagnostics/src/lib.rs`. The registry is the allocator and it wins.
 
 So the first slice **reassigns the pipeline's three codes to the next free numbers in the parser band —
-`E0127`, `E0128`, `E0129` — and folds `rule:expressions/pipeline-substitution`'s table to match**, in the ADR's own body, because a
-later decision is folded into the earlier ADR rather than left as an overlay. This is stage 0 and not a
+`E0127`, `E0128`, `E0129` — and rewrites `rule:expressions/pipeline-substitution`'s table to match**, in the rule's own fragment, because a
+later decision rewrites the rule it changes rather than being left as an overlay. This is stage 0 and not a
 detail of stage 2: every conformance case written against the old numbers is a case written twice.
 
 ## Stage 1 — the floor

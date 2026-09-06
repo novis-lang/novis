@@ -28,7 +28,11 @@ same fix, one file up.
   cut into goals reads as `unowned` on a key.
 - **An entry leaves exactly one way: the gap is closed.** Not when it is rewritten, not when it stops
   being convenient. An entry whose owner went green without closing it is the failure this file
-  exists to make visible; strike the owner, not the entry.
+  exists to make visible; strike the owner, not the entry. The *Owner* column is the row's expiry
+  declaration: `python tools/playbook.py --check` flags a row whose owner is retired in
+  [goals/chain.toml](goals/chain.toml) and not yet struck. A § *Unowned* bullet has no owner to
+  watch, so it ends with the `[until: ...]` trailer [tools/playbook.py](../../tools/playbook.py)'s
+  module doc defines, naming the state of the tree that closes it.
 - **One line of *what*, and a pointer to the module doc that owns the detail.** Every fact in this
   repository has one home, and for a gap that home is the module. This file is an index of who, not a
   second copy of what.
@@ -75,10 +79,12 @@ gap is struck, not renamed.
   `rule:observability/the-runtime-exports-what-it-already-measures`'s exporter, both of its config blocks and the nine
   metrics a core meters all landed; `registry::CLASSES` has no row for the class a program reads them
   through, so no Novis program can name one. `crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt`.
+  [until: exists crates/nvs-stdlib/src/registry.rs:metrics::CLASS]
 - **`Core\Process::spawn`** — `proc_open`'s and `popen`'s streaming half, which
   `docs/spec/02-php-migration.md` points a migrating program at and which no entry on the chain builds.
   `Core\Process::run` is registered and is the whole of what there is.
   `crates/nvs-stdlib/tests/migration-members-outstanding.txt`.
+  [until: exists crates/nvs-stdlib/src/process.rs:name: "spawn"]
 - **`rule:security/arena-is-an-ownership-root`'s optional in-flight cycle
   collector**, for a long-running CLI script that builds cycles *between* teardowns. That ADR's
   *Consequences* says outright that it "remains open"; goal 21's item 7 closes the *leak* at teardown
@@ -86,7 +92,7 @@ gap is struck, not renamed.
   here so that it stays visible. Its consequence shows up in one other place and that is not a
   duplicate: `nvs_safepoint` clears and ignores two of its four flags (`crates/nvs-runtime/src/lib.rs`
   gap 5), and `COLLECT` is inert because this collector does not exist. The other, `DEBUG_BREAK`, waits
-  on `nvs dap` and is M10's.
+  on `nvs dap` and is M10's. [until: reviewed 2026-09-06]
 
 ## What is *not* on either list
 

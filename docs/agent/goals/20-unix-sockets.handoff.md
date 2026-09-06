@@ -8,7 +8,7 @@ landed yet.** Goal 19's whole list is this goal's Stage 1 floor, which is the pa
 The design is settled and written:
 `rule:config/cache-shared-is-the-grant-over-the-configured-store`, six sections, with
 its cross-links already folded into `rule:security/net-address-policy`'s carve-out and `rule:core-api/two-cache-tiers`'s `shared()` row. **This
-goal opens no ADR number** — a gap in 0142 is a folded edit to its body.
+goal opens no ADR number** — a gap in 0142 is an edit to the rule that states it, with a record naming the change.
 
 The short of it: `Core\Cache::shared()` and `Core\RateLimit::consume` stop asking `net.connect` at a
 host and start asking `cache.shared`, unscoped, because the endpoint is one an operator wrote into

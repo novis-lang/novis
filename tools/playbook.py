@@ -9,7 +9,7 @@ after it is written, which is why the two above are dated by that contrast rathe
 
 The fix is not to split the file and not to trim it. `orient.py` slices it twice -- by the goal's
 `[context] playbook`, then again by the paths the session's own item names -- and an entry there
-may name **one bullet** rather than a section: `"Tooling > A whole ADR"`. What was missing is any
+may name **one bullet** rather than a section: `"Tooling > a whole decision record"`. What was missing is any
 cheap way to decide *which* bullets a given file set implies. That is this script.
 
     python tools/playbook.py                       # every section and bullet, one line, with sizes
@@ -17,29 +17,69 @@ cheap way to decide *which* bullets a given file set implies. That is this scrip
     python tools/playbook.py --match <term>...     # bullets ranked against paths / crates / words
     python tools/playbook.py --manifest <term>...  # the same, as a paste-ready `playbook = [...]`
     python tools/playbook.py --goal                # --manifest driven by loop-goal.toml's modules
-    python tools/playbook.py --check               # stale paths, colliding selectors, sizes (CI)
+    python tools/playbook.py --check               # expiry, stale paths, colliding selectors, sizes (CI)
+    python tools/playbook.py --retire              # delete every bullet whose retirement condition holds
     python tools/playbook.py --dupes               # bullets that already say what another says
+
+EVERY BULLET DECLARES WHAT RETIRES IT
+
+An append-mostly file has no natural way out, so the way out is declared at the way in. The last
+thing in a bullet is a trailer naming the condition under which the bullet is deleted:
+
+    - **The lead-in.** The trap, as before ... and the last line ends with [until: <kind> <arg>]
+
+Five kinds. The first four are mechanical -- `--check` tests them against the tree and `--retire`
+deletes the bullets whose condition holds -- and the fifth is the one for everything else:
+
+    [until: test <fn_name>]           a Rust test with this exact name exists (`fn <name>` under
+                                      crates/, tests/ or benches/) -- for a hole a test will pin
+    [until: exists <path>[:<needle>]] the repo-rooted path exists, and holds the needle if one is
+                                      given -- for "X does not exist yet, so work around it"
+    [until: gone <path>[:<needle>]]   the path is gone, or no longer holds the needle -- for a
+                                      trap that dies with a flag, a table, a file
+    [until: rule <topic>/<slug>]      `docs/rules/<topic>/<slug>.md` exists -- for "this is
+                                      undecided, do not assume"
+    [until: reviewed <YYYY-MM-DD>]    no condition; the date a reader last confirmed the bullet is
+                                      still true. `--check` lists a bullet whose date is more
+                                      than REVIEW_DAYS old as owed a re-read; re-reading it and
+                                      finding it true bumps the date, finding it false deletes it
+
+A needle is a plain substring, never a regex, and may not hold `]`. The same trailer, with the
+same kinds, is what `docs/agent/guard-name-debt.md`'s bullets, `docs/agent/carried-gaps.md`'s
+§ *Unowned* bullets and `docs/agent/carried-refusals.md`'s numbered entries carry; a row in
+carried-gaps' § *Owned* table declares through its *Owner* column instead, and `--check` flags a
+row whose owner has been retired in `chain.toml` without the row being struck. This paragraph is
+the only home of the syntax: `session.py --wrap` refuses a `## playbook:` bullet without a
+trailer and points here, and `session-prompt.md` and `commands.md` point here rather than
+restating it.
+
+An expired bullet is deleted, not archived and not commented out, because `git log -S` over this
+file holds every one of them for nothing. Unit C7 of the docs migration declared the 1,059
+bullets standing on 2026-09-06 and deleted the ones already expired in the same transaction.
 
 A term is a path (`crates/nvs-ir/src/lower/expr.rs`), a crate (`nvs-ir`), a tool (`peek.py`) or a
 plain word. A path is expanded to the things a bullet would actually spell -- the posix path, the
 file name, the stem, the crate in both `nvs-ir` and `nvs_ir` spellings -- so naming the handoff's
 own file set is enough.
 
-**This script never writes to the playbook.** Appending a bullet has one home already, and it is
+**This script never appends to the playbook.** Appending a bullet has one home already, and it is
 `session.py`'s `## playbook: <heading>` section, which keeps the whole session tail at one call.
-A second way to add one would be a second thing to keep in agreement.
+A second way to add one would be a second thing to keep in agreement. The one write this script
+does make is `--retire`, and it only ever removes: a bullet whose declared condition holds is
+mechanically dead, and a second reader deciding that again is the cost the trailer exists to end.
 
-`--check` and `--dupes` are the two pruning signals an append-mostly file can have. A bullet naming
-a path that is no longer in the tree is describing a trap someone already closed; a bullet sharing
-most of its three-word runs with another is a trap that was written down twice. **Five separate
-sessions wrote the `wsl.exe` path-mangling bullet, one each, in five wordings**, and every copy was
-charged to every session afterwards -- `--check` could see two of them, because their lead-ins
-happened to collide as selectors, and was blind to the other three.
+Beyond the trailers, `--check` and `--dupes` are the two pruning signals an append-mostly file can
+have. A bullet naming a path that is no longer in the tree is describing a trap someone already
+closed; a bullet sharing most of its three-word runs with another is a trap that was written down
+twice. **Five separate sessions wrote the `wsl.exe` path-mangling bullet, one each, in five
+wordings**, and every copy was charged to every session afterwards -- `--check` could see two of
+them, because their lead-ins happened to collide as selectors, and was blind to the other three.
 
 Both report; neither deletes, and neither exits non-zero over a size (docs/agent/doc-style.md
 § *Length targets*) or over a stale-looking path. Two bullets about one file are often two
 different traps, and a path a bullet quotes may be gone precisely because the trap was closed --
-only a reader can tell either way.
+only a reader can tell either way. That is exactly the judgement the `gone` kind lets a reader
+make once, at writing time, instead of at every pass.
 
 Once a reader has told, `DELIBERATE_STALE` below records it, keyed by the exact `(selector, path)`
 pair. Those bullets still print, under their own heading, but out of the list `loop.py`'s
@@ -47,11 +87,15 @@ checkpoint reads -- because a bullet whose whole subject is a path that is gone 
 forever, and a signal that cannot clear schedules an optimization pass whether or not anything
 drifted.
 
-**One finding does gate, and `--check` exits 1 on it: a selector that does not resolve to exactly
-one bullet.** That is not a judgement call. `orient.py` fetches a trap by selector and a goal's
-`[context] playbook` names bullets that way, so a lead-in two bullets share, or one no selector
-reaches at all, is a trap the loop silently cannot deliver -- the session never learns it existed.
-CI's `docs` job runs this for that finding alone.
+**Two findings gate, and `--check` exits 1 on them: a selector that does not resolve to exactly
+one bullet, and a bullet with no trailer or a malformed one.** Neither is a judgement call.
+`orient.py` fetches a trap by selector and a goal's `[context] playbook` names bullets that way,
+so a lead-in two bullets share, or one no selector reaches at all, is a trap the loop silently
+cannot deliver -- the session never learns it existed. And a bullet that declares nothing is one
+the file can never let go of, which is the whole failure this tool's expiry half exists to end.
+CI's `docs` job runs this for those two findings alone; an expired bullet and an overdue re-read
+are reported, never refused, because the fix for the first is `--retire` and for the second a
+reader.
 """
 
 from __future__ import annotations
@@ -60,6 +104,7 @@ import argparse
 import re
 import subprocess
 import sys
+from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -69,6 +114,30 @@ ROOT = Path(__file__).resolve().parent.parent
 PLAYBOOK = ROOT / "docs" / "agent" / "playbook.md"
 GOAL_TOML = ROOT / "docs" / "agent" / "loop-goal.toml"
 HANDOFF = ROOT / "docs" / "agent" / "handoff.md"
+CHAIN = ROOT / "docs" / "agent" / "goals" / "chain.toml"
+GUARD_DEBT = ROOT / "docs" / "agent" / "guard-name-debt.md"
+CARRIED_GAPS = ROOT / "docs" / "agent" / "carried-gaps.md"
+CARRIED_REFUSALS = ROOT / "docs" / "agent" / "carried-refusals.md"
+
+#: The trailer every bullet ends with. The module doc above is the syntax's one home.
+EXPIRY = re.compile(r"\[until:\s*(test|exists|gone|rule|reviewed)\s+([^\]]+?)\s*\]\s*$")
+#: Anything that looks like a trailer but did not parse as one, so a typo is a finding and not a
+#: bullet that silently declares nothing.
+EXPIRY_LIKE = re.compile(r"\[until:[^\]]*\]?\s*$")
+#: How old a `reviewed` date may be before `--check` lists the bullet as owed a re-read. Sixty
+#: days: the file grew from 86 bullets to over a thousand in a fortnight, so a claim two months
+#: old has outlived most of the tree it was written against.
+REVIEW_DAYS = 60
+
+#: The other three append-mostly files and which of their blocks must declare. A block is a `- `
+#: bullet or a `NNN. ` entry at column 0; the predicate takes the section heading it sits under
+#: and the block's first line.
+DECLARING = {
+    PLAYBOOK: lambda head, first: True,
+    GUARD_DEBT: lambda head, first: first.startswith("- ["),
+    CARRIED_GAPS: lambda head, first: head == "Unowned",
+    CARRIED_REFUSALS: lambda head, first: bool(re.match(r"^9\d\d\. ", first)),
+}
 
 #: A source path written into handoff prose, e.g. `crates/nvs-ir/src/lower/expr.rs:1876`.
 HANDOFF_PATH = re.compile(r"\b((?:crates|tools|tests|benches|examples|fuzz)/[\w./-]+\.\w+)")
@@ -197,6 +266,252 @@ def shortest_key(bullet: dict, every: list[dict]) -> str:
         if not any(key in orientmod.normalize(p["name"]) for p in peers):
             return key
     return orientmod.normalize(bullet["name"])
+
+
+# ------------------------------------------------------------------------------ expiry
+
+
+def declaration(body: str) -> tuple[str, str] | None:
+    """The `[until: kind arg]` a block ends with, or None when it declares nothing.
+
+    `session.py --wrap` asks this of every `## playbook:` bullet before appending it, so the
+    trailer's grammar has one reader and the wrap and the check cannot disagree about it."""
+    m = EXPIRY.search(body.rstrip())
+    return (m.group(1), m.group(2).strip()) if m else None
+
+
+def blocks(text: str) -> list[dict]:
+    """Every `- ` bullet and every `NNN. ` entry at column 0, with its line span and section.
+
+    The playbook's own bullets come from `orient.bullets` (one parser, one home); this is the
+    shape the other three files share with it, so their blocks can be checked and retired by the
+    same code. A block runs to the next block at column 0, the next heading, or the end."""
+    out, cur, head = [], None, ""
+    lines = text.split("\n")
+    for i, line in enumerate(lines):
+        starts = re.match(r"^(- |\d+\. )", line)
+        if re.match(r"^#{1,6}\s", line):
+            if cur:
+                out.append(cur)
+            cur = None
+            head = re.sub(r"^#+\s*", "", line).strip()
+            continue
+        if starts:
+            if cur:
+                out.append(cur)
+            cur = {"section": head, "first": line, "start": i, "end": i}
+        elif cur is not None and not line.strip():
+            # A blank line ends a block only when what follows is not indented continuation:
+            # carried-refusals' entries carry indented paragraphs past blank lines.
+            nxt = lines[i + 1] if i + 1 < len(lines) else ""
+            if nxt and not nxt.startswith((" ", "\t")) and not re.match(r"^(- |\d+\. )", nxt):
+                out.append(cur)
+                cur = None
+        elif cur is not None:
+            cur["end"] = i
+    if cur:
+        out.append(cur)
+    for b in out:
+        b["body"] = "\n".join(lines[b["start"]:b["end"] + 1]).rstrip()
+        b["lead"] = re.sub(r"^(- (?:\[.\] )?|\d+\. )", "", b["first"])[:70]
+    return out
+
+
+_TEST_NAMES: set[str] | None = None
+
+
+def test_names() -> set[str]:
+    """Every `fn <name>` in a `.rs` file git tracks, read once."""
+    global _TEST_NAMES
+    if _TEST_NAMES is None:
+        _TEST_NAMES = set()
+        try:
+            out = subprocess.run(
+                ["git", "grep", "-h", "-o", "-E", r"\bfn [A-Za-z_][A-Za-z0-9_]*", "--", "*.rs"],
+                cwd=ROOT, capture_output=True, text=True, timeout=60,
+            ).stdout
+        except (OSError, subprocess.SubprocessError):
+            out = ""
+        for line in out.split("\n"):
+            if line.startswith("fn "):
+                _TEST_NAMES.add(line[3:].strip())
+    return _TEST_NAMES
+
+
+def holds(kind: str, arg: str, today: date) -> tuple[bool | None, str]:
+    """Whether a declared condition holds today, and a word on why.
+
+    Returns (True, why) when the block has expired, (False, why) when it stands, and (None, why)
+    when the declaration cannot be evaluated -- a malformed date, an argument the kind cannot
+    read -- which `--check` reports as a finding rather than guessing either way."""
+    if kind == "reviewed":
+        try:
+            when = date.fromisoformat(arg)
+        except ValueError:
+            return None, f"`{arg}` is not a YYYY-MM-DD date"
+        age = (today - when).days
+        if age > REVIEW_DAYS:
+            return False, f"reviewed {age} days ago -- owed a re-read"
+        return False, f"reviewed {age} days ago"
+    if kind == "test":
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", arg):
+            return None, f"`{arg}` is not a test function name"
+        return arg in test_names(), f"fn {arg} {'exists' if arg in test_names() else 'is not in the tree'}"
+    if kind == "rule":
+        p = ROOT / "docs" / "rules" / f"{arg}.md"
+        return p.exists(), f"docs/rules/{arg}.md {'exists' if p.exists() else 'does not exist'}"
+    if kind in ("exists", "gone"):
+        path, _, needle = arg.partition(":")
+        path = path.strip().replace("\\", "/")
+        if not path or any(c in path for c in "*?<>"):
+            return None, f"`{path}` is not a repo path"
+        p = ROOT / path
+        present = p.exists()
+        if present and needle:
+            try:
+                present = needle in p.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                present = False
+        what = f"{path}{' holds ' + repr(needle) if needle and present else ''}" if present else (
+            f"{path} does not exist" if not p.exists() else f"{path} no longer holds {needle!r}")
+        return (present if kind == "exists" else not present), what
+    return None, f"unknown kind {kind!r}"
+
+
+def chain_retired() -> set[int]:
+    """The goal numbers `chain.toml` marks retired -- the owners carried-gaps may no longer name."""
+    if not CHAIN.exists():
+        return set()
+    try:
+        import tomllib
+        goals = tomllib.loads(CHAIN.read_text(encoding="utf-8")).get("goal", [])
+    except Exception:  # noqa: BLE001 -- a chain that will not parse is chain.py --check's finding
+        return set()
+    out = set()
+    for g in goals:
+        m = re.match(r"^(\d+)\b", str(g.get("name", "")))
+        if m and g.get("retired"):
+            out.add(int(m.group(1)))
+    return out
+
+
+def owned_rows(text: str) -> list[tuple[int, str, str]]:
+    """carried-gaps' § *Owned* table: (line index, gap cell, owner cell)."""
+    rows = []
+    section = orientmod.slice_section(text, "Owned") or ""
+    if not section:
+        return rows
+    offset = text.split("\n").index(section.split("\n")[0])
+    for i, line in enumerate(section.split("\n")):
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if line.startswith("|") and len(cells) >= 2 and cells[0] not in ("Gap", "---") and not set(cells[0]) <= {"-"}:
+            rows.append((offset + i, cells[0], cells[1]))
+    return rows
+
+
+def expiry_report(today: date | None = None) -> tuple[list[dict], list[dict], list[dict], list[dict]]:
+    """Over the four files: (expired, owed a re-read, undeclared or malformed, owner-retired rows)."""
+    today = today or date.today()
+    expired, owed, bad, rows = [], [], [], []
+    for path, must in DECLARING.items():
+        if not path.exists():
+            continue
+        text = path.read_text(encoding="utf-8")
+        rel = path.relative_to(ROOT).as_posix() if path.is_relative_to(ROOT) else path.as_posix()
+        for b in blocks(text):
+            decl = declaration(b["body"])
+            where = {"file": rel, "path": path, "line": b["start"] + 1, "lead": b["lead"],
+                     "start": b["start"], "end": b["end"]}
+            if decl is None:
+                if EXPIRY_LIKE.search(b["body"]):
+                    bad.append({**where, "why": "the trailer does not parse -- it is "
+                                "`[until: <kind> <arg>]`, kind one of test, exists, gone, rule, reviewed"})
+                elif must(b["section"], b["first"]):
+                    bad.append({**where, "why": "no `[until: ...]` trailer"})
+                continue
+            kind, arg = decl
+            ok, why = holds(kind, arg, today)
+            entry = {**where, "kind": kind, "arg": arg, "why": why}
+            if ok is None:
+                bad.append(entry)
+            elif ok:
+                expired.append(entry)
+            elif kind == "reviewed" and "owed" in why:
+                owed.append(entry)
+        if path == CARRIED_GAPS:
+            gone = chain_retired()
+            for line, gap, owner in owned_rows(text):
+                if owner.isdigit() and int(owner) in gone:
+                    rows.append({"file": rel, "line": line + 1, "lead": gap[:70],
+                                 "why": f"owner goal {owner} is retired in chain.toml; close the gap or strike the owner"})
+    return expired, owed, bad, rows
+
+
+def report_expiry(today: date | None = None) -> tuple[int, int]:
+    """Print the four expiry findings; return (expired count, undeclared-or-malformed count)."""
+    expired, owed, bad, rows = expiry_report(today)
+    declared = sum(1 for p in DECLARING if p.exists() for b in blocks(p.read_text(encoding="utf-8"))
+                   if declaration(b["body"]))
+    print("== BULLETS WHOSE RETIREMENT CONDITION HOLDS  (delete them: `python tools/playbook.py --retire`)")
+    for e in expired:
+        print(f"  {e['file']}:{e['line']}  {e['lead']}")
+        print(f"      [until: {e['kind']} {e['arg']}]  -- {e['why']}")
+    if not expired:
+        print(f"  none -- every one of the {declared} declared condition(s) still stands")
+    else:
+        print(f"\n  {len(expired)} bullet(s). Each is mechanically dead: the thing it waited for is on disk,")
+        print("  or the thing it was about is gone. `git log -S` keeps the text; the file need not.")
+
+    print(f"\n== BULLETS OWED A RE-READ  (`reviewed` more than {REVIEW_DAYS} days ago)")
+    for e in owed:
+        print(f"  {e['file']}:{e['line']}  {e['lead']}  -- {e['why']}")
+    if not owed:
+        print("  none")
+    else:
+        print(f"\n  {len(owed)} bullet(s). Read each; still true bumps its date, no longer true deletes it.")
+
+    if rows:
+        print("\n== CARRIED-GAPS ROWS WHOSE OWNER WENT GREEN WITHOUT CLOSING THEM")
+        for r in rows:
+            print(f"  {r['file']}:{r['line']}  {r['lead']}  -- {r['why']}")
+
+    print("\n== BULLETS THAT DECLARE NOTHING, OR DECLARE IT WRONGLY")
+    for e in bad:
+        print(f"  {e['file']}:{e['line']}  {e['lead']}")
+        print(f"      {e['why']}")
+    if not bad:
+        print("  none -- every bullet ends with a trailer this tool can read")
+    return len(expired), len(bad)
+
+
+def run_retire(dry: bool) -> int:
+    """Delete every block whose declared condition holds, file by file, and say what went."""
+    expired, _owed, bad, _rows = expiry_report()
+    if bad:
+        print(f"playbook.py: {len(bad)} bullet(s) declare nothing or declare it wrongly; `--check` "
+              "names them. Nothing is retired while a declaration cannot be read.")
+        return 1
+    if not expired:
+        print("playbook.py: no bullet's retirement condition holds; nothing to delete.")
+        return 0
+    by_file: dict[Path, list[dict]] = {}
+    for e in expired:
+        by_file.setdefault(e["path"], []).append(e)
+    for path, entries in by_file.items():
+        lines = path.read_text(encoding="utf-8").split("\n")
+        for e in sorted(entries, key=lambda x: -x["start"]):
+            print(f"  retire  {e['file']}:{e['line']}  {e['lead']}  -- {e['why']}")
+            del lines[e["start"]:e["end"] + 1]
+            # Collapse the blank line a deleted block leaves behind, so two sections never end
+            # up separated by two.
+            if 0 < e["start"] < len(lines) and not lines[e["start"]].strip() and not lines[e["start"] - 1].strip():
+                del lines[e["start"]]
+        if not dry:
+            path.write_text("\n".join(lines), encoding="utf-8", newline="\n")
+    verb = "would delete" if dry else "deleted"
+    print(f"\nplaybook.py: {verb} {len(expired)} bullet(s) across {len(by_file)} file(s). "
+          "Commit is the caller's; the message names what expired.")
+    return 0
 
 
 # ------------------------------------------------------------------------------ matching
@@ -504,7 +819,9 @@ def run_dupes(every: list[dict], floor: float) -> int:
 def run_check(text: str, every: list[dict]) -> int:
     print(f"docs/agent/playbook.md: {nbytes(text)} bytes, {len(every)} bullets\n")
 
-    print("== PATHS A BULLET NAMES THAT ARE NOT IN THE TREE")
+    _expired, undeclared = report_expiry()
+
+    print("\n== PATHS A BULLET NAMES THAT ARE NOT IN THE TREE")
     stale = 0
     splits = 0
     deliberate: list[tuple[str, str, str]] = []
@@ -595,8 +912,12 @@ def run_check(text: str, every: list[dict]) -> int:
         print("  this exits non-zero on: `orient.py` fetches a trap by its selector, so a goal's")
         print("  `[context] playbook` naming one of these is a trap the loop cannot deliver.")
         print("  Reword the colliding lead-in -- the bullet's text, not this tool, is the fix.")
-        return 1
-    return 0
+    if undeclared:
+        print(f"\n  !! {undeclared} bullet(s) declare nothing that retires them, or declare it in a")
+        print("  form this tool cannot read. That is the other thing this exits non-zero on: a")
+        print("  bullet without a trailer is one the file can never let go of. The syntax is in")
+        print("  this script's module doc, and `session.py --wrap` refuses the same omission.")
+    return 1 if (bad or undeclared) else 0
 
 
 def main() -> int:
@@ -613,6 +934,9 @@ def main() -> int:
     ap.add_argument("--gap", action="store_true",
                     help="bullets the handoff's next group implies that the manifest omits")
     ap.add_argument("--check", action="store_true")
+    ap.add_argument("--retire", action="store_true",
+                    help="delete every bullet whose declared retirement condition holds")
+    ap.add_argument("--dry-run", action="store_true", help="with --retire: say what would go")
     # 0.22, not the 0.30 this shipped with: the `Core\\Math::gcd` twin trap was written down twice
     # at 23% overlap and the default was blind to it, while the whole 22-30% band held that one
     # pair and no false positive. This reports and never prunes, so the cost of looking lower is a
@@ -639,6 +963,8 @@ def main() -> int:
         return run_gap(text, every, opts.floor)
     if opts.check:
         return run_check(text, every)
+    if opts.retire:
+        return run_retire(opts.dry_run)
     if opts.dupes is not None:
         return run_dupes(every, opts.dupes)
     if opts.goal:

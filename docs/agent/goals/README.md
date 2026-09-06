@@ -144,7 +144,7 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [5 database](5-database.md) | M8, database | **`nvs-db`** (new), `nvs-stdlib`, `nvs-types` |
 | [6 server](6-server.md) | M7 | **`nvs-server`** (new), `nvs-stdlib`, `nvs-host` |
 | [7 temp-sweep](7-temp-sweep.md) | post-parity, `rule:core-classes/temporary-dir-sweep` | `nvs-runtime`, `nvs-host`, `nvs-stdlib`, `nvs-config`, `nvs-server`, `nvs-cli` |
-| [8 program-id](8-program-id.md) | post-parity, `rule:programs/no-runtime-autoload` amendment | `nvs-config`, `nvs-hir`, `nvs-runtime`, `nvs-stdlib` |
+| [8 program-id](8-program-id.md) | post-parity, `rule:programs/no-runtime-autoload` changed by a record | `nvs-config`, `nvs-hir`, `nvs-runtime`, `nvs-stdlib` |
 | [9 schema](9-schema.md) | post-parity, one ADR slot | `nvs-db`, `nvs-stdlib`, `nvs-cli` |
 | [10 typed-callable](10-typed-callable.md) | post-parity, `rule:types/callable-signature` | `nvs-syntax`, `nvs-types`, `nvs-stdlib`, `nvs-ir`, `nvs-codegen`, `nvs-runtime` |
 | [11 doc-comments](11-doc-comments.md) | post-parity, `rule:tooling/doc-comment-is-three-slashes` + M4B's tree half | `nvs-syntax`, `nvs-diagnostics`, `nvs-hir`, `nvs-cli` |
@@ -154,18 +154,18 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [15 editor](15-editor.md) | M4B, `rule:ide/highlighting-is-two-layers`+6 | **`editors/vscode`** (new, TypeScript) |
 | [16 request-json](16-request-json.md) | M7, `rule:http-server/a-session-store-answers-four-operations` + spec § 15 | `nvs-stdlib`, `nvs-runtime`, `nvs-test`, `nvs-cli` |
 | [17 test-request](17-test-request.md) | M8, `rule:testing/in-process-request` | `nvs-runtime`, `nvs-stdlib`, `nvs-server`, `nvs-test`, `nvs-cli` |
-| [18 input-shapes](18-input-shapes.md) | M7, ADR 0140 + `rule:types/object-top`/0024 amendments | `nvs-syntax`, `nvs-types`, `nvs-stdlib` |
-| [19 parses](19-parses.md) | M7, ADR 0141 + `rule:classes/comparable`/0066/0077/0102 amendments | `nvs-hir`, `nvs-types`, `nvs-stdlib`, `nvs-runtime`, `nvs-cli` |
-| [20 unix-sockets](20-unix-sockets.md) | M8, `rule:config/cache-shared-is-the-grant-over-the-configured-store` + `rule:http-server/allow-url-pins-the-address`/0059 amendments | `nvs-config`, `nvs-stdlib`, `nvs-db`, `nvs-host`, `nvs-diagnostics` |
-| [21 carried-gaps](21-carried-gaps.md) | post-parity, `rule:core-classes/db-one-api`/0073/0076/0116/0133 amendments | `nvs-config`, `nvs-cli`, `nvs-types`, `nvs-runtime`, `nvs-stdlib`, `nvs-server`, `nvs-db`, `nvs-diagnostics` |
+| [18 input-shapes](18-input-shapes.md) | M7, ADR 0140 + `rule:types/object-top`/0024 changed by a record | `nvs-syntax`, `nvs-types`, `nvs-stdlib` |
+| [19 parses](19-parses.md) | M7, ADR 0141 + `rule:classes/comparable`/0066/0077/0102 changed by a record | `nvs-hir`, `nvs-types`, `nvs-stdlib`, `nvs-runtime`, `nvs-cli` |
+| [20 unix-sockets](20-unix-sockets.md) | M8, `rule:config/cache-shared-is-the-grant-over-the-configured-store` + `rule:http-server/allow-url-pins-the-address`/0059 changed by a record | `nvs-config`, `nvs-stdlib`, `nvs-db`, `nvs-host`, `nvs-diagnostics` |
+| [21 carried-gaps](21-carried-gaps.md) | post-parity, `rule:core-classes/db-one-api`/0073/0076/0116/0133 changed by a record | `nvs-config`, `nvs-cli`, `nvs-types`, `nvs-runtime`, `nvs-stdlib`, `nvs-server`, `nvs-db`, `nvs-diagnostics` |
 | [22 warm-start](22-warm-start.md) | post-parity, `rule:packaging/an-artifact-is-one-immutable-content-addressed-file` | `nvs-codegen`, `nvs-cli`, `nvs-config` |
-| [23 per-core](23-per-core.md) | M7, one ADR slot + `rule:http-server/two-deployments-and-nothing-a-proxy-owns`/0017 amendments | `nvs-cli`, `nvs-host`, `nvs-server`, `nvs-config` |
+| [23 per-core](23-per-core.md) | M7, one ADR slot + `rule:http-server/two-deployments-and-nothing-a-proxy-owns`/0017 changed by a record | `nvs-cli`, `nvs-host`, `nvs-server`, `nvs-config` |
 | [24 net-os-signal](24-net-os-signal.md) | M8, one ADR slot + `rule:config/net-local-is-named-and-not-on-the-roster`'s deferred grant | `nvs-stdlib`, `nvs-host`, `nvs-config`, `nvs-runtime` |
 | [25 formats](25-formats.md) | M8, one ADR slot (the shared decompression bound) | `nvs-stdlib`, `nvs-config`, `nvs-diagnostics` |
-| [26 xml-tree](26-xml-tree.md) | M8, one ADR slot + `rule:core-classes/html-parsing`'s fold | `nvs-stdlib`, `nvs-diagnostics` |
+| [26 xml-tree](26-xml-tree.md) | M8, one ADR slot + `rule:core-classes/html-parsing`'s change | `nvs-stdlib`, `nvs-diagnostics` |
 | [27 gap-owners](27-gap-owners.md) | post-parity, no ADR — a process gate | `tools/`, every crate's module docs |
-| [28 unowned-sweep](28-unowned-sweep.md) | post-parity, `rule:errors/propagation`/0033/0044 amendments | `nvs-stdlib`, `nvs-types`, `nvs-runtime` |
-| [29 signed-urls](29-signed-urls.md) | M8, `rule:core-api/signing-is-over-a-payload` + `rule:security/protocol-roster`/0077 amendments | `nvs-stdlib`, `nvs-types`, `nvs-runtime` |
+| [28 unowned-sweep](28-unowned-sweep.md) | post-parity, `rule:errors/propagation`/0033/0044 changed by a record | `nvs-stdlib`, `nvs-types`, `nvs-runtime` |
+| [29 signed-urls](29-signed-urls.md) | M8, `rule:core-api/signing-is-over-a-payload` + `rule:security/protocol-roster`/0077 changed by a record | `nvs-stdlib`, `nvs-types`, `nvs-runtime` |
 | 30–49 | free | the gap the dossier's number leaves, so a new hand-written entry costs one `[[goal]]` block and no renumber |
 | [50 dossier](50-dossier.md) | `rule:testing/four-proofs` | none — it writes the goals that open all of them, then optimizes the loop for their shape |
 | 51 onward | `rule:testing/four-proofs`, generated | one group of features per goal, its own `[context]` manifest |

@@ -72,7 +72,7 @@ playbook = [
   # The process traps, by hand.
   'Tooling > the end',
   'Tooling > one call reads',
-  'Tooling > a whole adr',
+  'Tooling > a whole decision record',
   'Tooling > a plan field is patched',
   'Tooling > plan.py --get',
   'Tooling > a commit',

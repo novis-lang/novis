@@ -53,7 +53,8 @@ added; that file is authoritative for steps 1–5.
 4. **Write the docs and the handoff, once for the whole group.** The plan's status block, any doc the
    change invalidates, and `docs/agent/handoff.md` overwritten under the contract below. If the session
    cost you a *trap* — something that looked like it should work and did not — add one bullet to
-   `docs/agent/playbook.md`. **Choosing the next group is part of this step**, not the next session's
+   `docs/agent/playbook.md`, ending with the `[until: ...]` trailer `tools/playbook.py`'s module
+   doc defines. **Choosing the next group is part of this step**, not the next session's
    problem: you are holding the context that makes it cheap.
 5. **Commit — one per slice**, staging each slice's own files so `git log` still reads a slice at a time.
 6. **Write one line to `.loop/status.txt`** (overwrite, no newline needed), then exit:

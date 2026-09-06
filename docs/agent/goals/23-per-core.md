@@ -109,7 +109,7 @@ core, and M7's acceptance is that 10k concurrent cold requests compile it **exac
   state; a compiled unit is immutable program text, which is the same exception `rule:security/isolate-shares-nothing` already
   makes when it says an isolate "shares immutable compiled code".
 - **This goal may open one ADR number** for the per-core accept and the shared unit cache, and no
-  second. Every other question it meets is a folded edit to `rule:http-server/two-deployments-and-nothing-a-proxy-owns`'s or `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s body.
+  second. Every other question it meets is an edit to `rule:http-server/two-deployments-and-nothing-a-proxy-owns`'s or `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s fragment, with a record whose `changes:` block names it.
 - **A core count is bounded by configuration, never by a heuristic.** `[server] workers` defaults to
   the available parallelism and is the last word when written; there is no "auto" spelling that means
   something other than the default.

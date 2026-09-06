@@ -57,9 +57,11 @@ session performed.
 **A goal's playbook selection is chosen with `python tools/playbook.py`, not by reading the file.**
 `--goal` ranks every bullet against the goal's own `[context] modules` and prints a paste-ready
 `playbook = [...]`; `--match <paths>` does the same for one session's file set. Two flags are the pruning
-signals an append-mostly file can have: `--check` reports a bullet naming a path that has left the tree,
+signals an append-mostly file has beyond the `[until: ...]` trailer every bullet ends with -- the syntax is
+`playbook.py`'s module doc; `--check` tests the trailers and `--retire` deletes the bullets whose condition
+holds. `--check` also reports a bullet naming a path that has left the tree,
 and `--dupes` reports a bullet that already says what another bullet says — one trap had been written down
-six times, by six sessions, in six wordings, before anything could see it. Neither writes to the playbook:
+six times, by six sessions, in six wordings, before anything could see it. Neither appends to the playbook, and `--retire` only ever removes:
 appending a bullet is `session.py`'s `## playbook:` section and stays there.
 
 `--check` **exits non-zero on exactly one of the things it prints**: a selector that does not resolve to

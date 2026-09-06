@@ -294,8 +294,8 @@ def slice_bullets(text: str, selector: str) -> tuple[list[str], str | None]:
     Three spellings, tried in this order:
 
         "Tooling"                    the whole `## Tooling` section, as before
-        "Tooling > A whole ADR"      one bullet out of it, by its bold lead-in
-        "A whole ADR"                that bullet wherever it lives
+        "Tooling > a whole decision record"      one bullet out of it, by its bold lead-in
+        "A whole decision record"                that bullet wherever it lives
 
     The second and third are why this exists. Measured over one run, the four whole sections a
     goal named were 31 KB -- 35% of the entire pack and its single largest section -- and a
@@ -1311,7 +1311,7 @@ def audit() -> list[str]:
     lines.append(f"  1,000 bytes here is worth about {1000 / ratio * calls:,.0f} of them.")
     lines.append("")
     lines.append("  The largest section is usually the traps. A `[context] playbook` entry may name")
-    lines.append("  one BULLET rather than a whole section -- `\"Tooling > A whole ADR\"` -- which is")
+    lines.append("  one BULLET rather than a whole section -- `\"Tooling > a whole decision record\"` -- which is")
     lines.append("  what keeps this from growing every time a trap is written down.")
     lines.append("")
     lines.append("  Its indented rows split that cost in two, because only one half is yours: the")
