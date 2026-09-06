@@ -160,7 +160,7 @@
 //!
 //! Cases running one at a time was the other gap here, kept while the suites
 //! were small enough that a deterministic report was worth more than the
-//! clock. [`run`] now has both: a pool of workers and a report in discovery
+//! clock. [`run()`] now has both: a pool of workers and a report in discovery
 //! order.
 
 pub mod case;

@@ -39,7 +39,7 @@ pub struct Options {
     pub filter: Option<String>,
     /// How many cases are in flight at once. Every case is its own process
     /// in its own directory already, so this only says how many of those
-    /// run side by side; [`crate::run`] owns the measurement.
+    /// run side by side; [`crate::run()`] owns the measurement.
     pub jobs: usize,
 }
 
