@@ -6,10 +6,12 @@
 //! temporary directory — the one place all three target platforms give the invoking account and
 //! nobody else, which is what makes a *passing* case meaningful rather than accidental.
 //!
-//! Only the refusals a case can construct portably are asserted here. Making a path group-writable
-//! is one `chmod` on Unix and an ACL edit on Windows, so the two negative cases below are
-//! `cfg(unix)`; the Windows half of the boundary — the owner SID and the effective-rights sweep —
-//! is `crates/nvs-config/src/trust.rs`'s module doc, and what it accepts is ADR 0103 § 6's own text.
+//! Making a path group-writable is one `chmod` on Unix and an ACL edit on Windows, so each
+//! platform's refusals are written against its own tool: the `cfg(unix)` cases below use
+//! `set_permissions`, and the `cfg(windows)` ones drive `icacls` by SID, never by account name,
+//! because every one of those names is localized. What the boundary accepts is ADR 0103 § 6's own
+//! text, and how the Windows half computes an effective right is
+//! `crates/nvs-config/src/trust.rs`'s module doc.
 
 use std::fs;
 use std::path::PathBuf;
@@ -112,5 +114,69 @@ fn a_file_in_a_world_writable_directory_is_a_breach_too() {
         why.message(),
     );
 
+    drop(fs::remove_dir_all(&dir));
+}
+
+/// One `icacls` edit, by SID because an account name is localized and a rename does not move it.
+///
+/// `/inheritance:d` first, on every edit, because a scratch directory under the temporary
+/// directory inherits its entries: without that, a `/remove` names an entry that is not there to
+/// remove and the grant survives.
+#[cfg(windows)]
+fn icacls(dir: &std::path::Path, args: &[&str]) {
+    let done = std::process::Command::new("icacls")
+        .arg(dir)
+        .args(args)
+        .output()
+        .expect("`icacls` ships with Windows");
+    assert!(
+        done.status.success(),
+        "icacls {args:?} on {dir:?}: {}",
+        String::from_utf8_lossy(&done.stderr),
+    );
+}
+
+/// `BUILTIN\Users`, which is the group every interactive account on the box is in.
+#[cfg(windows)]
+const USERS: &str = "*S-1-5-32-545";
+
+/// § 6's DACL half: an entry granting one of the five untrusted principals a write right is a
+/// breach, and the refusal names the principal rather than a mode.
+#[cfg(windows)]
+#[test]
+fn a_directory_a_well_known_group_may_write_is_a_breach() {
+    let dir = scratch("group-writable-dacl");
+    icacls(&dir, &["/inheritance:d"]);
+    check(&dir).expect("the scratch directory is inside the boundary before the grant");
+
+    icacls(&dir, &["/grant:r", &format!("{USERS}:(WD)")]);
+    let why = check(&dir).expect_err("anyone in BUILTIN\\Users could create a file here");
+    assert!(
+        matches!(why, Untrusted::Breach(_)) && why.message().contains("BUILTIN\\Users"),
+        "the refusal was read off the DACL and names the principal: {why:?}",
+    );
+
+    icacls(&dir, &["/remove:g", USERS]);
+    check(&dir).expect("the grant is gone and the directory is inside the boundary again");
+
+    drop(fs::remove_dir_all(&dir));
+}
+
+/// The right asked about is the *effective* one, which is the whole reason the walk in
+/// `trust.rs` accumulates deny entries ahead of grants rather than stopping at the first grant it
+/// matches. A grant a deny cancels leaves the principal unable to write, and § 6 has nothing to
+/// refuse.
+#[cfg(windows)]
+#[test]
+fn a_grant_a_deny_entry_cancels_is_not_a_breach() {
+    let dir = scratch("denied-grant-dacl");
+    icacls(&dir, &["/inheritance:d"]);
+    icacls(&dir, &["/grant:r", &format!("{USERS}:(WD)")]);
+    check(&dir).expect_err("the grant alone is a breach — which is what the deny below undoes");
+
+    icacls(&dir, &["/deny", &format!("{USERS}:(WD)")]);
+    check(&dir).expect("a right denied is a right this principal does not effectively have");
+
+    icacls(&dir, &["/remove", USERS]);
     drop(fs::remove_dir_all(&dir));
 }
