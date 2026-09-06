@@ -130,7 +130,7 @@
 //!    `Uri` need only their members written, exactly as § 4's `Duration`
 //!    already has.
 //!
-//!    A **sequence** parameter — whatever `foreach` accepts, ADR 0053 § 3's
+//!    A **sequence** parameter — whatever `foreach` accepts, `rule:iteration/foreach-subjects`'s
 //!    three shapes at once — is [`registry::CoreTy::Iterated`], first
 //!    declared by `Core\Arr::from`, and `nvs_runtime::sequence` is the one
 //!    place such an argument is read: an array walked directly, a cursor

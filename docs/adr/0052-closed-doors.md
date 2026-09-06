@@ -67,7 +67,7 @@ every local file-inclusion bug into a remote one.
 
 The mechanism's actual benefit is polymorphism over "things you can read bytes from." That is available
 without any of the above, as an ordinary interface implemented by ordinary types and resolved statically —
-which is what [ADR 0053](0053-iteration-and-generators.md)'s `Iterable` and the `Core\IO` stream types
+which is what `rule:iteration/two-interfaces`'s `Iterable` and the `Core\IO` stream types
 provide. What is refused is specifically **dispatch on the textual content of a path**.
 
 ### 3. No cross-request state, at any scale

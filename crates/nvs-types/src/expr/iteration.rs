@@ -4,7 +4,7 @@
 //! [`ForeachSource`] is the classification the rest of the crate asks for —
 //! `crate::locals` drives a `foreach`'s bindings from it, and `nvs-ir` lowers
 //! from the [`ForeachDrive`](crate::expr_table::ForeachDrive) it records. Its
-//! three accepted shapes are ADR 0053 § 3's, and its `Unchecked` case is the
+//! three accepted shapes are `rule:iteration/foreach-subjects`'s, and its `Unchecked` case is the
 //! deliberate one-mistake-one-diagnostic path: a subject already diagnosed as
 //! something else lets the written binding types stand rather than reporting
 //! twice.
@@ -26,7 +26,7 @@ use super::*;
 /// `yield` / `yield $v` / `yield $k => $v` — [`super::infer`]'s
 /// `ExprKind::Yield` arm.
 ///
-/// ADR 0053 § 4. Whether this is legal here at all, and what the operand has to
+/// `rule:iteration/generators`. Whether this is legal here at all, and what the operand has to
 /// satisfy, are the same question — see `Ctx::generator_elem`, which
 /// `crate::check::check_method` set from the enclosing body's own shape.
 pub(crate) fn infer_yield(
@@ -47,7 +47,7 @@ pub(crate) fn infer_yield(
             )
             .with_primary(k.span, "no key exists here")
             .with_help(
-                "ADR 0053 § 1 gives `Iterator<T>` exactly `advance()` and \
+                "`rule:iteration/two-interfaces` gives `Iterator<T>` exactly `advance()` and \
                  `current()`; drop the `key =>`",
             ),
         );
@@ -62,7 +62,9 @@ pub(crate) fn infer_yield(
             env.diags.report(
                 Diagnostic::error(code::E_YIELD_FORM_UNSUPPORTED, "a `yield` needs a value")
                     .with_primary(expr.span, "nothing is yielded here")
-                    .with_help("ADR 0053 § 1: `current()` returns a `T`, never nothing"),
+                    .with_help(
+                        "`rule:iteration/two-interfaces`: `current()` returns a `T`, never nothing",
+                    ),
             );
         }
         (None, _) => {
@@ -76,7 +78,7 @@ pub(crate) fn infer_yield(
 }
 
 /// `yield from $inner` — [`super::infer`]'s `ExprKind::YieldFrom` arm, which
-/// exists only to refuse it (ADR 0053 § 5).
+/// exists only to refuse it (`rule:iteration/one-way-only`).
 pub(crate) fn infer_yield_from(
     expr: &Expr,
     inner: &Expr,
@@ -93,14 +95,14 @@ pub(crate) fn infer_yield_from(
         )
         .with_primary(expr.span, "this delegation form")
         .with_help(
-            "ADR 0053 § 5: write `foreach ($inner as T $v) { yield $v; }`, which is \
+            "`rule:iteration/one-way-only`: write `foreach ($inner as T $v) { yield $v; }`, which is \
              what it is a second spelling of",
         ),
     );
     env.interner.void()
 }
 
-/// What one `foreach` subject turns out to be — ADR 0053 § 3's three
+/// What one `foreach` subject turns out to be — `rule:iteration/foreach-subjects`'s three
 /// accepted shapes, plus the two that are neither accepted nor worth a second
 /// diagnostic.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -109,7 +111,7 @@ pub(crate) enum ForeachSource {
     /// all. The only shape with keys.
     Array { value: TypeId },
     /// An `Iterable<T>` or `Iterator<T>`, written as such or reached through
-    /// a class that implements one. A cursor has no key: ADR 0053 § 1's
+    /// a class that implements one. A cursor has no key: `rule:iteration/two-interfaces`'s
     /// member set is `advance`/`current` and nothing else.
     Cursor {
         /// The element type `current()` yields.
@@ -148,7 +150,7 @@ impl ForeachSource {
     }
 }
 
-/// Classifies a `foreach` subject, diagnosing one that is none of ADR 0053
+/// Classifies a `foreach` subject, diagnosing one that is none of `rule:iteration/two-interfaces`
 /// § 3's three shapes.
 pub(crate) fn foreach_source(subject_ty: TypeId, span: Span, env: &mut Env<'_>) -> ForeachSource {
     let source = classify_foreach_source(subject_ty, span, env);
@@ -166,7 +168,7 @@ pub(crate) fn classify_foreach_source(
     match env.interner.get(subject_ty).clone() {
         Ty::Array(elem) => ForeachSource::Array { value: elem },
         // `mixed` is the one unchecked position (ADR 0007 § 1) and `iterable`
-        // is a keyword ADR 0053 leaves untouched — neither is a mistake, and
+        // is a keyword `rule:iteration/two-interfaces` leaves untouched — neither is a mistake, and
         // neither carries an element type to check a binding against.
         Ty::Mixed | Ty::Iterable => ForeachSource::Unchecked,
         Ty::Class(qname, args) => {
@@ -214,7 +216,7 @@ pub(crate) fn report_not_iterable(subject_ty: TypeId, span: Span, env: &mut Env<
         )
         .with_primary(span, format!("this is `{got}`"))
         .with_help(
-            "ADR 0053 § 3: `foreach` accepts an `array<T>`, an `Iterable<T>` or an \
+            "`rule:iteration/foreach-subjects`: `foreach` accepts an `array<T>`, an `Iterable<T>` or an \
              `Iterator<T>`, and nothing else",
         ),
     );
@@ -245,7 +247,7 @@ pub(crate) fn check_foreach_value(
 /// 1. **The subject must be a plain variable holding an `array<T>`.** The
 ///    write-back re-points the subject's own slot, so there has to be one:
 ///    `foreach (rows() as inout $v)` has nowhere to leave what the body wrote, and
-///    a cursor has no element storage at all (ADR 0053 § 1 gives
+///    a cursor has no element storage at all (`rule:iteration/two-interfaces` gives
 ///    `Iterator<T>` `advance()` and `current()`, neither of which is a place).
 ///    PHP refuses both, the cursor by name.
 /// 2. **The binding's type must be the element type exactly.** A by-value
@@ -277,7 +279,7 @@ pub(crate) fn check_foreach_inout(
                 )
                 .with_primary(binding.span, "bound by reference here")
                 .with_help(
-                    "ADR 0053 § 1 gives a cursor exactly `advance()` and `current()`, so there \
+                    "`rule:iteration/two-interfaces` gives a cursor exactly `advance()` and `current()`, so there \
                      is no storage to write back to — drop the `inout`, or iterate an `array<T>`",
                 ),
             );
@@ -337,7 +339,7 @@ pub(crate) fn check_foreach_inout(
 /// normalises `$a[8]` to `$a["8"]` at the *subscript*, and there is no
 /// conversion on the way back out.
 ///
-/// A cursor is the sharper case: ADR 0053 § 1 gives `Iterator<T>` exactly
+/// A cursor is the sharper case: `rule:iteration/two-interfaces` gives `Iterator<T>` exactly
 /// `advance()` and `current()`, so there is provably no key at all, and it
 /// keeps its own code.
 ///
@@ -360,7 +362,7 @@ pub(crate) fn check_foreach_key(
                 )
                 .with_primary(binding.span, "no key exists here")
                 .with_help(
-                    "ADR 0053 § 1 gives `Iterator<T>` exactly `advance()` and `current()`; \
+                    "`rule:iteration/two-interfaces` gives `Iterator<T>` exactly `advance()` and `current()`; \
                      drop the `$k =>` or iterate an `array<T>` instead",
                 ),
             );
@@ -399,7 +401,7 @@ pub(crate) fn check_foreach_key(
 /// generic `E_TYPE_MISMATCH` [`is_assignable`] would otherwise report for
 /// the same expression. Returns whether it reported one, so the caller can
 /// skip its own generic check for this expression.
-/// ADR 0053 § 4's lexical confinement, reported once per stray `yield`.
+/// `rule:iteration/generators`'s lexical confinement, reported once per stray `yield`.
 pub(crate) fn report_yield_outside_generator(span: Span, env: &mut Env<'_>) {
     env.diags.report(
         Diagnostic::error(
@@ -408,7 +410,7 @@ pub(crate) fn report_yield_outside_generator(span: Span, env: &mut Env<'_>) {
         )
         .with_primary(span, "this is not inside a generator")
         .with_help(
-            "ADR 0053 § 4 lowers a generator to a state machine rather than to a coroutine, \
+            "`rule:iteration/generators` lowers a generator to a state machine rather than to a coroutine, \
              which is what confines `yield` to the body it is written in — a closure, or a \
              helper it calls, cannot yield into it",
         ),

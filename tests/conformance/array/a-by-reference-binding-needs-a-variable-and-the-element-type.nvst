@@ -1,9 +1,9 @@
 --TEST--
-`foreach (… as inout $v)` is refused over a subject with no storage to write back to, and over a binding wider than the element type — ADR 0053 § 3, ADR 0007 § 1
+`foreach (… as inout $v)` is refused over a subject with no storage to write back to, and over a binding wider than the element type — `rule:iteration/foreach-subjects`, ADR 0007 § 1
 --FILE--
 <?nvs
 // `inout $v` writes each element back where it came from, so there has to be
-// somewhere to leave it: a temporary has none, and ADR 0053 § 1 gives a
+// somewhere to leave it: a temporary has none, and `rule:iteration/two-interfaces` gives a
 // cursor `advance()`/`current()` and no element storage at all. PHP refuses
 // both, the cursor by name. And a by-reference binding *writes* as well as
 // reads, so the covariance an ordinary `array<T>` read has — an `array<int>`

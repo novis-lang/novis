@@ -56,7 +56,7 @@ fn while_do_while_and_for() {
 }
 
 /// The init clause of `for` as [`ForInit`], for a source that must parse
-/// clean — ADR 0109 § 1's two alternatives are told apart by asking this.
+/// clean — `rule:iteration/for-init-clause`'s two alternatives are told apart by asking this.
 fn for_init_of(src: &str) -> ForInit {
     let s = parse_stmt_ok(src);
     let StmtKind::For { init, .. } = s.kind else {
@@ -67,7 +67,7 @@ fn for_init_of(src: &str) -> ForInit {
 
 #[test]
 fn a_for_init_clause_declares_one_typed_local() {
-    // ADR 0109 § 1: the declaration form, in every spelling `local-decl`
+    // `rule:iteration/for-init-clause`: the declaration form, in every spelling `local-decl`
     // covers — a scalar type, ADR 0037's `var`, a nullable, a generic whose
     // `<` the expression grammar also claims.
     for src in [
@@ -91,7 +91,7 @@ fn a_for_init_clause_declares_one_typed_local() {
 
 #[test]
 fn a_for_init_clause_is_still_a_list_of_expressions() {
-    // ADR 0109 § 1's trial parse in the other direction, plus the shape the
+    // `rule:iteration/for-init-clause`'s trial parse in the other direction, plus the shape the
     // corpus used before it. Each of the first four begins with a token that
     // starts a *type* — a `Name`, `static`, `(` — and is an expression all
     // the same, settled only by what does not follow it; that is the same
@@ -112,7 +112,7 @@ fn a_for_init_clause_is_still_a_list_of_expressions() {
 
 #[test]
 fn a_for_init_clause_mixing_a_declaration_and_an_expression_is_e0124() {
-    // ADR 0109 § 3: one diagnostic naming the rule, in either order, and
+    // `rule:iteration/for-init-refusals`: one diagnostic naming the rule, in either order, and
     // nothing else — the twelve-error resynchronisation cascade in that
     // ADR's *Context* is what this replaces, so the count is the assertion.
     for src in [
@@ -137,7 +137,7 @@ fn a_for_init_clause_mixing_a_declaration_and_an_expression_is_e0124() {
 
 #[test]
 fn a_for_init_clause_with_two_declarations_is_e0125() {
-    // ADR 0109 § 3's other code, for the shape a reader coming from C
+    // `rule:iteration/for-init-refusals`'s other code, for the shape a reader coming from C
     // writes. Separate from E0124 because the fix is different: the second
     // declaration goes above the loop.
     let src = "for (int $i = 0, int $j = 0; $i < 3; $i = $i + 1) { }";

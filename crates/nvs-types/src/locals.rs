@@ -449,7 +449,7 @@ fn null_residue(
 /// already answers an interface's members for a parameter declared with one.
 ///
 /// The one name left out is a reserved interface that takes **type
-/// arguments**: ADR 0053 § 2's `Iterable`/`Iterator` are written
+/// arguments**: `rule:iteration/concrete-generic-implements`'s `Iterable`/`Iterator` are written
 /// `Iterator<int>` wherever they are declared and `instanceof Iterator`
 /// supplies nothing, so interning one here would name a different type than
 /// any annotation does. That one proves a `bool` and narrows nothing, which is
@@ -1067,7 +1067,7 @@ pub(crate) fn check_stmt(
             step,
             body,
         } => {
-            // ADR 0109 §§ 1-2: the counter is declared here and is
+            // `rule:iteration/for-init-clause` and `rule:iteration/for-counter-scope`: the counter is declared here and is
             // function-scoped, so § 1's declare-once rule applies to it
             // through the same arm — a second `for (int $i = 0; …)` below is
             // the re-declaration diagnostic that arm already reports, and the

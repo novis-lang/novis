@@ -23,7 +23,7 @@
 //!
 //! [ADR 0007](/docs/adr/0007-explicit-type-system.md) § 1 parks
 //! user-declared type parameters and
-//! [ADR 0053](/docs/adr/0053-iteration-and-generators.md) § 2 opens
+//! `rule:iteration/concrete-generic-implements` opens
 //! exactly one door in that wall: a user class may implement a
 //! *compiler-owned* generic interface at a concrete type. This table is that
 //! door's full extent — a type-argument list on any name not in it is
@@ -36,7 +36,7 @@
 /// and `Stringable`
 /// ([ADR 0028](/docs/adr/0028-closing-the-remaining-magic-methods.md)
 /// § 1) take none; `Iterable` and `Iterator`
-/// ([ADR 0053](/docs/adr/0053-iteration-and-generators.md) § 1) each
+/// (`rule:iteration/two-interfaces`) each
 /// take one. `PropertyObserver`
 /// ([ADR 0014](/docs/adr/0014-property-observer.md) § 2) takes none
 /// either: it is a contract an ordinary class implements, not a `Core` domain
@@ -63,10 +63,10 @@ pub const STRINGABLE: &str = "Stringable";
 /// `onPropertyGet(string, mixed): void` and its `onPropertySet` twin.
 pub const PROPERTY_OBSERVER: &str = "PropertyObserver";
 
-/// ADR 0053 § 1's `Iterable<T>` — a thing that can produce a fresh cursor.
+/// `rule:iteration/two-interfaces`'s `Iterable<T>` — a thing that can produce a fresh cursor.
 pub const ITERABLE: &str = "Iterable";
 
-/// ADR 0053 § 1's `Iterator<T>` — the single-pass cursor itself.
+/// `rule:iteration/two-interfaces`'s `Iterator<T>` — the single-pass cursor itself.
 pub const ITERATOR: &str = "Iterator";
 
 /// Whether `name` is one of [`RESERVED`]'s entries.

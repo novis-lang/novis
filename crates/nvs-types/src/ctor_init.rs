@@ -286,7 +286,7 @@ fn walk_stmt(
             step,
             body,
         } => {
-            // ADR 0109 § 1: the init clause runs once, before the loop, in
+            // `rule:iteration/for-init-clause`: the init clause runs once, before the loop, in
             // this same state — a declaration there is no different from one
             // written on the line above.
             if let Some(decl) = init.decl() {

@@ -510,7 +510,7 @@ fn resolve_parent(span: Span, ctx: &Ctx<'_>, env: &mut Env<'_>) -> TypeId {
 }
 
 /// Resolves one `implements Name<...>` entry to the interface it names and
-/// the concrete type arguments it fixes — ADR 0053 § 2's one narrow
+/// the concrete type arguments it fixes — `rule:iteration/concrete-generic-implements`'s one narrow
 /// extension, in the one position that extension exists for.
 ///
 /// Deliberately *not* [`lower_type`] over a synthesized name atom, for one
@@ -561,7 +561,7 @@ fn report_not_generic(qname: &nvs_hir::QName, span: Span, env: &mut Env<'_>) {
         .with_help(
             "user-declared type parameters are deferred (ADR 0007 § 1); only a \
              compiler-owned generic declaration may be written with one — \
-             `Iterable<T>`/`Iterator<T>` (ADR 0053 § 2) and \
+             `Iterable<T>`/`Iterator<T>` (`rule:iteration/concrete-generic-implements`) and \
              `docs/spec/01-core-library.md` § 9's `Core` collections",
         ),
     );
@@ -575,7 +575,7 @@ fn report_not_generic(qname: &nvs_hir::QName, span: Span, env: &mut Env<'_>) {
 /// resolution question and there are two kinds of compiler-owned answer.
 /// [`nvs_stdlib::registry::GENERIC_CLASSES`] holds spec § 9's collections,
 /// named in full because `Core\ObjectSet` is the only spelling there is.
-/// [`nvs_hir::interfaces::RESERVED`] holds ADR 0053 § 2's two interfaces,
+/// [`nvs_hir::interfaces::RESERVED`] holds `rule:iteration/concrete-generic-implements`'s two interfaces,
 /// named by their short name and only as a single global segment — so a user
 /// interface that happens to be called `Iterable` in its own namespace is not
 /// one, which [`nvs_hir::QName::is_reserved_global_interface`] already
@@ -625,7 +625,7 @@ fn lower_generic_interface(
                 )
             } else {
                 format!(
-                    "ADR 0053 § 1 declares `{qname}<{names}>`; the argument fixes what it iterates \
+                    "`rule:iteration/two-interfaces` declares `{qname}<{names}>`; the argument fixes what it iterates \
                  over, and there is no spelling that leaves it open"
                 )
             },

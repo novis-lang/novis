@@ -475,11 +475,11 @@ const REFUSED_IN_A_BODY: &[&str] = &[
 /// The shapes that need a generator body to be spellable at all.
 const LOWERS_IN_A_GENERATOR: &[&str] = &[
     "yield 1;",
-    // ADR 0053 § 5's own replacement for the row below.
+    // `rule:iteration/one-way-only`'s own replacement for the row below.
     "foreach (Base::two() as int $v) { yield $v; }",
 ];
 
-/// The delegation form ADR 0053 § 5 refuses, in the one place it parses.
+/// The delegation form `rule:iteration/one-way-only` refuses, in the one place it parses.
 const REFUSED_IN_A_GENERATOR: &[&str] = &["yield from Base::two();"];
 
 /// The declarations, plus the statement forms only a script frame has.

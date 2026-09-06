@@ -1,11 +1,11 @@
 --TEST--
-`Core\Heap<T>`'s `count`, `isEmpty`, `peek` and its `foreach` cursor agree at every step of a push/pop sweep, counted rather than read off a line — docs/spec/01-core-library.md § 9, ADR 0013, ADR 0053 § 3
+`Core\Heap<T>`'s `count`, `isEmpty`, `peek` and its `foreach` cursor agree at every step of a push/pop sweep, counted rather than read off a line — docs/spec/01-core-library.md § 9, ADR 0013, `rule:iteration/foreach-subjects`
 --FILE--
 <?nvs
 // § 9 gives the class five members and an iteration, and four of them are
 // independent readers of one question: how much is in there, and what comes
 // out next. `count` reads the entries array, `isEmpty` reads its length,
-// `peek` reads position 0, and the cursor ADR 0053 § 3 builds walks a *copy*
+// `peek` reads position 0, and the cursor `rule:iteration/foreach-subjects` builds walks a *copy*
 // of the entries in pop order. Each of them could grow its own idea of the
 // size and still look right on its own line — the other cases here print what
 // each answered, so this one asserts only that they **agree**, and asserts it

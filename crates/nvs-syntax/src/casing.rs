@@ -400,7 +400,7 @@ fn check_stmt(stmt: &Stmt, src: &SourceFile, diags: &mut Diagnostics) {
             step,
             body,
         } => {
-            // ADR 0109 § 1: the counter a declaration form binds is an
+            // `rule:iteration/for-init-clause`: the counter a declaration form binds is an
             // ordinary local, so ADR 0029's `camelCase` rule reaches it
             // through the same arm a declaration above the loop takes.
             if let Some(decl) = init.decl() {

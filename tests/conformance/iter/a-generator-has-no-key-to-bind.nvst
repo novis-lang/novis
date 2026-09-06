@@ -1,5 +1,5 @@
 --TEST--
-`Iterator<T>` has `advance()` and `current()` and nothing else, so a `$k =>` binding over one is a compile error — ADR 0053 § 1
+`Iterator<T>` has `advance()` and `current()` and nothing else, so a `$k =>` binding over one is a compile error — `rule:iteration/two-interfaces`
 --FILE--
 <?nvs
 class Steps {

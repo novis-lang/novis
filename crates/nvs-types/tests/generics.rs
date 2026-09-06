@@ -1,4 +1,4 @@
-//! ADR 0053 § 2's one narrow generic door — a user class implementing a compiler-owned generic interface at a concrete type.
+//! `rule:iteration/concrete-generic-implements`'s one narrow generic door — a user class implementing a compiler-owned generic interface at a concrete type.
 //!
 //! Moved out of `nvs_types::check`'s inline `mod tests`; every test keeps its
 //! own name and body. See `tests/common/mod.rs` for the shared fixtures.
@@ -8,7 +8,7 @@ mod common;
 use common::*;
 use nvs_diagnostics::code;
 
-// ADR 0053 §§ 1-2: the two compiler-owned generic interfaces, and the one
+// `rule:iteration/two-interfaces` and `rule:iteration/concrete-generic-implements`: the two compiler-owned generic interfaces, and the one
 // door user code has onto a type parameter.
 
 #[test]
@@ -75,7 +75,7 @@ fn a_user_declared_name_written_with_type_arguments_is_refused() {
 }
 
 /// A reserved interface that takes *no* parameters is refused by the same
-/// rule, in the position ADR 0053 § 2 opened -- an `implements` clause.
+/// rule, in the position `rule:iteration/concrete-generic-implements` opened -- an `implements` clause.
 #[test]
 fn a_non_generic_reserved_interface_takes_no_type_arguments_either() {
     let diags = check_src("<?nvs\nclass M implements Comparable<int> {}\n");

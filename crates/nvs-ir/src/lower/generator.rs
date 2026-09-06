@@ -1,4 +1,4 @@
-//! ADR 0053 § 4's state-machine transform: the frame, the spill/reload of a local live across a `yield`, and the three synthesized methods.
+//! `rule:iteration/generators`'s state-machine transform: the frame, the spill/reload of a local live across a `yield`, and the three synthesized methods.
 //!
 //! Part of [`super`]'s one `impl Lowering`, split across this directory so a
 //! session editing one area does not carry the rest in context. Every item
@@ -91,7 +91,7 @@ impl<'a> Lowering<'a> {
         let (fal, _) = self.emit(cur, Ty::Bool, InstKind::ConstBool(false));
         self.seal(cur, Terminator::Return(Some(fal)));
     }
-    /// `yield expr;` — ADR 0053 § 4's suspension point, lowered as an
+    /// `yield expr;` — `rule:iteration/generators`'s suspension point, lowered as an
     /// ordinary `return true` bracketed by a spill and a reload.
     ///
     /// [`lower_generator`] owns the protocol and the reason it is shaped this
@@ -267,7 +267,7 @@ impl<'a> Lowering<'a> {
 }
 
 // ---------------------------------------------------------------------------
-// ADR 0053 § 4: generators
+// `rule:iteration/generators`: generators
 // ---------------------------------------------------------------------------
 
 /// The state field's name in a generator's synthesized state class — which
@@ -365,7 +365,7 @@ impl GenFrame {
     }
 }
 
-/// Lowers a generator declaration — ADR 0053 § 4's state-machine transform.
+/// Lowers a generator declaration — `rule:iteration/generators`'s state-machine transform.
 ///
 /// One source method becomes **three functions and one class**:
 ///
@@ -824,7 +824,7 @@ pub(crate) fn lower_generator_advance(
     )
 }
 
-/// The accessor half: ADR 0053 § 1's protocol guard, and behind it the element
+/// The accessor half: `rule:iteration/two-interfaces`'s protocol guard, and behind it the element
 /// the last `yield` parked, retained, since the field keeps owning its own
 /// reference.
 ///
@@ -967,7 +967,7 @@ pub(crate) fn lower_generator_current(
     }
 }
 
-/// The message [`lower_generator_current`]'s guard raises, at both of ADR 0053
+/// The message [`lower_generator_current`]'s guard raises, at both of `rule:iteration/two-interfaces`
 /// § 1's two points.
 const OUTSIDE_THE_PROTOCOL: &str =
     "current() outside the iteration protocol: it answers only after advance() returned true";

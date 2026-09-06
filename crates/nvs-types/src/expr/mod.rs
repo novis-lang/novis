@@ -23,7 +23,7 @@
 //! | [`assign`] | ADR 0007 § 6's assignability, and the positions applying it |
 //! | [`calls`] | which member a call resolves to; ADR 0027's `callable` |
 //! | [`isolate`] | ADR 0006's `spawn script` and `await`, and what each types as |
-//! | [`iteration`] | ADR 0053's `foreach` sources and `yield` forms |
+//! | [`iteration`] | `rule:iteration/two-interfaces`'s `foreach` sources and `yield` forms |
 //! | [`literals`] | how a literal takes its type from its position |
 //! | [`members`] | a property, class constant or enum case, and who diagnoses it |
 //! | [`operators`] | ADR 0007 § 4's result table and the refusals layered on it |
@@ -164,7 +164,7 @@ pub(crate) fn check_condition(
 /// is the same statement, `nvs_syntax::ast::Expr::unparenthesized` being what
 /// finds the root there too.
 ///
-/// * `yield $v;` — ADR 0053 § 4's suspension point, whose value nothing
+/// * `yield $v;` — `rule:iteration/generators`'s suspension point, whose value nothing
 ///   consumes. [`infer`]'s own arm refuses every *other* position (`E0448`),
 ///   so this call is the one path that reaches [`infer_yield`].
 /// * `require '…';` — ADR 0021's statement form, lowered to nothing because
@@ -675,7 +675,7 @@ pub(crate) fn infer(
                 env.interner.make_union(arm_types)
             }
         }
-        // ADR 0053 § 4 first: a `yield` written where there is no generator
+        // `rule:iteration/generators` first: a `yield` written where there is no generator
         // body to suspend is `E0445` wherever it stands, and that rule is
         // reported by [`infer_yield`] — a closure inside a generator is the
         // case that makes the order matter, since its body is an expression
@@ -690,7 +690,7 @@ pub(crate) fn infer(
             ctx,
             env,
         ),
-        // ADR 0053 § 4's suspension point, reached *inside* another
+        // `rule:iteration/generators`'s suspension point, reached *inside* another
         // expression. `check_expr_stmt` is what a `yield;` of its own goes
         // through, so arriving here is the proof this one was written where a
         // value is consumed — and § 5 gives a generator no `send()`, so there
@@ -705,7 +705,7 @@ pub(crate) fn infer(
                 )
                 .with_primary(expr.span, "nothing is produced here")
                 .with_help(
-                    "ADR 0053 § 5 gives a generator no `send()`, so a resumed `yield` has \
+                    "`rule:iteration/one-way-only` gives a generator no `send()`, so a resumed `yield` has \
                      nothing to hand back — write `yield $v;` on its own",
                 ),
             );

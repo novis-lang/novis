@@ -599,14 +599,14 @@ pub enum CoreTy {
     /// non-generic and the `<T>` a syntax error.
     InstanceAt(&'static str, &'static [CoreTy]),
     /// **Whatever `foreach` accepts**, over the element type wrapped:
-    /// [ADR 0053](/docs/adr/0053-iteration-and-generators.md) § 3's
+    /// `rule:iteration/foreach-subjects`'s
     /// three shapes at once, interned as the union
     /// `array<T>|Iterable<T>|Iterator<T>`. `Core\Arr::from`'s
     /// [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
     /// § 2 row is the first to write one, and § 9's collections are the next.
     ///
     /// **A plain `array<T>` satisfies it, and the spec row is written that
-    /// way.** ADR 0053 § 3 fixes the set of things that can be iterated at
+    /// way.** `rule:iteration/foreach-subjects` fixes the set of things that can be iterated at
     /// exactly three, so a member asking for "a sequence" that accepted only
     /// two of them would refuse `Core\Arr::from($array)` — the commonest
     /// argument, and the one PHP's own `iterator_to_array` has accepted since

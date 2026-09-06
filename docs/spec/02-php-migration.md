@@ -608,7 +608,7 @@ array whose keys depend on what produced it cannot be typed. And a **scheme pref
 [ADR 0052](../adr/0052-closed-doors.md) § 2 closes the wrapper registry, which is why the `stream_*` rows
 below are the largest block of `dropped` in this file with no rewrite offered. That is deliberate. What the
 mechanism actually bought — polymorphism over "things you can read bytes from" — is an ordinary
-`Iterable<bytes>` here ([ADR 0053](../adr/0053-iteration-and-generators.md)), so a filter, a bucket and a
+`Iterable<bytes>` here (`rule:iteration/two-interfaces`), so a filter, a bucket and a
 context have nothing left to be.
 
 ### Whole-file reads and writes
@@ -805,7 +805,7 @@ of the known hole named above rather than rows this section is missing. What is 
 | `hash_copy` | dropped | a `Hash\Stream` does not fork. Two digests of one input are two streams — PHP's copy exists only because `hash_final` invalidates the context, which is the same rule stated as a workaround |
 | `hash_file` | member | `Core\Hash::of` over `Core\IO::read` where the file fits, `Core\Hash::stream` fed from `Core\IO::open`'s handle where it does not. Reading and digesting are two jobs (R17) |
 | `hash_update_file` | member | the same pair |
-| `hash_update_stream` | member | `$stream->update`, given the bytes. There is no stream type to hand it, because anything that yields `bytes` already qualifies ([ADR 0053](../adr/0053-iteration-and-generators.md)) |
+| `hash_update_stream` | member | `$stream->update`, given the bytes. There is no stream type to hand it, because anything that yields `bytes` already qualifies (`rule:iteration/two-interfaces`) |
 | `hash_hkdf` | member | `Core\Crypto` ([01 § 16](01-core-library.md)), where deriving a key sits beside the primitives that consume one |
 | `hash_pbkdf2` | dropped | storing a password is `Core\Password::hash`, which writes Argon2id and takes no cost parameters from the call site ([ADR 0129](../adr/0129-password-verify-reads-a-stored-bcrypt-hash.md)). Where PBKDF2 derived a key rather than stored a password, that is `Core\Crypto` |
 | `md5` | member | `Core\Hash::of` with `Digest::Md5`, which the roster keeps for interop and labels collision-broken |
@@ -1068,7 +1068,7 @@ ceiling; PHP's `$max_length` argument, optional and defaulted to unlimited, is t
 | `gzputs` | dropped | `gzwrite`'s alias. No operation is reachable two ways ([ADR 0063](../adr/0063-core-api-conventions.md)) |
 | `gzgetc` | dropped | one byte per call is what a handle offers. The decompressed bytes are a value here, and reading one out of it is `Core\Bytes` ([01 § 7](01-core-library.md)) |
 | `gzgets` | dropped | splitting into lines is `Core\Str`'s job over those bytes, not a second thing the decompressor does |
-| `gzeof` | dropped | end-of-input is a question about a handle being drained by hand. An iteration ends when it ends ([ADR 0053](../adr/0053-iteration-and-generators.md)) |
+| `gzeof` | dropped | end-of-input is a question about a handle being drained by hand. An iteration ends when it ends (`rule:iteration/two-interfaces`) |
 | `gzseek` | dropped | seeking inside a compressed stream means decompressing from the start and discarding the result, which is a cost no member should hide behind a name that reads as free |
 | `gztell` | dropped | the same, from the other side: an offset into bytes that only exist as they are produced |
 | `gzrewind` | dropped | the same, and the honest spelling is to decode again |
@@ -1099,7 +1099,7 @@ Three rules collapse the table. A parse **throws** on a malformed document
 HTML's parser is the opposite), so there is no error bucket to enable and read back. Anything with a
 lifetime is an object rather than a `resource` ([ADR 0063](../adr/0063-core-api-conventions.md) R14), which
 removes the create/free/set-option roster around the parser. And the SAX handler table is an *iteration*
-([ADR 0053](../adr/0053-iteration-and-generators.md)): the streaming reader yields events a `foreach` reads,
+(`rule:iteration/two-interfaces`): the streaming reader yields events a `foreach` reads,
 so eleven registered callbacks become arms in a loop body that can also just stop.
 
 The rule that is this section's own is that **the parser reaches nothing**. An external entity, the DTD a

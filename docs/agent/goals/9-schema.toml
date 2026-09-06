@@ -579,10 +579,10 @@ stage = "1 floor"
 name = "nvs-syntax (the for header)"
 args = ["test", "-p", "nvs-syntax"]
 tests = [
-  # ADR 0109 § 1 -- the init clause's two alternatives, and the trial parse that tells them apart.
+  # `rule:iteration/for-init-clause` -- the init clause's two alternatives, and the trial parse that tells them apart.
   "a_for_init_clause_declares_one_typed_local",
   "a_for_init_clause_is_still_a_list_of_expressions",
-  # ADR 0109 § 3 -- the two shapes that still do not parse, each by its own code.
+  # `rule:iteration/for-init-refusals` -- the two shapes that still do not parse, each by its own code.
   "a_for_init_clause_mixing_a_declaration_and_an_expression_is_e0124",
   "a_for_init_clause_with_two_declarations_is_e0125",
   # Item 50 -- PHP's enum body, answered the way `trait` and `(int)` already are.

@@ -523,7 +523,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// already is — it has no other meaning as a bare identifier immediately
     /// after an `implements` name, so no reserved word was needed for it.
     ///
-    /// The type-argument list is ADR 0053 § 2's `implements Iterable<int>`,
+    /// The type-argument list is `rule:iteration/concrete-generic-implements`'s `implements Iterable<int>`,
     /// parsed by the same [`Self::parse_type_args`] a name in type position
     /// uses, so the two spellings cannot drift apart.
     pub(super) fn parse_implements_clause(&mut self) -> ImplementsClause {
@@ -1136,7 +1136,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 // spelling is wrong — so the keyword and the trailing `;` are
                 // consumed and the case is kept, which is what keeps this to
                 // one diagnostic instead of the `E0220` cascade the shape used
-                // to produce. Same discipline as ADR 0109 § 3's `for` header:
+                // to produce. Same discipline as `rule:iteration/for-init-refusals`'s `for` header:
                 // refuse the spelling, keep the declaration.
                 let keyword = self.peek().span;
                 self.bump();

@@ -148,7 +148,7 @@ impl<'a> Lowering<'a> {
             // an explicit retain here instead, the same `is_aliasing_read`
             // judgment `Self::bind_local`/`Self::lower_call_args` already
             // apply at their own boundary.
-            // ADR 0053 § 5: a generator's body has no return value, so
+            // `rule:iteration/one-way-only`: a generator's body has no return value, so
             // `return;` means "the sequence ends here" — the same exit
             // running off the end takes. `nvs_types` reports E0447 for a
             // `return expr;` in one, which is why this ignores `value`
@@ -328,7 +328,7 @@ impl<'a> Lowering<'a> {
             ExprKind::Exit(arg) => {
                 self.lower_exit(arg.as_deref(), env, cur);
             }
-            // ADR 0053 § 4's suspension point. Only the statement position
+            // `rule:iteration/generators`'s suspension point. Only the statement position
             // is lowered, for `throw`'s reason above: `yield` produces
             // nothing a surrounding expression could consume (§ 5 gives a
             // generator no `send()`), so there is no other position worth

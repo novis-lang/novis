@@ -1,5 +1,5 @@
 --TEST--
-Every `finally` an abandoned generator is suspended inside runs where PHP runs it, and prints what PHP prints — ADR 0053 § 4
+Every `finally` an abandoned generator is suspended inside runs where PHP runs it, and prints what PHP prints — `rule:iteration/generators`
 --FILE--
 <?nvs
 // One shape is deliberately absent: a `finally` that *throws* on the way out

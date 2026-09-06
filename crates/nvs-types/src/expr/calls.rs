@@ -1512,7 +1512,7 @@ pub(crate) fn check_new_target(
 ///
 /// **`yield` is not a generator here.** The inner [`Ctx`] clears
 /// `generator_elem`, so a `yield` written inside a closure sitting in a
-/// generator's own body reports `E0445` — ADR 0053 § 4's lexical confinement.
+/// generator's own body reports `E0445` — `rule:iteration/generators`'s lexical confinement.
 ///
 /// # The self-name resolves, and is not a binding
 ///
@@ -1556,7 +1556,7 @@ pub(crate) fn check_fn_literal(
     let seq = env.closure_seq;
     env.closure_seq += 1;
     // `$` cannot appear in an Novis identifier, so this label can never collide
-    // with a declared class — the same guarantee ADR 0053 § 4's generator
+    // with a declared class — the same guarantee `rule:iteration/generators`'s generator
     // state class relies on.
     let owner = ctx
         .current_class

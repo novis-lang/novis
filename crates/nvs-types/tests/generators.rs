@@ -1,4 +1,4 @@
-//! ADR 0053 §§ 4-5: what makes a body a generator, and what `yield` refuses.
+//! `rule:iteration/generators` and `rule:iteration/one-way-only`: what makes a body a generator, and what `yield` refuses.
 //!
 //! Moved out of `nvs_types::check`'s inline `mod tests`; every test keeps its
 //! own name and body. See `tests/common/mod.rs` for the shared fixtures.
@@ -8,7 +8,7 @@ mod common;
 use common::*;
 use nvs_diagnostics::code;
 
-/// ADR 0053 § 4: a body containing `yield` is a generator, its declared
+/// `rule:iteration/generators`: a body containing `yield` is a generator, its declared
 /// return type must be `Iterator<T>`, and each operand is checked
 /// against that `T`.
 #[test]
@@ -75,7 +75,7 @@ fn a_yield_operand_must_satisfy_the_declared_element_type() {
     );
 }
 
-/// ADR 0053 § 5: no generator return value to retrieve.
+/// `rule:iteration/one-way-only`: no generator return value to retrieve.
 #[test]
 fn a_generator_returning_a_value_is_diagnosed() {
     let diags = check_src(
@@ -104,7 +104,7 @@ fn a_generator_may_stop_early_with_a_bare_return() {
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
-/// ADR 0053 § 4's lexical confinement: a file-scope `yield` has no
+/// `rule:iteration/generators`'s lexical confinement: a file-scope `yield` has no
 /// generator to belong to.
 #[test]
 fn a_yield_outside_any_generator_is_diagnosed() {
@@ -117,7 +117,7 @@ fn a_yield_outside_any_generator_is_diagnosed() {
     );
 }
 
-/// ADR 0053 § 5 rejects `yield from`, and § 1 leaves a cursor no key.
+/// `rule:iteration/one-way-only` rejects `yield from`, and § 1 leaves a cursor no key.
 #[test]
 fn yield_from_and_a_keyed_yield_are_both_refused() {
     for body in ["yield from G::g();", "yield 1 => 2;"] {

@@ -748,7 +748,7 @@ fn walk_stmt(stmt: &Stmt, src: &SourceFile, out: &mut Harvest) {
             step,
             body,
         } => {
-            // ADR 0109 § 1: an init clause may be a declaration, whose type
+            // `rule:iteration/for-init-clause`: an init clause may be a declaration, whose type
             // and initializer both need harvesting.
             if let Some(decl) = init.decl() {
                 s!(decl);

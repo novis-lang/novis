@@ -187,13 +187,13 @@ pub mod code {
     /// A `for` init clause holding a declaration *and* an expression, in
     /// either order — `for (int $i = 0, $j = 1; …)` and
     /// `for ($j = 1, int $i = 0; …)` alike. See
-    /// [ADR 0109](/docs/adr/0109-a-for-header-declares-its-own-counter.md)
+    /// `rule:iteration/for-init-clause`
     /// § 3, whose § 1 makes the clause one or the other and never both.
     pub const E_FOR_INIT_MIXES_DECL_AND_EXPR: Code = Code::new("E0124");
     /// A `for` init clause holding two declarations, `for (int $i = 0, int
     /// $j = 0; …)` — the shape a reader coming from C writes. Separate from
     /// [`E_FOR_INIT_MIXES_DECL_AND_EXPR`] because the fix is different:
-    /// the second declaration goes above the loop. ADR 0109 § 3.
+    /// the second declaration goes above the loop. `rule:iteration/for-init-refusals`.
     pub const E_FOR_INIT_TWO_DECLARATIONS: Code = Code::new("E0125");
     /// `return`, `break` or `continue` as the body of an expression-level
     /// `catch` arm. See
@@ -761,7 +761,7 @@ pub mod code {
     pub const E_INOUT_ARG_TYPE_NOT_EXACT: Code = Code::new("E0440");
     /// A `<...>` type-argument list written after a name that takes no type
     /// parameters. ADR 0007 § 1 parks user-declared generics, and two doors
-    /// open in that wall — ADR 0053 § 2's compiler-owned generic interfaces,
+    /// open in that wall — `rule:iteration/concrete-generic-implements`'s compiler-owned generic interfaces,
     /// which `nvs_hir::interfaces::RESERVED` rosters, and a `Core` member
     /// whose spec signature writes one (`Core\Json::decodeAs<T>`), which
     /// `nvs_stdlib::registry::CoreTy::Written` marks. Everything else lands
@@ -775,31 +775,31 @@ pub mod code {
     /// parameter exists and ADR 0007 leaves no position untyped. A call site
     /// that omits a member's required list reaches the same rule.
     pub const E_TYPE_ARG_COUNT: Code = Code::new("E0442");
-    /// A `foreach` subject that is none of ADR 0053 § 3's three accepted
+    /// A `foreach` subject that is none of `rule:iteration/foreach-subjects`'s three accepted
     /// shapes — an `array<T>`, an `Iterable<T>` or an `Iterator<T>`. A class
     /// reaching neither interface lands here, which is what keeps `foreach`
     /// from being a fourth implicit-dispatch site.
     pub const E_FOREACH_SUBJECT_NOT_ITERABLE: Code = Code::new("E0443");
     /// A `foreach ($x as $k => $v)` key binding over an `Iterable`/`Iterator`
-    /// subject. ADR 0053 § 1 gives a cursor exactly `advance()` and
+    /// subject. `rule:iteration/two-interfaces` gives a cursor exactly `advance()` and
     /// `current()`; there is no key, and inventing a position counter would
     /// be a second thing `foreach` means.
     pub const E_FOREACH_KEY_ON_CURSOR: Code = Code::new("E0444");
     /// A `yield` in a body that is not a generator's own — at file scope, or
-    /// inside an ADR 0031 closure. ADR 0053 § 4 confines `yield` lexically to
+    /// inside an ADR 0031 closure. `rule:iteration/generators` confines `yield` lexically to
     /// the generator's own body, which is the stated price of lowering to a
     /// state machine rather than to a coroutine.
     pub const E_YIELD_OUTSIDE_GENERATOR: Code = Code::new("E0445");
     /// A generator — a function whose body contains `yield` — declaring a
-    /// return type other than `Iterator<T>`. ADR 0053 § 4: calling one runs
+    /// return type other than `Iterator<T>`. `rule:iteration/generators`: calling one runs
     /// no user code and returns the state object, which implements exactly
     /// that interface.
     pub const E_GENERATOR_RETURN_TYPE: Code = Code::new("E0446");
-    /// A `return expr;` inside a generator. ADR 0053 § 5 makes a generator a
+    /// A `return expr;` inside a generator. `rule:iteration/one-way-only` makes a generator a
     /// lazy sequence and nothing more — there is no generator return value to
     /// retrieve, so a bare `return;` (stop here) is the only form.
     pub const E_GENERATOR_RETURNS_A_VALUE: Code = Code::new("E0447");
-    /// `yield from`, or a `yield` with a `key =>` half. ADR 0053 § 5 rejects
+    /// `yield from`, or a `yield` with a `key =>` half. `rule:iteration/one-way-only` rejects
     /// the first as the second spelling of an explicit re-yield loop; § 1
     /// gives `Iterator<T>` no key for the second to produce.
     pub const E_YIELD_FORM_UNSUPPORTED: Code = Code::new("E0448");
@@ -1157,7 +1157,7 @@ pub mod code {
     ///
     /// A by-reference parameter addresses a cell the *call site* stages for
     /// the duration of the call. Calling a generator runs none of its body —
-    /// it allocates the state object and returns (ADR 0053 § 4) — so that cell
+    /// it allocates the state object and returns (`rule:iteration/generators`) — so that cell
     /// is gone before the first `advance()`, and there is nothing sound for
     /// the suspended frame to keep addressing.
     pub const E_GENERATOR_INOUT_PARAM: Code = Code::new("E0492");

@@ -23,7 +23,7 @@ final class Order {
             if ($op == 0) {
                 if (!$h->isEmpty()) {
                     int $out = $h->pop();
-                    // ADR 0053 § 3's cursor is a read, so the heap is intact
+                    // `rule:iteration/foreach-subjects`'s cursor is a read, so the heap is intact
                     // for the next step of the table.
                     foreach ($h as int $left) {
                         if ($ascending) {

@@ -126,7 +126,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // The path is a sink and the chunks are not, exactly as `write`'s
             // pair is and for the same reason: what arrives from outside here
             // is the *content*, which is what this member exists to accept.
-            // `Iterated` is spec § 14's `Iterable<bytes>` — ADR 0053 § 3's
+            // `Iterated` is spec § 14's `Iterable<bytes>` — `rule:iteration/foreach-subjects`'s
             // three shapes, so an `array<bytes>` a program already holds is
             // one of them and no caller has to build a generator to write.
             params: &[
@@ -3409,7 +3409,7 @@ mod tests {
         ctx
     }
 
-    /// `chunks` as an `array<bytes>` — one of ADR 0053 § 3's three iterable
+    /// `chunks` as an `array<bytes>` — one of `rule:iteration/foreach-subjects`'s three iterable
     /// shapes, and the one a case can build with no compiler in front of it.
     /// The caller owns what this answers with.
     fn source(chunks: &[&[u8]]) -> Value {

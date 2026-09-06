@@ -1,9 +1,9 @@
 --TEST--
-A `yield` written where a value is consumed is `E0448`, the same code its three other missing spellings take — ADR 0053 § 5 gives a generator no `send()`, so there is nothing for a resumed `yield` to hand back
+A `yield` written where a value is consumed is `E0448`, the same code its three other missing spellings take — `rule:iteration/one-way-only` gives a generator no `send()`, so there is nothing for a resumed `yield` to hand back
 --FILE--
 <?nvs
 class Counter {
-    // ADR 0053 § 5 gives a generator no `send()`, so a resumed `yield`
+    // `rule:iteration/one-way-only` gives a generator no `send()`, so a resumed `yield`
     // has nothing to hand back — the statement form is the whole of what
     // the construct is, and every other position is refused.
     public static function upTo(int $n): Iterator<int> {
@@ -32,13 +32,13 @@ error[E0448]: a `yield` is a statement, not a value
   |
 8 |         mixed $answer = yield 2;
   |                         ^^^^^^^ nothing is produced here
-  = help: ADR 0053 § 5 gives a generator no `send()`, so a resumed `yield` has nothing to hand back — write `yield $v;` on its own
+  = help: `rule:iteration/one-way-only` gives a generator no `send()`, so a resumed `yield` has nothing to hand back — write `yield $v;` on its own
 
 error[E0448]: a `yield` is a statement, not a value
    --> %s:17:13
    |
 17 |         if (yield 2) {
    |             ^^^^^^^ nothing is produced here
-   = help: ADR 0053 § 5 gives a generator no `send()`, so a resumed `yield` has nothing to hand back — write `yield $v;` on its own
+   = help: `rule:iteration/one-way-only` gives a generator no `send()`, so a resumed `yield` has nothing to hand back — write `yield $v;` on its own
 
 error: aborting due to 2 errors

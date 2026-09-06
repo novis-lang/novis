@@ -11,7 +11,7 @@ keywords: foreach, Iterable, Iterator, iterate, advance, current, yield, generat
 object implementing `Iterator<T>`. The binding is typed. Over an array it may bind the key as
 well (`foreach ($a as string $k => T $v)`); the array forms, `break`, `continue` and the rest of
 the statement are in the [statements](#lang-statements) chapter.
-<!-- src: ADR 0053 -->
+<!-- src: `rule:iteration/two-interfaces` -->
 
 ```nvs
 <?nvs

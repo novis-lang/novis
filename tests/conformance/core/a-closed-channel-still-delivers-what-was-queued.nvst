@@ -1,5 +1,5 @@
 --TEST--
-`Core\Task\Channel::close` ends the stream without discarding it, is idempotent, and leaves a drained channel walking zero times — `nvs_stdlib::channel`'s end-of-stream, ADR 0053 § 1's iteration protocol
+`Core\Task\Channel::close` ends the stream without discarding it, is idempotent, and leaves a drained channel walking zero times — `nvs_stdlib::channel`'s end-of-stream, `rule:iteration/two-interfaces`'s iteration protocol
 --FILE--
 <?nvs
 // No tasks anywhere in this case, deliberately: nothing here reaches the

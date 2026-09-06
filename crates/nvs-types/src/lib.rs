@@ -323,7 +323,7 @@ pub(crate) struct Ctx<'a> {
     /// so the write it holds is not proven to happen during construction.
     pub in_constructor: bool,
     /// The element type `T` of the `Iterator<T>` the enclosing body is a
-    /// generator for (ADR 0053 § 4), or `None` in an ordinary body.
+    /// generator for (`rule:iteration/generators`), or `None` in an ordinary body.
     ///
     /// One field answers both of `yield`'s questions: whether it is legal
     /// here at all, and what its operand has to satisfy. `crate::check`'s

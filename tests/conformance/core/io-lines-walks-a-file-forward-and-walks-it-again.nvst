@@ -1,5 +1,5 @@
 --TEST--
-Core\IO::lines names the boundaries of what a line is — an empty file has none, a lone terminator is one empty line, and a file that ends without a terminator still ends its last line — and the value it answers may be walked more than once, because `iterate()` opens a fresh walk rather than resuming the one before it — spec § 14, ADR 0053 § 1
+Core\IO::lines names the boundaries of what a line is — an empty file has none, a lone terminator is one empty line, and a file that ends without a terminator still ends its last line — and the value it answers may be walked more than once, because `iterate()` opens a fresh walk rather than resuming the one before it — spec § 14, `rule:iteration/two-interfaces`
 --FILE--
 <?nvs
 // The first half is the bound asserted on both sides: an empty file and the

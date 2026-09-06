@@ -1,5 +1,5 @@
 --TEST--
-A generator runs only as far as the `foreach` asks, and a fresh call starts it over — ADR 0053
+A generator runs only as far as the `foreach` asks, and a fresh call starts it over — `rule:iteration/two-interfaces`
 --FILE--
 <?nvs
 class Series {

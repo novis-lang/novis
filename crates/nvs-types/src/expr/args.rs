@@ -1550,7 +1550,7 @@ pub(crate) fn report_type_arg_count(sig: &MethodSig, member: &str, span: Span, e
 /// path already gives, that a type variable never survives a call site.
 ///
 /// Everything else is returned untouched, which is every call in a program
-/// that does not name one of ADR 0053 § 2's two interfaces: `owner` must be
+/// that does not name one of `rule:iteration/concrete-generic-implements`'s two interfaces: `owner` must be
 /// exactly the class the receiver is typed as, so an inherited member reached
 /// through an implementing class is deliberately *not* substituted here.
 /// Fixing `Counter`'s `T` from its `implements Iterable<int>` clause needs
@@ -1568,7 +1568,7 @@ pub(crate) fn substitute_receiver_args(
     if args.is_empty() || &qname != owner {
         return sig.clone();
     }
-    // Two rosters, one question. ADR 0053 § 2's interfaces are named by their
+    // Two rosters, one question. `rule:iteration/concrete-generic-implements`'s interfaces are named by their
     // short name because a program writes `Iterator<int>` unqualified; a
     // `Core`-owned generic class is named in full, because `Core\ObjectSet` is
     // the only spelling there is. Neither can answer for the other's names, so

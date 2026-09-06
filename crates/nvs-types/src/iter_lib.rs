@@ -10,7 +10,7 @@
 //! gives `Core`. After this point `resolve_method` finds
 //! `Iterator::advance` the way it finds `Animal::name`.
 //!
-//! The module keeps the name it had when ADR 0053 § 1's two iteration
+//! The module keeps the name it had when `rule:iteration/two-interfaces`'s two iteration
 //! interfaces were the only ones seeded here; the two older ones joined them
 //! rather than getting a second seeding path, because one roster with two
 //! places to look is how the halves drift.
@@ -178,7 +178,7 @@ fn bodiless(names: &[&str], params: Vec<TypeId>, return_ty: TypeId) -> MethodSig
         variadic: false,
         type_params: Vec::new(),
         return_ty,
-        // ADR 0053 § 2's two interfaces answer `T` and `bool`, never the
+        // `rule:iteration/concrete-generic-implements`'s two interfaces answer `T` and `bool`, never the
         // called class — see `MethodSig::returns_static`.
         returns_static: false,
         is_static: false,

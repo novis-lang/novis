@@ -520,7 +520,7 @@ impl<'a> Lowering<'a> {
             //   capture, so there is no owner for the `&`.
             // * every `yield` shape is `E0448` where it has no lowering — a
             //   key half, a `yield from`, a missing value, and (since this
-            //   pass) one used as a *value*, ADR 0053 § 5 giving a generator
+            //   pass) one used as a *value*, `rule:iteration/one-way-only` giving a generator
             //   no `send()` for it to answer with. The statement form goes
             //   through `Self::lower_yield` one file over, reached from
             //   `nvs_types::expr::check_expr_stmt`'s matching split.

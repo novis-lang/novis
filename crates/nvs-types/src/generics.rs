@@ -5,7 +5,7 @@
 //! user-declared generics and `docs/agent/loop-goal.md` keeps type variables
 //! **compiler-owned**, so exactly two things in the whole compiler produce a
 //! [`Ty::TypeVar`]: [`crate::core_lib`] lowering a `nvs_stdlib::registry`
-//! signature, and [`crate::iter_lib`] writing ADR 0053 § 1's two iteration
+//! signature, and [`crate::iter_lib`] writing `rule:iteration/two-interfaces`'s two iteration
 //! interfaces. The spec's own `Core\Arr` section states why they exist at all
 //! — "`T` is a type variable — the stdlib is parametric where user code is
 //! not."
@@ -159,7 +159,7 @@ pub(crate) fn callable_shape_var(id: TypeId, interner: &TypeInterner) -> Option<
 /// A type an `implements` clause wrote in terms of `qname`'s own type
 /// variables, with the *receiver's* type arguments — `args` — put in.
 ///
-/// A user class fixes its interface at a concrete type (ADR 0053 § 2), so this
+/// A user class fixes its interface at a concrete type (`rule:iteration/concrete-generic-implements`), so this
 /// is the identity for every class a program declares. `Core`'s
 /// docs/spec/01-core-library.md § 9 collections are what need it: a
 /// `Core\ObjectMap<K, V>` implements `Iterable<K>` for whatever `K` its
@@ -226,7 +226,7 @@ pub(crate) fn bind(
         (Ty::Array(declared_elem), Ty::Array(actual_elem)) => {
             vec![(*declared_elem, *actual_elem)]
         }
-        // `Iterator<T>` against `Iterator<int>` — ADR 0053 § 2's generic
+        // `Iterator<T>` against `Iterator<int>` — `rule:iteration/concrete-generic-implements`'s generic
         // interfaces, the only class-shaped type that carries arguments at
         // all. Two *different* names bind nothing, deliberately: this walk
         // has no notion of a supertype, so `Iterable<T>` against a `Counter`

@@ -271,7 +271,7 @@ fn a_php_shaped_enum_case_is_refused_naming_the_spelling_that_works() {
 
     // The other half: the cases are *kept*, with their values, so no later
     // phase sees an enum missing the members a program goes on to name — the
-    // same discipline ADR 0109 § 3 uses for a refused `for` init clause.
+    // same discipline `rule:iteration/for-init-refusals` uses for a refused `for` init clause.
     let StmtKind::EnumDecl(e) = s.kind else {
         panic!("expected an enum decl: {s:?}");
     };

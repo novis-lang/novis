@@ -2495,7 +2495,7 @@ pub enum Terminator {
     /// An N-way branch on an integer value: the first arm whose case equals
     /// `value` is entered, `default` when none does.
     ///
-    /// Built for ADR 0053 § 4's generator resumption — `crate::lower`'s
+    /// Built for `rule:iteration/generators`'s generator resumption — `crate::lower`'s
     /// generator section owns what the cases mean there — and shaped as a
     /// general N-way terminator rather than a resumption-specific one, which
     /// is what keeps every consumer's `match` on [`Terminator`] honest.

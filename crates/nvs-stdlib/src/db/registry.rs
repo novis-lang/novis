@@ -1123,7 +1123,7 @@ pub(super) const COLUMN_TYPE_DOC: EnumDoc = EnumDoc {
 /// **It is `Iterable<T>`, so a `foreach` walks it directly** — the row in
 /// [`crate::registry::ITERABLES`] is what lets the checker compile one, and
 /// [`nvs_core_db_rows_iterate`] is what the receiver answers the protocol with.
-/// ADR 0053 § 3 takes exactly three subjects and this is the second of them
+/// `rule:iteration/foreach-subjects` takes exactly three subjects and this is the second of them
 /// rather than a fourth, so `foreach ($rows as Row $row)` and `all()` are one
 /// walk over one array of rows: neither copies what the other already holds.
 ///

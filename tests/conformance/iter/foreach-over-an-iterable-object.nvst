@@ -1,5 +1,5 @@
 --TEST--
-`foreach` over an object calls `Iterable::iterate` once and drains the iterator it returns — ADR 0053
+`foreach` over an object calls `Iterable::iterate` once and drains the iterator it returns — `rule:iteration/two-interfaces`
 --FILE--
 <?nvs
 class Countdown implements Iterable<int> {

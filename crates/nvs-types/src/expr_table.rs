@@ -912,7 +912,7 @@ pub enum ExprInfo {
     },
 }
 
-/// Which of ADR 0053 § 3's three subject shapes a `foreach` is walking, and
+/// Which of `rule:iteration/foreach-subjects`'s three subject shapes a `foreach` is walking, and
 /// therefore which loop `nvs-ir` emits.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ForeachDrive {
@@ -1455,7 +1455,7 @@ impl ExprTypeTable {
         self.foreach.insert(span, drive);
     }
 
-    /// Which of ADR 0053 § 3's three shapes the `foreach` subject at `span`
+    /// Which of `rule:iteration/foreach-subjects`'s three shapes the `foreach` subject at `span`
     /// turned out to be — `None` for a subject that erased to
     /// `mixed`/`iterable` or was already diagnosed as none of the three,
     /// which is the same "nothing compile-time-known" answer

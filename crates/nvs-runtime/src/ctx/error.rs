@@ -284,7 +284,7 @@ impl Ctx {
     /// by hand, or attach itself to whatever call returns next; both are worse
     /// than losing it, and the first loses the original as well. So the
     /// `finally` **runs** — which is what PHP compatibility asks for
-    /// ([ADR 0053](/docs/adr/0053-iteration-and-generators.md) § 4) —
+    /// (`rule:iteration/generators`) —
     /// and a throw escaping it is where this differs from PHP, which reports
     /// one as uncaught. Surfacing it wants
     /// `rule:errors/escalation-ladder`'s ladder,

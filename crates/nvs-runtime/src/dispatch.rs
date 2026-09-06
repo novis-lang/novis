@@ -4,7 +4,7 @@
 //! A helper that has to ask an *object* something — `Comparable::compareTo`
 //! for [ADR 0013](/docs/adr/0013-comparable-interface.md), the
 //! `iterate`/`advance`/`current` trio for
-//! [ADR 0053](/docs/adr/0053-iteration-and-generators.md) — cannot
+//! `rule:iteration/two-interfaces` — cannot
 //! name a compiled function: the class is one this crate and `nvs-stdlib` know
 //! nothing about, and the interface member is a bodiless declaration
 //! (`nvs_types::iter_lib`), so no symbol exists for a call site to resolve.

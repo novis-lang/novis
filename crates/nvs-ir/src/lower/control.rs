@@ -464,7 +464,7 @@ impl<'a> Lowering<'a> {
              there evaluates and discards every expression but the last, and a discarded one may \
              assign; see the crate docs' known gaps"
         );
-        // ADR 0109 § 4: the declaration form lowers as the statement it is,
+        // `rule:iteration/for-counter-scope`: the declaration form lowers as the statement it is,
         // into the pre-header block — the same slot store the line above the
         // loop produced, at the same point.
         match init {
@@ -934,7 +934,7 @@ impl<'a> Lowering<'a> {
         cur: &mut BlockId,
         env: &mut Env,
     ) {
-        // ADR 0053 § 3's three shapes are three loops, and which one this is
+        // `rule:iteration/foreach-subjects`'s three shapes are three loops, and which one this is
         // was decided by the checker — `nvs-ir` cannot re-derive it, because
         // reaching `Iterable` through a base class needs the `ClassGraph`
         // this crate deliberately does not depend on. See
@@ -957,7 +957,7 @@ impl<'a> Lowering<'a> {
             assert!(
                 key.is_none(),
                 "nvs-ir: a `foreach` key binding over an `Iterable`/`Iterator` subject reached \
-                 lowering — ADR 0053 § 1 gives a cursor no key at all, and nvs_types reports \
+                 lowering — `rule:iteration/two-interfaces` gives a cursor no key at all, and nvs_types reports \
                  E0444 for one"
             );
             self.lower_foreach_cursor(
@@ -986,7 +986,7 @@ impl<'a> Lowering<'a> {
         let (array_v, array_ty) = self.lower_expr(subject, None, env, cur);
         assert!(
             array_ty == Ty::Array,
-            "nvs-ir lowers `foreach` only over an `array<T>` — got {array_ty:?}; ADR 0053's \
+            "nvs-ir lowers `foreach` only over an `array<T>` — got {array_ty:?}; `rule:iteration/two-interfaces`'s \
              `Iterable`/`Iterator` subjects are their own lowering (see the crate docs' known \
              gaps)"
         );
@@ -1334,7 +1334,7 @@ impl<'a> Lowering<'a> {
         let written = self.emit_array_set(cur, array_v, key_v, v);
         self.store_loop_array(cur, env, &array_name, written);
     }
-    /// `foreach ($subject as $v) body` over ADR 0053 § 3's other two shapes —
+    /// `foreach ($subject as $v) body` over `rule:iteration/foreach-subjects`'s other two shapes —
     /// an `Iterable<T>`, whose `iterate()` is called once for a fresh cursor,
     /// and an `Iterator<T>`, which *is* the cursor.
     ///
@@ -1348,7 +1348,7 @@ impl<'a> Lowering<'a> {
     /// instructions do is different:
     ///
     /// * **Both members are [`InstKind::CallVirtual`]**, never a static
-    ///   [`InstKind::Call`]. ADR 0053 § 1's interfaces declare `advance`,
+    ///   [`InstKind::Call`]. `rule:iteration/two-interfaces`'s interfaces declare `advance`,
     ///   `current` and `iterate` without bodies, and `nvs_types::iter_lib`'s
     ///   own docs own why that is the mechanism rather than an accident: a
     ///   call resolving to a bodiless declaration names no compiled function,
@@ -1375,7 +1375,7 @@ impl<'a> Lowering<'a> {
     ///   releases the *cursor* instead.
     /// * **There is no cursor phi and no key.** The driven value never
     ///   changes — the position it walks lives inside the cursor object, not
-    ///   in this frame — and ADR 0053 § 1 gives `Iterator<T>` no key member
+    ///   in this frame — and `rule:iteration/two-interfaces` gives `Iterator<T>` no key member
     ///   for a binding to read.
     ///
     /// # Panics
@@ -1399,7 +1399,7 @@ impl<'a> Lowering<'a> {
         assert!(
             subject_ty == Ty::Object,
             "nvs-ir: a `foreach` subject nvs_types classified as a cursor lowered to \
-             {subject_ty:?} rather than an object — ADR 0053 § 3's `Iterable`/`Iterator` shapes \
+             {subject_ty:?} rather than an object — `rule:iteration/foreach-subjects`'s `Iterable`/`Iterator` shapes \
              are both class types"
         );
         if self.aliasing_read(subject) {
@@ -1535,7 +1535,7 @@ impl<'a> Lowering<'a> {
         self.emit_release(after_block, cursor_v);
         *cur = after_block;
     }
-    /// One ADR 0053 § 1 member call on `receiver`, emitted directly rather
+    /// One `rule:iteration/two-interfaces` member call on `receiver`, emitted directly rather
     /// than lowered from source — see [`Self::lower_foreach_cursor`] for why
     /// there is no AST node to route through.
     ///
@@ -2051,7 +2051,7 @@ impl<'a> Lowering<'a> {
                 body,
             } => {
                 self.collect_reassigned_locals(body, seen, out);
-                // ADR 0109 § 1's declaration form goes through the `LocalDecl`
+                // `rule:iteration/for-init-clause`'s declaration form goes through the `LocalDecl`
                 // arm above, which scans the initializer without registering
                 // the counter — the counter is declared here, not re-pointed,
                 // so an enclosing loop owes it no phi, but `int $i = $n++`

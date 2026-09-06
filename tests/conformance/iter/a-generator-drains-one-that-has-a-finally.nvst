@@ -1,5 +1,5 @@
 --TEST--
-an inner generator run to exhaustion runs its `finally` there and then, before the outer one yields anything further — ADR 0053 § 3
+an inner generator run to exhaustion runs its `finally` there and then, before the outer one yields anything further — `rule:iteration/foreach-subjects`
 --FILE--
 <?nvs
 class Src {

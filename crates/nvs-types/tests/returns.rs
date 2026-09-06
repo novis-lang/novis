@@ -255,7 +255,7 @@ fn a_catch_that_falls_through_is_a_path_to_the_end() {
     assert!(refuses(&diags), "{diags:?}");
 }
 
-/// ADR 0053 § 5: a generator's body produces no return value at all, so the
+/// `rule:iteration/one-way-only`: a generator's body produces no return value at all, so the
 /// `Iterator<int>` its declaration names is not a value any path owes.
 #[test]
 fn a_generator_body_owes_no_return() {

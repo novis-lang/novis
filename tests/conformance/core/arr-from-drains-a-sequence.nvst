@@ -1,8 +1,8 @@
 --TEST--
-`Core\Arr::from` materialises all three of the shapes `foreach` accepts, always as a list, and `{limit}` stops the drive — spec § 2, ADR 0053 §§ 1 and 3
+`Core\Arr::from` materialises all three of the shapes `foreach` accepts, always as a list, and `{limit}` stops the drive — spec § 2, `rule:iteration/two-interfaces` and `rule:iteration/foreach-subjects`
 --FILE--
 <?nvs
-// ADR 0053 § 1: a cursor is `advance()`/`current()` and nothing else, so
+// `rule:iteration/two-interfaces`: a cursor is `advance()`/`current()` and nothing else, so
 // `Countdown` yields 3, 2, 1 and then says it is exhausted.
 class Countdown implements Iterator<int> {
     private int $at;
@@ -21,7 +21,7 @@ class Countdown implements Iterator<int> {
     }
 }
 
-// ADR 0053 § 1: an `Iterable<T>` is a thing that can produce a fresh cursor,
+// `rule:iteration/two-interfaces`: an `Iterable<T>` is a thing that can produce a fresh cursor,
 // and `from` calls `iterate()` once exactly as a `foreach` over it would.
 class Numbers implements Iterable<int> {
     public function iterate(): Iterator<int> {
@@ -29,7 +29,7 @@ class Numbers implements Iterable<int> {
     }
 }
 
-// ADR 0053 § 3's third shape. An array's own keys are discarded: § 2 says the
+// `rule:iteration/foreach-subjects`'s third shape. An array's own keys are discarded: § 2 says the
 // result is always a list, whichever shape went in.
 array<string> $names = ["a", "b"];
 echo Core\Json::encode(Core\Arr::from($names)), "\n";

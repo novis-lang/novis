@@ -7,7 +7,7 @@ yet.** Goal 12's whole list is this goal's Stage 1 floor. Both designs are writt
 (ADR 0098, ADR 0124); this goal implements them and reopens neither.
 
 **One thing is already known and is stage 0.** ADR 0098's table assigns `E0124`, `E0125` and `E0126`, and
-all three were allocated to other diagnostics after it was written — ADR 0109's two `for`-header codes and
+all three were allocated to other diagnostics after it was written — `rule:iteration/for-init-clause`'s two `for`-header codes and
 ADR 0119's catch-arm code, in `crates/nvs-diagnostics/src/lib.rs`. The registry is the allocator, so the
 pipeline's codes move to the next free numbers in the parser band and ADR 0098's body is folded to match.
 Do that before writing a single case.

@@ -14,7 +14,7 @@
 //! alone: a typed local declaration versus an ordinary expression statement
 //! that happens to start with a name (`Foo $x = ...;` versus `Foo::bar();`),
 //! a destructuring target versus a plain array-literal expression statement
-//! (`[int $a] = $p;` versus `[1, 2, 3];`), and ADR 0109 § 1's `for` init
+//! (`[int $a] = $p;` versus `[1, 2, 3];`), and `rule:iteration/for-init-clause`'s `for` init
 //! clause, which is the same first ambiguity inside a header rather than at
 //! statement position (`for (int $i = 0; …)` versus
 //! `for ($i = Foo::bar(); …)`). Each trial-parses the more specific
@@ -328,7 +328,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         list
     }
 
-    /// ADR 0109 § 1: a `for` header's init clause is either one ADR 0007
+    /// `rule:iteration/for-init-clause`: a `for` header's init clause is either one ADR 0007
     /// § 3.1 typed local declaration or an expression list, never both. Both
     /// shapes are a comma-separated run of items, so the clause is parsed as
     /// one — each item through [`Self::try_parse_for_decl`] — and a run that
@@ -345,7 +345,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         loop {
             let item = self.peek().span;
             match self.try_parse_for_decl() {
-                // ADR 0109 § 3: one diagnostic per header, at the item that
+                // `rule:iteration/for-init-refusals`: one diagnostic per header, at the item that
                 // first breaks § 1's rule. A second one would only describe
                 // the same header again.
                 Some(second) if decl.is_some() => {
@@ -358,11 +358,11 @@ impl<'src, 'd> Parser<'src, 'd> {
                             )
                             .with_primary(
                                 second.span,
-                                "this is the header's second declaration (ADR 0109 § 1)",
+                                "this is the header's second declaration (`rule:iteration/for-init-clause`)",
                             )
                             .with_help(
                                 "declare the second binding above the loop — the counter is \
-                                 function-scoped either way (ADR 0109 § 2)",
+                                 function-scoped either way (`rule:iteration/for-counter-scope`)",
                             ),
                         );
                     }
@@ -396,7 +396,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         }
     }
 
-    /// ADR 0109 § 3's `E0124`, raised where the item that mixes the two
+    /// `rule:iteration/for-init-refusals`'s `E0124`, raised where the item that mixes the two
     /// forms begins — in either order, since neither is more wrong than the
     /// other.
     fn report_for_init_mixed(&mut self, item: Span, reported: &mut bool) {
@@ -409,7 +409,10 @@ impl<'src, 'd> Parser<'src, 'd> {
                 code::E_FOR_INIT_MIXES_DECL_AND_EXPR,
                 "a `for` init clause holds one declaration or a list of expressions, not both",
             )
-            .with_primary(item, "this item is the other kind (ADR 0109 § 1)")
+            .with_primary(
+                item,
+                "this item is the other kind (`rule:iteration/for-init-clause`)",
+            )
             .with_help(
                 "move the extra initialiser above the loop, or make every item an expression",
             ),

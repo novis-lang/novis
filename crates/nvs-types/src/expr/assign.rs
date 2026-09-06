@@ -211,13 +211,13 @@ pub(crate) fn is_assignable(
 /// `from_q` satisfies `to_q` when it reaches it through `extends`/
 /// `implements`; the two [`QName`]s being equal is already handled by
 /// [`is_assignable`]'s interning check, since a class type is interned
-/// structurally. There is **no variance**: a generic target (ADR 0053 § 2's
+/// structurally. There is **no variance**: a generic target (`rule:iteration/concrete-generic-implements`'s
 /// `Iterable<T>`/`Iterator<T>`, which are the only generic names user code
 /// can write) additionally requires the arguments `from_q` fixed for it to
 /// equal `to_args` exactly, so `Iterator<int>` never satisfies
 /// `Iterator<mixed>`. Widening a cursor's element type is not obviously
 /// sound in either direction — `current()` returns `T` while a future
-/// `Sink<T>` would consume one — and nothing on ADR 0053's path needs it, so
+/// `Sink<T>` would consume one — and nothing on `rule:iteration/two-interfaces`'s path needs it, so
 /// the invariant rule is what is committed to here rather than a covariant
 /// one that would be expensive to take back.
 pub(crate) fn class_satisfied(
@@ -332,7 +332,7 @@ pub(crate) fn check_return(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) {
-    // ADR 0053 § 5: a generator is a lazy sequence and nothing more, so a
+    // `rule:iteration/one-way-only`: a generator is a lazy sequence and nothing more, so a
     // bare `return;` (stop here) is the only form its body may write. Its own
     // diagnostic rather than the mismatch below, which would report the
     // `void` `crate::check::check_method` checks a generator body against and
@@ -346,7 +346,7 @@ pub(crate) fn check_return(
             )
             .with_primary(expr.span, "this value has nowhere to go")
             .with_help(
-                "ADR 0053 § 5: there is no generator return value to retrieve — write \
+                "`rule:iteration/one-way-only`: there is no generator return value to retrieve — write \
                  `return;` to stop the sequence, or `yield` this value",
             ),
         );

@@ -1,12 +1,12 @@
 --TEST--
-`Core\Arr::from`'s `{limit}` stops the drive rather than truncating the result, asserted at the exact element count and one past it — spec § 2, ADR 0053 § 1
+`Core\Arr::from`'s `{limit}` stops the drive rather than truncating the result, asserted at the exact element count and one past it — spec § 2, `rule:iteration/two-interfaces`
 --FILE--
 <?nvs
 // Spec § 2 calls `{limit}` the only guard against materialising a sequence that
 // never ends, which is a claim about the *drive* and not about the answer: a
 // member that drained everything and then cut the result would give the same
 // array and would be no guard at all. The two are told apart by counting the
-// source's own `advance()` calls, so that is what this cursor does — ADR 0053
+// source's own `advance()` calls, so that is what this cursor does — `rule:iteration/two-interfaces`
 // § 1 gives an `Iterator<T>` exactly `advance` and `current`, and the count of
 // the first is the only thing about the drive a program can observe.
 class Counted implements Iterator<int> {

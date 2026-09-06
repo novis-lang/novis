@@ -1,4 +1,4 @@
-//! ADR 0053 § 3's three accepted `foreach` subjects, and the element type each binds.
+//! `rule:iteration/foreach-subjects`'s three accepted `foreach` subjects, and the element type each binds.
 //!
 //! Moved out of `nvs_types::check`'s inline `mod tests`; every test keeps its
 //! own name and body. See `tests/common/mod.rs` for the shared fixtures.
@@ -8,7 +8,7 @@ mod common;
 use common::*;
 use nvs_diagnostics::code;
 
-// ADR 0053 § 3: what `foreach` accepts, and what it yields.
+// `rule:iteration/foreach-subjects`: what `foreach` accepts, and what it yields.
 
 #[test]
 fn a_foreach_over_an_array_binds_the_element_type() {

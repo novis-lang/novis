@@ -1,9 +1,9 @@
 --TEST--
-`current()` outside the iteration protocol throws `LogicError`, at both of the points ADR 0053 § 1 names, and a `foreach` never reaches either
+`current()` outside the iteration protocol throws `LogicError`, at both of the points `rule:iteration/two-interfaces` names, and a `foreach` never reaches either
 --FILE--
 <?nvs
 class Counting {
-    // ADR 0053 § 4 lowers this to a state machine whose `current` reads the
+    // `rule:iteration/generators` lowers this to a state machine whose `current` reads the
     // parked element; § 1 is what says the read is guarded.
     public static function upTo(int $n): Iterator<int> {
         int $i = 1;
@@ -16,7 +16,7 @@ class Counting {
 
 var $it = Counting::upTo(2);
 
-// ADR 0053 § 1: before the first `advance()`. The slot holds the element type's
+// `rule:iteration/two-interfaces`: before the first `advance()`. The slot holds the element type's
 // null payload here, so an unguarded read would answer `0` rather than throw.
 try {
     echo $it->current(), "\n";
@@ -29,7 +29,7 @@ while ($it->advance()) {
     echo "in: ", $it->current(), "\n";
 }
 
-// ADR 0053 § 1: after `advance()` returned false. The slot still holds the last
+// `rule:iteration/two-interfaces`: after `advance()` returned false. The slot still holds the last
 // element, so an unguarded read would answer `2` — the more misleading half of
 // the two, since it looks like an answer.
 try {

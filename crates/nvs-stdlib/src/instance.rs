@@ -85,7 +85,7 @@ const INTERNAL_CLASSES: &[&CoreClass] = &[&crate::cursor::CLASS];
 /// Every member compiled code reaches on a `Core` instance **by name** — one
 /// row per class, `(member, symbol)`.
 ///
-/// [ADR 0053](/docs/adr/0053-iteration-and-generators.md) § 1's
+/// `rule:iteration/two-interfaces`'s
 /// iteration trio and nothing else so far. Those three declarations are
 /// bodiless (`nvs_types::iter_lib`), so a `foreach` names no helper to call and
 /// dispatches on the receiver's runtime class instead — this table is what a

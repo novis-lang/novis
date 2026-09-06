@@ -1,5 +1,5 @@
 --TEST--
-`Core\Arr::from` accepts every § 9 collection `foreach` walks, and agrees with it element for element — docs/spec/01-core-library.md §§ 2 and 9, ADR 0053 § 3
+`Core\Arr::from` accepts every § 9 collection `foreach` walks, and agrees with it element for element — docs/spec/01-core-library.md §§ 2 and 9, `rule:iteration/foreach-subjects`
 --FILE--
 <?nvs
 final class Tag {
@@ -30,7 +30,7 @@ $heap->push($blue);
 $heap->push($green);
 
 // The declared type is the assertion: `Core\Arr::from`'s parameter is
-// `CoreTy::Iterated`, ADR 0053 § 3's three shapes at once, and a § 9
+// `CoreTy::Iterated`, `rule:iteration/foreach-subjects`'s three shapes at once, and a § 9
 // collection satisfies it through the `Iterable<T>` its own class fixes —
 // with the *receiver's* argument put in, so this is an `array<Tag>` and not
 // an `array<T>` or (for the map, which yields its keys) an `array<K>`.

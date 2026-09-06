@@ -1,5 +1,5 @@
 --TEST--
-A generator whose `yield` is never reached drives zero iterations, and one that yields inside a loop drives exactly as many as it ran — ADR 0053 § 3
+A generator whose `yield` is never reached drives zero iterations, and one that yields inside a loop drives exactly as many as it ran — `rule:iteration/foreach-subjects`
 --FILE--
 <?nvs
 class Steps {

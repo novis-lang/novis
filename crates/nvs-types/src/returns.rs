@@ -28,7 +28,7 @@
 //! - a `foreach`, and a `while` over anything but a literal `true`, may run zero
 //!   times, so neither can be the reason a body exits.
 //!
-//! A generator is not checked at all: ADR 0053 § 5 leaves a generator's body no
+//! A generator is not checked at all: `rule:iteration/one-way-only` leaves a generator's body no
 //! return value to produce, and `crate::check` already checks that body against
 //! `void`.
 

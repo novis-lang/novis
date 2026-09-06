@@ -74,7 +74,7 @@ there rather than scheduling any of it.
       compile-time-known property.
     - `crates/nvs-ir/src/lower/control.rs:744`, `:978` and `:989` — a `switch` label at a representation
       other than the subject's own, a `foreach` key binding outside ADR 0007 § 5's one stored key type,
-      and a `foreach` over an ADR 0053 `Iterable`/`Iterator` subject.
+      and a `foreach` over an `rule:iteration/two-interfaces` `Iterable`/`Iterator` subject.
     - `crates/nvs-ir/src/lower/convert.rs:574` — a truthy condition over a representation the conversion
       slice does not carry.
     - `crates/nvs-ir/src/lower/exception.rs:32` — `throw` on a representation that is not an object.

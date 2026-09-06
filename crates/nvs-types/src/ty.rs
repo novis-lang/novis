@@ -213,7 +213,7 @@ pub enum Ty {
     /// [`nvs_hir::SymbolTable`], not this representation.
     ///
     /// The argument list is empty for all but two names.
-    /// [ADR 0053](/docs/adr/0053-iteration-and-generators.md) § 2
+    /// `rule:iteration/concrete-generic-implements`
     /// lets a *compiler-owned* generic interface be written at a concrete
     /// type — `Iterator<int>` — and `nvs_hir::interfaces::RESERVED` is the
     /// closed roster of what may be. Anything else written with arguments is
@@ -301,7 +301,7 @@ pub enum Ty {
     /// user-declared generics and `docs/agent/loop-goal.md` keeps type variables
     /// compiler-owned, so a `TypeVar` only ever enters the interner from
     /// `nvs_stdlib::registry`'s `Core` signatures ([`crate::core_lib`]) or
-    /// ADR 0053 § 1's two iteration interfaces ([`crate::iter_lib`]) —
+    /// `rule:iteration/two-interfaces`'s two iteration interfaces ([`crate::iter_lib`]) —
     /// [`crate::lower`] has no arm producing one, which is what makes that a
     /// property of the code rather than a convention. `Iterator<int>` written
     /// in source produces [`Self::Class`] with a concrete argument, never
@@ -810,7 +810,7 @@ impl TypeInterner {
     }
 
     /// Interns a resolved class/interface name with no type arguments —
-    /// every name but ADR 0053 § 2's two generic interfaces.
+    /// every name but `rule:iteration/concrete-generic-implements`'s two generic interfaces.
     #[must_use]
     pub fn class(&mut self, qname: QName) -> TypeId {
         self.intern(Ty::Class(qname, Vec::new()))

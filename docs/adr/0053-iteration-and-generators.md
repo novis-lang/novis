@@ -1,4 +1,4 @@
-# ADR 0053 — `Iterable`/`Iterator` are the only iteration interfaces; generators lower to state machines
+# `rule:iteration/two-interfaces` — `Iterable`/`Iterator` are the only iteration interfaces; generators lower to state machines
 
 - **Status:** Accepted
 - **Date:** 2026-08-23

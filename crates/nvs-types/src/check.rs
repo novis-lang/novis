@@ -622,7 +622,7 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     // declaration with no body cannot claim a row.
     let snapshots = env.exprs.inline_snapshot_mark();
 
-    // ADR 0053 § 4: a body containing `yield` is a generator, and everything
+    // `rule:iteration/generators`: a body containing `yield` is a generator, and everything
     // that follows from that is decided here rather than at each `yield` —
     // the declared return type must be `Iterator<T>`, and `T` is what every
     // `yield` operand in the body is checked against.
@@ -646,7 +646,7 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
         in_constructor: ctx.in_constructor,
     };
     // A generator's body returns nothing: calling it produced the cursor, and
-    // ADR 0053 § 5 leaves no return value to retrieve. So the body is checked
+    // `rule:iteration/one-way-only` leaves no return value to retrieve. So the body is checked
     // against `void` — which is what makes `return $x;` inside one report
     // `E0447` from `crate::expr::check_return` rather than a mismatch against
     // the `Iterator<T>` the *declaration* names.
@@ -786,7 +786,7 @@ fn check_every_path_returns(m: &MethodMember, body: &Block, return_ty: TypeId, e
     );
 }
 
-/// ADR 0053 § 4's frame lifetime, as a refusal: a generator declares no `inout $x`
+/// `rule:iteration/generators`'s frame lifetime, as a refusal: a generator declares no `inout $x`
 /// parameter.
 ///
 /// A by-reference parameter addresses a cell the **call site** stages, writes
@@ -813,7 +813,7 @@ fn check_generator_inout_params(m: &MethodMember, env: &mut Env<'_>) {
             )
             .with_primary(param.name, "declared `inout` here")
             .with_help(
-                "ADR 0053 § 4: calling a generator returns the state object without running \
+                "`rule:iteration/generators`: calling a generator returns the state object without running \
                  the body, so the caller's cell is gone before the first `advance()` — take \
                  the value by copy and `yield` what the body computes from it",
             ),
@@ -821,7 +821,7 @@ fn check_generator_inout_params(m: &MethodMember, env: &mut Env<'_>) {
     }
 }
 
-/// ADR 0053 § 4's `T`, for a method whose body makes it a generator —
+/// `rule:iteration/generators`'s `T`, for a method whose body makes it a generator —
 /// `None` for an ordinary method, and `None` (after a diagnostic) for a
 /// generator whose declared return type is not an `Iterator<T>`.
 fn generator_element(
@@ -851,7 +851,7 @@ fn generator_element(
         )
         .with_primary(span, format!("this declares `{got}`"))
         .with_help(
-            "ADR 0053 § 4: calling a generator runs no user code — it allocates and returns \
+            "`rule:iteration/generators`: calling a generator runs no user code — it allocates and returns \
              the state object, which implements `Iterator<T>`",
         ),
     );

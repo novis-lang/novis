@@ -272,7 +272,7 @@ call site to serve a case a program rarely has.
 
 `fromKeysAndValues` throws when the two arrays differ in length (R4). `flip` collapses duplicate values,
 the last occurrence winning. `from` takes all three of the shapes
-[ADR 0053](../adr/0053-iteration-and-generators.md) § 3 lets `foreach` take, an `array<T>` included, so a
+`rule:iteration/foreach-subjects` lets `foreach` take, an `array<T>` included, so a
 member reading a sequence never refuses what a loop over the same value would accept. It drains its
 argument once and always returns a list — a generator yields no keys (§ 5), and an array's are discarded
 for the same reason `values` discards them, so the result's shape does not depend on which shape went in.
@@ -710,7 +710,7 @@ because an insertion-ordered `int|string`-keyed hash cannot express them
 | `Heap<T>` | `push`, `peek`, `pop`, `count`, `isEmpty`; `Iterable` | `SplPriorityQueue`, `SplMinHeap`, `SplMaxHeap` |
 
 **`ObjectMap::get` returns `?V`**, not a throwing read: these types have no subscript
-([ADR 0053](../adr/0053-iteration-and-generators.md) rejects `ArrayAccess`), so they cannot offer the
+(`rule:iteration/two-interfaces` rejects `ArrayAccess`), so they cannot offer the
 `$a[$k]` / `$a[$k] ?? $d` pair that `array<T>` does, and R5 bans a `getOrNull` twin. `diff` is spelled as
 it is on `Core\Arr` rather than `difference`, because one operation gets one name.
 

@@ -499,7 +499,7 @@ pub struct ClassSignature {
     /// modules that have no modifier to report.
     pub final_methods: FxHashSet<String>,
     /// This declaration's own `implements` entries, in source order, each
-    /// with the concrete type arguments it fixed (ADR 0053 § 2). Empty
+    /// with the concrete type arguments it fixed (`rule:iteration/concrete-generic-implements`). Empty
     /// arguments for every interface but `Iterable`/`Iterator`, which is
     /// every interface in the language today except those two.
     ///
@@ -835,7 +835,7 @@ fn collect_stmts(
                     generator_elem: None,
                     in_constructor: false,
                 };
-                // Before the members: ADR 0053 § 2's type arguments are part
+                // Before the members: `rule:iteration/concrete-generic-implements`'s type arguments are part
                 // of the declaration's own shape, not of any one member's.
                 let implements: Vec<(QName, Vec<TypeId>)> = decl
                     .implements

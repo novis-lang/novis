@@ -2463,7 +2463,7 @@ class T {
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
-/// `foreach` over an `Iterator<T>` — ADR 0053 § 3's third shape. Every
+/// `foreach` over an `Iterator<T>` — `rule:iteration/foreach-subjects`'s third shape. Every
 /// member call is a `call.virtual`, never a static `call`: the interface
 /// declares both without a body, so there is no compiled function to
 /// name. The cursor is retained before each one, since a receiver is
@@ -2505,7 +2505,7 @@ class T {
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
-/// ADR 0053 § 4's state-machine transform, end to end: the factory that
+/// `rule:iteration/generators`'s state-machine transform, end to end: the factory that
 /// runs no user code, the entry switch, one resumption arm per `yield`,
 /// and the spill/reload pair that lets a value cross a suspension that
 /// SSA cannot carry it across. `$limit` gets a loop-header phi despite

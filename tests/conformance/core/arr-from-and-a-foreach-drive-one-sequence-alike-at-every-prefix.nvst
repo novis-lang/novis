@@ -1,5 +1,5 @@
 --TEST--
-`Core\Arr::from` and a `foreach` drive one sequence the same way, agreeing on the entries seen and on the advances made at every prefix of it, over all three shapes — spec § 2, ADR 0053 §§ 1 and 3
+`Core\Arr::from` and a `foreach` drive one sequence the same way, agreeing on the entries seen and on the advances made at every prefix of it, over all three shapes — spec § 2, `rule:iteration/two-interfaces` and `rule:iteration/foreach-subjects`
 --FILE--
 <?nvs
 // `crates/nvs-stdlib/src/arr.rs:2527`'s doc says `{limit: n}` stops the *drive*
@@ -14,7 +14,7 @@
 // that grew a drive of its own fails here while each of its own lines still
 // reads correctly on its own.
 
-// ADR 0053 § 1 gives an `Iterator<T>` exactly `advance()` and `current()`, so
+// `rule:iteration/two-interfaces` gives an `Iterator<T>` exactly `advance()` and `current()`, so
 // the count of the first is the whole of what a program can observe about a
 // drive. The values carry a duplicate pair and a zero: a drive that collapsed
 // repeats, or that read a `0` as the end of the sequence, agrees with nothing
@@ -41,7 +41,7 @@ class Counted implements Iterator<int> {
     }
 }
 
-// ADR 0053 § 1's second shape: a thing that produces a fresh cursor, which
+// `rule:iteration/two-interfaces`'s second shape: a thing that produces a fresh cursor, which
 // `foreach` and `from` each ask for exactly once.
 class Numbers implements Iterable<int> {
     public function iterate(): Iterator<int> {

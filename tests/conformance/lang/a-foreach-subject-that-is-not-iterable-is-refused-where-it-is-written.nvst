@@ -1,8 +1,8 @@
 --TEST--
-`foreach` refuses every subject ADR 0053 § 3's closed list does not name, a `void` call among them, and defers only a `mixed` — ADR 0053 § 3, ADR 0007 § 2
+`foreach` refuses every subject `rule:iteration/foreach-subjects`'s closed list does not name, a `void` call among them, and defers only a `mixed` — `rule:iteration/foreach-subjects`, ADR 0007 § 2
 --FILE--
 <?nvs
-// ADR 0053 § 3's list is closed — an `array<T>`, an `Iterable<T>` or an
+// `rule:iteration/foreach-subjects`'s list is closed — an `array<T>`, an `Iterable<T>` or an
 // `Iterator<T>` — so a subject naming none of them has no elements to yield
 // and is refused where it is written rather than answered below. This sweeps
 // one spelling per shape, in source order, so a shape that stopped refusing
@@ -34,7 +34,7 @@ foreach ($b as bool $e) { echo $e; }
 // A union naming no iterable type is judged as the union, not as its widest
 // member: the nullable half is exactly what a `foreach` cannot walk.
 foreach ($optional as string $f) { echo $f; }
-// An object is refused for naming neither interface — ADR 0053 § 2 makes
+// An object is refused for naming neither interface — `rule:iteration/concrete-generic-implements` makes
 // `Iterable`/`Iterator` the only two, so there is no other way in.
 foreach ($o as int $g) { echo $g; }
 

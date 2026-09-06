@@ -86,7 +86,7 @@ fn a_block_bodied_closure_without_a_declared_return_type_is_diagnosed() {
     );
 }
 
-/// ADR 0053 § 4 confines `yield` to the generator's own body — a closure
+/// `rule:iteration/generators` confines `yield` to the generator's own body — a closure
 /// written inside one is not that body.
 #[test]
 fn a_yield_inside_a_closure_in_a_generator_is_still_refused() {

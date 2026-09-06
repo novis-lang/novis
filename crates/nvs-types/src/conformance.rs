@@ -3,7 +3,7 @@
 //!
 //! # Why this exists now
 //!
-//! It was harmless while nothing dispatched through an interface. ADR 0053
+//! It was harmless while nothing dispatched through an interface. `rule:iteration/two-interfaces`
 //! § 1's `Iterator<T>` changed that: its members are bodiless *on purpose*
 //! ([`crate::iter_lib`]'s own docs own why — a call resolving to a bodiless
 //! declaration has no compiled function to name, so it dispatches on the
@@ -497,7 +497,7 @@ mod tests {
             .any(|d| d.code == Some(code::E_INTERFACE_METHOD_MISSING))
     }
 
-    /// The case this module exists for: ADR 0053 § 1's members are bodiless
+    /// The case this module exists for: `rule:iteration/two-interfaces`'s members are bodiless
     /// by design, so a cursor missing one dispatches to nothing.
     #[test]
     fn a_cursor_class_missing_advance_is_diagnosed() {

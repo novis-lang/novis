@@ -216,7 +216,7 @@ pub enum TypeAtom {
     /// `<...>` type-argument list written after it.
     ///
     /// The argument list is almost always empty: ADR 0007 § 1 parks
-    /// user-declared type parameters, and ADR 0053 § 2 opens one door for a
+    /// user-declared type parameters, and `rule:iteration/concrete-generic-implements` opens one door for a
     /// *compiler-owned* generic interface (`Iterator<int>`). The parser
     /// accepts the syntax on any name and records what it saw; refusing it on
     /// a name that is not generic is the checker's call, since only the
@@ -1062,15 +1062,15 @@ pub struct ForeachBinding {
     pub span: Span,
 }
 
-/// A `for` header's init clause, ADR 0109 § 1. Either one typed local
+/// A `for` header's init clause, `rule:iteration/for-init-clause`. Either one typed local
 /// declaration — ADR 0007 § 3.1's, unchanged and in full, including
 /// ADR 0037's `var` spelling — or the comma-separated expression list PHP's
 /// own `for` grammar has, which is what the condition and step clauses still
 /// are. Never both and never two declarations; `E0124` and `E0125` are what
-/// those two shapes are told (ADR 0109 § 3).
+/// those two shapes are told (`rule:iteration/for-init-refusals`).
 ///
 /// Scope is unchanged by the declaration form: the counter is function-scoped
-/// exactly as every other binding is (ADR 0109 § 2), which is why this carries
+/// exactly as every other binding is (`rule:iteration/for-counter-scope`), which is why this carries
 /// a whole [`Stmt`] rather than a loop-scoped binding of its own.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ForInit {
@@ -1239,10 +1239,10 @@ pub enum StmtKind {
     /// `for (init; cond; step) body`. The condition and step clauses are each
     /// a comma-separated list of expressions, any of which may be empty —
     /// PHP's own `for` grammar. The init clause is [`ForInit`], which adds
-    /// ADR 0109 § 1's declaration form to that list.
+    /// `rule:iteration/for-init-clause`'s declaration form to that list.
     For {
         /// The initializer, run once before the first iteration: one typed
-        /// local declaration or a list of expressions (ADR 0109 § 1).
+        /// local declaration or a list of expressions (`rule:iteration/for-init-clause`).
         init: ForInit,
         /// The condition expressions; only the last one's truthiness is
         /// tested, exactly as PHP evaluates a comma list here.
@@ -1401,7 +1401,7 @@ pub struct ClassDecl {
 pub struct ImplementsClause {
     /// The interface named.
     pub name: Name,
-    /// `implements Iterable<int>` — ADR 0053 § 2's one narrow extension:
+    /// `implements Iterable<int>` — `rule:iteration/concrete-generic-implements`'s one narrow extension:
     /// a class may fix a *compiler-owned* generic interface's parameter at a
     /// concrete type here. Empty for every other `implements` entry, and the
     /// checker refuses a non-empty list on a name that is not generic. See
@@ -1689,7 +1689,7 @@ pub struct TypeAliasDecl {
     pub ty: Type,
 }
 
-/// Whether `body` is a generator's body — ADR 0053 § 4's rule that "a
+/// Whether `body` is a generator's body — `rule:iteration/generators`'s rule that "a
 /// function whose body contains `yield` is a generator".
 ///
 /// A purely syntactic question, which is why it lives here rather than in
@@ -1701,13 +1701,13 @@ pub struct TypeAliasDecl {
 /// The scan walks *statements* — every nesting construct a body can contain
 /// — and recognises a `yield` written as a whole expression statement,
 /// through any number of parentheses. That is the only shape the language
-/// actually supports: ADR 0053 § 5 gives a generator no `send()`, so `yield`
+/// actually supports: `rule:iteration/one-way-only` gives a generator no `send()`, so `yield`
 /// produces nothing for a surrounding expression to consume, and a `yield`
 /// buried inside one is refused where it is *checked*, not here.
 ///
 /// It never descends into a nested `fn` body, because a closure appears only
 /// as an *expression* and this walk visits none — so ADR 0031's closures
-/// cannot make their enclosing method a generator, which is exactly ADR 0053
+/// cannot make their enclosing method a generator, which is exactly `rule:iteration/two-interfaces`
 /// § 4's "`yield` is lexically confined to the generator's own body".
 #[must_use]
 pub fn is_generator_body(body: &Block) -> bool {

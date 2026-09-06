@@ -1,4 +1,4 @@
-# ADR 0109 — A `for` header may declare its own counter, and an init clause is a declaration or an expression list, never both
+# `rule:iteration/for-init-clause` — A `for` header may declare its own counter, and an init clause is a declaration or an expression list, never both
 
 - **Status:** Accepted
 - **Date:** 2026-08-28

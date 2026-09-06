@@ -1,8 +1,8 @@
 --TEST--
-two `for` headers declaring the same counter is ADR 0007 § 1's re-declaration diagnostic, not a new rule — ADR 0109 § 2
+two `for` headers declaring the same counter is ADR 0007 § 1's re-declaration diagnostic, not a new rule — `rule:iteration/for-counter-scope`
 --FILE--
 <?nvs
-// ADR 0109 § 2 buys no new scoping: the counter is function-scoped, so a
+// `rule:iteration/for-counter-scope` buys no new scoping: the counter is function-scoped, so a
 // second header declaring the same name is the answer ADR 0007 § 1 already
 // gives for any re-declared name, naming the first declaration.
 for (int $i = 0; $i < 2; $i = $i + 1) {

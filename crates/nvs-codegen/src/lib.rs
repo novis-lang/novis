@@ -165,7 +165,7 @@
 //! 6. **[`nvs_ir::ir::Terminator::Switch`] lowers to a compare chain, not a
 //!    jump table.** Correct for any case set — the IR deliberately does not
 //!    require a dense or sorted one — and the arms are few in the one
-//!    producer there is today, ADR 0053 § 4's generator resumption (one per
+//!    producer there is today, `rule:iteration/generators`'s generator resumption (one per
 //!    `yield`, plus the entry and exhausted arms). A `br_table` over a dense
 //!    case set is the obvious optimisation. Novis's own `switch` statement never
 //!    reaches this terminator — it lowers to a `Branch` chain, since a label

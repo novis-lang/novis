@@ -21840,7 +21840,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `gzputs` | dropped | `gzwrite`'s alias. No operation is reachable two ways ([ADR 0063](adr/0063-core-api-conventions.md)) |
 | `gzgetc` | dropped | one byte per call is what a handle offers. The decompressed bytes are a value here, and reading one out of it is `Core\Bytes` ([01 § 7](spec/01-core-library.md)) |
 | `gzgets` | dropped | splitting into lines is `Core\Str`'s job over those bytes, not a second thing the decompressor does |
-| `gzeof` | dropped | end-of-input is a question about a handle being drained by hand. An iteration ends when it ends ([ADR 0053](adr/0053-iteration-and-generators.md)) |
+| `gzeof` | dropped | end-of-input is a question about a handle being drained by hand. An iteration ends when it ends (`rule:iteration/two-interfaces`) |
 | `gzseek` | dropped | seeking inside a compressed stream means decompressing from the start and discarding the result, which is a cost no member should hide behind a name that reads as free |
 | `gztell` | dropped | the same, from the other side: an offset into bytes that only exist as they are produced |
 | `gzrewind` | dropped | the same, and the honest spelling is to decode again |

@@ -19,7 +19,7 @@
 //! | [`expr`] | expression dispatch, conversions, truthiness, short-circuiting operators |
 //! | [`control`] | `if`, `while`, both `foreach` shapes, `break`/`continue`, the env merge |
 //! | [`exception`] | `throw`, `try`/`catch`, the landing blocks, the synthesized `Throwable` constructor |
-//! | [`generator`] | ADR 0053 § 4's state machine — the frame, the spills, the three synthesized methods |
+//! | [`generator`] | `rule:iteration/generators`'s state machine — the frame, the spills, the three synthesized methods |
 //! | [`call`] | argument ownership, options-bag flattening, an `inout $x` argument staged and written back |
 //! | [`closure`] | ADR 0031 closure literals and their captured-environment class |
 //!
@@ -609,7 +609,7 @@ pub fn lower_program(
                                 let Some(label) = exprs.method_label(m.name) else {
                                     continue;
                                 };
-                                // ADR 0053 § 4: a body containing `yield` is
+                                // `rule:iteration/generators`: a body containing `yield` is
                                 // a generator, and becomes three functions
                                 // and a state class rather than one function
                                 // — see `lower_generator`.
@@ -763,7 +763,7 @@ pub fn lower_program(
             }
         })
         .collect();
-    // ADR 0053 § 4's generator state classes have no source declaration and
+    // `rule:iteration/generators`'s generator state classes have no source declaration and
     // therefore no `nvs_types::layout` entry — `nvs-ir` synthesizes both the
     // class and its two methods, so it is the one thing here that adds to the
     // table rather than copying it.
@@ -1508,7 +1508,7 @@ pub(crate) struct Lowering<'a> {
     /// left-to-right is the order every other side effect in an Novis expression
     /// already happens in.
     pending_refs: Vec<StagedRef>,
-    /// ADR 0053 § 4's state class, while this frame is a generator's
+    /// `rule:iteration/generators`'s state class, while this frame is a generator's
     /// `advance()` — `None` for every other function there is. See
     /// [`lower_generator`], which owns the whole transform.
     generator: Option<GenFrame>,
@@ -3132,7 +3132,7 @@ pub(crate) fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Opti
         // rather than panic below a checker that accepted it.
         CheckedTy::Intersection(members) => shared_erasure(members, checked_types),
         // `iterable` is PHP's `array|Traversable` and Novis keeps that reading
-        // (ADR 0053 § 1): two runtime shapes, so the representation is the
+        // (`rule:iteration/two-interfaces`): two runtime shapes, so the representation is the
         // tagged one `mixed` and every other multi-shape position already
         // uses. Deliberately **not** `Ty::Object` — an `array<T>` is not an
         // object pointer, so the object erasure would be a correctness trap

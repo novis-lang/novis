@@ -127,7 +127,7 @@ management, an implementation detail this ADR does not touch — but no *user-le
 moment, because there is no destructor left to declare it in.
 
 **A suspended generator's `finally` is the one thing that does run when a refcount hits zero, and it is not
-a destructor.** [ADR 0053](0053-iteration-and-generators.md) § 4's state machine can be dropped while parked
+a destructor.** `rule:iteration/generators`'s state machine can be dropped while parked
 inside a `try { … yield … } finally { … }`, and PHP resumes such a generator in a return-like mode so the
 `finally` prints; Novis does the same, because PHP-compatible observable behaviour outranks simplicity in the
 priority ordering. Nothing above is weakened by it: no class declares anything, no method name is

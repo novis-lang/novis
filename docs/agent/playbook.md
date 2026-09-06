@@ -4005,7 +4005,7 @@ is why" — is this file.
   a `preg_quote` differential. So read the candidate member's existing case *bodies* before writing,
   and prefer a question no existing case's `--TEST--` line states over a member with a low count.
 - **A mechanical sweep over the `.nvst` corpus has to treat each `--SECTION--` as its own program.**
-  ADR 0109's migration moved 55 `for` counters into their headers across 29 files, and the one rule
+  `rule:iteration/for-init-clause`'s migration moved 55 `for` counters into their headers across 29 files, and the one rule
   that decides a case correctly is "is this counter read outside its own loop" — which is a question
   about *one section*. A whole-file answer keeps a differential case's Novis half in the old spelling
   because its **PHP** `--ORACLE--` twin mentions `$i`, and it would equally license an edit in one
@@ -4013,7 +4013,7 @@ is why" — is this file.
   for the declaration and the "used elsewhere" check to the enclosing section. Two more things the same
   sweep turned up: a counter declared in a *stacked run* of declarations (`int $start = 0; int $len =
   0;` above two nested loops) is the commonest shape and is missed by a "previous line only" rule, and
-  a nested header's declaration is re-entered once per outer iteration with no complaint, ADR 0109 § 2
+  a nested header's declaration is re-entered once per outer iteration with no complaint, `rule:iteration/for-counter-scope`
   making it function-scoped either way. And `core.autocrlf=true` here means every rewritten file draws
   a loud `CRLF will be replaced by LF` warning from git that says nothing about your edit — read
   `git diff --stat`, not the warnings.

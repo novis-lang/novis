@@ -299,7 +299,7 @@ fn collect_own(
 /// which is `nvs_syntax::check_declarations`' `E_MISSING_VISIBILITY` already
 /// being reported for it: this pass only has to not invent a level for source
 /// that is being refused anyway, and the same reading is what keeps a
-/// synthesized method — an exception constructor, ADR 0053 § 4's state machine
+/// synthesized method — an exception constructor, `rule:iteration/generators`'s state machine
 /// — callable, none of them writing a modifier.
 fn own_methods(members: &[nvs_syntax::ast::ClassMember], src: &SourceFile) -> Vec<(String, bool)> {
     members

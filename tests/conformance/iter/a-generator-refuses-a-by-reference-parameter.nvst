@@ -1,11 +1,11 @@
 --TEST--
-A method whose body contains `yield` may not declare an `inout $x` parameter, while an ordinary method beside it still may — ADR 0053 § 4
+A method whose body contains `yield` may not declare an `inout $x` parameter, while an ordinary method beside it still may — `rule:iteration/generators`
 --FILE--
 <?nvs
 // An `inout $x` parameter addresses a cell the *call site* stages for the duration
 // of the call, and what makes that sound is that the callee's frame dies
 // first. A generator inverts it: calling one runs none of the body, it
-// allocates the state object and returns (ADR 0053 § 4), so the staged cell is
+// allocates the state object and returns (`rule:iteration/generators`), so the staged cell is
 // gone before the first `advance()` while the parked frame would still be
 // addressing it. There is no representation to keep instead — copying the
 // value in would stop being a reference, which is the whole observable point.

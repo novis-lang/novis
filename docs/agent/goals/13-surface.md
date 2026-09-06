@@ -21,7 +21,7 @@ is the smallest goal on the chain after goal 8.
 
 ADR 0098's table assigns `E0124`, `E0125` and `E0126`. **All three were allocated to other diagnostics
 after it was written** — `E_FOR_INIT_MIXES_DECL_AND_EXPR` and `E_FOR_INIT_TWO_DECLARATIONS`
-([ADR 0109](../../adr/0109-a-for-header-declares-its-own-counter.md)) and
+(`rule:iteration/for-init-clause`) and
 `E_CATCH_ARM_NOT_AN_EXPRESSION` ([ADR 0119](../../adr/0119-an-expression-level-catch-is-a-typed-arm-on-one-guarded-expression.md)),
 in `crates/nvs-diagnostics/src/lib.rs`. The registry is the allocator and it wins.
 

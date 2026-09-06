@@ -43,7 +43,7 @@ fn an_unrelated_class_still_fails_a_class_typed_position() {
     );
 }
 
-/// ADR 0053 § 2's generic interfaces are checked at their argument, not
+/// `rule:iteration/concrete-generic-implements`'s generic interfaces are checked at their argument, not
 /// just at their name -- which is what makes an `iterate()` declared
 /// `Iterator<int>` able to return a concrete cursor class.
 #[test]

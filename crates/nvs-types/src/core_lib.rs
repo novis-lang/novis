@@ -507,7 +507,7 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
             let args: Vec<TypeId> = args.iter().map(|arg| lower(arg, interner)).collect();
             interner.generic_class(qname, args)
         }
-        // ADR 0053 § 3's three iterable shapes, interned as the union of all
+        // `rule:iteration/foreach-subjects`'s three iterable shapes, interned as the union of all
         // three — [`CoreTy::Iterated`] owns why an `array<T>` is one of them
         // and how a helper reads the argument back. The two interface members
         // are the same generic class types [`crate::iter_lib`] seeds, so a
@@ -1849,7 +1849,7 @@ mod tests {
         );
     }
 
-    /// [`CoreTy::Iterated`] is exactly ADR 0053 § 3's three shapes, and the
+    /// [`CoreTy::Iterated`] is exactly `rule:iteration/foreach-subjects`'s three shapes, and the
     /// union it interns to is the one a program could have written out by
     /// hand — the property that keeps `Core\Arr::from($x)` accepting the same
     /// `$x` a `foreach` over it would.

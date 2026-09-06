@@ -1,5 +1,5 @@
 --TEST--
-a `for` init clause mixing a declaration with an expression is one diagnostic naming the rule — ADR 0109 § 3's E0124
+a `for` init clause mixing a declaration with an expression is one diagnostic naming the rule — `rule:iteration/for-init-refusals`'s E0124
 --FILE--
 <?nvs
 int $j = 0;

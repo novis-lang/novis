@@ -68,7 +68,7 @@ This is forced, not chosen. A request's heap is dropped wholesale at the end of 
 cache holds cannot live there; and a value the cache holds cannot be handed into a request heap by
 reference either, or the wholesale drop would free it. The same rule means a cached value is subject to the
 same restrictions as any crossing value: a generator does not go in
-([ADR 0053](0053-iteration-and-generators.md) § 6), and neither does a `secret`
+(`rule:iteration/generator-stays-in-one-isolate`), and neither does a `secret`
 ([ADR 0033](0033-secret-qualifier-for-confidential-values.md)).
 
 The copy is a real per-`get` cost (priority 3) paid to keep the request model intact (priority 1). An

@@ -23,7 +23,7 @@
 //!   [`ir::Helper::EchoStr`] call `echo` emits, over the raw span),
 //!   reassignment, `return`, nested blocks, `echo`, `unset`, `if`, `while`,
 //!   `do`/`while`, `for`, `switch`,
-//!   `foreach` over all three of ADR 0053 § 3's subjects, `break`/`continue`
+//!   `foreach` over all three of `rule:iteration/foreach-subjects`'s subjects, `break`/`continue`
 //!   at any level ([`lower::Lowering::lower_break`] counts every enclosing
 //!   loop and `switch`, PHP's own rule), `try`/`catch`, `throw`.
 //! - **Expressions** — arithmetic and comparison, `.` concatenation and string
@@ -41,7 +41,7 @@
 //!   three tagged — see [`ty::Ty::Tagged`]), and [`ty::Ty::Ref`] for an `inout $x`
 //!   parameter. `string`, `bytes` and `array<T>` are refcounted and cross a
 //!   local, call-argument, return and property boundary alike.
-//! - **Generators** — ADR 0053 § 4's state-machine transform, in
+//! - **Generators** — `rule:iteration/generators`'s state-machine transform, in
 //!   [`lower::generator::lower_generator`]: one declaration becomes a factory, an
 //!   `advance()`, a `current()` and a synthesized state class.
 //!

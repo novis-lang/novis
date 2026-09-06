@@ -1,5 +1,5 @@
 --TEST--
-`Core\IO::walk` takes the whole tree when it is called — the value it answers may be walked more than once and does not notice a file written afterwards — and a directory is an entry as well as somewhere to descend, so an empty one walks to nothing and a directory holding one walks to exactly one — spec § 14, ADR 0053 § 1
+`Core\IO::walk` takes the whole tree when it is called — the value it answers may be walked more than once and does not notice a file written afterwards — and a directory is an entry as well as somewhere to descend, so an empty one walks to nothing and a directory holding one walks to exactly one — spec § 14, `rule:iteration/two-interfaces`
 --FILE--
 <?nvs
 // The bound on both sides first: a directory with nothing in it and a directory

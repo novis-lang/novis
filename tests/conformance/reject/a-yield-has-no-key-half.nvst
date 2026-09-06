@@ -1,5 +1,5 @@
 --TEST--
-`Iterator<T>` is `advance()`/`current()` and nothing else, so `yield $k => $v` has no key to carry — ADR 0053 § 1
+`Iterator<T>` is `advance()`/`current()` and nothing else, so `yield $k => $v` has no key to carry — `rule:iteration/two-interfaces`
 --FILE--
 <?nvs
 class Feed {

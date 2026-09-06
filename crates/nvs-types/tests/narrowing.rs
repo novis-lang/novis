@@ -53,7 +53,7 @@ fn the_same_call_without_the_test_is_still_refused() {
     assert!(diags.has_errors(), "{diags:?}");
 }
 
-/// The one name still left out, and why: ADR 0053 § 2's iteration interfaces
+/// The one name still left out, and why: `rule:iteration/concrete-generic-implements`'s iteration interfaces
 /// are written with a type argument everywhere they are declared, and
 /// `instanceof Iterator` supplies none — so narrowing to a bare `Iterator`
 /// would name a type no annotation does. `nvs_types::locals`' narrowing

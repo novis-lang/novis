@@ -1,4 +1,4 @@
-//! Draining [ADR 0053](/docs/adr/0053-iteration-and-generators.md)
+//! Draining `rule:iteration/two-interfaces`
 //! § 3's three iterable shapes from native code.
 //!
 //! `Core\Arr::from` is the first member whose parameter is *whatever `foreach`
@@ -52,16 +52,16 @@ use crate::ctx::Ctx;
 use crate::dispatch::method_address;
 use crate::value::Value;
 
-/// `Iterable<T>`'s sole member (ADR 0053 § 1) — a fresh cursor over the same
+/// `Iterable<T>`'s sole member (`rule:iteration/two-interfaces`) — a fresh cursor over the same
 /// sequence. Must agree with `nvs_types::iter_lib`'s seeded spelling.
 pub const ITERATE: &str = "iterate";
 
 /// `Iterator<T>`'s "move to the next element, `false` once exhausted" member
-/// (ADR 0053 § 1).
+/// (`rule:iteration/two-interfaces`).
 pub const ADVANCE: &str = "advance";
 
 /// `Iterator<T>`'s "the element [`ADVANCE`] just moved to" member
-/// (ADR 0053 § 1).
+/// (`rule:iteration/two-interfaces`).
 pub const CURRENT: &str = "current";
 
 /// Reads `sequence` — an `array<T>`, an `Iterable<T>` or an `Iterator<T>` —
@@ -69,7 +69,7 @@ pub const CURRENT: &str = "current";
 /// caller must store or release.
 ///
 /// Keys are not returned, for the reason the spec's § 2 gives `Core\Arr::from`
-/// itself: a cursor has none (ADR 0053 § 1 gives `Iterator<T>` exactly
+/// itself: a cursor has none (`rule:iteration/two-interfaces` gives `Iterator<T>` exactly
 /// `advance` and `current`), so a member reading a sequence can only ever
 /// answer with a list.
 ///
@@ -82,7 +82,7 @@ pub const CURRENT: &str = "current";
 /// carrying that call's own status so the exception reaches the request
 /// unchanged. [`Fault::Fatal`] when `sequence` is neither an array nor an
 /// object, or the object declares none of the members its interface owes —
-/// both engine faults: the checker admits only ADR 0053 § 3's three shapes
+/// both engine faults: the checker admits only `rule:iteration/foreach-subjects`'s three shapes
 /// here, and a class claiming one of the two interfaces owes its members by
 /// `nvs_types::conformance`.
 pub fn drain(
@@ -148,7 +148,7 @@ pub fn for_each(
     each(ctx, sequence, None, what, sink)
 }
 
-/// The drive both entries share: ADR 0053 § 3's three shapes, split into the
+/// The drive both entries share: `rule:iteration/foreach-subjects`'s three shapes, split into the
 /// two representations they arrive in.
 fn each(
     ctx: &mut Ctx,
@@ -294,7 +294,7 @@ fn required_member(receiver: Value, name: &str, what: &str) -> Result<*const u8,
 /// Calls a no-argument member on `receiver`, returning whatever it produced.
 ///
 /// [`crate::dispatch::call_at`] with an empty argument list: every cursor
-/// member ADR 0053 § 1 declares takes none, and the address is looked up once
+/// member `rule:iteration/two-interfaces` declares takes none, and the address is looked up once
 /// and driven many times rather than re-resolved per element.
 fn call_member(ctx: &mut Ctx, receiver: Value, target: *const u8) -> Result<Value, Fault> {
     crate::dispatch::call_at(ctx, receiver, target, &[])

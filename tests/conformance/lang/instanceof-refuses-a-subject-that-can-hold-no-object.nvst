@@ -19,7 +19,7 @@ int $n = 1;
 bool $a = $n instanceof Box;
 string $s = "Box";
 bool $b = $s instanceof Box;
-// An `array<T>` is a value, never an object — ADR 0053 gave iteration its own
+// An `array<T>` is a value, never an object — `rule:iteration/two-interfaces` gave iteration its own
 // interfaces rather than making one.
 array<string> $rows = ["a"];
 bool $c = $rows instanceof Box;

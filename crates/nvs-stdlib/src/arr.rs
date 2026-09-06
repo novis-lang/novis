@@ -3860,7 +3860,7 @@ nvs_runtime::nvs_helper! {
     /// the materialising half of `iterator_count`.
     ///
     /// **Always a list**, whatever it drained: a cursor has no keys at all
-    /// (ADR 0053 § 1 gives `Iterator<T>` exactly `advance` and `current`), so
+    /// (`rule:iteration/two-interfaces` gives `Iterator<T>` exactly `advance` and `current`), so
     /// answering with the argument's keys where it happens to have some would
     /// make the result's shape depend on which of the three shapes was passed.
     /// An array argument's keys are therefore discarded exactly as
@@ -6505,7 +6505,7 @@ mod tests {
         }
     }
 
-    /// The array half of ADR 0053 § 3's three shapes: the argument's keys
+    /// The array half of `rule:iteration/foreach-subjects`'s three shapes: the argument's keys
     /// discarded, its order kept, and `{limit}` honoured. The two object
     /// shapes need compiled code to drive, so they are pinned by
     /// `tests/conformance/core/arr-from-drains-a-sequence.nvst` instead.

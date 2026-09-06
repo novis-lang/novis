@@ -1,5 +1,5 @@
 --TEST--
-`Iterator<T>`'s two members are the whole protocol, so a `while` over `advance()`/`current()` drains it exactly as `foreach` would — ADR 0053 § 1
+`Iterator<T>`'s two members are the whole protocol, so a `while` over `advance()`/`current()` drains it exactly as `foreach` would — `rule:iteration/two-interfaces`
 --FILE--
 <?nvs
 class Walker implements Iterator<int> {
