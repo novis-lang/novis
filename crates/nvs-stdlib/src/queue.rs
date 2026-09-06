@@ -378,6 +378,119 @@ pub const MIGRATION_MYSQL: &[Migration] = &[
     },
 ];
 
+/// How wide every indexed text column of § 2's schema is.
+///
+/// One number rather than one per column, because the two that carry it hold the *same value*:
+/// [`schema`]'s `dedupe_pending` is `dedupe_key` while the job is pending, so a narrower one of the
+/// pair would refuse a key the other admitted. 255 is what fits InnoDB's 3,072-byte key limit at
+/// `utf8mb4`'s four bytes a character with room for the rest of the `nvs_jobs_due` key, and it is
+/// the bound the whole vocabulary is held to rather than MySQL's alone: a schema value is one
+/// spelling for four dialects, so the tightest backend's limit is the value's limit.
+const KEY_WIDTH: u32 = 255;
+
+/// `rule:core-classes/queue-storage-is-a-table`'s two tables as one [`nvs_db::Schema`] value, which
+/// is what the hand-written lists above collapse into.
+///
+/// **One value and four dialects, where the lists were two dialects and three backends with none.**
+/// [`MIGRATION_POSTGRES`] and [`MIGRATION_MYSQL`] each spell the same columns in their own SQL, so
+/// SQL Server and SQLite have no schema at all and a third dialect would be a third transcription
+/// of one column list. `nvs_db::ddl` already emits every construct here in all four dialects, so the
+/// columns are decided once and the spelling is the emitter's — which is what gives those two
+/// backends the support `rule:core-classes/queue-storage-is-a-table` already claims for them.
+///
+/// **`dedupe_pending` is the one construct the retirement had to decide**, and it is decided here.
+/// [`MIGRATION_POSTGRES`] dedupes with a *partial* unique index (`… where state = 0`) and
+/// [`MIGRATION_MYSQL`] with a stored generated column; the vocabulary holds neither, and both are
+/// out of v1 for the reason `rule:core-classes/schema-plan` gives — no portable spelling. What is
+/// portable is the column those two constructs each *derive*: a plain `dedupe_pending` that the
+/// statements maintain, holding `dedupe_key` while the job is pending and `null` once it is not,
+/// with a plain unique key over it. That is `where state = 0` said on the other side, it is exactly
+/// what MySQL's generated column already stores, and a null collides with nothing on the four
+/// backends whose unique keys read nulls as distinct — so the guarantee gap 3 names is unchanged on
+/// every backend `Core\Queue` can run a statement against. **SQL Server reads two nulls as equal**
+/// and so admits one released row rather than any number of them; it has no queue statements at all
+/// ([`no_dialect`]), and the day it gains them the answer is the filtered index `rule:core-classes/schema-plan`
+/// keeps out of v1, which is what the vocabulary would have to grow first.
+///
+/// **A nullable column rather than a `not null` one with a sentinel**, which is what SQL Server
+/// would otherwise want: a `not null` unique column needs a distinct value per released row, so
+/// every push and every state transition would carry a generated token — and, decisively, such a
+/// column cannot be *added* to a table that already has rows at all, while a nullable one converges
+/// onto a live queue as a `Safe` step. A schema that no existing deployment can reach is not a
+/// schema.
+///
+/// **What it spends:** one indexed [`KEY_WIDTH`]-wide column per job row, which is what a partial
+/// index costs nothing for — priority 5 spent to buy one spelling on five backends instead of two
+/// on two.
+///
+/// Every identifier below is a literal this module wrote, so a refusal from the builders is a bug
+/// in this function rather than bad input, and the `expect` says which.
+#[must_use]
+pub fn schema() -> nvs_db::Schema {
+    use nvs_db::schema::{Column, IntWidth, ScalarType, Table};
+
+    fn named(name: &str, ty: ScalarType) -> Column {
+        Column::new(name, ty).expect("the queue's own column names are bare identifiers")
+    }
+    let big = || ScalarType::Int(IntWidth::Big);
+    let int = || ScalarType::Int(IntWidth::Normal);
+    // Indexed text is bounded and payload text is not: `queue` and the two dedupe columns are read
+    // by a key, while `script`, `args` and `errors` are a path and two JSON documents that no index
+    // ever covers.
+    let short = || ScalarType::Text {
+        max: Some(KEY_WIDTH),
+    };
+    let long = || ScalarType::Text { max: None };
+
+    let jobs = Table::new(
+        JOBS_TABLE,
+        vec![
+            named("id", big())
+                .identity()
+                .expect("`id` is an integer, which is what an identity column may be"),
+            named("queue", short()),
+            named("script", long()),
+            named("args", long()).null(),
+            named("state", ScalarType::Int(IntWidth::Small)),
+            named("attempts", int()),
+            named("max_attempts", int()),
+            named("backoff_ms", big()),
+            named("run_at", big()),
+            named("dedupe_key", short()).null(),
+            named("dedupe_pending", short()).null(),
+            named("created_at", big()),
+            named("claimed_at", big()).null(),
+        ],
+    )
+    .and_then(|table| table.primary_key(&["id"]))
+    .and_then(|table| table.unique("nvs_jobs_dedupe", &["dedupe_pending"]))
+    .and_then(|table| table.index("nvs_jobs_due", &["queue", "state", "run_at"]))
+    .expect("the jobs table names its own columns in its own keys");
+
+    let dead = Table::new(
+        DEAD_TABLE,
+        vec![
+            named("id", big()),
+            named("queue", short()),
+            named("script", long()),
+            named("args", long()).null(),
+            named("attempts", int()),
+            named("max_attempts", int()),
+            named("backoff_ms", big()),
+            named("run_at", big()),
+            named("dedupe_key", short()).null(),
+            named("created_at", big()),
+            named("failed_at", big()),
+            named("errors", long()),
+        ],
+    )
+    .and_then(|table| table.primary_key(&["id"]))
+    .and_then(|table| table.index("nvs_dead_jobs_queue", &["queue"]))
+    .expect("the dead-letter table names its own columns in its own keys");
+
+    nvs_db::Schema::new(vec![jobs, dead]).expect("two tables, named apart")
+}
+
 /// `rule:concurrency/queue-four-members`'s `push`, as one statement.
 ///
 /// **One statement rather than a check and an insert**, because two would be two moments and § 3's
@@ -3225,6 +3338,102 @@ mod tests {
                 STATS.slots[at], slot,
                 "the index `{slot}`'s reader passes is the slot of that name"
             );
+        }
+    }
+
+    /// `rule:core-classes/queue-storage-is-a-table`: every driver has a schema, where two of them
+    /// had no dialect at all.
+    ///
+    /// The lists this replaces are keyed on the dialect, so [`migration`] answers `None` for SQL
+    /// Server and SQLite and `nvs queue migrate` refuses those two backends before it opens
+    /// anything. A schema *value* is keyed on nothing: the dialect is `nvs_db::ddl`'s to choose, so
+    /// the question this asks is the one the retirement makes answerable — not "which drivers have
+    /// a list" but "does the one value emit both tables in every dialect", which is what makes the
+    /// roster of supported backends stop being a roster.
+    #[test]
+    fn every_driver_has_a_queue_schema_and_none_answers_none() {
+        let schema = super::schema();
+        for driver in nvs_db::Driver::ALL.iter().copied() {
+            let statements = nvs_db::ddl::create_schema(&schema, nvs_db::Dialect::of(driver));
+            assert!(
+                !statements.is_empty(),
+                "{} emits no statement for a schema that has two tables",
+                driver.display_name()
+            );
+            for table in [JOBS_TABLE, DEAD_TABLE] {
+                assert!(
+                    statements.iter().any(|statement| statement.contains(table)),
+                    "{} builds no `{table}`",
+                    driver.display_name()
+                );
+            }
+        }
+    }
+
+    /// `rule:core-classes/queue-storage-is-a-table`: the dedupe constraint has **one** spelling, and
+    /// it is the same one in all four dialects.
+    ///
+    /// This is the retirement's own open question asserted rather than argued. The two lists reach
+    /// gap 3's guarantee by two constructs the vocabulary refuses — a partial index and a stored
+    /// generated column — so the assertion that matters is not that the constraint exists but that
+    /// what carries it is a plain column and a plain unique key, present in the `CREATE TABLE`
+    /// itself on every backend. A dialect that grew its own spelling again fails here.
+    #[test]
+    fn the_queues_dedupe_constraint_is_one_column_in_every_dialect() {
+        let schema = super::schema();
+        for driver in nvs_db::Driver::ALL.iter().copied() {
+            let jobs = nvs_db::ddl::create_schema(&schema, nvs_db::Dialect::of(driver))
+                .into_iter()
+                .find(|statement| statement.contains(JOBS_TABLE))
+                .expect("the jobs table is created in every dialect");
+            for construct in ["dedupe_key", "dedupe_pending", "nvs_jobs_dedupe"] {
+                assert!(
+                    jobs.contains(construct),
+                    "{}'s `{JOBS_TABLE}` does not declare `{construct}`",
+                    driver.display_name()
+                );
+            }
+            assert!(
+                !jobs.contains("where state") && !jobs.contains("GENERATED ALWAYS AS ("),
+                "{} reached gap 3's guarantee by a construct the vocabulary does not hold",
+                driver.display_name()
+            );
+        }
+    }
+
+    /// `rule:core-classes/queue-storage-is-a-table`: the value declares every column both lists do,
+    /// plus the one the retirement's decision adds.
+    ///
+    /// The drift guard `the_ddl_creates_every_column_the_statements_name` holds the two lists to the
+    /// statements; this holds the *value* to the lists, which is what makes the swap a refactor
+    /// rather than a rewrite. `dedupe_pending` is named apart because it is the one column
+    /// [`MIGRATION_POSTGRES`] does not have: PostgreSQL derives the same fact from `state` inside a
+    /// partial index, and the portable spelling is a column instead. This test retires with the
+    /// lists.
+    #[test]
+    fn the_schema_value_declares_every_column_the_lists_declare() {
+        let schema = super::schema();
+        for (list, dialect) in [
+            (MIGRATION_POSTGRES, "PostgreSQL"),
+            (MIGRATION_MYSQL, "MySQL"),
+        ] {
+            // A list files a statement under a *label*, which is what the command prints, and the
+            // schema value names the table itself — so the two are paired in declaration order
+            // rather than looked up by a name only one of them writes.
+            for (table, label) in schema.tables().iter().zip(["jobs", "dead_letter"]) {
+                let declared = table_ddl(list, label);
+                for column in table.columns() {
+                    let name = column.name().as_str();
+                    if name == "dedupe_pending" {
+                        continue;
+                    }
+                    assert!(
+                        declared.contains(&format!("{name} ")),
+                        "{dialect}'s `{}` does not declare `{name}`, which the schema value does",
+                        table.name()
+                    );
+                }
+            }
         }
     }
 }
