@@ -573,7 +573,7 @@ fn main() -> ExitCode {
             php,
             format,
             update,
-        } => run_test(&paths, filter, php, format, update),
+        } => run_test(&paths, filter, php, format, update, &cli.config),
         Command::Build {
             file,
             openapi,
@@ -1494,6 +1494,7 @@ fn run_test(
     php: PathBuf,
     format: runner::Format,
     update: bool,
+    config: &[PathBuf],
 ) -> ExitCode {
     // ADR 0079 § 23's "`nvs test` runs both", decided by the path rather than
     // by a flag: a program is a `.nvs`/`.php` file and a conformance case is
@@ -1503,10 +1504,27 @@ fn run_test(
             eprintln!("error: a program's `#[Test]` methods and `.nvst` cases are run separately");
             return ExitCode::FAILURE;
         };
+        // ADR 0078 § 1's snapshot, resolved here for the reason `run_run`
+        // resolves it above its own compile: ADR 0042's artifact key is half
+        // configuration — § 7's `[opcache]` says where artifacts live and
+        // whether they are read at all, and § 4's environment digest covers the
+        // loaded extension set — so a suite compiled above the tree would
+        // address an artifact by an environment this run is not in. A tree that
+        // does not resolve stops a test run exactly as it stops a `nvs run`.
+        let mut config_sources = SourceMap::new();
+        let snapshot = match config::boot_snapshot(config, path, &mut config_sources) {
+            Ok(snapshot) => snapshot,
+            Err(diagnostic) => {
+                let mut diags = Diagnostics::new();
+                diags.report(diagnostic);
+                render_diagnostics(&mut diags, &config_sources);
+                return ExitCode::FAILURE;
+            }
+        };
         // `--filter` reaches both suites, and means the same thing in each:
         // `runner::selected` owns the rule and why it is the `.nvst` tree's.
         return match front_end(path) {
-            Ok(checked) => runner::run(checked, format, filter, update),
+            Ok(checked) => runner::run(checked, &snapshot, format, filter, update),
             Err(code) => code,
         };
     }

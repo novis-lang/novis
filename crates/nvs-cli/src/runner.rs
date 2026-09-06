@@ -257,11 +257,18 @@ struct Case {
 /// re-run is what says the new snapshot is the one the author meant.
 pub(crate) fn run(
     checked: crate::Checked,
+    snapshot: &nvs_config::Snapshot,
     format: Format,
     filter: Option<String>,
     update: bool,
 ) -> ExitCode {
-    let unit = match compile(&checked) {
+    // ADR 0042 §§ 3 and 7: the suite's unit comes off disk when this
+    // environment has an artifact for this program, and the key is the
+    // program's, not the subcommand's — a `nvs run` and a `nvs test` of one
+    // program lower the same `nvs_ir::Program` through the same entry label, so
+    // they share an artifact and whichever ran first pays for it.
+    let cache = crate::cache::from_config(&snapshot.config);
+    let unit = match compile(&checked, cache.as_ref()) {
         Ok(unit) => unit,
         Err(error) => {
             eprintln!("error: {error}");
@@ -286,8 +293,14 @@ pub(crate) fn run(
         false => Vec::new(),
     };
     let started = Instant::now();
-    let (suite, mut ctx) = match run_suite_in_a_task(&unit, ctx, checked, format, filter.as_deref())
-    {
+    let (suite, mut ctx) = match run_suite_in_a_task(
+        &unit,
+        ctx,
+        checked,
+        &snapshot.config,
+        format,
+        filter.as_deref(),
+    ) {
         Ok(both) => both,
         Err(error) => {
             eprintln!("error: {error}");
@@ -363,6 +376,7 @@ fn run_suite_in_a_task(
     unit: &Rc<nvs_codegen::Unit>,
     ctx: nvs_runtime::Ctx,
     checked: crate::Checked,
+    config: &nvs_config::Config,
     format: Format,
     filter: Option<&str>,
 ) -> Result<(Suite, nvs_runtime::Ctx), String> {
@@ -396,11 +410,13 @@ fn run_suite_in_a_task(
     // A test's own isolate is built by this crate directly, but a `spawn script`
     // *inside* a test goes through the seam and needs the same resolver
     // `nvs run` installs — one per run, so two tests spawning one path share
-    // the compiled unit (`crate::script`). `default` and not the tree's own
-    // `[opcache]`: the suite is compiled before any snapshot is resolved here,
-    // and a run that reads no configuration is exactly what that constructor
-    // means. Nothing edits a file mid-suite, so the policy chooses nothing.
-    let compiler = crate::script::Compiler::default();
+    // the compiled unit (`crate::script`). It reads the tree's own `[opcache]`,
+    // because the snapshot is now resolved above the suite's compile and
+    // ADR 0078 § 4's environment digest is half of every key this resolver
+    // writes: a default one would file a unit under an environment this run is
+    // not in. Nothing edits a file mid-suite, so the revalidation policy in it
+    // chooses nothing.
+    let compiler = crate::script::Compiler::new(config);
     // And ADR 0079 § 18's unit under test, over the same run: a `Core\Test`
     // member reaches it the way a `spawn script` reaches the resolver, so the
     // two guards nest rather than either one being a special case.
@@ -535,17 +551,26 @@ impl nvs_runtime::inproc::Answering for UnderTest {
 ///
 /// `Err` is the message to render; a compile that fails ends the run rather
 /// than any one test.
-fn compile(checked: &crate::Checked) -> Result<Rc<nvs_codegen::Unit>, String> {
+///
+/// `cache` is ADR 0042's artifact cache, or [`None`] for a run that consults
+/// none — every way it can fail to answer is a cold compile and nothing a
+/// verdict can see, which is why the [`crate::cache::Provenance`] this drops is
+/// dropped rather than reported.
+fn compile(
+    checked: &crate::Checked,
+    cache: Option<&crate::cache::Cache>,
+) -> Result<Rc<nvs_codegen::Unit>, String> {
+    let files = checked.program_files();
     let program = nvs_ir::lower::lower_program(
         nvs_ir::lower::ENTRY_SCRIPT_LABEL,
-        &checked.program_files(),
+        &files,
         &checked.exprs,
         &checked.interner,
         &checked.enums,
         &checked.layouts,
     );
-    nvs_codegen::compile(&program)
-        .map(Rc::new)
+    crate::cache::unit_for(&program, crate::cache::program_digest(&files), cache)
+        .map(|(unit, _)| Rc::new(unit))
         .map_err(|error| error.to_string())
 }
 
@@ -2056,13 +2081,23 @@ mod tests {
         filter: Option<&str>,
     ) -> Vec<(String, &'static str, Vec<String>)> {
         let checked = crate::front_end(path).expect("the fixture is a program");
-        let unit = compile(&checked).expect("the fixture compiles");
+        // No cache: a fixture's verdicts are about the runner, and a suite that
+        // read one would be asserting against whatever a previous test run left
+        // in this account's cache directory.
+        let unit = compile(&checked, None).expect("the fixture compiles");
         unit.install_in(&mut ctx);
         // Through the same entry `run` takes, scheduler and all: a suite run
         // off a bare stack would be a different runner from the one shipped,
         // and § 16 is a claim about the one with a task tree under it.
-        let (suite, _ctx) = run_suite_in_a_task(&unit, ctx, checked, Format::Json, filter)
-            .expect("the suite's own task runs");
+        let (suite, _ctx) = run_suite_in_a_task(
+            &unit,
+            ctx,
+            checked,
+            &nvs_config::Config::default(),
+            Format::Json,
+            filter,
+        )
+        .expect("the suite's own task runs");
         assert_eq!(
             std::rc::Rc::strong_count(&unit),
             1,
@@ -2436,10 +2471,20 @@ mod tests {
             .expect("the fixture is on disk");
         std::fs::write(&program, &template).expect("the copy is written");
 
+        // `file_cache = false` and not a default snapshot: this test is about
+        // what the updater writes, and a run reading the account's own artifact
+        // directory would put a test's units in it — `cache::from_config`
+        // answers `None` for exactly this block.
+        let uncached = nvs_config::Snapshot {
+            config: toml::from_str("[opcache]\nfile_cache = false\n")
+                .expect("a tree that turns the disk cache off"),
+            ..Default::default()
+        };
+
         // Never otherwise: the shipped entry, with the flag off, over a suite
         // whose every snapshot fails.
         let checked = crate::front_end(&program).expect("the copy is a program");
-        let _ = super::run(checked, Format::Json, None, false);
+        let _ = super::run(checked, &uncached, Format::Json, None, false);
         assert_eq!(
             std::fs::read_to_string(&program).expect("the copy is still there"),
             template,
@@ -2448,7 +2493,7 @@ mod tests {
 
         // When asked.
         let checked = crate::front_end(&program).expect("the copy is a program");
-        let _ = super::run(checked, Format::Json, None, true);
+        let _ = super::run(checked, &uncached, Format::Json, None, true);
         let updated = std::fs::read_to_string(&program).expect("the copy is still there");
         assert_ne!(updated, template, "the update rewrote the source");
         assert!(
