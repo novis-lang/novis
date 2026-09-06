@@ -2863,7 +2863,8 @@ is why" — is this file.
   the only target — so a module's own `#[cfg(test)] mod tests` runs under
   `cargo test -p nvs-cli --bin nvs <filter>`, and `tests/meta.rs`/`tests/openapi.rs` drive the
   built binary instead of linking to anything. The same call with no `--lib`/`--bin` works but
-  builds and runs both, which is the slow way to iterate on one module.
+  builds and runs both, which is the slow way to iterate on one module. The same is true of every
+  binary-only crate here.
 - **When the question is "what does this backend actually emit", a throwaway `#[test]` that prints
   it costs one build and settles it; guessing costs a design.** ADR 0042 § 3's loader turns on the
   relocation kinds `nvs_codegen::compile_object` produces, and the plausible answer — ELF-style
@@ -2886,10 +2887,6 @@ is why" — is this file.
   address space against 91 MB resident — about 1.45 MB of reserved stack per spawned task, 10,000 tasks —
   which is the mechanism behind "the JIT's blobs landed more than 2 GB apart". `left: 8083, right: 10000`
   and a panic count that sums to 10,000 with it are one event, not two.
-- **`cargo test -p nvs-cli --lib` fails with `no library targets found in package`, and the crate is
-  fine.** `nvs-cli` is a binary crate: its unit tests live in the `nvs` bin target, so a filtered
-  run is `cargo test -p nvs-cli --bin nvs <filter>` and the bare `cargo test -p nvs-cli` picks them
-  up along with the integration tests beside them. The same is true of every binary-only crate here.
 - **A wall-clock regression in `nvs run` can sit entirely outside the code that caused it, and one
   `Instant::now()` per phase in a *release* build is what says so.** Wiring ADR 0042's artifact
   cache took `tools/bench.py --warm-start`'s figure from 3.9 ms of Novis work to 21.6 ms and
