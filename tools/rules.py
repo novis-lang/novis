@@ -63,6 +63,16 @@ GENERATED_HEADER = (
 #: The citation token every file in the repository uses to name a rule.
 CITATION = re.compile(r"rule:([a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9-]*)")
 
+#: The same citation, but also consuming the backticks an author naturally writes around it. A
+#: fragment saying ``rule:types/conversion`` in ticks would otherwise render as a code span wrapping
+#: a link -- a literal ``[`types/conversion`](types.md#…)`` -- because only the token inside the
+#: ticks was substituted. The B1 pilot hit that 35 times in one chapter. Both spellings are read,
+#: and both become one link.
+LINKIFY = re.compile(
+    r"`rule:([a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9-]*)`"
+    r"|rule:([a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9-]*)"
+)
+
 #: Where a citation may live. Everything else is not scanned.
 CITATION_GLOBS = ("crates/**/*.rs", "docs/**/*.md", "docs/**/*.toml", "tests/**/*", "tools/**/*.py")
 
@@ -71,6 +81,22 @@ CITATION_GLOBS = ("crates/**/*.rs", "docs/**/*.md", "docs/**/*.toml", "tests/**/
 #: the spelling would report its own examples as dangling citations -- which is what this file and
 #: docs/agent/docs-migration.md did on the first run.
 EXAMPLES_ONLY = "rules-py:examples"
+
+def decision_link(record: str) -> str:
+    """Where a decision record lives *now*, relative to a generated page in `docs/rules/`.
+
+    Records sit in `docs/adr/NNNN-slug.md` until migration unit C1 freezes them into
+    `docs/decisions/NNNN.md`, so a chapter has to link to the one that is on disk. Emitting the C1
+    path unconditionally made 49 dead links in the first chapter -- dead for the whole of Phase B,
+    which is many sessions of that chapter being the read surface -- and at the wrong depth besides,
+    since `decisions/NNNN.md` from `docs/rules/` resolves to `docs/rules/decisions/`. C8's sweep
+    re-points a `docs/adr/` link once C1 has moved the file.
+    """
+    if (ROOT / "docs" / "decisions" / f"{record}.md").exists():
+        return f"../decisions/{record}.md"
+    found = sorted((ROOT / "docs" / "adr").glob(f"{record}-*.md"))
+    return f"../adr/{found[0].name}" if found else f"../decisions/{record}.md"
+
 
 STATUSES = ("shipped", "designed")
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]*/[a-z0-9][a-z0-9-]*$")
@@ -302,9 +328,12 @@ class Rulebook:
                 lines.append(self._linkify(body) + "\n")
             trailer = []
             if r.see_also:
-                trailer.append("See also " + ", ".join(f"`rule:{s}`" for s in r.see_also) + ".")
+                # Linked, not bare: the trailer's whole job is getting the reader to the next rule.
+                trailer.append("See also " + ", ".join(
+                    self._link(self.by_id[s]) if s in self.by_id else f"`rule:{s}`"
+                    for s in r.see_also) + ".")
             if r.because:
-                trailer.append("Decided in " + ", ".join(f"[{b}](decisions/{b}.md)" for b in r.because) + ".")
+                trailer.append("Decided in " + ", ".join(f"[{b}]({decision_link(b)})" for b in r.because) + ".")
             if trailer:
                 lines.append("<sub>" + " ".join(trailer) + "</sub>\n")
         return "\n".join(lines).rstrip("\n") + "\n"
@@ -313,20 +342,25 @@ class Rulebook:
         """Turn a bare `rule:x/y` citation in prose into a link, leaving fenced code alone."""
 
         def sub(match: re.Match[str]) -> str:
-            rid = match.group(1)
+            rid = match.group(1) or match.group(2)
             target = self.by_id.get(rid)
             if target is None:
                 return match.group(0)
             if target.topic == "":
                 return match.group(0)
-            return f"[`{rid}`]({target.topic}.md#{target.anchor})"
+            return self._link(target)
 
         out, fenced = [], False
         for line in body.splitlines():
             if line.lstrip().startswith("```"):
                 fenced = not fenced
-            out.append(line if fenced else CITATION.sub(sub, line))
+            out.append(line if fenced else LINKIFY.sub(sub, line))
         return "\n".join(out)
+
+    @staticmethod
+    def _link(rule: Rule) -> str:
+        """One rule, as the markdown link every generated file points at it with."""
+        return f"[`{rule.id}`]({rule.topic}.md#{rule.anchor})"
 
     def render_ground_rules(self) -> str:
         lines = [
@@ -375,12 +409,35 @@ class Rulebook:
 
     @staticmethod
     def _first_sentence(body: str) -> str:
+        """The rule in one sentence, for the ground-rules index.
+
+        The fragment's first prose paragraph is joined before a sentence is taken out of it.
+        Reading one line at a time cut every hard-wrapped sentence off mid-clause and with no
+        terminator -- "...and errors travel in its" -- because the period was on the next line. A
+        fenced block is skipped rather than read as prose, which is what several fragments open
+        with, and a citation is reduced to its bare id: the row already links to the rule.
+        """
+        paragraph: list[str] = []
+        fenced = False
         for line in body.splitlines():
-            line = line.strip()
-            if line and not line.startswith(("|", "```", "<!--", "#", "-")):
-                match = re.match(r"^(.{10,220}?[.!?])(\s|$)", line)
-                return match.group(1) if match else line[:220]
-        return "(no prose)"
+            stripped = line.strip()
+            if stripped.startswith("```"):
+                fenced = not fenced
+                if paragraph:
+                    break
+                continue
+            if fenced:
+                continue
+            if not stripped or stripped.startswith(("|", "<!--", "#", "-", ">", "*")):
+                if paragraph:
+                    break
+                continue
+            paragraph.append(stripped)
+        if not paragraph:
+            return "(no prose)"
+        text = LINKIFY.sub(lambda m: f"`{m.group(1) or m.group(2)}`", " ".join(paragraph))
+        match = re.match(r"^(.{10,220}?[.!?])(\s|$)", text)
+        return match.group(1) if match else text[:219].rstrip() + "…"
 
     @staticmethod
     def _rel(path: Path) -> str:
