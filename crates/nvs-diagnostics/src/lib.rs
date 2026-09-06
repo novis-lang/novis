@@ -2390,7 +2390,7 @@ pub mod code {
 
     /// A `#[Route]` gives no `path`, no `method`, or neither.
     ///
-    /// ADR 0077 § 1 marks only `name` optional, and a row of § 5's table is a
+    /// `rule:routing/route-attribute` marks only `name` optional, and a row of § 5's table is a
     /// path and a verb together: an attribute naming neither declares nothing
     /// and would be a route the author believes exists. Reported by the pass
     /// that builds the table rather than by the payload's roster check, for
@@ -2420,7 +2420,7 @@ pub mod code {
     /// whole attribute, because the rest of the attribute is fine.
     pub const E_DUPLICATE_ROUTE_NAME: Code = Code::new("E0749");
 
-    /// A `#[Route]`'s `path` is not one ADR 0077 § 2's grammar admits.
+    /// A `#[Route]`'s `path` is not one `rule:routing/path-grammar`'s grammar admits.
     ///
     /// One code for the whole grammar, because every way a path fails it is
     /// the same fact — the router cannot build a node out of this — and the
@@ -2461,7 +2461,7 @@ pub mod code {
 
     /// A `{name?}` capture is bound to a parameter with no default.
     ///
-    /// ADR 0077 § 2: an optional capture matches one whole segment or none,
+    /// `rule:routing/path-grammar`: an optional capture matches one whole segment or none,
     /// and the default is what makes the absent case *well-typed* rather than
     /// nullable by accident — the router never invents a `null` for a
     /// parameter whose type does not admit one. Both sites are named, the
@@ -2471,7 +2471,7 @@ pub mod code {
 
     /// `Core\Router::url`/`urlAbsolute` names a route the table does not hold.
     ///
-    /// ADR 0077 § 4: a *literal* `$name` that is not a declared route is a
+    /// `rule:routing/matching-is-not-dispatching`: a *literal* `$name` that is not a declared route is a
     /// compile error, and a computed one throws instead — so this is reported
     /// at the argument rather than at the call, which is where the literal is.
     /// The table it is checked against is the whole program's, which is why
@@ -2482,7 +2482,7 @@ pub mod code {
     /// A `Core\Router::url` `$params` literal covers none of some capture the
     /// named route's path declares.
     ///
-    /// ADR 0077 § 4: a `$params` array that does not cover the route's
+    /// `rule:routing/matching-is-not-dispatching`: a `$params` array that does not cover the route's
     /// captures is a compile error. Only a `{name?}` may be absent — its
     /// segment simply is not emitted — so every `{name}` and `{name...}` the
     /// path writes needs a key of that name. A `$params` that is not an array
@@ -2525,7 +2525,7 @@ pub mod code {
     /// A `Core\Router::url` `$params` key names neither a capture of the route's
     /// path nor one of its declared `#[Query]` parameters.
     ///
-    /// ADR 0102 § 6: keys that are not captures become the link's query string,
+    /// `rule:routing/an-absolute-link-takes-a-configured-origin`: keys that are not captures become the link's query string,
     /// so a key that covers nothing is not inert — it silently ships as
     /// `?typo=…`. The rule is what makes the query half safe to have at all,
     /// and it is the mirror of [`E_ROUTE_LINK_MISSING_PARAM`]: that one is a
@@ -2591,7 +2591,7 @@ pub mod code {
 
     /// A `#[Query]` on a parameter of a method carrying no `#[Route]`.
     ///
-    /// ADR 0102 § 3 gives the marker its whole meaning on a route method's
+    /// `rule:routing/a-query-parameter-is-declared-like-a-capture` gives the marker its whole meaning on a route method's
     /// parameter — the key it binds by is the parameter's own name — so one
     /// written anywhere else binds nothing and is read by nothing. Refused
     /// rather than ignored for the reason the closed roster of recognized
@@ -2605,7 +2605,7 @@ pub mod code {
     /// An `#[Option]` on a parameter of a method carrying no `#[Command]`.
     ///
     /// ADR 0086 § 6's marker, held to the declaration that reads it, exactly as
-    /// [`E_QUERY_WITHOUT_ROUTE`] holds ADR 0102 § 3's. Reported from the walk
+    /// [`E_QUERY_WITHOUT_ROUTE`] holds `rule:routing/a-query-parameter-is-declared-like-a-capture`'s. Reported from the walk
     /// over every method rather than from the command pass, which by
     /// construction sees only the methods a `#[Command]` selects.
     pub const E_OPTION_WITHOUT_COMMAND: Code = Code::new("E0766");
@@ -2668,7 +2668,7 @@ pub mod code {
     /// A `Core\Router::url` `$params` value is a literal outside the closed set
     /// the parameter it supplies declares.
     ///
-    /// ADR 0102 § 5: a capture narrows to a closed set with a *type*, and a
+    /// `rule:routing/a-capture-narrows-to-a-closed-set`: a capture narrows to a closed set with a *type*, and a
     /// path segment outside that set fails the conversion and falls through to
     /// `404`. A link built out of such a value is therefore a link to a route
     /// that will not match — the one shape of dead link the table can see

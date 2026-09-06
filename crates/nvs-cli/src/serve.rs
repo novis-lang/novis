@@ -337,7 +337,7 @@ pub(crate) fn run(
             // § 4 step 2's remainder and the row it came off, both taken before
             // the branch below moves the rest of the selection. The remainder is
             // the path the application is written against; the row is borrowed,
-            // so keeping it costs a word and is what ADR 0102 § 7 is answered
+            // so keeping it costs a word and is what `rule:routing/a-request-reads-its-mount` is answered
             // from further down.
             let mount = selected.mount;
             let stripped = selected.path;
@@ -352,7 +352,7 @@ pub(crate) fn run(
                 }
             };
             // Both halves of what the selected unit is: the code to run, and
-            // ADR 0102 § 1's table to match against before it does.
+            // `rule:routing/matched-once-before-the-handler`'s table to match against before it does.
             // `crate::script::Compiled` owns why the cache holds the second
             // one at all.
             let (program, routes): (Program, Option<Arc<nvs_runtime::routes::Routes>>) =
@@ -407,7 +407,7 @@ pub(crate) fn run(
             // has an id either way, because `Ctx::new` drew one before this
             // carrier existed.
             nvs_server::trace::take(&mut inbound);
-            // ADR 0102 § 7's mount, which is the other half of what step 2 did:
+            // `rule:routing/a-request-reads-its-mount`'s mount, which is the other half of what step 2 did:
             // the prefix taken off the path above, and § 3's captures of the row
             // that took it. `nvs_server::mount::carry` owns why the door writes
             // them rather than the program deriving them — a program that could
@@ -415,7 +415,7 @@ pub(crate) fn run(
             // request target, which is the one thing a mounted application is
             // written not to do.
             nvs_server::mount::carry(mount, &mut inbound);
-            // ADR 0102 § 1's match, here because this is the first point at
+            // `rule:routing/matched-once-before-the-handler`'s match, here because this is the first point at
             // which the request and the unit that will answer it are both in
             // hand, and the last one before application code exists to have
             // run. `nvs_server::route` owns why the door takes it rather than

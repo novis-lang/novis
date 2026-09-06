@@ -47,7 +47,7 @@ paths* list — 68 sites when this was written — is the inventory of the middl
 
    **It is Stage 0 because three later items are the same scan.** `#[Route]`'s table (item 6),
    `#[Command]`'s table (item 8) and the OpenAPI emitter (item 9) are all "filter `rule:programs/implementing`'s
-   enumeration", and ADR 0077 § 5 says so outright. Writing any of them first means writing the walk
+   enumeration", and `rule:routing/table-is-opt-in` says so outright. Writing any of them first means writing the walk
    three times and then unifying it. `crates/nvs-hir/src/autoload.rs`,
    `crates/nvs-hir/src/hierarchy.rs` (`implements_interface` is already there),
    `crates/nvs-types/src/expr/calls.rs` for the call-site expansion.
@@ -114,16 +114,15 @@ not an example to read for inspiration.
    than at the declaration that wrote it. All three are diagnostics at the declaration.
    [derive.rs:40](../../../crates/nvs-types/src/derive.rs) is where they are written down.
    `rule:core-classes/derive-field-list` and `rule:core-classes/derive-generates-what-is-missing`.
-3. **`#[Route]` builds a table while compiling.** [ADR 0077](../../adr/0077-compile-time-routing.md) §§ 1–3
-   and 5: matched nominally like every other name on `ATTRIBUTES`, the path grammar of § 2, a parameter's
+3. **`#[Route]` builds a table while compiling.** `rule:routing/route-attribute`, `rule:routing/path-grammar`, `rule:security/route-capture-is-laundered-by-its-type` and `rule:routing/table-is-opt-in`: matched nominally like every other name on `ATTRIBUTES`, the path grammar of § 2, a parameter's
    type coming from the method and being what launders it, and the table built by Stage 0's scan. Its
    three compile errors are the whole point of doing it here — a duplicate route, a `{param}` with no
    matching method parameter, an unknown literal `url()` name.
-4. **`#[Query]` and `#[Access]` join it**, and with them ADR 0102's four further compile errors: a
+4. **`#[Query]` and `#[Access]` join it**, and with them `rule:routing/the-servers-match-dispatches-nothing`'s four further compile errors: a
    `{name?}` outside the last position or bound to a parameter with no default (§ 4), a capture or
    `#[Query]` parameter whose type is outside § 3's list, and a `url()` key that is neither a capture nor
    a declared `#[Query]` parameter (§ 6). Same pass, same file, one group with item 3.
-   [ADR 0102](../../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md).
+   `rule:routing/the-servers-match-dispatches-nothing`.
 5. **`Core\Router::url()` and `::urlAbsolute()` are launderers over that table** — and only those two.
    `::match` and `::methodsFor` are goal 6's, because a match needs a request. Splitting the class this
    way is [01-core-library.md](../../spec/01-core-library.md) § *Milestones*'s own instruction and not this
@@ -154,7 +153,7 @@ not an example to read for inspiration.
 ## Stage 4 — the emitter
 
 8. **`nvs build --openapi` writes a deterministic 3.1 document.**
-   [ADR 0085](../../adr/0085-openapi-is-generated-from-the-route-table.md): § 1's "what supplies what" is
+   `rule:routing/api-document-is-generated-from-the-route-table`: § 1's "what supplies what" is
    the whole design — the route table supplies paths and parameters, `#[Json\Derive]`'s field list
    supplies schemas, and `#[Api]` supplies **only what the types cannot say**. `Core\Api` joins
    `ATTRIBUTES` and the four contradiction cases become compile errors.

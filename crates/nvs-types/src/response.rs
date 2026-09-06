@@ -15,7 +15,7 @@
 //! handler and nothing else.** § 3 binds `echo` by *context*, not by syntax:
 //! the same method body writes a response body under an HTTP request and a
 //! terminal sink under `nvs run`, and which one a given body runs as is a
-//! run-time fact for every body but one. ADR 0102 § 1 matches a request to a
+//! run-time fact for every body but one. `rule:routing/matched-once-before-the-handler` matches a request to a
 //! `#[Route]` handler and to nothing else, so a handler is a response body by
 //! declaration and the rule has something to be about. Everywhere else is left
 //! alone rather than refused on suspicion: a `#[Command]` method, a `#[Test]`

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Router::url`'s two compile errors: a literal name no `#[Route]` claims, and a `$params` that does not cover the path's captures — ADR 0077 § 4
+`Core\Router::url`'s two compile errors: a literal name no `#[Route]` claims, and a `$params` that does not cover the path's captures — `rule:routing/matching-is-not-dispatching`
 --FILE--
 <?nvs
 // One route, named, with one required capture. § 5's scan reaches this class

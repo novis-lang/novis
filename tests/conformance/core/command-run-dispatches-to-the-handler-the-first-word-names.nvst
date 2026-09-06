@@ -2,7 +2,7 @@
 `Core\Command::run` calls the handler the command line's first word names, with the arguments it matched — ADR 0086 § 6
 --FILE--
 <?nvs
-// § 6's one deliberate divergence from ADR 0077: this table *dispatches*. The
+// § 6's one deliberate divergence from `rule:routing/routes-are-compiled-not-registered`: this table *dispatches*. The
 // handler is a `public static` method, and the compiled table carries it as a
 // `Class::method` string, so nothing here names it a second time — the word
 // `greet` below selects it and the words past that fill its parameters.

@@ -1,10 +1,10 @@
 --TEST--
-`Core\Router::urlAbsolute` throws on a route it resolved when the unit has no configured origin, where `Core\Router::url` answers — ADR 0102 § 6
+`Core\Router::urlAbsolute` throws on a route it resolved when the unit has no configured origin, where `Core\Router::url` answers — `rule:routing/an-absolute-link-takes-a-configured-origin`
 --FILE--
 <?nvs
 // The pair asserted on both sides: the *same* name, resolved by the same
 // § 4 lookup, answered by one member and refused by the other. What separates
-// them is only ADR 0102 § 6's origin, and a CLI run has none — § 6 puts the
+// them is only `rule:routing/an-absolute-link-takes-a-configured-origin`'s origin, and a CLI run has none — § 6 puts the
 // origin on the mount and there is no mount off the command line to expand,
 // which is the one place this refusal can be provoked without a server.
 //
@@ -49,4 +49,4 @@ try {
 // was missing.
 --EXPECT--
 relative=/posts/1
-threw: Core\Router::urlAbsolute(): no origin is configured for this unit, so `/posts/1` has no absolute form. ADR 0102 § 6 refuses to derive one from a request header, so give `nvs.toml` an `[[app]] origin`
+threw: Core\Router::urlAbsolute(): no origin is configured for this unit, so `/posts/1` has no absolute form. `rule:routing/an-absolute-link-takes-a-configured-origin` refuses to derive one from a request header, so give `nvs.toml` an `[[app]] origin`

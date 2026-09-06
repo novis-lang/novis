@@ -545,8 +545,8 @@ pub struct Ctx {
     /// written record, which is the allocation the caller made when it rendered
     /// for itself.
     log_format: LogFormat,
-    /// [ADR 0102](/docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
-    /// § 6's configured origin: the scheme and authority
+    /// `rule:routing/an-absolute-link-takes-a-configured-origin`
+    /// 's configured origin: the scheme and authority
     /// `Core\Router::urlAbsolute` puts in front of a link, with no trailing
     /// `/`.
     ///
@@ -615,8 +615,8 @@ pub struct Ctx {
     /// **What it spends:** one `Arc` clone per request; the rows themselves are
     /// shared and charged to whoever compiled them.
     commands: Option<std::sync::Arc<crate::commands::CommandTable>>,
-    /// [ADR 0102](/docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
-    /// § 1's route table, as the compiler built it — what the door matched this
+    /// `rule:routing/matched-once-before-the-handler`
+    /// 's route table, as the compiler built it — what the door matched this
     /// request against, and what `Core\Router`'s own members ask a second
     /// question of.
     ///
@@ -626,7 +626,7 @@ pub struct Ctx {
     ///
     /// Written before the program runs and never rewritten, on
     /// [`Self::commands`]' argument exactly — and `None` is a program that
-    /// declared no `#[Route]`, which is ADR 0077 § 5's opt-in rule as a member
+    /// declared no `#[Route]`, which is `rule:routing/table-is-opt-in`'s opt-in rule as a member
     /// sees it.
     ///
     /// **What it spends:** one `Arc` clone per request; the rows themselves are

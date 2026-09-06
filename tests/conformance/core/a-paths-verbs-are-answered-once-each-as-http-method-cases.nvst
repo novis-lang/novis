@@ -1,5 +1,5 @@
 --TEST--
-`Core\Router::methodsFor` answers `Core\Http\Method` cases, once each and in the order the routes were declared — ADR 0102 § 2
+`Core\Router::methodsFor` answers `Core\Http\Method` cases, once each and in the order the routes were declared — `rule:routing/a-refused-verb-is-not-a-missing-path`
 --FILE--
 <?nvs
 // Two rows claim `/users/me` under one verb — the literal and the `{id}` it

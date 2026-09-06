@@ -1,9 +1,9 @@
-//! `nvs build --openapi` — [ADR 0085](/docs/adr/0085-openapi-is-generated-from-the-route-table.md)'s
+//! `nvs build --openapi` — `rule:routing/api-document-is-generated-from-the-route-table`'s
 //! document, built from the finished route table.
 //!
 //! The whole of this module is a *rendering*. Every fact in the document was
 //! decided by the front end and is read off a [`nvs_types::Route`] row: nothing
-//! here parses, resolves or infers, which is what ADR 0085 means by a document
+//! here parses, resolves or infers, which is what `rule:routing/api-document-is-generated-from-the-route-table` means by a document
 //! that cannot drift from the code. A row that is missing something the
 //! document wants is a gap in what the table carries, and the fix goes in
 //! `nvs_types::routes` rather than here.
@@ -47,7 +47,7 @@
 //!    scheme rule it cannot ask. So the document names schemes it does not
 //!    define, and a strict validator says so. Writing a guessed definition
 //!    would be the emitter stating a fact about deployment that no one wrote,
-//!    which is the one thing ADR 0085 is against; the component object lands
+//!    which is the one thing `rule:routing/api-document-is-generated-from-the-route-table` is against; the component object lands
 //!    here, with no change to [`operation`], on the day a scheme has a home.
 //! 4. **`info.version`.** The document has to carry one (3.1 requires it) and
 //!    nothing in the program declares one, so it is a fixed `0.0.0` until
@@ -118,8 +118,8 @@ pub(crate) fn document(routes: &RouteTable, title: &str) -> Value {
 /// § 1: the id is `#[Route]`'s `name`. A route that declared none falls back to
 /// its handler label, which is unique by construction — a method declares one
 /// route per verb, and `Class::method` names it — and a *shared* name takes
-/// [ADR 0110](/docs/adr/0110-one-methods-repeated-routes-share-a-name-when-they-share-a-path.md)
-/// § 3's lowercased-verb suffix, which is what keeps the id unique when one
+/// `rule:routing/a-shared-name-is-one-endpoint-everywhere`
+/// 's lowercased-verb suffix, which is what keeps the id unique when one
 /// method's repeated routes deliberately share one name.
 ///
 /// By position rather than keyed by name because both the fallback and the
@@ -205,7 +205,7 @@ fn operation(row: &Route, id: &str) -> Value {
 /// **`200` is § 1's and outranks an `errors` entry that names it.** § 2 may add
 /// and may not contradict, so where both speak for one status the declared
 /// return type is the one the code stated; the entry is dropped rather than
-/// reported, because this module is a renderer and every diagnostic ADR 0085
+/// reported, because this module is a renderer and every diagnostic `rule:routing/api-document-is-generated-from-the-route-table`
 /// has is the front end's.
 ///
 /// An error response carries its class as the `description` and no `content`.
@@ -331,8 +331,8 @@ fn parameter(param: &RouteParam) -> Value {
 /// The empty schema is *any*, and is what a type with no mapping gets. The list
 /// is deliberately short — these are the types a path capture or a `#[Query]`
 /// may be declared at
-/// ([ADR 0102](/docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
-/// §§ 3 and 5) that have an unambiguous JSON Schema, and nothing else is
+/// (`rule:routing/a-query-parameter-is-declared-like-a-capture` and `rule:routing/a-capture-narrows-to-a-closed-set`
+/// ) that have an unambiguous JSON Schema, and nothing else is
 /// guessed at. `tainted string` renders as `string` because the qualifier is a
 /// fact about the compiler's tracking, not about the wire
 /// (`rule:security/tainted-qualifier`).
@@ -343,8 +343,8 @@ fn parameter(param: &RouteParam) -> Value {
 /// rendering is `"en"|"de"|"fr"`, which names no JSON Schema type — so today the
 /// set joins the empty schema and is the whole of what the parameter says,
 /// which is exactly
-/// [ADR 0102](/docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
-/// § 5's `enum: [en, de, fr]`.
+/// `rule:routing/a-capture-narrows-to-a-closed-set`
+/// 's `enum: [en, de, fr]`.
 ///
 /// **The members are emitted as JSON strings, including an `int` literal's.**
 /// The row carries the set as the segment text each value is written with — its

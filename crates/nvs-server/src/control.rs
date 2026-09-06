@@ -51,12 +51,11 @@ pub enum Denied {
 impl Denied {
     /// The status this refusal is sent as.
     ///
-    /// This surface sends its own statuses, and that is not [ADR 0102] § 1's rule being bent: that
+    /// This surface sends its own statuses, and that is not `rule:routing/matched-once-before-the-handler`'s rule being bent: that
     /// rule is about a *request the program serves*, where the server matches and the program
     /// decides. Nothing an operator sends here reaches a program at all — § 3 says no control
     /// operation runs Novis code — so there is nobody else who could answer.
     ///
-    /// [ADR 0102]: /docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md
     #[must_use]
     pub fn status(&self) -> u16 {
         match self {

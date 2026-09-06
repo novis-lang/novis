@@ -1,5 +1,5 @@
-//! [ADR 0102](/docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
-//! § 1's route table, as a *running* program sees it: the rows the compiler
+//! `rule:routing/matched-once-before-the-handler`
+//! 's route table, as a *running* program sees it: the rows the compiler
 //! built, and the match the door takes against them once.
 //!
 //! # Why the table is a runtime value at all
@@ -19,7 +19,7 @@
 //! The **table** is installed on [`crate::Ctx`] before the program runs, by
 //! whoever compiled it, exactly as the command table and the configuration
 //! snapshot are. A context with no table is a program that declared no
-//! `#[Route]`, which is ADR 0077 § 5's opt-in rule as a member sees it.
+//! `#[Route]`, which is `rule:routing/table-is-opt-in`'s opt-in rule as a member sees it.
 //!
 //! The **match** is not on the context: it is on [`crate::Inbound`], because it
 //! is a fact about the request rather than about the program, and § 1's whole
@@ -37,7 +37,7 @@
 //! Where two rows both match, the one that is *more literal earlier* wins:
 //! every row carries a rank — one byte per segment, literal below capture below
 //! optional below catch-all — and the smallest rank in load order is the answer.
-//! That is `matchit`'s left-to-right precedence, which ADR 0077 § 2 names as the
+//! That is `matchit`'s left-to-right precedence, which `rule:routing/path-grammar` names as the
 //! model, stated as a comparison rather than grown out of a trie.
 //!
 //! **What it spends:** one `Arc` clone per request that carries a table, over
@@ -59,7 +59,7 @@
 //!
 //! # Known gaps
 //!
-//! 1. **The walk is a linear scan, not ADR 0077 § 2's trie.** § 1's measured
+//! 1. **The walk is a linear scan, not `rule:routing/path-grammar`'s trie.** § 1's measured
 //!    table is `matchit`'s, and this is a comparison over every row of the
 //!    right verb: the same answers, and a cost that grows with the table rather
 //!    than with the path. The shape a trie would replace is one function
@@ -70,7 +70,7 @@
 //!    the match crosses. What does not cross is the [`Route`] itself — its
 //!    handler label, its declared verb and its access decision stay on this
 //!    side, because a program that could read them is one step from the
-//!    dispatch ADR 0077 § 4 refuses. Nothing needs them yet, and the day
+//!    dispatch `rule:routing/matching-is-not-dispatching` refuses. Nothing needs them yet, and the day
 //!    something does is the day that refusal is re-argued rather than widened
 //!    here.
 
@@ -80,7 +80,7 @@ use crate::decimal::Decimal;
 
 /// What a capture's text becomes before it reaches the program.
 ///
-/// ADR 0102 § 5's "a capture narrows to a closed set with a type" as the *one*
+/// `rule:routing/a-capture-narrows-to-a-closed-set`'s "a capture narrows to a closed set with a type" as the *one*
 /// fact about that type which crosses: not the type, but the conversion the
 /// checker already picked for it. [`crate::commands::ArgConv`] is the sibling
 /// this is modelled on, and `nvs_types::routes::RouteParam`'s `ty` and
@@ -122,7 +122,7 @@ pub enum CaptureConv {
 ///
 /// Apart from the path it was written in because the path is text and this is
 /// what the *signature* said about it — the two are joined by name, which is
-/// ADR 0102 § 3's own rule for relating a capture to a parameter.
+/// `rule:routing/a-query-parameter-is-declared-like-a-capture`'s own rule for relating a capture to a parameter.
 #[derive(Clone, Debug)]
 pub struct Capture {
     /// The parameter's name, sigil-less, as § 3 compares it.
@@ -191,7 +191,7 @@ impl Seg {
 /// plus the two things derived from the path once at boot: its parsed segments
 /// and its rank. The OpenAPI half of the compiler's row (summary, tags,
 /// security, errors, example) does not cross: nothing a *request* asks reads
-/// it, and ADR 0085's document is generated from the compiler's own table.
+/// it, and `rule:routing/api-document-is-generated-from-the-route-table`'s document is generated from the compiler's own table.
 ///
 /// Built through [`Route::new`] rather than as a literal, because those two
 /// derived fields are not the caller's to state — two fields that must agree

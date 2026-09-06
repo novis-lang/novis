@@ -90,8 +90,8 @@ gets its first adversarial traffic.
 
 ## Stage 5 — routing, sessions, uploads
 
-12. **`Core\Router::match`, over the table goal 1 compiled**, plus `methodsFor` and `urlAbsolute`. ADR 0102
-    § 1: **the match happens once, before the handler, and travels on the request** as
+12. **`Core\Router::match`, over the table goal 1 compiled**, plus `methodsFor` and `urlAbsolute`. `rule:routing/matched-once-before-the-handler`
+    : **the match happens once, before the handler, and travels on the request** as
     `Core\Request::route()` — which is what the CSRF check and the `route` metric label read rather than
     matching again. § 2: a missing path and a refused verb are different answers (empty ⇒ 404, else 405 +
     `Allow:`).

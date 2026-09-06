@@ -35,11 +35,11 @@ needs at the seam. `Core\Json` also brings the first **compiler-recognized**
 attribute: `rule:core-classes/derive-attribute`'s `#[Json\Derive]`, a `nvs-types`→`nvs-ir` pass that emits
 a `Json\Codec` implementation per annotated class, plus the nominal-matching rule that gates it. `#[Db\Derive]`
 is the same pass over a second format and lands with M8. The **second** compiler-recognized attribute lands
-here as well: [ADR 0077](../adr/0077-compile-time-routing.md)'s `#[Route]`, whose route table is built by
+here as well: `rule:routing/routes-are-compiled-not-registered`'s `#[Route]`, whose route table is built by
 filtering `rule:programs/implementing`'s program enumeration and
 whose three compile errors — a duplicate route, a `{param}` with no matching method parameter, an unknown
 literal `url()` name — are the whole point of doing it here.
-[ADR 0102](../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md) adds
+`rule:routing/the-servers-match-dispatches-nothing` adds
 four more to the same pass: a `{name?}` outside the last position or bound to a parameter with no default
 (§ 4), a capture or `#[Query]` parameter whose type is outside § 3's list, and a `url()` key that is neither
 a capture nor a declared `#[Query]` parameter (§ 6). Its `#[Query]` and `#[Access]` are two further
@@ -65,7 +65,7 @@ every PHP name this milestone's classes replace, which is the point at which
 [docs/spec/02-php-migration.md](../spec/02-php-migration.md)'s string, array, number and date rows stop being
 a plan and become a tested claim.
 
-**Also here: the OpenAPI emitter** ([ADR 0085](../adr/0085-openapi-is-generated-from-the-route-table.md)),
+**Also here: the OpenAPI emitter** (`rule:routing/api-document-is-generated-from-the-route-table`),
 alongside the `#[Route]` and `#[Json\Derive]` passes it reads. `Core\Api` joins
 `rule:core-classes/derive-attribute`'s closed attribute list, the four contradiction cases become
 compile errors, and `nvs build --openapi` writes a deterministic 3.1 document. `nvs api diff` is the same

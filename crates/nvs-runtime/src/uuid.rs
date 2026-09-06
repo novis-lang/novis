@@ -6,8 +6,8 @@
 //! `Core\Uuid` is `nvs_stdlib::uuid`'s — the class, its slot layout, its four
 //! members and every reason its reader is strict. What is *not* that class's is
 //! the question [`crate::routes`] asks:
-//! [ADR 0102](/docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
-//! § 5 lets a route capture declare `Core\Uuid`, and a capture is accepted or
+//! `rule:routing/a-capture-narrows-to-a-closed-set`
+//! lets a route capture declare `Core\Uuid`, and a capture is accepted or
 //! refused in this crate, one *below* the one that owns the type. The two
 //! candidates that module's gap 2 stated were to move the sixteen-byte parse
 //! down here or to leave a declared narrowing unenforced; this is the first,

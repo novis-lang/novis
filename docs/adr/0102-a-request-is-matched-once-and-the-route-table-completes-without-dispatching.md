@@ -1,4 +1,4 @@
-# ADR 0102 — A request is matched once, and the route table completes without crossing into dispatch
+# `rule:routing/the-servers-match-dispatches-nothing` — A request is matched once, and the route table completes without crossing into dispatch
 
 - **Status:** Accepted
 - **Date:** 2026-08-27
@@ -30,7 +30,7 @@
   `Core\Request` roster.
 - **Amended by:** 0110
 
-> **In short:** [ADR 0077](0077-compile-time-routing.md) stopped at matching and was right to. What it left
+> **In short:** `rule:routing/routes-are-compiled-not-registered` stopped at matching and was right to. What it left
 > was not a boundary problem but a set of holes an application falls into on its first week: the match
 > happened in no defined place, a wrong verb answered `404`, a query parameter had no binding at all
 > although [0085](0085-openapi-is-generated-from-the-route-table.md) already promised to document one,

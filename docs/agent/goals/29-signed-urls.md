@@ -88,8 +88,8 @@ Core\Router::signedRoute(array<secret bytes> $keys): Router\Match;
    route name and its typed parameters does not. **That property is the acceptance test**, not an
    aside.
 2. **`signedRoute` verifies against `Core\Request::route()`** — the match the server already made
-   ([ADR 0102](../../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
-   § 1) — and re-parses nothing.
+   (`rule:routing/matched-once-before-the-handler`
+   ) — and re-parses nothing.
 3. **Nothing verifies automatically.** `Core\Router` does not dispatch and this does not change it; the
    application calls `signedRoute` where it keeps its own refusal.
 4. **`urlSigned` launders for the URL-path sink** exactly as `url` does, and prepends the mount prefix

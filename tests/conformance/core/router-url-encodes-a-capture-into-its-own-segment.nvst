@@ -1,5 +1,5 @@
 --TEST--
-`Core\Router::url` percent-encodes each capture's value into its own segment, under RFC 3986's component rules rather than the query's — ADR 0102 § 6, ADR 0077 §§ 2 and 4
+`Core\Router::url` percent-encodes each capture's value into its own segment, under RFC 3986's component rules rather than the query's — `rule:routing/an-absolute-link-takes-a-configured-origin`, `rule:routing/path-grammar` and `rule:routing/matching-is-not-dispatching`
 --FILE--
 <?nvs
 // The path half of § 6. `router-url-turns-a-leftover-params-key-into-a-query-
@@ -17,7 +17,7 @@ class Docs {
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(string $slug, #[Core\Query] string $q = ""): string { return $slug; }
 
-    // ADR 0077 § 2's third capture form, kept here rather than in its own case
+    // `rule:routing/path-grammar`'s third capture form, kept here rather than in its own case
     // because its whole definition is the exception to the rule above.
     #[Core\Route(path: "/files/{rest...}", method: Core\Http\Method::Get, name: "Docs::file")]
     #[Core\Access(allow: Core\Audience::Public)]
@@ -82,7 +82,7 @@ echo "segments=", $intact as string, "/", Core\Arr::count($hostile) as string, "
 // belongs wherever a link is resolved rather than built.
 echo "dots=", Core\Router::url("Docs::show", ["slug" => ".."]), "\n";
 
-// The exception, and the reason it is one: ADR 0077 § 2 gives `{rest...}` every
+// The exception, and the reason it is one: `rule:routing/path-grammar` gives `{rest...}` every
 // remaining segment, so its `/`s are structure rather than content and each
 // segment between them is encoded on its own. The count is the other half —
 // where `{slug}` held its value to one segment, this one spends three.

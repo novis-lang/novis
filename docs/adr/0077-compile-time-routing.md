@@ -1,4 +1,4 @@
-# ADR 0077 — Routes are compiled, not registered, and the router stops at matching
+# `rule:routing/routes-are-compiled-not-registered` — Routes are compiled, not registered, and the router stops at matching
 
 - **Status:** Accepted
 - **Date:** 2026-08-24

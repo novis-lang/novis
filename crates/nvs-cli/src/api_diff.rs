@@ -1,5 +1,5 @@
-//! `nvs api diff` — [ADR 0085](/docs/adr/0085-openapi-is-generated-from-the-route-table.md)
-//! § 4's gate: two OpenAPI documents in, one classification per change out, and
+//! `nvs api diff` — `rule:routing/api-diff-fails-a-breaking-change`
+//! 's gate: two OpenAPI documents in, one classification per change out, and
 //! a non-zero exit on a breaking one.
 //!
 //! The comparison is over [`Value`]s, not text. The emitter

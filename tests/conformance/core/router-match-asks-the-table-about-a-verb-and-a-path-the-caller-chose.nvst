@@ -1,5 +1,5 @@
 --TEST--
-`Core\Router::match` answers the compiled table for a verb and a path the program picked, and `null` where no route claims that pair — ADR 0102 § 1
+`Core\Router::match` answers the compiled table for a verb and a path the program picked, and `null` where no route claims that pair — `rule:routing/matched-once-before-the-handler`
 --FILE--
 <?nvs
 // § 1 puts the *request's* match on the request: the door takes it once, before

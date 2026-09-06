@@ -182,15 +182,15 @@ pub const COMMAND: &str = r"Core\Command";
 /// inference from defaults or types. [`crate::commands`] owns the payload.
 pub const OPTION: &str = r"Core\Option";
 
-/// `#[Route(path: string, method: Core\Http\Method, name?: string)]` — ADR 0077
-/// § 1's route declaration, on a method, and repeatable (`rule:attributes/repeatable`) so one
+/// `#[Route(path: string, method: Core\Http\Method, name?: string)]` — `rule:routing/route-attribute`
+/// 's route declaration, on a method, and repeatable (`rule:attributes/repeatable`) so one
 /// method serves two verbs. It names no member of anything — the table is read
 /// back through the separate `Core\Router` class — so a file that spells it
 /// bare places it with `use Core\Route;`, and importing the router instead
 /// imports a different name. [`crate::routes`] owns the payload.
 pub const ROUTE: &str = r"Core\Route";
 
-/// `#[Query]` — ADR 0102 § 3's per-parameter marker, on a parameter of a
+/// `#[Query]` — `rule:routing/a-query-parameter-is-declared-like-a-capture`'s per-parameter marker, on a parameter of a
 /// `#[Route]` method, and it carries nothing at all: the key it binds by is the
 /// parameter's own name and the type it converts to is the parameter's own
 /// type, so there is no field left for a payload to hold. It is the counterpart

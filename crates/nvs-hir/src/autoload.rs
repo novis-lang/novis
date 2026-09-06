@@ -270,7 +270,7 @@ impl AutoloadMap {
     /// [`Self::resolve`] run in the other direction, and the one place
     /// resolution is not lazy (`rule:programs/implementing`).
     ///
-    /// `Core\Program::implementing<T>()` and ADR 0077's compile-time route
+    /// `Core\Program::implementing<T>()` and `rule:routing/routes-are-compiled-not-registered`'s compile-time route
     /// table are its only two callers, under § 3's opt-in rule: a program
     /// writing neither never calls this and never pays the directory
     /// listing. What comes back is the *file* set. Which of those files

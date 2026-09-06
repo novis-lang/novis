@@ -1,5 +1,5 @@
 --TEST--
-a `Core\Router::url` `$params` key that names no capture becomes a percent-encoded query string, spelled exactly as `Core\Uri::buildQuery` spells it — ADR 0102 § 6
+a `Core\Router::url` `$params` key that names no capture becomes a percent-encoded query string, spelled exactly as `Core\Uri::buildQuery` spells it — `rule:routing/an-absolute-link-takes-a-configured-origin`
 --FILE--
 <?nvs
 // § 6's other half. The prepared path names every capture, so a key still in
@@ -38,7 +38,7 @@ echo "split=", Core\Router::url("Posts::show", ["id" => 7, "sort" => "new"]), "\
 // different URLs to a cache and to a signature.
 echo "none=", Core\Router::url("Posts::show", ["id" => 7]), "\n";
 
-// An optional capture nobody filled drops its whole segment (ADR 0077 § 2) and
+// An optional capture nobody filled drops its whole segment (`rule:routing/path-grammar`) and
 // the query is still written: the two halves of the path do not interact.
 echo "optional=", Core\Router::url("Posts::list", ["sort" => "new"]), "\n";
 

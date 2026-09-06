@@ -1,9 +1,9 @@
 //! `Core\Http\Method` — the closed set of verbs a route is declared under —
 //! `Core\Router`'s link half, which is as much of
-//! [ADR 0077](/docs/adr/0077-compile-time-routing.md)'s router as
+//! `rule:routing/routes-are-compiled-not-registered`'s router as
 //! exists today, and `Core\Router\Match`, the match
-//! [ADR 0102](/docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
-//! § 1 has the door take once and `Core\Request::route()` hand back.
+//! `rule:routing/matched-once-before-the-handler`
+//! has the door take once and `Core\Request::route()` hand back.
 //!
 //! # Why the enum is here rather than in a module of its own
 //!
@@ -79,7 +79,7 @@ use crate::uri::{Form, encode};
 /// and every message quoting it cannot drift apart.
 pub(crate) const METHOD_NAME: &str = r"Core\Http\Method";
 
-/// ADR 0077 § 1's `Core\Http\Method` — the eight verbs
+/// `rule:routing/route-attribute`'s `Core\Http\Method` — the eight verbs
 /// [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md) § 7
 /// names, safe ones first so that `rule:security/csrf-is-on-by-default`'s CSRF set is the contiguous
 /// tail from `Post` on.
@@ -183,7 +183,7 @@ const AUDIENCE_DOC: EnumDoc = EnumDoc {
 /// every message quoting it cannot drift apart.
 pub(crate) const NAME: &str = r"Core\Router";
 
-/// `$params` — ADR 0077 § 4 writes it `array<string, mixed>`, and that is a
+/// `$params` — `rule:routing/matching-is-not-dispatching` writes it `array<string, mixed>`, and that is a
 /// spelling the type system has no form for: `nvs_types::ty::Ty::Array` carries
 /// one element type, because a Novis array's keys are `int|string` by
 /// construction and are not part of its type. So the row declares the half that
@@ -193,8 +193,8 @@ pub(crate) const NAME: &str = r"Core\Router";
 /// own captures rather than about a type.
 const PARAMS: CoreTy = CoreTy::Array(&CoreTy::Mixed);
 
-/// `array<Core\Http\Method>` — [ADR 0102](/docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
-/// § 2's answer, as the enum this module already owns rather than as text.
+/// `array<Core\Http\Method>` — `rule:routing/a-refused-verb-is-not-a-missing-path`
+/// 's answer, as the enum this module already owns rather than as text.
 ///
 /// A list of cases, so that the `Allow:` header a caller writes out of it is
 /// spelled by [`METHOD`]'s roster in one place — a member answering
@@ -206,8 +206,8 @@ const METHODS: CoreTy = CoreTy::Array(&CoreTy::Enum(METHOD_NAME));
 /// away, does `Core\Request::route()`.
 const MATCHED: CoreTy = CoreTy::Nullable(&CoreTy::Instance(MATCH_NAME));
 
-/// Spec § 15's `Core\Router`, as much of it as ADR 0077 § 4's link half and
-/// ADR 0102 §§ 1-2's two answers need.
+/// Spec § 15's `Core\Router`, as much of it as `rule:routing/matching-is-not-dispatching`'s link half and
+/// `rule:routing/matched-once-before-the-handler` and `rule:routing/a-refused-verb-is-not-a-missing-path`'s two answers need.
 ///
 /// `match` asks *of the table*, about a verb and a path the caller chose, and
 /// so does `methodsFor` — neither reads the request, which is why both are here
@@ -365,7 +365,7 @@ pub(crate) const MATCH_NAME: &str = r"Core\Router\Match";
 const MATCH_ROUTE_NAME: usize = 0;
 const MATCH_PARAMS: usize = 1;
 
-/// ADR 0102 § 5's capture as a program reaches it, and the one place the five
+/// `rule:routing/a-capture-narrows-to-a-closed-set`'s capture as a program reaches it, and the one place the five
 /// forms of [`nvs_runtime::routes::Param`] are spelled as a type.
 ///
 /// A union rather than a `string`, because § 1 says the server computes "typed
@@ -392,8 +392,8 @@ const CAPTURE: &CoreTy = &CoreTy::Union(&[
     CoreTy::Instance(crate::uuid::NAME),
 ]);
 
-/// [ADR 0102](/docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
-/// § 1's match, as the program answering the request reads it.
+/// `rule:routing/matched-once-before-the-handler`
+/// 's match, as the program answering the request reads it.
 ///
 /// # It is built where the match crosses, and holds no route
 ///
@@ -424,7 +424,7 @@ const CAPTURE: &CoreTy = &CoreTy::Union(&[
 /// § 1's "matching is not dispatching" as a shape: a member answering the
 /// matched row would put the handler's `Class::method` label, its access
 /// decision and its declared verb in front of a program, which is the surface
-/// [ADR 0077](/docs/adr/0077-compile-time-routing.md) § 4 refuses to
+/// `rule:routing/matching-is-not-dispatching` refuses to
 /// grow. The name and the captures are what the three rules § 1 names actually
 /// read, and they are all that crosses.
 pub(crate) const MATCH: CoreClass = CoreClass {
@@ -500,7 +500,7 @@ const MATCH_PARAM_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// The two symbols ADR 0077 § 4's **folded** link is lowered to, and the wire
+/// The two symbols `rule:routing/matching-is-not-dispatching`'s **folded** link is lowered to, and the wire
 /// format they read argument 0 as.
 ///
 /// Neither is a [`CoreMethod`] row, and that is the point: a program calls
@@ -520,7 +520,7 @@ pub mod link {
     /// `nvs_core_router_link` — `Core\Router::url` with the lookup already
     /// made.
     pub const SYMBOL: &str = "nvs_core_router_link";
-    /// `nvs_core_router_link_absolute` — the same with ADR 0102 § 6's
+    /// `nvs_core_router_link_absolute` — the same with `rule:routing/an-absolute-link-takes-a-configured-origin`'s
     /// configured origin in front.
     pub const ABSOLUTE_SYMBOL: &str = "nvs_core_router_link_absolute";
     /// What separates two pieces. `\u{1}` because a path segment cannot hold
@@ -604,7 +604,7 @@ fn segment_text(value: Value, member: &str, key: &str) -> Result<String, Fault> 
 /// segment between them is encoded on its own.
 ///
 /// **What the path did not take becomes the query string**, which is
-/// ADR 0102 § 6's other half: the prepared pieces name every capture, so a
+/// `rule:routing/an-absolute-link-takes-a-configured-origin`'s other half: the prepared pieces name every capture, so a
 /// `$params` key left over once they have been substituted is by construction
 /// not one, and § 6 makes it a query parameter. It is written by
 /// [`crate::uri::build`] — `Core\Uri::buildQuery`'s own pass, run over the same
@@ -624,7 +624,7 @@ fn segment_text(value: Value, member: &str, key: &str) -> Result<String, Fault> 
 /// still becomes a query parameter. § 6 makes that the answer rather than an
 /// error — a link cannot know which of a program's own keys is a typo.
 ///
-/// **A value outside ADR 0102 § 5's closed set is substituted here, and throws
+/// **A value outside `rule:routing/a-capture-narrows-to-a-closed-set`'s closed set is substituted here, and throws
 /// nothing.** Its literal spelling is `E0772` in `nvs_types::links`, over the
 /// same folded entries `E0759` reads, and a computed one reaches this walk with
 /// nothing left to check it against: the closed set is the *handler's* declared
@@ -719,7 +719,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Router::urlAbsolute` over a name the compiler resolved —
-    /// [`nvs_core_router_link`] with ADR 0102 § 6's configured origin in front.
+    /// [`nvs_core_router_link`] with `rule:routing/an-absolute-link-takes-a-configured-origin`'s configured origin in front.
     ///
     /// The origin is per mount, falling back to `[app] origin`, and is never
     /// derived from `Host` or `X-Forwarded-Host` — so this member reads what
@@ -736,7 +736,7 @@ nvs_runtime::nvs_helper! {
         let Some(origin) = ctx.origin() else {
             return Err(Fault::thrown(format!(
                 "Core\\Router::urlAbsolute(): no origin is configured for this unit, so `{path}` \
-                 has no absolute form. ADR 0102 § 6 refuses to derive one from a request header, \
+                 has no absolute form. `rule:routing/an-absolute-link-takes-a-configured-origin` refuses to derive one from a request header, \
                  so give `nvs.toml` an `[[app]] origin`"
             )));
         };
@@ -767,20 +767,20 @@ fn produced(text: &str) -> HelperResult {
 /// A throw rather than an abort, and that is the difference from
 /// [`crate::program`]: `implementing<T>()` is expanded away in `nvs check`, so
 /// reaching its helper is a compiler bug. These two are ordinary runtime
-/// members — ADR 0077 § 4 says a *computed* `$name` throws — so the throw is a
+/// members — `rule:routing/matching-is-not-dispatching` says a *computed* `$name` throws — so the throw is a
 /// real answer a program can catch, and it stays the answer for an unknown name
 /// after the table lands. What changes then is only which names are unknown.
 fn no_such_route(member: &str, args: &[nvs_runtime::Value]) -> Fault {
     let name = args[0].as_text().unwrap_or("<not a string>");
     Fault::thrown(format!(
         "Core\\Router::{member}(): no route is named `{name}`. The compile-time route table is \
-         not built yet (ADR 0077 § 5), so no name resolves"
+         not built yet (`rule:routing/table-is-opt-in`), so no name resolves"
     ))
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Router::url(string $name, array<mixed> $params): string` — ADR 0077
-    /// § 4's launderer for the URL-path sink.
+    /// `Core\Router::url(string $name, array<mixed> $params): string` — `rule:routing/matching-is-not-dispatching`
+    /// 's launderer for the URL-path sink.
     ///
     /// This is the *unfolded* member — reached only by a name the compiler
     /// could not read as a literal — so there is no prepared path to substitute
@@ -794,7 +794,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Router::urlAbsolute(string $name, array<mixed> $params): string` —
-    /// [`nvs_core_router_url`] with ADR 0102 § 6's configured origin in front.
+    /// [`nvs_core_router_url`] with `rule:routing/an-absolute-link-takes-a-configured-origin`'s configured origin in front.
     ///
     /// The origin is per mount, falling back to `[app] origin`, and is never
     /// derived from `Host` or `X-Forwarded-Host`. Nothing here resolves one:
@@ -805,7 +805,7 @@ nvs_runtime::nvs_helper! {
     }
 }
 
-// ---------------------------------------------------------------- ADR 0102 § 1's match
+// ---------------------------------------------------------------- `rule:routing/matched-once-before-the-handler`'s match
 
 /// The [`MATCH`] one request carries, built out of the match the door already
 /// took — the whole of how [`nvs_runtime::routes`]' row reaches a program.
@@ -891,18 +891,18 @@ fn method_verb(value: &Value) -> Result<&'static str, Fault> {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Router::match(Core\Http\Method $method, tainted string $path): ?Core\Router\Match`
-    /// — ADR 0102 § 1's second entry, over the table
+    /// — `rule:routing/matched-once-before-the-handler`'s second entry, over the table
     /// [`Ctx::routes`](nvs_runtime::Ctx::routes) holds.
     ///
     /// **Nothing here is a request**, and that is the whole difference from
     /// `Core\Request::route()`: the verb and the path are the caller's, the
     /// walk is [`nvs_runtime::routes::Routes::match_request`]'s — the same one
     /// the door takes, so the two cannot answer differently about one path —
-    /// and matching still dispatches nothing, which keeps ADR 0077 § 4's
+    /// and matching still dispatches nothing, which keeps `rule:routing/matching-is-not-dispatching`'s
     /// refusal untouched.
     ///
     /// **A program with no `#[Route]` answers `null`**, not a throw, for
-    /// [`nvs_core_router_methods_for`]'s reason: ADR 0077 § 5's table is opt-in
+    /// [`nvs_core_router_methods_for`]'s reason: `rule:routing/table-is-opt-in`'s table is opt-in
     /// and "no route claims this path" is exactly true of a program that
     /// declares none.
     ///
@@ -929,7 +929,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Router::methodsFor(tainted string $path): array<Core\Http\Method>`
-    /// — ADR 0102 § 2's second answer, over the table
+    /// — `rule:routing/a-refused-verb-is-not-a-missing-path`'s second answer, over the table
     /// [`Ctx::routes`](nvs_runtime::Ctx::routes) holds.
     ///
     /// **An empty array is the `404` and a non-empty one is the `405`**, whose
@@ -940,7 +940,7 @@ nvs_runtime::nvs_helper! {
     /// answers and their reasoning live.
     ///
     /// **A program with no `#[Route]` answers the empty array**, not a throw:
-    /// ADR 0077 § 5's table is opt-in, and "no route claims this path" is
+    /// `rule:routing/table-is-opt-in`'s table is opt-in, and "no route claims this path" is
     /// exactly true of a program that declares none. That is the same reading
     /// [`Ctx::route`](nvs_runtime::Ctx::route) takes of the absent table.
     ///
@@ -1034,7 +1034,7 @@ fn match_slot(args: &[Value], index: usize, member: &str) -> Result<Value, Fault
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Router\Match::name(): ?string` — ADR 0102 § 1's declared name,
+    /// `Core\Router\Match::name(): ?string` — `rule:routing/matched-once-before-the-handler`'s declared name,
     /// which ADR 0076 § 1's `route` label reads and `Core\Router::url` resolves.
     fn nvs_core_router_match_name(_ctx, args: [1]) {
         match_slot(args, MATCH_ROUTE_NAME, "name")

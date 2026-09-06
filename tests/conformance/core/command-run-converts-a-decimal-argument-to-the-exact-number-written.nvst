@@ -6,7 +6,7 @@
 // argument matcher had admitted and could not yet convert. The conversion is
 // `nvs_runtime::decimal`'s own parse rather than a second one written beside
 // the matcher, which is what keeps a word a command line supplies and a
-// `{amount: decimal}` segment a route matches (ADR 0102 § 5) on one grammar.
+// `{amount: decimal}` segment a route matches (`rule:routing/a-capture-narrows-to-a-closed-set`) on one grammar.
 //
 // The claim is the *scale*, not merely that a number arrived: `1.10` is two
 // decimal places, a `float` argument would print `1.1`, and the doubling is

@@ -162,7 +162,7 @@ calls is never checked past its declaration and never reaches codegen. **A progr
 `implementing<T>()` call never performs the scan.**
 
 **The scan has a second caller**, under the identical opt-in rule: the compile-time route table of
-[ADR 0077](0077-compile-time-routing.md), which filters the same enumeration by a `#[Core\Route]`
+`rule:routing/routes-are-compiled-not-registered`, which filters the same enumeration by a `#[Core\Route]`
 attribute instead of by an implemented interface. A program calling neither `implementing<T>()` nor
 `Core\Router::match`/`::url` performs no scan; a program calling either pays § 5's directory-listing
 dependency once, not twice.

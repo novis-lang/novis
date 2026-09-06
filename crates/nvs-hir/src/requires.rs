@@ -342,7 +342,7 @@ pub fn resolve_program(
         }
 
         // § 3's scan: for a program that asked for it — `implementing<T>()`
-        // or an ADR 0077 § 5 router link — every
+        // or an `rule:routing/table-is-opt-in` router link — every
         // name the roots declare becomes a file to load, whether or not
         // anything mentions it — the one place resolution is not lazy. It
         // runs once, after the `require` chain has drained, because that is
@@ -595,8 +595,8 @@ fn record_name(name: &Name, src: &SourceFile, out: &mut Harvest) {
 ///
 /// Two classes ask for the same scan. `Core\Program::implementing<T>()` is
 /// § 3's own query; `Core\Router`'s link half needs the compile-time route
-/// table, which [ADR 0077](/docs/adr/0077-compile-time-routing.md)
-/// § 5 builds by filtering *this* enumeration by a `#[Core\Route]` attribute
+/// table, which `rule:routing/table-is-opt-in`
+/// builds by filtering *this* enumeration by a `#[Core\Route]` attribute
 /// rather than by an implemented interface. That is why the second is a
 /// member list here and not a second walk: a program calling either pays
 /// § 5's directory-listing dependency once, and a program calling neither
@@ -605,7 +605,7 @@ const PROGRAM_CLASS: &str = r"Core\Program";
 const IMPLEMENTING_MEMBER: &str = "implementing";
 const ROUTER_CLASS: &str = r"Core\Router";
 /// The `Core\Router` members that read the route table, and so need the scan
-/// that builds it. ADR 0077 § 5 names `::match` alongside `::url`; it is
+/// that builds it. `rule:routing/table-is-opt-in` names `::match` alongside `::url`; it is
 /// absent here because it is absent from the registry, so listing it would
 /// describe a call no program can currently write. It joins this list with
 /// the member, not before it.
@@ -2102,7 +2102,7 @@ require './Lib/Helper.nvs';
         assert!(!quiet.symbols.contains(&mailer));
     }
 
-    /// ADR 0077 § 5's opt-in is 0061 § 3's, reused: a router link needs the
+    /// `rule:routing/table-is-opt-in`'s opt-in is 0061 § 3's, reused: a router link needs the
     /// route table, and the table is built from this same enumeration. Both
     /// link members are asserted, because the list they are matched against
     /// is the kind that ships with one entry filled in. The negative is

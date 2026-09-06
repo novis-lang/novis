@@ -1178,11 +1178,11 @@ mod tests {
     /// readers, and they are the only rows here whose answer is a *union*: a
     /// capture is the segment text where the route declared `string` and the
     /// number the match already converted where it declared `int` or `uint`
-    /// ([ADR 0102](/docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
-    /// § 5), so the mark sits on the one arm that can carry an injection.
+    /// (`rule:routing/a-capture-narrows-to-a-closed-set`
+    /// ), so the mark sits on the one arm that can carry an injection.
     /// `name()` is deliberately not among them, which is the same test read the
     /// other way — a route's declared name is the unit's own literal. The
-    /// twentieth is `Core\Request\Mount::captures`, ADR 0102 § 7's glob
+    /// twentieth is `Core\Request\Mount::captures`, `rule:routing/a-request-reads-its-mount`'s glob
     /// captures of the mount serving the request, and its sibling `prefix()`
     /// is the same pairing read the other way again: every mount row was
     /// expanded against the disk at boot, so the prefix is the operator's text

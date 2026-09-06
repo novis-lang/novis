@@ -1,5 +1,5 @@
 --TEST--
-A matched route's declared name is the unit's own literal and its captures are the peer's, so only one of the two refuses a plain `string` — ADR 0102 § 1, `rule:security/tainted-qualifier`
+A matched route's declared name is the unit's own literal and its captures are the peer's, so only one of the two refuses a plain `string` — `rule:routing/matched-once-before-the-handler`, `rule:security/tainted-qualifier`
 --FILE--
 <?nvs
 // Agreement, asked of the two things one `Core\Router\Match` carries: what

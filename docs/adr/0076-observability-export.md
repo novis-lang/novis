@@ -86,7 +86,7 @@ is added to the per-statement/per-call path** `rule:testing/debug-probes`
 measures and guards, and that ADR's cost claim is untouched.
 
 **`route` is the one label that would otherwise be unbounded**, and it is why this ADR and
-[ADR 0077](0077-compile-time-routing.md) interlock. It carries the **route's declared name** from 0077's
+`rule:routing/routes-are-compiled-not-registered` interlock. It carries the **route's declared name** from 0077's
 compile-time table — a closed set known at compile time — never the request's raw path. A program with no
 route table simply has no `route` label; the alternative, labelling by path, is the cardinality bomb this
 whole section exists to prevent, and it is not offered as an option.
@@ -154,7 +154,7 @@ instead is the set of things that are already unqualified and are what a label s
 
 - an enum case or an `int` converted with `as` — `rule:security/taint-propagation`
   already launders a checked conversion, so `$statusCode as string` is a legal label for free;
-- a route name from [ADR 0077](0077-compile-time-routing.md)'s closed table;
+- a route name from `rule:routing/routes-are-compiled-not-registered`'s closed table;
 - a literal, a class constant, a configured value;
 - and, when someone genuinely has a bounded user-derived set, `Core\Taint::assertTrusted` — the rare,
   greppable, reason-carrying escape hatch `rule:security/launderers-are-sink-named` already
@@ -266,7 +266,7 @@ registry, both of which are about Novis's own runtime and could not be a crate.
 - **`tainted` labels will be hit, and the first reaction will be annoyance.** Labelling by user id, tenant
   name or error message is what people do. The diagnostic has to name the alternatives (§ 4) rather than
   just refusing, and `Core\Taint::assertTrusted` has to be discoverable from it.
-- **`route` depends on [ADR 0077](0077-compile-time-routing.md).** An application that does not use Novis's
+- **`route` depends on `rule:routing/routes-are-compiled-not-registered`.** An application that does not use Novis's
   route table gets no `route` label at all, and per-endpoint latency is the second thing anyone looks at.
   The alternative was a cardinality bomb, so this is the right refusal, but it is a real coupling between
   two otherwise independent features.
@@ -292,7 +292,7 @@ registry, both of which are about Novis's own runtime and could not be a crate.
   export cost on the hot path `rule:testing/debug-probes`
   deliberately keeps cheap.
 - **Label by request path rather than route name.** Zero coupling to
-  [ADR 0077](0077-compile-time-routing.md). Rejected: `/users/1`, `/users/2`, … is one series per user, which
+  `rule:routing/routes-are-compiled-not-registered`. Rejected: `/users/1`, `/users/2`, … is one series per user, which
   is the exact failure this ADR is built to prevent — and offering it as an option means it will be chosen.
 - **Allow `tainted` labels with a runtime cardinality guard.** More permissive, and the guard catches it
   eventually. Rejected: "eventually" is after the collector has the series, and a compile error at the line
@@ -341,7 +341,7 @@ registry, both of which are about Novis's own runtime and could not be a crate.
 - **M7:** an inbound `traceparent` is continued (same trace id, the root span's parent set from it); a
   malformed one starts a new trace and does not fail the request; a `traceparent` from an untrusted client
   never reaches a metric label.
-- **M7:** `route` carries [ADR 0077](0077-compile-time-routing.md)'s declared name, and a program with no
+- **M7:** `route` carries `rule:routing/routes-are-compiled-not-registered`'s declared name, and a program with no
   route table emits the series without the label rather than with a path.
 - **M7:** exceeding `max_series` refuses the new series, leaves every existing series' value unchanged
   across the boundary — the assertion that distinguishes this from eviction — and writes exactly one warning

@@ -1,4 +1,4 @@
-//! ADR 0077 § 1's `#[Route]`: the nominal match that keeps a userland spelling
+//! `rule:routing/route-attribute`'s `#[Route]`: the nominal match that keeps a userland spelling
 //! out of the route table, and the payload check that is the pass behind the
 //! roster entry.
 //!
@@ -9,7 +9,7 @@
 //! are asked over **two files** through `common::check_program_table`, which is
 //! the only shape that can tell "the program's table" apart from "this file's".
 //!
-//! ADR 0102 § 3's `#[Query]` is here too, and it is asserted from both ends: the
+//! `rule:routing/a-query-parameter-is-declared-like-a-capture`'s `#[Query]` is here too, and it is asserted from both ends: the
 //! type list it shares with a capture, and § 6's `$params` key that names
 //! neither one nor the other — the refusal the marker exists to make writable.
 //!
@@ -278,8 +278,8 @@ fn the_collected_table_crosses_on_the_expression_table() {
 
 #[test]
 fn every_route_on_one_method_becomes_a_row_and_they_may_share_a_name() {
-    // `rule:attributes/repeatable`'s repetition, read as ADR 0077 § 1 writes it: one method
-    // serving three verbs declares three routes rather than one. ADR 0110 § 1
+    // `rule:attributes/repeatable`'s repetition, read as `rule:routing/route-attribute` writes it: one method
+    // serving three verbs declares three routes rather than one. `rule:routing/repeated-routes-share-a-name-when-they-share-a-path`
     // then lets them carry the same `name`, because they carry the same path
     // and `url()` therefore has one answer to give.
     let webhook = |name: &str| {
@@ -661,7 +661,7 @@ fn an_unknown_literal_url_name_is_a_diagnostic() {
 
 #[test]
 fn an_optional_capture_outside_the_last_position_is_a_diagnostic() {
-    // ADR 0102 § 4: `{name?}` matches a segment or none, and "or none" only
+    // `rule:routing/a-trailing-segment-may-be-absent`: `{name?}` matches a segment or none, and "or none" only
     // has an answer where nothing follows it — a literal segment after one is
     // as unreachable as another capture.
     for path in ["/posts/{page?}/comments", "/posts/{page?}/{id}"] {
@@ -686,7 +686,7 @@ fn an_optional_capture_outside_the_last_position_is_a_diagnostic() {
 
 #[test]
 fn an_optional_capture_bound_to_a_parameter_with_no_default_is_a_diagnostic() {
-    // ADR 0102 § 4: what makes the absent segment well-typed is the parameter's
+    // `rule:routing/a-trailing-segment-may-be-absent`: what makes the absent segment well-typed is the parameter's
     // *default*, so the refusal is about the default and not about the type —
     // both spellings below convert from a segment and both are still refused.
     for ty in ["uint", "string"] {
@@ -709,7 +709,7 @@ fn an_optional_capture_bound_to_a_parameter_with_no_default_is_a_diagnostic() {
 
 #[test]
 fn a_capture_or_query_parameter_outside_the_type_list_is_a_diagnostic() {
-    // ADR 0102 § 3 is a closed list, so the refusal is written from the first
+    // `rule:routing/a-query-parameter-is-declared-like-a-capture` is a closed list, so the refusal is written from the first
     // type *outside* it rather than from an implausible one: a `float`
     // converts from a segment in every language that guesses, and § 3 does not
     // guess (`rule:errors/ambiguous-input-refused`). A nullable is the other near miss — `?uint` is not
@@ -762,7 +762,7 @@ fn a_capture_or_query_parameter_outside_the_type_list_is_a_diagnostic() {
 
 #[test]
 fn a_url_key_that_is_neither_a_capture_nor_a_query_parameter_is_a_diagnostic() {
-    // ADR 0102 § 6: every key that is not a capture *becomes* the link's query
+    // `rule:routing/an-absolute-link-takes-a-configured-origin`: every key that is not a capture *becomes* the link's query
     // string, so a key naming nothing at all is not inert — it ships as
     // `?pge=2` and nothing says so. That is the whole reason the refusal exists,
     // and it is why it could not be written before `#[Query]` did: refusing
@@ -1086,7 +1086,7 @@ fn a_route_without_a_sibling_access_does_not_compile() {
 
 #[test]
 fn a_query_marker_outside_a_route_method_is_refused() {
-    // ADR 0102 § 3 gives `#[Query]` its meaning on a route method's parameter,
+    // `rule:routing/a-query-parameter-is-declared-like-a-capture` gives `#[Query]` its meaning on a route method's parameter,
     // so the same declaration with the `#[Route]` taken away binds nothing —
     // and it is the pass that walks *every* method, not the route pass, that
     // can see it: the route pass by construction visits only the methods a

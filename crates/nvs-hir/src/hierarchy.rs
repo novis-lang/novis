@@ -29,7 +29,7 @@
 //! downward — does this one name reach that one — and every member lookup in
 //! `nvs-types` rides on that. [`implementors`] asks it upward — which names
 //! reach *this* one — which is `rule:programs/implementing`'s `Core\Program::implementing<T>()`
-//! and, through the same enumeration, ADR 0077's route table. The upward
+//! and, through the same enumeration, `rule:routing/routes-are-compiled-not-registered`'s route table. The upward
 //! question is why a link record carries [`ClassLinks::concrete`]: it is the
 //! only one whose answer excludes an abstract class.
 //!

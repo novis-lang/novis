@@ -1,8 +1,8 @@
 --TEST--
-`Core\Router::urlAbsolute`'s origin is the unit's `[[app]] origin` and nothing else in the file, let alone anything a request could carry — ADR 0102 § 6
+`Core\Router::urlAbsolute`'s origin is the unit's `[[app]] origin` and nothing else in the file, let alone anything a request could carry — `rule:routing/an-absolute-link-takes-a-configured-origin`
 --FILE--
 <?nvs
-// ADR 0102 § 6 states the rule as a prohibition — an absolute link's origin is
+// `rule:routing/an-absolute-link-takes-a-configured-origin` states the rule as a prohibition — an absolute link's origin is
 // configured per mount and is *never* derived from `Host` or
 // `X-Forwarded-Host` — and a prohibition is the hard half to assert: a program
 // run off the command line receives no request, so there is no header here to
@@ -76,7 +76,7 @@ echo "leaked=", $leaked, "\n";
 echo "link=", $built["0"], "\n";
 echo "root=", $built["2"], "\n";
 --FILE nvs.toml--
-# ADR 0102 § 6 gives an absolute link exactly one source, and ADR 0104 § 2 says
+# `rule:routing/an-absolute-link-takes-a-configured-origin` gives an absolute link exactly one source, and ADR 0104 § 2 says
 # which block it is: every block whose key covers the entry file, layered
 # least-specific first, so the last one to state an `origin` wins. This file is
 # two near misses around the one that answers.

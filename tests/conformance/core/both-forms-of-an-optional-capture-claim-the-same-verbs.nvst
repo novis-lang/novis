@@ -1,5 +1,5 @@
 --TEST--
-`Core\Router::methodsFor` answers the same verbs for both forms of a terminal `{name?}`, so the shorter form cannot 404 while the longer one 405s — ADR 0102 § 2
+`Core\Router::methodsFor` answers the same verbs for both forms of a terminal `{name?}`, so the shorter form cannot 404 while the longer one 405s — `rule:routing/a-refused-verb-is-not-a-missing-path`
 --FILE--
 <?nvs
 // § 2's `{name?}` rule, asserted as the *agreement* it exists to force rather

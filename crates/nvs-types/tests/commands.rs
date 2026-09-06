@@ -247,7 +247,7 @@ const PROGRAM: &str = "<?nvs\nuse Core\\Command;\nuse Core\\Option;\nclass Deplo
 
 #[test]
 fn a_command_table_is_built_from_the_program_enumeration() {
-    // § 6 is ADR 0077's table with the route swapped for a command, over the
+    // § 6 is `rule:routing/routes-are-compiled-not-registered`'s table with the route swapped for a command, over the
     // same `rule:programs/implementing` enumeration, so what is asserted is what the route
     // table's own case asserts: the rows exist, they are in load order, and
     // they are reachable through `ExprTypeTable` — the channel every
@@ -424,7 +424,7 @@ fn a_command_that_names_nothing_is_a_diagnostic() {
     // § 6 leaves it unwritten and the table pass is what decides it: `name` is
     // the word a command line selects a command by, so a row without one is
     // reachable by nothing — `nvs_types::commands`' module docs own the
-    // reasoning, and ADR 0077 § 1's optional `name` is a different question
+    // reasoning, and `rule:routing/route-attribute`'s optional `name` is a different question
     // because a route is reached by its path.
     for attributes in [
         "  #[Command]\n  public static function deploy(): void {}\n",

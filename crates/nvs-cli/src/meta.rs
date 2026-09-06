@@ -49,7 +49,7 @@
 //! `map` per roster and no second home for any of them.
 //!
 //! Built and written as JSON rather than as text through the `serde_json`
-//! this crate already carries for ADR 0085's document; the workspace manifest
+//! this crate already carries for `rule:routing/api-document-is-generated-from-the-route-table`'s document; the workspace manifest
 //! owns why this crate and not another.
 
 use std::process::ExitCode;

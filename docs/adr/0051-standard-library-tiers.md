@@ -108,7 +108,7 @@ Four more, each admitted by a test above and each with its own ADR: `Core\Task`
 (`rule:concurrency/one-scheduler`, test 1 — it *is* the request lifecycle),
 `Core\RateLimit` (`rule:core-classes/ratelimit-two-members`, tests 1 and 3),
 `Core\Metrics` ([ADR 0076](0076-observability-export.md), test 1 — it reads the runtime's own counters) and
-`Core\Router` ([ADR 0077](0077-compile-time-routing.md), test 1 — its table is built by a compiler pass).
+`Core\Router` (`rule:routing/routes-are-compiled-not-registered`, test 1 — its table is built by a compiler pass).
 `Core\Metrics`'s **exporter** is Native and feature-gated while the class itself is Core, the same split
 this section already uses for the Redis backend behind `Core\Cache`.
 
@@ -120,7 +120,7 @@ that could never be a package; `Core\Password` by tests 1 and 2, as a `Core\Cryp
 roster; `Core\Queue` by test 1 (`rule:concurrency/enqueue-commits-with-your-write`);
 `Core\Socket`, `Core\Sse` and `Core\Topic` by tests 1 and 3
 (`rule:concurrency/a-connection-is-a-root-isolate`); and `Core\Api`'s emitter by test 1, since it
-reads the compiler's own route table ([ADR 0085](0085-openapi-is-generated-from-the-route-table.md)).
+reads the compiler's own route table (`rule:routing/api-document-is-generated-from-the-route-table`).
 `Core\Mail`'s **transport** and `Core\Storage`'s backends are Native by test 3 — they wait on the outside
 world — while composition and the backend-agnostic file API are the `nvs/web` package's.
 

@@ -67,7 +67,7 @@ pub(crate) fn check_declaration(
                 // holds a method's whole list.
                 crate::routes::check_one_access(&m.attributes, ctx, env);
                 // The markers that mean nothing away from the attribute that
-                // reads them — ADR 0102 § 3's `#[Query]`, `rule:attributes/api-adds-and-cannot-contradict`'s
+                // reads them — `rule:routing/a-query-parameter-is-declared-like-a-capture`'s `#[Query]`, `rule:attributes/api-adds-and-cannot-contradict`'s
                 // `#[Api]`, `rule:attributes/access-is-a-required-sibling`'s `#[Access]` and ADR 0086 § 6's
                 // `#[Option]`. Asked here because each owning pass walks only
                 // the methods its own attribute selects, so a stray marker is
@@ -203,7 +203,7 @@ fn check_attribute(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
 /// The walk every `rule:core-classes/derive-attribute` name that carries a payload shares, because a
 /// recognized name is matched *nominally* and so has no shape to be checked
 /// against: what it may hold is a roster its own module declares — `rule:testing/test-attribute`'s is [`crate::testing`]'s, ADR 0086 § 6's two are [`crate::commands`]',
-/// ADR 0077 § 1's is [`crate::routes`]'. Three answers per field and they are
+/// `rule:routing/route-attribute`'s is [`crate::routes`]'. Three answers per field and they are
 /// deliberately three: a name no row declares, a value at the wrong type, and
 /// a name given twice.
 ///

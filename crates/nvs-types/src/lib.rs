@@ -407,7 +407,7 @@ pub(crate) struct Env<'a> {
     /// Where a call's/`new`'s resolved target is persisted for `nvs-ir` to
     /// read back later — see [`crate::expr_table`]'s own module docs.
     pub exprs: &'a mut crate::expr_table::ExprTypeTable,
-    /// ADR 0077 § 5's route table as it is collected — one row per `#[Route]`
+    /// `rule:routing/table-is-opt-in`'s route table as it is collected — one row per `#[Route]`
     /// the per-class walk reaches, across every file.
     ///
     /// Here rather than a local of [`crate::check::check_program`]'s loop
@@ -425,7 +425,7 @@ pub(crate) struct Env<'a> {
     /// *between* declarations, and `rule:programs/implementing`'s scan is what puts the two
     /// colliding files in the same program.
     pub commands: &'a mut crate::commands::CommandTable,
-    /// ADR 0077 § 4's `Core\Router::url`/`urlAbsolute` sites, as the walk
+    /// `rule:routing/matching-is-not-dispatching`'s `Core\Router::url`/`urlAbsolute` sites, as the walk
     /// reaches them and before any of them has been looked up.
     ///
     /// Beside [`Self::routes`] and threaded the same way for a stronger form of

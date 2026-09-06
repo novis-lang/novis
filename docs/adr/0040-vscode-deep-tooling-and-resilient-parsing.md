@@ -183,7 +183,7 @@ first, so the catalog is honest about sequencing rather than implying all of it 
   which includes a mis-ordered `tainted secret string` — the grammar fixes that order, so the diagnostic
   already names the fix; and a `#[Route]` missing its required `path` offers the path derived from the
   declaring class, the method name and the capture-typed parameters
-  ([ADR 0110](0110-one-methods-repeated-routes-share-a-name-when-they-share-a-path.md) § 4, which specifies
+  (`rule:routing/a-quick-fix-writes-a-derived-path`, which specifies
   the derivation so two machines produce one string) — each offered as a suggestion the developer applies
   deliberately, the same as any other code action.
 

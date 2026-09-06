@@ -5,7 +5,7 @@
 // `rule:security/response-body-is-one-typed-member`'s sixth row: the two writers disagree about the body's type and
 // its `Content-Type`, and silently letting the last one win is how a JSON
 // endpoint acquires an HTML prelude. § 3 binds `echo` by context, so what is
-// refused is a `#[Route]` handler -- the one body ADR 0102 § 1 makes a request
+// refused is a `#[Route]` handler -- the one body `rule:routing/matched-once-before-the-handler` makes a request
 // statically certain to reach.
 class Pages
 {

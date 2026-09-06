@@ -511,7 +511,7 @@ impl Registry {
     /// declared name** ([`crate::route::label`]).
     ///
     /// `route` is the label § 1 says would otherwise be unbounded, and this is
-    /// the one place its value is chosen. It is a name out of ADR 0077's
+    /// the one place its value is chosen. It is a name out of `rule:routing/routes-are-compiled-not-registered`'s
     /// compile-time table and never the request's path, so the label's set is
     /// closed by the compile that produced the table. **A request that matched
     /// nothing carries the label empty rather than not at all**: an exposition

@@ -87,7 +87,7 @@ spellings rejected, and the reasoning. Do not restate that detail here when addi
 | Framework | First-party and split by `rule:core-api/tier-placement`'s six tests: privileged halves in `Core`, the opinionated layer as the `nvs/web` package; no ORM, no runtime container, the language is the view layer (`rule:programs/first-party-framework`) |
 | Real-time | WebSocket and SSE connections are root isolates opened the way a script is spawned; fan-out is a bounded `Core\Topic` (`rule:concurrency/a-connection-is-a-root-isolate`) |
 | Background work | A durable job is a row in a `Core\Db` table, enqueued inside the caller's transaction and run as an isolate (`rule:concurrency/enqueue-commits-with-your-write`) |
-| API contracts | OpenAPI 3.1 generated while compiling from the route table and derived codecs, with `nvs api diff` as a breaking-change gate ([ADR 0085](../adr/0085-openapi-is-generated-from-the-route-table.md)) |
+| API contracts | OpenAPI 3.1 generated while compiling from the route table and derived codecs, with `nvs api diff` as a breaking-change gate (`rule:routing/api-document-is-generated-from-the-route-table`) |
 | Testing | Hand-written suite is normative; `.phpt → .nvst` transpiler imports PHP's corpus |
 | Migration | `nvs convert` — real PHP→Novis transpiler |
 | Extensions | Three tiers: built-in, sandboxed **WebAssembly components** (`.nvsx`), statically linked native. No `dlopen` ([ADR 0003](../adr/0003-extension-system.md)) |

@@ -1,5 +1,5 @@
 --TEST--
-a `HEAD` request matches the `Get` route the table holds, `Core\Request::method` reports `Get`, and `isHead` is the only member carrying the difference — ADR 0097 § 7, ADR 0102 § 1
+a `HEAD` request matches the `Get` route the table holds, `Core\Request::method` reports `Get`, and `isHead` is the only member carrying the difference — ADR 0097 § 7, `rule:routing/matched-once-before-the-handler`
 --FILE--
 <?nvs
 // ADR 0097 § 7's first convention, asserted from inside the program rather
@@ -22,7 +22,7 @@ a `HEAD` request matches the `Get` route the table holds, `Core\Request::method`
 // What is *not* asserted here is the answer's body being discarded. That is
 // the server's half of the same convention — `Core\Test::request` answers in
 // process, with no wire to drop bytes on (`rule:testing/in-process-request`) — and this case is
-// about the half ADR 0102 § 1 makes readable by the program at all.
+// about the half `rule:routing/matched-once-before-the-handler` makes readable by the program at all.
 class Pages {
     // `rule:attributes/access-is-a-required-sibling`: the access decision is a required sibling of every
     // `#[Route]`. Only `Get` is declared, and that is the point.
@@ -36,7 +36,7 @@ try {
     echo "status ", $answered->status(), "\n";
     echo "body ", $answered->body(), "\n";
 } catch (RuntimeError $refused) {
-    // The child. `route()` is the match ADR 0102 § 1 took before this isolate
+    // The child. `route()` is the match `rule:routing/matched-once-before-the-handler` took before this isolate
     // existed, and a `Get`-only table claiming a `HEAD` request is the whole
     // convention.
     var $matched = Core\Request::route();

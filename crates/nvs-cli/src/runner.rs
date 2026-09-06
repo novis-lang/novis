@@ -463,7 +463,7 @@ pub(crate) struct UnderTest {
     /// synthetic request runs — the same frame a served request would run,
     /// which is what makes § 18's "the real chain" true rather than a mock.
     unit: Rc<nvs_codegen::Unit>,
-    /// ADR 0102 § 1's table, installed on the child so that a handler reading
+    /// `rule:routing/matched-once-before-the-handler`'s table, installed on the child so that a handler reading
     /// its own route reads the same one the door matched against.
     routes: std::sync::Arc<nvs_runtime::routes::Routes>,
 }
@@ -481,7 +481,7 @@ impl std::fmt::Debug for UnderTest {
 }
 
 impl UnderTest {
-    /// The unit under test for this run, with ADR 0102 § 1's table already
+    /// The unit under test for this run, with `rule:routing/matched-once-before-the-handler`'s table already
     /// crossed into the runtime's shape.
     pub(crate) fn new(unit: &Rc<nvs_codegen::Unit>, checked: &crate::Checked) -> Self {
         Self {
@@ -497,10 +497,10 @@ impl nvs_runtime::inproc::Answering for UnderTest {
         ctx: &mut nvs_runtime::Ctx,
         mut inbound: Box<nvs_runtime::Inbound>,
     ) -> Result<nvs_runtime::host::Completion, String> {
-        // ADR 0102 § 1's one match, here because this is the side holding the
+        // `rule:routing/matched-once-before-the-handler`'s one match, here because this is the side holding the
         // table and the last point before application code exists to have run.
         // A program with no `#[Route]` has an empty table and claims nothing,
-        // which is ADR 0077 § 5's opt-in rule and leaves the route `null`.
+        // which is `rule:routing/table-is-opt-in`'s opt-in rule and leaves the route `null`.
         if let Some(matched) = self.routes.match_request(inbound.method(), inbound.path()) {
             inbound.set_route(matched);
         }
@@ -597,7 +597,7 @@ fn run_suite(
     let (mut passed, mut failed, mut skipped, mut flaky) = (0_usize, 0_usize, 0_usize, 0_usize);
     let mut exited = None;
     let mut cases = Vec::new();
-    // ADR 0102 § 1's table, crossed once for the whole suite rather than per
+    // `rule:routing/matched-once-before-the-handler`'s table, crossed once for the whole suite rather than per
     // test: it is a product of the compile every isolate already shares, and
     // [`TestServer`] is the only thing that reads it — a run whose tests declare
     // no `server:` pays one walk of the program's `#[Route]` rows and nothing
@@ -1393,7 +1393,7 @@ fn answer_on_the_wire(
     }
     inbound.set_peer(origin.client(), origin.scheme());
     nvs_server::trace::take(&mut inbound);
-    // ADR 0102 § 1's one match, taken here for the reason `crate::serve` takes
+    // `rule:routing/matched-once-before-the-handler`'s one match, taken here for the reason `crate::serve` takes
     // it here: the request and the unit that will answer it are both in hand,
     // and no application code has run.
     nvs_server::route::take(routes, &mut inbound);
@@ -2129,7 +2129,7 @@ mod tests {
         // `#[Route]` declares and reads the match back inside the program that
         // answered, which is the whole of "through the compiled route table";
         // the second asks a path no route claims and still gets an answer,
-        // which is ADR 0102 § 1's "nothing here dispatches" — a runner that
+        // which is `rule:routing/matched-once-before-the-handler`'s "nothing here dispatches" — a runner that
         // sent a `404` of its own would pass the first and fail the second.
         // Neither opens a socket: the fixture is answered by an isolate over
         // this run's own unit (`UnderTest`).

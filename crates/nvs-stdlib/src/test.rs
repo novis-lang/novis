@@ -1067,13 +1067,13 @@ nvs_runtime::nvs_helper! {
     /// `Core\Test::request(Core\Http\Method $method, string $path): Core\Test\Response`
     /// — `rule:testing/in-process-request`'s in-process request.
     ///
-    /// **Neither the match nor the dispatch happens here.** ADR 0102 § 1's
+    /// **Neither the match nor the dispatch happens here.** `rule:routing/matched-once-before-the-handler`'s
     /// match is taken on the far side of `nvs_runtime::inproc`, whose
     /// `Answering::answer` owns why: the table is a compile product of the unit
     /// under test, and a `#[Test]` method's own isolate shares compiled code
     /// with that unit and nothing else, so matching against *this* context's
-    /// table would match against nothing. The dispatch is nobody's — ADR 0102
-    /// § 9 is why the matched handler is not called from anywhere: routes do
+    /// table would match against nothing. The dispatch is nobody's — `rule:routing/a-match-is-not-invocable`
+    /// is why the matched handler is not called from anywhere: routes do
     /// not share a signature, so invoking one would be pre-binding converted
     /// parameters, which is dispatch. What runs is the program's own entry,
     /// exactly as a served request runs it.

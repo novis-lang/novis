@@ -603,7 +603,7 @@ const MOUNT_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-// ---------------------------------------------------------------- ADR 0102 § 7's mount
+// ---------------------------------------------------------------- `rule:routing/a-request-reads-its-mount`'s mount
 
 /// `Core\Request\Mount`'s fully-qualified name, written once so the registry
 /// row and every message quoting it cannot drift apart.
@@ -619,8 +619,8 @@ const MOUNT_CAPTURES: usize = 1;
 /// to sit on instead.
 const CAPTURE_SEGMENTS: CoreTy = CoreTy::Array(&CoreTy::TaintedStr);
 
-/// [ADR 0102](/docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
-/// § 7's mount, as the program answering the request reads it.
+/// `rule:routing/a-request-reads-its-mount`
+/// 's mount, as the program answering the request reads it.
 ///
 /// # Why a class, where § 7 spells a shape
 ///
@@ -1616,7 +1616,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Request::route(): ?Core\Router\Match` — ADR 0102 § 1's match, read
+    /// `Core\Request::route(): ?Core\Router\Match` — `rule:routing/matched-once-before-the-handler`'s match, read
     /// where the section says a program reads it.
     ///
     /// **Nothing here matches.** The row was chosen by `nvs_server::route`
@@ -1686,7 +1686,7 @@ fn mount_slot(args: &[Value], index: usize, member: &str) -> Result<Value, Fault
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Request::mount(): Core\Request\Mount` — ADR 0102 § 7's two facts
+    /// `Core\Request::mount(): Core\Request\Mount` — `rule:routing/a-request-reads-its-mount`'s two facts
     /// about which mount is serving this request.
     ///
     /// **The answer is never `null`**, where the sibling `route()` is nullable:
@@ -3080,7 +3080,7 @@ mod tests {
     /// truth beside it; each half is plausible alone and the pair is useless.
     ///
     /// **`Head` stays a case of the enum**, and that is not in tension with
-    /// this. ADR 0077 § 1's roster is what a `#[Route]` may be declared under
+    /// this. `rule:routing/route-attribute`'s roster is what a `#[Route]` may be declared under
     /// and a route may name `Head` there; the rule is only that no request
     /// *reports* it. The arm is therefore reachable from a declaration and
     /// unreachable from this member, which is why the sweep asserts what
@@ -3138,7 +3138,7 @@ mod tests {
         }
     }
 
-    /// ADR 0102 § 7's two facts as a program reads them: the prefix the door
+    /// `rule:routing/a-request-reads-its-mount`'s two facts as a program reads them: the prefix the door
     /// stripped and the glob captures of the row that stripped it, with the
     /// mark on the captures and not on the prefix.
     ///

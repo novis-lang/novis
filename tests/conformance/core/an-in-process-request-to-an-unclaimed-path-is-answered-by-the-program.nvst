@@ -1,13 +1,13 @@
 --TEST--
-an in-process request to a path the compiled table does not claim still runs the program, which decides for itself what a miss means — `rule:testing/in-process-request`, ADR 0102 § 1
+an in-process request to a path the compiled table does not claim still runs the program, which decides for itself what a miss means — `rule:testing/in-process-request`, `rule:routing/matched-once-before-the-handler`
 --FILE--
 <?nvs
 // The boundary of the sibling case: there, the table claimed the path and the
 // match crossed; here it claims nothing and the request is answered anyway.
-// ADR 0102 § 1 is why -- the match is a computation and never a dispatch, so a
+// `rule:routing/matched-once-before-the-handler` is why -- the match is a computation and never a dispatch, so a
 // `null` route is a fact the program reads rather than a `404` anything sends.
 // A door that refused a miss would refuse every request of a program declaring
-// no `#[Route]` at all, which is ADR 0077 § 5's opt-in rule inverted.
+// no `#[Route]` at all, which is `rule:routing/table-is-opt-in`'s opt-in rule inverted.
 //
 // The `catch` is the child, for the reason the sibling case's comment states
 // in full: an in-process request may not be made from inside one.

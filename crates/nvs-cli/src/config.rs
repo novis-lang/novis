@@ -127,7 +127,7 @@ pub(crate) fn working_directory() -> Result<PathBuf, Diagnostic> {
 /// immutable result.
 ///
 /// It replaces the hand-rolled one-key `nvs.toml` scanner that stood here for
-/// ADR 0102 § 6's origin, which said in its own doc comment that a second key
+/// `rule:routing/an-absolute-link-takes-a-configured-origin`'s origin, which said in its own doc comment that a second key
 /// added to it would be a second configuration format. This is the reader it
 /// was waiting for, so the origin now arrives through `[[app]]` matching rather
 /// than out of any block in the file.

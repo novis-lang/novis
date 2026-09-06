@@ -207,7 +207,7 @@ impl Table {
     /// allows. § 6's forwarded walk ([`crate::forwarded`]) does not reach this
     /// value and never will: that section reads **no** `X-Forwarded-Host` and
     /// generates no absolute URL from `Host`, because deriving an origin from a
-    /// header is host-header injection and ADR 0077 § 4 already makes
+    /// header is host-header injection and `rule:routing/matching-is-not-dispatching` already makes
     /// `Core\Router::url` answer with a path. What a trusted proxy may assert
     /// is the client address and the scheme, and neither is read here.
     #[must_use]
@@ -331,7 +331,7 @@ impl<'a> Resolved<'a> {
 /// says the request is.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Selection<'a> {
-    /// The row step 1 chose. Its `prefix` and `captures` are ADR 0102 § 7's
+    /// The row step 1 chose. Its `prefix` and `captures` are `rule:routing/a-request-reads-its-mount`'s
     /// answer and cross onto the request through [`carry`]; its `origin` is what
     /// `Core\Router::urlAbsolute` prepends, which is still the request-context
     /// slice's to read off it.
@@ -497,7 +497,7 @@ fn is_nvs(path: &Path) -> bool {
         .is_some_and(|extension| extension.eq_ignore_ascii_case("nvs"))
 }
 
-/// Records [ADR 0102] § 7's mount on the carrier the selected program will
+/// Records `rule:routing/a-request-reads-its-mount`'s mount on the carrier the selected program will
 /// answer: the prefix step 2 stripped, and § 3's glob captures of the row that
 /// selected it.
 ///
@@ -516,7 +516,6 @@ fn is_nvs(path: &Path) -> bool {
 /// but § 5's health probe — that one is answered ahead of step 1, so no mount
 /// ever claims it and no carrier is built for it.
 ///
-/// [ADR 0102]: ../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md
 pub fn carry(mount: &Mounted, inbound: &mut Inbound) {
     inbound.set_mount(&mount.prefix, &mount.captures);
 }
@@ -887,7 +886,7 @@ mod tests {
         );
     }
 
-    /// ADR 0102 § 7 on the carrier: one table, two tenants, and each request
+    /// `rule:routing/a-request-reads-its-mount` on the carrier: one table, two tenants, and each request
     /// reaching its program with the row that claimed it.
     ///
     /// **The captures are the load-bearing half.** `prefix` alone is

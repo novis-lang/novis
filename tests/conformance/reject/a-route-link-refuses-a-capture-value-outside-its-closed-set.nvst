@@ -1,5 +1,5 @@
 --TEST--
-`Core\Router::url` refuses a literal `$params` value outside the closed set its parameter declares, for a path capture and for a `#[Query]` alike — ADR 0102 §§ 3 and 5
+`Core\Router::url` refuses a literal `$params` value outside the closed set its parameter declares, for a path capture and for a `#[Query]` alike — `rule:routing/a-query-parameter-is-declared-like-a-capture` and `rule:routing/a-capture-narrows-to-a-closed-set`
 --FILE--
 <?nvs
 // The bound named on both sides in one file: the accepted spelling and the

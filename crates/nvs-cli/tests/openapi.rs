@@ -1,10 +1,10 @@
 //! `nvs build --openapi` and `nvs api diff`, driven as a user drives them —
-//! [ADR 0085](/docs/adr/0085-openapi-is-generated-from-the-route-table.md)'s
+//! `rule:routing/api-document-is-generated-from-the-route-table`'s
 //! *Verification* section, for the rows the route table supplies today.
 //!
 //! Through the built binary rather than by calling the emitter, because
 //! `nvs-cli` is a binary crate with no library target and because the document
-//! is a *command's* output: the thing ADR 0085 § 3 promises is what
+//! is a *command's* output: the thing `rule:routing/api-document-is-a-deterministic-build-artifact` promises is what
 //! `nvs build --openapi` writes, and a unit test over a function reachable only
 //! from `main.rs` would be asserting one layer below the promise. `nvs test`'s
 //! own `.nvst` cases cannot cover this either — a case is a program's stdout,
@@ -12,7 +12,7 @@
 
 use std::process::Command;
 
-/// The fixture ADR 0077's route table already uses: three routes over two
+/// The fixture `rule:routing/routes-are-compiled-not-registered`'s route table already uses: three routes over two
 /// paths, one of them capturing a `uint`.
 const ROUTES: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../examples/routes.nvs");
 
@@ -201,8 +201,8 @@ fn an_operations_response_schema_is_the_handlers_declared_return_type() {
 }
 
 /// § 1's *Enumerations* row, and
-/// [ADR 0102](/docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
-/// § 5's own promise about it — "the generated document emits
+/// `rule:routing/a-capture-narrows-to-a-closed-set`
+/// 's own promise about it — "the generated document emits
 /// `enum: [en, de, fr]` with no further work".
 ///
 /// Asserted as whole schema objects rather than as `doc.contains("enum")`,
@@ -242,11 +242,11 @@ fn a_closed_set_parameter_carries_the_unions_members_as_an_enum() {
             "required": true,
             "schema": {"enum": ["1", "2", "3"]},
         }),
-        "a `#[Query]` key narrows by the same walk, ADR 0102 § 3 giving it § 5's type list:\n{doc}"
+        "a `#[Query]` key narrows by the same walk, `rule:routing/a-query-parameter-is-declared-like-a-capture` giving it § 5's type list:\n{doc}"
     );
 }
 
-/// § 1 by way of ADR 0102 § 5's other named capture type: `Core\Uuid` is the one
+/// § 1 by way of `rule:routing/a-capture-narrows-to-a-closed-set`'s other named capture type: `Core\Uuid` is the one
 /// class a segment converts to, and `format: uuid` is what the JSON Schema
 /// dialect 3.1 uses already registers for it. The empty schema this used to emit
 /// said *any string, or any number, or any object*.
@@ -336,7 +336,7 @@ fn an_api_diff_classifies_a_removed_route_as_breaking() {
 
 /// The other half of the same *Verification* line: "adding an optional field
 /// and a new operation each exit zero". The parameter is `#[Query] $sort` with
-/// a default, which ADR 0102 § 3 makes optional.
+/// a default, which `rule:routing/a-query-parameter-is-declared-like-a-capture` makes optional.
 #[test]
 fn an_api_diff_classifies_an_added_optional_parameter_as_compatible() {
     let (before, after) = (document("base"), document("optional"));

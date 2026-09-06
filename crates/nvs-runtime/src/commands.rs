@@ -6,7 +6,7 @@
 //!
 //! § 6 says `Core\Command::help` and `::run` are **generated from the table**,
 //! and the table is a compile product — `nvs_types::commands::CommandTable`,
-//! built by the same `rule:programs/implementing` scan ADR 0077's routes are. The alternative
+//! built by the same `rule:programs/implementing` scan `rule:routing/routes-are-compiled-not-registered`'s routes are. The alternative
 //! this rejects is expanding those members while checking, which is what
 //! [`crate::script`]'s sibling `Core\Program::implementing` does: `help` takes a
 //! `?string $name` a program is free to compute, so an expansion would have to
@@ -50,7 +50,7 @@
 //!    backing integer — so a subset is those same pairs with the members the
 //!    union did not name dropped. `nvs_types::routes::closed_set` still answers
 //!    `None` for one, which is that function's own decision to keep: it serves
-//!    ADR 0102 § 5's route captures as well, where the spelling is
+//!    `rule:routing/a-capture-narrows-to-a-closed-set`'s route captures as well, where the spelling is
 //!    `Core\Router::match`'s to decide and is out of this goal's scope. So
 //!    closing this means reading the union's members here, where § 6 owns the
 //!    spelling, rather than widening that function underneath a second caller.
@@ -96,7 +96,7 @@ pub enum ArgConv {
     /// [`crate::routes::Param::Text`]. A union of `int` literals therefore
     /// binds the digits rather than the number, which is one wrinkle shared by
     /// the two tables rather than two answers that could come to disagree; ADR
-    /// 0086 § 6 and ADR 0102 § 5 are the one home of the rule both read.
+    /// 0086 § 6 and `rule:routing/a-capture-narrows-to-a-closed-set` are the one home of the rule both read.
     OneOf(Vec<String>),
     /// An enum: every case as the word a command line writes it with and the
     /// value that word becomes, ascending by value, with the enum's own name

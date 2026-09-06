@@ -307,7 +307,7 @@ static, and a closed, named behaviour built on a general one is neither.
 
 ### 6. `#[Command]` builds the command table while compiling
 
-Structurally identical to [ADR 0077](0077-compile-time-routing.md), with the route table swapped for a
+Structurally identical to `rule:routing/routes-are-compiled-not-registered`, with the route table swapped for a
 command table and reusing the same program enumeration
 ([0061](0061-compile-time-autoload-and-program-discovery.md) § 3):
 
@@ -344,7 +344,7 @@ public static function deploy(
   nobody lets it rot.
 - **A program with no `#[Command]` builds no table, runs no scan, and pays nothing** — 0077's rule, verbatim.
 
-**One deliberate divergence from 0077: this one dispatches.** ADR 0077 § 4 stopped at matching because a web
+**One deliberate divergence from 0077: this one dispatches.** `rule:routing/matching-is-not-dispatching` stopped at matching because a web
 framework must own the pipeline — middleware, controllers, response mapping — and baking a convention in
 would fight it. A CLI has none of that: one entry point, no middleware question, and
 [0082](0082-the-first-party-framework.md) scopes the first-party framework to the web. The reason 0077

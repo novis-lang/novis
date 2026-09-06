@@ -226,7 +226,7 @@ the operator wrote down.
   not yet served a request — the same objections `rule:programs/no-runtime-autoload`
   made against a runtime autoloader.
 - **A `#[Schedule("0 3 * * *")]` attribute on a method**, discovered at compile time the way
-  [ADR 0077](0077-compile-time-routing.md) discovers routes. Genuinely tempting, and rejected on lifetime:
+  `rule:routing/routes-are-compiled-not-registered` discovers routes. Genuinely tempting, and rejected on lifetime:
   a schedule is deployment state, not source state. The same source tree is deployed to staging and
   production with different cadences, different limits and different scopes, and an attribute cannot carry
   that without a config file overriding it — at which point the config file is the schedule and the

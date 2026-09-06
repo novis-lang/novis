@@ -351,7 +351,7 @@ and lands on the fallback — silently.
 request path containing a dot-segment or an encoded separator (`%2f`). The second also removes any possibility of
 one mount's prefix being confused for another's.
 
-### 7. The three conventions above ADR 0077's table
+### 7. The three conventions above `rule:routing/routes-are-compiled-not-registered`'s table
 
 [0077](0077-compile-time-routing.md) § 4 handed three to this milestone. They are three different questions.
 

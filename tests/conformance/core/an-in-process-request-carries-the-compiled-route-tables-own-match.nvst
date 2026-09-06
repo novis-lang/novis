@@ -1,5 +1,5 @@
 --TEST--
-`Core\Test::request` runs a request through the compiled route table in this process, so the program answering it reads the match the door took — `rule:testing/in-process-request`, ADR 0102 § 1
+`Core\Test::request` runs a request through the compiled route table in this process, so the program answering it reads the match the door took — `rule:testing/in-process-request`, `rule:routing/matched-once-before-the-handler`
 --FILE--
 <?nvs
 // § 18's first mechanism: no socket and no port, and the table it matches
@@ -30,7 +30,7 @@ try {
     echo "body ", $answered->body(), "\n";
 } catch (RuntimeError $refused) {
     // The child. `route()` is the match the caller took before this isolate
-    // existed, which is ADR 0102 § 1's "once, before any application code
+    // existed, which is `rule:routing/matched-once-before-the-handler`'s "once, before any application code
     // runs" holding for a synthetic request exactly as it does for an arrived
     // one.
     var $matched = Core\Request::route();

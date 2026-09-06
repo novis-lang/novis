@@ -245,7 +245,7 @@ const USAGE_STATUS: u64 = 2;
 
 nvs_runtime::nvs_helper! {
     /// `Core\Command::run(): uint` — ADR 0086 § 6's entry point, and its one
-    /// deliberate divergence from ADR 0077: this table *dispatches*.
+    /// deliberate divergence from `rule:routing/routes-are-compiled-not-registered`: this table *dispatches*.
     ///
     /// Three steps, in the order a command line is read. The first word selects
     /// a row of the same table [`nvs_core_command_help`] renders; the words past

@@ -4,7 +4,7 @@
 //! # Why these are recognized names rather than shape aliases
 //!
 //! § 6 builds a *table* from them while compiling — the same
-//! `rule:programs/implementing` scan ADR 0077's route table is built by — so a userland
+//! `rule:programs/implementing` scan `rule:routing/routes-are-compiled-not-registered`'s route table is built by — so a userland
 //! `type Command = {name: string};` must not contribute a command however it is
 //! spelled. That is exactly
 //! `rule:core-classes/derive-attribute`'s rule, so both
@@ -48,7 +48,7 @@
 //! # What § 6 leaves open, and what is decided here
 //!
 //! **`name` is required.** § 6 writes every example with one and says nothing
-//! about leaving it out, and ADR 0077 § 1's "optional and never derived" is a
+//! about leaving it out, and `rule:routing/route-attribute`'s "optional and never derived" is a
 //! rule about *routes*, where a name is only a reverse lookup. Here it is the
 //! word a command line selects the command *by*, so a row without one is
 //! reachable by nothing: [`code::E_COMMAND_WITHOUT_NAME`], reported from the
@@ -185,7 +185,7 @@ pub enum ArgConv {
     ///
     /// **The word is the case name.** That is the decision
     /// [`crate::routes::closed_set`] declined to take, and it stays declined
-    /// *there*: a route segment is written by a link and read by ADR 0102 § 5,
+    /// *there*: a route segment is written by a link and read by `rule:routing/a-capture-narrows-to-a-closed-set`,
     /// which is a different question with a different owner. Here `rule:enums/no-class-machinery`'s
     /// backing value is the alternative and it loses on § 6's own argument — the
     /// refusal below names every value that would have been accepted *because a
@@ -398,7 +398,7 @@ pub(crate) fn check_class_commands(
 /// is status 0. `static` is the half § 6's example writes and its dispatch
 /// requires: this table's row carries a `Class::method` string and no
 /// constructor arguments anywhere in it, so a handler has no instance to be
-/// called on, and § 6's one deliberate divergence from ADR 0077 is that this
+/// called on, and § 6's one deliberate divergence from `rule:routing/routes-are-compiled-not-registered` is that this
 /// table *dispatches* rather than stopping at the match.
 ///
 /// Read off the resolved signature rather than off `m`'s modifier list, and

@@ -1,5 +1,5 @@
 --TEST--
-A `#[Query]` on a method that declares no route is refused rather than ignored — ADR 0102 § 3
+A `#[Query]` on a method that declares no route is refused rather than ignored — `rule:routing/a-query-parameter-is-declared-like-a-capture`
 --FILE--
 <?nvs
 // § 3 gives the marker its whole meaning on a `#[Route]` method's parameter:

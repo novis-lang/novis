@@ -245,7 +245,7 @@ pub struct ObserverCalls {
     pub set: Option<String>,
 }
 
-/// One piece of ADR 0077 § 4's resolved link, in path order and each carrying
+/// One piece of `rule:routing/matching-is-not-dispatching`'s resolved link, in path order and each carrying
 /// its own leading `/`: concatenating them left to right rebuilds the route's
 /// declared path with every capture substituted.
 ///
@@ -853,7 +853,7 @@ pub enum ExprInfo {
     },
     /// `Core\Router::url`/`urlAbsolute` over a **literal** name that resolved
     /// to a declared route —
-    /// [ADR 0077](/docs/adr/0077-compile-time-routing.md) § 4's link,
+    /// `rule:routing/matching-is-not-dispatching`'s link,
     /// with the lookup already made.
     ///
     /// Recorded *over* the [`ExprInfo::Call`] the same span already carries,
@@ -868,7 +868,7 @@ pub enum ExprInfo {
     RouteLink {
         /// The named route's declared path, already split by § 2's grammar.
         pieces: Vec<UrlPiece>,
-        /// `true` for `urlAbsolute`, which prepends ADR 0102 § 6's configured
+        /// `true` for `urlAbsolute`, which prepends `rule:routing/an-absolute-link-takes-a-configured-origin`'s configured
         /// origin in front of everything `url` builds.
         absolute: bool,
     },
@@ -1204,7 +1204,7 @@ impl ExprTypeTable {
         self.fixtures.get(label).map(Vec::as_slice)
     }
 
-    /// Records ADR 0077 § 5's finished route table — every `#[Route]` in the
+    /// Records `rule:routing/table-is-opt-in`'s finished route table — every `#[Route]` in the
     /// program, collected across its files and already held to §§ 1-3's
     /// compile errors by [`crate::routes::check_table`].
     ///
@@ -1217,7 +1217,7 @@ impl ExprTypeTable {
         self.routes = routes;
     }
 
-    /// ADR 0077 § 5's route table, empty for a program declaring no `#[Route]`.
+    /// `rule:routing/table-is-opt-in`'s route table, empty for a program declaring no `#[Route]`.
     ///
     /// This is the channel the table crosses to `nvs-ir` by, rather than a
     /// second return value on [`crate::check::check_program`], for the reason

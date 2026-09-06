@@ -1,4 +1,4 @@
-# ADR 0110 — One method's repeated routes share a name when they share a path
+# `rule:routing/repeated-routes-share-a-name-when-they-share-a-path` — One method's repeated routes share a name when they share a path
 
 - **Status:** Accepted
 - **Date:** 2026-08-29

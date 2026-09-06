@@ -49,7 +49,7 @@
 //! the handler is — a `503` with `Retry-After: 1` and no isolate allocated for
 //! it — and that module's docs own why the order *is* the guarantee.
 //!
-//! [`route`] is ADR 0102 § 1's match: the selected unit's own route table
+//! [`route`] is `rule:routing/matched-once-before-the-handler`'s match: the selected unit's own route table
 //! against the mount-stripped path, taken **once** and written onto the request
 //! rather than left for the program to ask a second time. It dispatches
 //! nothing — a name and typed parameters, and then it stops — which is why the

@@ -97,7 +97,7 @@ use nvs_runtime::{Ctx, Value};
 /// One compiled unit, and the one compile product a *caller* of this cache
 /// still needs beside it.
 ///
-/// ADR 0102 § 1's table is not something the unit's code can be asked for: it
+/// `rule:routing/matched-once-before-the-handler`'s table is not something the unit's code can be asked for: it
 /// is matched against **before** any of that code runs, by the door, so it has
 /// to be reachable without running the program. Holding it here is what makes
 /// "the compiled unit's route table" a thing the server can have — the cache
@@ -108,7 +108,7 @@ pub(crate) struct Compiled {
     /// The unit itself, whose `Rc` is what keeps its pages mapped.
     unit: Rc<nvs_codegen::Unit>,
     /// The routes it declared, already crossed into the runtime's own shape.
-    /// Empty for a program with no `#[Route]`, which is ADR 0077 § 5's opt-in
+    /// Empty for a program with no `#[Route]`, which is `rule:routing/table-is-opt-in`'s opt-in
     /// rule and is one case rather than an `Option`'s two.
     routes: Arc<nvs_runtime::routes::Routes>,
 }
@@ -505,7 +505,7 @@ fn program_over(compiled: Rc<Compiled>) -> Program {
         // `nvs_runtime::script::Program` requires before any of its code runs
         // and `Ctx::isolate` deliberately left empty.
         compiled.unit.install_in(ctx);
-        // And ADR 0102 § 1's table, on the same terms and for the same reason
+        // And `rule:routing/matched-once-before-the-handler`'s table, on the same terms and for the same reason
         // `nvs run` installs one: a member that reads it is reading a compile
         // product of *this* unit, and an isolate shares nothing else.
         if !compiled.routes.rows().is_empty() {

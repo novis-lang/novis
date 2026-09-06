@@ -1,5 +1,5 @@
 --TEST--
-`Core\Router::methodsFor` answers an empty array for a path no route claims and every verb of a path some route does — ADR 0102 § 2
+`Core\Router::methodsFor` answers an empty array for a path no route claims and every verb of a path some route does — `rule:routing/a-refused-verb-is-not-a-missing-path`
 --FILE--
 <?nvs
 // § 2's two answers, with both bounds named in one file: empty is the `404`

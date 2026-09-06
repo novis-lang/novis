@@ -1310,11 +1310,11 @@ pub const CLASSES: &[CoreClass] = &[
     crate::hash::CLASS,
     crate::hash::STREAM,
     crate::uri::CLASS,
-    // § 15's link half only — ADR 0077 § 4's `url`/`urlAbsolute`. `match` and
+    // § 15's link half only — `rule:routing/matching-is-not-dispatching`'s `url`/`urlAbsolute`. `match` and
     // `methodsFor` answer a request and land with the server; [`crate::router`]
     // owns why, and owns the enum that section's `method` parameter takes.
     crate::router::CLASS,
-    // ADR 0102 § 1's match, which is a `Core\Router` name and so lives in that
+    // `rule:routing/matched-once-before-the-handler`'s match, which is a `Core\Router` name and so lives in that
     // module — but is produced by `Core\Request::route()` rather than by
     // anything on the class above, because § 1 puts the match on the *request*.
     crate::router::MATCH,
@@ -1416,7 +1416,7 @@ pub const CLASSES: &[CoreClass] = &[
     // that is answering no request gets a throw rather than an empty answer,
     // and why a verb becomes a `Core\Http\Method` case here and nowhere else.
     crate::request::CLASS,
-    // What `Core\Request::mount` answers with: ADR 0102 § 7's two facts about
+    // What `Core\Request::mount` answers with: `rule:routing/a-request-reads-its-mount`'s two facts about
     // which mount is serving this request, as a pair rather than as the shape
     // that section spells — [`crate::request`]'s `MOUNT` docs own why a shape
     // has no return-position spelling and why the captures carry the mark.
@@ -2147,7 +2147,7 @@ pub struct CaseDoc {
 /// reachable from source the moment it exists — a case a program can write and
 /// pass nowhere is surface with no meaning behind it. That is the test every
 /// row below has passed, and it is the one [`crate::router::METHOD`] passes
-/// through an *attribute* rather than through a member: ADR 0077 § 1's
+/// through an *attribute* rather than through a member: `rule:routing/route-attribute`'s
 /// `#[Route(method: …)]` is where a program writes a case of it, and
 /// [`crate::router::AUDIENCE`] passes it the same way, through `rule:attributes/access-payload`'s `#[Access(allow: …)]`.
 ///

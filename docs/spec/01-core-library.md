@@ -802,7 +802,7 @@ have no equivalent, because seeding the global generator is exactly what that se
 
 A `Core\Uuid` is an opaque 128-bit **value**, not a string that has been checked once: `toString` renders
 RFC 9562's canonical lower-case `8-4-4-4-12` form and is the only way text comes back out, which is what
-lets a route segment ([ADR 0077](../adr/0077-compile-time-routing.md)) and a database column
+lets a route segment (`rule:routing/routes-are-compiled-not-registered`) and a database column
 (`rule:core-classes/db-statement-members`) state that they take one.
 
 **Asking whether text is a UUID is `Uuid::tryParse($s) != null`** — `parse` with `null` where it throws,

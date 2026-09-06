@@ -131,7 +131,7 @@ pub fn check_program_granted(
     // declaring class to disambiguate it, so a counter that restarted per
     // file would give two files' first closures the same synthesized class.
     let mut closure_seq = 0;
-    // ADR 0077 § 5's rows accumulate across the files rather than per file:
+    // `rule:routing/table-is-opt-in`'s rows accumulate across the files rather than per file:
     // `crate::routes::check_table` reports collisions between declarations,
     // and § 5's scan is what brings two files' routes into one program.
     let mut routes = crate::routes::RouteTable::default();
@@ -201,7 +201,7 @@ pub fn check_program_granted(
     // The call-site half of the same deferral: § 9's map asked of the class a
     // `queryAs<T>` wrote, after every deriving class has recorded its mapping.
     crate::derive::check_row_sites(&row_sites, exprs, diags);
-    // § 5's table crosses to `nvs-ir` here rather than being dropped: ADR 0085
+    // § 5's table crosses to `nvs-ir` here rather than being dropped: `rule:routing/api-document-is-generated-from-the-route-table`
     // emits the OpenAPI document from it, and it is what `nvs-ir` reads a
     // handler's declared path back out of.
     exprs.record_routes(routes);

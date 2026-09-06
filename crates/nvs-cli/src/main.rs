@@ -17,7 +17,7 @@
 //!   module doc, and this crate contributes only the argument parsing and the
 //!   exit code; the `#[Test]` half is [`runner`].
 //! * `nvs build --openapi` — the OpenAPI 3.1 document
-//!   [ADR 0085](/docs/adr/0085-openapi-is-generated-from-the-route-table.md)
+//!   `rule:routing/api-document-is-generated-from-the-route-table`
 //!   generates from the compile-time route table, on standard output. A build
 //!   artifact and never a runtime feature; see [`openapi`] for what the table
 //!   supplies and what it does not yet.
@@ -273,15 +273,15 @@ enum Command {
     /// build` with nothing named would be a subcommand that succeeds having
     /// done nothing, and the group is how the next artifact joins without
     /// changing what this invocation means
-    /// ([ADR 0085](/docs/adr/0085-openapi-is-generated-from-the-route-table.md)
-    /// § 3 spells the OpenAPI command,
+    /// (`rule:routing/api-document-is-a-deterministic-build-artifact`
+    /// spells the OpenAPI command,
     /// [ADR 0048](/docs/adr/0048-portable-single-file-executables.md)
     /// § 5 the bundle).
     #[command(group = clap::ArgGroup::new("artifact").required(true).args(["openapi", "compile"]))]
     Build {
         /// The entry point of the program to build.
         file: PathBuf,
-        /// Write ADR 0085's OpenAPI 3.1 document to standard output.
+        /// Write `rule:routing/api-document-is-generated-from-the-route-table`'s OpenAPI 3.1 document to standard output.
         #[arg(long)]
         openapi: bool,
         /// Write ADR 0048's portable single-file executable: this program's
@@ -298,8 +298,8 @@ enum Command {
     /// A group rather than a flag on `build`, because `diff` reads two finished
     /// documents and compiles nothing: the old side of a diff is the last
     /// release's artifact, and there may be no source for it on this machine at
-    /// all ([ADR 0085](/docs/adr/0085-openapi-is-generated-from-the-route-table.md)
-    /// § 4).
+    /// all (`rule:routing/api-diff-fails-a-breaking-change`
+    /// ).
     Api {
         #[command(subcommand)]
         command: ApiCommand,
@@ -382,8 +382,8 @@ enum ApiCommand {
     /// a breaking one.
     ///
     /// The gate of
-    /// [ADR 0085](/docs/adr/0085-openapi-is-generated-from-the-route-table.md)
-    /// § 4: run it in CI against the document from the last release and a
+    /// `rule:routing/api-diff-fails-a-breaking-change`
+    /// : run it in CI against the document from the last release and a
     /// breaking change stops the build. See [`api_diff`] for what each class
     /// covers.
     Diff {
@@ -896,8 +896,8 @@ fn run_check(
     }
 }
 
-/// `nvs build --openapi` — [ADR 0085](/docs/adr/0085-openapi-is-generated-from-the-route-table.md)
-/// § 3's emission, on standard output.
+/// `nvs build --openapi` — `rule:routing/api-document-is-a-deterministic-build-artifact`
+/// 's emission, on standard output.
 ///
 /// The program goes through the same front end `check` does, and the document
 /// is rendered from the route table that front end produced — so a program with
@@ -1035,7 +1035,7 @@ fn runtime_commands(
     )
 }
 
-/// ADR 0102 § 1's table, as the runtime carries it.
+/// `rule:routing/matched-once-before-the-handler`'s table, as the runtime carries it.
 ///
 /// A copy rather than a borrow, for [`runtime_commands`]' reason exactly: the
 /// context outlives the front end's own tables in every caller, and a request
@@ -1044,7 +1044,7 @@ fn runtime_commands(
 /// that unit answers.
 ///
 /// **The OpenAPI half of a row does not cross** — summary, tags, security,
-/// errors and example are ADR 0085's document, generated from the compiler's
+/// errors and example are `rule:routing/api-document-is-generated-from-the-route-table`'s document, generated from the compiler's
 /// own table, and nothing a request asks reads them.
 ///
 /// The one thing here that is a reading rather than a copy is the conversion:
@@ -1066,7 +1066,7 @@ pub(crate) fn runtime_routes(table: &nvs_types::RouteTable) -> nvs_runtime::rout
                     row.access.clone(),
                     row.params
                         .iter()
-                        // ADR 0102 § 3's `#[Query]` parameters are declared on
+                        // `rule:routing/a-query-parameter-is-declared-like-a-capture`'s `#[Query]` parameters are declared on
                         // the same signature and are not part of the path, so
                         // they are not what a segment fills.
                         .filter(|param| param.source == nvs_types::ParamIn::Path)
@@ -1251,7 +1251,7 @@ fn run_run(
     // The script's own frame is the request, for a CLI run: one `Ctx` writing
     // to the process's standard output.
     let mut ctx = nvs_runtime::Ctx::stdout();
-    // ADR 0102 § 6's origin is resolved before the program runs and never
+    // `rule:routing/an-absolute-link-takes-a-configured-origin`'s origin is resolved before the program runs and never
     // during it, which is the whole of what makes it un-sniffable. It comes off
     // the snapshot, so it is the origin of the `[[app]]` blocks that actually
     // match this entry file (ADR 0104 § 2) and not of any block in the file.
@@ -1279,7 +1279,7 @@ fn run_run(
     if !commands.rows().is_empty() {
         ctx.set_commands(std::sync::Arc::new(runtime_commands(commands)));
     }
-    // ADR 0102 § 1: the same crossing one table along. A program run off the
+    // `rule:routing/matched-once-before-the-handler`: the same crossing one table along. A program run off the
     // command line is matched against nothing — there is no request — but
     // `Core\Router`'s own members read the table, so it is installed wherever a
     // program runs rather than only where a server is answering.

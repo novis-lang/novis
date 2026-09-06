@@ -3,7 +3,7 @@
 //! test through.
 //!
 //! § 18 asks for a request that runs through
-//! [ADR 0077](/docs/adr/0077-compile-time-routing.md)'s compiled table and the
+//! `rule:routing/routes-are-compiled-not-registered`'s compiled table and the
 //! real middleware chain with **no socket and no port**. Everything that needs
 //! is on the two sides of this seam and on neither one alone: the carrier, the
 //! table and the response are all `nvs-runtime`'s, while the *program* a
@@ -62,8 +62,8 @@ pub trait Answering: std::fmt::Debug {
     /// task while the child runs, so control does not leave it with a request
     /// still being answered.
     ///
-    /// **[ADR 0102](/docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
-    /// § 1's match is the implementor's**, taken on `inbound` before the child
+    /// **`rule:routing/matched-once-before-the-handler`
+    /// 's match is the implementor's**, taken on `inbound` before the child
     /// starts. It is on this side because the table is a compile product of the
     /// unit the implementor holds, and the *caller's* context need not have one
     /// at all: a `#[Test]` method runs in an isolate of its own, which shares

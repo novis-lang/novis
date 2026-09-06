@@ -1,7 +1,7 @@
 # Loop goal 17 — the request a test builds, and the peer facts it carries
 
 `rule:testing/in-process-request` promises `Core\Test::request(...)`: a
-test builds a request, it runs through [ADR 0077](../../adr/0077-compile-time-routing.md)'s compiled route
+test builds a request, it runs through `rule:routing/routes-are-compiled-not-registered`'s compiled route
 table and the real middleware chain in-process, and what comes back is asserted. The **dispatch** half of
 that is M8's and is out of this goal's scope. The **request** half is not, and it is the half with a
 problem: today `request` exists as one English word in spec § 13's `| Class | Surface | ADR |` table and

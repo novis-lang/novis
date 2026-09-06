@@ -510,7 +510,7 @@ cases = [
 # unfinished rather than reporting how far past it the run got.
 #
 # It is first because three later items are the same scan. `#[Route]`'s table, `#[Command]`'s table and
-# the OpenAPI emitter all filter this enumeration, and ADR 0077 § 5 says so outright -- writing any of
+# the OpenAPI emitter all filter this enumeration, and `rule:routing/table-is-opt-in` says so outright -- writing any of
 # them first means writing the walk three times and then unifying it.
 # ---------------------------------------------------------------------------------------------------
 [[check]]
@@ -1516,13 +1516,13 @@ stage = "1 floor"
 name = "nvs-types (the route table)"
 args = ["test", "-p", "nvs-types"]
 tests = [
-  # Item 3 -- ADR 0077 §§ 1-3, 5.
+  # Item 3 -- `rule:routing/route-attribute`, `rule:routing/path-grammar`, `rule:security/route-capture-is-laundered-by-its-type` and `rule:routing/table-is-opt-in`.
   "a_route_table_is_built_from_the_program_enumeration",
   "a_route_parameter_takes_its_type_from_the_method_that_declares_it",
   "a_duplicate_route_is_a_diagnostic",
   "a_path_capture_with_no_matching_method_parameter_is_a_diagnostic",
   "an_unknown_literal_url_name_is_a_diagnostic",
-  # Item 4 -- ADR 0102 §§ 3, 4, 6. Four more errors on the same pass.
+  # Item 4 -- `rule:routing/a-query-parameter-is-declared-like-a-capture`, `rule:routing/a-trailing-segment-may-be-absent` and `rule:routing/an-absolute-link-takes-a-configured-origin`. Four more errors on the same pass.
   "an_optional_capture_outside_the_last_position_is_a_diagnostic",
   "an_optional_capture_bound_to_a_parameter_with_no_default_is_a_diagnostic",
   "a_capture_or_query_parameter_outside_the_type_list_is_a_diagnostic",
@@ -1594,7 +1594,7 @@ file = "examples/intrinsics.nvs"
 want = ["2026-08-28", "matched", "total: 42", "host=example.test"]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 4 -- ADR 0085's emitter. `nvs build --openapi` and `nvs api diff` are one slice: the diff's
+# Stage 4 -- `rule:routing/api-document-is-generated-from-the-route-table`'s emitter. `nvs build --openapi` and `nvs api diff` are one slice: the diff's
 # classification is mechanical over two emitted documents, so it costs a comparison rather than a design.
 #
 # `kind = "command"` runs an arbitrary argv and checks its exit code and output. `{nvs}` is substituted
@@ -3448,7 +3448,7 @@ stage = "1 floor"
 name = "nvs-server (match once, at the door)"
 args = ["test", "-p", "nvs-server"]
 tests = [
-  # ADR 0102 § 1 -- once, before the handler, travelling on the request.
+  # `rule:routing/matched-once-before-the-handler` -- once, before the handler, travelling on the request.
   "a_request_is_matched_once_before_the_handler_and_route_returns_that_match",
   "the_csrf_check_and_the_route_label_read_the_match_rather_than_matching_again",
   # § 7 -- how one table serves many tenants. The door's half: the prefix step 2 stripped and
@@ -3478,7 +3478,7 @@ tests = [
 # § 2's two answers were filed above, under `-p nvs-server`, and could not be asserted there: § 1 forbids
 # the door to send either status ("the program may still serve the request however it likes, because
 # nothing here dispatches"), and a door refusing a miss would refuse every request of a program that
-# declares no `#[Route]` at all -- ADR 0077 § 5's opt-in rule inverted. The `404`/`405` decision is
+# declares no `#[Route]` at all -- `rule:routing/table-is-opt-in`'s opt-in rule inverted. The `404`/`405` decision is
 # therefore a computation the *table* performs and the program sends, so the test asserts it where the
 # walk is (`crates/nvs-runtime/src/routes.rs:573`) and names the statuses as what a sender does with the
 # answer. `crates/nvs-server/src/route.rs` keeps § 1's half of the ADR and nothing of § 2.
@@ -3871,7 +3871,7 @@ stage = "1 floor"
 name = "nvs-cli (a test's in-process request)"
 args = ["test", "-p", "nvs-cli"]
 tests = [
-  # `rule:testing/in-process-request`: `Core\Test::request(...)` builds a request and runs it through ADR 0077's
+  # `rule:testing/in-process-request`: `Core\Test::request(...)` builds a request and runs it through `rule:routing/routes-are-compiled-not-registered`'s
   # compiled table and the real middleware chain -- no socket, no port. The synthetic request's
   # body and parameters arrive `tainted`, exactly as a real request's would.
   "test_request_dispatches_in_process_through_the_compiled_route_table",

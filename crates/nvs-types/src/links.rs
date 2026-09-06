@@ -1,10 +1,10 @@
-//! [ADR 0077](/docs/adr/0077-compile-time-routing.md) § 4's link half:
+//! `rule:routing/matching-is-not-dispatching`'s link half:
 //! `Core\Router::url` and `::urlAbsolute` over a **literal** route name,
 //! resolved against § 5's finished table while compiling.
 //!
 //! Two of the four refusals here are that ADR's — an unknown name, and a
 //! capture no key supplies. The other two are
-//! [ADR 0102](/docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)'s,
+//! `rule:routing/the-servers-match-dispatches-nothing`'s,
 //! and they are the two halves of one `$params` entry. § 6's is about the
 //! **key**, and it exists because that section gives every *other* key a
 //! meaning: a key covering no capture becomes the link's query string, so a key
@@ -101,7 +101,7 @@ struct LinkArg {
     key: String,
     /// The value as the segment text it would be substituted as, where it
     /// folded to one — a `string` or an `int` literal, which are the two
-    /// spellings ADR 0102 § 5's closed sets are written in. `None` for
+    /// spellings `rule:routing/a-capture-narrows-to-a-closed-set`'s closed sets are written in. `None` for
     /// everything else, and a `None` is checked against nothing.
     value: Option<String>,
 }
@@ -204,7 +204,7 @@ fn folded_as(expr: &Expr, ty: crate::ty::Ty, env: &mut Env<'_>) -> Option<ConstA
     crate::defaults::literal_default(expr, declared, env)
 }
 
-/// § 4's two compile errors and ADR 0102 § 6's one, and the fold that follows
+/// § 4's two compile errors and `rule:routing/an-absolute-link-takes-a-configured-origin`'s one, and the fold that follows
 /// when none of them applies.
 ///
 /// Run once, after every file has been walked, so `routes` is the whole
@@ -227,7 +227,7 @@ pub(crate) fn resolve(
                 )
                 .with_primary(site.name_span, "no route is named this")
                 .with_help(
-                    "ADR 0077 § 4: a literal name is checked against the compiled route \
+                    "`rule:routing/matching-is-not-dispatching`: a literal name is checked against the compiled route \
                      table — give the route a `name:` field of exactly this spelling, or \
                      correct the name written here",
                 ),
@@ -260,7 +260,7 @@ pub(crate) fn resolve(
     }
 }
 
-/// ADR 0102 § 6's compile error, which is [`covered`] read the other way round:
+/// `rule:routing/an-absolute-link-takes-a-configured-origin`'s compile error, which is [`covered`] read the other way round:
 /// every key supplies *something*.
 ///
 /// A key names one of the path's captures — any of the three forms, including
@@ -313,7 +313,7 @@ fn declared(
         )
         .with_primary(site.span, "this key would become a query string")
         .with_help(
-            "ADR 0102 § 6: a key that is not a capture becomes the link's query string, so one \
+            "`rule:routing/an-absolute-link-takes-a-configured-origin`: a key that is not a capture becomes the link's query string, so one \
              that names nothing ships as a query parameter nobody reads — correct the spelling, \
              or declare the parameter with `#[Query]` on the handler",
         ),
@@ -372,7 +372,7 @@ fn covered(
         )
         .with_primary(site.span, "this link cannot be built")
         .with_help(
-            "ADR 0077 § 4: a `$params` array that does not cover the route's captures is a \
+            "`rule:routing/matching-is-not-dispatching`: a `$params` array that does not cover the route's captures is a \
              compile error — only a `{name?}` may be left out, because its whole segment is \
              dropped when it is",
         ),
@@ -380,7 +380,7 @@ fn covered(
     false
 }
 
-/// ADR 0102 § 5's compile error: a literal value the parameter it supplies
+/// `rule:routing/a-capture-narrows-to-a-closed-set`'s compile error: a literal value the parameter it supplies
 /// cannot hold.
 ///
 /// § 5 narrows a capture to a closed set with a *type*, and a segment outside
@@ -436,7 +436,7 @@ fn within_set(
             )
             .with_primary(site.span, "no request could carry this value")
             .with_help(
-                "ADR 0102 § 5: a capture narrows to a closed set with a type, and a segment \
+                "`rule:routing/a-capture-narrows-to-a-closed-set`: a capture narrows to a closed set with a type, and a segment \
                  outside it falls through to a `404` rather than reaching the handler — so this \
                  link names a route it would not match. Correct the value, or widen the \
                  parameter's declared type",

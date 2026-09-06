@@ -156,7 +156,7 @@ use crate::{Ctx, Env, span_text};
 ///
 /// Three scalar rows, because § 1's shape names three types, and two that are
 /// not scalars at all: `rule:attributes/payload-is-a-compile-time-constant` admits an enum case in a payload and
-/// ADR 0077 § 1's `method` is one, and `rule:attributes/access-payload` declares a field whose
+/// `rule:routing/route-attribute`'s `method` is one, and `rule:attributes/access-payload` declares a field whose
 /// type is `mixed` on purpose. A sixth row is a decision about what some
 /// attribute may carry and belongs in the section that decides it before it
 /// belongs here.

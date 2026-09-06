@@ -155,7 +155,7 @@ What the rule refuses, and why each is a category Novis does not have rather tha
   ([0082](0082-the-first-party-framework.md)), so a view is ordinary code reached by ordinary navigation.
 - **A vendor annotation dialect or an `ide.json`-style patch file** is refused outright. It would be a
   second description of a program's shape, unchecked against the first, which is the failure
-  [ADR 0085](0085-openapi-is-generated-from-the-route-table.md) already refuses for API documents.
+  `rule:routing/api-document-is-generated-from-the-route-table` already refuses for API documents.
 - **Anything requiring a network request.** The language server makes none — no registry lookup for a
   package name or version, no manifest metadata fetched while typing. A lockfile is on disk and may be
   read; a remote index may not be consulted. An editor that quietly talks to a third party while a

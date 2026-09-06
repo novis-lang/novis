@@ -7,7 +7,7 @@ Goal 28's whole list is this goal's Stage 1 floor.
 
 The design is finished and is not this goal's to re-open:
 `rule:core-api/signing-is-over-a-payload` holds all of
-it, `rule:security/protocol-roster`'s roster already reads five, and ADR 0077 § 4 already lists `urlSigned`/`signedRoute`. The
+it, `rule:security/protocol-roster`'s roster already reads five, and `rule:routing/matching-is-not-dispatching` already lists `urlSigned`/`signedRoute`. The
 spec is already written against nothing — `docs/spec/01-core-library.md` § 12 carries `$uri->sign` and
 `$uri->verifySignature`, § 16 carries `Core\Signature` — and both outstanding-key files name **29** as
 the owner of those three rows.

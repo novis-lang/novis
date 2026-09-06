@@ -4,7 +4,7 @@
 <?nvs
 // The one *class* § 6 admits an argument at, matched nominally. Its grammar is
 // `nvs_runtime::uuid`, which is also what `Core\Uuid::parse` and a
-// `{id: Core\Uuid}` route capture read (ADR 0102 § 5) — one home, so a
+// `{id: Core\Uuid}` route capture read (`rule:routing/a-capture-narrows-to-a-closed-set`) — one home, so a
 // command line's word, a program's parse and a request's segment cannot come
 // to disagree about which spellings are a UUID.
 //

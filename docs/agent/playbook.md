@@ -1875,11 +1875,11 @@ is why" — is this file.
   own; a call that wants bodies and anchors at once wants two calls or no `--locate` at all.
 - **A failing acceptance check can name a feature with no foundation anywhere in the tree, and
   then the cheapest triage is one `grep -rn` for the ADR number across `crates/*/src`.** The
-  `nvs-server (match once, and the two answers)` check names four ADR 0102 tests; the grep found
+  `nvs-server (match once, and the two answers)` check names four `rule:routing/the-servers-match-dispatches-nothing` tests; the grep found
   `nvs-stdlib/src/router.rs`, whose own module doc says `Core\Router::match` is unwritten and that
   the link half "is as much of the router as exists today". So the check is not misfiled and not a
   regression — it is a whole milestone-sized item (a compiled route table travelling on the unit,
-  ADR 0102 § 1) reported as "did not run", which is the ordinary state this goal's checks are
+  `rule:routing/matched-once-before-the-handler`) reported as "did not run", which is the ordinary state this goal's checks are
   written in. The sibling bullets cover the misfiled case and the impossible-crate case; this is
   the third outcome, and the tell is that the grep finds the surface *named* in a module doc's
   "known gaps" rather than implemented or absent. Two of the four names additionally cannot be
@@ -1888,11 +1888,11 @@ is why" — is this file.
 - **A `loop-goal.toml` check can name a *status* an ADR forbids anything to send, and the sentence
   that settles it is in the section the check itself cites.** Stage 5's
   `no_methods_for_a_path_is_404_and_some_is_405_with_allow` is filed `-p nvs-server` and reads as
-  "the door answers `404`/`405`", which the handoff's item repeated. ADR 0102 § 1 forbids it in one
+  "the door answers `404`/`405`", which the handoff's item repeated. `rule:routing/matched-once-before-the-handler` forbids it in one
   clause — "the program may still serve the request however it likes, because nothing here
   dispatches" — and the construction proof is shorter still: a door that refused a miss would refuse
   **every** request of a program that declares no `#[Route]`, since an empty table claims no path,
-  which is ADR 0077 § 5's opt-in rule inverted. § 2's own last paragraph says the same thing about
+  which is `rule:routing/table-is-opt-in`'s opt-in rule inverted. § 2's own last paragraph says the same thing about
   `OPTIONS`, and § 8 names a *dispatcher* rather than the server as the enforcer. So the two answers
   are a computation the table performs and the *program* sends. The general shape: when a check name
   contains a wire-level effect (a status, a header, a close), find who is allowed to emit it before
@@ -1901,7 +1901,7 @@ is why" — is this file.
   the one to reach for when the ADR forbids the *effect* rather than the crate lacking a
   dependency: move the check, and let the test name that effect as what a sender does with the
   answer.** `no_methods_for_a_path_is_404_and_some_is_405_with_allow` was filed `-p nvs-server`
-  and could not be honest there, because ADR 0102 § 1 forbids the door to send either status. The
+  and could not be honest there, because `rule:routing/matched-once-before-the-handler` forbids the door to send either status. The
   sibling bullets' repairs — correct the `args`, split the conjunction, read the crate's known
   gaps — all stop at "this crate cannot host it" and leave open what the test then asserts. What
   made it writable was that `404`/`405` is a decision taken *over* the table's answer, so the test
@@ -4069,7 +4069,7 @@ is why" — is this file.
   and points at the wrong file. Fully qualified (`#[\Core\Command(...)]`) needs no import and is the
   spelling to reach for when a case is about the match rather than about the import.
 - **A new compile-time refusal can break a green `.nvst` written for the *runtime* half of the
-  same ADR sentence, and the case will read as if it were always wrong.** ADR 0102 § 6 says two
+  same ADR sentence, and the case will read as if it were always wrong.** `rule:routing/an-absolute-link-takes-a-configured-origin` says two
   things in one breath — a non-capture `$params` key becomes the link's query string, and a key
   that is neither a capture nor a declared `#[Query]` parameter is a compile error. The previous
   session landed the first half and wrote
@@ -4337,7 +4337,7 @@ is why" — is this file.
   a missing field rather than as a `false`; `$b ? "y" : "n"` is the spelling that keeps such a row
   legible. Both are invisible until the case runs, and the second one passes review.
 - **A `.nvst` case configures the run it makes through `--FILE <path>--`, and a scratch probe at the
-  repo root does not.** `Core\Router::urlAbsolute` reads ADR 0102 § 6's origin out of `[app] origin`
+  repo root does not.** `Core\Router::urlAbsolute` reads `rule:routing/an-absolute-link-takes-a-configured-origin`'s origin out of `[app] origin`
   in `./nvs.toml` — the *working directory's*, resolved by `boot_snapshot` at
   `crates/nvs-cli/src/main.rs:610` — and both `router.rs`' gap 2 and the one case that existed read
   as though that made the answering half unreachable off the command line. It is not:
@@ -6864,7 +6864,7 @@ sibling in the same namespace unqualified.
 - **`array<K, V>` is a spelling the docs write and the type system has no form for.**
   `nvs_types::ty::Ty::Array` carries one `TypeId`, and there is no `CoreTy` for a keyed
   array — a Novis array's keys are `int|string` by construction and are not part of its
-  type. So `array<string, mixed>`, which spec § 15 and ADR 0077 § 4 both write for
+  type. So `array<string, mixed>`, which spec § 15 and `rule:routing/matching-is-not-dispatching` both write for
   `Core\Router::url`'s `$params`, is declared as `CoreTy::Array(&CoreTy::Mixed)` and the
   key rule is enforced where it can be (§ 4 makes a literal key naming neither a capture
   nor a `#[Query]` parameter a compile error). Same family, one call earlier:
@@ -6885,7 +6885,7 @@ sibling in the same namespace unqualified.
   calls "the one that bites" — resolves nothing: `address_of` is only ever asked about a symbol the
   roster already produced. The symptom is `can't resolve symbol nvs_core_…` from
   `cranelift-jit/src/backend.rs`, naming no Novis file. Any symbol lowering emits that is not a
-  member's own — ADR 0077 § 4's two prepared link entry points, a constructor — owes a `.chain()`
+  member's own — `rule:routing/matching-is-not-dispatching`'s two prepared link entry points, a constructor — owes a `.chain()`
   in that function beside `registry::CONSTRUCTORS`', **and** a term in
   `every_registered_member_has_an_implementation_address`' arithmetic, which is the same sum
   written out a second time and fails the moment the roster grows.
@@ -6896,7 +6896,7 @@ sibling in the same namespace unqualified.
   would have put the fixture in `examples/` where no `nvs run` from the repository root would ever read
   it. A handoff bullet is the previous session's *plan*, written before it read the ADR the slice lands
   inside; when the two disagree the ADR body wins and the handoff is the bug. ADR 0104 is the one to
-  read next here — it makes `[[app]]` an array of tables keyed on `root`/`entry`, which ADR 0102 § 6's
+  read next here — it makes `[[app]]` an array of tables keyed on `root`/`entry`, which `rule:routing/an-absolute-link-takes-a-configured-origin`'s
   plain `[app] origin` does not know about yet.
 - **A refusal over a *derived* fact fires on declarations that were already refused for something
   else, and the existing `--EXPECTF-ERROR--` case is what catches it.** `rule:core-classes/derive-generates-what-is-missing`'s "an attribute
@@ -7113,7 +7113,7 @@ sibling in the same namespace unqualified.
   `address_of` is not enough, and the failure is a Cranelift panic at *run* time reading
   `can't resolve symbol nvs_core_script_spawn`, long after everything has compiled and every test
   in the crate has passed. `symbols()` walks `registry::CLASSES` and `CONSTRUCTORS`, so a member with
-  a row is found for free; a rowless symbol — ADR 0077's two prepared link entry points, `rule:security/isolate-shares-nothing`'s
+  a row is found for free; a rowless symbol — `rule:routing/routes-are-compiled-not-registered`'s two prepared link entry points, `rule:security/isolate-shares-nothing`'s
   `spawn script` and `await` — needs its own `.chain([...])` there beside `address`'s arm. Two
   registrations, not one, and the second has no compile-time gate at all.
 - **The live graph carrier keeps the source object's descriptor, so `rule:classes/graph-copy`'s *unresolvable class* has no counterpart there until someone hands it a receiving table.** `decode` resolves a class by name and refuses one the program does not declare; `copy_graph` never resolved anything, because both sides of a `clone` are one program. At the isolate boundary they are not — `nvs-cli` compiles one unit per written path — so the rule had to be added rather than found: `copy_graph_into(value, Some(&resolve))` and `Live::admit`. Do not read a refusal in `graph.rs` as covering both carriers; the `Carrier` trait is the list of what they share.
@@ -8101,7 +8101,7 @@ sibling in the same namespace unqualified.
   nine landed `.nvst` cases at once: every case that observes `Core\Response::text` is a CLI script
   that also echoes, and two of them exist precisely to pin that the two writers share one output. The
   word doing the work is **response**: § 3 binds `echo` by *context*, so which sink a body writes to
-  is a run-time fact for every body except a `#[Route]` handler, which ADR 0102 § 1 makes a request
+  is a run-time fact for every body except a `#[Route]` handler, which `rule:routing/matched-once-before-the-handler` makes a request
   body by declaration. Before implementing a rule an ADR states over a run-time noun, grep the corpus
   for the members it names — a green case exercising the very combination is the cheapest possible
   statement of the scope you actually have.
@@ -8235,7 +8235,7 @@ sibling in the same namespace unqualified.
   written down twice: `nvs_runtime::commands`' module doc § *Why the table is a runtime value at
   all* argues it for ADR 0086 § 6's commands, and `nvs-cli`'s `runtime_commands` is the copy that
   crosses — strings plus one closed enum for whatever a matcher needs that no string spells. Anything
-  ADR 0102's routes, `rule:concurrency/enqueue-commits-with-your-write`'s jobs or a later table needs is that shape again. Check for the
+  `rule:routing/the-servers-match-dispatches-nothing`'s routes, `rule:concurrency/enqueue-commits-with-your-write`'s jobs or a later table needs is that shape again. Check for the
   sibling before designing the edge: the cost of missing it is a dependency edge in a review rather
   than a copy nobody argues with.
 - **Widening a member's declared type in `nvs_stdlib::registry` moves four expectations, and not one
@@ -8405,7 +8405,7 @@ sibling in the same namespace unqualified.
   tools/verify.py --doc` is the whole check and it names the file and column; run it once when a
   session writes a module doc that links a type from another module.
 - **A route table is on the *unit*, not on whichever context is in hand, and a `#[Test]` isolate's
-  own context has none.** ADR 0102 § 1's match for an in-process request was written in the `Core`
+  own context has none.** `rule:routing/matched-once-before-the-handler`'s match for an in-process request was written in the `Core`
   member, off `ctx.routes()`, which is exactly where the door takes it and reads correctly — and it
   matched nothing, silently, so every synthetic request answered with a `null` route and a program
   that branched on the match took the miss branch. `nvs run` installs the table on the script's own

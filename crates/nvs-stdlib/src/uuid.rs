@@ -5,7 +5,7 @@
 //! All four of that table's members are here. A `Core\Uuid` is a **value with a
 //! type**, not a 36-character string a program passes around and re-validates
 //! at every boundary: that is what makes `rule:core-classes/db-statement-members`'s native `UUID` column
-//! binding and ADR 0077's `Core\Uuid` route segment able to state what they
+//! binding and `rule:routing/routes-are-compiled-not-registered`'s `Core\Uuid` route segment able to state what they
 //! take.
 //!
 //! # Reading text: the canonical form, and nothing else
@@ -14,7 +14,7 @@
 //! and refuses the three shapes the `uuid` crate would otherwise also take: the
 //! unhyphenated 32 hex digits, `{…}` braces, and a `urn:uuid:` prefix. One
 //! length check does it, so nothing is re-implemented to be strict — and that
-//! check is [`nvs_runtime::uuid::read`], because ADR 0102 § 5's `Core\Uuid`
+//! check is [`nvs_runtime::uuid::read`], because `rule:routing/a-capture-narrows-to-a-closed-set`'s `Core\Uuid`
 //! route capture is accepted or refused one crate *below* this one, and a
 //! segment a route admits had better not be read by a second grammar. The rule
 //! and its reasons are still this module's; the sixteen bytes are down there.
@@ -288,7 +288,7 @@ pub(crate) fn of_text(text: &str) -> Option<Value> {
 ///
 /// **The grammar itself is [`nvs_runtime::uuid::read`]**, one crate down, and
 /// this is that reading with the type put back on it. It lives there because
-/// ADR 0102 § 5 lets a route capture declare `Core\Uuid` and a capture is
+/// `rule:routing/a-capture-narrows-to-a-closed-set` lets a route capture declare `Core\Uuid` and a capture is
 /// accepted or refused in `nvs_runtime::routes`, which cannot depend on this
 /// crate — so a segment a route admits and a string a program parses are one
 /// grammar with one home rather than two readers that agree today. Everything

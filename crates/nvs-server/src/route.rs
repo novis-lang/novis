@@ -1,5 +1,5 @@
-//! [ADR 0102](/docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
-//! § 1's match, taken at the door: the compiled unit's route table against the
+//! `rule:routing/matched-once-before-the-handler`
+//! 's match, taken at the door: the compiled unit's route table against the
 //! request that arrived, once, before any application code runs.
 //!
 //! # Why the door and not the program
@@ -14,7 +14,7 @@
 //! `Core\Request::route()` is the one reader.
 //!
 //! **This module dispatches nothing.** It computes a name and typed parameters
-//! and stops, which is § 1's own second rule and ADR 0077 § 4's refusal list
+//! and stops, which is § 1's own second rule and `rule:routing/matching-is-not-dispatching`'s refusal list
 //! left untouched: nothing here calls the annotated method, and nothing here
 //! decides what a return value means.
 //!
@@ -43,7 +43,7 @@
 //! unmatched request's label is — but no core owns a registry yet, because § 8's
 //! two exporters are not in this crate's graph and nothing would read one. So
 //! [`label`] still has no caller, and it is written here for the reason it
-//! always was: the *value* is the part that rule interlocks with ADR 0077 over —
+//! always was: the *value* is the part that rule interlocks with `rule:routing/routes-are-compiled-not-registered` over —
 //! a name out of the compile-time table and never the request's path — and
 //! deriving it anywhere else would be the second match § 1 removes.
 //!
@@ -60,7 +60,7 @@
 //! code has run.
 //!
 //! A request whose unit declares no route is matched against nothing and
-//! carries no match, which is ADR 0077 § 5's opt-in rule; so is one whose
+//! carries no match, which is `rule:routing/table-is-opt-in`'s opt-in rule; so is one whose
 //! program failed to compile, because the table is a product of the compile
 //! that did not happen.
 //!
@@ -99,12 +99,12 @@ pub fn take(routes: &Routes, inbound: &mut Inbound) {
 /// `true` where the request matched a row an unsafe verb declared and whose
 /// `#[Access]` did not write § 1a's `csrf: false`. Both halves are read off
 /// [`nvs_runtime::routes::Match::route`] — the row [`take`] already found —
-/// which is exactly what ADR 0102 § 1 removes: a check that matched for itself
+/// which is exactly what `rule:routing/matched-once-before-the-handler` removes: a check that matched for itself
 /// would make two matches of one question, and § 4 was specified against the
 /// answer this one already has.
 ///
-/// **A request that matched nothing is not covered**, and that is ADR 0077
-/// § 5's opt-in rule rather than a hole in the default: a program with no route
+/// **A request that matched nothing is not covered**, and that is `rule:routing/table-is-opt-in`
+/// 's opt-in rule rather than a hole in the default: a program with no route
 /// table declares no handler for the door to protect, so refusing its every
 /// `POST` would refuse every request it serves.
 ///
@@ -166,7 +166,7 @@ mod tests {
         Some((matched.name()?.to_owned(), matched.params().to_vec()))
     }
 
-    /// ADR 0102 § 1: the match is taken before the handler, it is taken once,
+    /// `rule:routing/matched-once-before-the-handler`: the match is taken before the handler, it is taken once,
     /// and `Core\Request::route()`'s carrier answers with *that* match rather
     /// than with a second one.
     ///
@@ -224,7 +224,7 @@ mod tests {
     }
 
     /// `rule:security/csrf-is-on-by-default`'s CSRF check and ADR 0076 § 1's `route` label, which are two
-    /// of the three rules ADR 0102 § 1 was written for: each reads the match the
+    /// of the three rules `rule:routing/matched-once-before-the-handler` was written for: each reads the match the
     /// door already made rather than making a second one.
     ///
     /// **The table is dropped before either is asked**, which is the half a
@@ -251,7 +251,7 @@ mod tests {
         // § 1a's opt-out, on the same verb as the row above it.
         assert!(!super::csrf_required(&exempt));
         assert!(!super::csrf_required(&safe));
-        // ADR 0077 § 5: nothing matched declares no handler to protect.
+        // `rule:routing/table-is-opt-in`: nothing matched declares no handler to protect.
         assert!(!super::csrf_required(&unmatched));
 
         assert_eq!(super::label(&checked_post), Some("orders.create"));

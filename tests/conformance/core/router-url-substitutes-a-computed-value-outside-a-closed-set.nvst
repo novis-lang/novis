@@ -1,5 +1,5 @@
 --TEST--
-`Core\Router::url` substitutes a computed value outside a capture's closed set rather than throwing, and encodes it into its own segment — ADR 0102 §§ 5 and 6
+`Core\Router::url` substitutes a computed value outside a capture's closed set rather than throwing, and encodes it into its own segment — `rule:routing/a-capture-narrows-to-a-closed-set` and `rule:routing/an-absolute-link-takes-a-configured-origin`
 --FILE--
 <?nvs
 // The other side of `E0772`: a *literal* out-of-set value is a compile error

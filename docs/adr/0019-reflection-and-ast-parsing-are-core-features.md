@@ -123,7 +123,7 @@ as `Core\Json::decode()` on one.
   `rule:types/class-reference`'s `class<T>` is the type a
   container holds, checked once at the `as` that produced it, so a container binding a name to an
   implementation is type-checked where PHP's throws at resolution time. **An attribute-driven router is
-  no longer one of those cases**: [ADR 0077](0077-compile-time-routing.md) makes the route table a compiler
+  no longer one of those cases**: `rule:routing/routes-are-compiled-not-registered` makes the route table a compiler
   pass over `rule:programs/no-runtime-autoload`'s program enumeration, so it
   never reaches `Core\Reflect` at all — which is the better outcome, since it turns three runtime routing
   bugs into compile errors.

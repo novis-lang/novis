@@ -117,7 +117,7 @@
 //!   goes through a pattern the *call site* wrote, so there is nothing for a
 //!   qualifier to travel on. This is `rule:security/taint-propagation`'s "a checked conversion
 //!   launders" reached at a member rather than at a cast, and it is the same
-//!   judgement ADR 0102 § 5 makes when it narrows a route capture to a closed
+//!   judgement `rule:routing/a-capture-narrows-to-a-closed-set` makes when it narrows a route capture to a closed
 //!   set with a type.
 //!
 //!   The line it draws is the one `Core\Bytes::at` is on the other side of:

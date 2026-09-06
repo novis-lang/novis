@@ -1,5 +1,5 @@
 --TEST--
-`Core\Request::route()` answers `?Core\Router\Match`, so a program cannot read the match without saying what it does when nothing matched — ADR 0102 § 1, spec § 15
+`Core\Request::route()` answers `?Core\Router\Match`, so a program cannot read the match without saying what it does when nothing matched — `rule:routing/matched-once-before-the-handler`, spec § 15
 --FILE--
 <?nvs
 // A boundary, on the absence § 1 states: nothing in the table claimed this

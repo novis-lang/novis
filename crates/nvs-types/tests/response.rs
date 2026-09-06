@@ -13,7 +13,7 @@ mod common;
 use common::check_src;
 use nvs_diagnostics::{Diagnostics, code};
 
-/// ADR 0102 § 1's request body, as small as it goes: one `#[Route]` handler
+/// `rule:routing/matched-once-before-the-handler`'s request body, as small as it goes: one `#[Route]` handler
 /// with `rule:attributes/access-is-a-required-sibling`'s required sibling decision.
 fn handler(body: &str) -> String {
     format!(

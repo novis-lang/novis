@@ -1,5 +1,5 @@
 --TEST--
-a configured origin's trailing `/` is dropped exactly once, so `Core\Router::urlAbsolute` puts one separator between authority and path on every row — ADR 0102 § 6
+a configured origin's trailing `/` is dropped exactly once, so `Core\Router::urlAbsolute` puts one separator between authority and path on every row — `rule:routing/an-absolute-link-takes-a-configured-origin`
 --FILE--
 <?nvs
 // The bound, and it needs both sides to mean anything. An origin is a string a
@@ -105,7 +105,7 @@ echo "written=", $written, "\n";
 echo "root=", $absolute["0"], "\n";
 echo "rest=", $absolute["1"], "\n";
 --FILE nvs.toml--
-# ADR 0102 § 6's configured origin, written the way half of them are written:
+# `rule:routing/an-absolute-link-takes-a-configured-origin`'s configured origin, written the way half of them are written:
 # with a trailing `/`. `Ctx::set_origin` drops it, which is what this case is
 # about. `root = "."` is ADR 0104 § 1's key: this working directory, so the
 # program below is the entry file the block covers.

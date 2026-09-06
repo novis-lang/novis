@@ -1,5 +1,5 @@
 --TEST--
-A route capture is percent-decoded exactly once as it crosses into the program, so `%20` is a space and `%2520` is the text `%20` — ADR 0102 § 1
+A route capture is percent-decoded exactly once as it crosses into the program, so `%20` is a space and `%2520` is the text `%20` — `rule:routing/matched-once-before-the-handler`
 --FILE--
 <?nvs
 // The decode is at the crossing and nowhere else: the segment travels from the

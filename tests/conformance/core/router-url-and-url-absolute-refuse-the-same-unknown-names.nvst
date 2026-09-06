@@ -1,10 +1,10 @@
 --TEST--
-`Core\Router::url` and `Core\Router::urlAbsolute` throw on a name no route declares, and refuse exactly the same names as each other — ADR 0077 § 4, ADR 0102 § 6
+`Core\Router::url` and `Core\Router::urlAbsolute` throw on a name no route declares, and refuse exactly the same names as each other — `rule:routing/matching-is-not-dispatching`, `rule:routing/an-absolute-link-takes-a-configured-origin`
 --FILE--
 <?nvs
 // The depth claim is *agreement*: one question asked of the two members that
 // share § 4's lookup, asserting that they answer the same rather than what
-// each answered. `urlAbsolute` is `url` with ADR 0102 § 6's configured origin
+// each answered. `urlAbsolute` is `url` with `rule:routing/an-absolute-link-takes-a-configured-origin`'s configured origin
 // in front, so a name one of them resolves and the other does not would mean
 // two lookups had grown apart — which is exactly what a second copy of the
 // table would produce.
@@ -16,7 +16,7 @@
 array<string> $names = [
     // The spelling `examples/routes.nvs` uses, which is a real route there and
     // no route here: this program declares no `#[Route]` and no `autoload`
-    // root, so the table it asks is empty by construction (ADR 0077 § 5 — a
+    // root, so the table it asks is empty by construction (`rule:routing/table-is-opt-in` — a
     // program that declares no route still performs no scan).
     "Users::show",
     // The empty name, which no route may carry: § 1's `name` is optional and

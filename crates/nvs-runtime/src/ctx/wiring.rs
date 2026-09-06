@@ -248,7 +248,7 @@ impl Ctx {
         self.exit_code = code;
     }
 
-    /// ADR 0102 § 6's configured origin, or `None` when this unit resolves
+    /// `rule:routing/an-absolute-link-takes-a-configured-origin`'s configured origin, or `None` when this unit resolves
     /// none — see [`Self::origin`]'s field docs for why it is never sniffed.
     #[must_use]
     pub fn origin(&self) -> Option<&str> {
@@ -337,8 +337,8 @@ impl Ctx {
         self.routes.as_deref()
     }
 
-    /// Hands this program the route table the compiler built for it — ADR 0102
-    /// § 1, written before the program runs exactly as [`Self::set_commands`]
+    /// Hands this program the route table the compiler built for it — `rule:routing/matched-once-before-the-handler`
+    /// , written before the program runs exactly as [`Self::set_commands`]
     /// is.
     pub fn set_routes(&mut self, table: std::sync::Arc<crate::routes::Routes>) {
         self.routes = Some(table);

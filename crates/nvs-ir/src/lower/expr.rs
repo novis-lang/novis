@@ -238,7 +238,7 @@ impl<'a> Lowering<'a> {
                     let ctors = ctors.clone();
                     return self.lower_program_instances(&classes, &ctors, env, cur);
                 }
-                // ADR 0077 § 4's link, resolved in `nvs check` against § 5's
+                // `rule:routing/matching-is-not-dispatching`'s link, resolved in `nvs check` against § 5's
                 // finished table and recorded as the named route's path,
                 // already split by § 2's grammar. The call still happens — a
                 // link percent-encodes runtime values and is not a constant —
@@ -2884,8 +2884,8 @@ impl<'a> Lowering<'a> {
     }
 
     /// `Core\Router::url(...)`/`::urlAbsolute(...)` over a route name
-    /// `nvs_types::links` resolved — [ADR 0077](/docs/adr/0077-compile-time-routing.md)
-    /// § 4's link.
+    /// `nvs_types::links` resolved — `rule:routing/matching-is-not-dispatching`
+    /// 's link.
     ///
     /// Two arguments in and two out, and only the first is different: the
     /// written name is replaced by the *prepared path* the checker resolved it

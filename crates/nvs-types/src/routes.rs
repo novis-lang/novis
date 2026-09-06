@@ -1,4 +1,4 @@
-//! [ADR 0077](/docs/adr/0077-compile-time-routing.md) § 1's
+//! `rule:routing/route-attribute`'s
 //! `#[Route]`: what one route declaration may carry.
 //!
 //! # Why this is a recognized name rather than a shape alias
@@ -44,8 +44,8 @@
 //! declaration around it can see neither the parameter list nor the class.
 //!
 //! The same walk reads
-//! [ADR 0102](/docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
-//! § 3's `#[Query]` ([`query_params`]): a parameter the *declaration* binds from
+//! `rule:routing/a-query-parameter-is-declared-like-a-capture`
+//! 's `#[Query]` ([`query_params`]): a parameter the *declaration* binds from
 //! the query string rather than one the path names, so it is a second reading of
 //! the same parameter list and not a third reading of the path. The keys land on
 //! the row, because the only question asked about them is § 6's and it is asked
@@ -66,7 +66,7 @@
 //! same walk.
 //!
 //! The conversion roster is [`crate::commands::converts_from_string`], read and
-//! never copied — ADR 0086 § 6 takes § 3's list unchanged and ADR 0102 § 3 takes
+//! never copied — ADR 0086 § 6 takes § 3's list unchanged and `rule:routing/a-query-parameter-is-declared-like-a-capture` takes
 //! it unchanged again for a query parameter, so all three passes ask one
 //! question. The single thing this pass adds to it is that a `{name...}` arrives
 //! as the one `tainted string` § 3 says it does, so it binds a `string` and
@@ -137,8 +137,8 @@ const TYPE: &str = "type";
 /// the form the row carries and the form the check compares.
 const UNSAFE_VERBS: [&str; 4] = ["Post", "Put", "Patch", "Delete"];
 
-/// `#[Route(path: string, method: Core\Http\Method, name?: string)]` — ADR 0077
-/// § 1's own spelling, in the order that section writes it.
+/// `#[Route(path: string, method: Core\Http\Method, name?: string)]` — `rule:routing/route-attribute`
+/// 's own spelling, in the order that section writes it.
 ///
 /// `method` is an enum case rather than a string
 /// (`rule:core-api/shape-rules` R11), and an
@@ -261,7 +261,7 @@ pub(crate) fn check_one_access(groups: &[AttributeGroup], ctx: &Ctx<'_>, env: &m
     }
 }
 
-/// ADR 0102 § 3's marker held to the declaration that reads it: a `#[Query]` on
+/// `rule:routing/a-query-parameter-is-declared-like-a-capture`'s marker held to the declaration that reads it: a `#[Query]` on
 /// a parameter of a method carrying no `#[Route]`.
 ///
 /// Asked from [`crate::attributes`]' per-method walk rather than from
@@ -300,7 +300,7 @@ pub(crate) fn check_stray_query(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'
             )
             .with_primary(attr.span, "nothing reads this marker")
             .with_help(
-                "ADR 0102 § 3 gives `#[Query]` its meaning on a `#[Route]` method's parameter, \
+                "`rule:routing/a-query-parameter-is-declared-like-a-capture` gives `#[Query]` its meaning on a `#[Route]` method's parameter, \
                  where the key it binds by is the parameter's own name — anywhere else nothing \
                  binds it: write the `#[Route]` this parameter serves, or delete the marker",
             ),
@@ -308,7 +308,7 @@ pub(crate) fn check_stray_query(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'
     }
 }
 
-/// One row of ADR 0077 § 5's table: a `#[Route]` that named both of the fields
+/// One row of `rule:routing/table-is-opt-in`'s table: a `#[Route]` that named both of the fields
 /// a row cannot exist without, resolved to the strings the table is keyed by.
 ///
 /// Public because the finished row is what crosses into `nvs-ir` — the same
@@ -333,14 +333,14 @@ pub struct Route {
     /// [`crate::expr_table::ExprTypeTable::method_label`] renders one.
     pub handler: String,
     /// Every parameter this route declares: § 2's path captures in path order
-    /// first, then ADR 0102 § 3's `#[Query]` parameters in declaration order.
+    /// first, then `rule:routing/a-query-parameter-is-declared-like-a-capture`'s `#[Query]` parameters in declaration order.
     ///
     /// On the row rather than left in the declaration because both readers are
     /// past the walk that built it. [`crate::links`] asks § 6's question after
     /// every file has been walked, by which time the method that declared these
     /// is in a file the walk has moved past; and
-    /// [ADR 0085](/docs/adr/0085-openapi-is-generated-from-the-route-table.md)
-    /// § 1 reads the same rows out of the finished table, where the declaration
+    /// `rule:routing/api-document-is-generated-from-the-route-table`
+    /// reads the same rows out of the finished table, where the declaration
     /// is not in reach at all.
     pub params: Vec<RouteParam>,
     /// `rule:attributes/access-is-a-required-sibling`'s access decision, as the name it resolves to —
@@ -371,8 +371,8 @@ pub struct Route {
     /// out of, so a `false` under four safe verbs belongs to a program that did
     /// not compile and never reaches a table.
     pub csrf: bool,
-    /// [ADR 0085](/docs/adr/0085-openapi-is-generated-from-the-route-table.md)
-    /// § 1's summary: the first sentence of the declaration's own doc comment,
+    /// `rule:routing/api-document-is-generated-from-the-route-table`
+    /// 's summary: the first sentence of the declaration's own doc comment,
     /// or `None` where the method carries none.
     ///
     /// Split here rather than at the emitter, for the reason this whole row
@@ -457,7 +457,7 @@ struct Api {
 pub enum ParamIn {
     /// § 2's capture: a segment of the matched path.
     Path,
-    /// ADR 0102 § 3's `#[Query]` marker: a key of the query string.
+    /// `rule:routing/a-query-parameter-is-declared-like-a-capture`'s `#[Query]` marker: a key of the query string.
     Query,
 }
 
@@ -466,10 +466,10 @@ pub enum ParamIn {
 /// Deliberately *not* a second copy of the declaration: it holds the name the
 /// value binds by, where it arrives from, whether it may be absent, the
 /// declared type rendered by [`crate::TypeInterner::describe`], and — where
-/// that type is one — [ADR 0102](/docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
-/// § 5's closed set of values it admits. Those are the five things
-/// [ADR 0085](/docs/adr/0085-openapi-is-generated-from-the-route-table.md)
-/// § 1's document is built out of — the last of them is that section's
+/// that type is one — `rule:routing/a-capture-narrows-to-a-closed-set`
+/// 's closed set of values it admits. Those are the five things
+/// `rule:routing/api-document-is-generated-from-the-route-table`
+/// 's document is built out of — the last of them is that section's
 /// *Enumerations* row, `enum: [en, de, fr]` — and nothing else. A rendered type
 /// rather than a `TypeId` because the interner that would answer it is dropped
 /// with the checking pass, and because the emitter's whole use of a type is to
@@ -491,7 +491,7 @@ pub struct RouteParam {
     /// that has already been refused, since a capture naming no parameter is
     /// [`code::E_ROUTE_CAPTURE_UNBOUND`].
     pub ty: Option<String>,
-    /// ADR 0102 § 5's closed set, as the segment text each admitted value is
+    /// `rule:routing/a-capture-narrows-to-a-closed-set`'s closed set, as the segment text each admitted value is
     /// written with, in the order the union declares them — or `None` where the
     /// declared type is not a closed set at all, which is every `string`,
     /// `int`, `uint`, `decimal` and `Core\Uuid` capture.
@@ -554,7 +554,7 @@ impl RouteTable {
 /// around it.
 ///
 /// **Every** `#[Route]` on the method becomes a row, which is `rule:attributes/repeatable`'s
-/// repetition read as ADR 0077 § 1 writes it — one method serving two verbs
+/// repetition read as `rule:routing/route-attribute` writes it — one method serving two verbs
 /// declares two routes. The method's *other* two questions are asked once
 /// against the first of them: § 1's sibling `#[Access]` and § 4's `csrf`
 /// opt-out are facts about the method, so asking them per attribute would
@@ -863,7 +863,7 @@ pub(crate) fn check_stray_access(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<
 ///   mistake twice. The narrower question § 2's phrase could also mean — does
 ///   *this* handler reach *that* class — is asked by nothing, and cannot be:
 ///   Novis has no `throws` clause, and
-///   [ADR 0077](/docs/adr/0077-compile-time-routing.md) § 4 keeps
+///   `rule:routing/matching-is-not-dispatching` keeps
 ///   this compiler out of the handler's body on purpose. The roster is
 ///   [`crate::signatures::SignatureTable`], which [`crate::error_lib::seed`]
 ///   has already filled with spec § 10's tree, so `Core\NotFound` answers
@@ -1348,7 +1348,7 @@ struct Handler<'a> {
     /// `Class::method` as [`crate::expr_table::ExprTypeTable::method_label`]
     /// renders it, built once for the method rather than per row.
     label: &'a str,
-    /// ADR 0085 § 1's summary and description, or `None` where the method
+    /// `rule:routing/api-document-is-generated-from-the-route-table`'s summary and description, or `None` where the method
     /// carries no doc comment.
     doc: Option<&'a Doc>,
     /// § 1's response body: the declared return type, rendered.
@@ -1360,8 +1360,8 @@ struct Handler<'a> {
     api: Option<&'a Api>,
 }
 
-/// [ADR 0085](/docs/adr/0085-openapi-is-generated-from-the-route-table.md)
-/// § 1's last row, as the two strings it is: *first sentence is the summary,
+/// `rule:routing/api-document-is-generated-from-the-route-table`
+/// 's last row, as the two strings it is: *first sentence is the summary,
 /// remainder the description*.
 struct Doc {
     /// The first sentence, collapsed onto one line — a summary that wrapped
@@ -1741,7 +1741,7 @@ fn check_captures(
                 _ => {
                     "a segment is converted to the parameter's declared type, so a capture \
                      binds `string`, `int`, `uint`, `decimal`, an enum, a union of literal \
-                     types, or `Core\\Uuid` — and never a regex (ADR 0102 § 5)"
+                     types, or `Core\\Uuid` — and never a regex (`rule:routing/a-capture-narrows-to-a-closed-set`)"
                 }
             }),
         );
@@ -1749,8 +1749,8 @@ fn check_captures(
     params
 }
 
-/// [ADR 0102](/docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
-/// § 5's closed set: every value `ty` admits, spelled as the path segment or
+/// `rule:routing/a-capture-narrows-to-a-closed-set`
+/// 's closed set: every value `ty` admits, spelled as the path segment or
 /// query value that arrives at it — or `None` where `ty` is not a closed set.
 ///
 /// The narrower question than [`crate::commands::converts_from_string`], which
@@ -1778,7 +1778,7 @@ pub(crate) fn closed_set(ty: crate::ty::TypeId, env: &Env<'_>) -> Option<Vec<Str
     }
 }
 
-/// ADR 0102 § 3's `#[Query]` parameters of the method the attribute is attached
+/// `rule:routing/a-query-parameter-is-declared-like-a-capture`'s `#[Query]` parameters of the method the attribute is attached
 /// to, by the key each binds — which is the parameter's own name, the attribute
 /// carrying nothing that could give it another.
 ///
@@ -1825,7 +1825,7 @@ fn query_params(
                 .with_primary(param.span, "no conversion from a query value")
                 .with_help(
                     "a query value arrives as text and its type comes from the parameter, so a \
-                     `#[Query]` declares the same list a capture does (ADR 0102 § 3): `string`, \
+                     `#[Query]` declares the same list a capture does (`rule:routing/a-query-parameter-is-declared-like-a-capture`): `string`, \
                      `int`, `uint`, `decimal`, an enum, a union of literal types, or \
                      `Core\\Uuid`",
                 ),
@@ -1927,8 +1927,8 @@ fn access_name(attr: &Attribute, ctx: &Ctx<'_>, env: &Env<'_>) -> Option<String>
 /// on the filesystem.
 ///
 /// The `name` half carries
-/// [ADR 0110](/docs/adr/0110-one-methods-repeated-routes-share-a-name-when-they-share-a-path.md)
-/// § 1's exception — repetitions on one method sharing a path share a name —
+/// `rule:routing/repeated-routes-share-a-name-when-they-share-a-path`
+/// 's exception — repetitions on one method sharing a path share a name —
 /// and it is asked here rather than in [`check_class_routes`] because it is the
 /// same question the rest of this walk asks: two rows, and whether they are the
 /// one endpoint `Core\Router::url` can answer for. The duplicate-*route* rule
@@ -1958,7 +1958,7 @@ pub(crate) fn check_table(table: &RouteTable, diags: &mut Diagnostics) {
             continue;
         };
         if let Some(prior) = names.insert(name.as_str(), row) {
-            // ADR 0110 § 1's exception: repetitions on one method may share a
+            // `rule:routing/repeated-routes-share-a-name-when-they-share-a-path`'s exception: repetitions on one method may share a
             // name when they share a path, because then `url()` has one answer
             // to give. Both halves are required — the same name on two methods
             // is the copy-paste the rule was written for, and one method whose

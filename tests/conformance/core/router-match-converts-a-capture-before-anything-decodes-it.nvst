@@ -1,5 +1,5 @@
 --TEST--
-A typed capture is converted from the segment as it arrived, so `%34` is not a `uint` route's `4` — the conversion runs before the decode, and the two cannot be swapped — ADR 0102 §§ 1 and 5
+A typed capture is converted from the segment as it arrived, so `%34` is not a `uint` route's `4` — the conversion runs before the decode, and the two cannot be swapped — `rule:routing/matched-once-before-the-handler` and `rule:routing/a-capture-narrows-to-a-closed-set`
 --FILE--
 <?nvs
 // § 5's capture narrows to the type its route parameter declared, and § 1 has

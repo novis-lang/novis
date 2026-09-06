@@ -143,7 +143,7 @@ Core\RateLimit\Decision — readonly allowed: bool, limit: uint, remaining: uint
 - **No middleware, no automatic enforcement, no `429` written for you.** The member returns a decision; what
   the application does with it — a `429`, a queue, a degraded response, a soft warning at 80% — is an
   application decision. Writing the response would be the framework opinion
-  [ADR 0077](0077-compile-time-routing.md) declines to have for the same reason.
+  `rule:routing/routes-are-compiled-not-registered` declines to have for the same reason.
 - **No distributed *reservation*** (taking a token now to use later) and no multi-key atomic check. Both are
   real, both are considerably more machinery, and neither has a named use case yet.
 
@@ -238,7 +238,7 @@ implementation of somebody else's specification, and it is a few dozen lines wit
   by the user: a proxy does it earlier, and doing it here means allocating the request before rejecting it.
 - **A middleware or attribute that applies a limit automatically to a route.** Rejected: it needs a
   dispatch pipeline Novis deliberately does not have, and the decision of what to *do* about a limit is
-  application logic — the same boundary [ADR 0077](0077-compile-time-routing.md) draws at matching.
+  application logic — the same boundary `rule:routing/routes-are-compiled-not-registered` draws at matching.
 - **Backing it with `Core\Db` instead of the shared store.** No new dependency, and transactional. Rejected:
   it puts a write on the hot path of every protected endpoint, on the database that is usually the scarcest
   resource in the deployment.

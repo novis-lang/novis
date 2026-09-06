@@ -1,4 +1,4 @@
-# ADR 0085 — The API document is generated while compiling, so it cannot drift from the code
+# `rule:routing/api-document-is-generated-from-the-route-table` — The API document is generated while compiling, so it cannot drift from the code
 
 - **Status:** Accepted
 - **Date:** 2026-08-24

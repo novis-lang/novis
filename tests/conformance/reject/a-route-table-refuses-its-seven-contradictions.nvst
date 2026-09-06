@@ -1,5 +1,5 @@
 --TEST--
-The route table's seven contradictions, refused in one compilation — ADR 0077 §§ 2-4 and ADR 0102 §§ 3, 4, 6
+The route table's seven contradictions, refused in one compilation — `rule:routing/path-grammar`, `rule:security/route-capture-is-laundered-by-its-type` and `rule:routing/matching-is-not-dispatching` and `rule:routing/a-query-parameter-is-declared-like-a-capture`, `rule:routing/a-trailing-segment-may-be-absent` and `rule:routing/an-absolute-link-takes-a-configured-origin`
 --FILE--
 <?nvs
 // Seven wrong route declarations in one program, because the point is not that
@@ -8,7 +8,7 @@ The route table's seven contradictions, refused in one compilation — ADR 0077 
 // compilation rather than stopping at the first. A pass that aborted after the
 // duplicate would look identical on any single-error case.
 
-// 1. ADR 0077 § 2: a path is matched by shape, so two rows claiming one path
+// 1. `rule:routing/path-grammar`: a path is matched by shape, so two rows claiming one path
 // and one verb are one route declared twice, whatever their names.
 class Dup {
     #[Core\Route(path: "/dup", method: Core\Http\Method::Get, name: "dup.first")]
@@ -28,7 +28,7 @@ class Unbound {
     public function show(): string { return ""; }
 }
 
-// 3. ADR 0102 § 4: `{name?}` matches one segment or none, and "or none" only
+// 3. `rule:routing/a-trailing-segment-may-be-absent`: `{name?}` matches one segment or none, and "or none" only
 // has an answer where nothing follows it.
 class Middle {
     #[Core\Route(path: "/posts/{page?}/comments", method: Core\Http\Method::Get, name: "middle.show")]
@@ -36,7 +36,7 @@ class Middle {
     public function show(uint $page = 1): string { return ""; }
 }
 
-// 4. ADR 0102 § 4 again, and the refusal is about the *default* rather than the
+// 4. `rule:routing/a-trailing-segment-may-be-absent` again, and the refusal is about the *default* rather than the
 // type: the default is what makes the absent segment well-typed.
 class NoDefault {
     #[Core\Route(path: "/drafts/{page?}", method: Core\Http\Method::Get, name: "nodefault.page")]
@@ -44,7 +44,7 @@ class NoDefault {
     public function page(uint $page): string { return ""; }
 }
 
-// 5. ADR 0102 § 3 is a closed list, and `float` is the first type outside it a
+// 5. `rule:routing/a-query-parameter-is-declared-like-a-capture` is a closed list, and `float` is the first type outside it a
 // language that guesses would have converted.
 class BadType {
     #[Core\Route(path: "/items/{id}", method: Core\Http\Method::Get, name: "badtype.show")]
@@ -60,11 +60,11 @@ class Orders {
     public function show(uint $id, #[Core\Query] uint $page = 1): string { return ""; }
 }
 
-// 6. ADR 0077 § 4: a *literal* name is checked against the compiled table. A
+// 6. `rule:routing/matching-is-not-dispatching`: a *literal* name is checked against the compiled table. A
 // computed one is not checked here at all and throws at run time instead.
 echo Core\Router::url("orders.missing", ["id" => 1]), "\n";
 
-// 7. ADR 0102 § 6: every key that is not a capture becomes the link's query
+// 7. `rule:routing/an-absolute-link-takes-a-configured-origin`: every key that is not a capture becomes the link's query
 // string, so a misspelling ships as `?pge=2` and nothing says so — which is why
 // this could not be refused before `#[Query]` said which keys are legitimate.
 echo Core\Router::url("orders.show", ["id" => 1, "pge" => 2]), "\n";

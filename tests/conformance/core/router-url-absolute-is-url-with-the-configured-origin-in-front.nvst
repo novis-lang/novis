@@ -1,8 +1,8 @@
 --TEST--
-`Core\Router::urlAbsolute` is `Core\Router::url` with the configured origin in front, counted over every row shape `url` builds — ADR 0102 § 6
+`Core\Router::urlAbsolute` is `Core\Router::url` with the configured origin in front, counted over every row shape `url` builds — `rule:routing/an-absolute-link-takes-a-configured-origin`
 --FILE--
 <?nvs
-// The agreement shape over ADR 0102 § 6's two link members. The seven
+// The agreement shape over `rule:routing/an-absolute-link-takes-a-configured-origin`'s two link members. The seven
 // `router-url-*` cases each pin one row shape of `url`; this asks the *same*
 // eleven rows of both members and counts the ones where the absolute answer is
 // exactly the origin concatenated onto the relative one. A `urlAbsolute` that
@@ -26,7 +26,7 @@ class Docs {
     #[Core\Access(allow: Core\Audience::Public)]
     public function show("en"|"de"|"fr" $lang, string $page): string { return $lang . "/" . $page; }
 
-    // ADR 0077 § 2's `{rest...}`, whose value keeps its own `/`s — the one
+    // `rule:routing/path-grammar`'s `{rest...}`, whose value keeps its own `/`s — the one
     // capture form the encoder treats differently, and so the row most likely
     // to part between two passes.
     #[Core\Route(path: "/files/{rest...}", method: Core\Http\Method::Get, name: "Docs::file")]
@@ -72,7 +72,7 @@ var $hostile = "../../etc";
 // a leftover `params` key that becomes a query string, and a nested one beside
 // a `null` that is dropped.
 //
-// The name is a literal at every call site because it has to be: ADR 0077 § 4
+// The name is a literal at every call site because it has to be: `rule:routing/matching-is-not-dispatching`
 // resolves the link while compiling, and a computed name reaches the helper
 // that throws. So the table is written twice rather than looped over once, and
 // the two halves are the same eleven rows in the same order.
@@ -137,7 +137,7 @@ echo "capture=", $absolute["0"], "\n";
 echo "query=", $absolute["9"], "\n";
 echo "root=", $absolute["6"], "\n";
 --FILE nvs.toml--
-# ADR 0102 § 6's configured origin — the only source an absolute link may take
+# `rule:routing/an-absolute-link-takes-a-configured-origin`'s configured origin — the only source an absolute link may take
 # one from, and in a program run off the command line this file is the whole of
 # it. The block is ADR 0104 § 1's array of tables, which is the only spelling of
 # it there is, and § 1 keys it on an entry file path: `root = "."` is the

@@ -772,7 +772,36 @@
       }
     },
     "B15": {
-      "status": "in-flight"
+      "status": "done",
+      "applied": "2026-09-06",
+      "remap": {
+        "0077": "routing/routes-are-compiled-not-registered",
+        "0077 \u00a71": "routing/route-attribute",
+        "0077 \u00a72": "routing/path-grammar",
+        "0077 \u00a73": "security/route-capture-is-laundered-by-its-type",
+        "0077 \u00a74": "routing/matching-is-not-dispatching",
+        "0077 \u00a75": "routing/table-is-opt-in",
+        "0085": "routing/api-document-is-generated-from-the-route-table",
+        "0085 \u00a71": "routing/api-document-is-generated-from-the-route-table",
+        "0085 \u00a72": "attributes/api-adds-and-cannot-contradict",
+        "0085 \u00a73": "routing/api-document-is-a-deterministic-build-artifact",
+        "0085 \u00a74": "routing/api-diff-fails-a-breaking-change",
+        "0102": "routing/the-servers-match-dispatches-nothing",
+        "0102 \u00a71": "routing/matched-once-before-the-handler",
+        "0102 \u00a72": "routing/a-refused-verb-is-not-a-missing-path",
+        "0102 \u00a73": "routing/a-query-parameter-is-declared-like-a-capture",
+        "0102 \u00a74": "routing/a-trailing-segment-may-be-absent",
+        "0102 \u00a75": "routing/a-capture-narrows-to-a-closed-set",
+        "0102 \u00a76": "routing/an-absolute-link-takes-a-configured-origin",
+        "0102 \u00a77": "routing/a-request-reads-its-mount",
+        "0102 \u00a78": "security/access-is-checked-for-presence-not-meaning",
+        "0102 \u00a79": "routing/a-match-is-not-invocable",
+        "0110": "routing/repeated-routes-share-a-name-when-they-share-a-path",
+        "0110 \u00a71": "routing/repeated-routes-share-a-name-when-they-share-a-path",
+        "0110 \u00a72": "routing/no-wildcard-verb",
+        "0110 \u00a73": "routing/a-shared-name-is-one-endpoint-everywhere",
+        "0110 \u00a74": "routing/a-quick-fix-writes-a-derived-path"
+      }
     }
   },
   "snapshot": "2026-09-06"

@@ -153,8 +153,8 @@ pub struct Inbound {
     /// no query at all — the two are not distinguished, because a query with no
     /// pairs and no query yield the same empty set of parameters.
     query: Box<str>,
-    /// [ADR 0102](/docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
-    /// § 7's first half: the prefix ADR 0097 § 4 step 2 took off [`Self::path`]
+    /// `rule:routing/a-request-reads-its-mount`
+    /// 's first half: the prefix ADR 0097 § 4 step 2 took off [`Self::path`]
     /// above, which is the one fact about where an application was deployed
     /// that the application itself is allowed to see.
     ///
@@ -302,8 +302,8 @@ pub struct Inbound {
     /// that happened to carry nothing would make the rule depend on what the
     /// peer sent.
     claimed_by: Option<&'static str>,
-    /// [ADR 0102](/docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
-    /// § 1's match: the row this request selected out of the program's table,
+    /// `rule:routing/matched-once-before-the-handler`
+    /// 's match: the row this request selected out of the program's table,
     /// and the captures it filled.
     ///
     /// **It is on the carrier because it is a fact about the request**, and
@@ -456,7 +456,7 @@ impl Inbound {
         self.scheme
     }
 
-    /// Records ADR 0102 § 7's mount: the prefix [`Self::path`] no longer
+    /// Records `rule:routing/a-request-reads-its-mount`'s mount: the prefix [`Self::path`] no longer
     /// carries, and the captures the row selecting this request was expanded
     /// from.
     ///
@@ -493,7 +493,7 @@ impl Inbound {
         &self.mount_captures
     }
 
-    /// Records ADR 0102 § 1's match, which whoever accepted the request took
+    /// Records `rule:routing/matched-once-before-the-handler`'s match, which whoever accepted the request took
     /// against the program's own table.
     ///
     /// Called at most once, beside [`Self::set_peer`] and before the program

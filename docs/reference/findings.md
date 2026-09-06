@@ -222,7 +222,7 @@ in that goal. An item's owner is the row it sits in.
       `resolved()` — `Path::new("copy.txt").parent()` is `""`, which never canonicalizes.
       *refp/fs; coretime-probes*
 - [ ] **D6** `Core\Router::url` with a **computed** name throws for every name, declared or not:
-      "no route is named 'u'. The compile-time route table is not built yet (ADR 0077 § 5)". The
+      "no route is named 'u'. The compile-time route table is not built yet (`rule:routing/table-is-opt-in`)". The
       card says only an unknown computed name throws. *ref-attr `route-url-computed-name`*
 - [x] **D7** `Core\Json::decodeAs<T>` was a **FATAL** for an **enum** field (encode always handled
       one). All three halves are closed: a class field erases to `CodecTy::Class` carrying its

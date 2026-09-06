@@ -1,5 +1,5 @@
 --TEST--
-A capture reaches the program as the value the match already converted, so `Core\Router\Match::params` answers a union and not one text type — ADR 0102 §§ 1 and 5
+A capture reaches the program as the value the match already converted, so `Core\Router\Match::params` answers a union and not one text type — `rule:routing/matched-once-before-the-handler` and `rule:routing/a-capture-narrows-to-a-closed-set`
 --FILE--
 <?nvs
 // A bound stated as a type. § 1 has the server compute "typed parameters", so a

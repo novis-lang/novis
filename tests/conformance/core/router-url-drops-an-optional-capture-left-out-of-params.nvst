@@ -1,14 +1,14 @@
 --TEST--
-a `{page?}` left out of `Core\Router::url`'s `$params` is not refused, because its whole segment is dropped — ADR 0077 §§ 2 and 4
+a `{page?}` left out of `Core\Router::url`'s `$params` is not refused, because its whole segment is dropped — `rule:routing/path-grammar` and `rule:routing/matching-is-not-dispatching`
 --FILE--
 <?nvs
 // The positive twin of the two refusals in
 // `reject/a-route-link-refuses-an-unknown-name-and-an-uncovered-capture.nvst`:
 // a capture left out of `$params` is a compile error for `{id}` and is *not*
 // one for `{page?}`, because an optional capture's whole segment is dropped
-// when nothing fills it (ADR 0077 § 2, ADR 0102 § 4).
+// when nothing fills it (`rule:routing/path-grammar`, `rule:routing/a-trailing-segment-may-be-absent`).
 class Posts {
-    // § 4 (ADR 0102): an optional capture is last, and the parameter it binds
+    // § 4 (`rule:routing/the-servers-match-dispatches-nothing`): an optional capture is last, and the parameter it binds
     // to has a default — which is what makes the absent case well-typed rather
     // than nullable by accident.
     // `rule:attributes/access-is-a-required-sibling`: the decision is a required sibling of every `#[Route]`, and

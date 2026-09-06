@@ -1,5 +1,5 @@
 --TEST--
-The prefix and the captures are one member of `Core\Request` and it always answers, where the route the same request carries may be `null` -- ADR 0102 §§ 1 and 7, spec § 15
+The prefix and the captures are one member of `Core\Request` and it always answers, where the route the same request carries may be `null` -- `rule:routing/matched-once-before-the-handler` and `rule:routing/a-request-reads-its-mount`, spec § 15
 --FILE--
 <?nvs
 // § 7 replaced `mountPrefix`, which stated half of the fact. Two members for

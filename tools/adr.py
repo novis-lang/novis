@@ -86,7 +86,7 @@ WHAT IT CHECKS, AND WHY EACH ONE IS HERE RATHER THAN IN A REVIEWER'S HEAD
              like "previously said", "is withdrawn", "used to" is an overlay a reader must apply in
              their head, which is exactly what folding exists to prevent.
 
-  counters   A count restated in more than one file goes stale. ADR 0102 SS 9 found one that had
+  counters   A count restated in more than one file goes stale. `rule:routing/the-servers-match-dispatches-nothing` SS 9 found one that had
              been wrong in seven places. Any spelled-out running total in a body is reported.
 
 Nothing here measures prose against a length. doc-style.md SS *Length targets* is explicit that
