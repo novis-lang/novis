@@ -26,7 +26,8 @@ echo "ok=", $result->ok ? "true" : "false", "\n";
 echo "output=", $result->output;
 echo "value=", Core\Debug::render($result->value), "\n";
 
-// The other half of the same decision, over the *same* file: what `rule:statements/a-require-expression-is-mixed` pins for the construct PHP has. Asserting only the child's `null`
+// The other half of the same decision, over the *same* file: what `rule:statements/a-require-expression-is-mixed`
+// pins for the construct PHP has. Asserting only the child's `null`
 // would still read plausibly if the `1` had simply moved.
 var $required = require "quiet.nvs";
 echo "required=", Core\Debug::render($required), "\n";

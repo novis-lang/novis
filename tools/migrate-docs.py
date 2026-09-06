@@ -812,7 +812,7 @@ def plan_citation_rewrites(remap: dict[str, str]) -> dict[Path, tuple[str, int]]
                 continue
             if rulebook.EXAMPLES_ONLY in text:
                 continue
-            new, hits = rewrite_citations(text, by_record)
+            new, hits = rewrite_citations(text, by_record, path.suffix == ".nvst")
             if hits:
                 debris = find_rewrite_debris(new)
                 if debris:
@@ -849,8 +849,18 @@ def find_rewrite_debris(text: str) -> list[str]:
     return out
 
 
-def rewrite_citations(text: str, by_record: dict[str, dict[str | None, str]]) -> tuple[str, int]:
-    """One file's worth of the rewrite above. Split out so it is testable without a tree."""
+def rewrite_citations(
+    text: str, by_record: dict[str, dict[str | None, str]], keep_line_breaks: bool = False
+) -> tuple[str, int]:
+    """One file's worth of the rewrite above. Split out so it is testable without a tree.
+
+    `keep_line_breaks` is for `.nvst` only. Collapsing a citation's two lines into one is free
+    everywhere else, but a case file's expected output pins line numbers in `case.nvs` -- a
+    citation in a `//` comment inside a `--FILE--` block sits *above* the code the diagnostic
+    points at, so joining it shifts every `--> case.nvs:NN:CC` below it and the case fails for a
+    reason that has nothing to do with what it tests. B6 rolled back on exactly that. Here the
+    record becomes the rule token and the break is left standing, so the line count never moves.
+    """
     hits = 0
     for record, sections in by_record.items():
         # `[ADR 0020](url)`, `[ADR 0020]`, or a bare `ADR 0020` -- but never the `[ADR 0020]:` of a
@@ -859,7 +869,7 @@ def rewrite_citations(text: str, by_record: dict[str, dict[str | None, str]]) ->
             rf"(?:\[ADR\s+{record}\]|(?<!\[)ADR\s+{record}(?!\d))"
             rf"(?:\([^)]*\))?"
             rf"(?!\s*:)"
-            rf"(?:{SECTION_GAP}§+[ \t]*(?P<sections>{SECTION_LIST}))?"
+            rf"(?:(?P<gap>{SECTION_GAP})§+[ \t]*(?P<sections>{SECTION_LIST}))?"
             rf"(?!{SECTION_GAP}§)"
         )
 
@@ -870,7 +880,15 @@ def rewrite_citations(text: str, by_record: dict[str, dict[str | None, str]]) ->
                 return match.group(0)
             hits += 1
             tokens = [f"`rule:{rid}`" for rid in ids]
-            return tokens[0] if len(tokens) == 1 else ", ".join(tokens[:-1]) + " and " + tokens[-1]
+            out = tokens[0] if len(tokens) == 1 else ", ".join(tokens[:-1]) + " and " + tokens[-1]
+            gap = match.group("gap") or ""
+            if keep_line_breaks and "\n" in gap:
+                # Put the break and its comment marker back. Its trailing indent goes only when
+                # the prose that followed the `§` brings its own space, so `§ 2 says` does not
+                # come back as `//  says` and `§ 2's` does not come back as `//'s`.
+                tail = match.string[match.end() :]
+                out += gap.rstrip(" \t") if tail[:1] in (" ", "\t") else gap
+            return out
 
         text = cite.sub(substitute, text)
         text = drop_dead_link_definition(text, record)
