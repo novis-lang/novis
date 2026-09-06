@@ -101,7 +101,7 @@ re-tints.
 
 ## Going live checklist
 
-1. Replace every constant in `config/site.mjs` (domain, GitHub, Discord).
+1. Replace `SITE_URL` in `config/site.mjs` — GitHub and Discord already point at the real ones.
 2. Replace the sitemap URL in `public/robots.txt`.
 3. Replace the demo data in `src/content/docs/impressum.md` and `datenschutz.md`.
 4. Review pages still carrying `draft: true` / draft-flagged claims.
