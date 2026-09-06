@@ -148,8 +148,15 @@ mod tests {
 
         let refused = validate(&wrote("local"), &BTreeMap::new()).expect_err("the per-core tier");
         assert_eq!(refused.code, Some(code::E_SESSION_BACKEND));
+        // The *reason*, not the citation that introduces it. Asserting on the reference alone
+        // passes for a note that cites § 4 and then says nothing, which is the failure this test
+        // exists to catch; it also pins a spelling that belongs to the docs rather than to this
+        // module, so the citation cannot be re-pointed without a red test in an unrelated crate.
         assert!(
-            refused.notes.iter().any(|note| note.contains("0059 § 4")),
+            refused
+                .notes
+                .iter()
+                .any(|note| note.contains("an authentication bug wearing a cache's clothes")),
             "the refusal is only enforcement if it carries § 4's reason: {:?}",
             refused.notes
         );
@@ -158,7 +165,12 @@ mod tests {
         // reasoning to give about a typo, and giving it anyway would teach that the message is
         // boilerplate.
         let unknown = validate(&wrote("redis"), &BTreeMap::new()).expect_err("no such store");
-        assert!(unknown.notes.iter().all(|note| !note.contains("0059")));
+        assert!(
+            unknown
+                .notes
+                .iter()
+                .all(|note| !note.contains("an authentication bug"))
+        );
     }
 
     /// § 3's "absent is not a default": a tree with no `[session]` block, and one that wrote the

@@ -512,8 +512,31 @@ def gate(quick: bool = False) -> GateResult:
 
     # 6 -- the build.
     code, out = run([sys.executable, "tools/verify.py"])
-    result.checks.append(("6 verify.py", code == 0, out[-3000:]))
+    result.checks.append(("6 verify.py", code == 0, verify_detail(out) if code else ""))
     return result
+
+
+#: Cargo's progress chatter, which is on a different stream from the failure and therefore lands
+#: after it once the two are merged.
+VERIFY_NOISE = re.compile(r"^\s*(Compiling|Finished|Running|Fresh|Downloading|Downloaded|Blocking|Updating)\b")
+#: Where a failed check 6 leaves the whole thing, because 20 lines is never all of it.
+VERIFY_LOG = MIGRATION / "verify-fail.log"
+
+
+def verify_detail(out: str) -> str:
+    """The part of a `verify.py` failure worth printing, and the whole of it on disk.
+
+    `verify.py` stops at the first failing step, so the failure *is* the end of what it has to say
+    -- but cargo writes `Compiling`/`Running` to the other stream, and merged, those land after it.
+    Keeping the last 3000 characters therefore kept the chatter and nothing else, and `report`'s
+    first-twenty-lines cut then printed the middle of the chatter, sliced mid-word. A gate that
+    refuses a unit and cannot say why costs one three-minute apply per guess, which is how B14's
+    first refusal was spent.
+    """
+    VERIFY_LOG.parent.mkdir(parents=True, exist_ok=True)
+    VERIFY_LOG.write_text(out, encoding="utf-8", newline="")
+    lines = [ln for ln in out.splitlines() if ln.strip() and not VERIFY_NOISE.match(ln)]
+    return "\n".join(lines[-18:] + [f"-- full output: {VERIFY_LOG.relative_to(ROOT).as_posix()}"])
 
 
 def cmd_gate(quick: bool) -> int:
