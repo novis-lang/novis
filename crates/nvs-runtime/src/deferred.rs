@@ -284,6 +284,7 @@ const ORIGIN: &str = "deferred work";
 mod tests {
     use super::*;
     use crate::OutputSink;
+    use crate::object::{ClassTable, MethodRow, NvsObj};
 
     /// [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)
     /// § 7: a core holds at most `max_concurrent` request trees open for
@@ -358,6 +359,194 @@ mod tests {
             over.defer(Value::null(), 0),
             Ok(()),
             "the freed slot was not available to the next tree"
+        );
+    }
+
+    thread_local! {
+        /// The temporary directory the deferred closure below is asked about —
+        /// the one the request was handed and the one its teardown sweeps.
+        static WATCHED: std::cell::RefCell<Option<std::path::PathBuf>> =
+            const { std::cell::RefCell::new(None) };
+        /// What that closure found, or `None` if it never ran at all — which is
+        /// a distinct failure from finding the directory already gone, and the
+        /// whole of what the cancelled case below asserts.
+        static STILL_STANDING: Cell<Option<bool>> = const { Cell::new(None) };
+    }
+
+    /// A path of this case's own under the platform temporary root: the two
+    /// cases run on their own threads, and a shared name would let one sweep
+    /// what the other is still looking at.
+    fn scratch(name: &str) -> std::path::PathBuf {
+        std::env::temp_dir().join(format!(
+            "nvs-deferred-sweep-{name}-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ))
+    }
+
+    /// The `Core\Task::afterResponse` work both cases register: it looks for
+    /// the temporary directory the request was handed and records whether it
+    /// was still standing when the queue drained.
+    #[expect(
+        unsafe_code,
+        reason = "`call_closure` passes the receiver live and retained for this \
+                  callee to release, and the address of a live `Value` for the \
+                  result — neither is expressible in the signature compiled \
+                  code calls through"
+    )]
+    unsafe extern "C" fn looks_for_the_directory(
+        _ctx: *mut Ctx,
+        args: *const Value,
+        out: *mut Value,
+    ) -> i32 {
+        // The receiver, given back exactly as a compiled callee's exit sweep
+        // gives it back. [`call_deferred`] calls with no arguments, so slot 0
+        // is the whole of what `call_closure` retained.
+        // SAFETY: `call_closure` passed one live value and retained it.
+        unsafe { (*args).release() };
+        let standing = WATCHED.with_borrow(|watched| {
+            watched
+                .as_ref()
+                .expect("the case named a directory before draining the queue")
+                .is_dir()
+        });
+        STILL_STANDING.with(|seen| seen.set(Some(standing)));
+        // SAFETY: the caller passed the address of a live `Value` to answer
+        // into, and `void` is a `null` there.
+        unsafe { *out = Value::null() };
+        crate::abi::OK
+    }
+
+    /// A closure value declaring no parameters whose `invoke` is a plain Rust
+    /// function — a registration with no compiler in front of it.
+    ///
+    /// [`crate::call_closure`] reads exactly three things off a closure: the
+    /// arity slot, the parameter tags slot, and the `invoke` method's address
+    /// in its class. Everything else in `nvs_ir::lower::lower_closure`'s
+    /// representation is captured state, and a native callback captures
+    /// nothing. The table is leaked because a descriptor's *address* is its
+    /// identity and it must outlive every instance made from it; the test
+    /// process exiting is what reclaims it.
+    fn work_of(invoke: crate::abi::NvsFn) -> Value {
+        let mut table = ClassTable::new();
+        let id = table.define("{closure}", &["arity", "params"], &[]);
+        table.set_methods(
+            id,
+            vec![MethodRow {
+                name: crate::closure::CLOSURE_INVOKE.to_owned(),
+                code: invoke as *const u8,
+                // Read off the object's own two slots below rather than off
+                // this row — `crate::call_closure` says so.
+                arity: 0,
+                param_tags: 0,
+                public: true,
+                native: false,
+            }],
+        );
+        let table: &'static ClassTable = Box::leak(Box::new(table));
+        #[expect(
+            unsafe_code,
+            reason = "the table above is leaked, so the descriptor outlives \
+                      every instance made from it — `NvsObj::new`'s whole \
+                      obligation"
+        )]
+        let object = unsafe { NvsObj::new(table.desc(id)) };
+        object.set_field(crate::closure::CLOSURE_ARITY_SLOT, Value::int(0));
+        object.set_field(crate::closure::CLOSURE_PARAM_TAGS_SLOT, Value::int(0));
+        Value::object(object)
+    }
+
+    /// [ADR 0131](/docs/adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md)
+    /// § 3's ordering against [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)
+    /// § 6's queue, asserted from the one side that can observe it: the last
+    /// work the request registered still finds the directory it was handed,
+    /// and the teardown behind it is what takes it away.
+    ///
+    /// Both halves are the test, and this is the request-path twin of
+    /// `ctx::hooks`'s `the_sweep_runs_after_the_on_exit_queue`: a sweep that
+    /// ran *before* the drain would leave the work looking at nothing, and a
+    /// sweep that never ran would leave the directory standing after the
+    /// context is gone — either failure alone passes an assertion that names
+    /// only the other.
+    ///
+    /// No host is installed on this thread, so [`run_one`] takes its `None`
+    /// arm and calls the work here. That is the arm with the fewest moving
+    /// parts and it changes nothing about the ordering: the drain still
+    /// returns before the context does.
+    #[test]
+    fn a_requests_temporary_dirs_are_swept_after_its_after_response_work() {
+        let standing = scratch("after-response");
+        std::fs::create_dir_all(&standing).expect("the platform root is writable");
+        WATCHED.with_borrow_mut(|watched| *watched = Some(standing.clone()));
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        ctx.track_temporary_dir(standing.clone());
+        ctx.defer(work_of(looks_for_the_directory), 0)
+            .expect("a request's own context is not sealed");
+        run_deferred(&mut ctx);
+
+        assert_eq!(
+            STILL_STANDING.with(Cell::get),
+            Some(true),
+            "§ 6's work is user code, and § 3 puts the sweep after all of it"
+        );
+
+        drop(ctx);
+        assert!(
+            !standing.exists(),
+            "and the context's teardown, which is every ending at once, is what sweeps it"
+        );
+        assert_eq!(
+            trees_in_flight(),
+            0,
+            "the drained tree is still holding a slot against § 7's cap"
+        );
+    }
+
+    /// [ADR 0131](/docs/adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md)
+    /// § 3's "a request that died mid-flight", which is only a sweep at all
+    /// because of [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md):
+    /// the request goes, the worker does not, and the context it is left
+    /// holding is what runs the sweep.
+    ///
+    /// The other half is that the abort runs **no user code** — ADR 0072 § 5's
+    /// teardown — so the registrations go unrun. Asserted together because a
+    /// worker that drained a cancelled request's queue would pass the sweep
+    /// assertion while running exactly the script § 5 forbids, and one that
+    /// dropped the tree without sweeping would pass the ordering one.
+    #[test]
+    fn an_aborted_requests_dirs_are_swept_by_the_surviving_worker() {
+        let standing = scratch("aborted");
+        std::fs::create_dir_all(&standing).expect("the platform root is writable");
+        WATCHED.with_borrow_mut(|watched| *watched = Some(standing.clone()));
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        ctx.track_temporary_dir(standing.clone());
+        ctx.defer(work_of(looks_for_the_directory), 0)
+            .expect("a request's own context is not sealed");
+
+        // The abort. Nothing drains the queue on this path: the request's own
+        // frame never returned ordinarily, so the host reaches the teardown
+        // rather than `run_deferred`.
+        let _stopped = ctx.cancel();
+        assert!(ctx.cancelled(), "the request was not stopped for the abort");
+        assert!(standing.is_dir(), "the abort is not itself a deletion");
+
+        drop(ctx);
+
+        assert_eq!(
+            STILL_STANDING.with(Cell::get),
+            None,
+            "a cancellation ran the request's after-response work"
+        );
+        assert!(
+            !standing.exists(),
+            "the worker survived the request and still owes it the sweep"
+        );
+        assert_eq!(
+            trees_in_flight(),
+            0,
+            "a tree that ended without draining kept its slot against § 7's cap"
         );
     }
 }
