@@ -212,6 +212,11 @@ FINDINGS = ROOT / ".loop" / "dossier-findings"
 #: either shared by a goal's whole batch -- `crates/` holds the `mod tests` all eighteen of its
 #: features append to -- or is a ledger with exactly one writer. A second writer arriving in
 #: parallel is how both of those fail silently instead of loudly.
+#:
+#: `docs/decisions/` is the ledger a goal's one record lands in. `docs/adr/` holds only README.md's
+#: project-start decisions and tooling-parity.md since the records moved (docs migration, unit C1),
+#: and no lane has business writing either -- it stays reserved so a worker that still spells the
+#: old path is refused rather than left writing a record where nothing reads it.
 RESERVED = ("crates/", "tools/", "docs/perf/", "docs/agent/", "docs/adr/", "docs/decisions/", "fuzz/", ".loop/")
 
 #: How many workers a fan-out runs. Deliberately not `machine.jobs()`: a worker is an agent waiting

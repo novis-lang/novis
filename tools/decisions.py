@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """The decision summary a human reads, and the bookkeeping that keeps it true.
 
-The ADRs are the record of every settled decision, and they are written for the agent that has to
-apply one: 140 files, 106 of which amend an earlier one and 80 of which are amended by a later one.
-Following that interlock is the job -- for a reader who wants to know *what Novis decided*, it is a
-wall. This tool owns the other artifact: one plain-language paragraph per decision, grouped by
+The records under `docs/decisions/` are every settled decision at full length, frozen on acceptance
+and written for the agent that has to revisit one: 143 files, each carrying the question, the
+options weighed and the cost accepted. For a reader who wants to know *what Novis decided*, that is
+a wall. This tool owns the other artifact: one plain-language paragraph per decision, grouped by
 topic, in the order the decisions were taken, with no cross-reference in the prose at all.
 
     python tools/decisions.py              the summary, rendered to the terminal
@@ -27,17 +27,20 @@ the file that lost it does not say so.
 
 ## Why an entry carries a digest
 
-A pass that re-summarized all 140 decisions every time would cost a session per run and re-word
-entries nobody asked it to touch, so the summary would drift while the ADRs stood still. Instead
-each entry stamps a digest of the ADR it summarizes -- the title, the `In short` block, and the
-section headings, which is exactly the material a summary is written from. `--check` recomputes it:
-an entry whose digest still matches is **known current** and is never looked at again, and a pass
-therefore does only the ADRs that are new or that actually changed. That is what makes re-running
-this cheap enough to be worth doing, which is the whole point of it being a tool.
+A pass that re-summarized all 143 decisions every time would cost a session per run and re-word
+entries nobody asked it to touch, so the summary would drift while the records stood still. Instead
+each entry stamps a digest of the record it summarizes -- the frozen title, and the `changes:` block
+naming the rule ids the decision created and modified. `--check` recomputes it: an entry whose
+digest still matches is **known current** and is never looked at again, and a pass therefore does
+only the records that are new or whose digest moved. That is what makes re-running this cheap
+enough to be worth doing, which is the whole point of it being a tool.
 
-The digest deliberately ignores prose *inside* a section. Trimming a paragraph of rationale out of a
-Consequences section is the most common edit an ADR gets and it never changes what was decided; if
-it did, the heading set or the `In short` block moved with it.
+Nothing else of a record is in the digest, because nothing else of it moves: a record is frozen on
+acceptance and never amended in place. The `changes:` block is the one field that is *derived* --
+from every rule's `because` in the rulebook -- so a rule re-homed or re-attributed re-derives it,
+and that is exactly when a summary is worth a second look. A digest formula that changes (this one
+did, when the records were frozen) marks every entry stale at once; `--check` then reports a
+re-pass owed, and `--work` is the order for it. The stamps are never edited by hand.
 
 ## The rules `--check` enforces on the prose, and why they are mechanical
 
@@ -59,10 +62,10 @@ checked rather than hoped for:
 ## The groups
 
 A closed list, in reading order, `internal` last. A group is an editorial decision about what a
-reader is looking for, not a restatement of the ADR set's own structure -- the corpus is routed by
-`docs/adr/README.md`'s table, which is a different question ("which file owns this topic") with a
-different answer. `--groups` prints the list and what belongs in each; `--check` refuses an entry
-naming a group that is not on it.
+reader is looking for, not a restatement of the rulebook's chapters -- `docs/rules/` answers a
+different question ("which rule is currently true, and where") with a different answer, and
+`brief.py --where` routes it. `--groups` prints the list and what belongs in each; `--check`
+refuses an entry naming a group that is not on it.
 
 Inside a group, entries run in the order they were decided, with one exception: `pin = true` floats
 a single entry to the top. It is for the entry that *frames* the group rather than continuing it —
@@ -210,18 +213,48 @@ def shape(a) -> list[str]:
     return out
 
 
-def digest_of(a) -> str:
-    """What a summary of this ADR was written from, hashed.
+def frontmatter(a) -> dict:
+    """The frozen record's YAML block, read off its own lines: `date`, `status`, and under
+    `changes:` the `creates` and `modifies` lists of rule ids. Read here rather than through the
+    parser's fields so this tool's one dependency on `adr.py` stays the record's text and title.
 
-    Title, `In short`, and the heading set -- see the module doc on why prose inside a section is
-    deliberately not in here."""
-    material = "\n".join([a.title, in_short(a), *[h for _, h in a.headings], *shape(a)])
+    The shape is fixed by the freeze (docs/agent/docs-migration.md, *What a decision record
+    becomes*): scalars as `key: value`, the two lists as `    - id` items under their key."""
+    out: dict = {"date": "", "status": "", "creates": [], "modifies": []}
+    if not a.lines or a.lines[0] != "---":
+        return out
+    current = None
+    for line in a.lines[1:]:
+        if line == "---":
+            break
+        m = re.match(r"^(date|status):\s*(.+?)\s*$", line)
+        if m:
+            out[m.group(1)] = m.group(2)
+            current = None
+            continue
+        m = re.match(r"^\s+(creates|modifies):\s*$", line)
+        if m:
+            current = m.group(1)
+            continue
+        m = re.match(r"^\s+-\s+(\S+)\s*$", line)
+        if m and current:
+            out[current].append(m.group(1))
+    return out
+
+
+def digest_of(a) -> str:
+    """What a summary of this record was written from, hashed: the frozen title and the
+    `changes:` block. See the module doc on why nothing else of a record is in here."""
+    fm = frontmatter(a)
+    material = "\n".join([a.title,
+                          "creates: " + " ".join(fm["creates"]),
+                          "modifies: " + " ".join(fm["modifies"])])
     return hashlib.sha256(material.encode("utf-8")).hexdigest()[:12]
 
 
 def corpus() -> dict:
-    """Every Accepted ADR, by number. A retired one is not a decision the summary owes."""
-    return {n: a for n, a in adrlib.load().items() if a.fields.get("Status") == "Accepted"}
+    """Every accepted record, by number. A retired one is not a decision the summary owes."""
+    return {n: a for n, a in adrlib.load().items() if frontmatter(a)["status"] == "accepted"}
 
 
 # ---------------------------------------------------------------- the source file
@@ -328,7 +361,7 @@ def check(entries: dict, adrs: dict) -> dict:
         if e.get("group") not in GROUP_BY_ID:
             add("group", f"{num}: unknown group {e.get('group')!r}")
         if e.get("digest") != digest_of(adrs[num]):
-            add("stale", f"{num}: the decision changed since this was written")
+            add("stale", f"{num}: the digest moved since this was written")
         for f in prose_findings(num, e):
             add("prose", f)
 
@@ -517,7 +550,8 @@ def fail(msg: str) -> int:
 def report(found: dict) -> None:
     labels = {
         "missing": "not summarized yet",
-        "stale": "the decision moved since the summary was written",
+        "stale": "the record's title or `changes:` moved since the summary was written; "
+                 "a re-pass is owed (python tools/decisions.py --work)",
         "orphan": "summarizes a decision that is not there",
         "group": "not in a group the tool knows",
         "pin": "more than one entry pinned to the top of a group",

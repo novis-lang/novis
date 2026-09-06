@@ -550,8 +550,9 @@ TODO: the item list, **already grouped by file set** ([loop-authoring.md](../loo
 - TODO: every tradeoff this goal will meet, decided here rather than by a session at 2am
   ([loop-authoring.md](../loop-authoring.md) § 5). Anything not pre-authorized is what makes a run
   stop.
-- TODO: **this goal opens no ADR number**, or **may open ADR NNNN for one folded amendment and no
-  new number** — the chain contract in [README.md](README.md) is that each goal names its slots.
+- TODO: **this goal opens no ADR number**, or **opens ADR NNNN, whose `changes:` block names the
+  rules it creates and modifies** — a record is frozen on acceptance and never amended in place,
+  and the chain contract in [README.md](README.md) is that each goal names its slots.
 - TODO: where ambiguity resolves to, so it is decided-and-recorded and never `BLOCKED`.
 """
 

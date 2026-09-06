@@ -15,7 +15,7 @@ So this script prints the same kinds of thing, selected by the goal's own `[cont
     the handoff's state and the current item        always
     the code at every `path:line` the item names    always -- see `run_anchors`
     the goal's standing decisions                   always -- this is what keeps a run off BLOCKED
-    the ground-rule bullets for the named ADRs      [context] rules
+    the rules the named records created or changed  [context] rules
     the named ADR sections, sliced live             [context] adrs
     the named spec sections, sliced live            [context] spec
     the map lines for the named modules             [context] modules
@@ -73,9 +73,13 @@ except ModuleNotFoundError:  # Python < 3.11
 
 ROOT = Path(__file__).resolve().parent.parent
 AGENT = ROOT / "docs" / "agent"
-ADR_DIR = ROOT / "docs" / "adr"
-#: A frozen decision record: `docs/decisions/NNNN.md`, since the docs migration's unit C1.
+#: A frozen decision record: `docs/decisions/NNNN.md`, since the docs migration's unit C1. That
+#: is the only place a record lives; docs/adr/ keeps README.md's project-start decisions and
+#: tooling-parity.md, neither of which a manifest names.
 DECISIONS_DIR = ROOT / "docs" / "decisions"
+#: Live, and staying: 01-core-library.md is read by a stdlib test and by check-migration.py, and
+#: 02-php-migration.md is the one home of the table reference.py renders. A manifest's `spec`
+#: entries name these files by number.
 SPEC_DIR = ROOT / "docs" / "spec"
 
 GOAL_TOML = AGENT / "loop-goal.toml"
@@ -855,10 +859,7 @@ def run_rules(m: Manifest) -> None:
 
 def adr_path(number: str) -> Path | None:
     frozen = DECISIONS_DIR / f"{number}.md"
-    if frozen.is_file():
-        return frozen
-    matches = sorted(ADR_DIR.glob(f"{number}-*.md"))
-    return matches[0] if matches else None
+    return frozen if frozen.is_file() else None
 
 
 def strip_frontmatter(text: str) -> str:

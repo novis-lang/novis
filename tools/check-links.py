@@ -3,7 +3,7 @@
 the one on disk, or that are written in the wrong form for the file they sit in.
 
     python tools/check-links.py            # every tracked .md, .rs, .nvs and .nvst file
-    python tools/check-links.py docs/adr   # only under these paths
+    python tools/check-links.py docs/decisions   # only under these paths
 
 **A gate: it exits non-zero on any finding, and CI's `docs` job runs it beside `adr.py --check`.**
 `tools/session.py --wrap` runs the same checker in-process, against the tree and against the bodies it
@@ -57,11 +57,17 @@ item (`[the store](Cache::store)`, `[CLASS]`) has no `/` in it, and a link to a 
 Fragments (`file.md#a-heading`) are checked as far as the file; the heading itself is not verified.
 
 A file carrying the repository's `GENERATED FILE` marker in its head is skipped. `website/`'s ADR
-mirror is written by `npm run sync:adrs` out of `docs/adr/`, and the transform rewrites every relative
-link into a site route (`/docs/adr/0106/`) that resolves in Astro's router and never on disk. Checking
-those cost 2,682 findings, all of them false, and left this gate red in CI's `docs` job for as long as
-the site existed — while the links they are generated *from* are checked here in their source form,
-which is the spelling a human actually edits.
+mirror is written by `npm run sync:adrs`, and the transform rewrites every relative link into a site
+route (`/docs/adr/0106/`) that resolves in Astro's router and never on disk. Checking those cost 2,682
+findings, all of them false, and left this gate red in CI's `docs` job for as long as the site
+existed — while the links they are generated *from* are checked here in their source form, which is
+the spelling a human actually edits.
+
+That mirror is stale. Its sync script, `website/scripts/sync-adrs.mjs`, reads `docs/adr/NNNN-slug.md`,
+and the records have lived at `docs/decisions/NNNN.md` since the docs migration's unit C1 froze them,
+so the mirror on disk is the last sync before the move. Re-pointing the script is not this tool's
+job -- it is a website change with its own owner -- and the skip here is unaffected either way: the
+mirror's pages carry the marker whatever they were generated from.
 """
 
 from __future__ import annotations

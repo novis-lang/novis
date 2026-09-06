@@ -35,8 +35,8 @@ Usage:  python tools/brief.py                 # the digest
         python tools/brief.py --no-git        # skip the working-tree section
         python tools/brief.py --no-map        # skip the module map
         python tools/brief.py --adrs          # + one line per ADR, as it used to print
-        python tools/brief.py --where         # topic index of the routing table
-        python tools/brief.py --where regex   # the routing rows matching a keyword
+        python tools/brief.py --where         # the rulebook's chapters, and the homes that are not rules
+        python tools/brief.py --where words   # the rules and homes matching every word
 """
 
 import re
@@ -50,6 +50,9 @@ import plan as planmod  # noqa: E402  -- the plan's one API; never reimplemented
 
 ROOT = Path(__file__).resolve().parent.parent
 PLAN = ROOT / "docs" / "implementation-plan.md"
+#: Read for one section only -- 'Decisions taken at project start', the decisions that never had a
+#: numbered record. Its routing and index tables were retired by the docs migration's unit C2;
+#: `--where` reads the rulebook, and the decision index reads the records.
 ADR_README = ROOT / "docs" / "adr" / "README.md"
 ADR_DIR = ROOT / "docs" / "decisions"  # the frozen records, `NNNN.md`, since migration unit C1
 PROBE = ROOT / "benches" / "abi-probe"
@@ -64,7 +67,6 @@ DIAGNOSTICS = CRATES / "nvs-diagnostics" / "src" / "lib.rs"
 LEAD_EXCERPT = 700  # current milestone's opening paragraph
 VERIFY_EXCERPT = 600  # current milestone's `**Verify:**` paragraph
 NEXT_LEAD_EXCERPT = 350  # next milestone's opening paragraph
-TOPIC_EXCERPT = 96  # one routing-table topic cell, in the `--where` index
 STATUS_EXCERPT = 600  # one status field, except the two in STATUS_FULL
 MODULE_EXCERPT = 104  # one module's line in the map
 
@@ -149,8 +151,8 @@ def rel(path):
 
 
 def strip_links(text):
-    """``rule:errors/propagation`` -> ``rule:errors/propagation``. A link target is ~50 bytes
-    of no value in a digest whose reader has the routing table one call away."""
+    """``[0002](../decisions/0002.md)`` -> ``0002``. A link target is ~50 bytes of no value in a
+    digest whose reader has the rulebook one `--where` call away."""
     return re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", text)
 
 
@@ -359,36 +361,6 @@ def run_milestones(status_text, plan_text):
 # ------------------------------------------------------------------ decisions
 
 
-ADR_LINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
-
-
-def split_table_row(row):
-    """Markdown table cells, respecting `\\|` -- a decision cell naming `||` writes it escaped,
-    and splitting on a bare `|` truncates that row mid-sentence."""
-    cells = re.split(r"(?<!\\)\|", row)
-    return [c.replace("\\|", "|").strip() for c in cells]
-
-
-def compress_adr_rows(rows, linenos):
-    """One line per ADR: filename, then the decision. The status column is dropped for the
-    Accepted majority and printed only where it differs. A row that does not match the
-    expected cell shape is passed through verbatim rather than silently reshaped or dropped."""
-    compressed = []
-    for row, lineno in zip(rows, linenos):
-        cells = split_table_row(row)
-        link = ADR_LINK_RE.search(cells[1]) if len(cells) > 1 else None
-        # `| a | b | c |` splits to ['', a, b, c, ''] -- any other count means a stray `|`.
-        if link is None or len(cells) != 5:
-            compressed.append((row, lineno, None))
-            continue
-        filename = link.group(1).strip()
-        decision = cells[2]
-        status = cells[3]
-        suffix = "" if status == "Accepted" else "   [" + status + "]"
-        compressed.append((filename + "  " + decision + suffix, lineno, decision))
-    return compressed
-
-
 def decision_records():
     """(number, title, status) for every frozen record in docs/decisions/, off its YAML block
     and H1. The index table that used to carry this in docs/adr/README.md was retired by the
@@ -469,59 +441,37 @@ def run_no_adr_decisions():
     emit("(each is one paragraph in that section: open it for the reasoning)")
 
 
-# --------------------------------------------------------- the routing table
+# ------------------------------------------------------------ where to look
 
 
-LINK_RE = re.compile(r"\[([^\]]*)\]\(([^)]+)\)")
+#: The homes that are not rules. `--where` routes a keyword to the rulebook -- a chapter, or a
+#: rule whose id or title matches -- and everything a language rule can be is there. These four
+#: are the topics the retired routing table also carried that no rule owns, because they are
+#: about the repository rather than the language: the schedule, the tooling, the measurements.
+#: Each row is (the words that hit it, the home, one line saying what is there). Keep it this
+#: short: a topic that grows a rule moves to the rulebook and comes off this list.
+HOMES = (
+    ("plan milestone schedule goal", "docs/plan/ + docs/implementation-plan.md",
+     "the status block and the milestone table; one file per milestone; the chain is the schedule"),
+    ("tools commands scripts", "docs/agent/commands.md",
+     "how the repo is driven: peek.py, verify.py, session.py, splice.py, plan.py, disk.py"),
+    ("benches benchmark", "benches/ + docs/perf/",
+     "the benchmark programs, and the figures with the methodology that took them"),
+    ("perf performance latency throughput", "docs/perf/",
+     "the measured figures, the methodology and the regressions"),
+)
+
+WHERE_CAP = 40  # a display cap on one `--where` answer, not on anything an author writes
 
 
-def rootward(text):
-    """``rule:core-classes/regex-two-tiers`` -> ``rule:core-classes/regex-two-tiers` (docs/adr/0056-...)`. The table
-    lives in docs/adr/, so its link targets are relative to that; a reader of this output is at
-    the repository root and wants a path they can open."""
-
-    def one(m):
-        label, target = m.group(1), m.group(2)
-        if target.startswith(("http://", "https://", "#")):
-            return label
-        try:
-            resolved = (ADR_README.parent / target).resolve().relative_to(ROOT).as_posix()
-        except (ValueError, OSError):
-            return label
-        return f"{label} ({resolved})"
-
-    return LINK_RE.sub(one, text)
-
-
-def parse_routing_table():
-    """The `## Where to look` table in docs/adr/README.md, as (topic, home, line number)."""
-    text = read(ADR_README)
-    if text is None:
-        return None
-    rows = []
-    inside = False
-    for lineno, line in enumerate(text.split("\n"), start=1):
-        if line.startswith("| Doing this | Open this |"):
-            inside = True
-            continue
-        if inside:
-            if not line.startswith("|"):
-                break
-            if line.startswith("|---") or line.startswith("| ---"):
-                continue
-            cells = split_table_row(line)
-            if len(cells) >= 4:
-                rows.append((cells[1], cells[2], lineno))
-    return rows
-
-
-def run_where_rulebook(terms):
-    """`--where` over the rulebook: the topic list, or every rule whose id or title matches.
+def run_where(terms):
+    """`--where` over the rulebook: the chapter list, or every rule whose id or title matches,
+    plus whichever of `HOMES` the same words hit.
 
     The routing table in docs/adr/README.md was retired by the docs migration's unit C2 -- one
     row per topic, hand-maintained, was the second copy of what `docs/rules/_index.json` and the
-    chapters' own titles already state. A keyword now routes to a rule, and the rule's chapter is
-    the file that owns the topic. C6 folds the non-rule rows (the plan, the tools) back in.
+    chapters' own titles already state. A keyword routes to a rule, and the rule's chapter is the
+    file that owns the topic; the rows that never were rules are `HOMES` above.
     """
     import rules as rulebook  # noqa: PLC0415 -- same directory; loaded only for --where
 
@@ -532,71 +482,36 @@ def run_where_rulebook(terms):
         return 1
     if not terms:
         sys.stdout.write(
-            f"Routing: {len(book.topics)} chapters under docs/rules/, {len(book.by_id)} rules.\n"
-            "Re-run with a keyword for the rules that match: python tools/brief.py --where <keyword>\n\n"
+            f"Routing: {len(book.topics)} chapters under docs/rules/, {len(book.by_id)} rules, "
+            f"and {len(HOMES)} homes that are not rules.\n"
+            "Re-run with a keyword for what matches: python tools/brief.py --where <keyword>\n\n"
         )
         for t in book.topics:
             sys.stdout.write(f"  docs/rules/{t.topic}.md  {t.title} ({len(t.rules)} rules)\n")
+        sys.stdout.write("\n")
+        for _words, home, what in HOMES:
+            sys.stdout.write(f"  {home}  {what}\n")
         return 0
     needles = [t.lower() for t in terms]
+    # A home is hit through its words and its path, never its description: "plan" should not
+    # route to commands.md because that line happens to name plan.py.
+    homes = [(home, what) for words, home, what in HOMES
+             if all(n in (words + " " + home).lower() for n in needles)]
     hits = [r for r in book.by_id.values()
             if all(n in (r.id + " " + r.title).lower() for n in needles)]
-    if not hits:
+    if not hits and not homes:
         sys.stdout.write(
-            f"brief.py --where: no rule id or title matches {' '.join(terms)!r}. Run `--where` "
-            "with no keyword for the chapter list, or grep docs/rules/ for the words.\n"
+            f"brief.py --where: no rule id, rule title or home matches {' '.join(terms)!r}. Run "
+            "`--where` with no keyword for the chapter list, or grep docs/rules/ for the words.\n"
         )
         return 0
-    for r in hits[:40]:
+    for home, what in homes:
+        sys.stdout.write(f"  {home}\n     {what}\n")
+    for r in hits[:WHERE_CAP]:
         mark = "" if r.status == "shipped" else "  (designed)"
         sys.stdout.write(f"  docs/rules/{r.topic}.md#{r.anchor}  rule:{r.id}{mark}\n     {r.title}\n")
-    if len(hits) > 40:
-        sys.stdout.write(f"  ... and {len(hits) - 40} more; narrow the keyword\n")
-    return 0
-
-
-def run_where(terms):
-    """`--where` with no term prints the topic index; with terms, the matching rows in full."""
-    rows = parse_routing_table()
-    if not rows:
-        return run_where_rulebook(terms)
-
-    if not terms:
-        sys.stdout.write(
-            f"Routing table: {len(rows)} topics, from {rel(ADR_README)} section 'Where to look'.\n"
-            "Re-run with a keyword for the full row(s): python tools/brief.py --where <keyword>\n\n"
-        )
-        for topic, _home, lineno in rows:
-            plain = strip_links(topic).replace("**", "").replace("*", "")
-            if nbytes(plain) > TOPIC_EXCERPT:
-                plain = plain.encode("utf-8")[:TOPIC_EXCERPT].decode("utf-8", "ignore")
-                plain = plain.rsplit(" ", 1)[0] + " ..."
-            sys.stdout.write(f"  {rel(ADR_README)}:{lineno}  {plain}\n")
-        return 0
-
-    needles = [t.lower() for t in terms]
-    hits = [r for r in rows if all(n in (r[0] + " " + r[1]).lower() for n in needles)]
-    if not hits:
-        sys.stdout.write(
-            f"brief.py --where: nothing matches {' '.join(terms)!r}. "
-            "Run `--where` with no keyword for the topic index, or open "
-            f"{rel(ADR_README)} section 'Where to look'.\n"
-        )
-        return 0
-    for topic, home, lineno in hits:
-        sys.stdout.write(f"\n-- {rel(ADR_README)}:{lineno}\n")
-        sys.stdout.write(
-            textwrap.fill(
-                strip_links(topic), width=96, initial_indent="   ", subsequent_indent="   "
-            )
-            + "\n"
-        )
-        sys.stdout.write(
-            textwrap.fill(
-                rootward(home), width=96, initial_indent="   -> ", subsequent_indent="      "
-            )
-            + "\n"
-        )
+    if len(hits) > WHERE_CAP:
+        sys.stdout.write(f"  ... and {len(hits) - WHERE_CAP} more; narrow the keyword\n")
     return 0
 
 
