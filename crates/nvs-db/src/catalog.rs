@@ -9,8 +9,8 @@
 //! statement, `nvs-stdlib` issues it over a connection the program already has
 //! (§ 9 makes planning an ordinary read under `db.connect`), [`scalar_type`]
 //! and [`column_default`] read the two spellings in that row back into the
-//! vocabulary, and the assembly into a [`Schema`](crate::Schema) is the other
-//! half.
+//! vocabulary, and [`assemble`] turns the two reads' rows into one
+//! [`Schema`](crate::Schema).
 //!
 //! # One row shape per read, and every dialect answers it
 //!
@@ -76,12 +76,24 @@
 //!    written as `uint32` reads back as `int64` and the plan is empty only
 //!    once § 5 normalises the *declared* side the same way. Every case is
 //!    named in that function's own doc; nothing here hides one.
-//! 4. **The read is one schema deep.** A PostgreSQL search path with two
+//! 4. **An unquoted spelling on a text column is read as that text.**
+//!    [`unquote`] falls back to the whole string where a server printed no
+//!    quotes, because MySQL's `information_schema` prints a literal that way —
+//!    but PostgreSQL, SQL Server and SQLite always quote a string default, so
+//!    on those three an unquoted spelling is an *expression* and reading it as
+//!    a value is the direction [`column_default`]'s own doc calls
+//!    unrecoverable: the plan then proposes a default the server will never
+//!    report back, and no number of applies converges. Narrowing the fallback
+//!    to the dialect that needs it is a change to that function and the three
+//!    tests over it, not to [`assemble`].
+//! 5. **The read is one schema deep.** A PostgreSQL search path with two
 //!    schemas on it, or a SQL Server object under a schema other than the
 //!    login's default, is out of view. § 11 has no cross-schema construct, so
 //!    there is nothing in the vocabulary to lose yet.
 
-use crate::schema::{ColumnDefault, FloatWidth, IntWidth, ScalarType};
+use crate::schema::{
+    Column, ColumnDefault, FloatWidth, IntWidth, ScalarType, Schema, SchemaError, Table,
+};
 use crate::sql::Dialect;
 
 /// One of the two reads an introspection makes.
@@ -797,12 +809,185 @@ fn unquote(text: &str, dialect: Dialect) -> Option<String> {
     Some(out)
 }
 
+/// One row of [`Read::Columns`], in this module's own names.
+///
+/// The fields are [`Read::row`]'s positions in order, and each carries the
+/// neutral type rather than any driver's value — `nvs-db` exports `PgRow`,
+/// `MySqlRow` and `SqliteValue` and nothing common, so a row of a catalog read
+/// is read by `nvs-stdlib` off whichever of the five answered and filled in
+/// here. That is what lets [`assemble`] be one function instead of five, and
+/// what keeps this crate sans-io per ADR 0132: the statement is text, the row
+/// is a struct, and neither end of the module touches a socket.
+///
+/// `ty` carries the `type` position, because `type` is a keyword; nothing else
+/// is renamed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ColumnRow {
+    /// The table the column belongs to.
+    pub table: String,
+    /// The column's name, in the server's own case.
+    pub column: String,
+    /// One-based declaration order. An **ordering key and not an index**:
+    /// PostgreSQL leaves gaps where a column was dropped, so [`assemble`] sorts
+    /// on this and never indexes with it.
+    pub ordinal: i64,
+    /// The server's own declared spelling, parameters included.
+    pub ty: String,
+    /// Whether the column accepts null.
+    pub nullable: bool,
+    /// The server's spelling of the default, where the column has one.
+    pub default: Option<String>,
+    /// Whether the server assigns the value.
+    pub identity: bool,
+}
+
+/// One row of [`Read::Indexes`], in this module's own names.
+///
+/// [`ColumnRow`]'s note on the field types is this struct's too. A row is one
+/// **column of one key**, so a composite key arrives as as many rows as it has
+/// columns and `ordinal` is their order within it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IndexRow {
+    /// The table the key belongs to.
+    pub table: String,
+    /// The constraint or index name, which is unique across the schema.
+    pub index: String,
+    /// One column of that key.
+    pub column: String,
+    /// One-based position within the key.
+    pub ordinal: i64,
+    /// Whether a duplicate is refused.
+    pub unique: bool,
+    /// Whether this is the table's primary key.
+    pub primary: bool,
+}
+
+/// The two reads' rows as one [`Schema`], built through the same builders a
+/// declared schema goes through.
+///
+/// Nothing here constructs a [`Table`] or a [`Column`] directly, so a value
+/// that comes back from a server has passed every rule a value written by hand
+/// passes — an introspection cannot mint a column [`crate::ddl`] would refuse
+/// to emit, which is the whole reason those builders are the only door.
+///
+/// # The order of construction, which the row shapes decide
+///
+/// The primary key arrives on the **index** rows rather than the column ones
+/// ([`Read`]'s own doc says why), so every column of a table is built before
+/// any key is added to it: [`Table::new`] takes the columns, and
+/// [`Table::primary_key`] then resolves names against them. Within a table,
+/// columns are sorted by [`ColumnRow::ordinal`] and keys by
+/// [`IndexRow::ordinal`]; tables, and the keys within one table, keep the order
+/// they arrive in, which is the order every statement's `ORDER BY` fixes —
+/// `every_catalog_query_orders_the_rows_the_assembly_walks` is that agreement,
+/// and normalising two schemas that list one table's indexes in two orders is
+/// § 5's job rather than this function's.
+///
+/// # What is refused, and what is merely dropped
+///
+/// Two of the three answers a row can be unreadable in are not the same kind of
+/// mistake, and the direction of the error is what separates them:
+///
+/// - **A type spelling outside the vocabulary fails the whole read**, as
+///   [`SchemaError::UnknownType`]. Dropping the column instead would
+///   *under*-report: the diff would not propose removing a column the server
+///   has, so `applySafe` would report convergence over a table that has not
+///   converged — the plan saying nothing needs doing when it does, which is the
+///   one failure [`column_default`]'s doc calls unrecoverable.
+/// - **A default this reader cannot spell back is dropped**, exactly as
+///   [`column_default`] answers `None`. That *over*-reports: the plan gains a
+///   step setting a default the column may already have, which is visible in
+///   the plan and costs a rewrite the server would accept.
+/// - **An index row naming a table the column read did not report is
+///   ignored**, because a base table with no columns is not a table this
+///   vocabulary can hold at all. The table is then absent from the value, and
+///   [`Schema`]'s own doc owns what the diff does with that.
+///
+/// # Errors
+///
+/// [`SchemaError::UnknownType`] as above, and every refusal the builders state
+/// — a name that is not a bare identifier, a duplicate key name, an identity
+/// column outside its primary key. A server can hold all three; this is where
+/// they are found rather than at the sink.
+pub fn assemble(
+    columns: &[ColumnRow],
+    indexes: &[IndexRow],
+    dialect: Dialect,
+) -> Result<Schema, SchemaError> {
+    let mut tables = Vec::new();
+    for name in first_seen(columns.iter().map(|row| row.table.as_str())) {
+        let mut rows: Vec<&ColumnRow> = columns.iter().filter(|row| row.table == name).collect();
+        rows.sort_by_key(|row| row.ordinal);
+        let built = rows
+            .iter()
+            .map(|row| column_of(row, dialect))
+            .collect::<Result<Vec<Column>, SchemaError>>()?;
+        let mut table = Table::new(name, built)?;
+        let keys = indexes.iter().filter(|row| row.table == name);
+        for key in first_seen(keys.clone().map(|row| row.index.as_str())) {
+            let mut key_rows: Vec<&IndexRow> =
+                keys.clone().filter(|row| row.index == key).collect();
+            key_rows.sort_by_key(|row| row.ordinal);
+            let names: Vec<&str> = key_rows.iter().map(|row| row.column.as_str()).collect();
+            table = if key_rows[0].primary {
+                table.primary_key(&names)?
+            } else if key_rows[0].unique {
+                table.unique(key, &names)?
+            } else {
+                table.index(key, &names)?
+            };
+        }
+        tables.push(table);
+    }
+    Schema::new(tables)
+}
+
+/// The distinct values of `names`, in the order they first appear.
+///
+/// A catalog holds tens of tables and a table tens of columns, so this is a
+/// scan rather than a map: the ordering is part of the answer, and a `HashMap`
+/// would have to have it added back.
+fn first_seen<'a>(names: impl Iterator<Item = &'a str>) -> Vec<&'a str> {
+    let mut seen: Vec<&str> = Vec::new();
+    for name in names {
+        if !seen.contains(&name) {
+            seen.push(name);
+        }
+    }
+    seen
+}
+
+/// One [`ColumnRow`] through [`Column`]'s builders, in the order they compose.
+///
+/// [`Column::identity`] clears both nullability and the default, because the
+/// server supplies the value — so an identity column takes neither step, and
+/// the sequence expression a server prints as its default is never read at all.
+fn column_of(row: &ColumnRow, dialect: Dialect) -> Result<Column, SchemaError> {
+    let ty =
+        scalar_type(&row.ty, dialect).ok_or_else(|| SchemaError::UnknownType(row.ty.clone()))?;
+    let mut column = Column::new(&row.column, ty.clone())?;
+    if row.nullable {
+        column = column.null();
+    }
+    if row.identity {
+        return column.identity();
+    }
+    match row
+        .default
+        .as_deref()
+        .and_then(|text| column_default(text, &ty, dialect))
+    {
+        Some(default) => column.default(default),
+        None => Ok(column),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::conn::Driver;
     use crate::ddl;
-    use crate::schema::{Column, IntWidth, ScalarType, Table};
+    use crate::schema::Ident;
 
     /// The two reads, in the order [`Read`] declares them.
     const READS: [Read; 2] = [Read::Columns, Read::Indexes];
@@ -886,12 +1071,6 @@ mod tests {
         }
     }
 
-    /// One row of [`Read::Columns`], in the order [`Read::row`] names.
-    type ColumnRow = (String, String, i64, String, i64, Option<String>, i64);
-
-    /// One row of [`Read::Indexes`], in the order [`Read::row`] names.
-    type KeyRow = (String, String, String, i64, i64, i64);
-
     /// Two tables covering both branches of [`SQLITE_INDEXES`]: `wide`'s
     /// primary key is the rowid, which `pragma_index_list` does not report at
     /// all, and `pair`'s is a composite, which it reports as an
@@ -954,65 +1133,41 @@ mod tests {
             }
         }
 
-        let mut columns = db.prepare(query(Read::Columns, Dialect::Sqlite)).unwrap();
-        let columns: Vec<ColumnRow> = columns
-            .query_map([], |row| {
-                Ok((
-                    row.get(0)?,
-                    row.get(1)?,
-                    row.get(2)?,
-                    row.get(3)?,
-                    row.get(4)?,
-                    row.get(5)?,
-                    row.get(6)?,
-                ))
-            })
-            .unwrap()
-            .collect::<Result<_, _>>()
-            .unwrap();
-        let wide: Vec<_> = columns.iter().filter(|row| row.0 == "wide").collect();
+        let columns = sqlite_columns(&db);
+        let wide: Vec<_> = columns.iter().filter(|row| row.table == "wide").collect();
         assert_eq!(
-            wide.iter().map(|row| row.1.as_str()).collect::<Vec<_>>(),
+            wide.iter()
+                .map(|row| row.column.as_str())
+                .collect::<Vec<_>>(),
             ["id", "label", "note"],
             "declaration order is `cid`, not the name"
         );
-        assert_eq!(wide.iter().map(|row| row.2).collect::<Vec<_>>(), [1, 2, 3]);
+        assert_eq!(
+            wide.iter().map(|row| row.ordinal).collect::<Vec<_>>(),
+            [1, 2, 3]
+        );
         // The rowid alias, read back as an identity: `INTEGER PRIMARY KEY` is
         // the whole of what SQLite records, `AUTOINCREMENT` being a
         // `sqlite_sequence` row and not a column property.
-        assert_eq!((wide[0].3.as_str(), wide[0].6), ("INTEGER", 1));
-        assert_eq!((wide[1].6, wide[2].6), (0, 0));
+        assert_eq!((wide[0].ty.as_str(), wide[0].identity), ("INTEGER", true));
+        assert!(!wide[1].identity && !wide[2].identity);
         // SQLite records no `notnull` for a rowid alias, so `id` would read
         // back nullable and no `Table` could be built from the row; the read
         // is what closes that, not the assembly above it.
         assert_eq!(
-            (wide[0].4, wide[1].4, wide[2].4),
-            (0, 0, 1),
+            (wide[0].nullable, wide[1].nullable, wide[2].nullable),
+            (false, false, true),
             "only `note` was declared nullable"
         );
 
-        let mut keys = db.prepare(query(Read::Indexes, Dialect::Sqlite)).unwrap();
-        let keys: Vec<KeyRow> = keys
-            .query_map([], |row| {
-                Ok((
-                    row.get(0)?,
-                    row.get(1)?,
-                    row.get(2)?,
-                    row.get(3)?,
-                    row.get(4)?,
-                    row.get(5)?,
-                ))
-            })
-            .unwrap()
-            .collect::<Result<_, _>>()
-            .unwrap();
+        let keys = sqlite_indexes(&db);
         // `wide`'s primary key has no index of its own, and `pair`'s has one
         // the second branch drops: both arrive through the first branch alone,
         // once each, in key order.
         let primary: Vec<_> = keys
             .iter()
-            .filter(|row| row.5 == 1)
-            .map(|row| (row.0.as_str(), row.2.as_str(), row.3))
+            .filter(|row| row.primary)
+            .map(|row| (row.table.as_str(), row.column.as_str(), row.ordinal))
             .collect();
         assert_eq!(
             primary,
@@ -1023,7 +1178,7 @@ mod tests {
             ]
         );
         assert!(
-            !keys.iter().any(|row| row.0 == "pair" && row.5 == 0),
+            !keys.iter().any(|row| row.table == "pair" && !row.primary),
             "`pair`'s `sqlite_autoindex_…` was reported beside its primary key"
         );
         // The unique constraint is an autoindex whose name SQLite minted, and
@@ -1032,13 +1187,18 @@ mod tests {
         // module's to hide.
         let unique: Vec<_> = keys
             .iter()
-            .filter(|row| row.5 == 0 && row.4 == 1)
-            .map(|row| row.2.as_str())
+            .filter(|row| !row.primary && row.unique)
+            .map(|row| row.column.as_str())
             .collect();
         assert_eq!(unique, ["label"]);
-        assert!(keys.iter().any(
-            |row| (row.1.as_str(), row.2.as_str(), row.4, row.5) == ("wide_note", "note", 0, 0)
-        ));
+        assert!(keys.iter().any(|row| {
+            (
+                row.index.as_str(),
+                row.column.as_str(),
+                row.unique,
+                row.primary,
+            ) == ("wide_note", "note", false, false)
+        }));
     }
 
     #[test]
@@ -1386,5 +1546,342 @@ mod tests {
                 "`{spelling}` read as a {dialect:?} default on {ty:?}"
             );
         }
+    }
+
+    /// A schema carrying every part the assembly has to put back together: an
+    /// identity primary key, a composite one, a unique constraint, a plain
+    /// index, a nullable column and both kinds of default.
+    ///
+    /// It carries **no `uint` and no bounded `bytes`**, which are the two
+    /// families where what comes back depends on which server answered —
+    /// `scalar_type`'s own doc names every case, and § 5 owes the declared
+    /// side the same normalisation. A fixture carrying one would be asserting
+    /// that gap closed rather than that the assembly is one function.
+    fn assembled_fixture() -> Schema {
+        let wide = Table::new(
+            "wide",
+            vec![
+                Column::new("id", ScalarType::Int(IntWidth::Big))
+                    .unwrap()
+                    .identity()
+                    .unwrap(),
+                Column::new("label", ScalarType::Text { max: Some(200) }).unwrap(),
+                Column::new("note", ScalarType::Text { max: None })
+                    .unwrap()
+                    .null(),
+                Column::new("rank", ScalarType::Int(IntWidth::Normal))
+                    .unwrap()
+                    .default(ColumnDefault::Int(7))
+                    .unwrap(),
+                Column::new("seen_at", ScalarType::Instant)
+                    .unwrap()
+                    .default(ColumnDefault::Now)
+                    .unwrap(),
+            ],
+        )
+        .unwrap()
+        .primary_key(&["id"])
+        .unwrap()
+        .unique("wide_label", &["label"])
+        .unwrap()
+        .index("wide_note", &["note"])
+        .unwrap();
+        let pair = Table::new(
+            "pair",
+            vec![
+                Column::new("left_id", ScalarType::Int(IntWidth::Normal)).unwrap(),
+                Column::new("right_id", ScalarType::Int(IntWidth::Normal)).unwrap(),
+            ],
+        )
+        .unwrap()
+        .primary_key(&["left_id", "right_id"])
+        .unwrap();
+        Schema::new(vec![wide, pair]).unwrap()
+    }
+
+    /// The rows a server of `dialect` answers for `schema`, in [`Read::row`]'s
+    /// positions.
+    ///
+    /// The type and the default are [`ddl`]'s own spellings, which makes the
+    /// assertion below a round trip over the emitters rather than a table of a
+    /// hundred strings written out twice. Two things are deliberately hostile:
+    /// the ordinals are **gapped**, because PostgreSQL leaves a hole in
+    /// `attnum` where a column was dropped and an assembly indexing with one
+    /// would lose a column on any altered table, and the rows of each group
+    /// arrive **backwards**, because the ordinal is what orders them and not
+    /// the order they were handed over in.
+    fn rows_of(schema: &Schema, dialect: Dialect) -> (Vec<ColumnRow>, Vec<IndexRow>) {
+        let mut columns = Vec::new();
+        let mut indexes = Vec::new();
+        for table in schema.tables() {
+            let name = table.name().to_string();
+            let mut block: Vec<ColumnRow> = table
+                .columns()
+                .iter()
+                .enumerate()
+                .map(|(at, column)| ColumnRow {
+                    table: name.clone(),
+                    column: column.name().to_string(),
+                    ordinal: i64::try_from(at).unwrap() * 3 + 1,
+                    ty: ddl::column_type(column.ty(), dialect),
+                    nullable: column.is_nullable(),
+                    default: column
+                        .default_value()
+                        .map(|value| ddl::literal(value, column.ty(), dialect)),
+                    identity: column.is_identity(),
+                })
+                .collect();
+            block.reverse();
+            columns.append(&mut block);
+
+            // The primary key's name is one the server made up — `PRIMARY` on
+            // MySQL, `wide_pkey` on PostgreSQL — and the assembly reads the
+            // `primary` flag rather than the name, so this one is made up too.
+            if !table.primary_key_columns().is_empty() {
+                indexes.append(&mut key_rows(
+                    &name,
+                    &format!("{name}_pkey"),
+                    table.primary_key_columns(),
+                    true,
+                    true,
+                ));
+            }
+            for key in table.unique_keys() {
+                let key_name = key.name().to_string();
+                indexes.append(&mut key_rows(&name, &key_name, key.columns(), true, false));
+            }
+            for key in table.indexes() {
+                let key_name = key.name().to_string();
+                indexes.append(&mut key_rows(&name, &key_name, key.columns(), false, false));
+            }
+        }
+        (columns, indexes)
+    }
+
+    /// One key's rows, backwards, for the reason [`rows_of`] states.
+    fn key_rows(
+        table: &str,
+        index: &str,
+        columns: &[Ident],
+        unique: bool,
+        primary: bool,
+    ) -> Vec<IndexRow> {
+        let mut rows: Vec<IndexRow> = columns
+            .iter()
+            .enumerate()
+            .map(|(at, column)| IndexRow {
+                table: table.to_owned(),
+                index: index.to_owned(),
+                column: column.to_string(),
+                ordinal: i64::try_from(at).unwrap() + 1,
+                unique,
+                primary,
+            })
+            .collect();
+        rows.reverse();
+        rows
+    }
+
+    /// ADR 0145 § 4: the two reads answer one [`Schema`], whichever of the five
+    /// drivers answered them.
+    ///
+    /// The claim is an **agreement across the drivers**, not a value written
+    /// out here: each server is handed the spelling [`ddl`] wrote for it, and
+    /// all five must arrive back at the schema that produced it. A reader that
+    /// grew a per-server special case still passes its own dialect's round
+    /// trip and fails here.
+    #[test]
+    fn every_driver_introspects_into_the_same_schema_value_shape() {
+        const DRIVERS: [Driver; 5] = [
+            Driver::Postgres,
+            Driver::MySql,
+            Driver::MariaDb,
+            Driver::Sqlite,
+            Driver::SqlServer,
+        ];
+        let fixture = assembled_fixture();
+        for driver in DRIVERS {
+            let dialect = Dialect::of(driver);
+            let (columns, indexes) = rows_of(&fixture, dialect);
+            let read = assemble(&columns, &indexes, dialect)
+                .unwrap_or_else(|why| panic!("{driver:?} did not assemble its own rows: {why}"));
+            assert_eq!(read, fixture, "{driver:?} read back a different schema");
+        }
+
+        // The refusal and the drop are opposite directions on purpose, and
+        // `assemble`'s own doc says which is which: a type outside the
+        // vocabulary would under-report a column, so it fails the read, while
+        // a default outside it over-reports and costs a step in the plan.
+        let (mut columns, indexes) = rows_of(&fixture, Dialect::PostgreSql);
+        let at = columns
+            .iter()
+            .position(|row| row.column == "label")
+            .unwrap();
+        let spelling = columns[at].ty.clone();
+        columns[at].ty = "citext".to_owned();
+        assert_eq!(
+            assemble(&columns, &indexes, Dialect::PostgreSql),
+            Err(SchemaError::UnknownType("citext".to_owned())),
+            "a type outside the vocabulary assembled into something"
+        );
+        columns[at].ty = spelling;
+        columns[at].default = Some("'a' || 'b'".to_owned());
+        let read = assemble(&columns, &indexes, Dialect::PostgreSql).unwrap();
+        let label = read
+            .table(&Ident::new("wide").unwrap())
+            .unwrap()
+            .column(&Ident::new("label").unwrap())
+            .unwrap();
+        assert_eq!(
+            label.default_value(),
+            None,
+            "an expression default assembled into a value"
+        );
+
+        // A key on a table the column read did not report: there is no such
+        // table in the value, so there is nothing for the key to attach to.
+        let mut orphaned = indexes.clone();
+        orphaned.append(&mut key_rows(
+            "gone",
+            "gone_pkey",
+            &[Ident::new("id").unwrap()],
+            true,
+            true,
+        ));
+        assert_eq!(
+            assemble(&columns, &orphaned, Dialect::PostgreSql).unwrap(),
+            read,
+            "a key for a table out of view reached the value"
+        );
+    }
+
+    /// [`Read::Columns`] against a real SQLite, as the rows [`assemble`] takes.
+    fn sqlite_columns(db: &rusqlite::Connection) -> Vec<ColumnRow> {
+        let mut read = db.prepare(query(Read::Columns, Dialect::Sqlite)).unwrap();
+        let rows = read
+            .query_map([], |row| {
+                Ok(ColumnRow {
+                    table: row.get(0)?,
+                    column: row.get(1)?,
+                    ordinal: row.get(2)?,
+                    ty: row.get(3)?,
+                    nullable: row.get(4)?,
+                    default: row.get(5)?,
+                    identity: row.get(6)?,
+                })
+            })
+            .unwrap();
+        rows.collect::<Result<_, _>>().unwrap()
+    }
+
+    /// [`Read::Indexes`] against a real SQLite, as the rows [`assemble`] takes.
+    fn sqlite_indexes(db: &rusqlite::Connection) -> Vec<IndexRow> {
+        let mut read = db.prepare(query(Read::Indexes, Dialect::Sqlite)).unwrap();
+        let rows = read
+            .query_map([], |row| {
+                Ok(IndexRow {
+                    table: row.get(0)?,
+                    index: row.get(1)?,
+                    column: row.get(2)?,
+                    ordinal: row.get(3)?,
+                    unique: row.get(4)?,
+                    primary: row.get(5)?,
+                })
+            })
+            .unwrap();
+        rows.collect::<Result<_, _>>().unwrap()
+    }
+
+    /// `schema` applied to a fresh in-memory database, read back and
+    /// assembled.
+    fn applied_and_read(schema: &Schema) -> Schema {
+        let db = rusqlite::Connection::open_in_memory().unwrap();
+        for statement in ddl::create_schema(schema, Dialect::Sqlite) {
+            db.execute_batch(&statement).unwrap();
+        }
+        assemble(&sqlite_columns(&db), &sqlite_indexes(&db), Dialect::Sqlite).unwrap()
+    }
+
+    /// ADR 0145 § 4: the assembly, over the rows a real server answers.
+    ///
+    /// SQLite is the one dialect whose server is a file, so it is the one that
+    /// can be asked this with no container — and it is also the harshest ask,
+    /// because it is the dialect that rewrites the most of what it was given.
+    ///
+    /// The property asserted is a **fixed point**: what a server answers,
+    /// emitted and applied again, must be answered back unchanged. That is the
+    /// half of § 5's acceptance criterion this crate can prove alone. The
+    /// other half — that the value applied and the value read are the same
+    /// schema — is § 5's normalisation, and the three places it is owed here
+    /// are pinned below rather than left for it to discover.
+    #[test]
+    fn a_schema_applied_to_sqlite_assembles_back_into_itself() {
+        let applied = Schema::new(sqlite_fixture()).unwrap();
+        let read = applied_and_read(&applied);
+        assert_eq!(
+            read,
+            applied_and_read(&read),
+            "a second round changed the value, so the read is not a fixed point"
+        );
+
+        let wide = read.table(&Ident::new("wide").unwrap()).unwrap();
+        assert_eq!(
+            wide.columns()
+                .iter()
+                .map(|column| column.name().to_string())
+                .collect::<Vec<_>>(),
+            ["id", "label", "note"],
+            "declaration order did not survive the round trip"
+        );
+        assert!(wide.columns()[0].is_identity() && !wide.columns()[2].is_identity());
+        assert!(!wide.columns()[1].is_nullable() && wide.columns()[2].is_nullable());
+        assert_eq!(wide.primary_key_columns(), [Ident::new("id").unwrap()]);
+        assert_eq!(
+            wide.unique_keys()[0].columns(),
+            [Ident::new("label").unwrap()]
+        );
+        assert_eq!(wide.indexes()[0].name(), &Ident::new("wide_note").unwrap());
+        let pair = read.table(&Ident::new("pair").unwrap()).unwrap();
+        assert_eq!(
+            pair.primary_key_columns(),
+            [
+                Ident::new("left_id").unwrap(),
+                Ident::new("right_id").unwrap()
+            ],
+            "the composite key lost its order"
+        );
+
+        // The three differences from the value that was applied, each § 5's to
+        // normalise and none of them this module's to hide. A session closing
+        // one of them fails here, which is the point of pinning them.
+        assert_eq!(
+            read.tables()
+                .iter()
+                .map(|table| table.name().to_string())
+                .collect::<Vec<_>>(),
+            ["pair", "wide"],
+            "a read is ordered by name and a built schema by declaration"
+        );
+        assert!(
+            wide.unique_keys()[0]
+                .name()
+                .to_string()
+                .starts_with("sqlite_autoindex_"),
+            "SQLite mints the name of an inline UNIQUE — `crate::ddl`'s gap 5"
+        );
+        assert_eq!(
+            wide.columns()[0].ty(),
+            &ScalarType::Int(IntWidth::Normal),
+            "`INTEGER PRIMARY KEY` is the rowid spelling whatever width was declared"
+        );
+        assert_eq!(
+            applied
+                .table(&Ident::new("wide").unwrap())
+                .unwrap()
+                .columns()[0]
+                .ty(),
+            &ScalarType::Int(IntWidth::Big),
+            "the fixture stopped declaring the width that gets rewritten"
+        );
     }
 }
