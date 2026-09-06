@@ -94,7 +94,8 @@ individual: Roland, the creator of Novis. The plan is already set out, though: w
 found a *gemeinnütziger Verein* in Austria — a charitable association, the best legal form for this
 project. It is a non-profit whose purpose is not to make money, and it is what lets us be a proper
 organisation with transparent financial reports, employ people, rent an office, and keep the machine
-running.
+running. Before founding anything, though, the essentials come first — and sponsored money will be
+published transparently through the [Open Source Collective](https://opencollective.com/).
 
 Every donation helps, no matter how large, how small, how long or how short. Ask on
 [Discord](https://discord.gg/8ftMjPeH8h) and we will tell you how — the full story is on the website's
