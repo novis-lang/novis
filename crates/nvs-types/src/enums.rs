@@ -4,7 +4,7 @@
 //!
 //! # Why this table exists at all
 //!
-//! [ADR 0010](/docs/adr/0010-enums-are-a-value-type.md) makes an enum a
+//! `rule:enums/closed-integer-type` makes an enum a
 //! closed, named **integer** type: a case is a compile-time constant, never a
 //! singleton object, and "every enum has exactly one underlying integer type,
 //! `int` unless `: uint` is written." Both halves of that sentence are facts
@@ -14,7 +14,7 @@
 //! * the backing type decides an enum-typed value's machine representation, so
 //!   [`crate::ty::Ty::Enum`] carries it (see that variant's own doc comment for
 //!   why it is part of the type's identity rather than a side lookup);
-//! * a case's value is what `EnumName::CaseName` *is* — ADR 0010 § 3's "a case
+//! * a case's value is what `EnumName::CaseName` *is* — `rule:enums/no-class-machinery`'s "a case
 //!   is an integer constant, inlined at every use site" — so `nvs-ir` reads it
 //!   back through [`crate::expr_table::ExprInfo::EnumCase`] and emits a plain
 //!   constant, with no storage, no descriptor and no allocation anywhere.
@@ -23,7 +23,7 @@
 //!
 //! A case with no explicit value takes the previous case's plus one, starting
 //! at `0`; an explicit value resets the counter for whatever follows it
-//! (ADR 0010 § 1). Two cases may share a value — that ADR says so outright,
+//! (`rule:enums/declaration`). Two cases may share a value — that ADR says so outright,
 //! because equality is value equality and there is no identity to collide — so
 //! this table deliberately reports nothing for a duplicate.
 //!
@@ -52,7 +52,7 @@ use rustc_hash::FxHashMap;
 
 use crate::span_text;
 
-/// An enum's underlying integer type — ADR 0010 § 2: exactly one per enum,
+/// An enum's underlying integer type — `rule:enums/one-backing-type`: exactly one per enum,
 /// `int` unless `: uint` is written. There is no third option and no unbacked
 /// form.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Default)]
@@ -98,7 +98,7 @@ impl EnumTable {
     /// `qname`'s backing type, defaulting to [`EnumBacking::Int`] for a name
     /// this table has no entry for.
     ///
-    /// The default is not a guess: it is the same one ADR 0010 § 2 gives a
+    /// The default is not a guess: it is the same one `rule:enums/one-backing-type` gives a
     /// declaration that omits its `: Type` clause, and the only way to reach
     /// it here is a program that already failed to resolve the name (which is
     /// diagnosed where the reference is, not here).
@@ -117,7 +117,7 @@ impl EnumTable {
 }
 
 /// Resolves every `enum` declaration in every file of the program, reporting
-/// ADR 0010 § 1/§ 2's declaration-level errors.
+/// `rule:enums/declaration`/§ 2's declaration-level errors.
 ///
 /// Runs *before* [`crate::signatures::build_signatures`], because interning an
 /// enum-typed annotation needs the backing type this produces — see
@@ -203,7 +203,7 @@ fn resolve_enum(
 ) -> EnumInfo {
     let backing = backing_of(decl.backing.as_ref(), diags);
     let mut cases = FxHashMap::default();
-    // ADR 0010 § 1: "a case with no explicit literal takes the previous case's
+    // `rule:enums/declaration`: "a case with no explicit literal takes the previous case's
     // value plus one, starting at `0` ... including that an explicit value
     // resets the counter for whatever follows it." Held as the *next* value to
     // hand out, so both halves are the same assignment, and as an `EnumValue`
@@ -221,7 +221,7 @@ fn resolve_enum(
                         "this case's auto-incremented value runs past its enum's backing type",
                     )
                     .with_primary(case.span, "no value left to auto-increment into")
-                    .with_help("give this case an explicit value (ADR 0010 § 1)"),
+                    .with_help("give this case an explicit value (`rule:enums/declaration`)"),
                 );
                 None
             }),
@@ -233,7 +233,7 @@ fn resolve_enum(
     EnumInfo { backing, cases }
 }
 
-/// ADR 0010 § 2: `int` unless `: uint` is written.
+/// `rule:enums/one-backing-type`: `int` unless `: uint` is written.
 ///
 /// `enum Name: string` is already reported by `nvs-syntax`'s parser, so this
 /// only has to catch every *other* non-integer spelling — which the parser
@@ -256,7 +256,9 @@ fn backing_of(ty: Option<&Type>, diags: &mut nvs_diagnostics::Diagnostics) -> En
                     "an enum's backing type must be `int` or `uint`",
                 )
                 .with_primary(ty.span, "not an integer type")
-                .with_help("use `: int` or `: uint`, or omit the clause (ADR 0010 § 2)"),
+                .with_help(
+                    "use `: int` or `: uint`, or omit the clause (`rule:enums/one-backing-type`)",
+                ),
             );
             EnumBacking::Int
         }
@@ -265,7 +267,7 @@ fn backing_of(ty: Option<&Type>, diags: &mut nvs_diagnostics::Diagnostics) -> En
 
 /// One explicit `= expr` case value.
 ///
-/// ADR 0010 § 1 gives a case an integer *literal*, so exactly two expression
+/// `rule:enums/declaration` gives a case an integer *literal*, so exactly two expression
 /// shapes are accepted: a bare integer literal, and a negated one (which the
 /// parser produces as a `-` unary over the literal, never as part of its
 /// digits). Anything else is refused rather than const-evaluated: an enum case
@@ -312,7 +314,7 @@ fn not_a_literal(span: Span, diags: &mut nvs_diagnostics::Diagnostics) -> Option
             "an enum case's value must be an integer literal",
         )
         .with_primary(span, "not an integer literal")
-        .with_help("ADR 0010 § 1: a case is a compile-time integer constant"),
+        .with_help("`rule:enums/declaration`: a case is a compile-time integer constant"),
     );
     None
 }

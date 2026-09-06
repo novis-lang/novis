@@ -43,7 +43,7 @@
   extension and project; a name collision is a load-order fatal error. A reserved `Core` namespace turns
   that into an ordinary compile-time declaration-site check.
 - This ADR does not re-argue whether OOP-only is correct — that is taken as given, the same way
-  [ADR 0010](0010-enums-are-a-value-type.md) took "follow C#'s enum" as given — only the mechanics and
+  `rule:enums/closed-integer-type` took "follow C#'s enum" as given — only the mechanics and
   where the built-ins go.
 
 ## Decision

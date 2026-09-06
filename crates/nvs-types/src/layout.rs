@@ -35,7 +35,7 @@
 //!
 //! # Known gaps
 //!
-//! * **An enum has no entry.** ADR 0010 makes an enum a closed integer value
+//! * **An enum has no entry.** `rule:enums/closed-integer-type` makes an enum a closed integer value
 //!   type, not an instance with fields.
 //! * **Only the classes declared in the files walked are present.** A `Core`
 //!   class has no source declaration and therefore no layout; `nvs-stdlib`

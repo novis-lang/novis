@@ -65,7 +65,7 @@ spellings rejected, and the reasoning. Do not restate that detail here when addi
 | Suspension | Stackful coroutines — no async colouring; any function may yield |
 | Isolated execution | `spawn script 'file.nvs'` runs another file in-process as a child isolate, file-only, never a source string ([ADR 0006](../adr/0006-isolated-script-execution.md)) |
 | Type system | Static, mandatory, explicit; every binding's declared type never changes; `uint` alongside signed `int` ([ADR 0007](../adr/0007-explicit-type-system.md)) |
-| Enums | A closed, named integer type, C#-style; PHP's class-like enum design (`::cases()`, methods, `string` backing) is disregarded entirely ([ADR 0010](../adr/0010-enums-are-a-value-type.md)) |
+| Enums | A closed, named integer type, C#-style; PHP's class-like enum design (`::cases()`, methods, `string` backing) is disregarded entirely (`rule:enums/closed-integer-type`) |
 | Scoping and state | `static` is a class-member modifier only; no function-scope `static`, no `static fn`, no `global` ([ADR 0008](../adr/0008-static-and-global.md)) |
 | No superglobals | No variable is ever populated by the host; every PHP superglobal becomes a `Core` accessor class, and `$GLOBALS`/`$_REQUEST` have no replacement ([ADR 0012](../adr/0012-no-superglobals.md)) |
 | Object comparison | Ordering two objects requires the global `Comparable` interface; PHP's ambient property-walk fallback is rejected outright ([ADR 0013](../adr/0013-comparable-interface.md)) |

@@ -2837,7 +2837,7 @@ pub(crate) fn lower_decl_type(
     // The checker already resolved this exact annotation and recorded the
     // answer (`ExprTypeTable::declared_ty`) — take it whenever it exists, so a
     // name-shaped atom whose meaning depends on resolution comes out right.
-    // ADR 0010's enum is the case that forces this: `Rank $r` is an integer
+    // `rule:enums/closed-integer-type`'s enum is the case that forces this: `Rank $r` is an integer
     // binding and `Dog $d` is an object one, and nothing in the AST tells the
     // two apart. The match below stays as the answer for an annotation the
     // checker never visited, where every atom is its own answer anyway.
@@ -2967,7 +2967,7 @@ pub(crate) fn shape_class_label(sorted_fields: &[String]) -> String {
 /// inherited method's parameter declared on a different class's source).
 /// `Class` erases to [`Ty::Object`], same as [`lower_decl_type`]'s `Name`
 /// case — see that variant's own doc comment for why identity doesn't need to
-/// survive this translation. `Enum` does *not* join it: ADR 0010 makes an enum
+/// survive this translation. `Enum` does *not* join it: `rule:enums/closed-integer-type` makes an enum
 /// a closed integer type, so it lowers to [`Ty::Enum`] carrying the backing
 /// type `nvs_types::ty::Ty::Enum` already knows (see that variant for why the
 /// backing rides in the checker's type rather than in a side table). `String`
@@ -3388,7 +3388,7 @@ pub fn param_tag_nibble(ty: Ty) -> u8 {
         // declared type, and an `inout $x` parameter is refused before it gets here.
         Ty::Null | Ty::Ref | Ty::ClassDesc => 0,
         Ty::Bool => 1,
-        // ADR 0010's enum travels as its backing integer, tag included, so
+        // `rule:enums/closed-integer-type`'s enum travels as its backing integer, tag included, so
         // these two rows are why an enum and its backing type are one
         // representation here and two enums over one backing are as well —
         // `tests/conformance/core/arr-a-callback-enum-parameter-is-its-backing-integer.nvst`

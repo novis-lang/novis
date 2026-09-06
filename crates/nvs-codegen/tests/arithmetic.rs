@@ -181,7 +181,7 @@ echo ($a == $b) as string, \"|\", ($a == $c) as string, \"|\", ($a != $c) as str
         ),
         "1||1"
     );
-    // The zero-backed case on both sides: ADR 0035 § 4 keeps an enum out of
+    // The zero-backed case on both sides: `rule:enums/truthiness` keeps an enum out of
     // the truthy table entirely, so nothing here may read `0` as "unset".
     assert_eq!(
         output_of(
@@ -194,7 +194,7 @@ echo ($s != Signal::Go) as string;
         ),
         "1||1"
     );
-    // ADR 0010 § 2's second backing type, at a value with no `int`: the other
+    // `rule:enums/one-backing-type`'s second backing type, at a value with no `int`: the other
     // `EnumRepr` arm, and the one that would silently fall through to a
     // `Ty::Enum` compare if only the signed row were relabelled.
     assert_eq!(

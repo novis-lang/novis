@@ -173,7 +173,7 @@ beside it is redundant but accepted, exactly as any other route to the same inte
   not constructor-assigned. It must be skipped in writing, or the derive is an error naming that ADR.
   `readonly` is unaffected: the constructor assigns it like any other.
 - **A field's type must be codec-reachable**: a scalar, `Duration`/`Instant`/`Date`/`TimeOfDay`/`Uuid`/
-  `decimal`, an enum ([ADR 0010](0010-enums-are-a-value-type.md), carried as its backing value and
+  `decimal`, an enum (`rule:enums/closed-integer-type`, carried as its backing value and
   range-checked on decode), an inline shape ([ADR 0036](0036-anonymous-object-shapes.md)), an `array<T>` or
   `array<string, T>` of one of these, `?T` of one of these, or another class that itself has a codec —
   derived or hand-written. Anything else is a compile error at the field. Recursion is fine: the generated

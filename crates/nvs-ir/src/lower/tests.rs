@@ -608,7 +608,7 @@ fn a_fresh_array_condition_is_released_after_the_truthy_check() {
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
-/// `if ($f)` with a class-typed parameter — ADR 0035 § 4 makes a class
+/// `if ($f)` with a class-typed parameter — `rule:enums/truthiness` makes a class
 /// instance always truthy, so this needs no `HelperCall` at all: it
 /// folds straight to a fresh `const.bool true`.
 #[test]
@@ -3124,7 +3124,7 @@ fn every_exception_class_carries_the_root_s_four_slots_at_the_same_indices() {
     }
 }
 
-/// ADR 0010 § 3: a case is an integer constant inlined at its use site —
+/// `rule:enums/no-class-machinery`: a case is an integer constant inlined at its use site —
 /// `Rank::Gold` is a `ConstInt 2` and nothing else, with no storage, no
 /// descriptor and no allocation. ADR 0010 § 5's first row then makes
 /// `as int` a free `Reinterpret`.
@@ -3139,7 +3139,7 @@ int $g = Rank::Gold as int;
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
-/// ADR 0010 § 2's `: uint` backing reaches the IR: the case constant is a
+/// `rule:enums/one-backing-type`'s `: uint` backing reaches the IR: the case constant is a
 /// `ConstUint` at `enum:uint`, and `as uint` is the free row again.
 #[test]
 fn a_uint_backed_enum_case_lowers_to_a_uint_constant() {
@@ -3153,7 +3153,7 @@ uint $w = P::Write as uint;
 }
 
 /// An enum-typed *binding* is an integer binding, not an object one —
-/// ADR 0010 § 6. The parameter's representation is what proves it: a
+/// `rule:enums/representation`. The parameter's representation is what proves it: a
 /// `Ty::Object` here would mean a refcounted receiver slot, a retain and a
 /// release, none of which an enum has.
 #[test]
@@ -3168,7 +3168,7 @@ class T { public function f(Rank $r): int { return $r as int; } }
     assert_eq!(f.ret, Ty::Int);
 }
 
-/// ADR 0035 § 4: an enum case is *always* truthy, never judged by its
+/// `rule:enums/truthiness`: an enum case is *always* truthy, never judged by its
 /// backing value. `Rank::Bronze` is backed by `0`, so a representation
 /// that erased it to `Ty::Int` would emit `Helper::IntTruthy` here and
 /// come back `false`.

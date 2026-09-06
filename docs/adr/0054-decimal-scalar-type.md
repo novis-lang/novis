@@ -142,7 +142,7 @@ Added to [ADR 0007](0007-explicit-type-system.md) § 2's table:
 Scale is carried for rendering, and does not affect equality or hashing: `1.10 == 1.1000` is true. PHP
 loses trailing-zero information at every step and every application re-derives it with `number_format`.
 
-`decimal` is not an enum backing type ([ADR 0010](0010-enums-are-a-value-type.md) keeps `int`/`uint`), and
+`decimal` is not an enum backing type (`rule:enums/closed-integer-type` keeps `int`/`uint`), and
 array keys are unaffected — [ADR 0007](0007-explicit-type-system.md) § 7's first divergence already makes
 every key a `string`.
 

@@ -96,7 +96,7 @@ different name"; it is the same rejection restated for a second time this projec
 
 ### 4. Enums: `::cases()` stays the special case it already is
 
-[ADR 0010](0010-enums-are-a-value-type.md) already gives enums one deliberately narrow reflective surface —
+`rule:enums/closed-integer-type` already gives enums one deliberately narrow reflective surface —
 `::cases()` — while explicitly declining to give an enum "a class's worth of machinery," reflection included.
 `Core\Reflect\EnumInfo::of(Status::class)` does not reopen that: it reports the same shape `::cases()` already
 exposes (the type's name and its closed case list) as ordinary structural metadata, the same as `ClassInfo`

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Command::run` refuses an enum argument written as ADR 0010 § 3's backing value, which is the other side of the case name being the spelling — ADR 0086 § 6
+`Core\Command::run` refuses an enum argument written as `rule:enums/no-class-machinery`'s backing value, which is the other side of the case name being the spelling — ADR 0086 § 6
 --FILE--
 <?nvs
 // The bound asserted from the side that a conversion accepting *both* would

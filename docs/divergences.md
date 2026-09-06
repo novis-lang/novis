@@ -24,3 +24,10 @@ Every rule carrying a `divergesFromPhp` note, with the rule that owns it. Genera
 | Errors | the outbound half is held to the same list, with no per-call opt-out | [`errors/http-message-defects`](rules/errors.md#errors-http-message-defects) |
 | Errors | no `.`-and-space mangling of cookie names, and `__Host-`/`__Secure-` are enforced by the runtime rather than by every read site | [`errors/cookie-name-bytes`](rules/errors.md#errors-cookie-name-bytes) |
 | Errors | Windows device names, trailing dots and 8.3 short names are refused on Linux and macOS too | [`errors/path-component-refusals`](rules/errors.md#errors-path-component-refusals) |
+| Enums | an enum is not a class in disguise — a case is a compile-time constant, with no singleton, no allocation and no identity | [`enums/closed-integer-type`](rules/enums.md#enums-closed-integer-type) |
+| Enums | every case has an integer value even where none is written, so PHP's valueless pure case does not exist | [`enums/declaration`](rules/enums.md#enums-declaration) |
+| Enums | `case Hearts = 1;` is not a spelling this language has — an enum body is a comma list | [`enums/no-case-keyword`](rules/enums.md#enums-no-case-keyword) |
+| Enums | there is no pure enum and no `string`-backed enum, and `BackedEnum` and `UnitEnum` do not exist | [`enums/one-backing-type`](rules/enums.md#enums-one-backing-type) |
+| Enums | no methods, no interfaces, no enum constants, and no `::cases()`, `::from()`, `::tryFrom()`, `->value` or `->name` | [`enums/no-class-machinery`](rules/enums.md#enums-no-class-machinery) |
+| Enums | a case is a scalar, so it copies across an isolate boundary like an `int` and has no identity to preserve | [`enums/representation`](rules/enums.md#enums-representation) |
+| Enums | there are no case instances for a description to hand back — it carries the type's name and its case list, and nothing that acts | [`enums/reflection`](rules/enums.md#enums-reflection) |

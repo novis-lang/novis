@@ -260,7 +260,7 @@ pub(super) fn statement_failure(
 
 /// A [`nvs_db::DbErrorKind`] as the [`ERROR_KIND`] case a program matches on,
 /// which at runtime is that case's ordinal
-/// ([ADR 0010](/docs/adr/0010-enums-are-a-value-type.md)) — so a
+/// (`rule:enums/closed-integer-type`) — so a
 /// `match ($e->kind) { Core\Db\ErrorKind::Deadlock => … }` reads what the
 /// server itself said.
 ///

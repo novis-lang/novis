@@ -1281,7 +1281,7 @@ enum Category {
 }
 
 impl Category {
-    /// The constant an enum value *is* at run time (ADR 0010), which is what
+    /// The constant an enum value *is* at run time (`rule:enums/closed-integer-type`), which is what
     /// the member hands back.
     ///
     /// Written here and checked against [`PLURAL_CATEGORY`] by
@@ -2371,7 +2371,7 @@ nvs_runtime::nvs_helper! {
     /// requiring a launderer for it would be a ceremony with no sink behind it.
     ///
     /// An enum answers as its ordinal, exactly as a user-declared enum does
-    /// (ADR 0010).
+    /// (`rule:enums/closed-integer-type`).
     fn nvs_core_cldr_plural_category(_ctx, args: [2]) {
         let operands = operands_at(args, 0, PLURAL_MEMBER)?;
         // Unreachable from source for the reason `operands_at`'s own fatal

@@ -212,7 +212,7 @@ pub(crate) const TYPE_KIND_NAME: &str = r"Core\Reflect\TypeKind";
 /// this module's own doc comment owns why: a case that no value can produce is
 /// surface with nothing behind it, and a *pair* of cases one value could
 /// satisfy would put the caller back to asking a second question. The values
-/// are ordinals in declaration order, per ADR 0010 and the roster's siblings —
+/// are ordinals in declaration order, per `rule:enums/closed-integer-type` and the roster's siblings —
 /// deliberately not the tag byte, which is a representation this enum must be
 /// able to outlive.
 pub(crate) const TYPE_KIND: CoreEnum = CoreEnum {
@@ -729,7 +729,7 @@ nvs_runtime::nvs_helper! {
     /// fourteen predicates that each asked a piece of it.
     ///
     /// An enum answers as its ordinal, exactly as a user-declared enum does
-    /// (ADR 0010) and as `Core\Cli::colorDepth` already does. The tag is read
+    /// (`rule:enums/closed-integer-type`) and as `Core\Cli::colorDepth` already does. The tag is read
     /// rather than the value: nothing here dereferences a payload, so this is
     /// the one `Core` member that is total over every argument shape without
     /// looking at one.

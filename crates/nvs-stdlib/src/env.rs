@@ -414,7 +414,7 @@ nvs_runtime::nvs_helper! {
     /// member of this class that reads no environment variable.
     ///
     /// An enum answers as its ordinal, exactly as a user-declared enum does
-    /// (ADR 0010).
+    /// (`rule:enums/closed-integer-type`).
     ///
     /// The four-step order behind the answer — a flip this request made, the
     /// application's own mode, the global `mode.default`, then `production` —

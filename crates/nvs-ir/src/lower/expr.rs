@@ -267,7 +267,7 @@ impl<'a> Lowering<'a> {
             }
             ExprKind::Clone(inner) => self.lower_clone_expr(inner, env, cur),
             // Two things wear this syntax, and both are inlined constants.
-            // ADR 0010 § 3 makes `EnumName::CaseName` "an integer constant,
+            // `rule:enums/no-class-machinery` makes `EnumName::CaseName` "an integer constant,
             // inlined at every use site"; ADR 0011's `Core\Math::PI` is the
             // same rule for a class constant. So each lowers to exactly the
             // constant a literal would, with no storage, no descriptor and no
@@ -891,7 +891,7 @@ impl<'a> Lowering<'a> {
             // says what was meant: `Ty::Bytes` (ADR 0009 § 3 grants
             // `as string` and nothing implicit), `Ty::Array` (PHP prints
             // `"Array"` and a notice; Novis names `Core\Json::encode`),
-            // `Ty::Enum` (ADR 0010 § 3's named integer, `$case as int`) and
+            // `Ty::Enum` (`rule:enums/no-class-machinery`'s named integer, `$case as int`) and
             // `Ty::Void` (a call with no value at all).
             //
             // The last two are not types a *source expression* ever has.
@@ -1752,7 +1752,7 @@ impl<'a> Lowering<'a> {
     /// it, being written at its own representation either way.
     ///
     /// An **enum** subject goes the other way and is compared one
-    /// representation *down*, on the integer ADR 0010 § 3 makes its cases:
+    /// representation *down*, on the integer `rule:enums/no-class-machinery` makes its cases:
     /// [`Self::reinterpret_enum_to_backing`] relabels the subject once above
     /// the chain and each label as it is lowered, exactly as
     /// [`Self::lower_binary`] relabels a written `==` between two cases and

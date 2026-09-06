@@ -92,7 +92,7 @@ is the typed one" shape ADR 0007 § 6 already commits to for every other `mixed`
 
 ### 4. Enum cases are always truthy, not judged by their backing value
 
-[ADR 0010](0010-enums-are-a-value-type.md) makes an enum case a closed, named integer value rather than
+`rule:enums/closed-integer-type` makes an enum case a closed, named integer value rather than
 PHP's class-like construct — but real PHP source never observes an enum case as falsy: PHP enum cases are
 objects, and PHP has no mechanism to make an object falsy at all, so every ported `if ($status)` where
 `$status` is an enum case has only ever meant "always true." Judging an enum case by its backing integer
@@ -132,7 +132,7 @@ already test null-vs-not, an entirely separate axis from truthiness, and are lik
 - **One more rule to hold in mind reading any condition**: "what is this expression's type, and is it one of
   the six positions" now matters for whether a value can appear bare or needs `as bool`. Mitigated by the
   position list being short, fixed, and syntactically obvious (a condition always looks like a condition).
-- **An enum case's truthiness is arguably surprising given ADR 0010's own representation** — a case backed
+- **An enum case's truthiness is arguably surprising given `rule:enums/closed-integer-type`'s own representation** — a case backed
   by `0` still reads truthy. Argued deliberately in *4* as matching every ported program's actual
   expectation over matching Novis's internal representation.
 

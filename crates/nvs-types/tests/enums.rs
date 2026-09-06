@@ -1,4 +1,4 @@
-//! ADR 0010's closed integer enum: case access, conversion, and the arithmetic it refuses.
+//! `rule:enums/closed-integer-type`'s closed integer enum: case access, conversion, and the arithmetic it refuses.
 //!
 //! Moved out of `nvs_types::check`'s inline `mod tests`; every test keeps its
 //! own name and body. See `tests/common/mod.rs` for the shared fixtures.

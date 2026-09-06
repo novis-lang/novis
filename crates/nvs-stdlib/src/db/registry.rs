@@ -690,7 +690,7 @@ pub(crate) const DRIVER_NAME: &str = r"Core\Db\Driver";
 ///
 /// **The values are declaration ordinals and mean nothing else.** They are
 /// § 18's own order, so `MySql` is 0 and `SqlServer` is 4, and they are not a
-/// rank — writing them out rather than leaning on ADR 0010 § 1's
+/// rank — writing them out rather than leaning on `rule:enums/declaration`'s
 /// auto-increment is [`CoreEnum::cases`]' rule for every enum here.
 pub(crate) const DRIVER: CoreEnum = CoreEnum {
     name: DRIVER_NAME,
@@ -815,7 +815,7 @@ pub(crate) const ISOLATION_NAME: &str = r"Core\Db\Isolation";
 /// own order, so `ReadUncommitted` is 0, but they are not a rank a program may
 /// compare: `Snapshot` and the two levels either side of it are not one chain on
 /// every backend, which is why `nvs_db::Isolation` derives no `Ord` either.
-/// Writing them out rather than leaning on ADR 0010 § 1's auto-increment is
+/// Writing them out rather than leaning on `rule:enums/declaration`'s auto-increment is
 /// [`CoreEnum::cases`]' rule for every enum here.
 pub(crate) const ISOLATION: CoreEnum = CoreEnum {
     name: ISOLATION_NAME,
@@ -895,7 +895,7 @@ pub(crate) const ERROR_KIND_NAME: &str = r"Core\Db\ErrorKind";
 /// § 8's own order, so `UniqueViolation` is 0 and `Other` is 10, but they are
 /// not a rank a program may compare: a kind is a set and not a scale, which is
 /// why `nvs_db::DbErrorKind` derives no `Ord` either. Writing them out rather
-/// than leaning on ADR 0010 § 1's auto-increment is [`CoreEnum::cases`]' rule
+/// than leaning on `rule:enums/declaration`'s auto-increment is [`CoreEnum::cases`]' rule
 /// for every enum here.
 pub(crate) const ERROR_KIND: CoreEnum = CoreEnum {
     name: ERROR_KIND_NAME,
@@ -997,7 +997,7 @@ pub(crate) const COLUMN_TYPE_NAME: &str = r"Core\Db\ColumnType";
 /// spec's own order at `docs/spec/01-core-library.md:1223`, so `Int` is 0 and
 /// `Other` is 13, but they are not a rank a program may compare: these are a
 /// set and not a scale, which is why `nvs_db::ColumnType` derives no `Ord`
-/// either. Writing them out rather than leaning on ADR 0010 § 1's
+/// either. Writing them out rather than leaning on `rule:enums/declaration`'s
 /// auto-increment is [`CoreEnum::cases`]' rule for every enum here.
 pub(crate) const COLUMN_TYPE: CoreEnum = CoreEnum {
     name: COLUMN_TYPE_NAME,

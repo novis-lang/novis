@@ -43,7 +43,7 @@
 //! written (ADR 0007 § 7 row 14) while `mixed`, `object`, a shape and any
 //! union holding a class keep the run-time test. A **right-hand side** must be
 //! a written name the program declares: the dynamic form is ADR 0007 § 2's
-//! no-computed-names rule, an enum is a value type (ADR 0010) and a `Core`
+//! no-computed-names rule, an enum is a value type (`rule:enums/closed-integer-type`) and a `Core`
 //! class has no descriptor laid out for the test to walk, so all three are
 //! `E0496` — while a name resolving to nothing is the ordinary `E0303`,
 //! exactly as `new Undeclared()` reports it.
@@ -105,7 +105,7 @@ pub(crate) fn infer_class_const(
     });
     match qname {
         Some(qname) if is_enum => {
-            // ADR 0010 § 3: the case *is* its integer constant, so `nvs-ir`
+            // `rule:enums/no-class-machinery`: the case *is* its integer constant, so `nvs-ir`
             // needs the value, not just the type — see `ExprInfo::EnumCase`. A
             // name `nvs_hir::members` already reported as undeclared records
             // nothing.
@@ -145,7 +145,7 @@ pub(crate) fn infer_class_const(
             placed.unwrap_or_else(|| env.interner.enum_(qname, backing))
         }
         // ADR 0011's class constant, on a `Core` class the registry states. The
-        // *value* is recorded, not just the type, for exactly ADR 0010 § 3's
+        // *value* is recorded, not just the type, for exactly `rule:enums/no-class-machinery`'s
         // reason one line above: a constant is inlined at every use site, so
         // `nvs-ir` needs the constant itself and there is no storage to read it
         // from at run time.
@@ -337,7 +337,7 @@ pub(crate) fn infer_instanceof(
             )
             .with_primary(name.span, "an enum is a value type")
             .with_help(
-                "ADR 0010 makes an enum case a named integer rather than an object — compare \
+                "`rule:enums/closed-integer-type` makes an enum case a named integer rather than an object — compare \
                  it with `==`, or `match` on it",
             ),
         );

@@ -1042,7 +1042,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     // ========================================================================
-    // Enums (ADR 0010)
+    // Enums (`rule:enums/closed-integer-type`)
     // ========================================================================
 
     pub(super) fn parse_enum_decl(&mut self, start: Span) -> Stmt {
@@ -1079,7 +1079,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 )
                 .with_help(
                     "give the enum's consumer a `static` method on some other class instead \
-                     (ADR 0010 § 3)",
+                     (`rule:enums/no-class-machinery`)",
                 ),
             );
         }
@@ -1100,7 +1100,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     /// The `: Type` backing-type clause, parsed with the full ADR 0007 § 3
-    /// grammar — only the one rejection ADR 0010 § 3 names explicitly
+    /// grammar — only the one rejection `rule:enums/no-class-machinery` names explicitly
     /// (`string`) is checked here; that the result is otherwise exactly
     /// `int` or `uint` is a later check, not the parser's.
     pub(super) fn parse_enum_backing_type(&mut self) -> Type {
@@ -1112,14 +1112,14 @@ impl<'src, 'd> Parser<'src, 'd> {
                     "an enum cannot be backed by `string`",
                 )
                 .with_primary(ty.span, "only `int`/`uint` back an enum")
-                .with_help("use `: int` or `: uint`, or omit the backing type (ADR 0010 § 3)"),
+                .with_help("use `: int` or `: uint`, or omit the backing type (`rule:enums/no-class-machinery`)"),
             );
         }
         ty
     }
 
     /// An enum body mixes cases (bare names) with, if the input is
-    /// malformed, member-shaped constructs that ADR 0010 § 3 rejects
+    /// malformed, member-shaped constructs that `rule:enums/no-class-machinery` rejects
     /// outright — a method, a property, a constant, a trait `use`. Both are
     /// parsed, since attributes may precede either and only the token after
     /// them tells them apart; mirrors [`Self::parse_block`]'s force-progress
@@ -1148,7 +1148,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                     .with_primary(keyword, "remove this keyword")
                     .with_help(
                         "an enum body is a comma list of bare `Name = 1,` cases, with no \
-                         `case` keyword and no `;` (ADR 0010 § 1)",
+                         `case` keyword and no `;` (`rule:enums/declaration`)",
                     ),
                 );
                 cases.push(self.finish_enum_case(before, attributes));
@@ -1167,7 +1167,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                         "an enum declares only cases and an optional backing type",
                     )
                     .with_primary(span, "not a case")
-                    .with_help("move this to a separate class (ADR 0010 § 3)"),
+                    .with_help("move this to a separate class (`rule:enums/no-class-machinery`)"),
                 );
             }
             if self.peek().span == before && !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof)

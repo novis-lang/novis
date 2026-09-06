@@ -425,7 +425,7 @@ class Config {
         ("debug", "debugLiteral"),
         ("span", "spanLiteral"),
         ("widened", "widenedLiteral"),
-        // ADR 0010 § 3: the case *is* its backing integer, so the slot an
+        // `rule:enums/no-class-machinery`: the case *is* its backing integer, so the slot an
         // enum-typed property arms holds exactly what the integer literal
         // arms — there is no second representation for it to drift into.
         ("mode", "modeBacking"),

@@ -26,7 +26,7 @@ echo "num ", Show::of(empty(0)), Show::of(empty(1)), Show::of(empty(0.0)),
 echo "nul ", Show::of(empty(null)), "\n";
 echo "arr ", Show::of(empty([])), Show::of(empty([0])), "\n";
 
-// ADR 0035 § 4: an object and an enum case are truthy whatever they hold, so
+// `rule:enums/truthiness`: an object and an enum case are truthy whatever they hold, so
 // `Rank::Bronze` is not empty despite being backed by `0`.
 echo "obj ", Show::of(empty(new Bag())), Show::of(empty(Rank::Bronze)),
      Show::of(empty(Rank::Gold)), "\n";

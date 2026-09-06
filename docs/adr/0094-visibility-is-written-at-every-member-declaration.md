@@ -5,7 +5,7 @@
 - **Scope:** whether a class-body member may omit `public`/`protected`/`private`, and what an omission
   means. Covers every member declaration slot — property, class constant and method, in a `class`,
   `interface` or anonymous-class body — plus PHP 8.4's asymmetric `(set)` form. An `enum` body has no
-  member slot at all ([ADR 0010](0010-enums-are-a-value-type.md) § 3, `E0220`), so nothing here reaches
+  member slot at all (`rule:enums/no-class-machinery`, `E0220`), so nothing here reaches
   one. Does **not** cover
   what each level *means* at an access site (who may read a `private` property), which is
   [ADR 0007](0007-explicit-type-system.md)'s checker debt owned by `nvs-types`; nor modifier *order*

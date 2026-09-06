@@ -857,7 +857,7 @@ fn method_case(verb: &str) -> Option<i64> {
 /// The [`METHOD`] case in `value` as the verb a table row spells, or a fatal.
 ///
 /// The inverse of [`method_case`], and its mirror image in what it may assume:
-/// a case crosses as its ordinal (ADR 0010), so what arrives is one of this
+/// a case crosses as its ordinal (`rule:enums/closed-integer-type`), so what arrives is one of this
 /// roster's own integers and the lookup cannot miss for anything a program
 /// could have written.
 ///
@@ -946,7 +946,7 @@ nvs_runtime::nvs_helper! {
     /// [`Ctx::route`](nvs_runtime::Ctx::route) takes of the absent table.
     ///
     /// **Each verb appears once**, because `methods_for` answers verbs rather
-    /// than rows, and an enum case is its ordinal on the way out (ADR 0010) —
+    /// than rows, and an enum case is its ordinal on the way out (`rule:enums/closed-integer-type`) —
     /// the same crossing `Core\Request::method` makes in the other direction.
     fn nvs_core_router_methods_for(ctx, args: [1]) {
         // Unreachable from source, as every mistyped argument slot is: the

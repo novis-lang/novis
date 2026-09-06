@@ -56,7 +56,7 @@
 //!    **An enum is no longer one of them either.** It erases to
 //!    [`CodecTy::Enum`] carrying [`DerivedField::cases`], the roster of
 //!    backing values [`nvs_stdlib::EnumCases`] describes — the enum's *name*
-//!    never travels, because ADR 0010 § 6 leaves a case indistinguishable
+//!    never travels, because `rule:enums/representation` leaves a case indistinguishable
 //!    from the integer behind it and a decoder therefore has nothing to look
 //!    the name up in.
 //!
@@ -443,7 +443,7 @@ fn codec_ty(declared: TypeId, env: &Env<'_>) -> Erased {
         // `crate::layout` keys on and `nvs_ir::lower::lower_file` joins
         // through, so `nvs-codegen` can resolve it to a descriptor.
         Ty::Class(name, _) => (CodecTy::Class, None, Some(name.to_string()), None),
-        // § 2's enum. What travels is the roster and not the name: ADR 0010
+        // § 2's enum. What travels is the roster and not the name: `rule:enums/closed-integer-type`
         // § 6 reserves an enum tag that nothing writes, so by the time a case
         // is a value it is the integer behind it, and a decoder has nothing to
         // resolve a name against. The membership test is therefore the whole

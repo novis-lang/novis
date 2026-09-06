@@ -1,5 +1,5 @@
 --TEST--
-The five relational operators agree on refusing every operand ADR 0007 § 4 gives no ordering row for, and the object family keeps its own code — ADR 0007 § 4, ADR 0013, ADR 0010
+The five relational operators agree on refusing every operand ADR 0007 § 4 gives no ordering row for, and the object family keeps its own code — ADR 0007 § 4, ADR 0013, `rule:enums/closed-integer-type`
 --FILE--
 <?nvs
 // Every spelling in ADR 0007 § 4's `< <= > >= <=>` row, over the operand
@@ -38,7 +38,7 @@ mixed $c1 = $xs <=> $xs;
 mixed $d1 = $f > $f;
 mixed $e1 = null <= null;
 
-// An enum case is a name, not its backing number (ADR 0010), so it takes
+// An enum case is a name, not its backing number (`rule:enums/closed-integer-type`), so it takes
 // the same refusal with its own help.
 mixed $r1 = $r < $r;
 
@@ -120,7 +120,7 @@ error[E0715]: `<` has no meaning for `Rank`
    |
 40 | mixed $r1 = $r < $r;
    |             ^^^^^^^ ordered here
-   = help: an enum case is a name rather than a number (ADR 0010); order the backing values instead — `($a as int) < ($b as int)`
+   = help: an enum case is a name rather than a number (`rule:enums/closed-integer-type`); order the backing values instead — `($a as int) < ($b as int)`
 
 error[E0411]: `object` names no class to check `Comparable` on; ordering two objects with `<`/`<=`/`>`/`>=`/`<=>` requires a class that implements it
    --> %s:45:13

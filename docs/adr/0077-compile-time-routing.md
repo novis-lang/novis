@@ -147,7 +147,7 @@ parameter the path does not name is simply not the router's.
 
 The parameter's declared type is what the segment is converted to during matching, and the conversion must
 be one of: `string`, `uint`, `int`, `decimal`, `Core\Uuid`, an enum
-([ADR 0010](0010-enums-are-a-value-type.md), matched on its case names), a **union of `string` or `int`
+(`rule:enums/closed-integer-type`, matched on its case names), a **union of `string` or `int`
 literal types**, or a **subset of an enum's cases** ([ADR 0047](0047-literal-and-enum-case-types.md) — so
 `show("en"|"de"|"fr" $lang)` narrows a capture to a closed set with no grammar of its own, and
 `/xx/…` simply does not match). Anything else is a compile error at the parameter. **A regex constraint is

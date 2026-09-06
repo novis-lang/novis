@@ -9,7 +9,7 @@
 //
 // The word and the value are the same here, which is what separates this from
 // the enum sibling `command-run-converts-an-enum-argument-by-its-case-name`:
-// there the word is a case name and the value is ADR 0010 § 3's backing
+// there the word is a case name and the value is `rule:enums/no-class-machinery`'s backing
 // integer, so the two have to be told apart. A member of a literal union has
 // nothing behind it to become.
 //

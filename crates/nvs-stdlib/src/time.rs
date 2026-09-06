@@ -1453,7 +1453,7 @@ const UNIT_DOC: EnumDoc = EnumDoc {
 /// what `date("N")` already answers and what [`crate::cldr`]'s tables index
 /// by.
 ///
-/// Zero-based rather than `date("N")`'s one-based count because ADR 0010 makes
+/// Zero-based rather than `date("N")`'s one-based count because `rule:enums/closed-integer-type` makes
 /// a case an ordinary integer constant and nothing here reads it as a
 /// day number; `$d->weekday()` answers the case, not the index.
 pub const WEEKDAY: CoreEnum = CoreEnum {

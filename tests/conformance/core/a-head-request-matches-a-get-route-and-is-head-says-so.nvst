@@ -45,7 +45,7 @@ try {
     } else {
         echo $matched->name() ?? "unnamed";
     }
-    // ADR 0010 § 3: a case is its integer constant, so the comparison is
+    // `rule:enums/no-class-machinery`: a case is its integer constant, so the comparison is
     // between two constants and never between two spellings.
     var $reported = Core\Request::method() as int;
     if ($reported == Core\Http\Method::Get as int) {

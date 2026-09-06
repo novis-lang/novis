@@ -10,7 +10,7 @@
 var $db = Core\Db::connect("main");
 
 // § 18's `driver()`. The answer is the enum and not its name: a case is a
-// value (ADR 0010), so a program compares rather than parses.
+// value (`rule:enums/closed-integer-type`), so a program compares rather than parses.
 echo "driver ", $db->driver() == Core\Db\Driver::Sqlite ? "is sqlite" : "is something else", "\n";
 
 // It is the connection's own driver, so it does not change under it. Asking

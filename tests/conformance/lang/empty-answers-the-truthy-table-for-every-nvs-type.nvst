@@ -31,7 +31,7 @@ mixed $m1 = "0";
 mixed $m2 = "x";
 echo "mixed ", Show::of(empty($m0)), Show::of(empty($m1)), Show::of(empty($m2)), "\n";
 
-// ADR 0036 § 2's anonymous object is an object, so ADR 0035 § 4 applies to it
+// ADR 0036 § 2's anonymous object is an object, so `rule:enums/truthiness` applies to it
 // unchanged: always truthy, nothing inspected at run time.
 echo "shape ", Show::of(empty({x: 1})), "\n";
 

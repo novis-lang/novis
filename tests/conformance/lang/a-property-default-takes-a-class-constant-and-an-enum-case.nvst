@@ -1,5 +1,5 @@
 --TEST--
-A property default takes ADR 0046 § 2's whole compile-time constant set, not only a literal — ADR 0046 § 2, ADR 0010 § 3, ADR 0007 § 2
+A property default takes ADR 0046 § 2's whole compile-time constant set, not only a literal — ADR 0046 § 2, `rule:enums/no-class-machinery`, ADR 0007 § 2
 --FILE--
 <?nvs
 // ADR 0046 § 2's constant set is a literal, another class's `const`, or an
@@ -27,7 +27,7 @@ class Config
     // the second through ADR 0007 § 2's single implicit widening.
     public uint $span = Limits::COUNT;
     public float $widened = Limits::COUNT;
-    // ADR 0010 § 3: the case *is* its backing integer, so the slot holds
+    // `rule:enums/no-class-machinery`: the case *is* its backing integer, so the slot holds
     // exactly what `= 3` would have put there.
     public Mode $mode = Mode::Fast;
 

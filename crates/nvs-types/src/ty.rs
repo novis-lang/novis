@@ -229,11 +229,11 @@ pub enum Ty {
     /// argument constrains what the checker accepts and never what the
     /// runtime stores.
     Class(QName, Vec<TypeId>),
-    /// A resolved enum name (ADR 0010), together with the underlying integer
+    /// A resolved enum name (`rule:enums/closed-integer-type`), together with the underlying integer
     /// type its cases are constants of.
     ///
     /// The backing type rides in the type itself rather than in a side table
-    /// because it *is* part of what the type is: ADR 0010 § 2 gives every enum
+    /// because it *is* part of what the type is: `rule:enums/one-backing-type` gives every enum
     /// exactly one underlying integer type, and § 6 makes an enum value that
     /// integer's representation with names attached. Carrying it here is what
     /// lets `nvs-ir` lower an enum-typed binding to a machine integer without

@@ -265,7 +265,7 @@ pub(crate) fn eval_param_default(
 /// site*: it is copied onto the class descriptor and written into the fresh
 /// instance's slot by `nvs_runtime::NvsObj::new`, which is why an array
 /// constant is reachable here at all — and why a folded enum case is, since
-/// what the slot receives is the integer ADR 0010 § 3 says the case already
+/// what the slot receives is the integer `rule:enums/no-class-machinery` says the case already
 /// is.
 pub(crate) fn eval_property_default(
     expr: &Expr,

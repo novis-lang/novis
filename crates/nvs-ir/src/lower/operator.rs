@@ -810,7 +810,7 @@ impl<'a> Lowering<'a> {
         // case against its underlying integer is a compile error and two
         // different enums are disjoint, so a pair that reaches here is one
         // enum compared with itself. It is answered one representation down,
-        // on the integer its cases *are* (ADR 0010 § 3): `Ty::Enum` is a
+        // on the integer its cases *are* (`rule:enums/no-class-machinery`): `Ty::Enum` is a
         // zero-byte tag over that integer, so the free `Reinterpret` row 1 of
         // ADR 0010 § 5 already uses for `$m as int` turns the comparison into
         // the machine compare `nvs-codegen` has — its `BinOp` table is

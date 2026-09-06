@@ -1,5 +1,5 @@
 --TEST--
-An enum's cases may be negative or zero, auto-increment continues from a negative one, and the values index an array like any other int — ADR 0010
+An enum's cases may be negative or zero, auto-increment continues from a negative one, and the values index an array like any other int — `rule:enums/closed-integer-type`
 --FILE--
 <?nvs
 enum Dir {

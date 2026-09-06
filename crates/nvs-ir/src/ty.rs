@@ -236,7 +236,7 @@ pub enum Ty {
     /// adding a [`crate::ir::Helper`] variant that dispatches on the tag
     /// rather than a second representation.
     Tagged,
-    /// An enum value — [ADR 0010](/docs/adr/0010-enums-are-a-value-type.md)'s
+    /// An enum value — `rule:enums/closed-integer-type`'s
     /// closed, named integer type.
     ///
     /// Its *representation* is exactly the backing integer it carries, which
@@ -245,18 +245,18 @@ pub enum Ty {
     /// representation, reinterpreted." So this variant is not here to describe
     /// a different machine value. It is here because one rule reads an enum
     /// differently from the integer under it:
-    /// [ADR 0035](/docs/adr/0035-truthy-boolean-context.md) § 4 makes
+    /// `rule:enums/truthiness` makes
     /// an enum case **always truthy**, never judged by its backing value — a
     /// case backed by `0` is `true` in a condition, where a plain `int` `0`
     /// is `false`. Erasing an enum to [`Self::Int`] here would silently get
     /// that wrong, and the checker cannot fix it afterwards, because by then
     /// nothing distinguishes the two.
     ///
-    /// Not refcounted, no allocation, no descriptor: ADR 0010 § 3's "a case is
+    /// Not refcounted, no allocation, no descriptor: `rule:enums/no-class-machinery`'s "a case is
     /// an integer constant, inlined at every use site."
     ///
     /// Materialized into a `nvs_runtime::Value` it takes `Tag::Int`/`Tag::Uint`
-    /// rather than a tag of its own, which ADR 0010 § 6 does reserve. The tag
+    /// rather than a tag of its own, which `rule:enums/representation` does reserve. The tag
     /// only has to answer "which type is this?" for a value whose static type
     /// is *not* known — the `mixed` case — and that is the same still-open
     /// representation question [`Self::Tagged`] names. Deciding an enum's tag
@@ -389,7 +389,7 @@ pub enum Ty {
     ClassDesc,
 }
 
-/// Which integer an [`Ty::Enum`] value is represented by — ADR 0010 § 2's
+/// Which integer an [`Ty::Enum`] value is represented by — `rule:enums/one-backing-type`'s
 /// underlying type, `int` unless the declaration wrote `: uint`.
 ///
 /// A second, two-variant enum rather than `Ty::EnumInt`/`Ty::EnumUint` so that

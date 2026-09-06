@@ -339,7 +339,7 @@ impl Narrowing {
 /// § 1 leaves one spelling and its § 3 makes it a tag test rather than PHP's
 /// truthy-table question — `0 == null` was *true* in PHP, which is why this
 /// read only `===`/`!==` while both spellings existed. A bare `if ($x)` is
-/// still not a null test: ADR 0035 § 4 makes it one for a nullable object,
+/// still not a null test: `rule:enums/truthiness` makes it one for a nullable object,
 /// but not for a `?string` holding `""`.
 fn null_test(cond: &Expr) -> Option<(Span, bool)> {
     match &cond.kind {

@@ -748,7 +748,7 @@ enum ExtraInit {
     /// The `$message` parameter, retained a second time — the slot is a second
     /// durable owner of the same string.
     Message,
-    /// One enum case, by its ordinal. ADR 0010 § 2 represents an enum as its
+    /// One enum case, by its ordinal. `rule:enums/one-backing-type` represents an enum as its
     /// backing integer and [`Ty::Enum`] is that representation, so there is
     /// nothing to retain and nothing to release: the slot owns a scalar.
     EnumCase(i64),

@@ -254,14 +254,14 @@ pub mod code {
     /// `Core` is reserved for built-ins — see ADR 0011 § 2.
     pub const E_RESERVED_CORE_NAMESPACE: Code = Code::new("E0217");
     /// `enum Name implements Iface { ... }`: an enum declares only cases and
-    /// an optional backing type — see ADR 0010 § 3.
+    /// an optional backing type — see `rule:enums/no-class-machinery`.
     pub const E_ENUM_IMPLEMENTS_UNSUPPORTED: Code = Code::new("E0218");
     /// `enum Name: string { ... }`: no `string` backing, only `int`/`uint` —
-    /// see ADR 0010 § 3.
+    /// see `rule:enums/no-class-machinery`.
     pub const E_ENUM_STRING_BACKING_UNSUPPORTED: Code = Code::new("E0219");
     /// A method, property, class constant or trait use inside an `enum`
     /// body: an enum declares only cases and an optional backing type — see
-    /// ADR 0010 § 3.
+    /// `rule:enums/no-class-machinery`.
     pub const E_ENUM_MEMBER_UNSUPPORTED: Code = Code::new("E0220");
     /// `include`, `include_once`, or `require_once`: Novis keeps exactly one
     /// same-frame inclusion construct, `require` — see ADR 0021.
@@ -397,7 +397,7 @@ pub mod code {
     pub const E_IMPORT_GROUP_UNSUPPORTED: Code = Code::new("E0238");
     /// PHP's `case Name = 1;` enum-body spelling. Novis writes a case as a
     /// bare `Name = 1,` in a comma list, with no `case` keyword — see
-    /// ADR 0010 § 1. Raised on the `case` keyword itself, once, in place of
+    /// `rule:enums/declaration`. Raised on the `case` keyword itself, once, in place of
     /// the [`E_ENUM_MEMBER_UNSUPPORTED`] cascade the shape used to produce:
     /// that code is for a *member* in an enum body and its "move this to a
     /// separate class" help is the wrong answer here, since the case belongs
@@ -624,7 +624,7 @@ pub mod code {
     pub const E_ENUM_ARITHMETIC_UNSUPPORTED: Code = Code::new("E0415");
     /// `as` from one enum type to a *different* enum type, even when both
     /// share the same underlying integer type — rejected outright; an
-    /// explicit `match` naming every case is the replacement. See ADR 0010
+    /// explicit `match` naming every case is the replacement. See `rule:enums/closed-integer-type`
     /// § 5.
     pub const E_ENUM_CONVERSION_UNSUPPORTED: Code = Code::new("E0416");
     /// `as Core\Html\Markup` on anything but a source-literal string — a
@@ -720,7 +720,7 @@ pub mod code {
     /// stringifies `true` to `"1"` and `null` to `""`; ADR 0007 § 5 rejects
     /// all three outright since each is a silent conversion at the exact
     /// place a mistake becomes a missing row. An enum case is refused one step
-    /// further out: ADR 0010 makes it a named integer, so the key would be a
+    /// further out: `rule:enums/closed-integer-type` makes it a named integer, so the key would be a
     /// backing value two enums can share. An `int`/`uint`/`string` key is
     /// fine — an `int`/`uint` key normalizes to its own decimal string, which
     /// needs no `as` and is not a value conversion.
@@ -732,13 +732,13 @@ pub mod code {
     /// `InterfaceName::method()`.
     pub const E_INTERFACE_PRIVATE_METHOD_NOT_VISIBLE: Code = Code::new("E0435");
     /// An `enum` case whose explicit `= expr` value is not an integer literal
-    /// (or a negated one). ADR 0010 § 1 makes a case a compile-time integer
+    /// (or a negated one). `rule:enums/declaration` makes a case a compile-time integer
     /// constant, not a general constant-expression position.
     pub const E_ENUM_CASE_VALUE_NOT_LITERAL: Code = Code::new("E0436");
-    /// An `enum` case whose value — written, or reached by ADR 0010 § 1's
+    /// An `enum` case whose value — written, or reached by `rule:enums/declaration`'s
     /// auto-increment — does not fit the enum's backing type.
     pub const E_ENUM_CASE_VALUE_OUT_OF_RANGE: Code = Code::new("E0437");
-    /// `enum Name: T` where `T` is neither `int` nor `uint` — ADR 0010 § 2
+    /// `enum Name: T` where `T` is neither `int` nor `uint` — `rule:enums/one-backing-type`
     /// gives every enum exactly one underlying *integer* type. The `string`
     /// spelling has its own, earlier diagnostic
     /// ([`E_ENUM_STRING_BACKING_UNSUPPORTED`]); this covers the rest.
@@ -1206,7 +1206,7 @@ pub mod code {
     /// language does not make. A
     /// `Core` class has no descriptor for the test to point at, `Core` classes
     /// being registry signatures rather than declared classes until M7/M8. An
-    /// enum is a value type (ADR 0010) and no value of one is ever an object,
+    /// enum is a value type (`rule:enums/closed-integer-type`) and no value of one is ever an object,
     /// so the test has nothing to walk. A written name that resolves to
     /// *nothing* is not here: that is the ordinary `E0303`, exactly as
     /// `new Undeclared()` already reports it.

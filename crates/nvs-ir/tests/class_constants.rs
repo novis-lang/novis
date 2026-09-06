@@ -3,7 +3,7 @@
 //! descriptor and no call.
 //!
 //! The `Core` half of that rule has been true since `nvs_stdlib::registry`
-//! stated `Core\Math::PI`, and an enum case's since ADR 0010 § 3. This is the
+//! stated `Core\Math::PI`, and an enum case's since `rule:enums/no-class-machinery`. This is the
 //! third spelling, and it is the one that used to reach
 //! `nvs_ir::lower::expr`'s `ClassConstAccess` arm with nothing recorded and
 //! panic — so what this asserts is a *value*, per row, rather than the absence

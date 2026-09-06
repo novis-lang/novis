@@ -1130,7 +1130,7 @@ nvs_runtime::nvs_helper! {
 /// One [`nvs_db::Driver`] as the [`DRIVER`] case a program compares against.
 ///
 /// [`crate::db::column::column_type_value`]'s shape and for its reason: an enum
-/// is its ordinal at run time ([ADR 0010](/docs/adr/0010-enums-are-a-value-type.md)),
+/// is its ordinal at run time (`rule:enums/closed-integer-type`),
 /// and the ordinal is looked up in the registered roster rather than written
 /// out here, so the two cannot drift apart. Exhaustive on purpose — a sixth
 /// backend arrives as a non-exhaustive `match` rather than as a connection that

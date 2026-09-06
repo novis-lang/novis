@@ -1,5 +1,5 @@
 --TEST--
-`instanceof`'s right-hand side must name a class or interface the program declares — the dynamic form, an enum and a `Core` class are `E0496`, an undeclared name the ordinary `E0303` — ADR 0007 § 2, ADR 0010
+`instanceof`'s right-hand side must name a class or interface the program declares — the dynamic form, an enum and a `Core` class are `E0496`, an undeclared name the ordinary `E0303` — ADR 0007 § 2, `rule:enums/closed-integer-type`
 --FILE--
 <?nvs
 enum Mode: int {
@@ -20,7 +20,7 @@ string $name = "Box";
 bool $a = $m instanceof $name;
 // A string literal is the same dynamic form spelled without a variable.
 bool $b = $m instanceof "Box";
-// ADR 0010 makes an enum case a named integer rather than an object, so no
+// `rule:enums/closed-integer-type` makes an enum case a named integer rather than an object, so no
 // value is ever an instance of one.
 bool $c = $m instanceof Mode;
 // A `Core` class is a signature in the stdlib registry, not a declared class,
@@ -51,7 +51,7 @@ error[E0496]: `Mode` is an enum, and no value is ever an instance of one
    |
 22 | bool $c = $m instanceof Mode;
    |                         ^^^^ an enum is a value type
-   = help: ADR 0010 makes an enum case a named integer rather than an object — compare it with `==`, or `match` on it
+   = help: `rule:enums/closed-integer-type` makes an enum case a named integer rather than an object — compare it with `==`, or `match` on it
 
 error[E0496]: `Core\Str` is a `Core` class and has no descriptor to test against
    --> %s:25:25

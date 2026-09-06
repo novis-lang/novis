@@ -50,7 +50,7 @@ pub fn clif_ty(ty: Ty) -> Option<Type> {
         Ty::Null => types::I64,
         // A by-reference parameter's staged-slot address — see `Ty::Ref`.
         Ty::Ref => types::I64,
-        // ADR 0010 § 6: an enum value *is* its backing integer.
+        // `rule:enums/representation`: an enum value *is* its backing integer.
         Ty::Enum(_) => types::I64,
         Ty::Void => return None,
         _ => types::I64,
@@ -93,7 +93,7 @@ pub(crate) fn tag_of(ty: Ty) -> Result<Tag, CodegenError> {
         // The one representation whose tag is the whole of it — see
         // `nvs_ir::Ty::Null`.
         Ty::Null => Tag::Null,
-        // ADR 0010 § 6 reserves a tag of its own for an enum; this uses the
+        // `rule:enums/representation` reserves a tag of its own for an enum; this uses the
         // backing type's instead, deliberately. A tag only has to answer
         // "which type is this?" where the static type does not — the `mixed`
         // case below, whose representation is still open. Deciding an enum's

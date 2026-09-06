@@ -125,7 +125,7 @@ pub enum ArgConv {
     Unconverted,
 }
 
-/// One enum case's constant value, in [ADR 0010](/docs/adr/0010-enums-are-a-value-type.md)
+/// One enum case's constant value, in `rule:enums/closed-integer-type`
 /// § 2's own two integer types.
 ///
 /// `nvs_types::enums::EnumValue` as a running program holds it, and **not**

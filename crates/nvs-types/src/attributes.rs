@@ -410,7 +410,7 @@ pub(crate) fn is_constant(expr: &Expr) -> bool {
         | ExprKind::Float(_)
         | ExprKind::Duration(_)
         | ExprKind::Str(_)
-        // `Class::CONST` — a class constant, and ADR 0010's enum case with it,
+        // `Class::CONST` — a class constant, and `rule:enums/closed-integer-type`'s enum case with it,
         // which is the one spelling § 2 names beside a literal.
         | ExprKind::ClassConstAccess { .. }
         // `Class::class`, which § 2's list already covers: it *is* a class

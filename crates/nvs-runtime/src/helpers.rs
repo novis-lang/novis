@@ -2669,13 +2669,13 @@ crate::nvs_helper! {
 ///
 /// One divergence lives here and it is not this function's to fix: **an enum
 /// case tagged into a `mixed` reads as its backing integer**, so a case backed
-/// by `0` is falsy where ADR 0035 § 4 makes every statically-typed enum case
-/// truthy. `nvs_codegen::ty::tag_of` is where that is decided — ADR 0010 § 6
+/// by `0` is falsy where `rule:enums/truthiness` makes every statically-typed enum case
+/// truthy. `nvs_codegen::ty::tag_of` is where that is decided — `rule:enums/representation`
 /// reserves an enum tag and nothing writes one yet, so by the time a case is
 /// here it is indistinguishable from the `int` behind it.
 ///
 /// A `Tag::Object` value is always truthy, which includes an exception and a
-/// closure alike (ADR 0035 § 4); a tag byte denoting nothing at all is falsy,
+/// closure alike (`rule:enums/truthiness`); a tag byte denoting nothing at all is falsy,
 /// the same "report what can be be sure of" floor every other decoder here
 /// takes.
 #[must_use]

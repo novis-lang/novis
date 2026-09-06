@@ -4,6 +4,11 @@
       "topic": "errors",
       "title": "Errors",
       "order": 10
+    },
+    {
+      "topic": "enums",
+      "title": "Enums",
+      "order": 20
     }
   ]
 }

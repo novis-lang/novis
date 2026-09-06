@@ -1,5 +1,5 @@
 --TEST--
-`echo`, `.`, an interpolated piece and `.=` agree that `bytes`, `array<T>`, an enum case and a `void` call have no string form — ADR 0007 § 2, ADR 0009 § 3, ADR 0010 § 3
+`echo`, `.`, an interpolated piece and `.=` agree that `bytes`, `array<T>`, an enum case and a `void` call have no string form — ADR 0007 § 2, ADR 0009 § 3, `rule:enums/no-class-machinery`
 --FILE--
 <?nvs
 // ADR 0007 § 2's "anything → `string`" row is total for scalars and needs
@@ -27,7 +27,7 @@ string $s3 = "";
 $s3 .= Helper::nothing();
 
 // The explicit conversion is the answer in each case, and stays legal: ADR
-// 0009 § 3 grants `bytes as string` and ADR 0010 § 3 grants `$case as int`.
+// 0009 § 3 grants `bytes as string` and `rule:enums/no-class-machinery` grants `$case as int`.
 echo $by as string, $m as int, "\n";
 --EXPECTF-ERROR--
 error[E0707]: `bytes` has no string form
@@ -49,7 +49,7 @@ error[E0707]: `Mode` has no string form
    |
 22 | string $s2 = "x{$m}y";
    |                 ^^ converted to `string` here
-   = help: an enum case is a named integer (ADR 0010 § 3), not text — `$case as int`, or a member of your own that names it
+   = help: an enum case is a named integer (`rule:enums/no-class-machinery`), not text — `$case as int`, or a member of your own that names it
 
 error[E0707]: `void` has no string form
    --> %s:24:8

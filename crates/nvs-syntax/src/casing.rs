@@ -35,7 +35,7 @@
 //! walks. It deliberately does not reach a parameter (§ 2: visibility is
 //! what promotes one to a property, so requiring it everywhere would delete
 //! the distinction) or an `enum` body (§ 3 of
-//! [ADR 0010](/docs/adr/0010-enums-are-a-value-type.md) already
+//! `rule:enums/closed-integer-type` already
 //! rejects every non-`case` member there, and two diagnostics for one
 //! mistake is worse than one).
 //!
@@ -486,7 +486,7 @@ fn check_enum_decl(decl: &EnumDecl, src: &SourceFile, diags: &mut Diagnostics) {
         }
     }
     // `decl.members` (anything other than a case) is always rejected per
-    // ADR 0010 § 3 — left unchecked, same as the module docs' "already
+    // `rule:enums/no-class-machinery` — left unchecked, same as the module docs' "already
     // rejected" gap.
 }
 
@@ -1229,7 +1229,7 @@ mod tests {
 
     #[test]
     fn an_enum_body_reports_only_that_it_has_no_members() {
-        // ADR 0094's scope stops at a body with a member slot; ADR 0010 § 3
+        // ADR 0094's scope stops at a body with a member slot; `rule:enums/no-class-machinery`
         // already rejects everything in an enum that is not a case, and two
         // diagnostics for one mistake is worse than one.
         let diags = parse_and_check(

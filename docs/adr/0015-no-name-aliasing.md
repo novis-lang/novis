@@ -185,7 +185,7 @@ Each rejection names its replacement, in the style [ADR 0011](0011-functions-and
 
 **Negative**
 
-- **A structural break from PHP**, one of the divergences [divergences.md](divergences.md) registers, alongside [ADR 0010](0010-enums-are-a-value-type.md),
+- **A structural break from PHP**, one of the divergences [divergences.md](divergences.md) registers, alongside `rule:enums/closed-integer-type`,
   [ADR 0011](0011-functions-and-constants-are-class-members.md) and
   [ADR 0012](0012-no-superglobals.md): PHP source calling `class_alias()` or importing with `as` does not
   convert unconverted. (Trait composition's own divergence and migration path now live entirely in

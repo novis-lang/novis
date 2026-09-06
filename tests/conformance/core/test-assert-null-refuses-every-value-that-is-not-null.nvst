@@ -75,7 +75,7 @@ echo "held=", $held, "/3\n";
 // integer zeroes (the `uint` one comes from `Core\Arr::count`, which is the
 // only way to name one here without a literal), both float zeroes, the empty
 // string and the one-character `"0"` the string row also calls falsy, `false`,
-// the empty array, and an enum case backed by `0` -- ADR 0035 § 4 is why that
+// the empty array, and an enum case backed by `0` -- `rule:enums/truthiness` is why that
 // last one is worth a row at all. Each must *fail*, and the falsy count is
 // asserted beside it so a member that quietly grew the truthy table's reading
 // cannot pass both halves.

@@ -610,7 +610,7 @@ pub enum CodecTy {
     /// [`CodecField::element`] is never itself a `List`.
     List,
     /// An enum — ADR 0071 § 2's enum field, decoded as a membership test
-    /// rather than as a construction: ADR 0010 § 6 reserves an enum tag that
+    /// rather than as a construction: `rule:enums/representation` reserves an enum tag that
     /// nothing writes, so a case at run time *is* the integer behind it (see
     /// [`crate::value_truthy`]'s own note), and what a decode produces is that
     /// integer in the enum's backing type.
@@ -626,7 +626,7 @@ pub enum CodecTy {
 }
 
 /// The closed set of backing values a [`CodecTy::Enum`] accepts, and which of
-/// ADR 0010 § 2's two integer types they are.
+/// `rule:enums/one-backing-type`'s two integer types they are.
 ///
 /// A decode is a membership test against this and nothing else. There is no
 /// object to construct and no case name to look up, because a case is

@@ -50,7 +50,7 @@ fn a_string_never_compares_against_bytes() {
     assert!(refuses(&diags), "{diags:?}");
 }
 
-/// ADR 0010 § 3 already makes `$e as int` cheap, which is what the author
+/// `rule:enums/no-class-machinery` already makes `$e as int` cheap, which is what the author
 /// wanted here.
 #[test]
 fn an_enum_never_compares_against_its_underlying_integer() {

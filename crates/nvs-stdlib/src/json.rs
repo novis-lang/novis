@@ -1488,7 +1488,7 @@ fn scalar(ty: CodecTy, cases: Option<&EnumCases>, found: Value) -> Option<Value>
             .or_else(|| found.as_int().map(|number| number as f64))
             .map(Value::float),
         CodecTy::Str => (found.tag() == Some(Tag::Str)).then_some(found),
-        // ADR 0010 § 6 reserves an enum tag and nothing writes one, so a case
+        // `rule:enums/representation` reserves an enum tag and nothing writes one, so a case
         // is the integer behind it and there is nothing to construct: what a
         // decode owes is the membership test, and an integer outside the
         // roster is a bad document rather than a case this build forgot.

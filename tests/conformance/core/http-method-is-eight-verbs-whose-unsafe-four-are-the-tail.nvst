@@ -1,5 +1,5 @@
 --TEST--
-`Core\Http\Method` declares exactly the eight verbs ADR 0074 § 7 names, each a distinct integer constant, and the four CSRF enforcement covers are the contiguous tail — ADR 0077 § 1, ADR 0096 § 4, ADR 0010 § 3
+`Core\Http\Method` declares exactly the eight verbs ADR 0074 § 7 names, each a distinct integer constant, and the four CSRF enforcement covers are the contiguous tail — ADR 0077 § 1, ADR 0096 § 4, `rule:enums/no-class-machinery`
 --FILE--
 <?nvs
 // The depth claim is *a bound asserted on both sides*, plus an invariance over
@@ -7,7 +7,7 @@
 // counting every safe/unsafe pair, so an enum that grew a case in the middle
 // fails here while every individual line still reads plausibly.
 //
-// ADR 0010 § 3: a case *is* its integer constant, so what a written case
+// `rule:enums/no-class-machinery`: a case *is* its integer constant, so what a written case
 // materializes is that constant — `nvs_stdlib::router::METHOD` is the table it
 // comes from, and these are the values that table states.
 array<int> $safe = [

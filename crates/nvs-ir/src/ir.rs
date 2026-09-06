@@ -1554,7 +1554,7 @@ pub enum AbsentKey {
 /// scalar-or-`Ty::Array`-to-[`crate::ty::Ty::Bool`] truthiness test, ADR
 /// 0035's table, used by `crate::lower::Lowering::lower_truthy_cond` for an
 /// `if`/`while` condition whose static type isn't already `bool` (a
-/// `Ty::Object` condition needs none of these: ADR 0035 § 4 makes it always
+/// `Ty::Object` condition needs none of these: `rule:enums/truthiness` makes it always
 /// truthy with nothing to inspect at runtime, so that case lowers straight to
 /// a fresh [`InstKind::ConstBool`] instead). The third has one member,
 /// [`Helper::ArrayRowForWrite`], and is here for the reason its own doc

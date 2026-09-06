@@ -145,7 +145,7 @@ var $warn = Cli\Style::of({color: Cli\Color::YELLOW, bold: true});
 Cli::write(Cli\Text::styled("deleting ", $warn) + Cli\Text::plain($path));
 ```
 
-- **`Cli\Color` is a value type, not an enum.** [ADR 0010](0010-enums-are-a-value-type.md)'s closed named
+- **`Cli\Color` is a value type, not an enum.** `rule:enums/closed-integer-type`'s closed named
   integer type does not fit a set with sixteen million members. The sixteen named colours are class
   constants — `Color::RED` is exactly as short at the use site as an enum case would be — and
   `Color::rgb(uint, uint, uint)` and `Color::index(uint)` construct the rest. A `Core` class constant that

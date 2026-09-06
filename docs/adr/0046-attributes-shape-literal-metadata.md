@@ -37,7 +37,7 @@
 > lazily construct a real object the first time `ReflectionAttribute::newInstance()` is called. A payload's
 > field values must be compile-time constants (literals, class constants, enum cases) — never a variable, a
 > call, or `new` — so the whole thing is resolved once, at compile time, into a constant pool exactly like an
-> enum case's backing value ([ADR 0010](0010-enums-are-a-value-type.md)). The same attribute may be attached
+> enum case's backing value (`rule:enums/closed-integer-type`). The same attribute may be attached
 > more than once to one site; nothing about attaching it is arity-checked. Retrieval is `Core\Attributes::get<T>(...)`/
 > `::all<T>(...)`, where `T` is a shape type — never a bare-name lookup, and never `Core\Reflect`. `T` is
 > resolved entirely at compile time against the target's statically-known attribute list: `get<T>` is a
@@ -75,7 +75,7 @@
   to a declaration instead of a variable.
 - Novis already has two forward-references to a `#[...]` attribute syntax that this ADR resolves: ADR 0008's
   "a `#[Memoize]` attribute as the sanctioned replacement for the memoisation use — deferred, not rejected"
-  and ADR 0010's "a `#[Flags]`-style attribute enabling bitwise operators directly on an enum type." Neither
+  and `rule:enums/closed-integer-type`'s "a `#[Flags]`-style attribute enabling bitwise operators directly on an enum type." Neither
   is decided here — both still need their own design (key derivation and lifetime for memoisation; the
   operator-overload question for flags) — but both were blocked on *some* attribute mechanism existing at
   all, which this ADR now provides.
@@ -149,7 +149,7 @@ Every field value inside a `#[...]` literal must be a compile-time constant: a l
 is the one home of the list, refusing everything not on it where it is written (`E0725`) — per *field*, in
 source order, so a payload with two computed values reads as two mistakes rather than one attribute being
 wrong. It is its own walk over every attach site rather than a row added to the pass that resolves an enum
-case's value ([ADR 0010](0010-enums-are-a-value-type.md)): the shapes admitted here are a *closed* list, so
+case's value (`rule:enums/closed-integer-type`): the shapes admitted here are a *closed* list, so
 an expression kind the grammar grows is refused until someone decides it belongs in a constant pool, and a
 pass shared with the one that folds a case value would have inherited that pass's willingness to fold
 instead.
@@ -246,7 +246,7 @@ extension). It does not open user-defined generics — that stays exactly as out
 - Structural retrieval means two unrelated libraries can each define their own `Route`-*shaped* attribute
   with no naming collision or coordination — there is no global attribute-name registry to collide in.
 - Cost is O(attribute attachments in compiled code), stored once per declaration in the same constant-pool
-  class as an enum case's backing value or a class constant ([ADR 0010](0010-enums-are-a-value-type.md)) —
+  class as an enum case's backing value or a class constant (`rule:enums/closed-integer-type`) —
   not O(requests), not O(objects), and not attached to any instance.
 
 **Negative**

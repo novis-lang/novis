@@ -1,5 +1,5 @@
 --TEST--
-What `status` answers and the case a program compares it against are one type, and it is not interchangeable with another `Core` enum of the same ordinals — ADR 0084 §§ 1 and 6, ADR 0010
+What `status` answers and the case a program compares it against are one type, and it is not interchangeable with another `Core` enum of the same ordinals — ADR 0084 §§ 1 and 6, `rule:enums/closed-integer-type`
 --FILE--
 <?nvs
 // The agreement first, and it is the half that compiles: the answer and the
@@ -12,7 +12,7 @@ $state = Core\Queue\State::Succeeded;
 
 // And it is that enum and no other. `Core\Db\Isolation` is a `Core` enum too,
 // with its own cases numbered from 0, so nothing whatever *but* the type stops
-// the two being swapped — which is exactly what ADR 0010's closed named type
+// the two being swapped — which is exactly what `rule:enums/closed-integer-type`'s closed named type
 // is for, and what an `int` state column would have thrown away.
 Core\Db\Isolation $wrong = $state;
 --EXPECT--

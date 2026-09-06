@@ -913,7 +913,7 @@ fn report_by_reference_element(item: &ArrayItem, env: &mut Env<'_>) {
 /// `null` key is rejected outright: PHP's silent truncate-to-int/stringify-
 /// to-`"1"`/`""` is exactly the kind of implicit conversion that turns a
 /// typo into a missing row rather than a diagnostic. An **enum** is rejected
-/// beside them, and for the same reason one step further out: ADR 0010 makes a
+/// beside them, and for the same reason one step further out: `rule:enums/closed-integer-type` makes a
 /// case a named integer, so the normalization would silently key the array by
 /// a backing value two enums can share — `E0708` refuses `$case as string` on
 /// that reading already, and this is the position where no `as` was written at
@@ -946,7 +946,7 @@ pub(crate) fn check_array_key_type(key_ty: TypeId, span: Span, env: &mut Env<'_>
         )
         .with_primary(span, "this key")
         .with_help(
-            "ADR 0010 makes an enum case a named integer, so normalizing one would key the \
+            "`rule:enums/closed-integer-type` makes an enum case a named integer, so normalizing one would key the \
              array by a backing value two enums can share — write `$case as int` where that \
              number is the key you mean, or a member of your own that names the case where \
              it is not (`as string` is `E0708` for the same reason)",

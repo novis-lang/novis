@@ -469,7 +469,7 @@ const PLAN_STEPS_AT: usize = 0;
 /// `Core\Queue\Id` is.
 pub(crate) const STEP_NAME: &str = r"Core\Db\Plan\Step";
 
-/// A [`STEP`]'s grade, as the [`GRADE`] case value ADR 0010 makes an enum.
+/// A [`STEP`]'s grade, as the [`GRADE`] case value `rule:enums/closed-integer-type` makes an enum.
 const STEP_GRADE_SLOT: &str = "grade";
 
 /// Where [`STEP_GRADE_SLOT`] sits.
@@ -571,7 +571,7 @@ const COLUMN_NAME: &str = r"Core\Db\Column";
 const LABEL_SLOT: &str = "name";
 
 /// Its second: [`COLUMN_TYPE`]'s case for that column, held as the ordinal an
-/// enum *is* at runtime ([ADR 0010](/docs/adr/0010-enums-are-a-value-type.md)).
+/// enum *is* at runtime (`rule:enums/closed-integer-type`).
 /// [`column_type_value`] is where a [`nvs_db::ColumnType`] becomes one.
 const DECLARED_SLOT: &str = "type";
 

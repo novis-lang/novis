@@ -149,7 +149,7 @@ $agreed = $agreed + Check::same("match int", match ($a) { 7 => "hit", default =>
 $agreed = $agreed + Check::same("match str", match ($s) { "ab" => "hit", default => "miss" }, match ($ms) { "ab" => "hit", default => "miss" });
 $agreed = $agreed + Check::same("match default", match ($b) { 7 => "hit", default => "miss" }, match ($mb) { 7 => "hit", default => "miss" });
 // An enum subject is the one `match` row that agrees from *below* rather than
-// from above: the typed half compares on the backing integer ADR 0010 § 3
+// from above: the typed half compares on the backing integer `rule:enums/no-class-machinery`
 // makes its cases, the tagged half through `Helper::Identical`, and neither
 // is `nvs-codegen`'s absent `Ty::Enum` row.
 $agreed = $agreed + Check::same("match enum", match ($c) { Mode::Read => "hit", default => "miss" }, match ($mc) { Mode::Read => "hit", default => "miss" });

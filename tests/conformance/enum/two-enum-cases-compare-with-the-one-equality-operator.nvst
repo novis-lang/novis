@@ -8,9 +8,9 @@ enum Rank {
     Gold,
 }
 
-// ADR 0010 § 2: a case may name any integer, including zero and a negative
+// `rule:enums/one-backing-type`: a case may name any integer, including zero and a negative
 // one. Zero is the case that would read falsy if an enum were judged by its
-// backing value, which ADR 0035 § 4 says it never is — and it is equally the
+// backing value, which `rule:enums/truthiness` says it never is — and it is equally the
 // case an `==` implemented as "is it set" would get wrong.
 enum Signal {
     Stop = -1,
@@ -34,7 +34,7 @@ final class Holder {
 
 // ADR 0090 § 2: an enum is its own equality domain — a case against its
 // underlying integer does not compile, and neither do two different enums.
-// So the property `==` has is agreement with the comparison ADR 0010 § 3
+// So the property `==` has is agreement with the comparison `rule:enums/no-class-machinery`
 // makes cheap, over every ordered pair rather than on one line.
 array<Rank> $ranks = [Rank::Bronze, Rank::Silver, Rank::Gold];
 int $pairs = 0;
@@ -72,7 +72,7 @@ echo ($held == Signal::Stop) as string, "|";
 echo ($held != Signal::Go) as string, "\n";
 
 // A case that crossed a call boundary and a property slot compares the same:
-// ADR 0010 § 3 makes it an integer constant, so nothing about it is identity.
+// `rule:enums/no-class-machinery` makes it an integer constant, so nothing about it is identity.
 Signal $returned = Dispatch::of(Signal::Go);
 echo ($returned == Signal::Go) as string, "|";
 Holder $h = new Holder(Rank::Silver);
@@ -84,7 +84,7 @@ if ($h->rank != Rank::Bronze) {
     echo "not bronze\n";
 }
 
-// ADR 0010 § 2's other backing type. `2^64 − 1` has no `int`, so this pair is
+// `rule:enums/one-backing-type`'s other backing type. `2^64 − 1` has no `int`, so this pair is
 // the one an equality reading the payload as a *signed* integer would still
 // answer for while `<` would not — what it pins here is that a `uint`-backed
 // enum reaches its own representation rather than falling through.

@@ -336,7 +336,7 @@ pub enum Node {
         properties: Vec<(String, Node)>,
     },
     /// An enum case: the enum's name and the case's, never its underlying
-    /// integer ([ADR 0010](/docs/adr/0010-enums-are-a-value-type.md)).
+    /// integer (`rule:enums/closed-integer-type`).
     EnumCase {
         /// The enum's rendered name.
         enum_name: String,

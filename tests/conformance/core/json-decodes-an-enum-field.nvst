@@ -1,8 +1,8 @@
 --TEST--
-`Core\Json::decodeAs<T>` decodes an enum field as a membership test over its declared cases, on both backings and inside an `array<T>`, and refuses every other integer — ADR 0071 §§ 2 and 5, ADR 0010 §§ 2 and 6
+`Core\Json::decodeAs<T>` decodes an enum field as a membership test over its declared cases, on both backings and inside an `array<T>`, and refuses every other integer — ADR 0071 §§ 2 and 5, `rule:enums/one-backing-type` and `rule:enums/representation`
 --FILE--
 <?nvs
-// ADR 0010 § 6 reserves an enum tag that nothing writes, so a case *is* the
+// `rule:enums/representation` reserves an enum tag that nothing writes, so a case *is* the
 // integer behind it: a decode has nothing to construct and no name to resolve,
 // and what it owes instead is the membership test this case pins. `Role`'s
 // values are deliberately neither contiguous nor zero-based, so what is being
@@ -13,7 +13,7 @@ enum Role: int {
     Admin = 7,
 }
 
-// ADR 0010 § 2's other backing. It decides whether a decoded case is an `int`
+// `rule:enums/one-backing-type`'s other backing. It decides whether a decoded case is an `int`
 // or a `uint`, and therefore whether it compares equal to a written one.
 enum Weight: uint {
     Light = 1,

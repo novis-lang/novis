@@ -1338,7 +1338,7 @@ pub enum StmtKind {
     ClassDecl(ClassDecl),
     /// An interface declaration.
     InterfaceDecl(InterfaceDecl),
-    /// An enum declaration (ADR 0010).
+    /// An enum declaration (`rule:enums/closed-integer-type`).
     EnumDecl(EnumDecl),
     /// A `namespace` declaration, either form.
     NamespaceDecl(NamespaceDecl),
@@ -1364,7 +1364,7 @@ pub enum StmtKind {
 
 // ============================================================================
 // Declarations: classes, interfaces, traits, enums, and their members
-// (ADR 0010, ADR 0011, ADR 0014); `namespace`, `use` and `type`-alias
+// (`rule:enums/closed-integer-type`, ADR 0011, ADR 0014); `namespace`, `use` and `type`-alias
 // declarations (ADR 0007 § 3.5, ADR 0015)
 // ============================================================================
 
@@ -1433,7 +1433,7 @@ pub struct InterfaceDecl {
 }
 
 /// `enum Name (: BackingType)? (implements Iface, ...)? { cases... }`
-/// (ADR 0010). `implements`, and any [`ClassMember`] other than a case, are
+/// (`rule:enums/closed-integer-type`). `implements`, and any [`ClassMember`] other than a case, are
 /// rejected — both still parse, so the diagnostic can be precise.
 #[derive(Clone, Debug, PartialEq)]
 pub struct EnumDecl {
@@ -1445,14 +1445,14 @@ pub struct EnumDecl {
     pub name: Name,
     /// The `: Type` backing-type clause, if written. Parsed with the full
     /// ADR 0007 § 3 grammar; that only `int`/`uint` are legal (no `string`,
-    /// no other atom) is enforced only for the one case ADR 0010 § 3 names
+    /// no other atom) is enforced only for the one case `rule:enums/no-class-machinery` names
     /// explicitly (`string`) — anything else is a later check.
     pub backing: Option<Type>,
-    /// `implements ...` — always rejected (ADR 0010 § 3).
+    /// `implements ...` — always rejected (`rule:enums/no-class-machinery`).
     pub implements: Vec<Name>,
     /// The declared cases, in source order.
     pub cases: Vec<EnumCase>,
-    /// Any member other than a case — always rejected (ADR 0010 § 3): an
+    /// Any member other than a case — always rejected (`rule:enums/no-class-machinery`): an
     /// enum declares only cases and an optional backing type.
     pub members: Vec<ClassMember>,
 }
@@ -1467,7 +1467,7 @@ pub struct EnumCase {
     /// The case's name.
     pub name: Name,
     /// The explicit value, if written; omitted, a case takes the previous
-    /// case's value plus one (ADR 0010 § 1) — a later stage's job, not the
+    /// case's value plus one (`rule:enums/declaration`) — a later stage's job, not the
     /// parser's.
     pub value: Option<Expr>,
 }

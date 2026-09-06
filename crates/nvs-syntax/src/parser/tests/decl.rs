@@ -232,7 +232,7 @@ fn an_enum_case_named_with_a_keyword_parses() {
 
     // The other side of the bound: the exact keyword spelling is not a case at
     // all — it lexes as the keyword, so `parse_enum_body` takes the member path
-    // ADR 0010 § 3 refuses.
+    // `rule:enums/no-class-machinery` refuses.
     let (_, diags) = parse_stmt_with_diags("enum E { match }");
     assert!(
         diags

@@ -199,7 +199,7 @@
 //!    is still refused is `==` over two enum values, whose `Enum(Int)`
 //!    representation is not on the integral list even though comparing the two
 //!    integers is exactly right — a missing arm rather than a missing
-//!    mechanism, since ADR 0010 makes an enum *be* its integer.
+//!    mechanism, since `rule:enums/closed-integer-type` makes an enum *be* its integer.
 
 mod emit;
 mod ty;

@@ -6,7 +6,7 @@ A closure parameter declaring an enum is checked as that enum's backing integer,
 // share a rule, asserting that they agree rather than what each answered.
 // `nvs_ir::lower::param_tag_nibble` folds `Ty::Enum(EnumRepr::Int)` onto
 // `Ty::Int`'s nibble and `Ty::Enum(EnumRepr::Uint)` onto `Ty::Uint`'s, because
-// ADR 0010 makes an enum case a named integer that travels as its backing
+// `rule:enums/closed-integer-type` makes an enum case a named integer that travels as its backing
 // integer, tag included. So the check has no way to tell an enum from that
 // integer, or from another enum backed the same way — and it does still tell
 // `int` from `uint`, which is what keeps this a line rather than a hole: the

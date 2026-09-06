@@ -484,7 +484,7 @@ impl<'a> Lowering<'a> {
     /// [`Helper`] variant; [`Ty::Array`]
     /// converts through [`Helper::ArrayTruthy`] (falsy iff empty, ADR 0035's
     /// table); and [`Ty::Object`] — a class instance or an enum case — needs
-    /// no helper at all, since ADR 0035 § 4 makes either always truthy: this
+    /// no helper at all, since `rule:enums/truthiness` makes either always truthy: this
     /// folds straight to a fresh [`InstKind::ConstBool`] `true` rather than
     /// emitting a call with nothing to inspect at runtime.
     ///
@@ -555,7 +555,7 @@ impl<'a> Lowering<'a> {
                 )
                 .0
             }
-            // A class instance or an enum case — ADR 0035 § 4, always
+            // A class instance or an enum case — `rule:enums/truthiness`, always
             // truthy, nothing to inspect at runtime. The enum arm is the whole
             // reason `Ty::Enum` is a representation of its own rather than the
             // backing integer it is made of: `Rank::Bronze` is backed by `0`
@@ -568,7 +568,7 @@ impl<'a> Lowering<'a> {
             // spellings that get here, and nothing about the value needs
             // reading to answer them.
             Ty::Null => self.emit(cur, Ty::Bool, InstKind::ConstBool(false)).0,
-            // ADR 0035 § 4's class-instance row read one representation over:
+            // `rule:enums/truthiness`'s class-instance row read one representation over:
             // a class *reference* is a descriptor, so a `class<T>` is always
             // truthy the way an instance is — and ADR 0125 § 2's `?class<T>`
             // is the same row with § 2's first, `null` for the miss. That
@@ -1608,7 +1608,7 @@ impl<'a> Lowering<'a> {
     /// Relabels an enum value as the `int`/`uint` its cases *are*, leaving
     /// every other representation exactly as it arrived.
     ///
-    /// [ADR 0010](/docs/adr/0010-enums-are-a-value-type.md) § 3 makes
+    /// `rule:enums/no-class-machinery` makes
     /// a case a compile-time integer constant, and [`Ty::Enum`] is a zero-byte
     /// tag over it — so this is the free [`InstKind::Reinterpret`] row 1 of
     /// that ADR's *5* already uses for `$m as int`, emitting no machine
@@ -1892,7 +1892,7 @@ impl<'a> Lowering<'a> {
 /// throw's accepted list in a different order from run to run and no test
 /// could pin the message. By the constant rather than by the name so that the
 /// ordinary declaration — no `= n` clause anywhere, values auto-incrementing
-/// from 0 (ADR 0010 § 2) — reads back in the order it was written; the name
+/// from 0 (`rule:enums/one-backing-type`) — reads back in the order it was written; the name
 /// breaks a tie, so the order is total either way.
 pub(crate) fn whole_enum_set(info: &nvs_types::EnumInfo, name: &str) -> AcceptedSet {
     let mut cases: Vec<(&str, nvs_types::EnumValue)> = info

@@ -188,7 +188,7 @@ pub enum ArgConv {
     /// **The word is the case name.** That is the decision
     /// [`crate::routes::closed_set`] declined to take, and it stays declined
     /// *there*: a route segment is written by a link and read by ADR 0102 § 5,
-    /// which is a different question with a different owner. Here ADR 0010 § 3's
+    /// which is a different question with a different owner. Here `rule:enums/no-class-machinery`'s
     /// backing value is the alternative and it loses on § 6's own argument — the
     /// refusal below names every value that would have been accepted *because a
     /// command line is a person typing*, and a list of integers is not that

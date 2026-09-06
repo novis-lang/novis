@@ -7,7 +7,7 @@
   (`ClassName::CONST_NAME`) used in type position as sugar that folds to its own literal type when the
   constant is scalar-eligible; the checked-conversion and narrowing rules for a value entering or leaving
   one of these types. Does not touch `float` literal types (deferred, see *Revisiting*) or `match`/`switch`
-  exhaustiveness (stays [ADR 0010](0010-enums-are-a-value-type.md)'s own deferred item).
+  exhaustiveness (stays `rule:enums/closed-integer-type`'s own deferred item).
 - **Amends:** [0007](0007-explicit-type-system.md) — § 3's atom grammar gains `StringLiteral`, `IntLiteral`,
   a class-constant reference, and an enum-case reference as four new atom productions, alongside the
   existing `true`/`false` literal atoms this ADR generalises.
@@ -22,7 +22,7 @@
 > is legal too, but means something different and stays that way on purpose: it is a **narrowed subtype of
 > the enum**, not a folded integer — `Mode::A|Mode::B` accepts only those two cases of `Mode`, never a raw
 > `int` equal to either one's backing value, because folding it that way would reopen exactly the
-> "raw-int-accepted-where-enum-required" hole [ADR 0010](0010-enums-are-a-value-type.md) closed. Converting
+> "raw-int-accepted-where-enum-required" hole `rule:enums/closed-integer-type` closed. Converting
 > untrusted input into any of these types is one checked `as`, exactly [ADR 0007](0007-explicit-type-system.md)
 > § 2's existing shape; widening a literal or case-subset type into its base type is free; narrowing the
 > other way needs a guard or an `as`, exactly [ADR 0007](0007-explicit-type-system.md) § 6's existing shape
@@ -49,7 +49,7 @@
   - [ADR 0007](0007-explicit-type-system.md) § 3 already has `true`/`false` as literal atoms sitting inside
     ordinary unions — `bool` was always, quietly, "the union of its two literal values." Nothing before this
     ADR generalised that to `string`/`int`.
-  - [ADR 0010](0010-enums-are-a-value-type.md) already gives a closed, named, checked set of values for a
+  - `rule:enums/closed-integer-type` already gives a closed, named, checked set of values for a
     *new* domain concept. It does not, by itself, answer "accept only some of an existing enum's cases,"
     which is a real and distinct request from "define a brand-new closed type."
 - **Priorities 1/2/4:** priority 1 (security) wants untrusted input validated against an explicit, narrow
@@ -91,7 +91,7 @@ function setMode("a"|"b"|"c" $mode) { ... }          // after: the set is the ty
 
 `ClassName::CONST_NAME`, used where a type is expected, resolves at compile time to the constant's own
 value, exactly as long as that value is a `string` or `int` compile-time constant — the same constant-
-folding pass [ADR 0010](0010-enums-are-a-value-type.md) already runs for a case's backing value and
+folding pass `rule:enums/closed-integer-type` already runs for a case's backing value and
 [ADR 0046](0046-attributes-shape-literal-metadata.md) § 2 already runs for an attribute payload field, given
 a third call site here.
 
@@ -123,7 +123,7 @@ function grant(Mode::Read|Mode::Write $m) { ... }    // accepts only those two c
 ```
 
 This has to work differently from *2* because an enum case is not just its backing value — it carries its
-enum's own nominal type ([ADR 0010](0010-enums-are-a-value-type.md) § 6). If `Mode::Read|Mode::Write` folded
+enum's own nominal type (`rule:enums/representation`). If `Mode::Read|Mode::Write` folded
 to its cases' backing integers (say `0|1`), a caller could satisfy that parameter with the bare `int` `0`,
 which is exactly the hole [ADR 0010](0010-enums-are-a-value-type.md) § 5 closed by making `int → Mode`
 always a checked conversion. An enum-case type is therefore its own atom kind, distinct from an int literal
@@ -167,7 +167,7 @@ typed binding — neither qualifier gets a new rule here.
 
 A literal type shares its base type's tag and payload exactly — `"a"` is represented identically to any
 other `string`, the singleton-ness is enforced only by the checker, wherever the static type is known. An
-enum-case type shares its enum's existing zero-byte tag ([ADR 0010](0010-enums-are-a-value-type.md) § 6)
+enum-case type shares its enum's existing zero-byte tag (`rule:enums/representation`)
 outright — there is no second representation to build. The only place either type costs anything at runtime
 is the same place `uint`/enum conversion already does: a value arriving through `mixed` or an isolate
 boundary, where the checked conversion in *4* runs a membership test against the (small, closed, compile-time-known)
@@ -216,7 +216,7 @@ at run time.
   checked type) without spending priority 5 (memory) at all, let alone trading it against priority 3
   (latency): the compile-time-known case is exactly as fast as the base type already was.
 - Reuses three already-accepted mechanisms — [ADR 0007](0007-explicit-type-system.md)'s union/conversion
-  machinery, [ADR 0010](0010-enums-are-a-value-type.md)'s constant-folding pass, and the generalisation of
+  machinery, `rule:enums/closed-integer-type`'s constant-folding pass, and the generalisation of
   `true`/`false` that was already sitting in the grammar unadvertised — rather than adding a fourth kind of
   thing to the language, the same restraint [ADR 0046](0046-attributes-shape-literal-metadata.md) exercised
   for attributes.
@@ -279,9 +279,9 @@ Deferred deliberately, each needing its own argument:
   *Decision § 7*.
 - **Collapsing a case-subset union that names every one of an enum's cases into that enum's own type.** Not
   needed for this ADR — the two stay distinct in the checker for now — but worth revisiting once
-  [ADR 0010](0010-enums-are-a-value-type.md)'s own deferred `match` exhaustiveness checking is designed,
+  `rule:enums/closed-integer-type`'s own deferred `match` exhaustiveness checking is designed,
   since the two questions are related.
-- **`match`/`switch` exhaustiveness over a case-subset type.** Stays [ADR 0010](0010-enums-are-a-value-type.md)'s
+- **`match`/`switch` exhaustiveness over a case-subset type.** Stays `rule:enums/closed-integer-type`'s
   own deferred item; this ADR only creates a type a future exhaustiveness check could key off of.
 
 Verification, in the order it becomes possible:

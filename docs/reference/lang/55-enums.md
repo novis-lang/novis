@@ -10,7 +10,7 @@ keywords: enum, case, backed enum, BackedEnum, UnitEnum, int enum, uint enum, st
 `enum` declares a new named integer type with a fixed set of cases. A case is a compile-time
 constant of that type, never an object. The body is a comma list of `Name` or `Name = integer`
 — there is no `case` keyword and no `;`. Case names are `PascalCase`.
-<!-- src: ADR 0010 -->
+<!-- src: `rule:enums/closed-integer-type` -->
 
 ```nvs
 <?nvs

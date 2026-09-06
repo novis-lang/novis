@@ -137,7 +137,7 @@ mod tests {
 
     /// [`grade_case`] and [`GRADE`] are one roster, and this is what says so.
     ///
-    /// The slot holds an integer because ADR 0010 makes an enum one; a program
+    /// The slot holds an integer because `rule:enums/closed-integer-type` makes an enum one; a program
     /// matching `Grade::Destructive` is comparing against [`GRADE`]'s own case
     /// value, so a Rust arm that drifted from the table would answer a grade
     /// no branch of a correct program takes.

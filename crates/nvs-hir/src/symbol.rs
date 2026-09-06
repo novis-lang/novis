@@ -15,7 +15,7 @@ pub enum SymbolKind {
     Class,
     /// An `interface` declaration.
     Interface,
-    /// An `enum` declaration ([ADR 0010](/docs/adr/0010-enums-are-a-value-type.md)).
+    /// An `enum` declaration (`rule:enums/closed-integer-type`).
     Enum,
     /// A `type Name = TypeExpr;` declaration
     /// ([ADR 0015](/docs/adr/0015-no-name-aliasing.md) § 5).

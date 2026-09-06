@@ -1592,7 +1592,7 @@ nvs_runtime::nvs_helper! {
     /// one place a request's method token becomes a case of the closed roster.
     ///
     /// An enum answers as its ordinal, exactly as a user-declared enum does
-    /// (ADR 0010), which is why the answer is an `int` here.
+    /// (`rule:enums/closed-integer-type`), which is why the answer is an `int` here.
     fn nvs_core_request_method(ctx, _args: [0]) {
         let verb = inbound_of(ctx, "method")?.method();
         let Some(ordinal) = method_ordinal(verb) else {

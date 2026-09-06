@@ -1372,7 +1372,7 @@ nvs_runtime::nvs_helper! {
     /// heuristic.
     ///
     /// An enum answers as its ordinal, exactly as a user-declared enum does
-    /// (ADR 0010).
+    /// (`rule:enums/closed-integer-type`).
     fn nvs_core_cli_color_depth(_ctx, _args: [0]) {
         Ok(Value::int(depth_ordinal(
             nvs_runtime::terminal::profile().color_depth(),
@@ -2151,7 +2151,7 @@ const INK_RGB: i64 = 1;
 
 /// ADR 0086 § 2's `Cli\Color` — **a value type, not an enum**.
 ///
-/// [ADR 0010](/docs/adr/0010-enums-are-a-value-type.md)'s closed
+/// `rule:enums/closed-integer-type`'s closed
 /// named integer type does not fit a set with sixteen million members, so the
 /// sixteen the terminal names are class constants and the rest is constructed.
 /// Two slots rather than one packed integer because the two colour spaces are

@@ -139,7 +139,7 @@ the content question explicitly, which is ADR 0090 § 4's answer to it.
 **Negative**
 
 - **A structural break from PHP**, one of the divergences [divergences.md](divergences.md) registers, [ADR 0008](0008-static-and-global.md) and
-  [ADR 0010](0010-enums-are-a-value-type.md): PHP source ordering two objects of the same class with `<`/
+  `rule:enums/closed-integer-type`(0010-enums-are-a-value-type.md): PHP source ordering two objects of the same class with `<`/
   `>`, relying on the implicit property walk, does not convert unconverted. `nvs convert`
   ([M11](../implementation-plan.md)) can detect the pattern but must leave adding `Comparable` and writing
   `compareTo` as a `TODO` for a human — there is no mechanical rewrite, because the walk's actual ordering
@@ -155,7 +155,7 @@ the content question explicitly, which is ADR 0090 § 4's answer to it.
 - **Per-operator magic methods** (`__lessThan`, `__greaterThan`, …). Rejected: splits one logical decision
   into up to five methods a class could implement inconsistently (`$a < $b` true but `$b > $a` false),
   the "one operator, one API" principle [ADR 0007](0007-explicit-type-system.md),
-  [ADR 0010](0010-enums-are-a-value-type.md) and
+  `rule:enums/closed-integer-type` and
   [ADR 0011](0011-functions-and-constants-are-class-members.md) already lean on.
 - **Keep PHP's property-walk fallback for classes that do not implement `Comparable`.** Rejected per
   *Context*: ambient, undeclared behaviour, and not even a safe default — unbounded cost in the object

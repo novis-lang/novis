@@ -23,7 +23,7 @@ bool $b = $s instanceof Box;
 // interfaces rather than making one.
 array<string> $rows = ["a"];
 bool $c = $rows instanceof Box;
-// An enum case is a named integer (ADR 0010), on the subject side as well as
+// An enum case is a named integer (`rule:enums/closed-integer-type`), on the subject side as well as
 // on the class side.
 Mode $mode = Mode::Read;
 bool $d = $mode instanceof Box;

@@ -1,5 +1,5 @@
 --TEST--
-An enum is an ordinary value: it is passed, returned, compared and branched on without ever becoming an object — ADR 0010
+An enum is an ordinary value: it is passed, returned, compared and branched on without ever becoming an object — `rule:enums/closed-integer-type`
 --FILE--
 <?nvs
 enum Level {

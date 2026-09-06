@@ -76,7 +76,7 @@
 
 ### 1. Two values, closed, and the default is production
 
-`Env\Mode` is an [ADR 0010](0010-enums-are-a-value-type.md) enum with exactly two cases:
+`Env\Mode` is an `rule:enums/closed-integer-type` enum with exactly two cases:
 
 ```
 Env\Mode::Production

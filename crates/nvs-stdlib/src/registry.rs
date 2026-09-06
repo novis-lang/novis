@@ -531,7 +531,7 @@ pub enum CoreTy {
     /// the checker's enum table alongside the user's own — see
     /// [`ENUMS`] for why that is one table rather than two.
     ///
-    /// Carries no backing type. ADR 0010 § 2 makes `int` the default and
+    /// Carries no backing type. `rule:enums/one-backing-type` makes `int` the default and
     /// there is no reason for a `Core` enum to be anything else: nothing
     /// stores one, so the only thing a `uint` backing could buy is a case
     /// past `i64::MAX`.
@@ -848,7 +848,7 @@ pub enum Const {
     /// an option whose type is a `Core` enum.
     ///
     /// Named rather than written as the integer it is so that the default and
-    /// the case cannot drift apart: ADR 0010 § 3 makes a case an integer
+    /// the case cannot drift apart: `rule:enums/no-class-machinery` makes a case an integer
     /// constant, and [`ENUMS`] is the one place that constant is stated.
     /// `nvs_types::core_lib` resolves it there; `every_enum_case_default_names_a_real_case`
     /// holds that it resolves at all.
@@ -862,7 +862,7 @@ pub enum Const {
     /// heap layout that nothing outside [`crate::instance`] lays out, so what
     /// is stated here is the *call* that produces one rather than the bytes it
     /// holds. `nvs-ir` lowers it to exactly the `InstKind::CoreCall` a written
-    /// `Zone::of("UTC")` lowers to — so a constant is still ADR 0010 § 3's
+    /// `Zone::of("UTC")` lowers to — so a constant is still `rule:enums/no-class-machinery`'s
     /// "inlined at every use site" and still has no storage, no descriptor and
     /// no address; what it has instead is one allocation per use site, which
     /// is what an instance costs however it is reached.
@@ -1143,7 +1143,7 @@ fn collect_written(ty: &CoreTy, found: &mut Vec<&'static str>) {
 /// signature, and nothing about it is resolved through the method table.
 /// The value reuses [`Const`] — the same enum an omitted option's default is
 /// written in — because the two want exactly the same thing, a literal the
-/// compiler can materialize at the use site, and ADR 0010 § 3's "inlined at
+/// compiler can materialize at the use site, and `rule:enums/no-class-machinery`'s "inlined at
 /// every use site" rule for an enum case is the one this follows too: a
 /// `Core` constant has no storage, no descriptor and no address.
 #[derive(Clone, Copy, Debug)]
@@ -2096,7 +2096,7 @@ pub fn constructor_symbol(class: &str) -> Option<&'static str> {
     constructor_of(class).map(|method| method.symbol)
 }
 
-/// One `Core`-owned enum — [ADR 0010](/docs/adr/0010-enums-are-a-value-type.md)'s
+/// One `Core`-owned enum — `rule:enums/closed-integer-type`'s
 /// closed, named integer type, declared here rather than in Novis source.
 #[derive(Clone, Copy, Debug)]
 pub struct CoreEnum {
@@ -2104,7 +2104,7 @@ pub struct CoreEnum {
     /// source (`Core\Order`).
     pub name: &'static str,
     /// Its cases, in declaration order. The value is each case's own
-    /// constant, written out rather than auto-incremented: ADR 0010 § 1's
+    /// constant, written out rather than auto-incremented: `rule:enums/declaration`'s
     /// auto-increment is a *source* convenience, and a table read by the
     /// compiler has nothing to gain from re-deriving what it could state.
     pub cases: &'static [(&'static str, i64)],

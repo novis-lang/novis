@@ -322,7 +322,7 @@ pub(crate) fn check_stray_query(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'
 #[derive(Debug)]
 pub struct Route {
     /// The `Core\Http\Method` case by its own name — `Get`, `Post`. Kept as
-    /// the case rather than as ADR 0010 § 3's backing integer because every
+    /// the case rather than as `rule:enums/no-class-machinery`'s backing integer because every
     /// reader of a row is a diagnostic or a link, and neither has anything to
     /// say about the integer.
     pub verb: String,
@@ -1772,7 +1772,7 @@ fn check_captures(
 ///   which is the same set written with one member;
 /// - an **enum-case subset**, which returns `None` and takes the whole union
 ///   with it. A case's segment spelling is `Core\Router::match`'s to decide —
-///   the case name, or ADR 0010 § 3's backing value — and that member is out of
+///   the case name, or `rule:enums/no-class-machinery`'s backing value — and that member is out of
 ///   scope (`docs/agent/loop-goal.md` § *Standing decisions*). A set half of
 ///   whose members had no spelling would refuse links that are correct, which
 ///   is the one failure mode a compile-time refusal may not have.

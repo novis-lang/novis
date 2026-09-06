@@ -1,4 +1,4 @@
-# ADR 0010 — Enums are a closed, named integer type, not PHP's class-like construct
+# `rule:enums/closed-integer-type` — Enums are a closed, named integer type, not PHP's class-like construct
 
 - **Status:** Accepted
 - **Date:** 2026-08-20

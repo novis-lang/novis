@@ -141,7 +141,7 @@ path      = "/"
 reason: browsers reject it, so it is a policy with no meaning rather than a weak one.
 
 `Core\Response::addCookie`'s options shape carries the same four settings as an
-[ADR 0010](0010-enums-are-a-value-type.md) enum and booleans — `SameSite` is an enum, never the string
+`rule:enums/closed-integer-type` enum and booleans — `SameSite` is an enum, never the string
 above ([ADR 0063](0063-core-api-conventions.md) R11) — and each defaults to the configured value. A cookie
 that genuinely needs to be readable by script says so at the call site, in one field, visibly.
 

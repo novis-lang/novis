@@ -699,7 +699,7 @@ pub enum ExprInfo {
     },
     /// `EnumName::CaseName`, keyed by the whole access's own span.
     ///
-    /// ADR 0010 § 3 makes a case "an integer constant, inlined at every use
+    /// `rule:enums/no-class-machinery` makes a case "an integer constant, inlined at every use
     /// site" — so this is the *value*, resolved once by [`crate::enums`] and
     /// read back by `nvs-ir` as a plain constant. Recorded rather than left to
     /// the consumer for [`ExprInfo::InstanceOf`]'s reason and one more: the
@@ -1522,7 +1522,7 @@ impl ExprTypeTable {
     /// type straight off the AST (`nvs_ir::lower::lower_decl_type`), which
     /// works for every atom that *is* its own answer — `int`, `array<T>`, a
     /// plain class name — but not for one whose meaning depends on
-    /// resolution. An enum name is the first such atom: ADR 0010 makes
+    /// resolution. An enum name is the first such atom: `rule:enums/closed-integer-type` makes
     /// `Rank $r` an integer binding, and telling that apart from `Dog $d`
     /// needs the symbol table, which `nvs-ir` does not have. So the
     /// resolution happens once, here, at the same

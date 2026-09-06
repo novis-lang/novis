@@ -313,7 +313,7 @@ pub(super) fn converted(
             Some(Tag::Str) => Ok(held),
             _ => Err(wanted("`string`", held)),
         },
-        // ADR 0010 § 6: a case *is* the integer behind it by the time it is a
+        // `rule:enums/representation`: a case *is* the integer behind it by the time it is a
         // `Value`, so this is a membership test and not a construction.
         CodecTy::Enum => {
             let Some(cases) = cases else {

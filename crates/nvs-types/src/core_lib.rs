@@ -176,7 +176,7 @@ pub fn symbol_of(qname: &QName, method: &str) -> Option<&'static str> {
 ///
 /// The counterpart of [`symbol_of`] for the one member kind that is not a
 /// call: a constant is [ADR 0011](/docs/adr/0011-functions-and-constants-are-class-members.md)'s
-/// "every constant is a class constant", and ADR 0010 § 3's inlining rule for
+/// "every constant is a class constant", and `rule:enums/no-class-machinery`'s inlining rule for
 /// an enum case is the one it follows — so what a consumer gets back is the
 /// *value*, materialized at the use site, with no storage anywhere.
 ///
@@ -312,7 +312,7 @@ fn lower_const(value: &Const) -> ConstArg {
         Const::Str(s) => ConstArg::Str(s.to_owned()),
         Const::Bytes(b) => ConstArg::Bytes(b.to_vec()),
         Const::EmptyArray => ConstArg::EmptyArray,
-        // ADR 0010 § 3: the case *is* its integer constant, so what a call
+        // `rule:enums/no-class-machinery`: the case *is* its integer constant, so what a call
         // site materializes is that constant — the same value the enum table
         // hands `nvs-ir` for a written `Core\Order::Asc`. Resolved here rather
         // than written into the row so the two cannot disagree.

@@ -29,7 +29,7 @@
 //! sentence: every instant is a `bigint` of epoch milliseconds rather than a timestamp, because § 2
 //! supports all five of ADR 0067's backends and five timestamp dialects is exactly the cost a
 //! runtime-owned table should not carry; and `state` is the ordinal `Core\Queue\State` already is at
-//! runtime ([ADR 0010](/docs/adr/0010-enums-are-a-value-type.md)), so the enum and the column
+//! runtime (`rule:enums/closed-integer-type`), so the enum and the column
 //! are one representation and not two.
 //!
 //! **What it spends:** one statement per member call, on a connection the request either already

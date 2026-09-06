@@ -3802,7 +3802,7 @@ is why" — is this file.
   written case is where you find out. In the same family, and the one worth knowing on its own:
   **an enum case behind a `mixed` reads *falsy* in a condition when its backing integer is `0`**,
   because ADR 0047 § 5 spends no representation on hiding it and the runtime table dispatches on
-  the tag — while the same case behind its declared type is truthy, which is what ADR 0035 § 4
+  the tag — while the same case behind its declared type is truthy, which is what `rule:enums/truthiness`
   actually decided. Do not assert the erased row as if it were the ADR's answer.
 - **A `!= null` narrowing does not survive into a loop body, so a nullable receiver is
   nullable again inside a `foreach`.** `var $found = Core\Regex::match(…); if ($found !=

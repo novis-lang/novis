@@ -1,5 +1,5 @@
 --TEST--
-an enum case is its integer, so `as int` is all that relational and arithmetic use of one needs — ADR 0010 § 3
+an enum case is its integer, so `as int` is all that relational and arithmetic use of one needs — `rule:enums/no-class-machinery`
 --FILE--
 <?nvs
 enum Suit {

@@ -51,7 +51,7 @@ use crate::resolve::{name_text, qname_segments};
 use crate::symbol::{SymbolKind, SymbolTable};
 
 /// One class/interface's resolved links to other declarations. Never built
-/// for an enum: ADR 0010 § 3 already rejects `implements` on an enum at
+/// for an enum: `rule:enums/no-class-machinery` already rejects `implements` on an enum at
 /// parse time, and an enum has no `extends` grammar at all.
 #[derive(Clone, Debug, Default)]
 pub struct ClassLinks {

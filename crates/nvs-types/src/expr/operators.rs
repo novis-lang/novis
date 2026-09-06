@@ -12,7 +12,7 @@
 //! which the explicit `as string` calls on its own, since that conversion is
 //! the one ADR 0009 § 3 grants a `bytes` operand). ADR 0054 § 3 refuses
 //! `decimal ⊕ float` outright
-//! ([`reject_decimal_float_operands`]), and ADR 0010 refuses arithmetic on an
+//! ([`reject_decimal_float_operands`]), and `rule:enums/closed-integer-type` refuses arithmetic on an
 //! enum and a conversion between two of them.
 //!
 //! Two more refusals are about which operands may *meet* rather than what they
@@ -509,7 +509,7 @@ enum EqDomain<'a> {
     Callable,
     /// An enum is its own domain, per name — which is what makes both
     /// `$e == 1` and `$e == $otherEnum` refusals, the first answered by
-    /// ADR 0010 § 3's `as int` and the second by an explicit `match`.
+    /// `rule:enums/no-class-machinery`'s `as int` and the second by an explicit `match`.
     Enum(&'a QName),
     /// `class<T>` — its own domain, and deliberately not [`Self::Object`]'s
     /// and not [`Self::Str`]'s. A class reference's value is a descriptor, so
@@ -864,7 +864,7 @@ fn reject_unordered_operand(
              itself"
         }
         Unordered::Enum => {
-            "an enum case is a name rather than a number (ADR 0010); order the backing values \
+            "an enum case is a name rather than a number (`rule:enums/closed-integer-type`); order the backing values \
              instead — `($a as int) < ($b as int)`"
         }
         _ => {
@@ -2190,7 +2190,7 @@ fn conversion_row_exists(from: ConvKind, to: ConvKind) -> bool {
     }
 }
 
-/// The [`ConvKind`] of an enum's backing type — ADR 0010 § 2 gives every enum
+/// The [`ConvKind`] of an enum's backing type — `rule:enums/one-backing-type` gives every enum
 /// exactly one, `int` or `uint`.
 fn enum_backing_kind(backing: crate::enums::EnumBacking) -> ConvKind {
     match backing {
@@ -2238,7 +2238,7 @@ fn conversion_help(from: ConvKind, to: ConvKind) -> &'static str {
              build the string from its elements"
         }
         (Enum(_), Str) => {
-            "an enum case is a named integer (ADR 0010 § 3), not text — `$case as int as string`, \
+            "an enum case is a named integer (`rule:enums/no-class-machinery`), not text — `$case as int as string`, \
              or a member of your own that names it"
         }
         (Enum(_), _) => {
@@ -2462,7 +2462,7 @@ pub(crate) fn require_stringable(ty: TypeId, span: Span, env: &mut Env<'_>) {
              build the string from its elements"
         }
         Ty::Enum(..) | Ty::EnumCase(..) => {
-            "an enum case is a named integer (ADR 0010 § 3), not text — `$case as int`, or a \
+            "an enum case is a named integer (`rule:enums/no-class-machinery`), not text — `$case as int`, or a \
              member of your own that names it"
         }
         Ty::Void => {

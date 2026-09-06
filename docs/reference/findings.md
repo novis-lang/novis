@@ -82,7 +82,7 @@ in that goal. An item's owner is the row it sits in.
       so `nvs_syntax::casing` reaches its members as it reaches a named class's.
 - [x] **P11** An enum case as an array key — `$m[E::A] = "a"` — panics in lowering. *probes p25* — the
       key type check refuses it as `E0434`, beside the `float`/`bool`/`null` keys and at all three sites
-      that write a key: ADR 0010 makes a case a named integer, so the normalization would key the array
+      that write a key: `rule:enums/closed-integer-type` makes a case a named integer, so the normalization would key the array
       by a backing value two enums can share. `$case as int` is the spelling for the number.
 - [x] **P12** Calling a member the registry does not hold on a `Core` instance — `$uuid->version()` —
       panics (`lower/expr.rs:2681`, "instance method call … has no resolved target") instead of the
@@ -228,7 +228,7 @@ in that goal. An item's owner is the row it sits in.
       one). All three halves are closed: a class field erases to `CodecTy::Class` carrying its
       label, an `array<T>` to `CodecTy::List` carrying its element's wire type beside that label,
       and an enum to `CodecTy::Enum` carrying its declared backing values on `CodecField::cases`.
-      The enum's *name* never travels — ADR 0010 § 6 leaves a case indistinguishable from the
+      The enum's *name* never travels — `rule:enums/representation` leaves a case indistinguishable from the
       integer behind it — so the decode is a membership test producing that integer, and a case
       name on the wire is refused exactly as any other non-case is. `nvs-codegen` resolves a class
       label to a descriptor once every class of the unit is defined, and `nvs_stdlib::json`'s

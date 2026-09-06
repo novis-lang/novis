@@ -75,7 +75,7 @@ fn qname_segments(src: &SourceFile, name: &Name) -> Vec<String> {
 /// the same reason `nvs_hir::resolve_program` hands its autoload map back:
 /// `nvs-ir` needs each case's constant value to lower ADR 0047 § 3's
 /// enum-case membership test, and [`crate::enums::build_enum_table`] reports
-/// ADR 0010 § 1/§ 2's declaration errors, so a caller that rebuilt the table
+/// `rule:enums/declaration`/§ 2's declaration errors, so a caller that rebuilt the table
 /// for itself would report every one of them twice. A caller with no use for
 /// it drops it, exactly as it may drop `exprs`.
 pub fn check_program(
@@ -113,7 +113,7 @@ pub fn check_program_granted(
     exprs: &mut ExprTypeTable,
     diags: &mut Diagnostics,
 ) -> crate::EnumTable {
-    // ADR 0010 § 2's backing types first: interning an enum-typed annotation
+    // `rule:enums/one-backing-type`'s backing types first: interning an enum-typed annotation
     // needs one, and `build_signatures` interns every declared annotation in
     // the program. See `crate::enums`.
     let enums = crate::enums::build_enum_table(files, diags);
