@@ -122,7 +122,7 @@ pub fn check_program_granted(
     // annotation, and one of them may be a `Foo::CONST` type.
     let consts = crate::consts::build_const_table(files);
     let signatures = build_signatures(files, module, &enums, &consts, interner, diags);
-    // ADR 0046 § 4's retrieval reads this. Built whole, ahead of the walk, for
+    // `rule:attributes/structural-retrieval`'s retrieval reads this. Built whole, ahead of the walk, for
     // `build_const_table`'s reason: a retrieval may be written above the
     // declaration it asks about, so a table filled as the walk descends would
     // answer differently depending on source order.

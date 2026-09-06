@@ -59,7 +59,7 @@
   `Deserialize` split maps onto `toJson`/`fromJson` unchanged. What serde reports on failure is the
   *first* error, which is right for a config file and wrong for a submitted form — the case that produced
   this decision is a user who has to be told about all four bad fields at once.
-- [ADR 0046](0046-attributes-shape-literal-metadata.md) built the attribute mechanism and explicitly
+- `rule:attributes/inert-metadata` built the attribute mechanism and explicitly
   deferred every compiler-recognized attribute built on it. It also made *retrieval* structural rather than
   nominal, so that two unrelated libraries can each carry a `Route`-shaped attribute with no registry to
   collide in. A derive attribute is the first thing that needs the opposite property: the compiler must
@@ -71,7 +71,7 @@
 
 ### 1. One opt-in attribute per format, matched nominally
 
-`Core` declares four ordinary [ADR 0046](0046-attributes-shape-literal-metadata.md) `type` aliases — nothing
+`Core` declares four ordinary `rule:attributes/inert-metadata` `type` aliases — nothing
 about the mechanism is new:
 
 ```php
@@ -144,7 +144,7 @@ compiler-recognized attribute, since it resolves to no name at all.
 
 This is a carve-out of exactly one sentence, and it is the only one:
 `Core\Attributes::get<T>`/`::all<T>` retrieval stays **structural**, unchanged, for the reasons
-[ADR 0046](0046-attributes-shape-literal-metadata.md) § 4 gives. A `#[Json\Derive]` literal is therefore
+`rule:attributes/structural-retrieval` gives. A `#[Json\Derive]` literal is therefore
 still retrievable structurally by anyone who asks for its shape — harmlessly, since its shape is empty. Every
 future compiler-recognized attribute joins the closed list; nothing else is ever matched by name.
 
@@ -369,7 +369,7 @@ derive attribute pays nothing at all, including no pass.
   learnable, `ParseError` and `DbError` already mean exactly the right thing, and what was actually missing
   was a field on them, not a node under them.
 - **Match compiler-recognized attributes structurally**, consistently with
-  [ADR 0046](0046-attributes-shape-literal-metadata.md) § 4. Rejected: an empty shape structurally matches
+  `rule:attributes/structural-retrieval`. Rejected: an empty shape structurally matches
   *everything*, so `#[Json\Derive]` would be triggered by every attribute in the program. Even with a
   non-empty payload it would generate code from a third-party literal that happens to fit — a bug that is
   cheap to prevent now and a breaking change to fix after M9.

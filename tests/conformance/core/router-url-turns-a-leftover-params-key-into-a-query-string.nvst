@@ -12,7 +12,7 @@ a `Core\Router::url` `$params` key that names no capture becomes a percent-encod
 // and it says nothing about what a link may be handed — `tag` below is written
 // with an array and still encodes.
 class Posts {
-    // ADR 0096 § 1: the decision is a required sibling of every `#[Route]`, and
+    // `rule:attributes/access-is-a-required-sibling`: the decision is a required sibling of every `#[Route]`, and
     // `Core\Audience::Public` is § 1a's case for a route that is genuinely open.
     #[Core\Route(path: "/posts/{id}", method: Core\Http\Method::Get, name: "Posts::show")]
     #[Core\Access(allow: Core\Audience::Public)]

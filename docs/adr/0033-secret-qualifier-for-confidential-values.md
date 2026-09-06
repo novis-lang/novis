@@ -6,7 +6,7 @@
   [ADR 0024](0024-taint-tracking-for-injection-sinks.md)'s `tainted`; how it enters, propagates, and is
   removed; the sinks that refuse a `secret` value (HTML/response output, terminal output, `Core\Log`,
   debug-dump output, `Throwable` messages, `serialize()`/the isolate-crossing boundary, and — per
-  [ADR 0046](0046-attributes-shape-literal-metadata.md) — an attribute payload position); the redaction
+  `rule:attributes/inert-metadata` — an attribute payload position); the redaction
   `Core\Debug::dump` owes a `secret`-qualified property.
 - **Amends:** [0007](0007-explicit-type-system.md) § 2 — the conversion table's checked-conversion row now
   strips `secret` on success, the same total/checked shape [0024](0024-taint-tracking-for-injection-sinks.md)
@@ -53,7 +53,7 @@
 > it is the point" stance), debug-dump output and `Throwable` messages (a redaction placeholder, not the real
 > value), `serialize()`/the isolate-crossing boundary (one refusal for the one operation
 > [ADR 0023](0023-clone-serialize-and-cross-boundary-copy.md) already unified), and — per
-> [ADR 0046](0046-attributes-shape-literal-metadata.md) — an attribute payload position, since only a
+> `rule:attributes/inert-metadata` — an attribute payload position, since only a
 > compile-time constant may appear there and a `secret` class constant is one. The only way to remove
 > `secret` outside a checked conversion is a narrow, named `Core` function —
 > `Core\Secret::reveal(secret string, string $reason): string` (and a `bytes` overload), modeled directly on
@@ -209,11 +209,11 @@ the same trust `Core\Html::escape()`'s author already carries for `tainted`.
   site where it belongs. See *Alternatives rejected* and *Revisiting* if this proves too restrictive for
   legitimate worker-credential patterns in practice.
 
-- **An attribute payload** — per [ADR 0046](0046-attributes-shape-literal-metadata.md) § 2, a payload holds
+- **An attribute payload** — per `rule:attributes/payload-is-a-compile-time-constant`, a payload holds
   only compile-time constants, and a class constant is one of the shapes it admits, so a `secret` class
   constant is the *only* way a `secret` value can reach one at all: every other spelling is already refused
   for being computed. It is a sink because of where the value lands — the payload is folded into the
-  compiled unit's constant pool and handed back by ADR 0046 §§ 4-5's retrieval to anything that asks, so the
+  compiled unit's constant pool and handed back by `rule:attributes/structural-retrieval` and `rule:attributes/retrieval-folds-while-checking`'s retrieval to anything that asks, so the
   credential is written into the program's own metadata rather than read at run time from behind a
   capability. This is the one sink with **no `Core\Secret::reveal()` way out**, that being a call and a
   payload admitting none; the fix is to keep the secret out of the metadata and let the attribute carry the

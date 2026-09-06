@@ -921,8 +921,7 @@ pub(crate) fn reject_secret_published_argument(
 /// ADR 0033 § 4's fifth sink: a `secret` class constant reaching an attribute
 /// payload, reported at the value where it is written.
 ///
-/// The sink exists because of [ADR 0046](/docs/adr/0046-attributes-shape-literal-metadata.md)
-/// § 2 rather than in spite of it. A payload admits only compile-time
+/// The sink exists because of `rule:attributes/payload-is-a-compile-time-constant` rather than in spite of it. A payload admits only compile-time
 /// constants — no variable, no call, no `new` — and a class constant is one of
 /// the shapes it admits, so the storage class ADR 0033's own values live in is
 /// the *only* way a `secret` value could reach a payload at all. Every other

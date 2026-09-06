@@ -1,10 +1,10 @@
 --TEST--
-A class constant whose value folds to nothing is refused where it is read and not where it is declared — ADR 0011, ADR 0046 § 2
+A class constant whose value folds to nothing is refused where it is read and not where it is declared — ADR 0011, `rule:attributes/payload-is-a-compile-time-constant`
 --FILE--
 <?nvs
 // ADR 0011 inlines a class constant at every use site, so a declaration the
 // constant folder cannot reduce to a value leaves a read with nothing to
-// lower. The three shapes ADR 0046 § 2 admits as constants elsewhere — another
+// lower. The three shapes `rule:attributes/payload-is-a-compile-time-constant` admits as constants elsewhere — another
 // class's `const`, an enum case and `Foo::class` — have no constant form here
 // yet, written on their own or nested inside an array.
 final class Base {

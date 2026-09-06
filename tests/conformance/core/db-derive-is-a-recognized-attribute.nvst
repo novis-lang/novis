@@ -5,7 +5,7 @@
 // § 1: a compiler-recognized attribute is matched *nominally*, so the `use`d
 // short form below and the qualified spelling further down are one attribute
 // reached two ways. Neither is a declared `type` alias — that is § 1's one
-// carve-out from ADR 0046 § 1, and it is what makes this file compile at all.
+// carve-out from `rule:attributes/attach-sites-and-forms`, and it is what makes this file compile at all.
 use Core\Db\Derive;
 use Core\Db\Field;
 

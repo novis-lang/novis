@@ -22,7 +22,7 @@
 // it found, or any `origin` in any block whether or not it covers this entry
 // file, passes the existing origin cases and fails here.
 class Docs {
-    // ADR 0096 § 1: the decision is a required sibling of every `#[Route]`, and
+    // `rule:attributes/access-is-a-required-sibling`: the decision is a required sibling of every `#[Route]`, and
     // `Core\Audience::Public` is § 1a's case for a route that is genuinely open.
     #[Core\Route(path: "/docs/{page}", method: Core\Http\Method::Get, name: "Docs::show")]
     #[Core\Access(allow: Core\Audience::Public)]

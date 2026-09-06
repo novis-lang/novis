@@ -694,7 +694,7 @@ pub fn build_signatures(
     let mut placeholder_codec_sites = Vec::new();
     // And once more: a `queryAs<T>` is an expression too.
     let mut placeholder_row_sites = Vec::new();
-    // Same again: ADR 0046 § 4's retrieval is an expression, and this pass
+    // Same again: `rule:attributes/structural-retrieval`'s retrieval is an expression, and this pass
     // checks none, so the table it reads is empty here rather than built twice.
     let empty_attributes = crate::retrieval::AttributeTable::default();
     for file in files {

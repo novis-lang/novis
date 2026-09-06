@@ -11,7 +11,7 @@
 // that claim is below: a value handed to a link cannot leave the one segment
 // the declared path gave it, whatever bytes it holds.
 class Docs {
-    // ADR 0096 § 1: `#[Access]` is a required sibling, and
+    // `rule:attributes/access-is-a-required-sibling`: `#[Access]` is a required sibling, and
     // `Core\Audience::Public` is § 1a's case for a route that is genuinely open.
     #[Core\Route(path: "/docs/{slug}", method: Core\Http\Method::Get, name: "Docs::show")]
     #[Core\Access(allow: Core\Audience::Public)]

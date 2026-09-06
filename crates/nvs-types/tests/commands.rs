@@ -306,7 +306,7 @@ fn a_command_table_is_built_from_the_program_enumeration() {
         Some("Print what would happen")
     );
 
-    // ADR 0046 § 3's repetition: two `#[Command]`s on one method are two names
+    // `rule:attributes/repeatable`'s repetition: two `#[Command]`s on one method are two names
     // for one implementation, which is what an alias is — the reading
     // `#[Route]` already gets, and the only one that does not silently ignore
     // an attribute the compiler recognizes.

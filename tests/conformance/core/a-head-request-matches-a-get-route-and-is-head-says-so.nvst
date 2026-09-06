@@ -24,7 +24,7 @@ a `HEAD` request matches the `Get` route the table holds, `Core\Request::method`
 // process, with no wire to drop bytes on (ADR 0079 § 18) — and this case is
 // about the half ADR 0102 § 1 makes readable by the program at all.
 class Pages {
-    // ADR 0096 § 1: the access decision is a required sibling of every
+    // `rule:attributes/access-is-a-required-sibling`: the access decision is a required sibling of every
     // `#[Route]`. Only `Get` is declared, and that is the point.
     #[Core\Route(path: "/page", method: Core\Http\Method::Get, name: "Pages::show")]
     #[Core\Access(allow: Core\Audience::Public)]

@@ -20,7 +20,7 @@
 // nothing here sends a header, and there would be nothing to read it if it
 // did.
 class Docs {
-    // ADR 0096 § 1: the decision is a required sibling of every `#[Route]`, and
+    // `rule:attributes/access-is-a-required-sibling`: the decision is a required sibling of every `#[Route]`, and
     // `Core\Audience::Public` is § 1a's case for a route that is genuinely open.
     #[Core\Route(path: "/{lang}/docs/{page}", method: Core\Http\Method::Get, name: "docs.show")]
     #[Core\Access(allow: Core\Audience::Public)]

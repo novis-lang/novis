@@ -11,7 +11,7 @@ class Posts {
     // § 4 (ADR 0102): an optional capture is last, and the parameter it binds
     // to has a default — which is what makes the absent case well-typed rather
     // than nullable by accident.
-    // ADR 0096 § 1: the decision is a required sibling of every `#[Route]`, and
+    // `rule:attributes/access-is-a-required-sibling`: the decision is a required sibling of every `#[Route]`, and
     // `Core\Audience::Public` is § 1a's case for a route that is genuinely open.
     #[Core\Route(path: "/posts/{page?}", method: Core\Http\Method::Get, name: "Posts::list")]
     #[Core\Access(allow: Core\Audience::Public)]

@@ -1,8 +1,8 @@
 --TEST--
-a named attribute's name resolves to a shape-typed `type` alias and the payload is checked against it, so a name that is anything else is refused where it is written — ADR 0046 § 1
+a named attribute's name resolves to a shape-typed `type` alias and the payload is checked against it, so a name that is anything else is refused where it is written — `rule:attributes/attach-sites-and-forms`
 --FILE--
 <?nvs
-// ADR 0046 § 1: the named form reads like a constructor call deliberately,
+// `rule:attributes/attach-sites-and-forms`: the named form reads like a constructor call deliberately,
 // for PHP familiarity, and is not one — `Name` is never a class and never a
 // new namespace of attribute kinds. It is a pre-existing `type` alias whose
 // right-hand side is a shape, and its whole job is to be the type the

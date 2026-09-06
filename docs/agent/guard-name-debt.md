@@ -170,7 +170,7 @@ deleted-in-place.
       that exact name at [tests/classes.rs:329](../../crates/nvs-types/tests/classes.rs#L329). The
       triage the item asked for came back "a fold to widen, not a test to write":
       `eval_property_default` folded a literal and `[]` and nothing else, so an enum case and
-      another class's `const` — the other two members of ADR 0046 § 2's set — were `E0472`. It is
+      another class's `const` — the other two members of `rule:attributes/payload-is-a-compile-time-constant`'s set — were `E0472`. It is
       an agreement rather than a row per form: every named constant is asserted to fold to the
       identical `ConstArg` the literal spelling of the same value folds to, with the two refusals
       the widening must not have opened (a case of the wrong enum, a `secret` constant into a

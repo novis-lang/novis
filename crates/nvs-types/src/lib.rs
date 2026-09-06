@@ -384,7 +384,7 @@ pub(crate) struct Env<'a> {
     /// interned during signature collection may be one of these.
     pub consts: &'a crate::consts::ConstTable,
     /// Every `#[...]` attach site in the program, indexed by the declaration
-    /// it is attached to — ADR 0046 § 4's retrieval reads it, and nothing else
+    /// it is attached to — `rule:attributes/structural-retrieval`'s retrieval reads it, and nothing else
     /// does. Built whole before any body is checked, because a retrieval may
     /// be written above the declaration it asks about; see
     /// [`crate::retrieval::AttributeTable`].

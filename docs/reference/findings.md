@@ -167,7 +167,7 @@ in that goal. An item's owner is the row it sits in.
       read-only, though a conformance case calls `location` "readonly". *ref-errors `write_message`*
 - [x] **U14** `#[Access]` on a method with no `#[Route]` compiles (no stray-marker refusal, unlike
       `#[Query]`/`#[Option]`/`#[Api]`). *ref-attr* `E0788` now refuses it from the same per-method
-      walk those three are asked in — ADR 0096 § 1's sibling rule read from the other side, and a
+      walk those three are asked in — `rule:attributes/access-is-a-required-sibling`'s sibling rule read from the other side, and a
       refusal rather than a silence because § 2 keeps the compiler from interpreting `allow`, so the
       route table is the decision's only reader.
 - [x] **U15** `nvs test --filter` does not select `#[Test]` methods — `--filter clock` ran all four
@@ -260,7 +260,7 @@ in that goal. An item's owner is the row it sits in.
       A `nvs_types::Route` carries all four: `check_api` hands back what each of its four walks
       accepted, so a value § 2 refused reaches no row and no document. The emitter writes `tags` as
       written, `security` as one 3.1 security requirement per name with no scopes, an `errors` entry as
-      a response of its own described by its class, and `example` — folded to its ADR 0046 § 5 constant
+      a response of its own described by its class, and `example` — folded to its `rule:attributes/retrieval-folds-while-checking` constant
       while the imports are still in reach — beside the schema it is an example of. § 1's `200` outranks
       an `errors` entry naming it. What is left is `crates/nvs-cli/src/openapi.rs`'s gap 3, which is not
       this finding: nothing in the tree declares what a named scheme *is*, so the document names schemes
@@ -304,7 +304,7 @@ in that goal. An item's owner is the row it sits in.
       case-union type; only `as E::A|E::B` does. *q06, r03b*
 - [x] **D20** An empty shape `{}` is satisfied by every attached attribute literal, so a bare marker
       `#[Audited]` (`type Audited = {}`) is ambiguous (E0728) on a class with any other attribute.
-      Correct, and it is the price ADR 0046 § 4 chose knowingly: retrieval is structural so that there
+      Correct, and it is the price `rule:attributes/structural-retrieval` chose knowingly: retrieval is structural so that there
       is no second namespace of attribute-kind names for unrelated frameworks to collide in, and once
       the ask is a shape, `{}` asks for *any* attached literal — width subtyping admits no narrower
       reading of a shape with no fields. E0728 is then the honest answer rather than a gap: `get`

@@ -187,7 +187,7 @@ impl Seg {
 /// answers with.
 ///
 /// `nvs_types::routes::Route`'s fields that survive the crossing — the verb,
-/// the path, § 1's name, the handler label and ADR 0096 § 1's access decision —
+/// the path, § 1's name, the handler label and `rule:attributes/access-is-a-required-sibling`'s access decision —
 /// plus the two things derived from the path once at boot: its parsed segments
 /// and its rank. The OpenAPI half of the compiler's row (summary, tags,
 /// security, errors, example) does not cross: nothing a *request* asks reads
@@ -260,7 +260,7 @@ impl Route {
         }
     }
 
-    /// The same row with ADR 0096 § 1a's opt-out recorded — the `csrf: false`
+    /// The same row with `rule:attributes/access-payload`'s opt-out recorded — the `csrf: false`
     /// its `#[Access]` wrote — so a request that matches it is not checked.
     ///
     /// A builder rather than a seventh parameter to [`Self::new`], because the
@@ -311,7 +311,7 @@ impl Route {
         &self.handler
     }
 
-    /// ADR 0096 § 1's access decision as the name it resolved to, which
+    /// `rule:attributes/access-is-a-required-sibling`'s access decision as the name it resolved to, which
     /// [ADR 0102](/docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
     /// § 8 leaves to whoever dispatches. `None` only for a program that was
     /// already refused.

@@ -10,7 +10,7 @@
 // a path, which is what makes it answerable by a program that has no request
 // in hand at all.
 class Posts {
-    // ADR 0096 § 1: the access decision is a required sibling of every
+    // `rule:attributes/access-is-a-required-sibling`: the access decision is a required sibling of every
     // `#[Route]`, and `Core\Audience::Public` is § 1a's open case.
     #[Core\Route(path: "/posts", method: Core\Http\Method::Get, name: "Posts::list")]
     #[Core\Access(allow: Core\Audience::Public)]

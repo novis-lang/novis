@@ -14,7 +14,7 @@ use common::check_src;
 use nvs_diagnostics::{Diagnostics, code};
 
 /// ADR 0102 § 1's request body, as small as it goes: one `#[Route]` handler
-/// with ADR 0096 § 1's required sibling decision.
+/// with `rule:attributes/access-is-a-required-sibling`'s required sibling decision.
 fn handler(body: &str) -> String {
     format!(
         "<?nvs\nclass Pages {{\n  \

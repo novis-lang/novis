@@ -6,7 +6,7 @@
 //! ([`Parser::parse_interface_decl`]) and enums
 //! ([`Parser::parse_enum_decl`]); their members — properties with PHP 8.4's
 //! hooks, consts, methods; `#[...]` attribute groups
-//! ([`Parser::parse_attribute_groups`], ADR 0046); and `namespace`, `use`,
+//! ([`Parser::parse_attribute_groups`], `rule:attributes/inert-metadata`); and `namespace`, `use`,
 //! `autoload` (`rule:programs/autoload`) and the `type`-alias declaration (`rule:statements/nothing-gets-a-second-name`).
 //!
 //! `trait`, class-body `use TraitName, ...;` and `insteadof` are all
@@ -55,7 +55,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         }
     }
 
-    /// One attribute — ADR 0046 § 1's named `Name(field: value, ...)` or bare
+    /// One attribute — `rule:attributes/attach-sites-and-forms`'s named `Name(field: value, ...)` or bare
     /// `{field: value, ...}`. Both carry the same payload, so the
     /// parenthesized list is parsed by the very function that parses an
     /// ADR 0036 § 2 object literal's fields: an attribute payload is that

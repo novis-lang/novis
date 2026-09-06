@@ -84,7 +84,7 @@ $cutoff = Time::now()->minus(7d);
 ### 3. It is a constant, so it costs nothing
 
 A duration literal is a compile-time constant under
-[ADR 0046](0046-attributes-shape-literal-metadata.md)'s existing definition, folded to a single nanosecond
+`rule:attributes/inert-metadata`'s existing definition, folded to a single nanosecond
 count and emitted into the compiled unit's constant pool
 ([ADR 0042](0042-on-disk-artifact-cache-format.md)) as an immortal value. `{timeout: 30s}` allocates
 nothing at run time; only a computed `Duration::seconds($n)` does. A literal whose value exceeds

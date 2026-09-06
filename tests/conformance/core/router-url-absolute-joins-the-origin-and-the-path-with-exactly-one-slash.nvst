@@ -18,7 +18,7 @@ a configured origin's trailing `/` is dropped exactly once, so `Core\Router::url
 // `https://example.test:8443posts/7` is a different *authority*, and it is the
 // one that turns a link into a request to somewhere else entirely.
 class Docs {
-    // ADR 0096 § 1: the decision is a required sibling of every `#[Route]`, and
+    // `rule:attributes/access-is-a-required-sibling`: the decision is a required sibling of every `#[Route]`, and
     // `Core\Audience::Public` is § 1a's case for a route that is genuinely open.
     #[Core\Route(path: "/", method: Core\Http\Method::Get, name: "Docs::home")]
     #[Core\Access(allow: Core\Audience::Public)]

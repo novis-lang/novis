@@ -9,7 +9,7 @@
 //! spelled. That is exactly
 //! [ADR 0071](/docs/adr/0071-derived-codecs.md) § 1's rule, so both
 //! names sit on [`crate::derive::ATTRIBUTES`] and are matched *nominally* after
-//! [`nvs_hir::resolve_ref`]. [`crate::attributes`]'s ADR 0046 § 1 rule — the
+//! [`nvs_hir::resolve_ref`]. [`crate::attributes`]'s `rule:attributes/attach-sites-and-forms` rule — the
 //! name is a shape-typed `type` alias — is the rule for the userland names,
 //! which are the only ones that could ever be aliases.
 //!
@@ -54,7 +54,7 @@
 //! reachable by nothing: [`code::E_COMMAND_WITHOUT_NAME`], reported from the
 //! pass that needs the name to build the row.
 //!
-//! **Every `#[Command]` on a method becomes a row**, which is ADR 0046 § 3's
+//! **Every `#[Command]` on a method becomes a row**, which is `rule:attributes/repeatable`'s
 //! repetition read as [`crate::routes::check_class_routes`] reads it — two
 //! attributes on one method are two names for one implementation, which is what
 //! an alias is. Nothing else would be safe: the alternative is taking the first

@@ -6,7 +6,7 @@
 // in the same file, which is all the table needs: `url` asks the whole
 // program's table, and where the row was declared is not part of the question.
 class Users {
-    // ADR 0096 § 1: without the sibling decision this route is `E0762` and the
+    // `rule:attributes/access-is-a-required-sibling`: without the sibling decision this route is `E0762` and the
     // two link errors below are never reached.
     #[Core\Route(path: "/users/{id}", method: Core\Http\Method::Get, name: "Users::show")]
     #[Core\Access(allow: Core\Audience::Public)]

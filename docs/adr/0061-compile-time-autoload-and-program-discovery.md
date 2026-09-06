@@ -343,7 +343,7 @@ answer at all.
   mount scan in development.
 - **M8** — `Core\Program::implementing<T>()` lands with the `Core` roster
   ([ADR 0051](0051-standard-library-tiers.md)); the expansion is checker work that may land earlier, the
-  same split [ADR 0046](0046-attributes-shape-literal-metadata.md) has between attribute grammar and
+  same split `rule:attributes/inert-metadata` has between attribute grammar and
   `Core\Attributes` retrieval. Tests assert deterministic name-sorted order, exclusion of abstract classes,
   the no-argument-constructor diagnostic, and that a program with no query performs no scan.
 - **M11** (`nvs convert`) — a Composer `psr-4` map converts to `autoload` declarations mechanically; a

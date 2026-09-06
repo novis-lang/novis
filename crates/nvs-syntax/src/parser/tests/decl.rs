@@ -873,7 +873,7 @@ fn an_autoload_declaration_owes_a_from_and_a_root() {
     }
 }
 
-/// ADR 0046 § 1's two attach forms carry one payload between them: the named
+/// `rule:attributes/attach-sites-and-forms`'s two attach forms carry one payload between them: the named
 /// `Name(field: value)` and the bare `{field: value}` differ in whether a
 /// name was written and in nothing else, and a name written with no list at
 /// all attaches an empty literal rather than a second kind of attribute.

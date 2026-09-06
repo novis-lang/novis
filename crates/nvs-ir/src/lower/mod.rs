@@ -337,7 +337,7 @@ fn field_default(value: &nvs_types::ConstArg) -> Option<nvs_types::FieldDefault>
         | ConstArg::Options(_)
         | ConstArg::RequiredShape(_)
         | ConstArg::Built { .. }
-        // ADR 0046 § 5's folded retrieval, which is an expression's value and
+        // `rule:attributes/retrieval-folds-while-checking`'s folded retrieval, which is an expression's value and
         // never a written property default.
         | ConstArg::Shape(_)
         | ConstArg::Array(_) => None,

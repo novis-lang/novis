@@ -103,7 +103,7 @@ and `Core\Command` (`readline`, and the argument parser every other ecosystem le
 [ADR 0086](0086-core-cli-terminal-is-a-sink.md), admitted by test 2 as an output sink and by test 1 for
 raw-mode input, which no sandboxed tier can reach). `Core\Uuid`. `Core\Cache` ([ADR 0059](0059-cross-request-state-is-explicit.md)). `Core\Csv`.
 `Core\Test`. Plus `Core\Fatal`/`Core\Log` (`rule:errors/escalation-ladder`) and
-`Core\Attributes` ([ADR 0046](0046-attributes-shape-literal-metadata.md)), already scheduled for M8.
+`Core\Attributes` (`rule:attributes/inert-metadata`), already scheduled for M8.
 Four more, each admitted by a test above and each with its own ADR: `Core\Task`
 ([ADR 0072](0072-core-task-structured-concurrency.md), test 1 — it *is* the request lifecycle),
 `Core\RateLimit` ([ADR 0075](0075-core-ratelimit.md), tests 1 and 3),

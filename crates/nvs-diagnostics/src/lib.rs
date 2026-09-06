@@ -944,7 +944,7 @@ pub mod code {
     /// constant of the property's own declared type. Its own code rather than
     /// [`E_PARAM_DEFAULT_NOT_LITERAL`] because the two accept different sets:
     /// a property may be defaulted to `[]`, to an enum case or to another
-    /// class's `const` — ADR 0046 § 2's whole set — and a parameter to a
+    /// class's `const` — `rule:attributes/payload-is-a-compile-time-constant`'s whole set — and a parameter to a
     /// literal only.
     pub const E_PROPERTY_DEFAULT_NOT_LITERAL: Code = Code::new("E0472");
     /// `$obj as ?SomeClass` — ADR 0066 § 3's class row: `instanceof` plus
@@ -2094,8 +2094,7 @@ pub mod code {
     /// author handed over from the value a record redacts for them.
     pub const E_SECRET_DEBUG_ARGUMENT: Code = Code::new("E0724");
     /// An attribute payload's field value is not a compile-time constant —
-    /// [ADR 0046](/docs/adr/0046-attributes-shape-literal-metadata.md)
-    /// § 2. The whole literal is resolved once, at compile time, into the
+    /// `rule:attributes/payload-is-a-compile-time-constant`. The whole literal is resolved once, at compile time, into the
     /// unit's constant pool, the same storage class an enum case's backing
     /// value already uses; there is no "evaluate this attribute's arguments"
     /// step at class-definition time for a variable, a call or a `new` to be
@@ -2104,8 +2103,7 @@ pub mod code {
     pub const E_ATTRIBUTE_VALUE_NOT_CONSTANT: Code = Code::new("E0725");
     /// The named form of an attribute names something that is not a
     /// shape-typed `type` alias —
-    /// [ADR 0046](/docs/adr/0046-attributes-shape-literal-metadata.md)
-    /// § 1. `Name` there is never a class and never a new namespace of
+    /// `rule:attributes/attach-sites-and-forms`. `Name` there is never a class and never a new namespace of
     /// attribute kinds: it is a pre-existing alias whose right-hand side is a
     /// shape, and its whole job is to be the type the attached literal is
     /// checked against.
@@ -2121,8 +2119,7 @@ pub mod code {
     /// A `secret`-qualified class constant reaches an attribute payload —
     /// [ADR 0033](/docs/adr/0033-secret-qualifier-for-confidential-values.md)
     /// § 4's attribute-payload sink, the one that exists *because* of
-    /// [ADR 0046](/docs/adr/0046-attributes-shape-literal-metadata.md)
-    /// § 2: a payload holds only compile-time constants, and a class constant
+    /// `rule:attributes/payload-is-a-compile-time-constant`: a payload holds only compile-time constants, and a class constant
     /// is one of them, so the qualifier's own storage class is the only way a
     /// `secret` value could get in there at all.
     ///
@@ -2139,7 +2136,7 @@ pub mod code {
     /// secret out of the metadata entirely.
     pub const E_SECRET_ATTRIBUTE_PAYLOAD: Code = Code::new("E0727");
     /// A `Core\Attributes::get<T>` whose target carries more than one attached
-    /// literal satisfying `T` — ADR 0046 § 5.
+    /// literal satisfying `T` — `rule:attributes/retrieval-folds-while-checking`.
     ///
     /// A declaration's attached-attribute list is fully static, so "which one
     /// did I get?" is a question this compiler answers rather than one a test
@@ -2147,14 +2144,14 @@ pub mod code {
     /// help names it.
     pub const E_ATTRIBUTE_RETRIEVAL_AMBIGUOUS: Code = Code::new("E0728");
     /// The `<T>` written at a `Core\Attributes::get`/`all` call site is not a
-    /// shape type — ADR 0046 § 4.
+    /// shape type — `rule:attributes/structural-retrieval`.
     ///
     /// Retrieval is *structural*: `T` is what an attached literal is matched
     /// against under ADR 0036 § 3's width subtyping, so a `T` that is not a
     /// shape names nothing an attribute payload could ever satisfy.
     pub const E_ATTRIBUTE_TYPE_ARG_NOT_A_SHAPE: Code = Code::new("E0729");
     /// The `$target` of a `Core\Attributes::get`/`all` call does not name a
-    /// declaration this unit holds — ADR 0046 § 4.
+    /// declaration this unit holds — `rule:attributes/structural-retrieval`.
     ///
     /// § 4 fixes the spelling: a method (a constructor included) is named by
     /// its own first-class-callable reference `Foo::bar(...)`, and a class by
@@ -2165,7 +2162,7 @@ pub mod code {
     /// An attached literal satisfies the `T` a `Core\Attributes` retrieval
     /// asked for, but holds a value this compiler cannot materialize.
     ///
-    /// ADR 0046 § 5 replaces the call with the payload itself, so every value
+    /// `rule:attributes/retrieval-folds-while-checking` replaces the call with the payload itself, so every value
     /// in a matched payload has to have a constant form. Every spelling § 2
     /// admits now has one — the payload is folded under the scope it was
     /// *written* in, so a class constant, `Foo::class` and an enum case each
@@ -2556,7 +2553,7 @@ pub mod code {
 
     /// An `#[Access]` gives no `allow`.
     ///
-    /// ADR 0096 § 1a marks only `csrf` optional: the attribute exists to carry
+    /// `rule:attributes/access-payload` marks only `csrf` optional: the attribute exists to carry
     /// a decision, so one carrying none is exactly the omission § 3 refuses,
     /// written out instead of left out. Reported by the payload walk rather
     /// than by the roster check, for [`E_ROUTE_INCOMPLETE`]'s reason — a
@@ -2566,7 +2563,7 @@ pub mod code {
 
     /// An `#[Access]`'s `allow` value is not an enum case or a class constant.
     ///
-    /// ADR 0096 § 1a: the field's declared type is `mixed` because § 2 is a
+    /// `rule:attributes/access-payload`: the field's declared type is `mixed` because § 2 is a
     /// promise *not* to know what the decision means, so a narrower type would
     /// be a claim the compiler does not make. What stands in place of the type
     /// is that the value **names** something — a bare literal names nothing,
@@ -2590,8 +2587,7 @@ pub mod code {
 
     /// One method carries two `#[Access]` attributes.
     ///
-    /// ADR 0096 § 1a's last rule. [ADR 0046](/docs/adr/0046-attributes-shape-literal-metadata.md)
-    /// § 3 makes every attribute repeatable and leaves the ambiguity to
+    /// `rule:attributes/access-payload`'s last rule. `rule:attributes/repeatable` makes every attribute repeatable and leaves the ambiguity to
     /// retrieval, which is exactly what cannot happen here: two decisions are
     /// two readings — every one of them, or any one of them — and choosing
     /// between them silently is the failure ADR 0096 § 3 exists to prevent.
@@ -2675,7 +2671,7 @@ pub mod code {
     /// [`E_INTRINSIC_LITERAL_MALFORMED`]'s.
     pub const E_FORMAT_TEMPLATE_MISMATCH: Code = Code::new("E0770");
 
-    /// An `#[Api]` that contradicts the code it annotates — ADR 0085 § 2's
+    /// An `#[Api]` that contradicts the code it annotates — `rule:attributes/api-adds-and-cannot-contradict`'s
     /// four, under one code.
     ///
     /// One code rather than four because § 2 states them as one rule: the
@@ -2861,7 +2857,7 @@ pub mod code {
 
     /// An `#[Access]` on a method carrying no `#[Route]`.
     ///
-    /// ADR 0096 § 1 makes the attribute a *sibling* of `#[Route]`, and
+    /// `rule:attributes/access-is-a-required-sibling` makes the attribute a *sibling* of `#[Route]`, and
     /// [`E_ROUTE_WITHOUT_ACCESS`] is that sentence read in the other
     /// direction: a route must declare a decision. This one refuses the
     /// decision that guards no route — § 2 promises the compiler will not
@@ -3005,7 +3001,7 @@ pub mod code {
     /// A `Core\Attributes` retrieval whose literal `$member` names no declared
     /// parameter or property of the target.
     ///
-    /// ADR 0046 § 4's last paragraph: a written `$member` is checked against
+    /// `rule:attributes/structural-retrieval`'s last paragraph: a written `$member` is checked against
     /// the target's real declarations at the call site, the same
     /// literal-inspection ADR 0033 § 4's sinks make. Only a *computed*
     /// `$member` falls back to the empty result § 4's *Consequences* fixes,

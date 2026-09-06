@@ -152,7 +152,7 @@ const METHOD_DOC: EnumDoc = EnumDoc {
 /// [`AUDIENCE`]'s row and for every message quoting it.
 pub(crate) const AUDIENCE_NAME: &str = r"Core\Audience";
 
-/// ADR 0096 § 1a's `Core\Audience` — the one access decision `Core` names.
+/// `rule:attributes/access-payload`'s `Core\Audience` — the one access decision `Core` names.
 ///
 /// `Public` exists so that *this route is open* is a name that resolves rather
 /// than a magic string or an absent attribute, which is the whole of § 3. It

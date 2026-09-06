@@ -1,5 +1,5 @@
 --TEST--
-A reference to a synthesized `constructor` resolves, and a written call to one is refused (ADR 0046 § 4, ADR 0022 § 2)
+A reference to a synthesized `constructor` resolves, and a written call to one is refused (`rule:attributes/structural-retrieval`, ADR 0022 § 2)
 --FILE--
 <?nvs
 type Route = {path: string};
@@ -9,7 +9,7 @@ class Plain {}
 
 // Accepted first, so a position that stops being accepted fails here rather
 // than as a missing refusal. ADR 0022 § 2 gives every class a constructor,
-// definitely, so ADR 0046 § 4's class target names it whether or not the body
+// definitely, so `rule:attributes/structural-retrieval`'s class target names it whether or not the body
 // writes one.
 ?Route $route = Core\Attributes::get<Route>(Plain::constructor(...));
 echo $route != null ? "some" : "none", "\n";

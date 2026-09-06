@@ -4,7 +4,7 @@
 //! # Why this is a recognized name rather than a shape alias
 //!
 //! § 1 writes the attribute as an ordinary
-//! [ADR 0046](/docs/adr/0046-attributes-shape-literal-metadata.md)
+//! `rule:attributes/inert-metadata`
 //! `type Core\Route = {path: string, method: Core\Http\Method, name?: string};`
 //! and then adds the one thing that makes it not one: the compiler acts on the
 //! attribute only when its name **resolves** to `Core\Route`, so a userland
@@ -27,8 +27,7 @@
 //! with a payload shares. That is one declaration read on its own.
 //!
 //! **The whole program's routes**, as [`RouteTable`]: [`check_class_routes`]
-//! adds one row per `#[Route]` — every one the method carries, so ADR 0046
-//! § 3's repetition is one method serving two verbs — as [`crate::check`]'s
+//! adds one row per `#[Route]` — every one the method carries, so `rule:attributes/repeatable`'s repetition is one method serving two verbs — as [`crate::check`]'s
 //! per-class walk reaches it,
 //! and [`check_table`] then holds the collected rows to the two of § 1-§ 3's
 //! four compile errors that are questions about the *enumeration* — a duplicate
@@ -53,8 +52,7 @@
 //! from [`crate::links`] once the whole table exists.
 //!
 //! And it reads
-//! [ADR 0096](/docs/adr/0096-a-route-without-a-declared-access-decision-does-not-compile.md)
-//! § 1's `#[Access]`, which is here for `#[Query]`'s reason — it is a
+//! `rule:attributes/access-is-a-required-sibling`'s `#[Access]`, which is here for `#[Query]`'s reason — it is a
 //! `#[Route]`'s sibling and means nothing away from one. Its *payload* is
 //! [`ACCESS_OPTIONS`] and [`check_access`], from the per-attribute walk; § 1's
 //! presence rule is a question about the method's attribute list and so is
@@ -75,8 +73,7 @@
 //! nothing else.
 //!
 //! And it reads
-//! [ADR 0085](/docs/adr/0085-openapi-is-generated-from-the-route-table.md)
-//! § 2's `#[Api]`, which is here for the same reason again and is the one
+//! `rule:attributes/api-adds-and-cannot-contradict`'s `#[Api]`, which is here for the same reason again and is the one
 //! attribute on this list that changes nothing a program does: it supplies
 //! what the route table and the signature cannot say, and § 2's whole rule is
 //! that it **may add and may not contradict**. Its payload's two roster
@@ -96,7 +93,7 @@
 //! trivia — [`doc_comment`]'s own comment owns that, including what replaces it.
 //!
 //! A `#[Query]` written where no `#[Route]` reads it is [`check_stray_query`],
-//! and an `#[Access]` written there is [`check_stray_access`] — ADR 0096 § 1's
+//! and an `#[Access]` written there is [`check_stray_access`] — `rule:attributes/access-is-a-required-sibling`'s
 //! sibling rule asked from the other side. Those are the questions the per-class
 //! walk cannot ask: it selects the methods a `#[Route]` marks, so a stray marker
 //! is invisible to it by construction and the question belongs to the walk that
@@ -145,11 +142,11 @@ const UNSAFE_VERBS: [&str; 4] = ["Post", "Put", "Patch", "Delete"];
 ///
 /// `method` is an enum case rather than a string
 /// ([ADR 0063](/docs/adr/0063-core-api-conventions.md) R11), and an
-/// enum case is one of the three things a payload may contain (ADR 0046 § 2);
+/// enum case is one of the three things a payload may contain (`rule:attributes/payload-is-a-compile-time-constant`);
 /// it is the same `Core\Http\Method` `Core\Request::method` answers with, which
 /// is why the row names that enum rather than a spelling of its own. There is
 /// no `methods:` row: § 1 serves two verbs by repeating the attribute
-/// (ADR 0046 § 3), so a union or an array here would be a second way to write
+/// (`rule:attributes/repeatable`), so a union or an array here would be a second way to write
 /// what the existing rule already covers.
 pub(crate) const OPTIONS: &[(&str, OptionTy)] = &[
     (PATH, OptionTy::Str),
@@ -157,7 +154,7 @@ pub(crate) const OPTIONS: &[(&str, OptionTy)] = &[
     (NAME, OptionTy::Str),
 ];
 
-/// `#[Access(allow: mixed, csrf?: bool)]` — ADR 0096 § 1a's own spelling, and
+/// `#[Access(allow: mixed, csrf?: bool)]` — `rule:attributes/access-payload`'s own spelling, and
 /// the one roster here whose required field the roster itself cannot mark.
 ///
 /// `allow` is [`OptionTy::Mixed`] because § 1a declares it `mixed` and says
@@ -169,7 +166,7 @@ pub(crate) const OPTIONS: &[(&str, OptionTy)] = &[
 pub(crate) const ACCESS_OPTIONS: &[(&str, OptionTy)] =
     &[(ALLOW, OptionTy::Mixed), (CSRF, OptionTy::Bool)];
 
-/// One `#[Access]` payload, held to the two of ADR 0096 § 1a's rules that are
+/// One `#[Access]` payload, held to the two of `rule:attributes/access-payload`'s rules that are
 /// questions about this payload alone.
 ///
 /// **`allow` is required**, which [`crate::attributes::check_roster`] cannot
@@ -179,7 +176,7 @@ pub(crate) const ACCESS_OPTIONS: &[(&str, OptionTy)] =
 /// § 3's omission is the mistake whether or not a row was going to be built
 /// out of a sibling `#[Route]`.
 ///
-/// **Its value names something.** § 1a narrows ADR 0046 § 2's compile-time
+/// **Its value names something.** § 1a narrows `rule:attributes/payload-is-a-compile-time-constant`'s compile-time
 /// constant to an enum case or a class constant, and those are one syntactic
 /// form ([`ExprKind::ClassConstAccess`]): `Role::Admin` and `Policy::ADMIN`
 /// differ only in what they resolve to, which § 2 promises not to ask. What is
@@ -223,7 +220,7 @@ pub(crate) fn check_access(attr: &Attribute, env: &mut Env<'_>) {
     }
 }
 
-/// ADR 0096 § 1a's last rule: exactly one `#[Access]` per method, and a second
+/// `rule:attributes/access-payload`'s last rule: exactly one `#[Access]` per method, and a second
 /// one is a compile error naming both.
 ///
 /// Asked over a method's whole attribute list, which is why it is not in
@@ -234,8 +231,7 @@ pub(crate) fn check_access(attr: &Attribute, env: &mut Env<'_>) {
 /// is already an attribute that will be read by whoever dispatches — two of them
 /// there are the same two readings.
 ///
-/// [ADR 0046](/docs/adr/0046-attributes-shape-literal-metadata.md)
-/// § 3 makes every attribute repeatable in general, and this is the narrowing
+/// `rule:attributes/repeatable` makes every attribute repeatable in general, and this is the narrowing
 /// § 1a writes over it: a *third* is reported too, each against the first, so an
 /// author deleting the extras is told about all of them at once rather than one
 /// per rebuild.
@@ -258,7 +254,7 @@ pub(crate) fn check_one_access(groups: &[AttributeGroup], ctx: &Ctx<'_>, env: &m
             .with_secondary(declared, "the decision this method already declares")
             .with_help(
                 "two decisions are two readings — every one of them, or any one of them — and \
-                 ADR 0096 § 1a refuses to choose between them silently: write the one decision \
+                 `rule:attributes/access-payload` refuses to choose between them silently: write the one decision \
                  the method makes, and let whatever reads it interpret one name",
             ),
         );
@@ -347,7 +343,7 @@ pub struct Route {
     /// § 1 reads the same rows out of the finished table, where the declaration
     /// is not in reach at all.
     pub params: Vec<RouteParam>,
-    /// ADR 0096 § 1's access decision, as the name it resolves to —
+    /// `rule:attributes/access-is-a-required-sibling`'s access decision, as the name it resolves to —
     /// `Core\Audience::Public`, `App\Role::Admin` — because
     /// [ADR 0102](/docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
     /// § 8 leaves enforcement to whoever dispatches. The decision has to cross
@@ -363,7 +359,7 @@ pub struct Route {
     /// no sibling `#[Access]` (§ 1), no `allow`, or an `allow` naming nothing
     /// (§ 1a) — so every row of a program that compiles carries a decision.
     pub access: Option<String>,
-    /// ADR 0096 § 1a's `csrf`, as the declaration answered it: `false` only
+    /// `rule:attributes/access-payload`'s `csrf`, as the declaration answered it: `false` only
     /// where the sibling `#[Access]` wrote exactly that, and `true` everywhere
     /// else including where it wrote nothing.
     ///
@@ -400,8 +396,7 @@ pub struct Route {
     /// *code declares*, and a body's inferred type is not something an author
     /// wrote.
     pub returns: Option<String>,
-    /// [ADR 0085](/docs/adr/0085-openapi-is-generated-from-the-route-table.md)
-    /// § 2's `tags`, in the order the attribute wrote them.
+    /// `rule:attributes/api-adds-and-cannot-contradict`'s `tags`, in the order the attribute wrote them.
     ///
     /// Empty where the method carries no `#[Api]`, and empty where it carries
     /// one that named no tags — the same value, because § 2's four are
@@ -424,16 +419,14 @@ pub struct Route {
     ///
     /// Folded here for [`Self::summary`]'s reason: what rides across is a value
     /// with no resolution left in it, and a payload's constant form is
-    /// [ADR 0046](/docs/adr/0046-attributes-shape-literal-metadata.md)
-    /// § 5's fold — a reading of the source, over that file's own imports, that
+    /// `rule:attributes/retrieval-folds-while-checking`'s fold — a reading of the source, over that file's own imports, that
     /// nothing past this pass can still make.
     pub example: Option<ConstArg>,
     /// The whole attribute.
     pub span: Span,
 }
 
-/// One entry of [ADR 0085](/docs/adr/0085-openapi-is-generated-from-the-route-table.md)
-/// § 2's `errors`: a response the declared return type cannot state, as the two
+/// One entry of `rule:attributes/api-adds-and-cannot-contradict`'s `errors`: a response the declared return type cannot state, as the two
 /// halves § 2 writes it with.
 #[derive(Clone, Debug)]
 pub struct ApiError {
@@ -560,7 +553,7 @@ impl RouteTable {
 /// attached to, and the per-attribute walk holds a payload with no declaration
 /// around it.
 ///
-/// **Every** `#[Route]` on the method becomes a row, which is ADR 0046 § 3's
+/// **Every** `#[Route]` on the method becomes a row, which is `rule:attributes/repeatable`'s
 /// repetition read as ADR 0077 § 1 writes it — one method serving two verbs
 /// declares two routes. The method's *other* two questions are asked once
 /// against the first of them: § 1's sibling `#[Access]` and § 4's `csrf`
@@ -590,7 +583,7 @@ pub(crate) fn check_class_routes(
         if let Some(access) = access {
             check_csrf_opt_out(access, m, ctx, env);
         }
-        // ADR 0085 § 2's annotation is a fact about the *method* — one
+        // `rule:attributes/api-adds-and-cannot-contradict`'s annotation is a fact about the *method* — one
         // `#[Api]` describes the operation however many verbs it serves — so
         // it is asked once here beside `#[Access]`, and not per row.
         let mut api = None;
@@ -618,7 +611,7 @@ pub(crate) fn check_class_routes(
     }
 }
 
-/// ADR 0096 § 1's presence rule: a `#[Route]` whose method carries no
+/// `rule:attributes/access-is-a-required-sibling`'s presence rule: a `#[Route]` whose method carries no
 /// `#[Access]`.
 ///
 /// Asked here rather than in the per-attribute walk because it is a question
@@ -664,7 +657,7 @@ fn check_access_declared<'a>(
     None
 }
 
-/// ADR 0096 § 1a's `csrf` for [`Route::csrf`]: `false` only where the sibling
+/// `rule:attributes/access-payload`'s `csrf` for [`Route::csrf`]: `false` only where the sibling
 /// `#[Access]` wrote that value, and `true` for every other row.
 ///
 /// The same field [`check_csrf_opt_out`] reads, asked for the other question,
@@ -747,7 +740,7 @@ fn check_csrf_opt_out(access: &Attribute, m: &MethodMember, ctx: &Ctx<'_>, env: 
 }
 
 /// `#[Api(tags?: string[], errors?: {status: int, type: Class::class}[],
-/// security?: string[], example?: {…})]` — ADR 0085 § 2's own spelling, in the
+/// security?: string[], example?: {…})]` — `rule:attributes/api-adds-and-cannot-contradict`'s own spelling, in the
 /// order that section writes it.
 ///
 /// Every row is [`OptionTy::Mixed`], and that is not this roster giving up. Of
@@ -766,7 +759,7 @@ pub(crate) const API_OPTIONS: &[(&str, OptionTy)] = &[
     (EXAMPLE, OptionTy::Mixed),
 ];
 
-/// ADR 0085 § 2's fourth contradiction: an `#[Api]` on a method carrying no
+/// `rule:attributes/api-adds-and-cannot-contradict`'s fourth contradiction: an `#[Api]` on a method carrying no
 /// `#[Route]`.
 ///
 /// [`check_stray_query`]'s question about the other marker that means nothing
@@ -798,14 +791,14 @@ pub(crate) fn check_stray_api(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>
         )
         .with_primary(attr.span, "the method carries no `#[Route]`")
         .with_help(
-            "ADR 0085 § 2's `#[Api]` supplies what a route's own types cannot say, so away from a \
+            "`rule:attributes/api-adds-and-cannot-contradict`'s `#[Api]` supplies what a route's own types cannot say, so away from a \
              `#[Route]` there is nothing for it to say it about — add the `#[Route]`, or move the \
              `#[Api]` to the method that has one",
         ),
     );
 }
 
-/// ADR 0096 § 1's sibling rule read from the other side: an `#[Access]` on a
+/// `rule:attributes/access-is-a-required-sibling`'s sibling rule read from the other side: an `#[Access]` on a
 /// method carrying no `#[Route]`.
 ///
 /// § 1 states the rule as a route owing a decision, which is
@@ -844,14 +837,14 @@ pub(crate) fn check_stray_access(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<
         )
         .with_primary(attr.span, "the method carries no `#[Route]`")
         .with_help(
-            "ADR 0096 § 1 makes `#[Access]` a `#[Route]`'s required sibling, and § 2 keeps the \
+            "`rule:attributes/access-is-a-required-sibling` makes `#[Access]` a `#[Route]`'s required sibling, and § 2 keeps the \
              compiler from reading what `allow` names — so the route table is the only thing that \
              ever asks this decision: add the `#[Route]` it guards, or delete it",
         ),
     );
 }
 
-/// ADR 0085 § 2's first three contradictions, asked of one method's `#[Api]`.
+/// `rule:attributes/api-adds-and-cannot-contradict`'s first three contradictions, asked of one method's `#[Api]`.
 ///
 /// § 2's whole rule is that the annotation **may add and may not contradict**,
 /// and that is checkable only where both halves are in hand — the payload and
@@ -891,8 +884,7 @@ pub(crate) fn check_stray_access(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<
 /// scheme defines" needs a configured scheme, and nothing in this compiler
 /// declares one yet — there is no configuration surface for a security scheme
 /// anywhere, which `crates/nvs-cli/src/openapi.rs`'s own gap list already
-/// records. Refusing every name against an empty roster would refuse ADR 0085
-/// § 2's own example, so what stands here today is the shape and the name is
+/// records. Refusing every name against an empty roster would refuse `rule:attributes/api-adds-and-cannot-contradict`'s own example, so what stands here today is the shape and the name is
 /// carried uninterpreted, exactly as ADR 0102 § 8 carries an access decision.
 /// The comparison lands in this function, unchanged, on the day a scheme has a
 /// home.
@@ -930,7 +922,7 @@ fn check_string_list(api: &Attribute, option: &str, env: &mut Env<'_>) -> Vec<St
             span,
             "written as a single value",
             format!(
-                "ADR 0085 § 2 writes `{option}` as an array, because an operation may carry more \
+                "`rule:attributes/api-adds-and-cannot-contradict` writes `{option}` as an array, because an operation may carry more \
                  than one — write `{option}: [...]` even for a list of one"
             ),
             env,
@@ -968,7 +960,7 @@ fn check_api_errors(api: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) -> Vec<Ap
             "`errors` is not a list".to_owned(),
             span,
             "written as a single value",
-            "ADR 0085 § 2 writes `errors` as an array of `{status: …, type: …}` entries — write \
+            "`rule:attributes/api-adds-and-cannot-contradict` writes `errors` as an array of `{status: …, type: …}` entries — write \
              `errors: [{...}]` even for one",
             env,
         );
@@ -1196,8 +1188,7 @@ fn check_api_example(
 /// § 2's `example` as the constant it is: one entry per written field, in
 /// written order, over the declaring file's own imports.
 ///
-/// [ADR 0046](/docs/adr/0046-attributes-shape-literal-metadata.md)
-/// § 5's fold, which is the same one a retrieval's payload goes through — so an
+/// `rule:attributes/retrieval-folds-while-checking`'s fold, which is the same one a retrieval's payload goes through — so an
 /// enum case and a `Foo::class` in an example are the values they name rather
 /// than the text that names them, and the emitter is handed a document's worth
 /// of already-decided JSON.
@@ -1223,7 +1214,7 @@ fn fold_example(
     Some(ConstArg::Shape(folded))
 }
 
-/// One ADR 0085 § 2 contradiction, reported.
+/// One `rule:attributes/api-adds-and-cannot-contradict` contradiction, reported.
 ///
 /// Every one of them is [`code::E_API_CONTRADICTS_THE_CODE`] with its own
 /// message, which is that code's own reasoning: § 2 states four ways for one

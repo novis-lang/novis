@@ -1,8 +1,8 @@
 --TEST--
-A retrieved attribute payload holds a class constant, an enum case and `Foo::class`, each folded through the scope it was written in (ADR 0046 §§ 2, 5)
+A retrieved attribute payload holds a class constant, an enum case and `Foo::class`, each folded through the scope it was written in (`rule:attributes/payload-is-a-compile-time-constant` and `rule:attributes/retrieval-folds-while-checking`)
 --FILE--
 <?nvs
-// ADR 0046 § 2 admits three *named* constants beside the literals — a class
+// `rule:attributes/payload-is-a-compile-time-constant` admits three *named* constants beside the literals — a class
 // constant, an enum case and `Foo::class` — and § 5 replaces the retrieval
 // with the payload itself, so each has to fold to the value a read of that
 // same name inlines. This case asserts the two **agree** rather than reading

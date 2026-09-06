@@ -24,7 +24,7 @@
   PHP every one of these is parsed on first use, every request, and a syntax error in one surfaces at run
   time on whichever code path happens to reach it — often the error path, often in production.
 - Novis already has every ingredient. [ADR 0007](0007-explicit-type-system.md) makes types known statically;
-  [ADR 0046](0046-attributes-shape-literal-metadata.md) already defines "compile-time constant" precisely
+  `rule:attributes/inert-metadata` already defines "compile-time constant" precisely
   and already resolves a `Core` accessor during checking;
   [ADR 0042](0042-on-disk-artifact-cache-format.md) already stores per-unit compiled artifacts. What is
   missing is only the decision that the compiler may know a few `Core` methods by name.
@@ -62,7 +62,7 @@ The type check on `Core\Str::format`'s placeholders is worth naming separately: 
 ### 2. What "constant" means, and what happens when it is not
 
 An argument qualifies when it is a compile-time constant under
-[ADR 0046](0046-attributes-shape-literal-metadata.md)'s existing definition — a literal, a class constant,
+`rule:attributes/inert-metadata`'s existing definition — a literal, a class constant,
 or an expression over them. No new notion of constant is introduced.
 
 When the argument does not qualify, the call compiles to an ordinary runtime call with ordinary runtime

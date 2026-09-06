@@ -431,7 +431,7 @@ pub(crate) fn infer_static_call(
         }
         return env.interner.callable();
     }
-    // ADR 0046 §§ 4-5's retrieval, which is not a call at all once it has been
+    // `rule:attributes/structural-retrieval` and `rule:attributes/retrieval-folds-while-checking`'s retrieval, which is not a call at all once it has been
     // resolved: the answer is recorded against this span as an ordinary
     // compile-time constant, so the `ExprInfo::Call` below must *not* also be
     // recorded — one span carries one entry, and `nvs-ir` would then lower the

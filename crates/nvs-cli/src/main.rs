@@ -1078,7 +1078,7 @@ pub(crate) fn runtime_routes(table: &nvs_types::RouteTable) -> nvs_runtime::rout
                         })
                         .collect(),
                 );
-                // ADR 0096 § 1a's opt-out, carried across rather than derived a
+                // `rule:attributes/access-payload`'s opt-out, carried across rather than derived a
                 // second time: the verb's half of § 4 is `Route::new`'s and the
                 // declaration's half is the compiler's, so this is the one
                 // place the two meet.

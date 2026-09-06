@@ -34,7 +34,7 @@
   choice between class and scalar a choice between method chains and arithmetic — not a matter of taste.
 - Three further things a class cannot do, all of which follow from the same fact: it cannot be a
   compile-time constant, so `const decimal VAT = 0.19;` would be impossible and neither
-  [ADR 0046](0046-attributes-shape-literal-metadata.md)'s attribute payloads nor
+  `rule:attributes/inert-metadata`'s attribute payloads nor
   [ADR 0047](0047-literal-and-enum-case-types.md)'s literal types could hold one; its only precision-safe
   constructor takes a **string**, since `Decimal::of(19.99)` has already lost the value before the call;
   and every intermediate in an expression is a heap allocation with a refcount, so a 500-line invoice does

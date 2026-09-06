@@ -14,7 +14,7 @@ class Users {
 
 // The same parameter under the route it serves is § 3's ordinary case, which
 // is what makes the refusal above a fact about the missing sibling and not
-// about the marker. ADR 0096 § 1 supplies the other required sibling.
+// about the marker. `rule:attributes/access-is-a-required-sibling` supplies the other required sibling.
 class Search {
     #[Core\Route(path: "/search", method: Core\Http\Method::Get)]
     #[Core\Access(allow: Core\Audience::Public)]

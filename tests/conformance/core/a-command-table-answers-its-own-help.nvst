@@ -1,5 +1,5 @@
 --TEST--
-every `#[Command]` and `#[Option]` the program declares is readable back out of its own declaration, so a usage text is generated rather than written — ADR 0086 § 6, ADR 0046 §§ 4-5
+every `#[Command]` and `#[Option]` the program declares is readable back out of its own declaration, so a usage text is generated rather than written — ADR 0086 § 6, `rule:attributes/structural-retrieval` and `rule:attributes/retrieval-folds-while-checking`
 --FILE--
 <?nvs
 // ADR 0086 § 6's command table is built while compiling, and its reader —
@@ -8,7 +8,7 @@ every `#[Command]` and `#[Option]` the program declares is readable back out of 
 // (docs/agent/goals/1-core-depth.md item 6). So this case asks the question
 // that *is* answerable today, and it is the one that section's promise rests
 // on: **nobody writes usage text**, which is only true if every word of it is
-// already in the declaration. ADR 0046 §§ 4-5's retrieval reads those payloads
+// already in the declaration. `rule:attributes/structural-retrieval` and `rule:attributes/retrieval-folds-while-checking`'s retrieval reads those payloads
 // back at the call site, so the help below contains no text of its own —
 // every name, every spelling and every sentence in it was retrieved.
 //
@@ -56,7 +56,7 @@ class Migrate {
     }
 }
 
-// ADR 0046 § 3's repetition, read as `nvs_types::commands` reads it: two
+// `rule:attributes/repeatable`'s repetition, read as `nvs_types::commands` reads it: two
 // `#[Command]`s on one method are two names for one implementation, which is
 // what an alias is. Both become rows, so the roster below is four long over
 // three methods.

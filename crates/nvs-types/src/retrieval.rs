@@ -1,5 +1,4 @@
-//! [ADR 0046](/docs/adr/0046-attributes-shape-literal-metadata.md)
-//! §§ 4-5: `Core\Attributes::get<T>` and `::all<T>`, answered here rather than
+//! `rule:attributes/structural-retrieval` and `rule:attributes/retrieval-folds-while-checking`: `Core\Attributes::get<T>` and `::all<T>`, answered here rather than
 //! at run time.
 //!
 //! § 5 is what makes this a checker pass at all. A declaration's attached
@@ -89,7 +88,7 @@ use crate::signatures::{resolve_method, resolve_property};
 use crate::ty::{Ty, TypeId};
 use crate::{Ctx, Env, span_text};
 
-/// The class ADR 0046 § 4's two members live on, spelled as
+/// The class `rule:attributes/structural-retrieval`'s two members live on, spelled as
 /// [`nvs_hir::QName`] renders it.
 const OWNER: &str = "Core\\Attributes";
 
@@ -139,7 +138,7 @@ fn site_ctx(scope: &Scope) -> Ctx<'_> {
     }
 }
 
-/// Every attach site in the program, indexed by the declaration ADR 0046 § 4's
+/// Every attach site in the program, indexed by the declaration `rule:attributes/structural-retrieval`'s
 /// `$target` spellings name.
 ///
 /// Built once, before any body is checked, for the reason
@@ -281,7 +280,7 @@ fn push<'a>(
     }
 }
 
-/// Whether `owner::member` is one of ADR 0046 § 4's two retrievals — the cheap
+/// Whether `owner::member` is one of `rule:attributes/structural-retrieval`'s two retrievals — the cheap
 /// test [`crate::expr::calls`] makes before reaching for anything here.
 pub(crate) fn is_retrieval(owner: &QName, member: &str) -> bool {
     owner.to_string() == OWNER && matches!(member, "get" | "all")
@@ -318,7 +317,7 @@ pub(crate) fn fold_retrieval(
             )
             .with_primary(call.span, format!("`{found}` written here"))
             .with_help(
-                "ADR 0046 § 4: retrieval is structural — an attached literal is an answer \
+                "`rule:attributes/structural-retrieval`: retrieval is structural — an attached literal is an answer \
                  exactly when it satisfies `T` under ADR 0036 § 3's width subtyping, so `T` \
                  is an inline `{...}` or a `type` alias naming one",
             ),
@@ -337,7 +336,7 @@ pub(crate) fn fold_retrieval(
             )
             .with_primary(target.span, "this is not a declaration reference")
             .with_help(
-                "ADR 0046 § 4: the target is written as a first-class-callable reference and \
+                "`rule:attributes/structural-retrieval`: the target is written as a first-class-callable reference and \
                  inspected where it is written — `Foo::bar(...)` for a method, and \
                  `Foo::constructor(...)` for the class itself, plus a literal member name for \
                  one of its properties or parameters",
@@ -365,7 +364,7 @@ pub(crate) fn fold_retrieval(
             )
             .with_primary(*span, "no parameter or property of that name")
             .with_help(
-                "ADR 0046 § 4: a *written* member name is checked against the target's real \
+                "`rule:attributes/structural-retrieval`: a *written* member name is checked against the target's real \
                  declarations here, because the answer a misspelling would fold to — `null`, or \
                  the empty array — is the same one a correct retrieval of an absent attribute \
                  gives, and nothing later can tell them apart; only a computed `$member` falls \
@@ -398,7 +397,7 @@ pub(crate) fn fold_retrieval(
                 )
                 .with_primary(call.span, "`get` answers at most one")
                 .with_help(
-                    "ADR 0046 § 5: an attached-attribute list is static, so this is decided \
+                    "`rule:attributes/retrieval-folds-while-checking`: an attached-attribute list is static, so this is decided \
                      here rather than by a test run — write `Core\\Attributes::all<T>(…)`, \
                      which answers every match",
                 ),
@@ -419,7 +418,7 @@ pub(crate) fn fold_retrieval(
     env.exprs.record(call.span, ExprInfo::CoreConst { value });
 }
 
-/// ADR 0046 § 4's `$target` spelling, read syntactically: the class it names
+/// `rule:attributes/structural-retrieval`'s `$target` spelling, read syntactically: the class it names
 /// and the method whose reference was written.
 fn target_declaration(target: &Expr, ctx: &Ctx<'_>, env: &Env<'_>) -> Option<(QName, String)> {
     let ExprKind::StaticCall {
@@ -556,7 +555,7 @@ fn report_unfoldable(value: &Expr, env: &mut Env<'_>) {
         )
         .with_primary(value.span, "no constant form")
         .with_help(
-            "ADR 0046 § 5 replaces the retrieval with the payload itself, so every value in \
+            "`rule:attributes/retrieval-folds-while-checking` replaces the retrieval with the payload itself, so every value in \
              it has to be materializable — a class constant, `Foo::class` and an enum case \
              all are, so what is left is a constant whose own declaration folds to nothing \
              (`E0792`): write the value out here, or give that constant a foldable one",

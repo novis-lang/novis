@@ -25,7 +25,7 @@ every `#[Route]` the program declares has a row in the compile-time table, and `
 // structure. `Core\Http\Method::Delete` is here so that the table is not read
 // as a `Get`-only index.
 class Posts {
-    // ADR 0096 § 1: the decision is a required sibling of every `#[Route]`, and
+    // `rule:attributes/access-is-a-required-sibling`: the decision is a required sibling of every `#[Route]`, and
     // `Core\Audience::Public` is § 1a's case for a route that is genuinely open.
     #[Core\Route(path: "/", method: Core\Http\Method::Get, name: "Posts::home")]
     #[Core\Access(allow: Core\Audience::Public)]

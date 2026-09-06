@@ -266,7 +266,7 @@ be here.
   that is a `BLOCKED`.
 - **The four attribute passes extend `ATTRIBUTES`, never widen the matching rule.** A name on that roster
   is matched *nominally* after `nvs_hir::resolve_ref`, so `#[Core\Route]` and a `use Core;`d `#[Route]`
-  are one attribute and no userland spelling is any of them. Structural matching is ADR 0046's rule for
+  are one attribute and no userland spelling is any of them. Structural matching is `rule:attributes/inert-metadata`'s rule for
   *retrieval* and is a different question.
 - **A fold and its runtime path are one implementation.** If preparing a literal appears to need its own
   parser, the fold is wrong and the runtime parser is what gets an entry point — never a second copy.

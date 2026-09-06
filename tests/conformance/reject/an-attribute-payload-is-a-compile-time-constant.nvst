@@ -1,8 +1,8 @@
 --TEST--
-an attribute payload's every field value is a literal, a class constant or an enum case, and anything the program would have to run is refused where it is written — ADR 0046 §§ 1-2
+an attribute payload's every field value is a literal, a class constant or an enum case, and anything the program would have to run is refused where it is written — `rule:attributes/attach-sites-and-forms` and `rule:attributes/payload-is-a-compile-time-constant`
 --FILE--
 <?nvs
-// ADR 0046 § 2: the whole payload is resolved once, at compile time, into the
+// `rule:attributes/payload-is-a-compile-time-constant`: the whole payload is resolved once, at compile time, into the
 // unit's constant pool — the storage class an enum case's backing integer and
 // a class constant already use. There is therefore no moment at which a
 // variable could be read, a call made or a `new` constructed, which is exactly
@@ -17,7 +17,7 @@ class Limits {
     public const int MAX = 255;
 }
 
-// ADR 0046 § 1: a named attribute's name is a shape-typed `type` alias and
+// `rule:attributes/attach-sites-and-forms`: a named attribute's name is a shape-typed `type` alias and
 // nothing else, so every name written below is declared here. What each
 // payload may *hold* is § 2's rule and is the same either way.
 type Route = {path: string};
@@ -27,7 +27,7 @@ type Cache = {};
 type Autowire = {};
 
 // The accepted half first, so a position that stops being accepted fails here
-// rather than as a missing refusal. ADR 0046 § 1's two attach forms are both
+// rather than as a missing refusal. `rule:attributes/attach-sites-and-forms`'s two attach forms are both
 // here — the named `Name(field: value)` and the bare `{field: value}` — since
 // naming is attach-site sugar and never changes what a payload may hold.
 #[Route(path: "/users", method: "GET"), {tag: 1}]

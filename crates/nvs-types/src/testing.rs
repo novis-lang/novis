@@ -157,8 +157,8 @@ use crate::{Ctx, Env, span_text};
 /// disagree about what `int` means.
 ///
 /// Three scalar rows, because § 1's shape names three types, and two that are
-/// not scalars at all: ADR 0046 § 2 admits an enum case in a payload and
-/// ADR 0077 § 1's `method` is one, and ADR 0096 § 1a declares a field whose
+/// not scalars at all: `rule:attributes/payload-is-a-compile-time-constant` admits an enum case in a payload and
+/// ADR 0077 § 1's `method` is one, and `rule:attributes/access-payload` declares a field whose
 /// type is `mixed` on purpose. A sixth row is a decision about what some
 /// attribute may carry and belongs in the section that decides it before it
 /// belongs here.
@@ -171,9 +171,9 @@ pub(crate) enum OptionTy {
     /// is a case of it.
     Enum(&'static str),
     /// No declared type at all — [ADR 0007](/docs/adr/0007-explicit-type-system.md)'s
-    /// one unchecked position, and ADR 0096 § 1a's `allow`.
+    /// one unchecked position, and `rule:attributes/access-payload`'s `allow`.
     ///
-    /// The value is still ADR 0046 § 2's compile-time constant, which
+    /// The value is still `rule:attributes/payload-is-a-compile-time-constant`'s compile-time constant, which
     /// [`crate::attributes::check_attribute`] has asked before any roster is
     /// read. The narrower rule that it *names* something belongs to the module
     /// declaring the roster, because it is a rule about one option rather than
@@ -192,7 +192,7 @@ impl OptionTy {
     /// is in that state today** — `Core\Http\Method` was, and landed as
     /// `nvs_stdlib::router::METHOD` — so this arm is what a row added ahead of
     /// its enum gets rather than something a program can reach: the value is
-    /// checked as the compile-time constant ADR 0046 § 2 already requires, and
+    /// checked as the compile-time constant `rule:attributes/payload-is-a-compile-time-constant` already requires, and
     /// placed at nothing. A diagnostic here would report a gap in *this* crate
     /// against the source that tripped over it.
     pub(crate) fn intern(self, env: &mut Env<'_>) -> Option<TypeId> {
@@ -200,7 +200,7 @@ impl OptionTy {
             Self::Str => Ty::String,
             Self::Int => Ty::Int,
             Self::Bool => Ty::Bool,
-            // ADR 0096 § 1a's `mixed`: the value is checked as a constant and
+            // `rule:attributes/access-payload`'s `mixed`: the value is checked as a constant and
             // then placed at nothing, which is the whole of what `mixed` asks.
             Self::Mixed => return None,
             Self::Enum(name) => {
@@ -592,7 +592,7 @@ fn resolve_parameters(
                 continue;
             }
             written[index][position] = true;
-            // A value ADR 0046 § 2 has already refused as computed is not then
+            // A value `rule:attributes/payload-is-a-compile-time-constant` has already refused as computed is not then
             // judged against the parameter's type: the author is told about
             // the value they wrote before they are told what it failed to
             // satisfy.

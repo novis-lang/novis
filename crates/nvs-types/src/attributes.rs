@@ -1,4 +1,4 @@
-//! ADR 0046 §§ 1-2's two rules about a `#[...]` payload: every field value is
+//! `rule:attributes/attach-sites-and-forms` and `rule:attributes/payload-is-a-compile-time-constant`'s two rules about a `#[...]` payload: every field value is
 //! a compile-time constant, and the named form's `Name` is a shape-typed
 //! `type` alias the literal is then checked against.
 //!
@@ -62,13 +62,13 @@ pub(crate) fn check_declaration(
             ClassMemberKind::Const(c) => check_groups(&c.attributes, ctx, env),
             ClassMemberKind::Method(m) => {
                 check_groups(&m.attributes, ctx, env);
-                // ADR 0096 § 1a's repeat rule is a question about the list
+                // `rule:attributes/access-payload`'s repeat rule is a question about the list
                 // rather than about one payload, and this is the walk that
                 // holds a method's whole list.
                 crate::routes::check_one_access(&m.attributes, ctx, env);
                 // The markers that mean nothing away from the attribute that
-                // reads them — ADR 0102 § 3's `#[Query]`, ADR 0085 § 2's
-                // `#[Api]`, ADR 0096 § 1's `#[Access]` and ADR 0086 § 6's
+                // reads them — ADR 0102 § 3's `#[Query]`, `rule:attributes/api-adds-and-cannot-contradict`'s
+                // `#[Api]`, `rule:attributes/access-is-a-required-sibling`'s `#[Access]` and ADR 0086 § 6's
                 // `#[Option]`. Asked here because each owning pass walks only
                 // the methods its own attribute selects, so a stray marker is
                 // invisible to the pass that would refuse it, and this is the
@@ -87,7 +87,7 @@ pub(crate) fn check_declaration(
     }
 }
 
-/// Every attribute on one parameter list — ADR 0046 § 1's fourth attach site.
+/// Every attribute on one parameter list — `rule:attributes/attach-sites-and-forms`'s fourth attach site.
 pub(crate) fn check_params(params: &[Param], ctx: &Ctx<'_>, env: &mut Env<'_>) {
     for param in params {
         check_groups(&param.attributes, ctx, env);
@@ -108,7 +108,7 @@ fn check_attribute(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
         constant &= check_value(&field.value, ctx, env);
     }
     let Some(name) = &attr.name else {
-        // ADR 0046 § 1's bare form names no shape to check against, so the
+        // `rule:attributes/attach-sites-and-forms`'s bare form names no shape to check against, so the
         // literal is checked as a well-formed literal and nothing more —
         // which the constant walk above has just done.
         return;
@@ -153,7 +153,7 @@ fn check_attribute(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
             } else if recognized(crate::derive::ROUTE) {
                 check_roster("Route", crate::routes::OPTIONS, &attr.fields, ctx, env);
             } else if recognized(crate::derive::ACCESS) {
-                // Two calls, because ADR 0096 § 1a states two kinds of rule:
+                // Two calls, because `rule:attributes/access-payload` states two kinds of rule:
                 // the roster answers the three questions asked of every
                 // payload, and the pass that owns the attribute answers the
                 // two that are about `#[Access]` alone.
@@ -166,7 +166,7 @@ fn check_attribute(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
                 );
                 crate::routes::check_access(attr, env);
             } else if recognized(crate::derive::API) {
-                // Only the roster here. ADR 0085 § 2's four contradictions are
+                // Only the roster here. `rule:attributes/api-adds-and-cannot-contradict`'s four contradictions are
                 // every one of them a comparison against the *declaration* —
                 // its `#[Route]`, its return type, the classes the program
                 // declares — so they are asked by the per-class walk that
@@ -269,7 +269,7 @@ fn roster_names(options: &[(&str, crate::testing::OptionTy)]) -> String {
         .join(", ")
 }
 
-/// ADR 0046 § 1's named form: `Name` resolves, in the namespace/`use` scope
+/// `rule:attributes/attach-sites-and-forms`'s named form: `Name` resolves, in the namespace/`use` scope
 /// the attribute is written in, to a `type` alias whose expansion is a shape
 /// type.
 ///
@@ -335,7 +335,7 @@ fn report_not_a_shape(name: &Name, what: &str, env: &mut Env<'_>) {
             "this names no shape to check the payload against",
         )
         .with_help(
-            "ADR 0046 § 1: a named attribute instantiates nothing — the name is only ever an \
+            "`rule:attributes/attach-sites-and-forms`: a named attribute instantiates nothing — the name is only ever an \
              existing alias like `type Route = {path: string, method: string};`, and the \
              payload is checked against it. An attribute with no shape to satisfy is written \
              bare, `#[{field: value}]`",
@@ -390,7 +390,7 @@ fn check_value(expr: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>) -> bool {
         )
         .with_primary(expr.span, "this is computed when the program runs")
         .with_help(
-            "ADR 0046 § 2: an attribute payload is a literal, a class constant or an enum \
+            "`rule:attributes/payload-is-a-compile-time-constant`: an attribute payload is a literal, a class constant or an enum \
              case — it lives in the constant pool, so there is no point at which a variable, \
              a call or a `new` could be evaluated",
         ),
@@ -398,7 +398,7 @@ fn check_value(expr: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>) -> bool {
     false
 }
 
-/// The closed list of shapes ADR 0046 § 2 admits. Closed on purpose: an
+/// The closed list of shapes `rule:attributes/payload-is-a-compile-time-constant` admits. Closed on purpose: an
 /// expression kind this does not name is refused, so a shape the grammar
 /// grows is refused until someone decides it belongs in a constant pool,
 /// rather than accepted because nothing said otherwise.
@@ -417,7 +417,7 @@ pub(crate) fn is_constant(expr: &Expr) -> bool {
         // constant, and the only one whose value the compiler resolves rather
         // than reads — `crate::expr::members::check_class_name_const` folds it
         // to the fully qualified name with no runtime step at all. Admitted
-        // because ADR 0085 § 2 writes an `errors` entry's `type` as a name,
+        // because `rule:attributes/api-adds-and-cannot-contradict` writes an `errors` entry's `type` as a name,
         // and a name is either this spelling or a magic string; `rule:programs/no-runtime-autoload`'s
         // whole premise is that a name resolves, so the string form would be
         // the one thing § 2 exists to refuse.

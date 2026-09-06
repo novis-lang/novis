@@ -213,7 +213,7 @@ pub(crate) fn infer_class_const(
 /// [`crate::defaults::eval_const_value`]'s array fold they are the whole of
 /// what is left: another class's constant, an enum case, and `Foo::class` —
 /// written as the value itself or nested inside a container, since neither
-/// position folds. Each is a compile-time constant ADR 0046 § 2 already admits
+/// position folds. Each is a compile-time constant `rule:attributes/payload-is-a-compile-time-constant` already admits
 /// at a *property* default ([`crate::defaults::const_reference_default`]) and
 /// none has a `ConstArg` here, so the refusal is a gap named rather than a
 /// rule: what closes it is that resolver, one position along, which needs the

@@ -1,4 +1,4 @@
-//! ADR 0046 §§ 4-5's retrieval, asserted where it is *decided*: an attached
+//! `rule:attributes/structural-retrieval` and `rule:attributes/retrieval-folds-while-checking`'s retrieval, asserted where it is *decided*: an attached
 //! attribute list is fixed by its source, so `Core\Attributes::get<T>` is
 //! answered while checking and the call is replaced by that answer.
 //!

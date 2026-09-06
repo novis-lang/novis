@@ -24,6 +24,11 @@
       "topic": "statements",
       "title": "Statements",
       "order": 50
+    },
+    {
+      "topic": "attributes",
+      "title": "Attributes",
+      "order": 60
     }
   ]
 }

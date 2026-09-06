@@ -33,7 +33,7 @@ class Handler
 <?nvs
 namespace App;
 
-// A shape-typed `type` alias, which is what ADR 0046 § 1 makes an
+// A shape-typed `type` alias, which is what `rule:attributes/attach-sites-and-forms` makes an
 // attribute's name: the harvest is the same prefix lookup either way, and
 // what it looks a name up *for* is not `rule:programs/no-runtime-autoload`'s question.
 type Audit = {};

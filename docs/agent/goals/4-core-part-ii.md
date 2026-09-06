@@ -173,8 +173,7 @@ M4's, goal 1's, goal 2's and goal 3's whole acceptance lists, **never traded.**
     (`crates/nvs-runtime/src/object.rs:140`) close by carrying the declared type beside
     `field_tags`/`secret_fields` (`:584`). The write calls item 24's shared visibility-and-hook check —
     that is why the order. `$obj->$m()` stays refused, ADR 0014 § 6. Its own file set.
-25. **`Core\Attributes`' retrieval body** — [ADR 0046](../../adr/0046-attributes-shape-literal-metadata.md)
-    §§ 4–6. `get<T>` on a site with zero matches compiles to a constant `null`, one match compiles to that
+25. **`Core\Attributes`' retrieval body** — `rule:attributes/structural-retrieval`, `rule:attributes/retrieval-folds-while-checking` and `rule:attributes/call-site-type-argument`. `get<T>` on a site with zero matches compiles to a constant `null`, one match compiles to that
     constant value **with no runtime lookup**, and more than one is a compile-time diagnostic naming
     `all<T>`. M4 landed the attach grammar and the call-site `<T>`; this is the half that reads.
 26. **`Core\Decimal`, `Core\BigInt`, `Core\BigDecimal`** — the method surface around the `decimal` scalar

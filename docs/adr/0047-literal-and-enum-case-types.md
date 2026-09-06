@@ -56,7 +56,7 @@
   set as loudly and mechanically as any other conversion; priority 2 (semantics) is unaffected — PHP has no
   construct this replaces, so there is nothing to diverge from; priority 4 (simplicity) is why this reuses
   the union/conversion machinery [ADR 0007](0007-explicit-type-system.md) already built rather than adding
-  a fourth mechanism, the same restraint [ADR 0046](0046-attributes-shape-literal-metadata.md) exercised.
+  a fourth mechanism, the same restraint `rule:attributes/inert-metadata` exercised.
 - **Priority 5 (memory):** the whole point of *Decision § 5* is that this spends nothing beyond what the
   base type already spends — a literal or case-subset type is a compile-time refinement, not a new runtime
   representation.
@@ -92,7 +92,7 @@ function setMode("a"|"b"|"c" $mode) { ... }          // after: the set is the ty
 `ClassName::CONST_NAME`, used where a type is expected, resolves at compile time to the constant's own
 value, exactly as long as that value is a `string` or `int` compile-time constant — the same constant-
 folding pass `rule:enums/closed-integer-type` already runs for a case's backing value and
-[ADR 0046](0046-attributes-shape-literal-metadata.md) § 2 already runs for an attribute payload field, given
+`rule:attributes/payload-is-a-compile-time-constant` already runs for an attribute payload field, given
 a third call site here.
 
 ```php
@@ -218,7 +218,7 @@ at run time.
 - Reuses three already-accepted mechanisms — [ADR 0007](0007-explicit-type-system.md)'s union/conversion
   machinery, `rule:enums/closed-integer-type`'s constant-folding pass, and the generalisation of
   `true`/`false` that was already sitting in the grammar unadvertised — rather than adding a fourth kind of
-  thing to the language, the same restraint [ADR 0046](0046-attributes-shape-literal-metadata.md) exercised
+  thing to the language, the same restraint `rule:attributes/inert-metadata` exercised
   for attributes.
 - Explicitly rejecting the wildcard form (*7*) keeps every accepted set visible at its use site, consistent
   with the project's existing "state a fact once, visibly" instinct.
@@ -230,8 +230,7 @@ at run time.
   explanation *Decision § 3* gives, not just a syntax rule.
 - **No `float` literal type** (*7*) — anyone wanting "one of these three floats" still has no first-class
   answer, only a hand-written guard.
-- **`get<T>`-shaped ambiguity has no equivalent safety net here.** Unlike [ADR 0046](0046-attributes-shape-literal-metadata.md)
-  § 5's compile-time ambiguity diagnostic, a literal/case-subset conversion failure is discovered at the
+- **`get<T>`-shaped ambiguity has no equivalent safety net here.** Unlike `rule:attributes/retrieval-folds-while-checking`'s compile-time ambiguity diagnostic, a literal/case-subset conversion failure is discovered at the
   specific call site that runs it, not summarised across every use — acceptable because every failure is
   still a compile-time-checked-or-throws conversion, never a silent wrong answer, but a smaller guarantee
   than that ADR's.
@@ -248,15 +247,15 @@ at run time.
   (`rule:statements/require-is-the-only-inclusion-construct`, [ADR 0045](0045-and-or-xor-keyword-operators-rejected.md)).
   Naming the exact constants or cases (*2*, *3*) gives the same ergonomic win — "reuse an existing group of
   values" — without either problem.
-- **An `#[ExpectedValues(...)]`-style attribute**, now that [ADR 0046](0046-attributes-shape-literal-metadata.md)
-  gives Novis a real attribute mechanism. Rejected: ADR 0046's attributes are inert, retained metadata with no
+- **An `#[ExpectedValues(...)]`-style attribute**, now that `rule:attributes/inert-metadata`
+  gives Novis a real attribute mechanism. Rejected: `rule:attributes/inert-metadata`'s attributes are inert, retained metadata with no
   enforcement of their own — building a real "one of these values" check on top of one would mean writing an
   entirely new compiler-recognised-attribute enforcement pass (checking every assignment/call against a
   payload) that duplicates what the ordinary type checker already does for a declared type, as a second,
   parallel mechanism instead of an extension of the first. It would also lose everything a real type gets
   for free: flow narrowing (*4*'s guard rule), the checked-`as` shape every other conversion already has,
   and static confidence for codegen. Attributes stay reserved for genuinely descriptive metadata that isn't
-  a value constraint at all (routes, DI hints, cache TTLs) — exactly [ADR 0046](0046-attributes-shape-literal-metadata.md)'s
+  a value constraint at all (routes, DI hints, cache TTLs) — exactly `rule:attributes/inert-metadata`'s
   own stated use cases.
 - **Folding an enum case to its backing value for union purposes, matching § 2's constant handling exactly.**
   Rejected in *Decision § 3*: reopens the raw-int-accepted-where-enum-required hole

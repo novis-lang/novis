@@ -735,7 +735,7 @@ fn walk_expr(expr: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
             walk_args(args, src, ctx, env);
             if let MemberName::Ident(name_span) = method {
                 let name = src.span_text(*name_span).unwrap_or_default();
-                // ADR 0046 § 4's class target — `Foo::constructor(...)` — rests
+                // `rule:attributes/structural-retrieval`'s class target — `Foo::constructor(...)` — rests
                 // on ADR 0022 § 2's "every class has one, definitely", so a
                 // *reference* to a constructor no class body writes names the
                 // synthesized one and is not an undefined member.

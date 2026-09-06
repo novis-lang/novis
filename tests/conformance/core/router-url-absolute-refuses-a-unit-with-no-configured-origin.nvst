@@ -14,7 +14,7 @@
 // configured per mount and never derived from a header — so the member has to
 // throw rather than answer something a caller would paste into an email.
 class Posts {
-    // ADR 0096 § 1: `#[Access]` is a required sibling, and
+    // `rule:attributes/access-is-a-required-sibling`: `#[Access]` is a required sibling, and
     // `Core\Audience::Public` is § 1a's case for a route that is genuinely
     // open.
     #[Core\Route(path: "/posts/{id}", method: Core\Http\Method::Get, name: "Posts::show")]

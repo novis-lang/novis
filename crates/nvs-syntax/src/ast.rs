@@ -449,7 +449,7 @@ pub struct AttributeGroup {
     pub span: Span,
 }
 
-/// One attribute inside an [`AttributeGroup`] — ADR 0046 § 1's two forms,
+/// One attribute inside an [`AttributeGroup`] — `rule:attributes/attach-sites-and-forms`'s two forms,
 /// `Name(field: value, ...)` and a bare `{field: value, ...}`.
 ///
 /// Both attach the *same* thing: [ADR 0036](/docs/adr/0036-anonymous-object-shapes.md)

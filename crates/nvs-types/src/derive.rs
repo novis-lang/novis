@@ -25,8 +25,7 @@
 //!
 //! [`ATTRIBUTES`] is that closed list. Nothing else is ever matched by name;
 //! `Core\Attributes::get<T>`/`::all<T>` retrieval stays structural
-//! ([ADR 0046](/docs/adr/0046-attributes-shape-literal-metadata.md)
-//! § 4), and a userland `type Derive = {};` resolves to a different `QName` and
+//! (`rule:attributes/structural-retrieval`), and a userland `type Derive = {};` resolves to a different `QName` and
 //! generates nothing.
 //!
 //! # What the pass produces
@@ -112,8 +111,7 @@ use crate::{Ctx, Env, span_text, strip_sigil};
 /// spelling of a userland name is any of them. Extended, never widened, and
 /// each entry owes its own argued ADR section.
 ///
-/// A name on this roster names no shape, so [`crate::attributes`]'s ADR 0046
-/// § 1 rule does not apply to it and what its payload may hold is the
+/// A name on this roster names no shape, so [`crate::attributes`]'s `rule:attributes/attach-sites-and-forms` rule does not apply to it and what its payload may hold is the
 /// recognizing pass's own question: `#[Json\Derive]`/`#[Json\Field]` are this
 /// module's, `#[Test]` is [`crate::testing`]'s, `#[Command]`/`#[Option]` are
 /// [`crate::commands`]', `#[Route]`/`#[Query]`/`#[Access]` are
@@ -166,7 +164,7 @@ pub const FIXTURE: &str = r"Core\Test\Fixture";
 /// shorter `With` a namespace would allow: `#[TestWith]` is what § 9 writes,
 /// and a file that spells it bare places it with `use Core\Test\TestWith;`.
 ///
-/// It is on this roster rather than being an ADR 0046 § 1 shape alias because
+/// It is on this roster rather than being an `rule:attributes/attach-sites-and-forms` shape alias because
 /// the shape it is checked against is not written anywhere: it is the
 /// *parameter list* of the method it is attached to, which only
 /// [`crate::testing::check_class_tests`] holds. That module owns what a row
@@ -187,7 +185,7 @@ pub const COMMAND: &str = r"Core\Command";
 pub const OPTION: &str = r"Core\Option";
 
 /// `#[Route(path: string, method: Core\Http\Method, name?: string)]` — ADR 0077
-/// § 1's route declaration, on a method, and repeatable (ADR 0046 § 3) so one
+/// § 1's route declaration, on a method, and repeatable (`rule:attributes/repeatable`) so one
 /// method serves two verbs. It names no member of anything — the table is read
 /// back through the separate `Core\Router` class — so a file that spells it
 /// bare places it with `use Core\Route;`, and importing the router instead
@@ -204,7 +202,7 @@ pub const ROUTE: &str = r"Core\Route";
 /// `use Core\Query;`. [`crate::routes`] owns what it means.
 pub const QUERY: &str = r"Core\Query";
 
-/// `#[Access(allow: mixed, csrf?: bool)]` — ADR 0096 § 1's required sibling of
+/// `#[Access(allow: mixed, csrf?: bool)]` — `rule:attributes/access-is-a-required-sibling`'s required sibling of
 /// `#[Route]`, on the same method, and the only name here whose point is to
 /// make an omission visible: § 3 gives it no implicit default, so a route that
 /// is public because its author decided so and one that is public because its
@@ -214,7 +212,7 @@ pub const QUERY: &str = r"Core\Query";
 /// roster cannot state.
 pub const ACCESS: &str = r"Core\Access";
 
-/// `#[Api(tags?, errors?, security?, example?)]` — ADR 0085 § 2's annotation,
+/// `#[Api(tags?, errors?, security?, example?)]` — `rule:attributes/api-adds-and-cannot-contradict`'s annotation,
 /// on a `#[Route]` method, and the only name here that is *purely* additive:
 /// every field supplies something the route table and the signature cannot
 /// say, and none of them changes what the program does. That is why § 2's rule
@@ -1302,7 +1300,7 @@ fn report_field_arg(field: &ObjectLiteralField, why: String, format: Format, env
 }
 
 /// Whether one attribute is the named form spelling `want`. A bare
-/// `#[{...}]` names nothing at all (ADR 0046 § 1), so it is never one of
+/// `#[{...}]` names nothing at all (`rule:attributes/attach-sites-and-forms`), so it is never one of
 /// ADR 0071's two nominal attributes.
 pub(crate) fn attribute_is(attr: &Attribute, want: &str, ctx: &Ctx<'_>, env: &Env<'_>) -> bool {
     attr.name

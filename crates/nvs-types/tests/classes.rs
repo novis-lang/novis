@@ -365,7 +365,7 @@ fn a_try_parse_answers_the_nullable_of_its_class() {
     );
 }
 
-/// ADR 0046 § 2's compile-time constant set — a literal, another class's
+/// `rule:attributes/payload-is-a-compile-time-constant`'s compile-time constant set — a literal, another class's
 /// `const`, an enum case — at a *property* default.
 ///
 /// Written as an **agreement** rather than a row per form: every named

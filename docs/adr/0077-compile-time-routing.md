@@ -8,7 +8,7 @@
   and any rule mapping a return value to a response — § 4 says why none of those is here.
 - **Amends:** [0071](0071-derived-codecs.md) § 1 — `Core\Route` joins the closed, `Core`-owned list of
   **compiler-recognized** attributes; nothing else about it or about
-  [ADR 0046](0046-attributes-shape-literal-metadata.md) changes.
+  `rule:attributes/inert-metadata` changes.
   [0061](0061-compile-time-autoload-and-program-discovery.md) § 3 — the program-wide scan it built for
   `implementing<T>()` gains a second caller, with the identical opt-in rule and the identical cache
   consequence (§ 5 of that ADR).
@@ -49,12 +49,12 @@
   order), a `{id}` placeholder with no corresponding controller argument (a `null` at request time), and a
   reverse-URL call naming a route that was renamed (a broken link in an email, found by a user).
 - **Novis already has the two mechanisms this needs.**
-  [ADR 0046](0046-attributes-shape-literal-metadata.md) gives structured, compile-time-constant metadata on
+  `rule:attributes/inert-metadata` gives structured, compile-time-constant metadata on
   a declaration with no attribute class. `rule:programs/implementing` gives a program-wide enumeration for exactly the question static resolution cannot answer — *what
   exists that nothing names* — with its opt-in rule and its cache-invalidation consequence already argued.
   A route table is that enumeration filtered by an attribute.
 - **The interaction that made this dangerous is already settled.**
-  [ADR 0046](0046-attributes-shape-literal-metadata.md) § 4 makes attribute *retrieval* structural, so a
+  `rule:attributes/structural-retrieval` makes attribute *retrieval* structural, so a
   naive route scan would also match a third-party framework's own `#[Route(path:, method:)]` literals and
   double-register routes it does not own. [ADR 0071](0071-derived-codecs.md) § 1 answered it generally: a
   **compiler-recognized** attribute is matched **nominally**, against a closed `Core`-owned list. This ADR
@@ -85,7 +85,7 @@ class UserController {
 }
 ```
 
-An ordinary [ADR 0046](0046-attributes-shape-literal-metadata.md) `type` alias and an ordinary attachment —
+An ordinary `rule:attributes/inert-metadata` `type` alias and an ordinary attachment —
 nothing about the mechanism is new. What is new is one entry on
 [ADR 0071](0071-derived-codecs.md) § 1's closed list: the compiler acts on the attribute only when its name
 **resolves** to `Core\Route`, so a userland `type Route = {...};` is not it however it is spelled, and a
@@ -95,9 +95,9 @@ goes stale ([0102](0102-a-request-is-matched-once-and-the-route-table-completes-
 
 - **`method` is an enum case** ([ADR 0063](0063-core-api-conventions.md) R11), not a string, and an enum
   case is one of the three things an attribute payload may contain
-  ([ADR 0046](0046-attributes-shape-literal-metadata.md) § 2). `Core\Http\Method` is the same enum
+  (`rule:attributes/payload-is-a-compile-time-constant`). `Core\Http\Method` is the same enum
   `Core\Request::method` returns.
-- **The attribute is repeatable** ([ADR 0046](0046-attributes-shape-literal-metadata.md) § 3), which is how
+- **The attribute is repeatable** (`rule:attributes/repeatable`), which is how
   one method serves two verbs. No `methods: array<Method>` field, no union — the existing rule covers it.
 - **Methods only.** No class-level prefix attribute: a prefix is a framework opinion, it interacts badly
   with inheritance, and it makes a route's path unreadable at the line that declares it.
@@ -337,8 +337,7 @@ without one gets no `route` label rather than a cardinality bomb.
 - **A runtime registry** (`$router->get("/users/{id}", …)`), the PHP status quo. Rejected: it moves all three
   compile-time checks to runtime, needs a generated cache file to be fast, and the registration order
   becomes semantically load-bearing.
-- **Structural attribute matching**, consistent with [ADR 0046](0046-attributes-shape-literal-metadata.md)
-  § 4. Rejected by [ADR 0071](0071-derived-codecs.md) § 1 already: a framework's own `Route`-shaped literal
+- **Structural attribute matching**, consistent with `rule:attributes/structural-retrieval`. Rejected by [ADR 0071](0071-derived-codecs.md) § 1 already: a framework's own `Route`-shaped literal
   would register routes Novis does not own, and the fix after M9 would be a breaking change to attribute
   retrieval.
 - **`:name` placeholders.** Rejected in § 2: `:` is legal inside a path segment, so it needs an escape rule,

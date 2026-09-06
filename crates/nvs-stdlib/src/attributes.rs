@@ -1,5 +1,4 @@
-//! `Core\Attributes` — [ADR 0046](/docs/adr/0046-attributes-shape-literal-metadata.md)
-//! §§ 4-5's structural retrieval, and the one `Core` class whose members never
+//! `Core\Attributes` — `rule:attributes/structural-retrieval` and `rule:attributes/retrieval-folds-while-checking`'s structural retrieval, and the one `Core` class whose members never
 //! run.
 //!
 //! Every other class in this crate registers a signature *and* an
@@ -36,7 +35,7 @@ pub(crate) const NAME: &str = "Core\\Attributes";
 
 /// `T` — the shape a retrieval is asked for, written at the call site.
 /// [`CoreTy::Written`] owns why a variable appearing in no parameter position
-/// has to be supplied there, which is ADR 0046 § 6's whole subject.
+/// has to be supplied there, which is `rule:attributes/call-site-type-argument`'s whole subject.
 const T: CoreTy = CoreTy::Written("T");
 
 /// `$member` — the optional declaration name both members take, carrying
@@ -131,7 +130,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 }
 
 /// The body both rows name, and the one this crate hopes is never entered:
-/// ADR 0046 § 5 resolves a retrieval in `nvs check`, so a call reaching a
+/// `rule:attributes/retrieval-folds-while-checking` resolves a retrieval in `nvs check`, so a call reaching a
 /// helper means `nvs-ir` lowered one it should have replaced.
 extern "C" fn folded_at_compile_time() {
     // Written through the handle rather than with `eprintln!`, which this
@@ -140,7 +139,7 @@ extern "C" fn folded_at_compile_time() {
     // thing a process does before aborting.
     use std::io::Write as _;
     let _ = std::io::stderr().write_all(
-        b"nvs: a `Core\\Attributes` retrieval reached a runtime helper - ADR 0046 \xc2\xa7 5 \
+        b"nvs: a `Core\\Attributes` retrieval reached a runtime helper - `rule:attributes/inert-metadata` \xc2\xa7 5 \
           folds every one of them in `nvs check`, so this is a bug in `nvs-ir`'s lowering \
           rather than in the program\n",
     );

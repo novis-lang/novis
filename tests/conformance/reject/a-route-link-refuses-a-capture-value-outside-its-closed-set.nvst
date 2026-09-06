@@ -10,7 +10,7 @@
 class Docs {
     // § 5's example, plus § 3's `#[Query]`, which declares the same type list a
     // capture does — so it has a closed set for exactly the same reason.
-    // ADR 0096 § 1: the decision is a required sibling of every `#[Route]`.
+    // `rule:attributes/access-is-a-required-sibling`: the decision is a required sibling of every `#[Route]`.
     #[Core\Route(path: "/{lang}/docs/{page}", method: Core\Http\Method::Get, name: "docs.show")]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show("en"|"de"|"fr" $lang, string $page, #[Core\Query] "asc"|"desc" $order): string {

@@ -20,7 +20,7 @@
 //!
 //! **A second reader asks for the value and not the type**, which is why the
 //! fold is one row wider than § 2's own literal types. [`crate::defaults`]
-//! resolves `public bool $on = Config::DEBUG;` through here — ADR 0046 § 2's
+//! resolves `public bool $on = Config::DEBUG;` through here — `rule:attributes/payload-is-a-compile-time-constant`'s
 //! constant set at a property default — and a `bool` or a `float` is as much
 //! a compile-time constant there as an `int` is, while neither is a *literal
 //! type* § 2 could make an annotation out of. So both are folded and both are
@@ -91,8 +91,7 @@ pub enum ConstValue {
 /// sink needs.
 ///
 /// The bit rides here rather than being asked of the constant's type at the
-/// sink, because at the sink there is no resolved name to ask with: ADR 0046
-/// § 2's payload is folded over the written expression, before any class
+/// sink, because at the sink there is no resolved name to ask with: `rule:attributes/payload-is-a-compile-time-constant`'s payload is folded over the written expression, before any class
 /// expression in it has been resolved, so `crate::signatures::ConstSig`'s
 /// declared type — which is where the qualifier lives everywhere else — is
 /// not reachable from there. This walk is keyed by the same resolved name, so

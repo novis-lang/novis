@@ -1,10 +1,10 @@
 --TEST--
-a `#[Test]` payload is checked against ADR 0079 § 1's option shape, so an unknown option, a mistyped one, one given twice and a computed value are each refused where they are written — ADR 0079 § 1, ADR 0046 §§ 1-2
+a `#[Test]` payload is checked against ADR 0079 § 1's option shape, so an unknown option, a mistyped one, one given twice and a computed value are each refused where they are written — ADR 0079 § 1, `rule:attributes/attach-sites-and-forms` and `rule:attributes/payload-is-a-compile-time-constant`
 --FILE--
 <?nvs
 // ADR 0079 § 1: `#[Test]` marks a test method. It is one of ADR 0071 § 1's
-// compiler-recognized attributes, so it names no `type` alias and ADR 0046
-// § 1's shape rule does not apply to it — its payload is checked against the
+// compiler-recognized attributes, so it names no `type` alias and `rule:attributes/attach-sites-and-forms`
+// 's shape rule does not apply to it — its payload is checked against the
 // option shape § 1 writes instead: `{skip?: string, at?: string, seed?: int,
 // db?: string, server?: bool, retries?: int, because?: string}`. Every field
 // is optional, which is why the bare form the ADR's own example writes is
@@ -46,7 +46,7 @@ class Refused {
     #[Test(at: "a", at: "b")]
     public function anOptionGivenTwice(): void {}
 
-    // A value that is not a compile-time constant is ADR 0046 § 2's refusal,
+    // A value that is not a compile-time constant is `rule:attributes/payload-is-a-compile-time-constant`'s refusal,
     // made one step earlier — the author is told about the value they wrote
     // before they are told what it failed to satisfy, so the roster check
     // does not also report it.

@@ -1255,7 +1255,7 @@ impl CoreClass {
 pub const CLASSES: &[CoreClass] = &[
     crate::str::CLASS,
     crate::arr::CLASS,
-    // ADR 0046 §§ 4-5's structural retrieval. Registered like any other class
+    // `rule:attributes/structural-retrieval` and `rule:attributes/retrieval-folds-while-checking`'s structural retrieval. Registered like any other class
     // and implemented by nothing — see [`crate::attributes`].
     crate::attributes::CLASS,
     crate::math::CLASS,
@@ -2158,8 +2158,7 @@ pub struct CaseDoc {
 /// row below has passed, and it is the one [`crate::router::METHOD`] passes
 /// through an *attribute* rather than through a member: ADR 0077 § 1's
 /// `#[Route(method: …)]` is where a program writes a case of it, and
-/// [`crate::router::AUDIENCE`] passes it the same way, through ADR 0096
-/// § 1a's `#[Access(allow: …)]`.
+/// [`crate::router::AUDIENCE`] passes it the same way, through `rule:attributes/access-payload`'s `#[Access(allow: …)]`.
 ///
 /// One line per enum, declared beside the member that takes it — the same
 /// rule [`CLASSES`] follows, for the same reason.

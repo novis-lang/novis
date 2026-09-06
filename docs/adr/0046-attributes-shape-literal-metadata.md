@@ -1,4 +1,4 @@
-# ADR 0046 — Attributes are shape-literal metadata on declarations, retrieved structurally via `Core\Attributes`
+# `rule:attributes/inert-metadata` — Attributes are shape-literal metadata on declarations, retrieved structurally via `Core\Attributes`
 
 - **Status:** Accepted
 - **Date:** 2026-08-22

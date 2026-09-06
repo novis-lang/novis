@@ -1376,7 +1376,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     /// The `name: value, ...` run between an already-consumed opener and the
-    /// `close` its caller is about to expect. Shared with ADR 0046 § 1's
+    /// `close` its caller is about to expect. Shared with `rule:attributes/attach-sites-and-forms`'s
     /// attribute payload, whose named form writes the same run inside
     /// parentheses — one rule about what a field may be, in one place.
     pub(super) fn parse_object_literal_fields(

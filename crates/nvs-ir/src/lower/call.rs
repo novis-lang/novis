@@ -670,7 +670,7 @@ impl<'a> Lowering<'a> {
             ),
             // Handled above, before the constant table: it is a call.
             nvs_types::ConstArg::Built { .. } => unreachable!(),
-            // ADR 0046 § 5's folded retrieval. Both build a value out of
+            // `rule:attributes/retrieval-folds-while-checking`'s folded retrieval. Both build a value out of
             // several, so neither is one instruction and both return early.
             nvs_types::ConstArg::Shape(fields) => {
                 return self.emit_const_shape(fields, env, cur);
@@ -689,7 +689,7 @@ impl<'a> Lowering<'a> {
 
     /// An [ADR 0036](/docs/adr/0036-anonymous-object-shapes.md) § 2
     /// shape value, materialized from a constant rather than from a written
-    /// literal — ADR 0046 § 5's fold is the one producer.
+    /// literal — `rule:attributes/retrieval-folds-while-checking`'s fold is the one producer.
     ///
     /// Deliberately the same synthesized class a written literal of the same
     /// field set gets ([`super::shape_class_label`], keyed on the sorted

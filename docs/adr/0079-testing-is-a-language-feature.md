@@ -996,7 +996,7 @@ compile errors are `reject/a-test-method-is-a-public-void-instance-method.nvst` 
 shapes and the duplicate name, one code because it is one question) and
 `reject/a-test-attribute-payload-is-checked-against-its-option-shape.nvst` (the payload, `skip: true`
 among it, refused by [ADR 0063](0063-core-api-conventions.md) R2's options-bag rule rather
-than by [ADR 0046](0046-attributes-shape-literal-metadata.md) § 1's shape rule, since every option is
+than by `rule:attributes/attach-sites-and-forms`'s shape rule, since every option is
 optional and a bare `#[Test]` is § 1's own example); the unsatisfiable-parameter bullet waits on §§ 8–9's
 two rosters, which is what decides whether a parameter is satisfiable at all. § 4 is
 `core/an-assertion-compares-its-subject-against-its-expectation.nvst`, and two of its bullets are runtime

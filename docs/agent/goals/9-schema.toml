@@ -1172,7 +1172,7 @@ tests = [
   # declared type has already answered keeps `E0482` where it is written.
   "an_array_index_through_a_mixed_base_defers_to_the_tag",
   "an_array_index_through_a_scalar_base_is_still_refused",
-  # Item 23 -- every ADR 0046 § 2 compile-time constant is a legal *property* default, not just a
+  # Item 23 -- every `rule:attributes/payload-is-a-compile-time-constant` compile-time constant is a legal *property* default, not just a
   # literal and `[]`. The parameter half is still a literal only, and `nvs_types::defaults`'s own
   # module doc owns why (the emitter would hand a `ConstArg::Int` to an enum-typed IR position).
   "a_property_default_accepts_every_compile_time_constant",
@@ -1325,7 +1325,7 @@ cases = [
   # ADR 0043 § 4's other half: the forward exists for every member, so a field that cannot answer one
   # of them is refused where the `by` is written rather than at the call.
   "tests/conformance/class/a-delegate-field-must-be-able-to-answer-the-interface.nvst",
-  # ADR 0046 §§ 4-5 match a payload *structurally* rather than by the attribute's name, so the case
+  # `rule:attributes/structural-retrieval` and `rule:attributes/retrieval-folds-while-checking` match a payload *structurally* rather than by the attribute's name, so the case
   # is named for the shape it satisfies; "its own type" was the nominal reading that ADR refuses.
   "tests/conformance/core/an-attribute-is-retrieved-by-the-shape-it-satisfies.nvst",
   # The refusal half of the same rule, and the only place the explicit call-site type argument
@@ -2596,7 +2596,7 @@ stage = "1 floor"
 name = "nvs-types (attribute retrieval folds)"
 args = ["test", "-p", "nvs-types"]
 tests = [
-  # ADR 0046 §§ 4-6 -- zero matches is a constant null, one is a constant WITH NO RUNTIME LOOKUP.
+  # `rule:attributes/structural-retrieval`, `rule:attributes/retrieval-folds-while-checking` and `rule:attributes/call-site-type-argument` -- zero matches is a constant null, one is a constant WITH NO RUNTIME LOOKUP.
   "get_with_no_matching_attribute_folds_to_a_constant_null",
   "get_with_one_match_folds_to_that_constant_with_no_runtime_lookup",
   "get_with_two_matches_is_a_diagnostic_naming_all",

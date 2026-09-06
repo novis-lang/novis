@@ -216,7 +216,7 @@ impl<'a> Lowering<'a> {
                 args,
                 ..
             } => self.lower_method_call(object, *nullsafe, args, expr, env, cur),
-            // ADR 0046 § 5's retrieval is resolved in `nvs check` and recorded
+            // `rule:attributes/retrieval-folds-while-checking`'s retrieval is resolved in `nvs check` and recorded
             // here as an ordinary compile-time constant, so what is lowered is
             // the answer rather than the call — `nvs_stdlib::attributes`
             // registers two symbols whose body aborts precisely so a call that

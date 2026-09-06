@@ -33,7 +33,7 @@
 //!
 //! [`eval_property_default`] evaluates `public int $n = 4;` with exactly the
 //! same literal grammar, plus `= []` and plus the two *named* constants
-//! [ADR 0046](/docs/adr/0046-attributes-shape-literal-metadata.md) § 2
+//! `rule:attributes/payload-is-a-compile-time-constant`
 //! puts in the compile-time constant set beside a literal — another class's
 //! `const` and an enum case ([`const_reference_default`]) — and reports
 //! `E_PROPERTY_DEFAULT_NOT_LITERAL` instead. Where it *goes* is the whole
@@ -197,7 +197,7 @@ pub enum ConstArg {
     /// An [ADR 0036](/docs/adr/0036-anonymous-object-shapes.md) § 2
     /// shape value, its fields in the order they were written.
     ///
-    /// Produced only by [`crate::attributes`], for ADR 0046 § 5's fold: a
+    /// Produced only by [`crate::attributes`], for `rule:attributes/retrieval-folds-while-checking`'s fold: a
     /// retrieval's answer *is* an attached literal, and § 5 replaces the call
     /// with that value rather than looking one up. There is no written
     /// position that reaches this — a shape literal is an expression with a
@@ -257,8 +257,7 @@ pub(crate) fn eval_param_default(
 /// constructor to assign every non-defaulted property, so without it a class
 /// accumulating into an `array<T>` has to write the assignment by hand in
 /// every constructor it declares. And a *named* constant — `Mode::Fast`,
-/// `Limits::MAX` — is folded by [`const_reference_default`], which is ADR 0046
-/// § 2's constant set arriving one position along from the attribute payload
+/// `Limits::MAX` — is folded by [`const_reference_default`], which is `rule:attributes/payload-is-a-compile-time-constant`'s constant set arriving one position along from the attribute payload
 /// it was written for.
 ///
 /// Unlike a parameter default, this constant is never emitted at a *call
@@ -303,7 +302,7 @@ pub(crate) fn eval_property_default(
 }
 
 /// `Mode::Fast` or `Limits::MAX` at a property default — the two *named*
-/// members of ADR 0046 § 2's compile-time constant set, folded to the same
+/// members of `rule:attributes/payload-is-a-compile-time-constant`'s compile-time constant set, folded to the same
 /// [`ConstArg`] a written literal produces.
 ///
 /// Three sources, in the order the name can mean them, and each already
@@ -312,7 +311,7 @@ pub(crate) fn eval_property_default(
 /// `nvs_stdlib::registry::ENUMS`), [`crate::core_lib::constant`] holds a
 /// `Core` class constant as a `ConstArg` already, and [`crate::consts`] holds
 /// every declared class constant this crate folds. Nothing is evaluated here
-/// that was not evaluated there — ADR 0046 § 2's reason for a closed list is
+/// that was not evaluated there — `rule:attributes/payload-is-a-compile-time-constant`'s reason for a closed list is
 /// exactly that a second constant evaluator is what it refuses to grow.
 ///
 /// The declared type still decides, as it does for a literal: a case is
@@ -385,7 +384,7 @@ fn const_reference_default(
 }
 
 /// `Mode::Fast`, `Limits::MAX` or `Foo::class` as the value each already
-/// resolved to elsewhere — ADR 0046 § 2's three *named* constants, folded for
+/// resolved to elsewhere — `rule:attributes/payload-is-a-compile-time-constant`'s three *named* constants, folded for
 /// the § 5 payload that has to compile one in.
 ///
 /// [`const_reference_default`] is the sibling, and which table each reads is
@@ -543,7 +542,7 @@ pub(crate) fn literal_default(
 /// The extra shape is here rather than in [`literal_default`] because the
 /// position is what makes it affordable. A class constant is inlined at its use
 /// sites, exactly as `nvs_ir::lower::emit_const_arg` already materializes
-/// [`ConstArg::Array`] for ADR 0046 § 5's folded retrieval — while a *parameter*
+/// [`ConstArg::Array`] for `rule:attributes/retrieval-folds-while-checking`'s folded retrieval — while a *parameter*
 /// default of `= [1, 2]` would be built afresh at every call site that omitted
 /// it, which is [`ConstArg::EmptyArray`]'s own doc's reason for refusing even
 /// the empty one there.
@@ -558,7 +557,7 @@ pub(crate) fn literal_default(
 ///
 /// `None` for a value with no constant form, which the *read* refuses with
 /// `E0792` — [`crate::expr::members`] owns why that is the position rather than
-/// this one. Two shapes reach it: the named constants of ADR 0046 § 2 that
+/// this one. Two shapes reach it: the named constants of `rule:attributes/payload-is-a-compile-time-constant` that
 /// [`const_reference_default`] resolves one position along and this pass does
 /// not, and a shape-typed constant, whose fields would each need placing
 /// against the declared shape's own.
@@ -591,7 +590,7 @@ pub(crate) fn eval_const_value(
 /// cheap to compute.
 ///
 /// `element` is the declared element type where the position has one, and each
-/// value is placed in it; `None` is the untyped fold ADR 0046 § 5's payload
+/// value is placed in it; `None` is the untyped fold `rule:attributes/retrieval-folds-while-checking`'s payload
 /// takes. A spread is refused rather than expanded: `...$rows` names a binding,
 /// and `...[1, 2]` inside a constant is a shape nothing writes.
 fn fold_const_array(
@@ -631,8 +630,7 @@ fn fold_const_array(
     Some(ConstArg::Array(out))
 }
 
-/// One constant value with **no position to place it in**: the decoder ADR 0046
-/// § 5's payload fold reaches, an attached literal being checked structurally
+/// One constant value with **no position to place it in**: the decoder `rule:attributes/retrieval-folds-while-checking`'s payload fold reaches, an attached literal being checked structurally
 /// rather than declared. Reports nothing — each caller names its own position in
 /// its own diagnostic.
 ///
@@ -647,7 +645,7 @@ fn fold_const_array(
 /// `None` says the caller has none to offer: the declaration folds
 /// ([`eval_const_value`]) run before the pass that would answer, so they hand
 /// `None` and a `Mode::Fast` written there is left to
-/// [`const_reference_default`] one position along. ADR 0046 § 5's payload fold
+/// [`const_reference_default`] one position along. `rule:attributes/retrieval-folds-while-checking`'s payload fold
 /// is the caller that does have one — the attach site's own, never the
 /// retrieval's — and [`fold_const_reference`] is what it buys.
 pub(crate) fn fold_constant_value(
@@ -708,7 +706,7 @@ pub(crate) fn fold_constant_value(
         // `Mode::Fast`, `Limits::MAX` and `Foo::class`, for a caller that
         // carries the scope they were written in. A negated one is not folded:
         // `-Foo::MAX` is a spelling no position admits today, and inventing an
-        // answer here would be the second constant evaluator ADR 0046 § 2
+        // answer here would be the second constant evaluator `rule:attributes/payload-is-a-compile-time-constant`
         // exists to refuse.
         ExprKind::ClassConstAccess { .. } | ExprKind::ClassNameConst { .. } if !negated => {
             fold_const_reference(inner, ctx?, env)

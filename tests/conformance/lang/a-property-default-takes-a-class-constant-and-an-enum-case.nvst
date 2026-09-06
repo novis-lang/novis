@@ -1,8 +1,8 @@
 --TEST--
-A property default takes ADR 0046 § 2's whole compile-time constant set, not only a literal — ADR 0046 § 2, `rule:enums/no-class-machinery`, ADR 0007 § 2
+A property default takes `rule:attributes/payload-is-a-compile-time-constant`'s whole compile-time constant set, not only a literal — `rule:attributes/payload-is-a-compile-time-constant`, `rule:enums/no-class-machinery`, ADR 0007 § 2
 --FILE--
 <?nvs
-// ADR 0046 § 2's constant set is a literal, another class's `const`, or an
+// `rule:attributes/payload-is-a-compile-time-constant`'s constant set is a literal, another class's `const`, or an
 // enum case. `nvs_types::defaults::eval_property_default` folds all three at
 // signature collection, so the slot a fresh instance opens with already holds
 // the constant and no constructor has to write it.

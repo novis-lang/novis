@@ -50,7 +50,7 @@ fn route_src(attributes: &str) -> String {
     )
 }
 
-/// ADR 0096 § 1's decision, supplied for every fixture here that is about
+/// `rule:attributes/access-is-a-required-sibling`'s decision, supplied for every fixture here that is about
 /// something else.
 ///
 /// § 1 makes `#[Access]` a required sibling of `#[Route]`, so without this each
@@ -98,7 +98,7 @@ fn a_route_is_matched_nominally_rather_than_as_a_shape() {
 
 #[test]
 fn the_attribute_repeats_so_one_method_serves_two_verbs() {
-    // § 1: no `methods: array<Method>` field and no union — ADR 0046 § 3's
+    // § 1: no `methods: array<Method>` field and no union — `rule:attributes/repeatable`'s
     // repeatability is what already covers it, so two attributes on one method
     // are two payloads each checked on its own, and two rows of the table.
     // Two *verbs*, because the rows are what § 3's duplicate-route error is
@@ -155,7 +155,7 @@ fn a_path_and_a_name_are_strings_and_each_is_written_once() {
 
 #[test]
 fn a_method_case_is_admitted_at_the_enum_the_roster_names() {
-    // § 1's `method` is an enum case (ADR 0063 R11), which ADR 0046 § 2 admits
+    // § 1's `method` is an enum case (ADR 0063 R11), which `rule:attributes/payload-is-a-compile-time-constant` admits
     // in a payload — so the fixture's own spelling passes the payload walk.
     // `Core\Http\Method` is `nvs_stdlib::router::METHOD`, seeded into the enum
     // table like any other `Core` enum, so the roster row interns to that type
@@ -278,7 +278,7 @@ fn the_collected_table_crosses_on_the_expression_table() {
 
 #[test]
 fn every_route_on_one_method_becomes_a_row_and_they_may_share_a_name() {
-    // ADR 0046 § 3's repetition, read as ADR 0077 § 1 writes it: one method
+    // `rule:attributes/repeatable`'s repetition, read as ADR 0077 § 1 writes it: one method
     // serving three verbs declares three routes rather than one. ADR 0110 § 1
     // then lets them carry the same `name`, because they carry the same path
     // and `url()` therefore has one answer to give.
@@ -297,7 +297,7 @@ fn every_route_on_one_method_becomes_a_row_and_they_may_share_a_name() {
     let verbs: Vec<&str> = table.rows().iter().map(|row| row.verb.as_str()).collect();
     assert_eq!(verbs, ["Post", "Put", "Delete"]);
 
-    // Every row is the same method's, and every one carries ADR 0096 § 1's
+    // Every row is the same method's, and every one carries `rule:attributes/access-is-a-required-sibling`'s
     // decision: the sibling `#[Access]` is asked once and answers for all of
     // them, which is why one attribute covering three routes is not a hole.
     for row in table.rows() {
@@ -812,7 +812,7 @@ fn a_url_key_that_is_neither_a_capture_nor_a_query_parameter_is_a_diagnostic() {
     );
 }
 
-/// ADR 0096 § 1's own pairing with a payload left to vary: the attribute on the
+/// `rule:attributes/access-is-a-required-sibling`'s own pairing with a payload left to vary: the attribute on the
 /// same method as the `#[Route]` it is the sibling of, over an unsafe verb so
 /// that § 4's `csrf` opt-out has something to opt out of.
 ///
@@ -907,7 +907,7 @@ fn csrf_false_on_a_route_whose_every_verb_is_safe_does_not_compile() {
 
 #[test]
 fn a_second_access_on_one_method_is_refused_naming_both() {
-    // § 1a's last rule, over ADR 0046 § 3's general repeatability: two
+    // § 1a's last rule, over `rule:attributes/repeatable`'s general repeatability: two
     // decisions are two readings — every one of them, or any one of them — and
     // the compiler refuses to pick one silently.
     let two = |members: &str| {
@@ -921,7 +921,7 @@ fn a_second_access_on_one_method_is_refused_naming_both() {
     assert!(reported(&diags, code::E_ACCESS_REPEATED), "{diags:?}");
     assert_eq!(diags.error_count(), 1, "{diags:?}");
 
-    // ADR 0046 § 1's group form is the same two attributes written with one
+    // `rule:attributes/attach-sites-and-forms`'s group form is the same two attributes written with one
     // pair of brackets, so the rule is read off the flattened list rather than
     // off the groups.
     let diags = check_src(&two(
@@ -1014,7 +1014,7 @@ fn the_access_decision_rides_on_the_row_as_the_name_it_resolves_to() {
 
 #[test]
 fn an_empty_decision_is_refused_wherever_the_attribute_is_written() {
-    // The payload walk is ADR 0046 § 1's per-attach-site one, so an `#[Access]`
+    // The payload walk is `rule:attributes/attach-sites-and-forms`'s per-attach-site one, so an `#[Access]`
     // declaring nothing is refused with no `#[Route]` in front of it. The two
     // halves of § 1 are separable that way round: this is the attribute failing
     // on its own terms, not a route missing its sibling.

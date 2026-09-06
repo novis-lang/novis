@@ -4057,7 +4057,7 @@ is why" — is this file.
   Before adding a refusal, `grep -rl` the corpus for the *feature* it refuses — a case written for
   the permissive half of a two-half rule is invisible to the crate's own test run.
 - **A new compiler rule that every existing fixture violates is one test-helper edit and a handful of
-  line numbers, not N rewrites.** ADR 0096 § 1's "a `#[Route]` without an `#[Access]` does not compile"
+  line numbers, not N rewrites.** `rule:attributes/access-is-a-required-sibling`'s "a `#[Route]` without an `#[Access]` does not compile"
   turned 19 of `crates/nvs-types/tests/routes.rs`' tests red at once, and the fixtures are all built by
   one `route_src` helper — so the decision is supplied there (`with_access`, which inserts the attribute
   ahead of every `public function`), and only the handful of tests that build a source inline had to be
@@ -4167,8 +4167,7 @@ is why" — is this file.
   would land as two backslashes and match nothing. Echo the message (or `Core\Str::slice` of its
   opening, when the message carries a 64-segment path) and let the expectation hold the stem.
 - **`Core\Attributes` retrieval reads a *recognized* attribute's payload, so `#[Core\Command]` and
-  `#[Core\Option]` are readable from a program even though the table itself is nominal.** ADR 0046
-  §§ 4-5's retrieval is structural and does not care that a name is on `nvs_types::derive::ATTRIBUTES`:
+  `#[Core\Option]` are readable from a program even though the table itself is nominal.** `rule:attributes/structural-retrieval` and `rule:attributes/retrieval-folds-while-checking`'s retrieval is structural and does not care that a name is on `nvs_types::derive::ATTRIBUTES`:
   `Core\Attributes::get<{name: string, about: string}>(Deploy::deploy(...))` answers a `#[Core\Command]`'s
   payload, and `get<{about: string}>(Deploy::deploy(...), "dryRun")` answers that parameter's
   `#[Core\Option]`. Two limits come with it, found the same way. `get<T>` answers only the **first** of
@@ -5025,7 +5024,7 @@ is why" — is this file.
 - **A green conformance case can be pinning the *absence* of a rule its own ADR requires, and it
   reads as coverage rather than as a gap.** `an-attribute-is-retrieved-by-the-shape-it-satisfies.nvst`
   asserted `param=none` for `Core\Attributes::get<T>(Controller::show(...), "repo")` — a literal
-  member name naming no parameter — while ADR 0046 § 4's last paragraph says a *written* `$member`
+  member name naming no parameter — while `rule:attributes/structural-retrieval`'s last paragraph says a *written* `$member`
   is validated against the target's real declarations at the call site. The case was not wrong about
   the compiler; it was pinning what the compiler did before anyone implemented the paragraph, so
   landing the rule turned a passing case red and the case was the thing to change. Before writing a
@@ -6465,7 +6464,7 @@ sibling in the same namespace unqualified.
   the Novis shape is `enum Mode { Read = 1, Write = 2 }` — bare names, commas, no `case`
   keyword — and the backing type is `enum Mask: uint { … }`, which is the only way to reach
   `EnumRepr::Uint` since a case past `int` is `E0437` under the default backing.
-  `public Rank $rank = Rank::Silver;` **does** compile — a property default takes ADR 0046 § 2's
+  `public Rank $rank = Rank::Silver;` **does** compile — a property default takes `rule:attributes/payload-is-a-compile-time-constant`'s
   whole constant set, an enum case and another class's `const` included
   (`nvs_types::defaults::const_reference_default`) — but a *parameter* default still takes a
   literal only, so `function m(Rank $r = Rank::Silver)` is `E0451`.
@@ -6715,7 +6714,7 @@ sibling in the same namespace unqualified.
   Limits::MAX;` is `E0401` and a payload field holding one satisfies no shape declaring a scalar.
   A `.nvst` that wants a constant in a typed position writes the literal, or an enum case, which
   does carry its type.
-- **An attribute's name was already load-bearing for two other passes before ADR 0046 § 1 got to
+- **An attribute's name was already load-bearing for two other passes before `rule:attributes/attach-sites-and-forms` got to
   say what it means.** ADR 0071 § 1 matches `#[Json\Derive]`/`#[Json\Field]` *nominally* against a
   closed `Core`-owned roster, and `rule:programs/autoload` harvests every attribute name as a reference the
   autoloader then places by prefix. So a rule about what an attribute name may resolve to has to
@@ -6820,7 +6819,7 @@ sibling in the same namespace unqualified.
   is `E0303: 'App\Core\Command' is not declared`, which names the joined path rather than the missing
   backslash. The top-level fixtures never show this because they are in the global namespace, so it
   first bites on the *autoloaded* half of a two-file example.
-- **A `Core` attribute name cannot be an ADR 0046 § 1 shape alias, because there is no `Core`-seeded
+- **A `Core` attribute name cannot be an `rule:attributes/attach-sites-and-forms` shape alias, because there is no `Core`-seeded
   alias table.** `nvs_hir::AliasTable` is collected from source `type` declarations and from nothing
   else (`crates/nvs-hir/src/aliases.rs:92`), so `Core\Command` reaches
   `nvs_types::attributes::resolve_shape_alias` with no entry, `qname.is_core()` says it is declared,
