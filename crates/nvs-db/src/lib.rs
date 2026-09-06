@@ -160,6 +160,7 @@
 //! unit test that needs neither socket nor certificate is the one that keeps
 //! failing usefully when the servers are down.
 
+pub mod catalog;
 pub mod conn;
 pub mod ddl;
 pub mod maria;
@@ -180,6 +181,10 @@ pub use conn::{
 pub use maria::MariaTarget;
 pub use mysql::{MySqlDate, MySqlRow, MySqlRows, MySqlScalar, MySqlTarget, MySqlTime};
 pub use pg::{CancelKey, PgColumn, PgDate, PgRow, PgRows, PgScalar, PgTarget, PgTime, encode};
+// `catalog::Read` is deliberately not re-exported here either, and for the
+// neighbouring reason: a bare `Read` at the crate root reads as `std::io`'s
+// trait rather than as one of ADR 0145 § 4's two introspection queries. It is
+// `catalog::Read`, where the module name says which question it answers.
 // `schema::Column` is deliberately not re-exported here: `PgColumn` and
 // `SqliteColumn` beside it are *result* columns, and one bare `Column` at the
 // crate root would read as the third of those rather than as a line of a

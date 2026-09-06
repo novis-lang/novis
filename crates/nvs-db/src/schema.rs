@@ -43,10 +43,14 @@
 //!
 //! # Known gaps
 //!
-//! 1. **No introspectors.** § 4's five catalog readers are the next thing, and
-//!    they are sans-io like everything else here. § 8's four emitters have
-//!    landed beside this module, in [`crate::ddl`], keyed on `Dialect` rather
-//!    than on a driver.
+//! 1. **The reverse direction reads but does not yet assemble.** § 4's catalog
+//!    queries have landed in [`crate::catalog`] — two reads, one row shape
+//!    each, keyed on `Dialect` — and nothing yet turns those rows back into a
+//!    [`Schema`]. The half that is missing is per dialect and is the reverse of
+//!    [`crate::ddl::column_type`]: [`ScalarType::from_spelling`] reads this
+//!    vocabulary's canonical names and a catalog answers the server's. § 8's
+//!    four emitters have landed beside this module, in [`crate::ddl`], keyed on
+//!    `Dialect` rather than on a driver.
 //! 2. **§ 11's exclusions are not represented and must not be added casually.**
 //!    Foreign keys, partial and expression indexes, index types, collations,
 //!    check constraints and the rest are out of v1 because they have no portable
