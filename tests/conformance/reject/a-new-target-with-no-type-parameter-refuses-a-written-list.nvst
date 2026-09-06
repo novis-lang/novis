@@ -1,5 +1,5 @@
 --TEST--
-a `<T>` written between a `new` target and its `(` is refused on a user-declared class — ADR 0007 §§ 1, 3
+a `<T>` written between a `new` target and its `(` is refused on a user-declared class — `rule:types/declaration` and `rule:types/grammar`
 --FILE--
 <?nvs
 // The grammar reads the list here exactly as it does at a call site, so this

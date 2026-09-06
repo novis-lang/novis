@@ -1,5 +1,5 @@
 --TEST--
-An operator answers the same for one value whether its static type names the row or only its runtime tag does (ADR 0007 §§ 2, 4, `rule:expressions/equality-semantics`)
+An operator answers the same for one value whether its static type names the row or only its runtime tag does (`rule:types/conversion` and `rule:types/arithmetic`, `rule:expressions/equality-semantics`)
 --FILE--
 <?nvs
 // Five catch-all rosters claim this between them: `emit_binop`'s
@@ -9,7 +9,7 @@ An operator answers the same for one value whether its static type names the row
 // crate up, by the `Helper::ValueAdd`, `ValueLt`, `ValueNeg`, `Identical` and
 // `TaggedToString` families rather than from a representation neither side
 // has. That claim is testable only as an *agreement*: every row below asks
-// one question twice, once where the static type names ADR 0007 § 4's row and
+// one question twice, once where the static type names `rule:types/arithmetic`'s row and
 // once through a `mixed` holding the same value, and asserts the two answers
 // are equal rather than asserting what either one printed. A family that grew
 // its own second answer fails here while still looking right on its own line.

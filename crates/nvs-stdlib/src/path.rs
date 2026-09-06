@@ -4,7 +4,7 @@
 //! That section is authoritative for every signature. **No member touches the
 //! disk**, so this module has no dependency at all — not `std::path`, whose
 //! `Path`/`PathBuf` are a *host* abstraction that resolves differently on each
-//! target and would drag `OsStr`'s non-UTF-8 question into a type ADR 0009
+//! target and would drag `OsStr`'s non-UTF-8 question into a type `rule:types/bytes`
 //! guarantees is text. Everything here is `&str` arithmetic.
 //!
 //! # One grammar on every platform
@@ -615,7 +615,7 @@ fn relative(components: &[&str]) -> String {
 
 /// One `string` argument as text, with `crate::str`'s `text` as the shape —
 /// including its one failure, since the tag [`Value::as_text`] checks is
-/// itself ADR 0009's UTF-8 guarantee.
+/// itself `rule:types/bytes`'s UTF-8 guarantee.
 fn text<'a>(value: &'a Value, member: &str, position: &str) -> Result<&'a str, Fault> {
     value.as_text().ok_or_else(|| {
         Fault::fatal(format!(

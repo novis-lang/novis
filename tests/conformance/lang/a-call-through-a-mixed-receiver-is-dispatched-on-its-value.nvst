@@ -1,8 +1,8 @@
 --TEST--
-A method call on a `mixed` receiver is dispatched on the value, and every question a checker would have answered is a catchable throw (ADR 0036 § 4, ADR 0007 § 2)
+A method call on a `mixed` receiver is dispatched on the value, and every question a checker would have answered is a catchable throw (`rule:types/erased-member-access`, `rule:types/conversion`)
 --FILE--
 <?nvs
-// ADR 0007 § 2 makes `mixed` the one unchecked position, so ADR 0036 § 4's
+// `rule:types/conversion` makes `mixed` the one unchecked position, so `rule:types/erased-member-access`'s
 // deferral covers a call as well as a property access: which class is behind
 // the handle, and whether there is one at all, is answered when the call runs
 // — from the receiver's own descriptor, whose method row carries the callee's
@@ -42,7 +42,7 @@ echo $m->none(), "\n";
 array<int> $pair = [8, 34];
 echo $m->sum(...$pair) as string, "\n";
 
-// ADR 0007 § 2's one implicit conversion is the same one a written `as float`
+// `rule:types/conversion`'s one implicit conversion is the same one a written `as float`
 // takes: `check_param_tags` is one implementation, shared with `callable`.
 echo $m->widen(3), "\n";
 

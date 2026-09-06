@@ -431,7 +431,7 @@ priority 2 rather than a simplification. The cost is one more constant that ever
 handles by comparing against `OK`, and one `i64` per request. The frame's locals are still released,
 because `exit` lowers to an ordinary helper call carrying `rule:errors/propagation`'s error edge. `exit("message")` is PHP's
 other spelling of the same construct: the message is written and the status is `0`; anything that is
-neither an `int` nor a `string` is a type mismatch at the operand, since ADR 0007 § 2 has no implicit
+neither an `int` nor a `string` is a type mismatch at the operand, since `rule:types/conversion` has no implicit
 conversion to offer there.
 
 **SIMD is a dependency's job, and the JIT emits scalar code.** No `target-cpu` flag is set anywhere, on any

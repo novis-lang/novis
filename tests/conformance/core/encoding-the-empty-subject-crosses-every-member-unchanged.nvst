@@ -1,5 +1,5 @@
 --TEST--
-`Core\Encoding`'s eleven members all answer the empty subject with the empty answer rather than refusing it, counted across the whole class, and the one-octet buffer is where each spelling's padding is widest — spec § 7, ADR 0009 §§ 1 and 3
+`Core\Encoding`'s eleven members all answer the empty subject with the empty answer rather than refusing it, counted across the whole class, and the one-octet buffer is where each spelling's padding is widest — spec § 7, `rule:types/bytes` and `rule:types/conversion`
 --FILE--
 <?nvs
 // The degenerate subject, asked of the whole class at once. Nothing here is a
@@ -10,7 +10,7 @@
 // The assertion is a count over the members, not a line per member.
 final class Empty {
     // The four encoders, each over the buffer with no octets. `as bytes` is
-    // total (ADR 0009 § 3), so the empty `string` is the empty buffer.
+    // total (`rule:types/conversion`), so the empty `string` is the empty buffer.
     public static function encodersAnswerEmpty(): int {
         bytes $none = "" as bytes;
         int $answered = 0;

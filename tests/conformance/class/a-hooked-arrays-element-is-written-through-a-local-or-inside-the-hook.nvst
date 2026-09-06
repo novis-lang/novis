@@ -1,5 +1,5 @@
 --TEST--
-the two element writes a hooked array property does allow: through a local read back and assigned in, and inside the property's own hook where `$this->p` is the backing slot — ADR 0014 § 1, ADR 0007 § 5
+the two element writes a hooked array property does allow: through a local read back and assigned in, and inside the property's own hook where `$this->p` is the backing slot — ADR 0014 § 1, `rule:types/arrays`
 --FILE--
 <?nvs
 // The refusal an element write through a hook takes (E0478) has exactly two
@@ -26,7 +26,7 @@ array<string> $start = ["a", "b"];
 var $b = new Box($start);
 echo Core\Json::encode($b->rows), "\n";
 
-// The read is a copy (ADR 0007 § 5), so writing the local does not touch the
+// The read is a copy (`rule:types/arrays`), so writing the local does not touch the
 // property until the assignment back does — and that assignment runs `set`,
 // which stamps element 0 again.
 array<string> $local = $b->rows;

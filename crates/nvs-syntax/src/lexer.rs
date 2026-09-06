@@ -547,8 +547,7 @@ impl<'a> Lexer<'a> {
         self.push(kind, span);
     }
 
-    /// A numeric literal, and — [ADR 0070](/docs/adr/0070-duration-literals.md)
-    /// § 1 — the duration literal that shares its opening digits.
+    /// A numeric literal, and — `rule:types/duration-literal` — the duration literal that shares its opening digits.
     ///
     /// A duration is reached only from a **plain decimal** integer: the
     /// `0x`/`0o`/`0b` forms return before this point, so `0x1d` stays one hex
@@ -669,7 +668,7 @@ impl<'a> Lexer<'a> {
 
         // A fractional count needs no rule of its own: the candidate is sliced
         // from the number's first byte, so `1.5s` reaches `duration::parse`
-        // with its `.` intact and ADR 0070 § 1's refusal is the grammar's.
+        // with its `.` intact and `rule:types/duration-literal`'s refusal is the grammar's.
         let span = self.mk_span(start, end);
         self.pos = end;
         match duration::parse(candidate) {
@@ -1543,7 +1542,7 @@ mod tests {
 
     #[test]
     fn decimal_is_a_keyword() {
-        // ADR 0054 § 1: `decimal` is a scalar type, so it reserves a word the
+        // `rule:types/decimal`: `decimal` is a scalar type, so it reserves a word the
         // same way `uint` and `bytes` above do.
         assert_eq!(
             kinds_ok("<?nvs decimal"),
@@ -1553,8 +1552,8 @@ mod tests {
 
     #[test]
     fn a_trailing_m_is_not_a_decimal_literal_suffix() {
-        // ADR 0054 § 2 and its *Alternatives rejected*: Novis has no literal
-        // suffix at all, so `19.99m` is not one decimal token. ADR 0070 § 1
+        // `rule:types/numeric-literal-placement` and its *Alternatives rejected*: Novis has no literal
+        // suffix at all, so `19.99m` is not one decimal token. `rule:types/duration-literal`
         // decides which *kind* of refusal it gets: a duration is recognised
         // only after a plain decimal integer, and a fractional count is that
         // ADR's own named lexer error (`1.5s`, its § 4), so `19.99m` is
@@ -1630,7 +1629,7 @@ mod tests {
         );
     }
 
-    /// ADR 0070 § 1: one token per literal, maximal munch, and the units in
+    /// `rule:types/duration-literal`: one token per literal, maximal munch, and the units in
     /// descending order.
     #[test]
     fn duration_literal_shapes() {
@@ -1648,7 +1647,7 @@ mod tests {
         );
     }
 
-    /// The two shapes ADR 0070 § 1 protects: `0x1d` stays one hex literal
+    /// The two shapes `rule:types/duration-literal` protects: `0x1d` stays one hex literal
     /// because the `0x` form returns before the duration production is
     /// reached, and `3 d` is two tokens because whitespace ends the candidate.
     #[test]
@@ -1673,7 +1672,7 @@ mod tests {
         );
     }
 
-    /// Each of ADR 0070 § 1's five refusals reaches the lexer, and each
+    /// Each of `rule:types/duration-literal`'s five refusals reaches the lexer, and each
     /// produces one error rather than a cascade — the grammar itself is tested
     /// in [`crate::duration`], so what this holds is that the lexer *reaches*
     /// it.
@@ -1692,7 +1691,7 @@ mod tests {
         }
     }
 
-    /// ADR 0070 § 1 keeps the sign out of the literal, so the parser never has
+    /// `rule:types/duration-literal` keeps the sign out of the literal, so the parser never has
     /// to decide whether the `-` in `$a -7d` is binary — it is always its own
     /// token, and `nvs_types` refuses the arithmetic that results.
     #[test]

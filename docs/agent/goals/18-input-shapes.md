@@ -37,7 +37,7 @@ or a class carrying a `Codec`, field by field, using the language's own `as` ope
 `uint` field is the `string → uint` row, so `"42abc"` and `""` throw exactly where `as` throws, and a `?T`
 field gets `as ?T` (`rule:expressions/nullable-conversion`) and answers `null` where
 `as T` would have thrown. Nothing new enters the conversion table. A key the shape does not name is
-ignored (ADR 0036 § 3's width subtyping, unchanged); a required key that is absent, and a value that
+ignored (`rule:types/shape-type`'s width subtyping, unchanged); a required key that is absent, and a value that
 does not convert, are failures — and **every failure of one call is collected into one `ParseError`**,
 each named by its dotted path, which is the shape [ADR 0071](../../adr/0071-derived-codecs.md)'s derived
 hydration already throws. `Core\Request::postAs<T>({name?: string}): T` and `queryAs<T>` are that member
@@ -71,14 +71,14 @@ is already in the file being edited.
    reads as a promise.
 3. **Assignability learns the bit** — `is_assignable` (`crates/nvs-types/src/expr/assign.rs`): a source
    missing an *optional* field satisfies the shape, missing a *required* one does not, and a source with
-   extra fields still satisfies. That last clause is ADR 0036 § 3 unchanged and is restated here only
+   extra fields still satisfies. That last clause is `rule:types/shape-type` unchanged and is restated here only
    because this goal is where someone will be tempted to change it.
 
 ## Stage 3 — the converter
 
 `Core\Arr::shapeAs<T>` in `crates/nvs-stdlib/src/arr.rs`, the five edits, plus:
 
-1. **The type-argument door gains its third member.** ADR 0007 § 5's list — a call site may write the type
+1. **The type-argument door gains its third member.** `rule:types/arrays`'s list — a call site may write the type
    argument for a compiler-owned member that declares one it cannot infer — is `Json::decodeAs<T>` and
    `Db::queryAs<T>` today; the ADR's own sentence is amended to name three. `crates/nvs-types/src/expr/args.rs`
    is where a written argument is bound.
@@ -118,8 +118,8 @@ required key names the key, and a shape whose `tainted` promises nothing is refu
 - **There is no shaped `array<T>`, and this goal does not add one.** Making every array key access
   shape-checked was the user's opening question and it is rejected on the merits: `array<T>` is
   homogeneous, invariant, and carries one interned type descriptor per header
-  ([ADR 0007](../../adr/0007-explicit-type-system.md)), so a per-key-typed array is a second array type
-  family with its own descriptor, variance and `Core\Arr` signature story — and ADR 0036 already explored
+  (`rule:types/declaration`), so a per-key-typed array is a second array type
+  family with its own descriptor, variance and `Core\Arr` signature story — and `rule:types/object-top` already explored
   a general structural record type and rejected it as more machinery than the need justifies. Converting
   at the boundary is strictly the safer half of that trade anyway: it checks the data where it arrives and
   where a `400` is still the right answer, and after it nothing downstream is holding a `mixed` to check.
@@ -134,10 +134,10 @@ required key names the key, and a shape whose `tainted` promises nothing is refu
   are all tainted and silent about it), and the first one that did would make every other member's name
   read as a claim it is not making.
 - **A conversion is `as` and only `as`.** No coercion table is written for this member. If a row is
-  missing, the fix is ADR 0007 § 2's table, where every other conversion in the language already reads.
+  missing, the fix is `rule:types/conversion`'s table, where every other conversion in the language already reads.
 - **This goal may open [ADR 0140] and no other new number.** Everything else is an amendment folded into
-  the existing body: ADR 0036 § 3 (the optional marker, and the two spellings it distinguishes), ADR 0024
-  § 1 (the qualifier grammar), ADR 0007 § 5 (the third member at the type-argument door), ADR 0063 R15's
+  the existing body: `rule:types/shape-type` (the optional marker, and the two spellings it distinguishes), ADR 0024
+  § 1 (the qualifier grammar), `rule:types/arrays` (the third member at the type-argument door), ADR 0063 R15's
   worked list, and spec §§ 6 and 15's rosters.
 - **Goal 16's `json(): tainted mixed` is settled here, not there.** ADR 0024 § 1's grammar admits that
   spelling no more than it admits `tainted {…}`, so stage 2 either widens to cover `mixed` as well or

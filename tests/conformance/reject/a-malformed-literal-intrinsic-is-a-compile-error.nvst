@@ -39,7 +39,7 @@ var $foldedText = Core\Str::format("total: %q", 42);
 var $runtimeText = Core\Str::format($badTemplate, 42);
 
 // `Core\Time\Duration::parse`, argument 0 — units that do not descend. The
-// parser is ADR 0070 § 5's one implementation, shared with the lexer, so this
+// parser is `rule:types/duration-literal`'s one implementation, shared with the lexer, so this
 // is the same sentence the literal `30m1h` gets.
 var $badDuration = "30m1h";
 var $foldedDuration = Core\Time\Duration::parse("30m1h");

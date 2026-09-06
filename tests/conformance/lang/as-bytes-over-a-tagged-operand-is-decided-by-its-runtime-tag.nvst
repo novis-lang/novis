@@ -1,9 +1,9 @@
 --TEST--
-An operand whose static type names no conversion row takes `as bytes` from its runtime tag, and `as ?bytes` answers `null` on exactly the rows that throw — ADR 0007 §§ 2 and 6, ADR 0009 § 3, `rule:expressions/nullable-conversion`
+An operand whose static type names no conversion row takes `as bytes` from its runtime tag, and `as ?bytes` answers `null` on exactly the rows that throw — `rule:types/conversion` and `rule:types/unions-and-mixed`, `rule:types/conversion`, `rule:expressions/nullable-conversion`
 --FILE--
 <?nvs
 class Render {
-    // ADR 0007 § 2's checked spelling: it "either produces a value of the
+    // `rule:types/conversion`'s checked spelling: it "either produces a value of the
     // target type or throws", and § 2's table produces a `bytes` from a
     // `string` and from nothing else.
     public static function checked(mixed $m): string {
@@ -26,9 +26,9 @@ class Render {
     }
 }
 
-// ADR 0009 § 3's row is the operand's *tag*'s here, not its declared type's:
+// `rule:types/conversion`'s row is the operand's *tag*'s here, not its declared type's:
 // a `string` and a `bytes` are one allocation under two tags, and every other
-// tag has no row at all. `null` is among them — ADR 0007 § 2 gives it a
+// tag has no row at all. `null` is among them — `rule:types/conversion` gives it a
 // `string` form and no `bytes` one.
 array<mixed> $probes = ["nvs", "λ" as bytes, 42, 1.5, true, null, ["a"]];
 int $agreed = 0;

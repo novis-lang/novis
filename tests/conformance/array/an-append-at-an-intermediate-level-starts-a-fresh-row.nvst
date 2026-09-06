@@ -1,5 +1,5 @@
 --TEST--
-an append at an intermediate level of a write target starts a fresh row and writes into it, at every depth and under every holder — ADR 0007 § 5
+an append at an intermediate level of a write target starts a fresh row and writes into it, at every depth and under every holder — `rule:types/arrays`
 --FILE--
 <?nvs
 // `$g[][0] = 1;` is PHP's "start a fresh row and write into it". The level

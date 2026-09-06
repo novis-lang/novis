@@ -1,8 +1,8 @@
 --TEST--
-`-` and `~` over an operand whose static type names no row are answered from its runtime tag, ADR 0007 §§ 2 and 4
+`-` and `~` over an operand whose static type names no row are answered from its runtime tag, `rule:types/conversion` and `rule:types/arithmetic`
 --FILE--
 <?nvs
-// ADR 0007 § 4's unary rows, chosen from the operand's tag because a `mixed`
+// `rule:types/arithmetic`'s unary rows, chosen from the operand's tag because a `mixed`
 // names none of them where the operator is written. `nvs_ir::Helper::ValueNeg`
 // is the pair's home.
 mixed $i = 5;

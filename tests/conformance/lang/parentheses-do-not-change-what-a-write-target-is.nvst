@@ -1,5 +1,5 @@
 --TEST--
-Parentheses group and never change what an expression is, so a parenthesized local is still the holder an element write is written back into — ADR 0007 § 5
+Parentheses group and never change what an expression is, so a parenthesized local is still the holder an element write is written back into — `rule:types/arrays`
 --FILE--
 <?nvs
 // `nvs_syntax::ast::Expr::unparenthesized` is the one home for "parentheses

@@ -186,7 +186,7 @@ nvs_runtime::nvs_helper! {
 /// How to name what a `through` closure answered, or `None` where it answered
 /// the carrier this member is declared to hand back.
 ///
-/// A `callable` is opaque as to signature ([ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md)),
+/// A `callable` is opaque as to signature (`rule:types/closure-literal`),
 /// so nothing static stands between `{through:}` and this check — which is why
 /// it asks about the **class** and not merely about objecthood. Answering a
 /// foreign object used to be accepted here, and the member's registered

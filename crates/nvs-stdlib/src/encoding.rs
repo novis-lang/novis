@@ -1,6 +1,6 @@
 //! `Core\Encoding` — docs/spec/01-core-library.md § 7, the members that sit
 //! exactly on the `bytes`↔`string` boundary
-//! ([ADR 0009](/docs/adr/0009-string-and-bytes.md)).
+//! (`rule:types/bytes`).
 //!
 //! Everything this class does is a *representation* change: the same
 //! information, spelled as text a person or a protocol can carry, or spelled
@@ -33,7 +33,7 @@
 //!   differ over `0x80`-`0x9f`, where windows-1252 has typographic characters
 //!   and ISO-8859-1 has the C1 controls. Reading `Charset::Latin1` as
 //!   windows-1252 would answer a *different* string, which is the substitution
-//!   [ADR 0009](/docs/adr/0009-string-and-bytes.md) § 3 removes
+//!   `rule:types/conversion` removes
 //!   from the language. `Ascii` has a second reason: § 7's own table gives
 //!   `isValidText` as the replacement for `mb_check_encoding`, and
 //!   `mb_check_encoding($s, "ASCII")` is the commonest call of it — folded
@@ -58,7 +58,7 @@
 //!
 //! `decodeText` refuses a malformed sequence rather than emitting U+FFFD, and
 //! `encodeText` refuses a character the charset cannot spell rather than
-//! emitting `&#NNNN;`. That is R4 and ADR 0009 § 3 — there is no `//IGNORE`
+//! emitting `&#NNNN;`. That is R4 and `rule:types/conversion` — there is no `//IGNORE`
 //! and no `//TRANSLIT`, which is the whole reason `iconv`'s suffixes have no
 //! equivalent — and it is *not* `encoding_rs`'s default: its `decode` replaces
 //! and its `encode` reports substitution in a flag most callers drop. The
@@ -147,7 +147,7 @@
 //! `toHex` cannot fail: every octet has a spelling. `fromHex` is the checked
 //! direction ([ADR 0063](/docs/adr/0063-core-api-conventions.md)
 //! R4) — it throws on an odd length or a non-hexadecimal character rather than
-//! substituting, dropping or truncating, which is the same reason ADR 0009 § 3
+//! substituting, dropping or truncating, which is the same reason `rule:types/conversion`
 //! refuses `iconv`'s `//IGNORE`. A caller who wants the question without the
 //! throw asks it of the text before converting.
 
@@ -253,8 +253,7 @@ const CHARSET_DOC: EnumDoc = EnumDoc {
 #[derive(Clone, Copy, Debug)]
 enum Scheme {
     /// UTF-8 both ways, which is a validation one way and free the other:
-    /// a `string` is already the octets ([ADR 0009](/docs/adr/0009-string-and-bytes.md)
-    /// § 3).
+    /// a `string` is already the octets (`rule:types/conversion`).
     Utf8,
     /// UTF-16 in the stated byte order. Encoding is written here because the
     /// standard has no UTF-16 encoder at all.
@@ -676,8 +675,7 @@ fn bytes_of<'a>(args: &'a [Value], member: &str) -> Result<&'a [u8], Fault> {
 
 /// The `string` in argument slot 0, for [`bytes_of`]'s reason.
 ///
-/// One failure, the wrong tag. A `string` is guaranteed-valid UTF-8 (ADR 0009
-/// § 2), and the tag [`Value::as_text`] checks *is* that guarantee, so there is
+/// One failure, the wrong tag. A `string` is guaranteed-valid UTF-8 (`rule:types/string-is-utf8`), and the tag [`Value::as_text`] checks *is* that guarantee, so there is
 /// nothing left here to re-derive — `crate::str`'s own `text` states the cost
 /// of doing it anyway.
 fn text_of<'a>(args: &'a [Value], member: &str) -> Result<&'a str, Fault> {
@@ -773,7 +771,7 @@ pub(crate) fn decode_argument(args: &[Value], member: &str, raw: &[u8]) -> Resul
 /// which is R4 rather than `encoding_rs`'s own answer — its `encode` writes an
 /// HTML numeric character reference for an unmappable character and reports
 /// that in a flag, and a `&#8364;` sitting in what a caller believes is
-/// Shift_JIS is exactly the silent substitution ADR 0009 § 3 refuses.
+/// Shift_JIS is exactly the silent substitution `rule:types/conversion` refuses.
 fn encode_exact(charset: Charset, text: &str) -> Result<Vec<u8>, (usize, char)> {
     match charset.scheme {
         Scheme::Utf8 => Ok(text.as_bytes().to_vec()),
@@ -1011,7 +1009,7 @@ nvs_runtime::nvs_helper! {
     /// Throws naming the first character the charset cannot spell, rather
     /// than writing `?`, `&#NNNN;` or a transliteration for it. `iconv`'s
     /// `//IGNORE` and `//TRANSLIT` have no equivalent here and that is the
-    /// point ([ADR 0009](/docs/adr/0009-string-and-bytes.md) § 3):
+    /// point (`rule:types/conversion`):
     /// a caller who genuinely wants a lossy spelling writes the replacement
     /// they want, in their own text, where a reader can see it.
     fn nvs_core_encoding_encode_text(_ctx, args: [2]) {
@@ -1210,7 +1208,7 @@ nvs_runtime::nvs_helper! {
     /// octet; a space, a `0x` prefix or a colon between pairs is a throw, not
     /// a value silently skipped. An odd number of digits is a throw for the
     /// same reason: `hex2bin("abc")` guessing which nibble the caller meant is
-    /// exactly the substitution ADR 0009 § 3 removes from the language.
+    /// exactly the substitution `rule:types/conversion` removes from the language.
     fn nvs_core_encoding_from_hex(_ctx, args: [1]) {
         let text = text_of(args, "fromHex")?;
         let digits = text.as_bytes();

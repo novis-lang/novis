@@ -1,4 +1,4 @@
-//! `decimal` — ADR 0054 §§ 1-3, the checker half: literal placement, the
+//! `decimal` — `rule:types/decimal`, `rule:types/numeric-literal-placement` and `rule:types/arithmetic`, the checker half: literal placement, the
 //! arithmetic table, and the layout bound a placed literal must fit.
 //!
 //! The runtime half (i128 arithmetic with scale reconciliation, `ArithmeticError`
@@ -10,7 +10,7 @@ mod common;
 use common::*;
 use nvs_diagnostics::code;
 
-/// ADR 0054 § 2: a fractional literal is untyped until placed, and takes
+/// `rule:types/numeric-literal-placement`: a fractional literal is untyped until placed, and takes
 /// `decimal` or `float` from the position it lands in. Both spellings of the
 /// same digits are legal, and neither needs a suffix.
 #[test]
@@ -27,7 +27,7 @@ fn a_fractional_literal_takes_decimal_or_float_from_its_target() {
     );
 }
 
-/// ADR 0054 § 2's two positions that have no target: `var` infers `float`,
+/// `rule:types/numeric-literal-placement`'s two positions that have no target: `var` infers `float`,
 /// and `as decimal` supplies one.
 #[test]
 fn var_infers_float_without_a_target_and_decimal_under_a_conversion() {
@@ -46,7 +46,7 @@ fn var_infers_float_without_a_target_and_decimal_under_a_conversion() {
     );
 }
 
-/// ADR 0054 § 2: `expr as T` is itself a placing position, so a literal
+/// `rule:types/numeric-literal-placement`: `expr as T` is itself a placing position, so a literal
 /// written directly under one is exact to the full 29 significant digits
 /// rather than round-tripping through an `f64` first — this 25-digit literal
 /// is the case that fails if the placing rule is dropped.
@@ -56,7 +56,7 @@ fn a_twenty_five_digit_literal_under_as_decimal_is_exact() {
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
-/// ADR 0054 § 1: 96 bits of mantissa, and no more.
+/// `rule:types/decimal`: 96 bits of mantissa, and no more.
 #[test]
 fn a_literal_wider_than_96_bits_of_mantissa_is_diagnosed() {
     let diags = check_in_method("decimal $d = 123456789012345678901234567890.0;\n");
@@ -68,7 +68,7 @@ fn a_literal_wider_than_96_bits_of_mantissa_is_diagnosed() {
     );
 }
 
-/// ADR 0054 § 1: a scale of 0 to 28, and no more. A 29th digit after the
+/// `rule:types/decimal`: a scale of 0 to 28, and no more. A 29th digit after the
 /// point has nowhere to live even though the mantissa itself is tiny.
 #[test]
 fn a_literal_with_a_scale_past_28_is_diagnosed() {
@@ -90,7 +90,7 @@ fn an_integer_literal_placed_at_decimal_gets_the_96_bit_bound() {
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
-/// ADR 0054 § 3: `decimal ⊕ float` is a compile error, the same rule and the
+/// `rule:types/arithmetic`: `decimal ⊕ float` is a compile error, the same rule and the
 /// same reason as `int ⊕ uint`.
 #[test]
 fn decimal_plus_float_is_diagnosed() {
@@ -103,7 +103,7 @@ fn decimal_plus_float_is_diagnosed() {
     );
 }
 
-/// ADR 0054 § 3: comparison is permitted for exactly the reason arithmetic is
+/// `rule:types/arithmetic`: comparison is permitted for exactly the reason arithmetic is
 /// not — an exact comparison is always computable, even where no common
 /// arithmetic type exists.
 #[test]
@@ -112,7 +112,7 @@ fn decimal_compared_against_a_float_is_accepted() {
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
-/// ADR 0054 § 3: a `decimal` combined with an integer stays `decimal`, and
+/// `rule:types/arithmetic`: a `decimal` combined with an integer stays `decimal`, and
 /// `decimal / decimal` is `decimal` rather than the `int|float` union `int /
 /// int` yields.
 #[test]
@@ -124,7 +124,7 @@ fn decimal_with_an_integer_operand_stays_decimal_and_division_is_not_a_union() {
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
-/// ADR 0054 § 3's last row: `**` on a `decimal` is a compile error naming
+/// `rule:types/arithmetic`'s last row: `**` on a `decimal` is a compile error naming
 /// `Core\Decimal::pow`.
 #[test]
 fn power_on_a_decimal_is_diagnosed() {
@@ -137,7 +137,7 @@ fn power_on_a_decimal_is_diagnosed() {
     );
 }
 
-/// ADR 0054 § 2: `const decimal VAT = 0.19;` — a compile-time constant is one
+/// `rule:types/numeric-literal-placement`: `const decimal VAT = 0.19;` — a compile-time constant is one
 /// of the three things *Context* names that a `Core\Decimal` class could never
 /// be.
 #[test]

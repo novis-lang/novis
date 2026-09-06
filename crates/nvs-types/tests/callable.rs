@@ -1,4 +1,4 @@
-//! ADR 0027: which values satisfy `callable`, and what `$obj(...)` refuses.
+//! `rule:types/callable-is-a-closure`: which values satisfy `callable`, and what `$obj(...)` refuses.
 //!
 //! Moved out of `nvs_types::check`'s inline `mod tests`; every test keeps its
 //! own name and body. See `tests/common/mod.rs` for the shared fixtures.
@@ -8,7 +8,7 @@ mod common;
 use common::*;
 use nvs_diagnostics::code;
 
-// ADR 0027: `callable` is satisfied by exactly one shape of value.
+// `rule:types/callable-is-a-closure`: `callable` is satisfied by exactly one shape of value.
 
 #[test]
 fn a_bare_string_where_callable_is_expected_is_diagnosed() {

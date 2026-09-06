@@ -1,10 +1,10 @@
 --TEST--
-Every Core\Arr member that answers a key answers the same string, and the one that takes a key normalises an integer to it — ADR 0069 § 5 and ADR 0007 § 5
+Every Core\Arr member that answers a key answers the same string, and the one that takes a key normalises an integer to it — `rule:types/arrays` and `rule:types/arrays`
 --FILE--
 <?nvs
-// The depth claim is *agreement*. ADR 0069 § 5 names six members whose answer
+// The depth claim is *agreement*. `rule:types/arrays` names six members whose answer
 // is a key — `keys`, `keyOf`, `firstKey`, `lastKey`, `findKey` and `flip` — and
-// says all of them return `string` because ADR 0007 § 5 stores every key as
+// says all of them return `string` because `rule:types/arrays` stores every key as
 // one. So the question below is asked once per entry and put to every member
 // that can answer it, and what is asserted is that they agree: a member that
 // grew its own idea of a key — handing back an `int` for a numeric spelling, as
@@ -58,7 +58,7 @@ class Ask {
             }
         }
 
-        // `keys` is the list `foreach` binds, in that order — ADR 0007 § 5's
+        // `keys` is the list `foreach` binds, in that order — `rule:types/arrays`'s
         // insertion order, and the same spellings.
         if (Ask::joined($keys) != $walked) {
             return "k";

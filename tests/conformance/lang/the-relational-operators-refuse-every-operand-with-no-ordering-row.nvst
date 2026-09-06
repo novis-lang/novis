@@ -1,8 +1,8 @@
 --TEST--
-The five relational operators agree on refusing every operand ADR 0007 § 4 gives no ordering row for, and the object family keeps its own code — ADR 0007 § 4, ADR 0013, `rule:enums/closed-integer-type`
+The five relational operators agree on refusing every operand `rule:types/arithmetic` gives no ordering row for, and the object family keeps its own code — `rule:types/arithmetic`, ADR 0013, `rule:enums/closed-integer-type`
 --FILE--
 <?nvs
-// Every spelling in ADR 0007 § 4's `< <= > >= <=>` row, over the operand
+// Every spelling in `rule:types/arithmetic`'s `< <= > >= <=>` row, over the operand
 // domains that row has no entry for. What is asserted is that the five
 // *agree* — one code and one sentence per domain, whatever the operator —
 // rather than that any one of them reports, and that the object family
@@ -57,63 +57,63 @@ error[E0715]: `<` has no meaning for `string`
    |
 25 | mixed $a1 = $s < $s;
    |             ^^^^^^^ ordered here
-   = help: `Core\Str::compare` is the ordering two strings have; ADR 0007 § 4 tabulates no `<` for text, because PHP's own answer there is a conversion Novis never makes by itself
+   = help: `Core\Str::compare` is the ordering two strings have; `rule:types/arithmetic` tabulates no `<` for text, because PHP's own answer there is a conversion Novis never makes by itself
 
 error[E0715]: `<=` has no meaning for `string`
    --> %s:26:13
    |
 26 | mixed $a2 = $s <= $s;
    |             ^^^^^^^^ ordered here
-   = help: `Core\Str::compare` is the ordering two strings have; ADR 0007 § 4 tabulates no `<` for text, because PHP's own answer there is a conversion Novis never makes by itself
+   = help: `Core\Str::compare` is the ordering two strings have; `rule:types/arithmetic` tabulates no `<` for text, because PHP's own answer there is a conversion Novis never makes by itself
 
 error[E0715]: `>` has no meaning for `string`
    --> %s:27:13
    |
 27 | mixed $a3 = $s > $s;
    |             ^^^^^^^ ordered here
-   = help: `Core\Str::compare` is the ordering two strings have; ADR 0007 § 4 tabulates no `<` for text, because PHP's own answer there is a conversion Novis never makes by itself
+   = help: `Core\Str::compare` is the ordering two strings have; `rule:types/arithmetic` tabulates no `<` for text, because PHP's own answer there is a conversion Novis never makes by itself
 
 error[E0715]: `>=` has no meaning for `string`
    --> %s:28:13
    |
 28 | mixed $a4 = $s >= $s;
    |             ^^^^^^^^ ordered here
-   = help: `Core\Str::compare` is the ordering two strings have; ADR 0007 § 4 tabulates no `<` for text, because PHP's own answer there is a conversion Novis never makes by itself
+   = help: `Core\Str::compare` is the ordering two strings have; `rule:types/arithmetic` tabulates no `<` for text, because PHP's own answer there is a conversion Novis never makes by itself
 
 error[E0715]: `<=>` has no meaning for `string`
    --> %s:29:13
    |
 29 | mixed $a5 = $s <=> $s;
    |             ^^^^^^^^^ ordered here
-   = help: `Core\Str::compare` is the ordering two strings have; ADR 0007 § 4 tabulates no `<` for text, because PHP's own answer there is a conversion Novis never makes by itself
+   = help: `Core\Str::compare` is the ordering two strings have; `rule:types/arithmetic` tabulates no `<` for text, because PHP's own answer there is a conversion Novis never makes by itself
 
 error[E0715]: `<` has no meaning for `bytes`
    --> %s:33:13
    |
 33 | mixed $b1 = $y < $y;
    |             ^^^^^^^ ordered here
-   = help: ADR 0007 § 4's `< <= > >= <=>` row is the numeric types, plus two objects of one `Comparable` class (ADR 0013); this operand is on neither half
+   = help: `rule:types/arithmetic`'s `< <= > >= <=>` row is the numeric types, plus two objects of one `Comparable` class (ADR 0013); this operand is on neither half
 
 error[E0715]: `<=>` has no meaning for `array<int>`
    --> %s:34:13
    |
 34 | mixed $c1 = $xs <=> $xs;
    |             ^^^^^^^^^^^ ordered here
-   = help: ADR 0007 § 4's `< <= > >= <=>` row is the numeric types, plus two objects of one `Comparable` class (ADR 0013); this operand is on neither half
+   = help: `rule:types/arithmetic`'s `< <= > >= <=>` row is the numeric types, plus two objects of one `Comparable` class (ADR 0013); this operand is on neither half
 
 error[E0715]: `>` has no meaning for `callable`
    --> %s:35:13
    |
 35 | mixed $d1 = $f > $f;
    |             ^^^^^^^ ordered here
-   = help: ADR 0007 § 4's `< <= > >= <=>` row is the numeric types, plus two objects of one `Comparable` class (ADR 0013); this operand is on neither half
+   = help: `rule:types/arithmetic`'s `< <= > >= <=>` row is the numeric types, plus two objects of one `Comparable` class (ADR 0013); this operand is on neither half
 
 error[E0715]: `<=` has no meaning for `null`
    --> %s:36:13
    |
 36 | mixed $e1 = null <= null;
    |             ^^^^^^^^^^^^ ordered here
-   = help: ADR 0007 § 4's `< <= > >= <=>` row is the numeric types, plus two objects of one `Comparable` class (ADR 0013); this operand is on neither half
+   = help: `rule:types/arithmetic`'s `< <= > >= <=>` row is the numeric types, plus two objects of one `Comparable` class (ADR 0013); this operand is on neither half
 
 error[E0715]: `<` has no meaning for `Rank`
    --> %s:40:13

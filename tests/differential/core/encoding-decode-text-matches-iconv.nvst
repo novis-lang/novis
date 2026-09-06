@@ -4,7 +4,7 @@ Core\Encoding::decodeText agrees with iconv() over every encoding both of them c
 <?nvs
 // `Core\Encoding::decodeText(bytes $b, Charset $charset): string` is
 // `iconv($charset, "UTF-8", $b)` with the target encoding gone: a Novis
-// `string` is guaranteed-valid UTF-8 (ADR 0009 § 2), so the "to" half of
+// `string` is guaranteed-valid UTF-8 (`rule:types/string-is-utf8`), so the "to" half of
 // `iconv`'s pair is a fact about the return type rather than an argument. The
 // octets go in as hex on both sides — `Core\Encoding::fromHex` and `hex2bin`
 // — because a `.nvst` file is UTF-8 and the subject of this member is not.

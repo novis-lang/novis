@@ -1,8 +1,8 @@
 --TEST--
-`$x++` and `++$x` are the same statement, over every numeric type and every writable target — ADR 0007 §§ 2, 4
+`$x++` and `++$x` are the same statement, over every numeric type and every writable target — `rule:types/conversion` and `rule:types/arithmetic`
 --FILE--
 <?nvs
-// ADR 0007 § 4: an increment is `± 1` over the target's own numeric type. The
+// `rule:types/arithmetic`: an increment is `± 1` over the target's own numeric type. The
 // operator's position decides which value a surrounding *expression* sees, so
 // as a statement the two spellings have nothing to disagree about — every pair
 // below runs both over two identical subjects and counts whether they agree,

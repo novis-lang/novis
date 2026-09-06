@@ -1,5 +1,5 @@
 --TEST--
-Core\Random::token and Core\Encoding::toHex over Core\Random::bytes agree on every count — the same width, the same lowercase alphabet, and the same round trip back to a buffer — so a renderer that grew its own hex fails here while still looking right on its own line — spec § 11, ADR 0009 § 3, ADR 0063 R4
+Core\Random::token and Core\Encoding::toHex over Core\Random::bytes agree on every count — the same width, the same lowercase alphabet, and the same round trip back to a buffer — so a renderer that grew its own hex fails here while still looking right on its own line — spec § 11, `rule:types/conversion`, ADR 0063 R4
 
 --FILE--
 <?nvs
@@ -16,7 +16,7 @@ Core\Random::token and Core\Encoding::toHex over Core\Random::bytes agree on eve
 final class Hex {
     // A draw cannot be compared to a draw, so every question is asked of the
     // *shape* of an answer: its width, and whether it is written in the one
-    // alphabet ADR 0009 § 3 gives hex.
+    // alphabet `rule:types/conversion` gives hex.
     public static function lower(string $s): bool {
         return Core\Regex::matches($s, '^[0-9a-f]*$');
     }
@@ -52,7 +52,7 @@ echo "same width ", $widths, ", entropy-counted ", $doubled, ", lower hex ", $al
 // The round trip closes the agreement in the other direction: hex parsed back
 // is the buffer it was drawn from, so `token`'s rendering is not merely
 // *shaped* like `toHex`'s, it is readable by `toHex`'s own reader at the
-// stated length. ADR 0009 § 3 is why the comparison happens in hex rather
+// stated length. `rule:types/conversion` is why the comparison happens in hex rather
 // than over the buffer.
 int $trips = 0;
 foreach ($counts as uint $m) {

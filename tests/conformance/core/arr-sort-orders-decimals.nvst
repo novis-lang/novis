@@ -1,5 +1,5 @@
 --TEST--
-`Core\Arr::sort` orders `decimal`s exactly and by value rather than by scale, and every member sharing the natural ordering agrees with it — ADR 0054 §§ 3, 4, spec § 2
+`Core\Arr::sort` orders `decimal`s exactly and by value rather than by scale, and every member sharing the natural ordering agrees with it — `rule:types/arithmetic` and `rule:types/conversion`, spec § 2
 --FILE--
 <?nvs
 // The natural ordering covers every type the checker admits, and `decimal` was
@@ -8,7 +8,7 @@
 // `int`/`uint`/`float` and none for the exact scalar beside them.
 // `docs/reference/findings.md`'s D34 is the report.
 //
-// Sorted by value and not by scale: ADR 0054 § 4's last paragraph makes `19.90`
+// Sorted by value and not by scale: `rule:types/conversion`'s last paragraph makes `19.90`
 // and `19.9000` equal, so the two sit together and the *input* order between
 // them is what decides which prints first. That is the sort's stability, and it
 // is asserted here because an ordering that answered `Greater` for the pair
@@ -26,7 +26,7 @@ echo "max=", Core\Arr::max($prices) ?? 0.0 as decimal, "\n";
 echo "math=", Core\Math::min(19.90 as decimal, 2.50 as decimal), "\n";
 
 // And a `decimal` orders against the other numeric rows rather than only
-// against its own. ADR 0054 § 4's first row makes an `int` exact as a
+// against its own. `rule:types/conversion`'s first row makes an `int` exact as a
 // `decimal`, and its § 3 permits the `decimal`/`float` comparison even where
 // `decimal ⊕ float` arithmetic is a compile error — so this array has one
 // order and every pair in it is answered exactly.

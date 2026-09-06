@@ -1,17 +1,17 @@
-//! Where a value must fit a declared type: ADR 0007 § 6's assignability
+//! Where a value must fit a declared type: `rule:types/unions-and-mixed`'s assignability
 //! relation, and the three positions that apply it.
 //!
-//! [`is_assignable`] is the relation itself, and the one place ADR 0007 § 6's
-//! table is written down. It carries two amendments from ADR 0036: every class
+//! [`is_assignable`] is the relation itself, and the one place `rule:types/unions-and-mixed`'s
+//! table is written down. It carries two amendments from `rule:types/object-top`: every class
 //! or shape type is `<: object` (§ 1), and a shape target is checked
 //! structurally by width subtyping plus ordinary field assignability (§ 3,
 //! [`shape_satisfied`]) rather than nominally — Novis's one deliberate exception
 //! to otherwise fully nominal typing. **`array<T>` is covariant in its element
 //! type**, and it is the only generic name in the language that is;
-//! [`is_assignable`]'s own doc comment owns that rule and why ADR 0007 § 5's
+//! [`is_assignable`]'s own doc comment owns that rule and why `rule:types/arrays`'s
 //! copy-on-write value semantics make it sound where an aliasing language
 //! could not. A qualifier widens but never narrows across it — see
-//! [`super::quals`]. ADR 0047 § 4 adds the last amendment: a literal type, an
+//! [`super::quals`]. `rule:types/literal-types` adds the last amendment: a literal type, an
 //! enum-case type, and any union of them widen to their base for free, which
 //! [`is_assignable`] answers by one recursion through
 //! [`TypeInterner::literal_base`] rather than by four table rows of its own.
@@ -29,21 +29,20 @@ use super::*;
 
 /// Whether a value of type `from` may be used where `to` is declared —
 /// `to == mixed` always accepts; `from == mixed` never implicitly satisfies
-/// a non-`mixed` target (ADR 0007 § 6: "`mixed` never absorbs implicitly in
+/// a non-`mixed` target (`rule:types/unions-and-mixed`: "`mixed` never absorbs implicitly in
 /// the other direction"); otherwise `from` must equal `to`, or `to` must be
 /// a union `from` is (or, if `from` is itself a union, every member is) a
-/// member of. ADR 0036 § 1 amends this with real `object` subtyping (every
+/// member of. `rule:types/object-top` amends this with real `object` subtyping (every
 /// class or shape is `<: object`), and § 3 with a shape target's structural
 /// check (see [`shape_satisfied`]) — the two amendments this ADR makes to
-/// ADR 0007 § 6's table, needing `graph`/`signatures` only to resolve a
+/// `rule:types/unions-and-mixed`'s table, needing `graph`/`signatures` only to resolve a
 /// class receiver's own property types against a shape target. ADR 0024 § 2
 /// and ADR 0033 § 2 add one more: a same-base `string`/`bytes` value widens
 /// freely on its `tainted`/`secret` axes (see the qualifier check just above
-/// [`shape_satisfied`]'s call), never narrows. ADR 0047 § 4 adds the last:
+/// [`shape_satisfied`]'s call), never narrows. `rule:types/literal-types` adds the last:
 /// `"a" → string`, `Mode::Read → Mode`, and each of those over a union, are
 /// free — see the widening step below for why one recursion states all four
-/// rows and why the reverse direction needs no rule to refuse it. ADR 0007
-/// § 2's own amendment is the last: `int`/`uint` widen into a `float`
+/// rows and why the reverse direction needs no rule to refuse it. `rule:types/conversion`'s own amendment is the last: `int`/`uint` widen into a `float`
 /// position, that being the one implicit conversion the language has, and a
 /// union source is therefore satisfied member-wise against any target —
 /// which is how § 4's `int|float` quotient reaches a declared `float`.
@@ -69,7 +68,7 @@ pub(crate) fn is_assignable(
     if matches!(interner.get(from), Ty::Mixed) {
         return false;
     }
-    // ADR 0047 § 4's first four rows, all at once. `literal_base` widens a
+    // `rule:types/literal-types`'s first four rows, all at once. `literal_base` widens a
     // literal atom to its base, an enum-case atom to its enum, and a union
     // member-wise — so `"a"|"b" → string` and `Mode::Read|Mode::Write → Mode`
     // fall out of the same call the two atom rows do, and the recursion then
@@ -111,7 +110,7 @@ pub(crate) fn is_assignable(
             _ => satisfies(from, interner),
         };
     }
-    // ADR 0007 § 2's implicit conversion, and the whole of it: "Implicit
+    // `rule:types/conversion`'s implicit conversion, and the whole of it: "Implicit
     // conversion happens in exactly one place: **`int` or `uint` widening into
     // a `float` position**, which is the one coercion PHP's own
     // `strict_types` permits, and it throws above 2^53 rather than rounding."
@@ -119,7 +118,7 @@ pub(crate) fn is_assignable(
     // the accepting.
     //
     // A *union* source is checked member-wise against a non-union target for
-    // this row's sake rather than as a rule of its own — ADR 0007 § 4's
+    // this row's sake rather than as a rule of its own — `rule:types/arithmetic`'s
     // `int|float` quotient reaching a declared `float` is the one shape that
     // needs it, and it is the ADR's own worked example (`float $avg = $sum /
     // $n;`). Written as a general member-wise check because that is what the
@@ -158,8 +157,7 @@ pub(crate) fn is_assignable(
     //
     // The usual objection does not apply: covariant arrays are unsound in a
     // language where the target *aliases* the source, because a write through
-    // the widened view lands in storage the narrow view still reads. ADR 0007
-    // § 5 makes an Novis array a copy-on-write **value** instead, so the widened
+    // the widened view lands in storage the narrow view still reads. `rule:types/arrays` makes an Novis array a copy-on-write **value** instead, so the widened
     // binding is a separate array the moment anything writes to it, and the
     // narrow one can never observe the write. What covariance buys is every
     // signature the spec writes over a union — `Core\Arr::sum`'s
@@ -170,7 +168,7 @@ pub(crate) fn is_assignable(
         let (from_elem, to_elem) = (*from_elem, *to_elem);
         return is_assignable(from_elem, to_elem, interner, graph, signatures);
     }
-    // ADR 0125 § 3: **`class<T>` is covariant in its argument, and only
+    // `rule:types/class-reference-variance`: **`class<T>` is covariant in its argument, and only
     // upward** — `class<Dog>` widens to `class<Animal>` wherever `Dog` widens
     // to `Animal`, and a narrowing is written `as class<Dog>` and checked
     // against the descriptor at run time.
@@ -255,7 +253,7 @@ pub(crate) fn class_satisfied(
     })
 }
 
-/// ADR 0036 § 3's structural check for a shape target: `from` must have at
+/// `rule:types/shape-type`'s structural check for a shape target: `from` must have at
 /// least every field `to_fields` names, each satisfying the field's declared
 /// type by this same [`is_assignable`] rule (width subtyping — an extra
 /// field on `from` is never a problem). A class receiver's field types come
@@ -270,7 +268,7 @@ pub(crate) fn shape_satisfied(
     signatures: &SignatureTable,
 ) -> bool {
     // Cloned rather than borrowed: [`is_assignable`] needs the interner
-    // mutably for ADR 0047 § 4's widening step, and a shape's field list is
+    // mutably for `rule:types/literal-types`'s widening step, and a shape's field list is
     // read while it recurses. A shape type is a handful of fields and this
     // path runs once per shape-typed assignment.
     match interner.get(from).clone() {
@@ -368,7 +366,7 @@ pub(crate) fn check_return(
 
 /// `E0701` — `$a = &$b;`, refused rather than lowered.
 ///
-/// Novis has no references: ADR 0031 § 2 removed by-reference capture, so no
+/// Novis has no references: `rule:types/implicit-capture` removed by-reference capture, so no
 /// binding aliases another, and ADR 0023 fixes what a copy means, so the
 /// right-hand side is a copy at the point the assignment runs. The `&` has no
 /// owner in either rule — the same reasoning `literals`' `[&$x]` refusal
@@ -385,7 +383,7 @@ pub(crate) fn report_by_reference_assignment(span: Span, value: Span, env: &mut 
         )
         .with_primary(span, format!("this would share `{value_text}`'s own slot"))
         .with_help(
-            "Novis has no references: ADR 0031 § 2 removed by-reference capture and ADR 0023 makes \
+            "Novis has no references: `rule:types/implicit-capture` removed by-reference capture and ADR 0023 makes \
              this a copy, so drop the `&` — `inout` is a parameter and binding mode (`rule:statements/inout-is-the-by-reference-spelling`), \
              not a way to make two names one place, and to share one mutable cell you hold it in \
              an object and assign that",
@@ -455,7 +453,7 @@ pub(crate) fn check_assign(
 /// there yet reads as `""`. Marking the legal spans is therefore the whole
 /// rule, and this walk is where they all are:
 /// the target chain of a plain assignment, every level of it, since
-/// `$a[][0] = 1` appends a fresh row and writes into it (ADR 0007 § 5's
+/// `$a[][0] = 1` appends a fresh row and writes into it (`rule:types/arrays`'s
 /// separation applies at each level, and `nvs_ir::lower::stmt`'s flatten
 /// walks the same chain).
 ///
@@ -491,15 +489,15 @@ pub(crate) fn mark_write_target_levels(target: &Expr, plain: bool, env: &mut Env
 ///
 /// An **element write through an ADR 0014 § 1 hooked property**
 /// (`$obj->hooked[0] = v`) is refused because a hooked property is a pair of
-/// accessors and not a slot. ADR 0007 § 5 separates the array the `get` hook
+/// accessors and not a slot. `rule:types/arrays` separates the array the `get` hook
 /// answered with, and no rule pushes the separated copy back through `set` —
 /// PHP raises "indirect modification of overloaded property" and discards the
 /// write, so refusing *is* the PHP-compatible answer rather than a divergence.
 /// Read the array into a local, write the element, assign it back.
 ///
-/// An **element write through an erased property** — an ADR 0036 shape's
-/// field, or any property of ADR 0007 § 3's plain `object` — is refused
-/// because ADR 0036 § 4 resolves one by *name* at run time and stopped there:
+/// An **element write through an erased property** — an `rule:types/object-top` shape's
+/// field, or any property of `rule:types/grammar`'s plain `object` — is refused
+/// because `rule:types/erased-member-access` resolves one by *name* at run time and stopped there:
 /// a read needs only the name, a write needs a slot for the separated array to
 /// land in. This is the write half of the question `E0477` answers for a
 /// method call, and the answer is the same one — narrow the receiver. It is
@@ -524,7 +522,7 @@ pub(crate) fn mark_write_target_levels(target: &Expr, plain: bool, env: &mut Env
 /// through it — a plain `=`, a compound `⊕=`, `$x++`/`--$x`, which
 /// `nvs_ir::lower` desugars into the same `$x = $x ± 1` a compound assignment
 /// becomes and which therefore has exactly the same nowhere to write to, and
-/// `unset($a[$k])`, which ADR 0007 § 5 separates the array for exactly as a
+/// `unset($a[$k])`, which `rule:types/arrays` separates the array for exactly as a
 /// write does (`super::members`' `check_unset_target`). All four give the
 /// same answer on the same target and each takes exactly one diagnostic for
 /// it, which
@@ -573,7 +571,7 @@ pub(crate) fn check_write_target(target: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>
             )
             .with_primary(root.span, "this value is not stored anywhere")
             .with_help(
-                "ADR 0007 § 5 separates the array before the element is written, and the \
+                "`rule:types/arrays` separates the array before the element is written, and the \
                  separated copy has to go back into whatever held it — a temporary holds it \
                  nowhere, so the write would be discarded. Bind it first, write the element \
                  through the binding, and assign that back if it has an owner",
@@ -610,7 +608,7 @@ pub(crate) fn check_write_target(target: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>
                 )
                 .with_primary(root.span, "this receiver is a shape or a plain `object`")
                 .with_help(
-                    "ADR 0036 § 4 resolves such a property by *name* at run time, which gives the \
+                    "`rule:types/erased-member-access` resolves such a property by *name* at run time, which gives the \
                      separated array no slot to be written back into — convert the receiver to \
                      the class that declares it first (`var $c = $x as ClassName;`), or read the \
                      property into a typed local, write the element there, and assign it back",
@@ -627,7 +625,7 @@ pub(crate) fn check_write_target(target: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>
 /// rather than adding a second diagnostic about the same target.
 ///
 /// The **root** of the write is what is examined, so an element write
-/// (`$w->tags[0] = "x"`) is refused alongside the plain one: ADR 0007 § 5
+/// (`$w->tags[0] = "x"`) is refused alongside the plain one: `rule:types/arrays`
 /// separates the array and `nvs_ir::lower` writes the separated copy back
 /// through the property, which is a write to the property whatever the
 /// spelling suggests. All four write spellings reach this through
@@ -681,7 +679,7 @@ fn reject_readonly_write(root: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>) -> bool 
     true
 }
 
-/// ADR 0126 § 5's last paragraph: a write *through a property key* is refused
+/// `rule:types/property-key-access`'s last paragraph: a write *through a property key* is refused
 /// where `T`'s public set holds a `readonly` property, naming it. The code and
 /// the headline are [`reject_readonly_write`]'s, because it is the same rule of
 /// ADR 0038 § 1 being broken — only the question is asked one step less
@@ -689,7 +687,7 @@ fn reject_readonly_write(root: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>) -> bool 
 ///
 /// The question is asked of the **set** rather than of one resolved property
 /// because *which* name the key holds is exactly what the access does not know
-/// (ADR 0126 § 5). One `readonly` member is therefore enough to refuse: the
+/// (`rule:types/property-key-access`). One `readonly` member is therefore enough to refuse: the
 /// write might name it. § 5 also decides that this is compile-time rather than
 /// a `readonly` bit on `ClassDesc` and a throw the program has to reach —
 /// where a request-controlled name selects the field to write, the earlier
@@ -864,7 +862,7 @@ pub(crate) fn is_a_place(kind: &ExprKind) -> bool {
 /// the position rather than defaulting to `int` and colliding with it (ADR
 /// 0007 § 4's literal rule). The operator's result must then be assignable
 /// back to the target: `int $i = 0; $i .= "x";` is a mismatch reported at the
-/// assignment, never a silent re-typing of `$i` — ADR 0037 fixes a local's
+/// assignment, never a silent re-typing of `$i` — `rule:types/var-inference` fixes a local's
 /// type at its declaration. `.=` demands a `Stringable` operand exactly the
 /// way the plain `.` does.
 #[expect(

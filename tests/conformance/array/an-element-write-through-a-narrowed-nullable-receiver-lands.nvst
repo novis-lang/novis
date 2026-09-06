@@ -1,12 +1,12 @@
 --TEST--
-an array-element write through a narrowed `?T` receiver writes the property's own slot, in every subscript spelling — ADR 0007 § 1, ADR 0007 § 5
+an array-element write through a narrowed `?T` receiver writes the property's own slot, in every subscript spelling — `rule:types/declaration`, `rule:types/arrays`
 --FILE--
 <?nvs
 // A `?T` local is one tagged slot wide however narrow a condition later
-// proves it (ADR 0007 § 1), so a receiver reached through one has to be
+// proves it (`rule:types/declaration`), so a receiver reached through one has to be
 // untagged before anything stores into it. The plain `$m->rows = [...]` half
 // already did that; the *element* write goes back through the property in a
-// second place — the copy-on-write write-back ADR 0007 § 5 owes every level —
+// second place — the copy-on-write write-back `rule:types/arrays` owes every level —
 // and that place has its own receiver to untag. This pins all four subscript
 // spellings, because they share the one write-back.
 class Box {

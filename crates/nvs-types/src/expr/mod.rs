@@ -3,7 +3,7 @@
 //!
 //! [`check_expr`] takes an optional expected type: an
 //! [`nvs_syntax::ast::ExprKind::ArrayLiteral`] checked against an `array<T>`
-//! target checks every element directly against `T` (ADR 0007 § 5 — "never
+//! target checks every element directly against `T` (`rule:types/arrays` — "never
 //! inferred and then compared"); anything else infers its type bottom-up and,
 //! when an expected type was given, reports `E_TYPE_MISMATCH` on a mismatch
 //! via [`is_assignable`].
@@ -20,13 +20,13 @@
 //! | module | owns |
 //! |---|---|
 //! | [`args`] | a call's arguments, its options bag, its type arguments |
-//! | [`assign`] | ADR 0007 § 6's assignability, and the positions applying it |
-//! | [`calls`] | which member a call resolves to; ADR 0027's `callable` |
+//! | [`assign`] | `rule:types/unions-and-mixed`'s assignability, and the positions applying it |
+//! | [`calls`] | which member a call resolves to; `rule:types/callable-is-a-closure`'s `callable` |
 //! | [`isolate`] | ADR 0006's `spawn script` and `await`, and what each types as |
 //! | [`iteration`] | `rule:iteration/two-interfaces`'s `foreach` sources and `yield` forms |
 //! | [`literals`] | how a literal takes its type from its position |
 //! | [`members`] | a property, class constant or enum case, and who diagnoses it |
-//! | [`operators`] | ADR 0007 § 4's result table and the refusals layered on it |
+//! | [`operators`] | `rule:types/arithmetic`'s result table and the refusals layered on it |
 //! | [`presence`] | ADR 0028 § 3's `isset(...)`, and what its operands may be |
 //! | [`quals`] | ADR 0024's `tainted`, ADR 0033's `secret`, and their sinks |
 //!
@@ -37,8 +37,7 @@
 //! only ever reports what it can be sure of. `empty(...)` is the other: its
 //! operand is still left entirely unchecked, which is [`presence`]'s next
 //! slice rather than a decision — `isset(...)`'s operands are checked there
-//! now, and PHP's "an unset operand is tolerated" is answered by ADR 0007
-//! § 1 instead, every local being declared before it can be named at all.
+//! now, and PHP's "an unset operand is tolerated" is answered by `rule:types/declaration` instead, every local being declared before it can be named at all.
 
 use nvs_diagnostics::{Diagnostic, SourceFile, Span, code};
 use nvs_hir::{ClassGraph, QName, SymbolKind};
@@ -139,7 +138,7 @@ pub(crate) fn check_expr(
 /// while `!` and `empty()` report the same thing at their own arms, having
 /// already inferred their operand for a reason of their own.
 ///
-/// `&&`, `||` and `??` are deliberately *not* here: they are ADR 0007 § 4's
+/// `&&`, `||` and `??` are deliberately *not* here: they are `rule:types/arithmetic`'s
 /// operands and keep `E0718` through
 /// [`operators::reject_void_operand`](reject_void_operand). See
 /// [`code::E_VOID_IS_NOT_A_CONDITION`] for where that line is drawn and why.
@@ -208,7 +207,7 @@ pub(crate) fn check_expr_stmt(
 /// `pub(crate)` for one caller: [`super::operators::infer_conversion`] needs
 /// the *placing* walk rather than [`check_expr`]'s conforming one, so a numeric
 /// literal written directly under an `as` takes the target as its expectation
-/// (ADR 0054 § 2).
+/// (`rule:types/numeric-literal-placement`).
 #[expect(
     clippy::too_many_lines,
     reason = "one match arm per AST expression variant, each a couple of lines"
@@ -226,8 +225,8 @@ pub(crate) fn infer(
         ExprKind::Bool(value) => infer_bool_literal(*value, expected, env),
         ExprKind::Int(span) => infer_int_literal(*span, expr.span, expected, env),
         ExprKind::Float(span) => infer_float_literal(*span, expr.span, expected, env),
-        // ADR 0070 § 2: a duration literal is `Core\Time\Duration` and nothing
-        // places it — the suffix *is* the type, unlike ADR 0054's fractional
+        // `rule:types/duration-literal`: a duration literal is `Core\Time\Duration` and nothing
+        // places it — the suffix *is* the type, unlike `rule:types/decimal`'s fractional
         // literal just above. The lexer has already run the grammar and
         // reported anything wrong, so there is nothing left to check here.
         ExprKind::Duration(_) => env
@@ -265,7 +264,7 @@ pub(crate) fn infer(
             let inner_ty = infer(inner, hint, live, scope, ctx, env);
             match op {
                 // `!` is `rule:expressions/truthy-positions`'s truthy test written out rather than one of
-                // ADR 0007 § 4's rows, so its `void` operand is the condition
+                // `rule:types/arithmetic`'s rows, so its `void` operand is the condition
                 // refusal and not the arithmetic one below it.
                 UnaryOp::Not => {
                     reject_void_condition(inner_ty, expr.span, env);
@@ -284,7 +283,7 @@ pub(crate) fn infer(
         }
         ExprKind::PreIncDec { expr: inner, .. } | ExprKind::PostIncDec { expr: inner, .. } => {
             note_write(inner, scope, env);
-            // An increment is ADR 0007 § 4's `± 1` and produces the target's
+            // An increment is `rule:types/arithmetic`'s `± 1` and produces the target's
             // own type — the write does not widen it, exactly as `$x += 1`
             // does not. `reject_increment_on_non_numeric` owns which targets
             // that table leaves nothing to lower for.
@@ -388,7 +387,7 @@ pub(crate) fn infer(
             infer_instanceof(expr, inner, class, live, scope, ctx, env)
         }
         ExprKind::Call { callee, args } => {
-            // ADR 0031 § 3's self-name, resolved before the callee is checked
+            // `rule:types/closure-self-name`'s self-name, resolved before the callee is checked
             // as an expression: it is a name this closure's body binds and not
             // a value, so `check_expr` has nothing to say about it and would
             // answer `mixed` for an unknown constant instead.
@@ -562,8 +561,8 @@ pub(crate) fn infer(
             } else {
                 base_ty
             };
-            // A `mixed` base is ADR 0007 § 2's one unchecked position, so
-            // ADR 0036 § 4's deferral applies to a subscript exactly as it
+            // A `mixed` base is `rule:types/conversion`'s one unchecked position, so
+            // `rule:types/erased-member-access`'s deferral applies to a subscript exactly as it
             // does to a member access: the base defers not only which array
             // is behind the handle but whether there is one at all, and the
             // *tag* answers both below (`nvs_ir::Helper::ValueIndexGet`).
@@ -571,7 +570,7 @@ pub(crate) fn infer(
             // carries no declared element type either.
             //
             // A **write** target is deliberately not part of this: an element
-            // write through an erased base has ADR 0007 § 5's copy-on-write
+            // write through an erased base has `rule:types/arrays`'s copy-on-write
             // separation to write back through a holder that is only a tag,
             // and until that exists `E0482` refuses it where it is written
             // rather than leaving `nvs-ir` to panic.
@@ -625,7 +624,7 @@ pub(crate) fn infer(
         ExprKind::Fn(fn_expr) => check_fn_literal(expr, fn_expr, live, scope, ctx, env),
         ExprKind::Match { subject, arms } => {
             let subject_ty = check_expr(subject, None, live, scope, ctx, env);
-            // ADR 0007 § 6's fourth narrowing spelling: under `match (true)` a
+            // `rule:types/unions-and-mixed`'s fourth narrowing spelling: under `match (true)` a
             // label is a condition rather than a value, so the arm body is
             // checked under exactly what `crate::locals::narrow` installs for
             // it — see [`crate::locals::is_true_literal`] for why only the
@@ -754,7 +753,7 @@ pub(crate) fn infer(
             if let Some(e) = opt {
                 // PHP's `exit` takes either spelling: an `int` is the process
                 // status, a `string` is a message written before the program
-                // stops. ADR 0007 § 2 has no implicit conversion to offer for
+                // stops. `rule:types/conversion` has no implicit conversion to offer for
                 // anything else, so anything else is a mismatch here rather
                 // than a silent `as`.
                 let actual = check_expr(e, None, live, scope, ctx, env);
@@ -794,7 +793,7 @@ pub(crate) fn infer(
         //
         // § 3 types that boundary `mixed` and gives exactly one reason: what a
         // `return`-ing target hands back cannot be known statically, and
-        // `mixed` is ADR 0007 § 2's one unchecked position. There is nothing
+        // `mixed` is `rule:types/conversion`'s one unchecked position. There is nothing
         // to check here beyond the path, and nothing narrower to answer — a
         // typed binding takes the same `as` any other `mixed` boundary needs.
         ExprKind::Require { path } => {
@@ -950,7 +949,7 @@ fn refused_as_a_write_target(expr: &Expr, base: &Expr, env: &Env<'_>) -> bool {
 
 /// `$x[…]` where `$x` is not an `array<T>`, refused where it is written.
 ///
-/// ADR 0007 § 5 keys an element read on the array's *declared* element type,
+/// `rule:types/arrays` keys an element read on the array's *declared* element type,
 /// which is the entry [`ExprInfo::Index`] carries and the only thing
 /// `nvs_ir::lower::Lowering::lower_index` has to lower against. A base with
 /// no element type therefore has nothing to read, and every one of these
@@ -959,7 +958,7 @@ fn refused_as_a_write_target(expr: &Expr, base: &Expr, env: &Env<'_>) -> bool {
 ///
 /// The help splits three ways because the three have different answers, and
 /// naming the wrong one costs a session: `mixed` needs the binding declared
-/// as what it holds, a `string` needs ADR 0009 § 2's grapheme indexing said
+/// as what it holds, a `string` needs `rule:types/string-is-utf8`'s grapheme indexing said
 /// out loud as `Core\Str::slice`, and a nullable array needs the `!= null`
 /// test `rule:expressions/nullable-conversion` already gives it — [`narrow`](crate::locals) drops the
 /// `null` and the subscript is then an ordinary one.
@@ -982,12 +981,12 @@ fn report_unsubscriptable(base: &Expr, base_ty: TypeId, env: &mut Env<'_>) {
             | Ty::SecretTaintedString
             | Ty::SecretTaintedBytes
     ) {
-        "ADR 0009 § 2 indexes a `string` by extended grapheme cluster, which is said out \
+        "`rule:types/string-is-utf8` indexes a `string` by extended grapheme cluster, which is said out \
          loud rather than spelled with a subscript — `Core\\Str::slice($s, $i, 1)`, or \
          `Core\\Bytes::slice` for a byte offset"
     } else {
         "only an `array<T>` has elements to subscript — declare the binding as the \
-         `array<T>` it holds, so ADR 0007 § 5 has an element type to check the read \
+         `array<T>` it holds, so `rule:types/arrays` has an element type to check the read \
          against"
     };
     let desc = env.interner.describe(base_ty);

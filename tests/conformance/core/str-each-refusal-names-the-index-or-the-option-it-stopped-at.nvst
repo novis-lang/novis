@@ -1,5 +1,5 @@
 --TEST--
-`Core\Str`'s five refusals each name what they stopped at — the index and the length it is outside of, the size, the needle, and which of `wrap`'s two options — spec § 1, ADR 0009 § 3
+`Core\Str`'s five refusals each name what they stopped at — the index and the length it is outside of, the size, the needle, and which of `wrap`'s two options — spec § 1, `rule:types/conversion`
 --FILE--
 <?nvs
 // Spec § 1's five throwing sites, none of which had a case asserting its

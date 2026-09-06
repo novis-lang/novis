@@ -1,8 +1,8 @@
 --TEST--
-A shape field read through a widened view answers the field it names, not whatever sits at the view's own slot — ADR 0036 §§ 3-4
+A shape field read through a widened view answers the field it names, not whatever sits at the view's own slot — `rule:types/shape-type` and `rule:types/erased-member-access`
 --FILE--
 <?nvs
-// ADR 0036 § 3's width subtyping: `{x: int, y: int}` satisfies `{y: int}`,
+// `rule:types/shape-type`'s width subtyping: `{x: int, y: int}` satisfies `{y: int}`,
 // and the two lay their slots out differently. A shape's slots are its field
 // names sorted, so `y` is slot 1 in the value and slot 0 in the view — which
 // is why § 4 keys the fetch on the *name* rather than on a fixed offset.

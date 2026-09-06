@@ -17,7 +17,7 @@
 //!
 //! § 4's rule is that retrieval matches on *shape*: an attached literal is an
 //! answer to `get<T>` exactly when it satisfies `T` under
-//! [`crate::expr::is_assignable`] — ADR 0036 § 3's width subtyping, the same
+//! [`crate::expr::is_assignable`] — `rule:types/shape-type`'s width subtyping, the same
 //! test a shape-typed binding goes through — regardless of whether it was
 //! written bare or under a name, and regardless of what that name was. An
 //! attribute's optional name exists to check the literal where it is
@@ -318,7 +318,7 @@ pub(crate) fn fold_retrieval(
             .with_primary(call.span, format!("`{found}` written here"))
             .with_help(
                 "`rule:attributes/structural-retrieval`: retrieval is structural — an attached literal is an answer \
-                 exactly when it satisfies `T` under ADR 0036 § 3's width subtyping, so `T` \
+                 exactly when it satisfies `T` under `rule:types/shape-type`'s width subtyping, so `T` \
                  is an inline `{...}` or a `type` alias naming one",
             ),
         );

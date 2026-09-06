@@ -1,5 +1,5 @@
 --TEST--
-a nested `$grid[0][1] = v` separates every level it descends, leaves every row it did not name alone, and auto-vivifies an absent key the way PHP does — ADR 0007 §§ 2, 5
+a nested `$grid[0][1] = v` separates every level it descends, leaves every row it did not name alone, and auto-vivifies an absent key the way PHP does — `rule:types/conversion` and `rule:types/arrays`
 --FILE--
 <?nvs
 final class Board {
@@ -17,7 +17,7 @@ final class Board {
     }
 }
 
-// ADR 0007 § 5's copy-on-write is a *write*-side cost, so a binding taken
+// `rule:types/arrays`'s copy-on-write is a *write*-side cost, so a binding taken
 // before the write keeps what it was given — the whole grid, and a single
 // row alike.
 array<array<int>> $grid = [[1, 2], [3, 4]];

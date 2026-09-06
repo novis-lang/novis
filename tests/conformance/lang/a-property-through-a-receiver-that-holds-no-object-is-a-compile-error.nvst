@@ -23,7 +23,7 @@ echo $rows->k, "\n";
 Box|Circle $either = new Box();
 echo $either->name, "\n";
 
-// `mixed` is deliberately *not* here: it is ADR 0007 § 2's one unchecked
+// `mixed` is deliberately *not* here: it is `rule:types/conversion`'s one unchecked
 // position and defers to a run-time throw, which the companion case pins.
 mixed $deferred = new Box();
 echo $deferred->name, "\n";
@@ -33,27 +33,27 @@ error[E0495]: a property cannot be reached through `int`
    |
 10 | echo $count->name, "\n";
    |      ^^^^^^^^^^^^ this receiver's type declares no properties
-   = help: only an object has properties — convert the receiver to the class you expect (`$x as Box`), or declare it `mixed`, which is the one unchecked position (ADR 0007 § 2) and defers the whole question to a catchable throw at run time
+   = help: only an object has properties — convert the receiver to the class you expect (`$x as Box`), or declare it `mixed`, which is the one unchecked position (`rule:types/conversion`) and defers the whole question to a catchable throw at run time
 
 error[E0495]: a property cannot be reached through `string`
    --> %s:13:6
    |
 13 | echo $text->length, "\n";
    |      ^^^^^^^^^^^^^ this receiver's type declares no properties
-   = help: only an object has properties — convert the receiver to the class you expect (`$x as Box`), or declare it `mixed`, which is the one unchecked position (ADR 0007 § 2) and defers the whole question to a catchable throw at run time
+   = help: only an object has properties — convert the receiver to the class you expect (`$x as Box`), or declare it `mixed`, which is the one unchecked position (`rule:types/conversion`) and defers the whole question to a catchable throw at run time
 
 error[E0495]: a property cannot be reached through `array<string>`
    --> %s:16:6
    |
 16 | echo $rows->k, "\n";
    |      ^^^^^^^^ this receiver's type declares no properties
-   = help: only an object has properties — convert the receiver to the class you expect (`$x as Box`), or declare it `mixed`, which is the one unchecked position (ADR 0007 § 2) and defers the whole question to a catchable throw at run time
+   = help: only an object has properties — convert the receiver to the class you expect (`$x as Box`), or declare it `mixed`, which is the one unchecked position (`rule:types/conversion`) and defers the whole question to a catchable throw at run time
 
 error[E0495]: a property cannot be reached through `Box|Circle`
    --> %s:21:6
    |
 21 | echo $either->name, "\n";
    |      ^^^^^^^^^^^^^ this receiver's type declares no properties
-   = help: only an object has properties — convert the receiver to the class you expect (`$x as Box`), or declare it `mixed`, which is the one unchecked position (ADR 0007 § 2) and defers the whole question to a catchable throw at run time
+   = help: only an object has properties — convert the receiver to the class you expect (`$x as Box`), or declare it `mixed`, which is the one unchecked position (`rule:types/conversion`) and defers the whole question to a catchable throw at run time
 
 error: aborting due to 4 errors

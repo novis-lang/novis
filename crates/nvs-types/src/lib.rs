@@ -1,8 +1,8 @@
-//! The Novis type checker (ADR 0007) — M2's last open thread. See
+//! The Novis type checker (`rule:types/declaration`) — M2's last open thread. See
 //! `docs/implementation-plan.md`'s M2 paragraph and `docs/agent/handoff.md`
 //! for how this crate grew: a full type checker covering every ADR M2
 //! assigns to `nvs-types` was too large for one slice, so the first slice
-//! covered ADR 0007 §§ 1-4 in full (declared-type recording, per-local
+//! covered `rule:types/declaration`, `rule:types/conversion`, `rule:types/grammar` and `rule:types/arithmetic` in full (declared-type recording, per-local
 //! definite assignment, the interned type grammar, the arithmetic
 //! result-type table) plus enough of §§ 5-6 to satisfy the earliest corpus
 //! items; this one adds property/method-call/`new`/`match`/ternary
@@ -16,7 +16,7 @@
 //! - [`lower`] — [`lower::lower_type`]: resolves a parsed
 //!   [`nvs_syntax::ast::Type`] into a [`ty::TypeId`], including
 //!   `self`/`static`, `type`-alias substitution (the first real consumer of
-//!   [`nvs_hir::AliasTable`]), and ADR 0007 § 5's depth-32 array-nesting
+//!   [`nvs_hir::AliasTable`]), and `rule:types/arrays`'s depth-32 array-nesting
 //!   bound.
 //! - [`signatures`] — [`signatures::build_signatures`]/
 //!   [`signatures::resolve_property`]/[`signatures::resolve_method`]: every
@@ -67,7 +67,7 @@
 //!   [`expr_table`] and joined against [`layout`]'s slot order by `nvs-ir`.
 //! - [`consts`] — [`consts::build_const_table`]: every declared class
 //!   constant's folded compile-time value, built beside [`enums`] and read
-//!   only where ADR 0047 § 2's `Foo::CONST` appears in *type* position. See
+//!   only where `rule:types/constant-in-type-position`'s `Foo::CONST` appears in *type* position. See
 //!   that module's own docs for why an ineligible value is recorded rather
 //!   than dropped.
 //! - [`layout`] — [`layout::build_class_layouts`]: every declared class's
@@ -95,7 +95,7 @@
 //! Deliberately out of scope so far, left for a follow-up (see
 //! `docs/agent/handoff.md` for the ordering):
 //!
-//! - ADR 0024 (`tainted` propagation/laundering), ADR 0027 (`callable`
+//! - ADR 0024 (`tainted` propagation/laundering), `rule:types/callable-is-a-closure` (`callable`
 //!   value-shape checking) and ADR 0033 §§ 2-4 (`secret`, the same shape on
 //!   an independent axis — its § 1 grammar landed in M1) are all now done —
 //!   as is § 5's constant-time `==`, whose share of the work is this crate's
@@ -163,7 +163,7 @@
 //!   ([`expr`]'s `ClassConstAccess` arm) all recover [`ty::Ty::Enum`] rather
 //!   than [`ty::Ty::Class`]; an arithmetic or bitwise operator applied
 //!   directly to an enum operand and a conversion from one enum type to a
-//!   *different* one, even via `as`, are both diagnosed per ADR 0010 § 5 —
+//!   *different* one, even via `as`, are both diagnosed per `rule:types/conversion` —
 //!   see [`expr`]'s `reject_enum_operand`/`reject_enum_to_enum_conversion`.
 //!   `==`/`===` between two different enum types is not yet diagnosed — no
 //!   general equality-operand-compatibility check exists for *any* type pair
@@ -174,7 +174,7 @@
 //!   non-void function returns"); `switch` and `try`/`catch` bodies
 //!   conservatively contribute nothing to definite-assignment after them —
 //!   safe (may reject a few valid programs), never accepts an invalid one.
-//! - **ADR 0007 § 6's narrowing is one of its four spellings.** `=== null`/
+//! - **`rule:types/unions-and-mixed`'s narrowing is one of its four spellings.** `=== null`/
 //!   `!== null` over a plain local narrows, and [`locals`]' own docs own the
 //!   rule, what invalidates one and the two places the walk deliberately
 //!   refuses to prove anything. The residue is unrestricted — dropping
@@ -191,7 +191,7 @@
 //!   positions: a `Core` class's is stated by `nvs_stdlib::registry::CoreConst`,
 //!   a user-declared one's declared type and value are
 //!   [`signatures::ConstSig`], both resolved by [`expr`]'s `ClassConstAccess`
-//!   arm, and a use in *type* position folds to ADR 0047 § 2's literal type
+//!   arm, and a use in *type* position folds to `rule:types/constant-in-type-position`'s literal type
 //!   over [`consts`]. What is left is a constant whose value has no constant
 //!   form at all (`public const array<int> ROWS = [1, 2];`), which types as `mixed` and panics
 //!   `nvs_ir::lower` if a program reads it.
@@ -332,7 +332,7 @@ pub(crate) struct Ctx<'a> {
     pub generator_elem: Option<crate::ty::TypeId>,
 }
 
-/// [ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md) § 3's
+/// `rule:types/closure-self-name`'s
 /// optional self-name, resolved: what a bare call written inside the closure's
 /// own body has to spell to mean *this* closure, and what such a call answers
 /// with.
@@ -377,7 +377,7 @@ pub(crate) struct Env<'a> {
     /// Built before [`signatures::build_signatures`], which already needs it.
     pub enums: &'a EnumTable,
     /// Every declared class constant's folded compile-time value
-    /// ([`consts::build_const_table`]) — read only where ADR 0047 § 2's
+    /// ([`consts::build_const_table`]) — read only where `rule:types/constant-in-type-position`'s
     /// `Foo::CONST` appears in *type* position and has to fold to its own
     /// literal type. Built beside [`Self::enums`], and before
     /// [`signatures::build_signatures`], for the same reason: an annotation
@@ -450,14 +450,13 @@ pub(crate) struct Env<'a> {
     /// [`crate::derive::check_row_sites`].
     pub row_sites: &'a mut Vec<crate::derive::RowSite>,
     pub diags: &'a mut nvs_diagnostics::Diagnostics,
-    /// How many ADR 0031 `fn` closure literals this run has checked so far —
+    /// How many `rule:types/closure-literal` `fn` closure literals this run has checked so far —
     /// the suffix that makes each one's synthesized environment class label
     /// unique. One counter for the whole run rather than one per body,
     /// because a closure nested inside another closure has no enclosing
     /// declaration of its own to be numbered within.
     pub closure_seq: u32,
-    /// [ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md)
-    /// § 3's self-name, for the `fn` literal whose body is being checked —
+    /// `rule:types/closure-self-name`'s self-name, for the `fn` literal whose body is being checked —
     /// `None` outside one, and `None` again inside a nested literal that
     /// declares no name of its own.
     ///
@@ -474,7 +473,7 @@ pub(crate) struct Env<'a> {
     /// is why this is a stack of kinds and not a pair of counters.
     ///
     /// Maintained by [`crate::locals`] as it walks a body, and saved/emptied/
-    /// restored across an ADR 0031 closure literal's body, which no enclosing
+    /// restored across an `rule:types/closure-literal` closure literal's body, which no enclosing
     /// loop reaches into: a `break` written in one has nothing outside the
     /// closure to leave.
     pub exit_targets: Vec<bool>,

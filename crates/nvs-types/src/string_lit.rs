@@ -13,7 +13,7 @@
 //! checked. This module is that arm's sibling for string content: it cooks
 //! the escapes and reports the two ways cooking can still fail — an
 //! out-of-range/surrogate `\u{...}` codepoint, or a `\xHH`/octal byte escape
-//! sequence that does not decode as valid UTF-8 (ADR 0009's "`string` is
+//! sequence that does not decode as valid UTF-8 (`rule:types/bytes`'s "`string` is
 //! guaranteed-valid UTF-8" invariant) — before `nvs-ir` ever lowers the
 //! literal.
 //!
@@ -159,7 +159,7 @@ pub fn cook_string_literal(src: &SourceFile, span: Span) -> String {
         // the lexer only ever spans identifier characters, so its own text
         // *is* its value. A digit run is left a string on purpose — an array
         // subscript normalises a numeric string key to an integer one
-        // (ADR 0007 § 5), which is exactly what PHP does with `"$n[0]"`.
+        // (`rule:types/arrays`), which is exactly what PHP does with `"$n[0]"`.
         return raw.to_owned();
     }
     let inner_span = Span::new(span.file, span.start + 1, span.end - 1);

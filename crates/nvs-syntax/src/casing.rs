@@ -823,7 +823,7 @@ fn check_expr(expr: &Expr, src: &SourceFile, diags: &mut Diagnostics) {
         ExprKind::Await(inner) => check_expr(inner, src, diags),
         ExprKind::Require { path } => check_expr(path, src, diags),
         ExprKind::ObjectLiteral(fields) => {
-            // ADR 0036 § 2: a literal's field names are ordinary property
+            // `rule:types/object-literal`: a literal's field names are ordinary property
             // names, so ADR 0029's camelCase rule applies unchanged — reuse
             // the same check an ordinary class property declaration gets,
             // even though this field carries no `$` sigil to strip.
@@ -998,7 +998,7 @@ mod tests {
 
     #[test]
     fn a_correctly_cased_object_literal_field_is_clean() {
-        // ADR 0036 § 2: field names are ordinary property names.
+        // `rule:types/object-literal`: field names are ordinary property names.
         let diags = check("<?nvs\n$o = {userId: 1};\n");
         assert!(diags.is_empty(), "{diags:?}");
     }
@@ -1220,7 +1220,7 @@ mod tests {
 
     #[test]
     fn a_class_body_var_names_the_missing_visibility() {
-        // ADR 0094 § 4: `var` is ADR 0037's local-inference keyword, so
+        // ADR 0094 § 4: `var` is `rule:types/var-inference`'s local-inference keyword, so
         // without its own arm this would report something about the
         // statement grammar to an author writing PHP's property form.
         let diags = parse_and_check("<?nvs\nclass Foo { var $name; }\n");

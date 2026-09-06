@@ -1,5 +1,5 @@
 --TEST--
-`$$name` defeats name resolution and type inference, so it is refused with an `array` keyed by name named as the replacement — ADR 0007 § 1
+`$$name` defeats name resolution and type inference, so it is refused with an `array` keyed by name named as the replacement — `rule:types/declaration`
 --FILE--
 <?nvs
 string $name = "value";

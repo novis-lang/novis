@@ -1,5 +1,5 @@
 --TEST--
-An `array<T>` class constant folds to a value and is inlined afresh at every read — ADR 0011, ADR 0007 §§ 2 and 5
+An `array<T>` class constant folds to a value and is inlined afresh at every read — ADR 0011, `rule:types/conversion` and `rule:types/arrays`
 --FILE--
 <?nvs
 use Core\Arr;
@@ -33,7 +33,7 @@ array<int> $mine = Limits::STEPS;
 $mine[0] = 9;
 echo $mine[0], Limits::STEPS[0], "\n";
 
-// ADR 0007 § 5: every key is a `string`, and a keyless run takes its position
+// `rule:types/arrays`: every key is a `string`, and a keyless run takes its position
 // in that run — the same keys the written literal would have had, computed
 // once at the fold rather than at each read.
 foreach (Limits::STEPS as string $key => int $value) {

@@ -1,5 +1,5 @@
 --TEST--
-PHP's `(int)$x` cast is refused, and the diagnostic names `as int` — the one conversion spelling, ADR 0034
+PHP's `(int)$x` cast is refused, and the diagnostic names `as int` — the one conversion spelling, `rule:types/no-legacy-cast`
 --FILE--
 <?nvs
 int $n = 3;

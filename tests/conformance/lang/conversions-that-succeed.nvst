@@ -1,5 +1,5 @@
 --TEST--
-`as` over ADR 0007 § 2's scalar rows, every one of them succeeding
+`as` over `rule:types/conversion`'s scalar rows, every one of them succeeding
 --FILE--
 <?nvs
 echo "42" as int, "\n";

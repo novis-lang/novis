@@ -1,4 +1,4 @@
-# ADR 0036 — `object` is the opaque top of every class type; `{...}` builds an anonymous, methodless instance; an inline `{name: T, ...}` shape is Novis's one structurally-checked type
+# `rule:types/object-top` — `object` is the opaque top of every class type; `{...}` builds an anonymous, methodless instance; an inline `{name: T, ...}` shape is Novis's one structurally-checked type
 
 - **Status:** Accepted
 - **Date:** 2026-08-21
@@ -7,13 +7,13 @@
   subtyping semantics), a new anonymous object-literal expression (`{a: 1, b: 2}`), and a new inline
   structural shape type (`{name: T, ...}`) usable anywhere a type is expected. Does not add methods,
   inheritance, or any nominal contract to these values — they stay pure data.
-- **Amends:** [ADR 0007](0007-explicit-type-system.md) — `object` moves from a reserved-but-unused atom to
+- **Amends:** `rule:types/declaration` — `object` moves from a reserved-but-unused atom to
   a real member of the type lattice: every class type, named or anonymous-literal, is now a subtype of it,
   and it is in turn a subtype of `mixed`. [ADR 0014](0014-property-observer.md) § 5 — its "a computed
   property name is a checked runtime throw, never a fallback" rule gains a second trigger: an *erased
   receiver type* (plain `object`, or a shape missing the named field), not only a *dynamic name*; and gains
   a case § 5 never needed before — a write whose target's real field type isn't statically visible through
-  the erased view is also a checked runtime type-check, not just a name check. [ADR 0031](0031-callable-is-the-only-closure-type.md) —
+  the erased view is also a checked runtime type-check, not just a name check. `rule:types/closure-literal` —
   this is the "ordinary object in user code" its own § 2 already pointed at for two closures sharing mutable
   state; it also documents the one new grammar wrinkle that decision's block-body dispatch creates for this
   literal (see *Decision § 2*). [docs/implementation-plan.md](../implementation-plan.md) M1 — gains a third
@@ -42,9 +42,9 @@
 
 - The user asked for PHP's `stdClass` — a way to pass a shared, named bag of values across a function
   boundary without declaring a class. Novis cannot offer it as-is: every property must be declared and typed
-  ([ADR 0007](0007-explicit-type-system.md)), and accessing/creating an undeclared one is a hard error with
+  (`rule:types/declaration`), and accessing/creating an undeclared one is a hard error with
   no fallback ([ADR 0014](0014-property-observer.md) § 5) — exactly the mechanism `stdClass` needs closed.
-- [ADR 0031](0031-callable-is-the-only-closure-type.md) already named the gap this fills: two closures
+- `rule:types/closure-literal` already named the gap this fills: two closures
   sharing mutable state need "an ordinary object in user code," with no ceremony-reduced way to write one.
 - A fully general, first-class structural record type (interned/canonicalized everywhere a type can appear)
   was explored first and rejected as more machinery than the need justifies (*Alternatives rejected*). The
@@ -102,7 +102,7 @@ is a static identifier, full stop — there is no path from this literal back to
 behaviour.
 
 **Grammar note, found by reading `nvs-syntax/src/parser.rs` directly rather than assuming:** `parse_fn_expr`
-already parses `{` immediately after `=>` as the start of a block body ([ADR 0031](0031-callable-is-the-only-closure-type.md)),
+already parses `{` immediately after `=>` as the start of a block body (`rule:types/closure-literal`),
 so `fn() => {a: 1, b: 2}` parses as a block body attempting to parse `a: 1, b: 2` as statements, not as a
 returned literal. Returning a literal directly from an expression-bodied arrow needs the same fix
 JavaScript already uses for the identical ambiguity: `fn() => ({a: 1, b: 2})`. The same applies to a bare,
@@ -150,7 +150,7 @@ A field accessed through plain `object`, or a name a shape does not list, cannot
 at all. This is [ADR 0014](0014-property-observer.md) § 5's already-decided fallback for a *dynamically
 computed* property name, now also triggered by an *erased receiver type*.
 
-**A `mixed` receiver is the third trigger, and the widest**: [ADR 0007](0007-explicit-type-system.md) § 2
+**A `mixed` receiver is the third trigger, and the widest**: `rule:types/conversion`
 makes it the one unchecked position, so `$m->name` defers not only which class is behind the handle but
 whether there is one at all. The fetch below is what answers both, and a receiver whose tag turns out not
 to be an object is one more catchable throw, worded as PHP words its warning. Every receiver whose
@@ -183,7 +183,7 @@ the answer: declare an ordinary class.
 
 **Positive**
 
-- Closes the exact gap [ADR 0031](0031-callable-is-the-only-closure-type.md) already named — "an ordinary
+- Closes the exact gap `rule:types/closure-literal` already named — "an ordinary
   object in user code" for sharing mutable state between closures — with a genuinely lightweight way to
   write that object, instead of a full structural-record subsystem.
 - Reuses four already-decided mechanisms end to end rather than inventing new ones: ADR 0014 § 5's

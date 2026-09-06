@@ -72,7 +72,7 @@ echo \"|\", Core\\Str::join($v, \",\");
     assert_eq!(output_of(source), "no|yes|a,b");
 }
 
-/// An `unset` leaves a hole rather than renumbering (ADR 0007 § 5), so the
+/// An `unset` leaves a hole rather than renumbering (`rule:types/arrays`), so the
 /// array stops being a list until `values` rebuilds it — PHP's own answer, and
 /// the reason `isList` compares key bytes rather than counting entries.
 #[test]

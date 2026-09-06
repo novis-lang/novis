@@ -1,5 +1,5 @@
 --TEST--
-`Core\Str::chunk`'s size is a bound named on both sides, and over every size the chunks re-join to the subject in whole clusters — spec § 1 *Extraction*, ADR 0009 § 2
+`Core\Str::chunk`'s size is a bound named on both sides, and over every size the chunks re-join to the subject in whole clusters — spec § 1 *Extraction*, `rule:types/string-is-utf8`
 --FILE--
 <?nvs
 // The bound, both halves on one line. `0` is the last size refused and `1` the

@@ -1,4 +1,4 @@
-//! Per-function-body local-variable checking: ADR 0007 § 1's declare-once
+//! Per-function-body local-variable checking: `rule:types/declaration`'s declare-once
 //! rule ("there is no shadowing") and flow-sensitive definite assignment
 //! ("reading a binding on a path that may not have reached its initialiser
 //! is a compile error").
@@ -22,7 +22,7 @@
 //! declaration, since the ADR's text doesn't address this directly and
 //! rejecting it would make an extremely common pattern a compile error.
 //! Reusing a name with a *different* type still conflicts — that really is
-//! "a second declared type for one storage location," which ADR 0007 § 1
+//! "a second declared type for one storage location," which `rule:types/declaration`
 //! explicitly forbids for a reference and, by the same reasoning, for a
 //! plain local too.
 //!
@@ -34,8 +34,8 @@
 //! the path being checked right now. A `!= null`/`== null` test over a
 //! plain variable, an `instanceof` one over the same, or a comparison of one
 //! against a written literal, installs one entry for the branch it proves —
-//! the latter two on the edge where the test holds alone, ADR 0007 § 6's
-//! `instanceof` row and ADR 0047 § 4's guard row — and the branch's end
+//! the latter two on the edge where the test holds alone, `rule:types/unions-and-mixed`'s
+//! `instanceof` row and `rule:types/literal-types`'s guard row — and the branch's end
 //! restores what was there before — **unless a write already
 //! removed it**, in which case the write wins and nothing is put back (see
 //! [`Narrowing`], which records what it installed so it can tell the two
@@ -68,7 +68,7 @@
 //! one type wider — a `mixed` or a union subject is one `Ty::Tagged` slot, and
 //! the proved class is exactly what the `Untag` relabels it to. **A literal
 //! comparison narrows to the literal's own type**, an enum case included,
-//! which costs nothing below the checker at all: ADR 0047 § 5 gives a literal
+//! which costs nothing below the checker at all: `rule:types/literal-types` gives a literal
 //! type and an enum-case type their base's representation exactly, so the read
 //! is the same one either way.
 //!
@@ -117,8 +117,8 @@ pub(crate) struct LocalInfo {
 }
 
 /// One function/method/closure body's local variables — a single table for
-/// the whole body, since declaration is function-scoped (ADR 0007 § 1), not
-/// block-scoped. A closure gets a fresh one of its own: ADR 0031's capture is
+/// the whole body, since declaration is function-scoped (`rule:types/declaration`), not
+/// block-scoped. A closure gets a fresh one of its own: `rule:types/closure-literal`'s capture is
 /// by value, never a shared binding, so an outer name reaches the body
 /// through [`Captures`] rather than through `by_name`.
 #[derive(Debug, Default)]
@@ -152,7 +152,7 @@ pub(crate) struct LocalScope {
 
 /// The outer bindings a closure body may read, and the ones it actually did.
 ///
-/// [ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md) § 2
+/// `rule:types/implicit-capture`
 /// captures "exactly the outer variables its body reads," which is a fact
 /// about the body rather than about the enclosing scope — so `available`
 /// holds every name that *could* be captured, and `used` accumulates the ones
@@ -371,11 +371,11 @@ fn null_test(cond: &Expr) -> Option<(Span, bool)> {
 /// them match one condition. **A `!= null` test drops `null` and keeps the
 /// rest** — `rule:expressions/nullable-conversion`'s body's own rule, and every residue takes it: a class, an
 /// `array<T>`, a scalar, or a union of them. **An `instanceof` test proves the
-/// class it names, on its true edge only** — ADR 0007 § 6's first narrowing
+/// class it names, on its true edge only** — `rule:types/unions-and-mixed`'s first narrowing
 /// form; see [`instanceof_residue`] for why the false edge proves nothing and
 /// why the residue is a class rather than every name that test accepts. **A
 /// comparison against a written literal proves that literal's own type** —
-/// ADR 0047 § 4's guard row, and [`literal_residue`] owns which spellings
+/// `rule:types/literal-types`'s guard row, and [`literal_residue`] owns which spellings
 /// reach it.
 ///
 /// This used to be restricted to a single-class residue, because `nvs-ir`
@@ -391,7 +391,7 @@ fn null_test(cond: &Expr) -> Option<(Span, bool)> {
 /// The three tests are what a *condition* proves, so every site that writes
 /// one reaches this: the `if`/`while` arms below, the guard clause
 /// [`check_block`] carries, and — through [`is_true_literal`] — each label of a
-/// `match (true)`/`switch (true)`, which is ADR 0007 § 6's fourth spelling and
+/// `match (true)`/`switch (true)`, which is `rule:types/unions-and-mixed`'s fourth spelling and
 /// is a label only in where it is written.
 pub(crate) fn narrow(cond: &Expr, when: bool, scope: &LocalScope, env: &mut Env<'_>) -> Narrowing {
     let residue = match null_residue(cond, when, scope, env) {
@@ -522,7 +522,7 @@ fn instanceof_test(cond: &Expr) -> Option<(Span, Span, bool)> {
 /// The local a comparison against a written literal narrows on the branch
 /// where it evaluates to `when`, and the literal type it proves.
 ///
-/// [ADR 0047](/docs/adr/0047-literal-and-enum-case-types.md) § 4's own
+/// `rule:types/literal-types`'s own
 /// row: a wider literal union reaches a narrower one through a guard, and `==`
 /// is that guard's simplest spelling. `==` proves the literal where it holds
 /// and `!=` where it does not, which is the same edge written two ways.
@@ -538,7 +538,7 @@ fn instanceof_test(cond: &Expr) -> Option<(Span, Span, bool)> {
 /// back off [`crate::expr_table::ExprInfo::EnumCase`] instead, for
 /// [`instanceof_residue`]'s reason: which case a written name means is a
 /// question about the namespace and the imports of the site that wrote it, and
-/// this walk carries neither. The residue is ADR 0047 § 3's `Ty::EnumCase` and
+/// this walk carries neither. The residue is `rule:types/enum-case-type`'s `Ty::EnumCase` and
 /// not the whole enum — that is the point of the guard — and it costs nothing
 /// below the checker for § 5's reason, a case being its backing integer in
 /// every representation. The roster is closed at those three: anything else
@@ -569,7 +569,7 @@ pub(crate) fn literal_residue(
             env.interner
                 .int_literal(i64::from_str_radix(&digits, radix).ok()?)
         }
-        // ADR 0047 § 4's guard row over an enum: `$m == Mode::Read` proves the
+        // `rule:types/literal-types`'s guard row over an enum: `$m == Mode::Read` proves the
         // case's own type, which is `Ty::EnumCase` rather than the enum. The
         // enum and the case are read back off
         // [`crate::expr_table::ExprInfo::EnumCase`], recorded when the operand
@@ -624,8 +624,7 @@ fn literal_test(cond: &Expr) -> Option<(Span, &Expr, bool)> {
     }
 }
 
-/// Whether `subject` is the written literal `true` — the subject of ADR 0007
-/// § 6's `match (true)` spelling, and of the `switch (true)` one beside it.
+/// Whether `subject` is the written literal `true` — the subject of `rule:types/unions-and-mixed`'s `match (true)` spelling, and of the `switch (true)` one beside it.
 ///
 /// Under that subject a label is not a value the subject is compared against
 /// but a **condition** in its own right, so an arm is reached exactly where
@@ -639,8 +638,7 @@ fn literal_test(cond: &Expr) -> Option<(Span, &Expr, bool)> {
 /// A label proves nothing for any *other* arm, so nothing is installed for a
 /// `default` arm or for one of a comma-separated run: `match (true)` evaluates
 /// labels in order and the arm taken is the first that held, which says the
-/// earlier ones did not — a residue this pass has no way to subtract, ADR 0007
-/// § 6's narrowings each naming a type rather than removing one.
+/// earlier ones did not — a residue this pass has no way to subtract, `rule:types/unions-and-mixed`'s narrowings each naming a type rather than removing one.
 pub(crate) fn is_true_literal(subject: &Expr) -> bool {
     match &subject.kind {
         ExprKind::Paren(inner) => is_true_literal(inner),
@@ -1144,7 +1142,7 @@ pub(crate) fn check_stmt(
             // it as a level for both keywords, and `continue` then walks out
             // of it to the loop (see `check_exit_level`).
             env.exit_targets.push(false);
-            // ADR 0007 § 6's `switch (true)`: every label is a condition, so
+            // `rule:types/unions-and-mixed`'s `switch (true)`: every label is a condition, so
             // each case body is checked under what its own label proves.
             let labels_are_conditions = is_true_literal(subject);
             for (i, case) in cases.iter().enumerate() {
@@ -1307,7 +1305,7 @@ pub(crate) fn check_stmt(
                         live.insert(name_str);
                     }
                 }
-                // ADR 0037: `var` — the parser never produces this without
+                // `rule:types/var-inference`: `var` — the parser never produces this without
                 // an initializer. Its type is synthesized the same way an
                 // `echo` argument's is (`check_expr` with no `expected`),
                 // then fixed onto the binding exactly as if it had been
@@ -1419,11 +1417,11 @@ pub(crate) fn nested_declaration(kind: &str, at: Span, introduces_a_name: bool, 
     env.diags.report(diag);
 }
 
-/// ADR 0007 § 3.3's destructuring target, against the type of the value being
+/// `rule:types/grammar`.3's destructuring target, against the type of the value being
 /// taken apart.
 ///
 /// **Every element is an element read.** `[int $a, int $b] = $pair` is
-/// `$pair[0]` and `$pair[1]`, keyed exactly as ADR 0007 § 5 normalizes them,
+/// `$pair[0]` and `$pair[1]`, keyed exactly as `rule:types/arrays` normalizes them,
 /// so this asks a subscript's own three questions at a statement that writes
 /// no subscript:
 ///
@@ -1434,7 +1432,7 @@ pub(crate) fn nested_declaration(kind: &str, at: Span, introduces_a_name: bool, 
 ///   ([`code::E_TYPE_MISMATCH`]), the same direction and the same covariance a
 ///   `foreach` value binding gets from [`crate::expr::check_foreach_value`];
 /// * a leaf may not bind by reference ([`code::E_ARRAY_ELEMENT_BY_REFERENCE`]) —
-///   an aliasing element has no owner under ADR 0031 § 2 and ADR 0023, which
+///   an aliasing element has no owner under `rule:types/implicit-capture` and ADR 0023, which
 ///   is that code's rule for an array *literal*'s element and is unchanged
 ///   here, the leaf being the same element from the other side.
 ///
@@ -1537,7 +1535,7 @@ fn check_destructure_key(
 
 /// `[inout int $x] = $pair;` — refused, with [`code::E_ARRAY_ELEMENT_BY_REFERENCE`]'s
 /// own rule and its own code, because it is that rule's other side: PHP's
-/// leaf aliases the element it came from, and ADR 0031 § 2 leaves no binding
+/// leaf aliases the element it came from, and `rule:types/implicit-capture` leaves no binding
 /// that aliases another for it to be.
 fn report_inout_leaf(span: Span, env: &mut Env<'_>) {
     env.diags.report(
@@ -1548,7 +1546,7 @@ fn report_inout_leaf(span: Span, env: &mut Env<'_>) {
         .with_primary(span, "this would alias the element it was read from")
         .with_help(
             "drop the `inout` — the leaf is a copy, exactly as an array literal's element is; \
-             to share one mutable cell, put it in an object (ADR 0031 § 2)",
+             to share one mutable cell, put it in an object (`rule:types/implicit-capture`)",
         ),
     );
 }

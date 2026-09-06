@@ -1,5 +1,5 @@
 --TEST--
-Two `null`s are equal and two `bool`s order, which are ADR 0007 § 4's two non-numeric rows — ADR 0007 § 4, `rule:expressions/disjoint-comparison-refused`
+Two `null`s are equal and two `bool`s order, which are `rule:types/arithmetic`'s two non-numeric rows — `rule:types/arithmetic`, `rule:expressions/disjoint-comparison-refused`
 --FILE--
 <?nvs
 // `null == null` is the one pair whose static types are both `null`, so
@@ -18,7 +18,7 @@ echo ($a == null) as string, "|\n";
 echo ($a == $b) as string, "|\n";
 echo ($a != $b) as string, "|\n";
 
-// A `bool` is the one non-numeric type ADR 0007 § 4's ordering row admits:
+// A `bool` is the one non-numeric type `rule:types/arithmetic`'s ordering row admits:
 // `false < true` is the ordering of the one bit it already is, needs no
 // conversion to be exact, and is PHP's answer as well. Every other operand
 // with no row is refused where it is written — see

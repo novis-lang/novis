@@ -1,5 +1,5 @@
 --TEST--
-`as ?T` is refused at both ends of its table — a row that cannot fail, and a pair naming no row at all — `rule:expressions/nullable-conversion-availability`, over ADR 0007 § 2's closed table
+`as ?T` is refused at both ends of its table — a row that cannot fail, and a pair naming no row at all — `rule:expressions/nullable-conversion-availability`, over `rule:types/conversion`'s closed table
 --FILE--
 <?nvs
 // `rule:expressions/nullable-conversion-availability` in one sentence: "a conversion that exists and failed is
@@ -34,7 +34,7 @@ Foo $foo = new Foo();
 ?mixed $e = $s as ?mixed;
 ?Mode $f = $read as ?Mode;
 
-// End two, shared with the plain form: ADR 0007 § 2's table is closed, and
+// End two, shared with the plain form: `rule:types/conversion`'s table is closed, and
 // asking it through the sugar asks it of the `T` inside. Every pair here is
 // one `the-conversion-table-is-closed` already pins without the `?`.
 ?int $g = $xs as ?int;

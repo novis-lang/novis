@@ -1,5 +1,5 @@
 --TEST--
-`$a[8]` and `$a["8"]` name one key, and `"08"` stays a different one — ADR 0007 § 5
+`$a[8]` and `$a["8"]` name one key, and `"08"` stays a different one — `rule:types/arrays`
 --FILE--
 <?nvs
 class Render {

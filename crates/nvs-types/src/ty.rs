@@ -1,4 +1,4 @@
-//! Interned type representation (ADR 0007 §§ 3-5): every distinct type the
+//! Interned type representation (`rule:types/grammar`, `rule:types/arithmetic` and `rule:types/arrays`): every distinct type the
 //! program uses gets one [`TypeId`], and two structurally identical types
 //! share it — the "descriptors are interned process-wide" requirement,
 //! scoped for this milestone to one [`TypeInterner`] per type-check run
@@ -33,17 +33,17 @@ pub enum Ty {
     Bool,
     /// `int`
     Int,
-    /// `uint` — ADR 0007 § 4.
+    /// `uint` — `rule:types/arithmetic`.
     Uint,
     /// `float`
     Float,
-    /// `decimal` — ADR 0054 § 1: a 96-bit signed mantissa and a scale of 0 to
+    /// `decimal` — `rule:types/decimal`: a 96-bit signed mantissa and a scale of 0 to
     /// 28. Distinct from [`Self::Float`] and never assignable to or from it,
     /// which is what makes § 3's `decimal ⊕ float` compile error expressible.
     Decimal,
     /// `string`
     String,
-    /// `bytes` — ADR 0009.
+    /// `bytes` — `rule:types/bytes`.
     Bytes,
     /// `tainted string` — ADR 0024 § 1.
     TaintedString,
@@ -61,9 +61,9 @@ pub enum Ty {
     /// [`Self::SecretTaintedString`].
     SecretTaintedBytes,
     /// `array<T>`. A bare `array` is `Array` of the interned `Mixed` id —
-    /// ADR 0007 § 3: "`array` with no argument is exactly `array<mixed>`."
+    /// `rule:types/grammar`: "`array` with no argument is exactly `array<mixed>`."
     Array(TypeId),
-    /// `class<T>` — ADR 0125 § 1's class reference. Its *value* is a run-time
+    /// `class<T>` — `rule:types/class-reference`'s class reference. Its *value* is a run-time
     /// class descriptor, and the argument bounds which descriptors it can be:
     /// `T` itself or any class that is a `T`.
     ///
@@ -73,7 +73,7 @@ pub enum Ty {
     /// whether a class reference's argument names a class before reading it as
     /// one.
     ///
-    /// **Covariant in that argument** (ADR 0125 § 3), which makes it the
+    /// **Covariant in that argument** (`rule:types/class-reference-variance`), which makes it the
     /// second generic name in the language that is: `class<Dog>` widens to
     /// `class<Animal>` wherever `Dog` widens to `Animal`, and never back. It
     /// needs none of the reasoning [`Self::Array`]'s covariance needs, because
@@ -82,7 +82,7 @@ pub enum Ty {
     /// there is nothing a widened view could store for a narrow one to read
     /// back.
     ClassRef(TypeId),
-    /// `property<T>` — ADR 0126 § 1's property key. Its *values* are the names
+    /// `property<T>` — `rule:types/property-key`'s property key. Its *values* are the names
     /// of `T`'s public declared properties, and the argument bounds which
     /// receiver the key may be applied to.
     ///
@@ -91,7 +91,7 @@ pub enum Ty {
     /// refuses anything else where it is written
     /// (`E_PROPERTY_KEY_ARGUMENT_NOT_A_CLASS`).
     ///
-    /// **Contravariant in that argument** (ADR 0126 § 3), which makes it the
+    /// **Contravariant in that argument** (`rule:types/property-key-variance`), which makes it the
     /// only generic name in the language that is, and the inversion is exactly
     /// [`Self::ClassRef`]'s covariance seen from the other side: a class
     /// reference is produced against its bound, while a key is *consumed* by a
@@ -108,7 +108,7 @@ pub enum Ty {
     Void,
     /// `never` — return-position only.
     Never,
-    /// `true` — ADR 0007 § 3's atom, and `bool`'s half of ADR 0047 § 1: the
+    /// `true` — `rule:types/grammar`'s atom, and `bool`'s half of `rule:types/literal-types`: the
     /// type inhabited by exactly one value, which is what
     /// [`Self::StringLiteral`] generalises to `string`'s. It is placed the
     /// same way ([`crate::expr::literals::placed_literal`]) — a `true`
@@ -119,7 +119,7 @@ pub enum Ty {
     True,
     /// `false` — [`Self::True`]'s other half, in every respect.
     False,
-    /// `"a"` — ADR 0047 § 1: the type inhabited by exactly one string, the
+    /// `"a"` — `rule:types/literal-types`: the type inhabited by exactly one string, the
     /// generalisation of [`Self::True`]/[`Self::False`] from `bool`'s two
     /// values to `string`'s.
     ///
@@ -131,28 +131,28 @@ pub enum Ty {
     /// structural over that value, which is exactly the singleton-ness the
     /// type claims.
     ///
-    /// ADR 0047 § 5: no runtime representation of its own — it erases to
+    /// `rule:types/literal-types`: no runtime representation of its own — it erases to
     /// [`Self::String`] at the `nvs-ir` boundary
     /// (`nvs_ir::lower::lower_checked_ty`), and the singleton-ness is enforced
     /// entirely by the checker wherever the static type is known.
     StringLiteral(String),
-    /// `1`, `-1` — ADR 0047 § 1's `int` counterpart of
+    /// `1`, `-1` — `rule:types/literal-types`'s `int` counterpart of
     /// [`Self::StringLiteral`], erasing to [`Self::Int`] the same way.
     ///
     /// `i64`, so the value is always one an `int` can hold: a magnitude past
     /// `int`'s range is diagnosed where the atom is lowered rather than
-    /// widened to `uint` here, because ADR 0047 § 1 gives the atom one base
+    /// widened to `uint` here, because `rule:types/literal-types` gives the atom one base
     /// type and a second one would make `1`'s meaning depend on its
     /// neighbours. There is deliberately no `float` counterpart (§ 7).
     IntLiteral(i64),
-    /// `Mode::Read` — ADR 0047 § 3: a subtype of the enum inhabited by exactly
+    /// `Mode::Read` — `rule:types/enum-case-type`: a subtype of the enum inhabited by exactly
     /// one of its cases, carrying the enum's `QName`, its backing type, and
     /// the case's own name.
     ///
     /// Deliberately **not** [`Self::IntLiteral`] of the case's backing value,
     /// which is the whole of § 3: folding it that way would let a bare `int`
     /// satisfy an enum-typed parameter, reopening the hole
-    /// [ADR 0010](/docs/adr/0010-enums-are-a-value-type.md) § 5 closed
+    /// `rule:types/conversion` closed
     /// by making `int → Mode` a checked conversion. An enum-case type and an
     /// int literal type that happen to share a value are never unified by
     /// canonicalisation, because they are not the same `Ty`.
@@ -209,7 +209,7 @@ pub enum Ty {
     CallableShapeTo(String),
     /// A resolved class or interface name, plus the type arguments it was
     /// written with — the type grammar does not distinguish a class from an
-    /// interface (ADR 0007 § 3); which one `QName` names is a question for
+    /// interface (`rule:types/grammar`); which one `QName` names is a question for
     /// [`nvs_hir::SymbolTable`], not this representation.
     ///
     /// The argument list is empty for all but two names.
@@ -241,7 +241,7 @@ pub enum Ty {
     /// a function of the `QName`, so it never splits one enum into two
     /// interned types.
     Enum(QName, crate::enums::EnumBacking),
-    /// `{name: T, ...}` — ADR 0036 § 3, Novis's one structurally-checked type.
+    /// `{name: T, ...}` — `rule:types/shape-type`, Novis's one structurally-checked type.
     /// Fields are sorted by name (see [`TypeInterner::shape`]) so two shapes
     /// naming the same fields in a different written order intern to the
     /// same `TypeId`; unlike [`Self::Union`]/[`Self::Intersection`] there is
@@ -263,11 +263,11 @@ pub enum Ty {
     ///
     /// The second type in this enum no source text can spell (see
     /// [`Self::TypeVar`] for the first). A *value* of this type is still
-    /// written by hand — an ADR 0036 object literal at the call site — but the
+    /// written by hand — an `rule:types/object-top` object literal at the call site — but the
     /// type itself is never written, which is why there is no `?` in the
     /// surface type grammar.
     ///
-    /// Deliberately not a [`Self::Shape`]. A shape is checked by ADR 0036 § 3's
+    /// Deliberately not a [`Self::Shape`]. A shape is checked by `rule:types/shape-type`'s
     /// **width** subtyping, which accepts a field the target does not name;
     /// this one must refuse one, because a mistyped key that is silently
     /// ignored is exactly the failure ADR 0063 R2 exists to prevent.
@@ -297,7 +297,7 @@ pub enum Ty {
     Intersection(Vec<TypeId>),
     /// A *type variable*, named — `T` in `Core\Arr::count(array<T> $a): uint`.
     ///
-    /// The one type in this enum no source text can spell. ADR 0007 parks
+    /// The one type in this enum no source text can spell. `rule:types/declaration` parks
     /// user-declared generics and `docs/agent/loop-goal.md` keeps type variables
     /// compiler-owned, so a `TypeVar` only ever enters the interner from
     /// `nvs_stdlib::registry`'s `Core` signatures ([`crate::core_lib`]) or
@@ -441,7 +441,7 @@ impl TypeInterner {
     /// Builds a canonicalized union out of already-interned members:
     /// flattens a member that is itself a union, sorts and deduplicates by
     /// `TypeId`, and collapses to the single member directly if only one
-    /// remains — ADR 0007 § 3's canonicalization, generalised to also cover
+    /// remains — `rule:types/grammar`'s canonicalization, generalised to also cover
     /// the degenerate one-member case a `?T` or `T|T` source expression can
     /// produce.
     pub fn make_union(&mut self, members: impl IntoIterator<Item = TypeId>) -> TypeId {
@@ -620,7 +620,7 @@ impl TypeInterner {
         self.intern(Ty::Float)
     }
 
-    /// The interned `decimal` singleton — ADR 0054 § 1.
+    /// The interned `decimal` singleton — `rule:types/decimal`.
     #[must_use]
     pub fn decimal(&mut self) -> TypeId {
         self.intern(Ty::Decimal)
@@ -716,7 +716,7 @@ impl TypeInterner {
         self.intern(Ty::Iterable)
     }
 
-    /// Interns ADR 0047 § 1's string literal type — see
+    /// Interns `rule:types/literal-types`'s string literal type — see
     /// [`Ty::StringLiteral`], which owns why `value` is the cooked string
     /// rather than the source text.
     #[must_use]
@@ -724,13 +724,13 @@ impl TypeInterner {
         self.intern(Ty::StringLiteral(value.into()))
     }
 
-    /// Interns ADR 0047 § 1's int literal type.
+    /// Interns `rule:types/literal-types`'s int literal type.
     #[must_use]
     pub fn int_literal(&mut self, value: i64) -> TypeId {
         self.intern(Ty::IntLiteral(value))
     }
 
-    /// Interns ADR 0047 § 3's enum-case type — see [`Ty::EnumCase`] for why
+    /// Interns `rule:types/enum-case-type`'s enum-case type — see [`Ty::EnumCase`] for why
     /// this is a type of its own rather than [`Self::int_literal`] of the
     /// case's backing value.
     #[must_use]
@@ -743,7 +743,7 @@ impl TypeInterner {
         self.intern(Ty::EnumCase(qname, backing, case.into()))
     }
 
-    /// The type ADR 0047 § 4's first four rows widen `id` to: a literal type's
+    /// The type `rule:types/literal-types`'s first four rows widen `id` to: a literal type's
     /// base type, an enum-case type's enum, and anything else unchanged.
     ///
     /// The checker-side counterpart of `nvs_ir::lower::lower_checked_ty`'s
@@ -755,8 +755,8 @@ impl TypeInterner {
         match self.get(id).clone() {
             Ty::StringLiteral(_) => self.string(),
             Ty::IntLiteral(_) => self.int(),
-            // ADR 0007 § 3's two `bool` singletons are literal types under
-            // ADR 0047 § 1's own reading of them (see [`Ty::True`]), so they
+            // `rule:types/grammar`'s two `bool` singletons are literal types under
+            // `rule:types/literal-types`'s own reading of them (see [`Ty::True`]), so they
             // widen here rather than anywhere of their own — which is what
             // makes `bool $b = $x as true;` an ordinary assignment.
             Ty::True | Ty::False => self.bool_ty(),
@@ -831,7 +831,7 @@ impl TypeInterner {
         self.intern(Ty::Enum(qname, backing))
     }
 
-    /// Interns `{name: T, ...}` — ADR 0036 § 3. Sorts `fields` by name first,
+    /// Interns `{name: T, ...}` — `rule:types/shape-type`. Sorts `fields` by name first,
     /// so `{x: int, y: string}` and `{y: string, x: int}` intern to the same
     /// `TypeId` regardless of how each was written (same canonicalization
     /// idea as [`Self::make_union`], applied to field order instead of
@@ -929,7 +929,7 @@ impl TypeInterner {
 
 /// Renders a [`Ty::StringLiteral`]'s cooked value back as the double-quoted
 /// literal a program would write it as — what a diagnostic naming the accepted
-/// set has to print (ADR 0047 § 6).
+/// set has to print (`rule:types/literal-types`).
 ///
 /// Only the four characters that would end or re-open the literal are escaped.
 /// This is a *rendering* for a message, not a round-trip through
@@ -1027,7 +1027,7 @@ mod tests {
         assert_eq!(i.describe(u), "int|float");
     }
 
-    /// ADR 0047 § 6: a diagnostic names the accepted set by printing the type
+    /// `rule:types/literal-types`: a diagnostic names the accepted set by printing the type
     /// itself, so each atom has to render as the source spelling it came from.
     #[test]
     fn describe_renders_adr_0047s_three_atoms() {

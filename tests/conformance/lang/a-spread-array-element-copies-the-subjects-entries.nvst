@@ -38,8 +38,8 @@ foreach ($maps as array<string> $map) {
 }
 echo "maps agreeing: ", $kept, " of ", Core\Arr::count($maps), "\n";
 
-// The copy is a separate array, not a second name for the subject: ADR 0007
-// § 5's copy-on-write value semantics hold across a spread in both
+// The copy is a separate array, not a second name for the subject: `rule:types/arrays`
+// 's copy-on-write value semantics hold across a spread in both
 // directions, which is what the per-entry retain buys.
 array<string> $source = ["x", "y"];
 array<string> $copy = [...$source];

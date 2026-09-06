@@ -3,7 +3,7 @@
 //! `match`, the literals and the array forms.
 //!
 //! Two of its former areas are their own modules, reached the way `lower_expr`
-//! reaches any other: ADR 0007 § 2's conversions and `rule:expressions/truthy-positions`'s truthiness are
+//! reaches any other: `rule:types/conversion`'s conversions and `rule:expressions/truthy-positions`'s truthiness are
 //! [`super::convert`], and § 4's operator table is [`super::operator`].
 //!
 //! Part of [`super`]'s one `impl Lowering`, split across this directory so a
@@ -20,7 +20,7 @@ use super::*;
 /// [`Lowering::lower_shape_property_access`] and
 /// [`Lowering::lower_shape_property_assign`].
 pub(crate) struct ShapeField {
-    /// The field's own name, `$`-sigil not included: what ADR 0036 § 4's
+    /// The field's own name, `$`-sigil not included: what `rule:types/erased-member-access`'s
     /// fetch is keyed on.
     pub(crate) name: String,
     /// Its position in the *receiver's* sorted shape — the runtime's hint,
@@ -44,7 +44,7 @@ impl<'a> Lowering<'a> {
     /// function now, so every position composes.
     ///
     /// `expected` is the representation the position wants where it has one.
-    /// It steers a literal (ADR 0007 § 4's `int`/`uint` choice) and nothing
+    /// It steers a literal (`rule:types/arithmetic`'s `int`/`uint` choice) and nothing
     /// else -- reconciling a mismatch is [`Self::coerce`]'s job, at the
     /// boundary that owns the declared type.
     pub(crate) fn lower_expr(
@@ -389,7 +389,7 @@ impl<'a> Lowering<'a> {
             ExprKind::Conversion { expr: inner, ty } => {
                 self.lower_conversion(inner, ty, env, cur)
             }
-            // ADR 0007 § 4's `± 1` *as a value*. Both spellings run the same
+            // `rule:types/arithmetic`'s `± 1` *as a value*. Both spellings run the same
             // read-modify-write the statement form and `$x += 1;` already go
             // through — so the target's address is computed exactly once here
             // too — and differ only in which of its two values they hand back:
@@ -409,7 +409,7 @@ impl<'a> Lowering<'a> {
                 let (old, old_ty, _, _) = self.lower_incdec(expr, *op, target, env, cur);
                 (old, old_ty)
             }
-            // ADR 0007 § 2's assignment *as a value* — `int $b = ($a = 2);`,
+            // `rule:types/conversion`'s assignment *as a value* — `int $b = ($a = 2);`,
             // and the chain `$a = $b = 0;` that is the same thing written
             // right-associatively. See `Self::lower_assign_expr` for what it
             // answers and the one retain it owes; `$a = &$b` is not lowered
@@ -444,10 +444,10 @@ impl<'a> Lowering<'a> {
             ExprKind::Exit(arg) => self.lower_exit(arg.as_deref(), env, cur),
             // `$fn(...)` — a closure called through the variable holding it,
             // which is one `Helper::CallClosure` and not a lowered `Call`:
-            // ADR 0031 § 1 gives `callable` no parameter list, so there is no
+            // `rule:types/closure-literal` gives `callable` no parameter list, so there is no
             // resolved target to name. See `Self::lower_closure_call`.
             ExprKind::Call { callee, args } => self.lower_closure_call(callee, args, env, cur),
-            // ADR 0031 § 3's self-name — `fact` inside
+            // `rule:types/closure-self-name`'s self-name — `fact` inside
             // `fn fact(int $n): int => … fact($n - 1)`. The closure it names is
             // the frame's own receiver, which `closure::lower_closure` bound
             // under `FN_SELF` at entry, so this is a lookup and never a load:
@@ -461,7 +461,7 @@ impl<'a> Lowering<'a> {
                 *env.get(closure::FN_SELF).unwrap_or_else(|| {
                     panic!(
                         "nvs-ir: `ExprInfo::ClosureSelf` outside a closure body — \
-                         nvs_types::expr::calls::check_fn_literal binds ADR 0031 § 3's \
+                         nvs_types::expr::calls::check_fn_literal binds `rule:types/closure-self-name`'s \
                          self-name for one body, whose invoke binds `FN_SELF` at entry"
                     )
                 })
@@ -516,7 +516,7 @@ impl<'a> Lowering<'a> {
             //   All four still appear as the class *side* of a `::`, which is
             //   not this dispatch's business: `walk_class_side` skips them and
             //   the arms above read the checker's own resolution instead.
-            // * `$a = &$b` is `E0701`: ADR 0031 § 2 removed by-reference
+            // * `$a = &$b` is `E0701`: `rule:types/implicit-capture` removed by-reference
             //   capture, so there is no owner for the `&`.
             // * every `yield` shape is `E0448` where it has no lowering — a
             //   key half, a `yield from`, a missing value, and (since this
@@ -816,7 +816,7 @@ impl<'a> Lowering<'a> {
                 );
                 (sv, false)
             }
-            // ADR 0007 § 2's row for `null`, which PHP answers with the empty
+            // `rule:types/conversion`'s row for `null`, which PHP answers with the empty
             // string and which `Helper::TaggedToString` already answers that
             // way for the `?string` holding one. A *statically* `null`
             // operand is the same value one type earlier, so it renders the
@@ -855,7 +855,7 @@ impl<'a> Lowering<'a> {
             // read — the same answer every scalar row above gives.
             Ty::Object => match self.lower_to_string_call(expr, v, env, *cur) {
                 Some(s) => (s, false),
-                // No resolved `toString`: an erased `object` (ADR 0036 § 4), or
+                // No resolved `toString`: an erased `object` (`rule:types/erased-member-access`), or
                 // a `Core`-owned class, which is where ADR 0088 § 5's sink
                 // carrier arrives. Both are decided by the value's *runtime*
                 // class rather than its static one, so this is the same
@@ -888,7 +888,7 @@ impl<'a> Lowering<'a> {
             // Four are refused a phase up by
             // `nvs_types::expr::operators::require_stringable`, the one check
             // every implicit site goes through, each naming the spelling that
-            // says what was meant: `Ty::Bytes` (ADR 0009 § 3 grants
+            // says what was meant: `Ty::Bytes` (`rule:types/conversion` grants
             // `as string` and nothing implicit), `Ty::Array` (PHP prints
             // `"Array"` and a notice; Novis names `Core\Json::encode`),
             // `Ty::Enum` (`rule:enums/no-class-machinery`'s named integer, `$case as int`) and
@@ -919,7 +919,7 @@ impl<'a> Lowering<'a> {
     /// same way: `Helper::TaggedToString` over the receiver, which dispatches
     /// `toString` on its *runtime* class. The checker records a target wherever
     /// the operand's static type names a class to resolve against, so a missing
-    /// one means it named none — an erased `object` (ADR 0036 § 4) or a union
+    /// one means it named none — an erased `object` (`rule:types/erased-member-access`) or a union
     /// — or that it named ADR 0088 § 5's sink carrier, the one rendering class
     /// with no `toString` member at all, whose bytes `nvs_runtime::stringify`
     /// hands back as they are.
@@ -1041,7 +1041,7 @@ impl<'a> Lowering<'a> {
     ///
     /// That last paragraph is what `proof` selects. A
     /// [`ReceiverProof::Erased`] receiver has no proven tag at all — it is a
-    /// `mixed`, ADR 0007 § 2's one unchecked position — so no `Untag` is
+    /// `mixed`, `rule:types/conversion`'s one unchecked position — so no `Untag` is
     /// emitted for it and the *tagged* value is handed back for
     /// [`InstKind::SlotGet`] to check at run time. Ownership is unchanged
     /// either way: a tagged value is refcounted ([`Ty::is_refcounted`]) and
@@ -1264,7 +1264,7 @@ impl<'a> Lowering<'a> {
         // at runtime, so `??` is the left operand and the right one is never
         // evaluated — which is what short-circuiting already means. The
         // mirror case, a statically `null` left operand, is the right one.
-        // ADR 0125 § 2's `?class<T>` is the exception to the paragraph below:
+        // `rule:types/class-reference`'s `?class<T>` is the exception to the paragraph below:
         // it is not tagged and it can still be `null`, so it takes the same
         // branch/merge shape the tagged path takes, with the null test written
         // on the word ([`Ty::ClassDesc`] owns why) and no untagging, retain or
@@ -1479,7 +1479,7 @@ impl<'a> Lowering<'a> {
     /// Only a [`Ty::Tagged`] operand can hold `null` at run time, so every
     /// other one is a constant — `true` for a value that exists by its own
     /// declaration (ADR 0022 makes a declared property definitely initialised,
-    /// ADR 0007 § 1 a local), `false` for the literal `null`'s own
+    /// `rule:types/declaration` a local), `false` for the literal `null`'s own
     /// [`Ty::Null`]. That is the same short-circuit on representation
     /// [`Self::lower_coalesce`] takes, and it is why `isset` costs nothing at
     /// all on a non-nullable operand.
@@ -1487,7 +1487,7 @@ impl<'a> Lowering<'a> {
         let (v, ty) = self.lower_expr(operand, None, env, cur);
         let present = match ty {
             Ty::Null => self.emit(*cur, Ty::Bool, InstKind::ConstBool(false)).0,
-            // ADR 0125 § 2's `?class<T>` — the one non-tagged representation
+            // `rule:types/class-reference`'s `?class<T>` — the one non-tagged representation
             // the paragraph above is not the whole rule for. See
             // [`Ty::ClassDesc`]; the test is the word against zero, and a
             // non-nullable `class<T>` takes it too and always answers `true`.
@@ -1671,7 +1671,7 @@ impl<'a> Lowering<'a> {
     /// then disagree with.
     ///
     /// So it deliberately does **not** reach for [`Self::widen_to_float`].
-    /// ADR 0007 § 4's promotion rows belong to an *operator*, whose result
+    /// `rule:types/arithmetic`'s promotion rows belong to an *operator*, whose result
     /// type that table fixes outright, and § 2's implicit `int`/`uint` →
     /// `float` widening happens at a **`float` position** — a binding, a
     /// parameter, a `return`. A branch of a ternary is neither, so
@@ -1756,7 +1756,7 @@ impl<'a> Lowering<'a> {
     /// [`Self::reinterpret_enum_to_backing`] relabels the subject once above
     /// the chain and each label as it is lowered, exactly as
     /// [`Self::lower_binary`] relabels a written `==` between two cases and
-    /// `Self::lower_literal_membership` ADR 0047 § 5's chain — `nvs-codegen`'s
+    /// `Self::lower_literal_membership` `rule:types/literal-types`'s chain — `nvs-codegen`'s
     /// `BinOp` table is `Ty::Int`/`Ty::Uint`/`Ty::Bool` and carries no
     /// `Ty::Enum` row at all. The relabelling is free (no machine instruction)
     /// and feeds the comparisons alone: the subject's own value is what the
@@ -1802,9 +1802,9 @@ impl<'a> Lowering<'a> {
             self.own_temporary(subj_v);
         }
         // An enum subject is compared one representation down, on the integer
-        // its cases *are* — the free `Reinterpret` of ADR 0010 § 5 row 1,
+        // its cases *are* — the free `Reinterpret` of `rule:types/conversion` row 1,
         // which `Self::lower_binary` already makes for a written `==` between
-        // two cases and `Self::lower_literal_membership` for ADR 0047 § 5's
+        // two cases and `Self::lower_literal_membership` for `rule:types/literal-types`'s
         // chain, `nvs-codegen`'s `BinOp` table carrying no `Ty::Enum` row.
         // It is made once, above the chain, and feeds the comparisons alone:
         // `subj_v` stays the value the release below reads, and each label
@@ -2113,7 +2113,7 @@ impl<'a> Lowering<'a> {
     /// whichever of the two representations the crate docs' *an array key is
     /// a `string`, and an `int` subscript no longer spells it* allows.
     ///
-    /// ADR 0007 § 5 is unchanged by this: every key still *is* a `string`
+    /// `rule:types/arrays` is unchanged by this: every key still *is* a `string`
     /// and `$a[8]` is still `$a["8"]`. What changed is that reaching it no
     /// longer renders the decimal. A [`Ty::Int`] subscript is handed to the
     /// instruction as the `int` it already was, and `nvs-codegen` calls
@@ -2174,7 +2174,7 @@ impl<'a> Lowering<'a> {
             }
             other => panic!(
                 "nvs-ir: an array key lowered to {other:?} — nvs_types::check_program is trusted \
-                 to have already rejected a float/bool/null key (ADR 0007 § 5) at both the \
+                 to have already rejected a float/bool/null key (`rule:types/arrays`) at both the \
                  subscript and array-literal explicit-key sites, so this should be unreachable"
             ),
         }
@@ -2211,10 +2211,10 @@ impl<'a> Lowering<'a> {
         (sv, false)
     }
 
-    /// ADR 0007 § 4, mirroring the checker's own rule: a bare integer
+    /// `rule:types/arithmetic`, mirroring the checker's own rule: a bare integer
     /// literal means `uint` exactly where that's the expected type,
     /// `int` otherwise. `nvs_types::expr::literals::infer_int_literal`
-    /// enforces ADR 0007 § 4's magnitude rule
+    /// enforces `rule:types/arithmetic`'s magnitude rule
     /// at check time — too large for `int` is only legal where `uint`
     /// is expected, and too large even for `uint`'s full `u64` range
     /// is a diagnostic regardless — so `lower_method`'s usual "trusts
@@ -2232,7 +2232,7 @@ impl<'a> Lowering<'a> {
     ) -> (ValueId, Ty) {
         let (radix, digits) = int_literal_digits(self.src, span);
         if expected == Some(Ty::Decimal) || self.placed_at_decimal(expr.span) {
-            // ADR 0054 § 2's placing rule, integer half: an integer
+            // `rule:types/numeric-literal-placement`'s placing rule, integer half: an integer
             // literal is scale 0 by construction, so only the mantissa
             // can overflow — and `nvs_types` has already reported that
             // if it did.
@@ -2270,7 +2270,7 @@ impl<'a> Lowering<'a> {
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         let digits = clean_digits(self.src, span);
-        // ADR 0054 § 2: a fractional literal is untyped until placed,
+        // `rule:types/numeric-literal-placement`: a fractional literal is untyped until placed,
         // and `decimal` is one of the two types that may place it —
         // read from the *text*, so the full 29 significant digits
         // survive rather than being rounded through an `f64` first.
@@ -2294,7 +2294,7 @@ impl<'a> Lowering<'a> {
         self.emit(*cur, Ty::Float, InstKind::ConstFloat(n))
     }
 
-    /// ADR 0070 § 3: the grammar is resolved while compiling, so what
+    /// `rule:types/duration-literal`: the grammar is resolved while compiling, so what
     /// reaches the IR is one folded nanosecond count. The value it
     /// becomes is built by the *same* `Core` member a written
     /// `Duration::nanoseconds($n)` calls — `nvs_stdlib::time`'s
@@ -2412,7 +2412,7 @@ impl<'a> Lowering<'a> {
     /// itself: `target` may be `self`/`static`/`parent`, which this
     /// crate has no enclosing-class context to resolve on its own
     /// (see `lower_decl_type`'s doc comment).
-    /// ADR 0031's `fn` literal. Evaluating one allocates its
+    /// `rule:types/closure-literal`'s `fn` literal. Evaluating one allocates its
     /// captured-environment object and stores a snapshot of every
     /// captured binding into it — "by value at the point the closure
     /// literal is evaluated" (§ 2), which is exactly what a field
@@ -2457,7 +2457,7 @@ impl<'a> Lowering<'a> {
         self.emit_field_set(*cur, obj, class.clone(), FN_ARITY.to_owned(), arity_v);
         // The declared parameter types are readable here and nowhere below
         // this crate — `callable` carries no parameter list for a call site to
-        // compare against (ADR 0031 § 1), so the object is what carries them
+        // compare against (`rule:types/closure-literal`), so the object is what carries them
         // to the one caller that can act on them. See `FN_PARAM_TAGS`.
         let tags = param_tags_word(fn_expr, self.exprs, self.checked_types);
         let (tags_v, _) = self.emit(*cur, Ty::Int, InstKind::ConstInt(tags));
@@ -2472,7 +2472,7 @@ impl<'a> Lowering<'a> {
                     expr.span
                 )
             });
-            // An `inout $x` parameter binds an address, not a value, and ADR 0031 § 2
+            // An `inout $x` parameter binds an address, not a value, and `rule:types/implicit-capture`
             // captures by value — so the field takes a snapshot of the cell's
             // value here, which is the same `RefLoad` at the declared (pointee)
             // type that reading `$x` anywhere else lowers to. That is also what
@@ -2500,14 +2500,13 @@ impl<'a> Lowering<'a> {
         (obj, Ty::Object)
     }
 
-    /// [ADR 0027](/docs/adr/0027-callable-is-closures-only.md)
-    /// § 1's `Class::method(...)` / `$obj->method(...)`, which *names* the
+    /// `rule:types/callable-is-a-closure`'s `Class::method(...)` / `$obj->method(...)`, which *names* the
     /// resolved member rather than calling it and whose value is a closure
     /// over it.
     ///
     /// The object this builds is byte-for-byte the one a `fn` literal builds
     /// — [`FN_ARITY`], [`FN_PARAM_TAGS`], and an `invoke` in the method table
-    /// — because ADR 0031 § 1 makes `callable` the only closure type, so a
+    /// — because `rule:types/closure-literal` makes `callable` the only closure type, so a
     /// native `Core` member handed one of these cannot tell it apart from a
     /// written closure and has nothing new to learn. The body behind that
     /// `invoke` is the forwarding thunk `lower_callable` builds, which owns
@@ -2523,8 +2522,7 @@ impl<'a> Lowering<'a> {
     /// The arity written into the object is the target's **whole** parameter
     /// list. A member with a trailing default is therefore reachable through
     /// its own name and not through a `callable` that omits the argument:
-    /// `callable` carries no parameter list for a call site to read (ADR 0031
-    /// § 4), so the defaults a caller would materialize are ones no caller
+    /// `callable` carries no parameter list for a call site to read (`rule:types/callable-absorbs-closure`), so the defaults a caller would materialize are ones no caller
     /// can see. That is a refusal at run time by `nvs_runtime::call_closure`,
     /// where every other arity mismatch through a `callable` is reported.
     ///
@@ -2586,7 +2584,7 @@ impl<'a> Lowering<'a> {
         self.emit_field_set(*cur, obj, class.clone(), FN_PARAM_NAMES.to_owned(), names_v);
         let takes_receiver = !call.is_static;
         if takes_receiver {
-            // ADR 0031 § 2's "by value at the point the closure literal is
+            // `rule:types/implicit-capture`'s "by value at the point the closure literal is
             // evaluated", which for a first-class callable is the receiver —
             // and the answer PHP's own `(...)` gives.
             let (recv, ty, aliasing) = match receiver {
@@ -2633,7 +2631,7 @@ impl<'a> Lowering<'a> {
         env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
-        // ADR 0125 § 4's `new $cls(...)` is the other entry this span can
+        // `rule:types/class-reference-sites`'s `new $cls(...)` is the other entry this span can
         // carry, and it is a different lowering rather than a different label:
         // the class to allocate is a value in hand, not a name.
         if let Some(ExprInfo::NewDynamic { ctor, .. }) = self.exprs.lookup(expr.span) {
@@ -2764,8 +2762,7 @@ impl<'a> Lowering<'a> {
         built
     }
 
-    /// [ADR 0125](/docs/adr/0125-a-class-reference-is-a-type-and-as-is-its-only-source.md)
-    /// § 4's `new $cls(...)` — [`Self::lower_new`]'s dynamic half.
+    /// `rule:types/class-reference-sites`'s `new $cls(...)` — [`Self::lower_new`]'s dynamic half.
     ///
     /// The same [`InstKind::NewDynamic`] `new static()` lowers to, reached with
     /// a different descriptor: there it is [`Self::lsb`], the class this frame
@@ -3087,7 +3084,7 @@ impl<'a> Lowering<'a> {
     /// `$job` still owns `$job` afterwards. Awaiting one twice is therefore a
     /// throw from the helper rather than anything this arm can see.
     ///
-    /// The answer is an ADR 0036 shape value, which is an ordinary object with
+    /// The answer is an `rule:types/object-top` shape value, which is an ordinary object with
     /// slots, so `$result->ok` on the next line lowers to the `SlotGet` a
     /// written shape literal's read already lowers to — `nvs-ir` learns
     /// nothing here about where the shape came from.
@@ -3166,7 +3163,7 @@ impl<'a> Lowering<'a> {
         env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
-        // ADR 0036 § 4's deferral: a `mixed` receiver resolved to no
+        // `rule:types/erased-member-access`'s deferral: a `mixed` receiver resolved to no
         // signature at all and was recorded as the name alone, so the call is
         // dispatched on the value rather than on a class this frame could
         // name. Taken before the resolved arm because it is the *absence* of a
@@ -3175,7 +3172,7 @@ impl<'a> Lowering<'a> {
             let name = name.clone();
             return self.lower_erased_method_call(object, nullsafe, &name, args, env, cur);
         }
-        // ADR 0027 § 1's `$obj->method(...)`, which names the member rather
+        // `rule:types/callable-is-a-closure`'s `$obj->method(...)`, which names the member rather
         // than calling it. Taken before the resolved arm for the erased one's
         // reason: it is the *variant* that selects it, and both carry the
         // same `ResolvedCall`.
@@ -3189,11 +3186,11 @@ impl<'a> Lowering<'a> {
                  recorded in the typed-expression table — did this program pass \
                  nvs_types::check_program with the same table? Every receiver naming \
                  no class is either refused where it is written (`E0477`) or, for the \
-                 `mixed` ADR 0007 § 2 makes the one unchecked position, recorded as \
+                 `mixed` `rule:types/conversion` makes the one unchecked position, recorded as \
                  `ExprInfo::ErasedCall` and lowered above; a receiver that does name \
                  a class and calls a member it has not got is `E0405` there too, \
                  `Core` included, since the registry is the whole roster of `Core` \
-                 (`nvs_types::core_lib`). ADR 0027's \
+                 (`nvs_types::core_lib`). `rule:types/callable-is-a-closure`'s \
                  `$obj->method(...)` records `ExprInfo::CallableRef` instead, because \
                  it names the member rather than calling it, and is answered by \
                  `Lowering::lower_callable_ref` above",
@@ -3409,13 +3406,13 @@ impl<'a> Lowering<'a> {
         env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
-        // ADR 0027 § 1's `Class::method(...)` — as for an instance call, the
+        // `rule:types/callable-is-a-closure`'s `Class::method(...)` — as for an instance call, the
         // variant is what selects this and the resolved facts are the same.
         if let Some(ExprInfo::CallableRef(call)) = self.exprs.lookup(expr.span) {
             let call = call.clone();
             return self.lower_callable_ref(&call, None, expr, env, cur);
         }
-        // ADR 0125 § 4's `$cls::f(...)`, which is the same resolved call
+        // `rule:types/class-reference-sites`'s `$cls::f(...)`, which is the same resolved call
         // reached through a value rather than a name — see
         // [`Self::lower_static_call_on_a_class_reference`].
         if let Some(ExprInfo::ClassRefCall(call)) = self.exprs.lookup(expr.span) {
@@ -3425,7 +3422,7 @@ impl<'a> Lowering<'a> {
             panic!(
                 "nvs-ir: a static call at {:?} has no resolved target recorded in the \
                  typed-expression table — did this program pass \
-                 nvs_types::check_program with the same table? ADR 0027's \
+                 nvs_types::check_program with the same table? `rule:types/callable-is-a-closure`'s \
                  `Class::method(...)` records `ExprInfo::CallableRef` rather than \
                  `Call` — it names the member rather than calling it, and is answered \
                  by `Lowering::lower_callable_ref` above",
@@ -3593,8 +3590,7 @@ impl<'a> Lowering<'a> {
         result
     }
 
-    /// [ADR 0125](/docs/adr/0125-a-class-reference-is-a-type-and-as-is-its-only-source.md)
-    /// § 4's `$cls::f(...)` — [`Self::lower_static_call`]'s class-reference
+    /// `rule:types/class-reference-sites`'s `$cls::f(...)` — [`Self::lower_static_call`]'s class-reference
     /// half.
     ///
     /// One [`InstKind::CallVirtual`], and **always** virtual: the class side is
@@ -3709,7 +3705,7 @@ impl<'a> Lowering<'a> {
     /// with **no** declaring class to resolve — a shape (naming one of its
     /// own fields or not), a plain `object`, and a `mixed` — records
     /// `ExprInfo::ShapeProperty` instead and is handed to
-    /// [`Self::lower_shape_property_access`], which is ADR 0036 § 4's
+    /// [`Self::lower_shape_property_access`], which is `rule:types/erased-member-access`'s
     /// name-keyed fetch.
     ///
     /// # Panics
@@ -3807,7 +3803,7 @@ impl<'a> Lowering<'a> {
         // always backed (`nvs_types::signatures::PropertyHooks` owns
         // that decision), so both shapes recover the same three
         // fields and only the `get` label decides between them.
-        // An ADR 0036 § 4 shape receiver naming one of its own fields is the
+        // An `rule:types/erased-member-access` shape receiver naming one of its own fields is the
         // one access with no class to resolve: the slot index is already in
         // the table, so this reads it and is done. Everything below — the
         // hook question, the declaring class, the label — is a class
@@ -3820,11 +3816,10 @@ impl<'a> Lowering<'a> {
             };
             return self.lower_shape_property_access(object, &field, nullsafe, env, cur);
         }
-        // ADR 0126 § 4's `$obj->$key`, the one access whose member name is not
+        // `rule:types/property-key-access`'s `$obj->$key`, the one access whose member name is not
         // in this table at all: it arrives as a value when the statement runs,
         // so none of the three facts below — the declaring class, the hook, the
-        // label — is a question this site can ask. § 5 lowers it to ADR 0036
-        // § 4's erased access with the name taken from the key, which is
+        // label — is a question this site can ask. § 5 lowers it to `rule:types/erased-member-access`'s erased access with the name taken from the key, which is
         // `InstKind::KeyGet`.
         if let Some(ExprInfo::KeyedProperty { ty, .. }) = self.exprs.lookup(expr.span) {
             let ty = *ty;
@@ -3846,11 +3841,11 @@ impl<'a> Lowering<'a> {
                 ..
             }) => (class, name, *ty, get.clone(), observer.clone()),
             // Every shape a `PropertyAccess` takes is handled above now,
-            // ADR 0126 § 4's keyed one included, so this arm is once again the
+            // `rule:types/property-key-access`'s keyed one included, so this arm is once again the
             // consistency claim it reads as and not a lowering still owed.
             _ => panic!(
                 "nvs-ir: a property access at {:?} has neither a resolved declaring class \
-                  nor an ADR 0036 § 4 erased entry nor an ADR 0126 § 4 keyed entry recorded \
+                  nor an `rule:types/erased-member-access` erased entry nor an `rule:types/property-key-access` keyed entry recorded \
                   in the typed-expression table, so it was not checked with the same table — \
                   `nvs_types::expr::members::check_property_member` records one for every \
                   access it returns from and refuses the rest, and its own doc comment \
@@ -4050,8 +4045,7 @@ impl<'a> Lowering<'a> {
         *cur = written;
     }
 
-    /// `{x: 1, y: 2}` — [ADR 0036](/docs/adr/0036-anonymous-object-shapes.md)
-    /// § 2's anonymous object literal, which is an ordinary instance of a
+    /// `{x: 1, y: 2}` — `rule:types/object-literal`'s anonymous object literal, which is an ordinary instance of a
     /// class this function invents: one [`InstKind::New`] with no constructor,
     /// then one [`InstKind::FieldSet`] per field.
     ///
@@ -4147,7 +4141,7 @@ impl<'a> Lowering<'a> {
     }
 
     /// `$issue->path` — the shape half of [`Self::lower_property_access`]
-    /// (ADR 0036 § 4). A shape value is anonymous and methodless, so there is
+    /// (`rule:types/erased-member-access`). A shape value is anonymous and methodless, so there is
     /// no declaring class, no hook question and no label; what `nvs_types`
     /// resolved is the field's *name* plus its position in the receiver's own
     /// sorted field list, and `InstKind::SlotGet` keys on the first and takes
@@ -4199,7 +4193,7 @@ impl<'a> Lowering<'a> {
         self.close_nullsafe(guard, v, ty, env, cur)
     }
 
-    /// `$obj->$key` — ADR 0126 § 4's keyed read, which is
+    /// `$obj->$key` — `rule:types/property-key-access`'s keyed read, which is
     /// [`Self::lower_shape_property_access`] with the name lowered rather than
     /// carried. [`InstKind::KeyGet`] owns why § 5 chose the erased access over
     /// a closed-set chain.
@@ -4246,7 +4240,7 @@ impl<'a> Lowering<'a> {
         self.close_nullsafe(guard, v, ty, env, cur)
     }
 
-    /// The member name of an ADR 0126 § 4 keyed access, lowered as the ordinary
+    /// The member name of an `rule:types/property-key-access` keyed access, lowered as the ordinary
     /// expression it is: a `property<T>` erases to [`Ty::Str`], so the operand's
     /// own value *is* the name and there is nothing to convert.
     ///
@@ -4269,7 +4263,7 @@ impl<'a> Lowering<'a> {
             // a catch-all rather than `MemberName::Ident` alone because that
             // enum is `#[non_exhaustive]`.
             other => panic!(
-                "nvs-ir: an ADR 0126 § 4 keyed property entry over the member name {other:?}, \
+                "nvs-ir: an `rule:types/property-key-access` keyed property entry over the member name {other:?}, \
                  which `nvs_types::expr::members::check_keyed_property` never records one for — \
                  it is reached from the two computed forms and nothing else"
             ),
@@ -4282,7 +4276,7 @@ impl<'a> Lowering<'a> {
         key_v
     }
 
-    /// `$obj->$key = v;` — ADR 0126 § 5's checked erased store, which is
+    /// `$obj->$key = v;` — `rule:types/property-key-access`'s checked erased store, which is
     /// [`Self::lower_shape_property_assign`] with the name lowered rather than
     /// carried, and every ownership rule that function states for the reasons
     /// [`InstKind::KeySet`] restates.
@@ -4336,7 +4330,7 @@ impl<'a> Lowering<'a> {
     }
 
     /// `$issue->path = "x";` — [`Self::lower_shape_property_access`]'s write
-    /// half (ADR 0036 § 4), and the same three facts about the field: no
+    /// half (`rule:types/erased-member-access`), and the same three facts about the field: no
     /// declaring class, no hook, the name plus the receiver's own slot index.
     ///
     /// [`InstKind::SlotSet`] owns why this is one fallible call rather than
@@ -4421,7 +4415,7 @@ impl<'a> Lowering<'a> {
     ///
     /// **A `...spread` element is one [`InstKind::ArraySpread`]**, which
     /// copies the subject's entries in and owns which of their keys survive
-    /// (ADR 0007 § 5). The subject is *borrowed*, so a freshly-built one is
+    /// (`rule:types/arrays`). The subject is *borrowed*, so a freshly-built one is
     /// staged as this frame's temporary and released on whichever edge the
     /// copy takes, rather than transferred the way a written-out element is.
     ///
@@ -4446,7 +4440,7 @@ impl<'a> Lowering<'a> {
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         // `&value` never arrives here, at any depth: `nvs_types` refuses it as
-        // `E0483`, because ADR 0031 § 2 and ADR 0023 between them leave an
+        // `E0483`, because `rule:types/implicit-capture` and ADR 0023 between them leave an
         // aliasing element no owner, so it is a shape the language does not
         // have rather than one this function has not learned.
         let spread = items.iter().any(|item| item.spread);
@@ -4538,8 +4532,8 @@ impl<'a> Lowering<'a> {
     /// check rather than a gap.
     ///
     /// **A [`Ty::Tagged`] base is the one that declares nothing and is not
-    /// refused**, because it is ADR 0007 § 2's unchecked position: a `mixed`
-    /// defers whether there is an array here at all, which is ADR 0036 § 4's
+    /// refused**, because it is `rule:types/conversion`'s unchecked position: a `mixed`
+    /// defers whether there is an array here at all, which is `rule:types/erased-member-access`'s
     /// deferral one storage kind along from a member access, so the read goes
     /// to [`Helper::ValueIndexGet`] (or [`Helper::ValueIndexOptionalGet`]
     /// under a `??`) and the tag answers. The choice is made off the base's
@@ -4625,7 +4619,7 @@ impl<'a> Lowering<'a> {
                 AbsentKey::Null => Ty::Tagged,
             }
         };
-        // ADR 0036 § 4's deferral, one storage kind along from a member
+        // `rule:types/erased-member-access`'s deferral, one storage kind along from a member
         // access: a base whose representation is a tag has not yet answered
         // *whether there is an array here*, so the read goes to the helper
         // pair that asks the tag rather than to the instruction, whose base
@@ -4679,7 +4673,7 @@ impl<'a> Lowering<'a> {
     /// the checker (`E0496`/`E0303`), so the miss below is an
     /// internal-consistency failure rather than a hole.
     ///
-    /// **A right-hand side that is not a written name is ADR 0125 § 4's
+    /// **A right-hand side that is not a written name is `rule:types/class-reference-sites`'s
     /// `$x instanceof $cls`**, and it records nothing either — for the
     /// opposite reason. There is no name to resolve: the operand is a
     /// `class<T>`, so the descriptor to test against is the value it
@@ -4691,7 +4685,7 @@ impl<'a> Lowering<'a> {
     /// **The subject may be a [`Ty::Tagged`], and the runtime checks its
     /// tag.** A `mixed` or an untested `?Box` is the shape `instanceof`
     /// exists for, so it travels as a whole value by address exactly as
-    /// ADR 0036 § 4's name-keyed access does, and a tag that is not an
+    /// `rule:types/erased-member-access`'s name-keyed access does, and a tag that is not an
     /// object answers `false` rather than throwing — PHP's own answer,
     /// and the one every subject whose *declared* type can hold no
     /// object gets at compile time instead (`E0497`).
@@ -4792,12 +4786,12 @@ pub(crate) enum ReceiverProof {
     /// The tagged slot is one [`InstKind::Untag`] away from the object, and
     /// that untag is unchecked on purpose — see [`Lowering::untag_receiver`].
     Proven,
-    /// Nothing proved it: the receiver is a `mixed`, ADR 0007 § 2's one
+    /// Nothing proved it: the receiver is a `mixed`, `rule:types/conversion`'s one
     /// unchecked position, so the value reaching the member may hold any tag
     /// at all. No `Untag` is emitted — an unchecked one over an `int` payload
     /// is a pointer this frame would then dereference — and the tagged value
     /// travels to [`InstKind::SlotGet`], which checks the tag where it
-    /// already checks the name (ADR 0036 § 4).
+    /// already checks the name (`rule:types/erased-member-access`).
     Erased,
 }
 

@@ -1,5 +1,5 @@
 --TEST--
-A sink carrier reached through an operand whose static type names no class renders as exactly the bytes it carries, agreeing with the declared binding rather than asking for a `toString` it has none of — ADR 0088 § 5, ADR 0036 § 4
+A sink carrier reached through an operand whose static type names no class renders as exactly the bytes it carries, agreeing with the declared binding rather than asking for a `toString` it has none of — ADR 0088 § 5, `rule:types/erased-member-access`
 --FILE--
 <?nvs
 // `nvs_stdlib::registry::class_renders` has two rows and this is the second:
@@ -11,7 +11,7 @@ A sink carrier reached through an operand whose static type names no class rende
 // and the two rows reaching two different renderings is what keeps a carrier
 // from being put through its own sink twice.
 //
-// ADR 0036 § 4 is why the erased spelling has to answer at all: a `mixed`
+// `rule:types/erased-member-access` is why the erased spelling has to answer at all: a `mixed`
 // defers which class is behind the handle to the concrete instance, so the
 // rendering is decided at run time and cannot be refused where it is written.
 //

@@ -1,4 +1,4 @@
-# ADR 0144 — `::class` answers the class a value *is*, so `static::class` and `$obj::class` are run-time reads
+# `rule:types/class-constant` — `::class` answers the class a value *is*, so `static::class` and `$obj::class` are run-time reads
 
 - **Status:** Accepted
 - **Date:** 2026-09-06
@@ -115,7 +115,7 @@ same receiver, so this adds no rule a reader does not already know.
 
 ### 3. `class<T> as string` is the same read, and closes the round trip
 
-[ADR 0125](0125-a-class-reference-is-a-type-and-as-is-its-only-source.md) § 2's grid gains its third
+`rule:types/class-reference`'s grid gains its third
 row. A class reference *is* a descriptor, so its name is available by the same read, and
 `$name as class<Animal> as string` is the name it started from.
 

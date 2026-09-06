@@ -3,8 +3,7 @@
 //!
 //! [`crate::resolve::Resolver`] already collects each `type` alias's own
 //! declaration into the [`crate::symbol::SymbolTable`] and rejects the
-//! single-bare-class shape ([ADR 0015](/docs/adr/0015-no-name-aliasing.md)
-//! § 6). What is still open is *what an alias expands to*: § 5 says a `type`
+//! single-bare-class shape (`rule:types/alias-is-never-a-bare-class`). What is still open is *what an alias expands to*: § 5 says a `type`
 //! alias is "fully transparent" — every occurrence of its name, including
 //! inside another alias's own expansion, resolves to the same fully-expanded
 //! [`Type`] before anything downstream ever sees the alias's name at all.
@@ -24,8 +23,7 @@
 //! `array<...>`'s own shape — is left exactly as written.
 //!
 //! A cycle (`type A = B; type B = A;`, or any longer chain) is diagnosed
-//! (`E_TYPE_ALIAS_CYCLE`, [ADR 0015](/docs/adr/0015-no-name-aliasing.md)
-//! § 5/7) rather than looped forever or silently bottomed out at `mixed`;
+//! (`E_TYPE_ALIAS_CYCLE`, `rule:types/type-alias`/7) rather than looped forever or silently bottomed out at `mixed`;
 //! every alias name that took part in the cycle still gets an entry in the
 //! resulting [`AliasTable`], expanding to `mixed`, so a lookup miss keeps
 //! meaning "not an alias" rather than colliding with "an alias that turned
@@ -35,7 +33,7 @@
 //! class, not an alias, not `Core` — is not diagnosed here. Whether a name
 //! names *something* real is a general type-atom question the type checker
 //! (`nvs-types`, not yet started) owns; this module only concerns itself with
-//! the alias-substitution question ADR 0015 § 5 asks, the same narrowing
+//! the alias-substitution question `rule:types/type-alias` asks, the same narrowing
 //! [`crate::members`] already applies to `Class::member` references.
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
@@ -340,7 +338,7 @@ fn substitute(
             ))))),
             span: ty.span,
         },
-        // ADR 0125 § 1's class reference, whose argument is a name like any
+        // `rule:types/class-reference`'s class reference, whose argument is a name like any
         // other argument position's: an alias standing for a class expands
         // inside it exactly as it does inside `array<T>`.
         TypeKind::Atom(TypeAtom::ClassRef(inner)) => Type {

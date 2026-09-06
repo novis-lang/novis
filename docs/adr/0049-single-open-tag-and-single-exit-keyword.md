@@ -7,7 +7,7 @@
 - **Amends:** [0021](0021-single-file-inclusion-construct.md)'s framing paragraph in
   `docs/spec/00-overview.md` § 1, which named `<?php` acceptance as testing "the pragmatic-superset promise
   applies to the tag itself, not only to what is inside it" — that promise is now spent on this one
-  construct, the same way ADR 0034 spent it on the legacy cast syntax. [0034](0034-legacy-cast-syntax-rejected.md)'s
+  construct, the same way `rule:types/no-legacy-cast` spent it on the legacy cast syntax. [0034](0034-legacy-cast-syntax-rejected.md)'s
   own *Consequences* section, which named `<?php` as an example of PHP syntax this project "kept but
   reinterpreted," is corrected below — it no longer does.
 - **Amended by:** 0100
@@ -26,7 +26,7 @@
   spelling of `<?nvs` specifically to test how far the "pragmatic superset of syntax" promise should reach —
   it said so explicitly. That was a reasonable question to ask once; the answer, on reflection, is that a
   file-opening tag is exactly the kind of one-line, unambiguous, purely mechanical edit `nvs convert` was
-  always going to make regardless (every ADR 0009/0023/0034/0043-family gap already documents converter work
+  always going to make regardless (every `rule:types/bytes`/0023/0034/0043-family gap already documents converter work
   strictly harder than a literal string substitution). Keeping `<?php` bought nothing beyond one less
   find-and-replace in a tool that already exists.
 - **`exit` vs. `die`.** Surveyed against ten other languages with a "terminate the process" primitive (C,
@@ -100,10 +100,10 @@ simplicity cost is accepted are [ADR 0100](0100-against-python-nvs-claims-the-to
 **Negative**
 
 - **Two more line items for `nvs convert`'s (M11) mechanical rewrite pass**, on top of the ones `rule:statements/require-is-the-only-inclusion-construct` and
-  ADR 0034 already added: `<?php` → `<?nvs` (a literal 5-character substring rewrite, no operand analysis
+  `rule:types/no-legacy-cast` already added: `<?php` → `<?nvs` (a literal 5-character substring rewrite, no operand analysis
   needed) and `die(...)` → `exit(...)` (rename only, argument shape is already identical). Both are
-  strictly simpler than the `(int)$x` → `$x as int` rewrite ADR 0034 already committed the converter to.
-- **A further, small subtraction from the "pragmatic superset" promise**, in the same vein as ADR 0034 and
+  strictly simpler than the `(int)$x` → `$x as int` rewrite `rule:types/no-legacy-cast` already committed the converter to.
+- **A further, small subtraction from the "pragmatic superset" promise**, in the same vein as `rule:types/no-legacy-cast` and
   `rule:expressions/no-keyword-logical-operators`. A PHP file opening with `<?php` or calling `die(...)` anywhere no longer parses unconverted.
   Smaller than either of those precedents: both rewrites here are pure renames with no operand or precedence
   reasoning involved at all.
@@ -112,7 +112,7 @@ simplicity cost is accepted are [ADR 0100](0100-against-python-nvs-claims-the-to
 
 - **Keep `<?php` and `die` as permanent aliases, change nothing.** The status quo — argued against above:
   neither spelling differs in behavior from the one kept, so a second spelling buys nothing but a second
-  thing to teach, in a project that has already refused exactly that trade three times (`rule:statements/require-is-the-only-inclusion-construct`, ADR 0034,
+  thing to teach, in a project that has already refused exactly that trade three times (`rule:statements/require-is-the-only-inclusion-construct`, `rule:types/no-legacy-cast`,
   `rule:expressions/no-keyword-logical-operators`).
 - **Keep `die` but drop `<?php`, or vice versa.** Considered, since they're unrelated constructs bundled into
   one ADR only because they share a reasoning shape. Rejected as inconsistent: both are pure duplicate

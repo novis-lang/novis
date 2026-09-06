@@ -59,7 +59,7 @@ array<mixed> $holding = ["k", new Cell("a")];
 array<mixed> $holdingOther = ["k", new Ring("a")];
 try { Core\Test::assertEqualsDeep($holding, $holdingOther); } catch (Throwable $class) { $refused = $refused + 1; echo $class->message, "\n"; }
 
-// ...and a key, which ADR 0007 § 5 makes part of the value rather than an
+// ...and a key, which `rule:types/arrays` makes part of the value rather than an
 // index the walk may re-order.
 array<mixed> $keyed = ["k", ["one" => 1]];
 array<mixed> $rekeyed = ["k", ["two" => 1]];

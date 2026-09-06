@@ -15,7 +15,7 @@
 //! frame of ordinary locals with no receiver (`rule:statements/storage-that-outlives-a-call`), returning
 //! [`ty::Ty::Tagged`] because that is what `rule:statements/require-is-the-only-inclusion-construct` types a `require`'s result.
 //!
-//! - **Statements** — typed and `var` local declarations (ADR 0037), a typed
+//! - **Statements** — typed and `var` local declarations (`rule:types/var-inference`), a typed
 //!   one with no initializer at all (the type is fixed and remembered, and
 //!   the first assignment binds it — [`lower::Lowering::declared_tys`]), the
 //!   empty statement `;`, a run of inline HTML
@@ -30,8 +30,8 @@
 //!   interpolation, `new`, static/instance/`Core` calls, property and
 //!   array-element read and write, array literals including an explicit
 //!   `key =>` and `$a[] =` append, `&&`/`||`/`!` and the ternary/elvis
-//!   operator, `rule:expressions/truthy-positions`'s truthy conversion, ADR 0031 closure literals,
-//!   `instanceof`, `??`, the literal `null`, ADR 0007 § 2's scalar conversion
+//!   operator, `rule:expressions/truthy-positions`'s truthy conversion, `rule:types/closure-literal` closure literals,
+//!   `instanceof`, `??`, the literal `null`, `rule:types/conversion`'s scalar conversion
 //!   rows — free, total and checked alike — and `rule:expressions/nullable-conversion`'s non-throwing
 //!   `as ?T` over the checked numeric targets and over its § 3 parse roster.
 //! - **Types** — `int`/`uint`/`float`/`bool`/`decimal` scalars, `string`,
@@ -60,7 +60,7 @@
 //!   rather than a reuse of `nvs_types::ty::Ty`.
 //! - **This crate depends on `nvs-types` only for its typed-expression table,
 //!   never on `nvs-hir`'s class graph directly.** Every *declared* type is read
-//!   straight off the AST (ADR 0007 § 1 requires it spelled out, so no name
+//!   straight off the AST (`rule:types/declaration` requires it spelled out, so no name
 //!   resolution is needed). What genuinely is absent from the AST is a call's
 //!   *resolved target* — which class declares the callee, and its parameter
 //!   and return types — so `nvs_types::expr_table::ExprTypeTable` publishes
@@ -112,7 +112,7 @@
 //!   twice what `ty::Ty` already states once. The consequence a widening
 //!   contributor must hold: **a key operand's `Ty` is now load-bearing**, so
 //!   the refcount decision at each of `lower_array_key`'s call sites turns on
-//!   it — an `int` key owns nothing to retain or release. ADR 0007 § 5 is
+//!   it — an `int` key owns nothing to retain or release. `rule:types/arrays` is
 //!   untouched by any of this; every key still *is* a `string`, `"08"` is
 //!   still distinct from `"8"`, and `$a[8]` is still `$a["8"]`. What moved is
 //!   only where the decimal is produced, which is `nvs_runtime::array`'s
@@ -197,7 +197,7 @@
 //!    [`lower::Lowering::untag_receiver`] is the same move for the one
 //!    consumer that predates it.
 //!    `rule:expressions/truthy-positions`'s truthy table is read from the tag the same way
-//!    ([`ir::Helper::ValueTruthy`]), and so is ADR 0007 § 4's **ordering**
+//!    ([`ir::Helper::ValueTruthy`]), and so is `rule:types/arithmetic`'s **ordering**
 //!    table: `<`/`<=`/`>`/`>=`/`<=>` with a tagged operand take
 //!    [`ir::Helper::ValueLt`] and its two siblings, which answer the rows the
 //!    tags name and *throw* where that closed table names none — the one
@@ -212,13 +212,13 @@
 //!    the tag, not a second representation.
 //! 4. **One conversion row is missing, and `rule:expressions/nullable-conversion`'s `as ?T` has no helper
 //!    for the one target that produces a container.**
-//!    ADR 0007 § 2's free, total and checked scalar rows all lower, in both
+//!    `rule:types/conversion`'s free, total and checked scalar rows all lower, in both
 //!    the throwing form ([`lower::Lowering::convert`]) and `rule:expressions/nullable-conversion`'s
 //!    non-throwing `as ?T` ([`lower::Lowering::convert_or_null`]). The row
-//!    still absent is ADR 0010 § 5's integer *into* an enum, in either form:
+//!    still absent is `rule:types/conversion`'s integer *into* an enum, in either form:
 //!    it throws on a value no case names, which needs the declaration's case
 //!    set carried to the check, and nothing here expresses one. `EnumName` ↔
-//!    `string` is not a gap — ADR 0010 § 5 leaves it out of the language.
+//!    `string` is not a gap — `rule:types/conversion` leaves it out of the language.
 //!    `rule:expressions/nullable-conversion-availability`'s own refusals are all `nvs_types`' and none reaches here:
 //!    a conversion that cannot fail (`$i as ?string`) is
 //!    `nvs_diagnostics::code::E_NULLABLE_CONVERSION_CANNOT_FAIL` and one that
@@ -230,8 +230,8 @@
 //!    spelling runs, answering `null` where that one throws. Both text
 //!    targets are closed:
 //!    [`ir::Helper::ToStringOrNull`] is [`ir::Helper::TaggedToString`]'s twin
-//!    over one implementation of ADR 0007 § 2's rows, answering `null` where
-//!    that one throws, and it takes `$b as ?string` with it — ADR 0009 § 3's
+//!    over one implementation of `rule:types/conversion`'s rows, answering `null` where
+//!    that one throws, and it takes `$b as ?string` with it — `rule:types/conversion`'s
 //!    UTF-8 validation is a row that can fail, so the `bytes` source has a
 //!    `null` answer of its own rather than a second helper — and
 //!    [`ir::Helper::ToBytesOrNull`] is [`ir::Helper::TaggedToBytes`]'s twin
@@ -262,7 +262,7 @@
 //!    assignment target is `E0481`, so both of
 //!    [`lower::Lowering::lower_index`]'s panics and the assignment arm's
 //!    matching one are invariant checks no source file reaches.
-//!    Every ADR 0036 § 4 receiver lowers: a shape naming one
+//!    Every `rule:types/erased-member-access` receiver lowers: a shape naming one
 //!    of its own fields, a shape asked for a name it does not list, a
 //!    plain `object`, and a `mixed`. All four are one
 //!    [`ir::InstKind::SlotGet`] — § 4's
@@ -322,7 +322,7 @@
 //!    method table [`ir::Class::methods`] carries. A real vtable would index
 //!    that table by slot instead, which is the remaining half — a lookup
 //!    cost, not a correctness gap. A **`mixed`** receiver names no class for
-//!    either instruction, so ADR 0036 § 4's deferral covers the call too: it
+//!    either instruction, so `rule:types/erased-member-access`'s deferral covers the call too: it
 //!    is one [`ir::Helper::CallErasedMethod`]
 //!    ([`lower::Lowering::lower_erased_method_call`]), the receiver still
 //!    tagged, the member name an immortal constant and every argument packed
@@ -333,8 +333,7 @@
 //!    is the argument *types*.** The call is one [`ir::Helper::CallClosure`]
 //!    — `nvs_runtime::call_closure`, the same entry point native `Core` code
 //!    reaches a callback through, so there is one body and not a second
-//!    convention beside it ([`lower::Lowering::lower_closure_call`]). ADR 0031
-//!    § 3's self-name lowers too, and lowers to nothing: the closure it names
+//!    convention beside it ([`lower::Lowering::lower_closure_call`]). `rule:types/closure-self-name`'s self-name lowers too, and lowers to nothing: the closure it names
 //!    is the invoke's own receiver, already bound under
 //!    [`lower::closure::FN_SELF`], so the recursive call is the same
 //!    `CallClosure` with that binding as its callee and the environment class
@@ -379,7 +378,7 @@
 //!     cleared and otherwise ignored — there is no collector and no debugger
 //!     to hand the frame to. Nothing in this crate is what is missing; see
 //!     `nvs_runtime::nvs_safepoint`.
-//! 15. **`decimal` lowers, but `<=>` over one does not.** ADR 0054's scalar
+//! 15. **`decimal` lowers, but `<=>` over one does not.** `rule:types/decimal`'s scalar
 //!     has a representation now — [`ty::Ty::Decimal`], the same register pair
 //!     [`ty::Ty::Tagged`] travels in, whose own doc comment owns the decision —
 //!     and every row of that ADR's §§ 3-4 is an [`ir::Helper`]: the five
@@ -389,7 +388,7 @@
 //!     spaceship operator, which has no `decimal` row here and no `int` one
 //!     either — `<=>` reaches [`lower::Lowering::lower_expr`]'s panic for every
 //!     scalar operand, and only ADR 0013's *object* form lowers. `**` is not a
-//!     gap: ADR 0054 § 3 makes a `decimal` base a compile error, and
+//!     gap: `rule:types/arithmetic` makes a `decimal` base a compile error, and
 //!     `nvs_types` reports it.
 //! 16. **A compound assignment inherits whatever its binary form is missing,
 //!     which today is `**=` and nothing else.**
@@ -465,7 +464,7 @@
 //!
 //!     The same mismatch under a *different* operator is closed too, and it
 //!     splits in two rather than following equality — which is
-//!     [ADR 0007](/docs/adr/0007-explicit-type-system.md) § 4's own
+//!     `rule:types/arithmetic`'s own
 //!     division, not a new one. **Arithmetic widens**: `$n + $f` is that
 //!     table's "either operand a `float`" row, so the integer side is
 //!     converted in [`lower::Lowering::lower_binary`] through the very
@@ -483,7 +482,7 @@
 //!     reconcile [`ty::Ty::Tagged`] and emit nothing that can fail; a
 //!     conversion carrying `rule:errors/propagation`'s error edge does not belong in one.
 //!
-//! 20. **ADR 0047 § 5, ADR 0010 § 5 and ADR 0007 § 2's scalar rows all run
+//! 20. **`rule:types/literal-types`, `rule:types/conversion` and `rule:types/conversion`'s scalar rows all run
 //!     whole, a `mixed` source included; what is left is § 2's two
 //!     *non-scalar* rows.** A union whose members all erase to one representation
 //!     is that representation ([`lower::lower_checked_ty`]), so `"a"|"b"` is a
@@ -501,7 +500,7 @@
 //!     to its backing integer for the chain, because `nvs-codegen` lowers
 //!     `BinOp::Eq` over `Ty::Int`/`Ty::Uint` and not over `Ty::Enum`.
 //!
-//!     ADR 0010 § 5's other direction runs too, so that section is whole for
+//!     `rule:types/conversion`'s other direction runs too, so that section is whole for
 //!     a statically typed operand. `$n as Mode` is one free
 //!     [`ir::InstKind::Reinterpret`] — an enum is a tag over its backing
 //!     integer — in front of which
@@ -509,7 +508,7 @@
 //!     built from **every** case of the declaration
 //!     ([`lower::convert::whole_enum_set`], sorted by the case's constant because the
 //!     table behind it is a hash map). An operand that is not already the
-//!     backing scalar is converted to it by ADR 0007 § 2's own rows first, by
+//!     backing scalar is converted to it by `rule:types/conversion`'s own rows first, by
 //!     recursion inside [`lower::Lowering::convert`] rather than a row per
 //!     source, so `$f as Rank` and `$s as Rank` each throw naming whichever
 //!     of the two steps failed. An operand already at the enum's own
@@ -527,7 +526,7 @@
 //!     converts the operand to the enum's backing scalar first, and the
 //!     membership chain is unchanged.
 //!
-//!     ADR 0009 § 3's `string` ↔ `bytes` pair runs too, and it is the one
+//!     `rule:types/conversion`'s `string` ↔ `bytes` pair runs too, and it is the one
 //!     conversion whose two directions are lowered by different mechanisms:
 //!     `string as bytes` is total and free, so it is an
 //!     [`ir::InstKind::Reinterpret`] over the same allocation and emits no
@@ -538,7 +537,7 @@
 //!     the only shape of `as bytes` that reaches a call at all.
 //!
 //!     **Nothing panics any more.** Every operand/target pair naming no row of
-//!     ADR 0007 § 2's closed table is `E0708` where it is written
+//!     `rule:types/conversion`'s closed table is `E0708` where it is written
 //!     (`nvs_types::expr::operators`' `reject_unconvertible`), every object
 //!     target with no class to test against is `E0711` beside it, and the last
 //!     row that used to arrive with no lowering — ADR 0024 § 5's
@@ -560,14 +559,14 @@
 //!     [`ir::Helper::ToArrayOfOrNull`] is `rule:expressions/nullable-conversion`'s spelling of the same
 //!     walk, out of one implementation. The buffer is not copied: an Novis
 //!     array is copy-on-write, so the result is the operand's own allocation
-//!     under one more reference and ADR 0007 § 5's invariance is bought with
+//!     under one more reference and `rule:types/arrays`'s invariance is bought with
 //!     tag tests rather than with bytes moved. An element type a tag cannot
 //!     decide — a class, an enum, a literal type, a union — is `E0711` where
 //!     it is written (`reject_uncheckable_element_type`), which is the one
 //!     home of that roster.
 //!
 //!     A [`ty::Ty::Tagged`] operand converted to an *object* used to be the
-//!     second — `$m as Plain` over a `mixed`, ADR 0007 § 6's checked way out
+//!     second — `$m as Plain` over a `mixed`, `rule:types/unions-and-mixed`'s checked way out
 //!     of the one unchecked position — and it wanted no helper in the end.
 //!     [`ir::InstKind::InstanceOf`] already takes a tagged subject and already
 //!     answers `false` for a tag that is not an object, so
@@ -581,7 +580,7 @@
 //!     from a non-object operand where they are written (`E0711`). The
 //!     *statically* typed downcasts are in neither list and always ran:
 //!     `object as Plain` and `Comparable as Cell` are one representation on
-//!     both sides, so ADR 0036 § 4 leaves the check to the member access.
+//!     both sides, so `rule:types/erased-member-access` leaves the check to the member access.
 //!
 //!     `null as string` used to be here and is a row now — the empty string,
 //!     the answer `concat_operand` already gave the same value.
@@ -592,7 +591,7 @@
 //!     non-throwing form) runs no membership test either: its yield-`null`
 //!     miss arm has no shared representation with its hit arm, so it needs a
 //!     merge the throwing form does not.
-//! 21. **ADR 0126's `property<T>` lowers whole, and what it inherits is ADR
+//! 21. **`rule:types/property-key`'s `property<T>` lowers whole, and what it inherits is ADR
 //!     0036 § 4's own gap and not one of its own.** A key is a name, so the type erases to
 //!     [`ty::Ty::Str`] ([`lower::lower_checked_ty`]) and a parameter, a return,
 //!     a local and a property hold one for nothing. § 2's three conversions all
@@ -605,7 +604,7 @@
 //!     nothing at run time.
 //!
 //!     § 4's `$obj->$key` lowers too, as [`ir::InstKind::KeyGet`] and
-//!     [`ir::InstKind::KeySet`] — § 5's recorded choice, which is ADR 0036 § 4's
+//!     [`ir::InstKind::KeySet`] — § 5's recorded choice, which is `rule:types/erased-member-access`'s
 //!     erased access with the name arriving as a value instead of as a `String`
 //!     the instruction carries. The alternative weighed here and rejected there
 //!     was a closed-set chain over the key's roster, one `BinOp::Eq` and one
@@ -614,7 +613,7 @@
 //!     access, and each arm still tagging into the union's representation
 //!     before the join. That variant's own doc comment is the home of it.
 //!
-//!     **What is left is not this gap but ADR 0036 § 4's**, inherited by
+//!     **What is left is not this gap but `rule:types/erased-member-access`'s**, inherited by
 //!     routing through it exactly as § 5 intended: the erased access reaches
 //!     storage past a per-property `get`/`set` hook, so a key naming a hooked
 //!     property reads and writes its backing slot rather than running the hook.

@@ -81,7 +81,7 @@ a tainted subject is tainted.
 
 The accepted syntax is PCRE's, across both tiers, with these fixed points:
 
-- **There is no `u` modifier.** [ADR 0009](0009-string-and-bytes.md) guarantees `string` is UTF-8, so
+- **There is no `u` modifier.** `rule:types/bytes` guarantees `string` is UTF-8, so
   Unicode mode is not optional and not a flag; `.` is a code point. Matching over `bytes` is a separate,
   explicitly byte-oriented entry point.
 - **A construct neither engine supports is a compile-time diagnostic naming it** — recursion (`(?R)`),

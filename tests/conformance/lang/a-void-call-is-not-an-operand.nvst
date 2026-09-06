@@ -1,8 +1,8 @@
 --TEST--
-Every operator refuses a call that returns `void` where it is written, and `.` alone keeps its own code — ADR 0007 § 4
+Every operator refuses a call that returns `void` where it is written, and `.` alone keeps its own code — `rule:types/arithmetic`
 --FILE--
 <?nvs
-// ADR 0007 § 4's table names rows for the types a value can have, and a call
+// `rule:types/arithmetic`'s table names rows for the types a value can have, and a call
 // that returns `void` produces no value at all — so the question of which row
 // applies never arises and the refusal is one step earlier than every other
 // one in that table. Unrefused, each line below reached `nvs-ir` with nothing
@@ -29,7 +29,7 @@ mixed $cmp = Effect::run() <=> $a;
 // exist is not disjoint from anything, so this one is refused here or nowhere.
 mixed $eq = Effect::run() == $a;
 // The three that are not table rows at all: a condition, a null test and the
-// bitwise pair ADR 0007 § 4 keeps over `int` and `uint`.
+// bitwise pair `rule:types/arithmetic` keeps over `int` and `uint`.
 mixed $and = Effect::run() && $a;
 mixed $coalesce = Effect::run() ?? $a;
 mixed $bitand = Effect::run() & $a;

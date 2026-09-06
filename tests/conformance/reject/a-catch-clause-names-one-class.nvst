@@ -1,5 +1,5 @@
 --TEST--
-A `catch` clause naming two classes is refused — the binding carries one static type (ADR 0007 § 1's `catch` row, `rule:expressions/catch-expression`)
+A `catch` clause naming two classes is refused — the binding carries one static type (`rule:types/declaration`'s `catch` row, `rule:expressions/catch-expression`)
 --FILE--
 <?nvs
 // PHP's multi-class clause parses here because the ordinary type grammar's

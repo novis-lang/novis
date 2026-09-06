@@ -1,5 +1,5 @@
 --TEST--
-The append counter only ever counts up: a removal never lowers it, in either representation, and only a canonical decimal key raises it — ADR 0007 § 5
+The append counter only ever counts up: a removal never lowers it, in either representation, and only a canonical decimal key raises it — `rule:types/arrays`
 --FILE--
 <?nvs
 // `$a[]` appends under PHP's "highest integer key used so far, plus one",

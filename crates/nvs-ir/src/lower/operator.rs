@@ -1,4 +1,4 @@
-//! ADR 0007 § 4's operator table — the scalar rows, `decimal`'s own set, the
+//! `rule:types/arithmetic`'s operator table — the scalar rows, `decimal`'s own set, the
 //! short-circuiting three, and the widening that places a mixed pair.
 //!
 //! Part of [`super`]'s one `impl Lowering`, split out of [`super::expr`] under the
@@ -13,7 +13,7 @@ use super::*;
 
 impl<'a> Lowering<'a> {
     /// Whether the checker *placed* the numeric literal at `span` at
-    /// `decimal` — ADR 0054 § 2's rule, read back from the one recording
+    /// `decimal` — `rule:types/numeric-literal-placement`'s rule, read back from the one recording
     /// `nvs_types::expr::record_decimal_placement` makes.
     ///
     /// [`Lowering::lower_expr`]'s own `expected` answers the same question
@@ -28,7 +28,7 @@ impl<'a> Lowering<'a> {
             .is_some_and(|id| matches!(self.checked_types.get(id), CheckedTy::Decimal))
     }
     /// One binary operator with a [`Ty::Decimal`] operand —
-    /// [ADR 0054](/docs/adr/0054-decimal-scalar-type.md) § 3's whole
+    /// `rule:types/arithmetic`'s whole
     /// table, as [`Helper`] calls rather than machine instructions.
     ///
     /// Three helpers cover all six comparisons, which is why this is a
@@ -62,21 +62,20 @@ impl<'a> Lowering<'a> {
             BinaryOp::GtEq => (Helper::DecimalLtEq, Ty::Bool, vec![rhs, lhs], false),
             // The one row here whose answer is neither a `bool` nor a
             // `decimal`: `<=>` is the ordering the four above each ask one
-            // question of, returned whole. ADR 0054 § 3 grants it on the same
+            // question of, returned whole. `rule:types/arithmetic` grants it on the same
             // grounds it grants them — an exact comparison is computable
             // across every pairing, including the `decimal`/`float` one
             // arithmetic refuses.
             BinaryOp::Cmp => (Helper::DecimalCmp, Ty::Int, vec![lhs, rhs], false),
             // `BinaryOp`'s roster is 22 and this arm has no reachable target
-            // left. Twelve are the rows above, which is exactly what ADR 0054
-            // § 3 grants a `decimal`: the five arithmetic operators, `==`/`!=`,
+            // left. Twelve are the rows above, which is exactly what `rule:types/arithmetic` grants a `decimal`: the five arithmetic operators, `==`/`!=`,
             // the four orderings and `<=>`. Of the ten it does not grant, six
             // are refused a phase up and four never arrive at all.
             //
             // The six: `**` by
             // `nvs_types::expr::operators::power_result`, which names
             // `Core\Decimal::pow` and the rounding it does; and `&`, `|`, `^`,
-            // `<<` and `>>` by `reject_bitwise_operand`, ADR 0007 § 4's
+            // `<<` and `>>` by `reject_bitwise_operand`, `rule:types/arithmetic`'s
             // bitwise row being over `int` and `uint` alone — a `decimal` is a
             // coefficient and a scale, so there is no bit pattern for them to
             // read, and until that refusal existed a `decimal` operand landed
@@ -376,7 +375,7 @@ impl<'a> Lowering<'a> {
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         let (v, ty) = self.lower_expr(inner, expected, env, cur);
-        // ADR 0054's scalar has no machine negate: like every other
+        // `rule:types/decimal`'s scalar has no machine negate: like every other
         // operator over one it is a helper call. It cannot fail --
         // the mantissa is unsigned, so there is no asymmetric minimum
         // to overflow the way `-i64::MIN` does.
@@ -391,7 +390,7 @@ impl<'a> Lowering<'a> {
                 env,
             );
         }
-        // ADR 0007 § 4's unary rows for the operand shape the binary arms above
+        // `rule:types/arithmetic`'s unary rows for the operand shape the binary arms above
         // answer for equality, ordering and arithmetic: a `mixed`, a union or
         // the `int|float` a division returns names no row where it is written,
         // so the tag names it when it arrives. See `Helper::ValueNeg`, which is
@@ -427,11 +426,11 @@ impl<'a> Lowering<'a> {
         }
         let uop = match op {
             AstUnaryOp::Neg => UnOp::Neg,
-            // ADR 0007 § 4's `~` row: the operand type, preserved, and total
+            // `rule:types/arithmetic`'s `~` row: the operand type, preserved, and total
             // over it — every 64-bit pattern is a value of both `int` and
             // `uint`, so this is the one unary arithmetic row with no edge.
             AstUnaryOp::BitNot => UnOp::BitNot,
-            // ADR 0007 § 4 gives unary `+` no row because there is nothing for
+            // `rule:types/arithmetic` gives unary `+` no row because there is nothing for
             // one to say: over `int`, `uint`, `float` and `decimal` alike it is
             // the identity, and it is the identity in PHP too. So the operand
             // *is* the result — no instruction, and no overflow edge, for the
@@ -439,7 +438,7 @@ impl<'a> Lowering<'a> {
             // silent divergence is one refusal a phase up:
             // `nvs_types::expr::operators::reject_unary_arith_operand` turns
             // away every operand that is not one of those four, because PHP's
-            // `+"5"` is a *numeric conversion* and ADR 0007 § 2 has no implicit
+            // `+"5"` is a *numeric conversion* and `rule:types/conversion` has no implicit
             // one for it to be.
             AstUnaryOp::Plus => return (v, ty),
             // `UnaryOp`'s roster is five, and this arm has no reachable target
@@ -459,7 +458,7 @@ impl<'a> Lowering<'a> {
             op: uop,
             operand: v,
         };
-        // ADR 0007 § 4's overflow throw reaches the unary row too, and for the
+        // `rule:types/arithmetic`'s overflow throw reaches the unary row too, and for the
         // same reason the additive ones take it: `-i64::MIN` has no `int` and
         // `-$u` no `uint` for any non-zero `$u`, so `ineg` would answer with a
         // wrapped value rather than with the `ArithmeticError` the ADR names.
@@ -508,7 +507,7 @@ impl<'a> Lowering<'a> {
         // receiver that cannot be `null`. The operand is still
         // lowered (it may have side effects) and released if nothing
         // else owns it, exactly like the general arm's comparison.
-        // ADR 0125 § 2's `?class<T>`: not tagged, and still able to hold
+        // `rule:types/class-reference`'s `?class<T>`: not tagged, and still able to hold
         // `null` — see [`Ty::ClassDesc`], which owns why and lists every site
         // this one is among. The test is the word against zero, and a
         // non-nullable `class<T>` operand takes it too rather than needing a
@@ -628,7 +627,7 @@ impl<'a> Lowering<'a> {
         };
         let op = *op;
         // The right operand is lowered against the left's representation,
-        // which is ADR 0054 § 2's placement rule carried one crate down: a
+        // which is `rule:types/numeric-literal-placement`'s placement rule carried one crate down: a
         // digit run beside a `uint` is a `ConstUint`, not an `int` that
         // happens to fit. When the digit run is the *left* operand the two
         // are lowered in the other order, and nothing is observably reordered
@@ -648,7 +647,7 @@ impl<'a> Lowering<'a> {
                 let (rv, rty) = self.lower_expr(rhs, Some(lty), env, cur);
                 (lv, lty, rv, rty)
             };
-        // ADR 0054 § 3's table is a set of runtime helpers rather than
+        // `rule:types/arithmetic`'s table is a set of runtime helpers rather than
         // a machine instruction, so a `decimal` on *either* side takes
         // its own path -- including the mixed `decimal ⊕ int` row,
         // which the helper promotes from the operand's own tag.
@@ -706,7 +705,7 @@ impl<'a> Lowering<'a> {
                 },
             );
         }
-        // ADR 0007 § 4's ordering rows for the same operand shape the arm
+        // `rule:types/arithmetic`'s ordering rows for the same operand shape the arm
         // above answers for equality: a `mixed` or a union names no row, so
         // the tag names it at run time. `>`/`>=` are the two `<` helpers with
         // their operands swapped, the arrangement `lower_decimal_binary` and
@@ -743,7 +742,7 @@ impl<'a> Lowering<'a> {
             self.release_temporaries_since(mark, *cur);
             return (answer, ty);
         }
-        // ADR 0007 § 4's *arithmetic* and bitwise rows for the operand shape
+        // `rule:types/arithmetic`'s *arithmetic* and bitwise rows for the operand shape
         // the two arms above answer for equality and ordering, and the last of
         // the three: a `mixed`, a union or the `int|float` a division returns
         // names no row where it is written, so the tags name it when they
@@ -811,14 +810,14 @@ impl<'a> Lowering<'a> {
         // enum compared with itself. It is answered one representation down,
         // on the integer its cases *are* (`rule:enums/no-class-machinery`): `Ty::Enum` is a
         // zero-byte tag over that integer, so the free `Reinterpret` row 1 of
-        // ADR 0010 § 5 already uses for `$m as int` turns the comparison into
+        // `rule:types/conversion` already uses for `$m as int` turns the comparison into
         // the machine compare `nvs-codegen` has — its `BinOp` table is
         // `Ty::Int`/`Ty::Uint`/`Ty::Bool` and has no `Ty::Enum` row at all.
         //
         // Only `==`/`!=` are relabelled. `<` over two cases has no row in any
         // ADR, and `rule:expressions/disjoint-comparison-refused` keeps the two domains apart on purpose, so
         // ordering an enum stays something `$e as int` says out loud.
-        // ADR 0125 § 2's `?class<T>` against `null`, and the reason it is a row
+        // `rule:types/class-reference`'s `?class<T>` against `null`, and the reason it is a row
         // here rather than the `Ty::Tagged` arm above: that erasure is a
         // `Ty::ClassDesc` ([`Ty::ClassDesc`]'s own doc comment says why), so
         // neither operand is tagged and neither has a `BinOp` row of its own.
@@ -940,7 +939,7 @@ impl<'a> Lowering<'a> {
                 },
             );
         }
-        // ADR 0007 § 4's ordering rows, which are *not* its arithmetic ones:
+        // `rule:types/arithmetic`'s ordering rows, which are *not* its arithmetic ones:
         // the table's own closing paragraph says a comparison "has an exact
         // answer in the mathematical integers and can be lowered as one", so a
         // mixed numeric pair is settled by a helper here — the same shape and
@@ -987,7 +986,7 @@ impl<'a> Lowering<'a> {
             // scalar, so neither operand is `Ty::is_refcounted`.
             return self.emit_fallible(*cur, Ty::Bool, InstKind::HelperCall { helper, args }, env);
         }
-        // ADR 0007 § 4's "either operand a `float`" row, made real: the
+        // `rule:types/arithmetic`'s "either operand a `float`" row, made real: the
         // checker types the pair `float`, but until here both operands still
         // travelled in their own representation and `nvs-codegen`'s "a
         // `BinOp` has one representation" invariant refused them. So the
@@ -996,7 +995,7 @@ impl<'a> Lowering<'a> {
         // same way rather than asking the backend to.
         //
         // It is the checked widening — the very helper `$n as float` emits —
-        // because ADR 0007 § 2 names this as the one implicit conversion in
+        // because `rule:types/conversion` names this as the one implicit conversion in
         // the language and says it "throws above 2^53 rather than rounding".
         // A silent `fcvt_from_sint` would answer an exact-in-the-integers
         // question with a rounded one, which is the same reason `==` next
@@ -1013,23 +1012,23 @@ impl<'a> Lowering<'a> {
             BinaryOp::Sub => (BinOp::Sub, lty),
             BinaryOp::Mul => (BinOp::Mul, lty),
             // The one operator whose result representation is not its
-            // operands': ADR 0007 § 4 types `int / int` as `int|float` and
+            // operands': `rule:types/arithmetic` types `int / int` as `int|float` and
             // `uint / uint` as `uint|float`, PHP-exact, so which of the two a
             // given pair produces is only known at run time and the value is
             // therefore [`Ty::Tagged`]. `nvs-codegen`'s `emit_int_div` owns
             // the branch; `Lowering::coerce` owns the widening that absorbs
-            // the union back into a declared `float`, which is ADR 0007 § 4's
+            // the union back into a declared `float`, which is `rule:types/arithmetic`'s
             // own worked example `float $avg = $sum / $n;`.
             BinaryOp::Div if matches!(lty, Ty::Int | Ty::Uint) => (BinOp::Div, Ty::Tagged),
             BinaryOp::Div => (BinOp::Div, lty),
             BinaryOp::Mod => (BinOp::Mod, lty),
-            // ADR 0007 § 4 puts `**` in the same row as `+`, `-` and `*` — the
+            // `rule:types/arithmetic` puts `**` in the same row as `+`, `-` and `*` — the
             // operand type, and a throw rather than a wrap — so it needs no
             // arm of its own here beyond this one. What is not shared is the
             // *emission*: see `BinOp::Pow`, which is a loop over an integer
             // pair and a call over a float one.
             BinaryOp::Pow => (BinOp::Pow, lty),
-            // ADR 0007 § 4's bitwise rows, all five of which preserve the
+            // `rule:types/arithmetic`'s bitwise rows, all five of which preserve the
             // operand type. `>>` is the one that reads its operand's
             // signedness rather than only its width — arithmetic on an `int`,
             // logical on a `uint` — and `nvs-codegen` picks that from the
@@ -1077,7 +1076,7 @@ impl<'a> Lowering<'a> {
         // right after the instruction reads it, exactly the rule the
         // `Concat` arm above applies to its own fresh operands.
         //
-        // Every *integer* arithmetic operator here can fail, and ADR 0007 § 4
+        // Every *integer* arithmetic operator here can fail, and `rule:types/arithmetic`
         // is why: `+`, `-`, `*` and `**` throw `ArithmeticError` on overflow
         // rather than wrapping, `%` and `/` throw it on a zero divisor, and
         // `**` throws it on a negative exponent as well.
@@ -1123,14 +1122,14 @@ impl<'a> Lowering<'a> {
         result
     }
 
-    /// One operand of a binary operator, widened into ADR 0007 § 4's
+    /// One operand of a binary operator, widened into `rule:types/arithmetic`'s
     /// `float` row when — and only when — the *other* operand is already
     /// one. `other` is that operand's representation; everything else is
     /// returned untouched, so a matched pair costs nothing and no
     /// instruction is emitted for it.
     ///
     /// The conversion is [`Helper::IntToFloat`]/[`Helper::UintToFloat`],
-    /// the same pair `$n as float` lowers to, because ADR 0007 § 2 makes
+    /// the same pair `$n as float` lowers to, because `rule:types/conversion` makes
     /// this implicit row *the same conversion* as the written one — exact
     /// or throwing above 2^53, never rounding. That is why it goes through
     /// [`Lowering::emit_fallible`] and not through

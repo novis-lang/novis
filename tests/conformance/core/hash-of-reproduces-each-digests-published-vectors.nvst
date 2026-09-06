@@ -1,5 +1,5 @@
 --TEST--
-`Core\Hash::of` reproduces each `Core\Digest` case's own published vector, hashes the empty input and hashes a buffer no `string` could hold — spec § 11, ADR 0009 §§ 1 and 3
+`Core\Hash::of` reproduces each `Core\Digest` case's own published vector, hashes the empty input and hashes a buffer no `string` could hold — spec § 11, `rule:types/bytes` and `rule:types/conversion`
 --FILE--
 <?nvs
 // § 11: the algorithm is an argument, so this one member has to be right six
@@ -61,7 +61,7 @@ echo Core\Encoding::toHex(Core\Hash::of(
 
 // A `bytes` no `string` could hold: a lone `ff`, a continuation byte with no
 // lead and a truncated two-byte sequence. `"…" as bytes` cannot spell this —
-// it only reaches octets that are already valid UTF-8 (ADR 0009 §§ 1 and 3) —
+// it only reaches octets that are already valid UTF-8 (`rule:types/bytes` and `rule:types/conversion`) —
 // so `Core\Encoding::fromHex` is where such a buffer comes from, and the
 // `bytes|string` parameter is what lets it arrive at all. Every algorithm
 // takes the same path over it, which is the property being pinned: a digest

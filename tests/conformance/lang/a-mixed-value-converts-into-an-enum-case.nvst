@@ -1,5 +1,5 @@
 --TEST--
-A `mixed` converts into an enum case by converting to the backing integer first and then testing membership — ADR 0010 § 5's second row, and ADR 0047 § 3's named subset over the same operand
+A `mixed` converts into an enum case by converting to the backing integer first and then testing membership — `rule:types/conversion`'s second row, and `rule:types/enum-case-type`'s named subset over the same operand
 --FILE--
 <?nvs
 enum Mode: int {
@@ -9,7 +9,7 @@ enum Mode: int {
 }
 
 class Gate {
-    // ADR 0010 § 5: "exactly the shape `as uint` already has for untrusted
+    // `rule:types/conversion`: "exactly the shape `as uint` already has for untrusted
     // input". The operand is converted to the enum's backing scalar by ADR
     // 0007 § 2's own rows *before* the membership chain runs, which is why the
     // string "1" reaches `Mode::Read` — the ADR's own example converts a
@@ -24,7 +24,7 @@ class Gate {
         }
     }
 
-    // ADR 0047 § 3's named subset, over the same untyped operand: the same
+    // `rule:types/enum-case-type`'s named subset, over the same untyped operand: the same
     // conversion first, then a chain naming only the cases written at the site.
     public static function narrow(mixed $m): string {
         try {
@@ -49,7 +49,7 @@ echo Gate::narrow($two), "\n";
 echo Gate::narrow($three), "\n";
 echo Gate::narrow($nine), "\n";
 
-// The first step can fail on its own: `bool` is a tag ADR 0007 § 2 writes no
+// The first step can fail on its own: `bool` is a tag `rule:types/conversion` writes no
 // numeric row from, so the throw names the conversion rather than the set.
 echo Gate::toMode($yes), "\n";
 --EXPECT--

@@ -1,5 +1,5 @@
 --TEST--
-ADR 0125 § 2's third row — `class<T> as string` is the descriptor's own fully qualified name, which closes the round trip the `string` row opens
+`rule:types/class-reference`'s third row — `class<T> as string` is the descriptor's own fully qualified name, which closes the round trip the `string` row opens
 --FILE--
 <?nvs
 namespace App;

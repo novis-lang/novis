@@ -68,7 +68,7 @@ fn for_init_of(src: &str) -> ForInit {
 #[test]
 fn a_for_init_clause_declares_one_typed_local() {
     // `rule:iteration/for-init-clause`: the declaration form, in every spelling `local-decl`
-    // covers — a scalar type, ADR 0037's `var`, a nullable, a generic whose
+    // covers — a scalar type, `rule:types/var-inference`'s `var`, a nullable, a generic whose
     // `<` the expression grammar also claims.
     for src in [
         "for (int $i = 0; $i < 3; $i = $i + 1) { }",
@@ -255,7 +255,7 @@ fn foreach_key_and_by_reference_value() {
 
 #[test]
 fn foreach_header_as_belongs_to_foreach_not_conversion() {
-    // ADR 0007 § 2 / docs/spec/00-overview.md § 3.2: converting the
+    // `rule:types/conversion` / docs/spec/00-overview.md § 3.2: converting the
     // *subject* inside a `foreach` header needs parens, since a bare
     // `as` right after the subject is `foreach`'s own separator.
     let s = parse_stmt_ok("foreach (($m as array<int>) as int $v) { }");
@@ -342,7 +342,7 @@ fn typed_local_declaration_with_and_without_initializer() {
     assert!(value.is_none());
 }
 
-/// ADR 0037: `var $n = 0;` parses to the same `LocalDecl` shape as the
+/// `rule:types/var-inference`: `var $n = 0;` parses to the same `LocalDecl` shape as the
 /// typed spelling, but with `ty: None` — the checker fills it in from
 /// `value`'s own type.
 #[test]

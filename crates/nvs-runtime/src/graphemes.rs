@@ -2,7 +2,7 @@
 //! that answers most of them without segmenting, and the one question a
 //! concatenation asks at its seam.
 //!
-//! [ADR 0009](/docs/adr/0009-string-and-bytes.md) § 2 decides that a
+//! `rule:types/string-is-utf8` decides that a
 //! `string`'s length, indexing and iteration count extended grapheme clusters,
 //! and `nvs_stdlib::granularity` is where that *choice* is stated — which unit
 //! is the default, and what splitting and indexing in it mean. This module is
@@ -31,7 +31,7 @@ use unicode_segmentation::{GraphemeCursor, UnicodeSegmentation};
 /// remaining rule breaks between every pair, so the cluster count is the byte
 /// count and the k-th cluster is the k-th byte.
 ///
-/// This is what makes ADR 0009 § 2's decision affordable rather than merely
+/// This is what makes `rule:types/string-is-utf8`'s decision affordable rather than merely
 /// correct: the two disqualifiers are folded into **one** branchless pass, so
 /// the overwhelmingly common case — a request path full of ASCII — pays a
 /// single vectorizable scan rather than a segmentation one.
@@ -85,7 +85,7 @@ pub fn count(subject: &str) -> usize {
 ///
 /// It is O(1) in the sense that matters: the work is bounded by the clusters
 /// *touching* the seam, not by the length of either side. That is the whole of
-/// what ADR 0009's *Consequences* asks a concatenation to pay, against the
+/// what `rule:types/bytes`'s *Consequences* asks a concatenation to pay, against the
 /// full re-segmentation it would otherwise owe.
 ///
 /// The ends never join: a boundary is a boundary at 0 and at `text.len()`, and

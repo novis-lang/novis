@@ -81,7 +81,7 @@ places. There is no second grammar implementation anywhere in this project.
 
 The return value is a **typed** node tree — `Core\Ast\ClassDecl`, `Core\Ast\MethodDecl`, and so on, one type
 per production the same way `nvs-syntax`'s own AST is typed — never `array<mixed>` or a stringly-keyed
-associative structure. [ADR 0007](0007-explicit-type-system.md) already rejects `mixed` as anything but the
+associative structure. `rule:types/declaration` already rejects `mixed` as anything but the
 one deliberately unchecked position in the language; returning the parse tree as untyped data would be
 exactly the shortcut `token_get_all()` takes, reintroduced at the one place a fully-typed alternative is
 easiest to give.
@@ -120,7 +120,7 @@ as `Core\Json::decode()` on one.
 - A migrated framework's DI container or ORM hydration gets the reflection surface it already expects, with
   no new privilege-escalation primitive PHP's `setAccessible(true)` gave it. Its other half — *construct
   the class this name denotes* — is not reflection at all and never reaches `Core\Reflect`:
-  [ADR 0125](0125-a-class-reference-is-a-type-and-as-is-its-only-source.md)'s `class<T>` is the type a
+  `rule:types/class-reference`'s `class<T>` is the type a
   container holds, checked once at the `as` that produced it, so a container binding a name to an
   implementation is type-checked where PHP's throws at resolution time. **An attribute-driven router is
   no longer one of those cases**: [ADR 0077](0077-compile-time-routing.md) makes the route table a compiler
@@ -152,7 +152,7 @@ as `Core\Json::decode()` on one.
   priority 1 doesn't get to spend for convenience, especially given the [ADR 0014](0014-property-observer.md)
   hook it would skip silently.
 - **Return the AST as `array<mixed>`** (PHP's `ast` extension/`token_get_all()` shape). Rejected per § 3: the
-  exact `mixed`-shaped shortcut [ADR 0007](0007-explicit-type-system.md) closes everywhere else.
+  exact `mixed`-shaped shortcut `rule:types/declaration` closes everywhere else.
 - **A `Core\Ast::eval()`-style convenience.** Never seriously considered: `eval` with extra ceremony, already
   rejected by [ADR 0006](0006-isolated-script-execution.md) for reasons that apply unchanged to a tree.
 

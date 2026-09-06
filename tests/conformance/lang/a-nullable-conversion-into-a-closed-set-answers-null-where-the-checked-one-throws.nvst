@@ -1,5 +1,5 @@
 --TEST--
-`as ?T` into a literal, enum-case or whole-enum target answers `null` on exactly the values `as T` throws on, and coerces no more than it does — `rule:expressions/nullable-conversion-availability` row 2, over ADR 0047 § 5's membership chain and ADR 0010 § 5's two enum rows
+`as ?T` into a literal, enum-case or whole-enum target answers `null` on exactly the values `as T` throws on, and coerces no more than it does — `rule:expressions/nullable-conversion-availability` row 2, over `rule:types/literal-types`'s membership chain and `rule:types/conversion`'s two enum rows
 --FILE--
 <?nvs
 enum Mode: int {
@@ -9,7 +9,7 @@ enum Mode: int {
 }
 
 final class Twin {
-    // ADR 0047 § 5's chain with the throw at the far end: the shape `as T`
+    // `rule:types/literal-types`'s chain with the throw at the far end: the shape `as T`
     // has had since that section landed.
     public static function checkedMode(mixed $m): string {
         try {
@@ -31,7 +31,7 @@ final class Twin {
         return "null";
     }
 
-    // ADR 0047 § 3's named subset, over the same operand and the same pair.
+    // `rule:types/enum-case-type`'s named subset, over the same operand and the same pair.
     public static function checkedSubset(mixed $m): string {
         try {
             Mode::Read|Mode::Write $some = $m as Mode::Read|Mode::Write;
@@ -49,7 +49,7 @@ final class Twin {
         return "null";
     }
 
-    // ADR 0047 § 1's string literals. A `mixed` operand is tested on its own
+    // `rule:types/literal-types`'s string literals. A `mixed` operand is tested on its own
     // runtime tag with no conversion in front of it, in both spellings, which
     // is what keeps a `mixed` holding `1` out of a set naming `"1"`.
     public static function checkedText(mixed $m): string {
@@ -81,7 +81,7 @@ final class Twin {
     }
 }
 
-// Every tag ADR 0007 § 2 writes a row from, plus the two it does not: `true`
+// Every tag `rule:types/conversion` writes a row from, plus the two it does not: `true`
 // has no numeric row at all, and `"x"` has one that fails.
 array<mixed> $rows = ["1", 3, 9, true, "x", "a"];
 
@@ -124,7 +124,7 @@ echo Twin::nullableMode($three), "\n";
 string $far = "4";
 echo Twin::nullableMode($far), "\n";
 
-// ADR 0007 § 3's two `bool` singletons as a nullable target: one value each,
+// `rule:types/grammar`'s two `bool` singletons as a nullable target: one value each,
 // so a closed set of exactly the kind § 5 tests. `true` is a hit; `1` is not,
 // because the test compares tags before payloads.
 mixed $yes = true;

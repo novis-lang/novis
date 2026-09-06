@@ -1,5 +1,5 @@
 --TEST--
-`Core\Hash::of` reproduces the published vector of every `Core\Digest` case added past the original six — spec § 11's roster table, ADR 0009 §§ 1 and 3
+`Core\Hash::of` reproduces the published vector of every `Core\Digest` case added past the original six — spec § 11's roster table, `rule:types/bytes` and `rule:types/conversion`
 --FILE--
 <?nvs
 // Spec § 11's roster grew from six cases to fifteen, and the nine below are
@@ -72,7 +72,7 @@ echo Core\Encoding::toHex(Core\Hash::of("123456789", Core\Digest::Crc32c)), "\n"
 
 // A `bytes` no `string` could hold — a lone `ff`, a continuation byte with no
 // lead and a truncated sequence. `"…" as bytes` only reaches octets that are
-// already valid UTF-8 (ADR 0009 §§ 1 and 3), so `Core\Encoding::fromHex` is
+// already valid UTF-8 (`rule:types/bytes` and `rule:types/conversion`), so `Core\Encoding::fromHex` is
 // where such a buffer comes from, and `of`'s `bytes|string` parameter is what
 // lets it arrive. A digest is defined over octets and has no opinion about
 // text; one case per family is enough to pin that, since they share `of`'s

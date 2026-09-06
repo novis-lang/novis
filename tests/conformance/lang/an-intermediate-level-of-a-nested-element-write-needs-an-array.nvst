@@ -1,8 +1,8 @@
 --TEST--
-an intermediate level of a nested element write is refused where it is written when it is not an array of its own, for a scalar, a `mixed` and an untested `?array<T>` alike — ADR 0007 § 5
+an intermediate level of a nested element write is refused where it is written when it is not an array of its own, for a scalar, a `mixed` and an untested `?array<T>` alike — `rule:types/arrays`
 --FILE--
 <?nvs
-// ADR 0007 § 5 separates every level of a nested element write, innermost
+// `rule:types/arrays` separates every level of a nested element write, innermost
 // first, and each level's separated copy is written back into the level above
 // it — so an *intermediate* level has to be an array of its own for there to
 // be anything to separate. The level that is not one is refused where it is

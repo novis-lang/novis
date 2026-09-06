@@ -1,4 +1,4 @@
-//! ADR 0036's `object` top type and inline shape types, plus ADR 0028's `unset()` refusal.
+//! `rule:types/object-top`'s `object` top type and inline shape types, plus ADR 0028's `unset()` refusal.
 //!
 //! Moved out of `nvs_types::check`'s inline `mod tests`; every test keeps its
 //! own name and body. See `tests/common/mod.rs` for the shared fixtures.
@@ -23,7 +23,7 @@ fn unset_on_a_declared_property_is_diagnosed() {
 
 #[test]
 fn unset_on_a_local_variable_is_diagnosed() {
-    // ADR 0028 § 3 leaves `unset()` one job, and ADR 0007 § 1's declare-once,
+    // ADR 0028 § 3 leaves `unset()` one job, and `rule:types/declaration`'s declare-once,
     // definitely-assigned binding has no "undefined again" state for a local
     // to be put back into.
     let diags = check_in_method("mixed $x = 1;\nunset($x);");
@@ -37,7 +37,7 @@ fn unset_on_a_local_variable_is_diagnosed() {
 
 #[test]
 fn unset_on_an_element_of_a_temporary_is_diagnosed() {
-    // The other half of the same rule: ADR 0007 § 5 separates the array
+    // The other half of the same rule: `rule:types/arrays` separates the array
     // before the entry goes, and a call's result has no slot for the
     // separated copy to be written back into.
     let diags = check_src(
@@ -57,7 +57,7 @@ fn unset_on_an_element_of_a_local_is_accepted() {
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
-// ADR 0036 § 1: `object` is the real supertype of every class type.
+// `rule:types/object-top`: `object` is the real supertype of every class type.
 
 #[test]
 fn a_class_instance_is_assignable_to_object() {
@@ -79,7 +79,7 @@ fn a_scalar_is_not_assignable_to_object() {
     assert!(diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)));
 }
 
-// ADR 0036 § 3: a shape type is checked structurally, by width subtyping
+// `rule:types/shape-type`: a shape type is checked structurally, by width subtyping
 // plus ordinary field-type assignability.
 
 #[test]
@@ -132,7 +132,7 @@ fn a_shape_type_alias_resolves_like_any_other_alias() {
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
-// ADR 0036 § 4: property access through an erased view.
+// `rule:types/erased-member-access`: property access through an erased view.
 
 #[test]
 fn reading_a_field_a_shape_names_recovers_its_type_with_no_diagnostic() {

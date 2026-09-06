@@ -1,5 +1,5 @@
 --TEST--
-every binding declares a type, so a name nothing declared is refused rather than springing into existence — ADR 0007 § 1
+every binding declares a type, so a name nothing declared is refused rather than springing into existence — `rule:types/declaration`
 --FILE--
 <?nvs
 int $known = 1;

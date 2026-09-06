@@ -1,5 +1,5 @@
 --TEST--
-`Core\Str::fromCodePoint` and `fromCodePoints` invert `Core\Str::codePoints` and refuse anything UTF-8 cannot hold — spec § 1 *Transformation*, ADR 0009 § 1
+`Core\Str::fromCodePoint` and `fromCodePoints` invert `Core\Str::codePoints` and refuse anything UTF-8 cannot hold — spec § 1 *Transformation*, `rule:types/bytes`
 --FILE--
 <?nvs
 class Build {

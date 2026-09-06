@@ -1,5 +1,5 @@
 --TEST--
-`int` and `uint` share no arithmetic result type — mixing them is refused before anything runs, ADR 0007 § 2
+`int` and `uint` share no arithmetic result type — mixing them is refused before anything runs, `rule:types/conversion`
 --FILE--
 <?nvs
 uint $u = 10;

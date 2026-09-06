@@ -38,7 +38,7 @@ Cell $held = new Cell($long);
 Cell $other = new Cell("-");
 try { Core\Test::assertSame($held, $other); } catch (Throwable $classed) { $refused = $refused + 1; echo $classed->message, "\n"; }
 
-// `bytes` is the third: a count, never a decoded run, because ADR 0009 makes
+// `bytes` is the third: a count, never a decoded run, because `rule:types/bytes` makes
 // it the type with no promise of being text at all.
 bytes $wide = $long as bytes;
 bytes $thin = "-" as bytes;

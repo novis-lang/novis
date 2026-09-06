@@ -1,4 +1,4 @@
-# ADR 0007 — Types are declared, checked, and never change by themselves
+# `rule:types/declaration` — Types are declared, checked, and never change by themselves
 
 - **Status:** Accepted
 - **Date:** 2026-08-20
@@ -103,13 +103,13 @@ owns which conversions admit that form.
 | `string` → `int` / `uint` / `float` | the whole string must be an exact numeric literal, or throws. No leading-garbage rule, no `0` |
 | anything → `string` | total for scalars; an object needs `Stringable`, or it throws ([0028](0028-closing-the-remaining-magic-methods.md)) |
 | `array<T>` → `array<U>` | every element must satisfy `U`; O(n), see *5* |
-| every row involving `decimal` | [ADR 0054](0054-decimal-scalar-type.md) § 4 owns them |
-| `string` ↔ `bytes` | [ADR 0009](0009-string-and-bytes.md) § 3 owns them |
+| every row involving `decimal` | `rule:types/conversion` owns them |
+| `string` ↔ `bytes` | `rule:types/conversion` owns them |
 | `string` / `class<U>` → `class<T>` | the name must be `T` or a class that is one, or it throws; `Foo::class` is decided at compile time, and `class<T>` → `string` is total — the descriptor's own name, not the annotation's ([0125](0125-a-class-reference-is-a-type-and-as-is-its-only-source.md), [0144](0144-class-answers-the-class-a-value-is-so-static-class-and-obj.md) § 3) |
 | `string` / `property<U>` → `property<T>` | the name must be one of `T`'s public declared properties, or it throws; a written-out name is decided at compile time, and `property<T>` → `string` is total ([0126](0126-a-property-key-is-a-checked-name-and-as-is-its-only-source.md)) |
 | any row above, under a qualifier | a successful checked conversion strips `tainted` and `secret` ([0024](0024-taint-tracking-for-injection-sinks.md), [0033](0033-secret-qualifier-for-confidential-values.md)); `as` is never a launderer for a value that keeps its type |
 
-PHP's cast syntax `(int)$x` does not parse — [ADR 0034](0034-legacy-cast-syntax-rejected.md) rejects it with
+PHP's cast syntax `(int)$x` does not parse — `rule:types/no-legacy-cast` rejects it with
 a diagnostic naming `$x as int`. `as` is the only conversion spelling.
 
 Implicit conversion happens in exactly one place: **`int` or `uint` widening into a `float` position**, which
@@ -206,7 +206,7 @@ matches PHP's exactly, `\v`, `\f`, `\e` and the octal `\0`–`\777` included.
 | either operand a `float` | `float` — for `+ - * ** /`; **`%` is a compile error** | `/ 0` throws `ArithmeticError` here too — the zero divisor is refused before the operand types are consulted, so there is one rule and not two; IEEE division is `Core\Math::fdiv` |
 | `>>` | arithmetic on `int`, **logical on `uint`** | — |
 | `& \| ^ ~ <<` | the operand type, preserved | — |
-| any operation involving `decimal` | [ADR 0054](0054-decimal-scalar-type.md) § 3 owns those rows | — |
+| any operation involving `decimal` | `rule:types/arithmetic` owns those rows | — |
 | `object` against `object` in `< <= > >= <=>` | requires `Comparable` ([0013](0013-comparable-interface.md)), no fallback | **compile error** when the class does not implement it |
 | `bool` against `bool` in `< <= > >= <=>` | `bool`/`int` — `false < true`, the ordering of the one bit it already is | — |
 | any other operand in `< <= > >= <=>` | **compile error** | a `string`, `bytes`, `array<T>`, `callable`, enum case or `null` has no ordering at all |
@@ -233,11 +233,11 @@ An operand whose static type names no row **at all** — `mixed`, a union, the `
 is the one case that cannot be answered where it is written, so it is answered from the operand's runtime
 **tag** instead: the rows above where the tags name one, and the same refusal as a *catchable throw* where
 they do not, carrying the diagnostic's own wording. That is
-[ADR 0036](0036-anonymous-object-shapes.md) § 4's deferral — the checked answer of an erased operand is a
+`rule:types/erased-member-access`'s deferral — the checked answer of an erased operand is a
 throw, never a silent value — applied to this table rather than to a member access, and
 `nvs_ir::ir::Helper::ValueLt` is its one home. Two consequences fall out of the tag being all there is: two
 objects behind two `mixed`s throw, because `Comparable::compareTo` is dispatched from the class the *site*
-named, and an enum case orders as the integer [ADR 0047](0047-literal-and-enum-case-types.md) § 5 spends no
+named, and an enum case orders as the integer `rule:types/literal-types` spends no
 representation on hiding — the written spelling is still refused, which is where the author is told to say
 `as int`.
 
@@ -408,7 +408,7 @@ later. Each is reachable in PHP only *because* a binding somewhere is untyped:
 | 10 | `$a[] .= "x"` appends, the element that is not there yet reading as `""` | refused at check time (`E0481`), like every other read of `[]` — nothing makes an absent element read as a zero value, which is row 8 one storage kind along |
 | 11 | reading an absent array key warns and yields `null` | **throws** — there is no `null` to put in an `array<string>`, so row 8's rule holds at runtime too: absent storage is never a zero value. A stored `null` in an `array<?T>` is not an absent key and reads back unchanged. **`$a["k"] ?? $d` is the one exception and is PHP-identical**: `??` means "absent or `null`, without the warning", so the guarded read yields `$d` rather than throwing — refusing there would refuse the spelling PHP offers for exactly this, and the throw is what makes it worth writing. The guard covers **every level of the chain under it**, so `$a["k"]["j"] ?? $d` yields `$d` for an absent key at either depth, and a `null` base needs no `!= null` test in that one position |
 | 12 | `f(...["k" => "v", "0" => "z"])` is a fatal *"Cannot use positional argument after named argument during unpacking"* | accepted — the tail is built by the one spread rule in *5*, so the string key is preserved and the integer-looking one is renumbered under the tail's own append counter. PHP refuses it because it re-reads a string key as a `name:`; Novis's variadic tail *is* the array, and a name never reaches it ([0063](0063-core-api-conventions.md) R2 is the by-name surface), so there is nothing for a later key to be out of order with. Every spread PHP does accept is byte-identical, string keys included |
-| 13 | `$i->name` on an `int` warns *"Attempt to read property"* and yields `null` | refused where it is written (`E0495`) — row 8's rule at the one storage kind a declared type already answers before the program runs. A union naming no single class takes the same code, having no one property set to resolve against. **`mixed` is the exception and keeps PHP's timing**: it is *2*'s one unchecked position, so `$m->name` defers to [ADR 0036](0036-anonymous-object-shapes.md) § 4's name-keyed fetch, which throws — in PHP's own wording — for a receiver that turns out not to be an object, and for a name its class does not carry |
+| 13 | `$i->name` on an `int` warns *"Attempt to read property"* and yields `null` | refused where it is written (`E0495`) — row 8's rule at the one storage kind a declared type already answers before the program runs. A union naming no single class takes the same code, having no one property set to resolve against. **`mixed` is the exception and keeps PHP's timing**: it is *2*'s one unchecked position, so `$m->name` defers to `rule:types/erased-member-access`'s name-keyed fetch, which throws — in PHP's own wording — for a receiver that turns out not to be an object, and for a name its class does not carry |
 
 | 14 | `1 instanceof Box` answers `false`, PHP having no declaration to read | refused where it is written (`E0497`) — a declared scalar, `array<T>`, enum or union naming no class already answered, so the test is dead code that reads as a live question, which is the same call `rule:expressions/one-equality-operator` makes for two statically disjoint types under `==`. **`mixed`, `object`, a shape and any union holding a class keep the run-time test**, and every non-object tag answers `false` there exactly as PHP does — deferring is what *2*'s one unchecked position is for. The class side is not a divergence at all: PHP's dynamic `$x instanceof $name` is spelled over a class reference — `$x instanceof $cls`, where `$cls` is a `class<T>` ([0125](0125-a-class-reference-is-a-type-and-as-is-its-only-source.md)) — which tests the class that value holds. A bare `string` on the right is still `E0496`, beside an enum and a `Core` class, *2* having rejected computed names: the name is checked at the `as` that produced the reference, not at the test |
 

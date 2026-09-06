@@ -11,7 +11,7 @@ files = [
 [context]
 
 modules = [
-  # The type grammar's parser -- ADR 0136 s1's production lands in `parse_type`.
+  # The type grammar's parser -- `rule:types/callable-signature` s1's production lands in `parse_type`.
   "crates/nvs-syntax/src/parser/ty.rs",
   # The `Ty` enum, the interner, the display arm, and the two variants being retired.
   "crates/nvs-types/src/ty.rs",

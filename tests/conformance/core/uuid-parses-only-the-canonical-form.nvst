@@ -37,7 +37,7 @@ echo Read::valid("00000000-0000-4000-8000-000000000000"), "\n";
 
 // The three other spellings a UUID library usually accepts are each a second
 // name for one value, so `Core\Uuid` takes none of them — that module's own
-// docs own why, and ADR 0007 § 2's `string -> int` row draws the same line.
+// docs own why, and `rule:types/conversion`'s `string -> int` row draws the same line.
 echo Read::valid("f9168c5eceb24faab6bf329bf39fa1e4"), "\n";
 echo Read::valid("{f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4}"), "\n";
 echo Read::valid("urn:uuid:f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4"), "\n";

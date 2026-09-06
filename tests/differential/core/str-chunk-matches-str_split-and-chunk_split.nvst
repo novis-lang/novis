@@ -11,7 +11,7 @@ Core\Str::chunk divides an ASCII subject into the same pieces str_split does, re
 // third function needed.
 //
 // The subjects are ASCII on purpose. `chunk` counts grapheme clusters
-// (`nvs_stdlib::granularity::DEFAULT`, ADR 0009 § 2) where `str_split` counts
+// (`nvs_stdlib::granularity::DEFAULT`, `rule:types/string-is-utf8`) where `str_split` counts
 // bytes, and inside ASCII those are the same count; the companion case
 // `str-chunk-on-clusters-diverges-from-str_split` is where they part.
 

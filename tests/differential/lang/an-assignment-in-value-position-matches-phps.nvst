@@ -1,5 +1,5 @@
 --TEST--
-An assignment used as a value agrees with PHP on what it answers and on where the write lands — the target's own value, never a re-read — ADR 0007 §§ 2 and 5
+An assignment used as a value agrees with PHP on what it answers and on where the write lands — the target's own value, never a re-read — `rule:types/conversion` and `rule:types/arrays`
 --FILE--
 <?nvs
 final class Box { public string $name = "-"; }
@@ -9,7 +9,7 @@ final class Echoes {
     }
 }
 
-// ADR 0007 § 2: the answer is the value written, and the write still lands.
+// `rule:types/conversion`: the answer is the value written, and the write still lands.
 int $a = 0;
 int $b = ($a = 2);
 echo $a, " ", $b, "\n";
@@ -28,7 +28,7 @@ string $t = ($s = "alpha");
 echo $s, "|", $t, "|", Echoes::of($s = "beta"), "|", $s, "\n";
 
 // A property, an element, an append and a nested element are targets in value
-// position exactly as they are in statement position (ADR 0007 § 5).
+// position exactly as they are in statement position (`rule:types/arrays`).
 Box $box = new Box();
 echo ($box->name = "named"), " ", $box->name, "\n";
 array<string> $xs = [];

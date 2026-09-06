@@ -1,5 +1,5 @@
 --TEST--
-`Core\Reflect::typeOf` answers exactly one `TypeKind` case per representation, and a closure is an object — ADR 0019 § 1, ADR 0031 § 1
+`Core\Reflect::typeOf` answers exactly one `TypeKind` case per representation, and a closure is an object — ADR 0019 § 1, `rule:types/closure-literal`
 --FILE--
 <?nvs
 // ADR 0019 § 1: reflection is read-only, and this member is the extreme of
@@ -59,7 +59,7 @@ echo Kind::of($octets), "\n";
 echo Kind::of($list), "\n";
 echo Kind::of($instance), "\n";
 
-// ADR 0031 § 1: a closure is an ordinary object, which is why there is no
+// `rule:types/closure-literal`: a closure is an ordinary object, which is why there is no
 // `Callable` case for this to disagree with. The pair that would drift is
 // this one — a case added here and a representation that never arrives.
 mixed $callable = fn (int $n): int => $n + 1;

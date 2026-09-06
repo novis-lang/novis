@@ -161,7 +161,7 @@ read as promising that two semantically identical files converge; what converges
 that mis-cased spelling **has no other legal meaning**. Two qualify today, and both already carry the
 diagnostic that names the fix:
 
-- **Duration literal units** ([ADR 0070](0070-duration-literals.md)): `5Min` → `5min`
+- **Duration literal units** (`rule:types/duration-literal`): `5Min` → `5min`
   (`nvs_syntax::duration`'s `MisCasedUnit`).
 - **The `<?nvs` open tag** ([ADR 0062](0062-case-sensitivity-is-a-compiler-property.md) § 2):
   `<?NVS` → `<?nvs` (`E_RESERVED_SPELLING_CASE`).

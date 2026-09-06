@@ -118,7 +118,7 @@ fn a_contagious_call_does_not_launder_its_argument() {
 
 #[test]
 fn converting_a_tainted_string_to_bytes_preserves_the_qualifier() {
-    // ADR 0009 § 3, amended by ADR 0024 § 2: `bytes`/`string` conversion
+    // `rule:types/conversion`, amended by ADR 0024 § 2: `bytes`/`string` conversion
     // preserves `tainted` across either direction.
     let diags = check_in_method(
         "tainted string $t = \"literal\" as tainted string;\n\

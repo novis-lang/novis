@@ -39,7 +39,7 @@ if ($plus != null) {
 }
 
 // The decoded octets still have to be text: a capture binds to a declared
-// `tainted string` and ADR 0009 § 1 leaves `%ff` no `string` to be, so the
+// `tainted string` and `rule:types/bytes` leaves `%ff` no `string` to be, so the
 // crossing throws rather than answering the escape undecoded.
 try {
     ?Core\Router\Match $refused = Core\Router::match(Core\Http\Method::Get, "/pages/%ff");

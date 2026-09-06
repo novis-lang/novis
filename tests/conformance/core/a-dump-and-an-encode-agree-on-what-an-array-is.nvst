@@ -42,7 +42,7 @@ $verdicts = Core\Arr::append($verdicts, Shape::verdict([1 => 10, 0 => 20]));
 // A hole: 0 and 2, in order, but not consecutive.
 $verdicts = Core\Arr::append($verdicts, Shape::verdict([0 => 10, 2 => 20]));
 // Written as string keys that happen to be the list's own — an array's keys
-// are strings (ADR 0007 § 5), so this is the *same* array as the first row and
+// are strings (`rule:types/arrays`), so this is the *same* array as the first row and
 // every member has to say so.
 $verdicts = Core\Arr::append($verdicts, Shape::verdict(["0" => 10, "1" => 20]));
 // The empty array, which is both shapes at once and is settled as the list.

@@ -1,5 +1,5 @@
 --TEST--
-A `catch` binding is not readable after its clause — only the thrown value assigns it (ADR 0007 § 1's `catch` row)
+A `catch` binding is not readable after its clause — only the thrown value assigns it (`rule:types/declaration`'s `catch` row)
 --FILE--
 <?nvs
 // `$e` is a local of the enclosing function, declared by the clause, but the

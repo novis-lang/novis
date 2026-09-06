@@ -60,7 +60,7 @@
 //! cases that partition [`nvs_runtime::Tag`]'s value-carrying half answer the
 //! whole family in one call and a `match` with no `default` is exhaustive.
 //! That is also why the cases stop where the *representations* do. `Callable`
-//! is not one, because ADR 0031 makes a closure an ordinary object and a case
+//! is not one, because `rule:types/closure-literal` makes a closure an ordinary object and a case
 //! for it would be a second case one value satisfies; `Numeric` is not one,
 //! because `is_numeric` asks about a `string`'s **contents** and that is
 //! `Core\Validate`'s question, not this member's; and `Iterable` and
@@ -494,7 +494,7 @@ fn subject_of(
         (*object.class()).name().to_owned()
     };
     // `as_text` rather than the bytes: the slot was written by `forObject`
-    // from a `Tag::Str`, and ADR 0009 § 3 makes that tag the UTF-8 guarantee —
+    // from a `Tag::Str`, and `rule:types/conversion` makes that tag the UTF-8 guarantee —
     // see `crate::str`'s `text` on why re-deriving it costs an O(n) pass for
     // nothing.
     let described = crate::instance::slot(receiver, NAME_SLOT);
@@ -600,7 +600,7 @@ fn describe(desc: &ClassDesc) -> Value {
 ///
 /// The three `None`s are the whole of what [`TYPE_KIND`] leaves out, and each
 /// is unreachable for its own reason rather than by omission:
-/// [`Tag::Closure`] is reserved and unused, since ADR 0031's closure carries
+/// [`Tag::Closure`] is reserved and unused, since `rule:types/closure-literal`'s closure carries
 /// [`Tag::Object`]; [`Tag::Resource`] has no representation behind it yet; and
 /// [`Tag::Unset`] is a storage state that every read turns into a throw before
 /// a member can see one. A fourth tag arriving here would be a new
@@ -1200,7 +1200,7 @@ mod tests {
     /// record nothing here, which is the whole reason the question is put this
     /// way round.
     ///
-    /// The ordinary write is [`ordinary_write`], because ADR 0036 § 4's erased
+    /// The ordinary write is [`ordinary_write`], because `rule:types/erased-member-access`'s erased
     /// store is the one ordinary write whose class is unknown until it runs,
     /// which is exactly the premise a reflective write site has. ADR 0014 § 4's
     /// other half is asserted in the same test, so that "they agree" cannot be

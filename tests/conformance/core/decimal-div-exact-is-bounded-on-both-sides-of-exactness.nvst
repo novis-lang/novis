@@ -1,5 +1,5 @@
 --TEST--
-ADR 0054 § 3: `Core\Decimal::divExact` names the last quotient it answers and the first it refuses over one sweep of divisors
+`rule:types/arithmetic`: `Core\Decimal::divExact` names the last quotient it answers and the first it refuses over one sweep of divisors
 --FILE--
 <?nvs
 // Exactness is a bound on the quotient's *scale*: a `decimal` carries 28

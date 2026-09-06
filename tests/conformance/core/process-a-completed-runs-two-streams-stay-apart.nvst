@@ -12,7 +12,7 @@
 // on the first.
 //
 // The markers are compared as `bytes`, never converted, because the octets a
-// child writes are not this program's to assume anything about (ADR 0009, and
+// child writes are not this program's to assume anything about (`rule:types/bytes`, and
 // this module's *Captured output is `bytes`, never `string`*). Containment
 // rather than equality: each of the two shells below ends a line its own way
 // and one of them pads before a redirect, and none of that is what this case is

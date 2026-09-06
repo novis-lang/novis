@@ -79,7 +79,7 @@ echo "  is PI: ", (Core\Math::atan2(0.0, -1.0) == Core\Math::PI) as string, "|",
      (Core\Math::atan2(-0.0, -1.0) == 0.0 - Core\Math::PI) as string, "|\n";
 // On the positive x-axis the two answers are the two zeros, which `==` cannot
 // tell apart — the reciprocal is what reads the sign, as the parity case does,
-// through `Core\Math::fdiv` because ADR 0007 § 4 makes `/` throw on a zero
+// through `Core\Math::fdiv` because `rule:types/arithmetic` makes `/` throw on a zero
 // divisor whatever the operand types.
 echo "  1/0: ", Core\Math::fdiv(1.0, Core\Math::atan2(0.0, 1.0)), "|",
      Core\Math::fdiv(1.0, Core\Math::atan2(-0.0, 1.0)), "|\n";

@@ -1,9 +1,9 @@
 --TEST--
-A `mixed` converts to a scalar only on request, and each row throws where it fails — ADR 0007 §§ 2 and 6, with `rule:expressions/nullable-conversion`'s `as ?int` twin beside it
+A `mixed` converts to a scalar only on request, and each row throws where it fails — `rule:types/conversion` and `rule:types/unions-and-mixed`, with `rule:expressions/nullable-conversion`'s `as ?int` twin beside it
 --FILE--
 <?nvs
-// ADR 0007 § 6: `mixed` is the one unchecked position, so nothing here is known
-// statically. The row ADR 0007 § 2's table defines is picked by the value's own
+// `rule:types/unions-and-mixed`: `mixed` is the one unchecked position, so nothing here is known
+// statically. The row `rule:types/conversion`'s table defines is picked by the value's own
 // runtime tag — `"42"` takes the `string -> int` row, `2.5` the `float -> int`
 // one — and a tag the table defines no row from is a conversion that failed.
 class Convert {
@@ -58,7 +58,7 @@ echo Convert::toFloat($num), "\n";
 echo Convert::toFloat($flt), "\n";
 
 // Three failures, one per target: a fractional float is not an int, a negative
-// is not a uint, and `bool` is a tag ADR 0007 § 2 writes no numeric row from.
+// is not a uint, and `bool` is a tag `rule:types/conversion` writes no numeric row from.
 echo Convert::toInt($flt), "\n";
 echo Convert::toUint($neg), "\n";
 echo Convert::toFloat($yes), "\n";

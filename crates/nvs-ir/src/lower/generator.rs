@@ -665,9 +665,9 @@ pub(crate) fn lower_generator_factory(
              nothing sound to park in the state object — `nvs_types::check` refuses this \
              where it is written, as `E0492`"
         );
-        let decl_ty =
-            p.ty.as_ref()
-                .unwrap_or_else(|| panic!("ADR 0007 § 1: every parameter has a declared type"));
+        let decl_ty = p.ty.as_ref().unwrap_or_else(|| {
+            panic!("`rule:types/declaration`: every parameter has a declared type")
+        });
         let ty = lower_decl_type(decl_ty, exprs, checked_types);
         let index = u32::try_from(i + 1).expect("far more parameters than a call could ever take");
         let pname = strip_sigil(span_text(src, p.name)).to_owned();

@@ -69,7 +69,7 @@ array<string> $absolute = [
 
 // One count per way the join can be wrong, over the same table, so a cell that
 // is right by one measure and wrong by another cannot hide inside a single
-// total. ADR 0007 § 5: an `array<T>`'s stored key type is `string`.
+// total. `rule:types/arrays`: an `array<T>`'s stored key type is `string`.
 var $rows = 0;
 var $exact = 0;
 var $doubled = 0;

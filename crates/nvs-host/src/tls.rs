@@ -83,7 +83,7 @@
 //! of ADR 0058's pinned outbound door is that a script does not get to widen a
 //! decision the deployment made.
 //!
-//! What that spends, per `rule:programs/memory-priority`(/docs/adr/0004-memory-for-simplicity.md):
+//! What that spends, per `rule:programs/memory-priority`:
 //! one parsed root store and one `ClientConfig` for the whole **process**, built
 //! once on first use and shared by every session after it — roughly 150 trust
 //! anchors, a few hundred kilobytes, O(1) in requests served. Per session it is

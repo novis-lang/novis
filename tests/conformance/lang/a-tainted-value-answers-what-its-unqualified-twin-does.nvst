@@ -43,7 +43,7 @@ foreach ($rows as tainted string $t) {
     string $pi = "[{$p}]";
     if ($ti == $pi) { $sameInterp = $sameInterp + 1; }
 
-    // ADR 0009 § 3 / ADR 0024 § 2: `bytes`/`string` preserve the qualifier
+    // `rule:types/conversion` / ADR 0024 § 2: `bytes`/`string` preserve the qualifier
     // across either direction, so the round trip stays tainted the whole way
     // and must still land on the byte-identical value.
     tainted bytes $tb = $t as bytes;

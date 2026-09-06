@@ -1,5 +1,5 @@
 --TEST--
-`$x++` and `--$x` are writes, so an increment's target takes the same three refusals a plain assignment's target does — ADR 0007 § 3, ADR 0014 § 1, ADR 0036 § 4
+`$x++` and `--$x` are writes, so an increment's target takes the same three refusals a plain assignment's target does — `rule:types/grammar`, ADR 0014 § 1, `rule:types/erased-member-access`
 --FILE--
 <?nvs
 // `nvs_ir::lower` desugars an increment into the `$x = $x + 1` a compound
@@ -8,7 +8,7 @@
 // refuses to write a value have no more of a place to put `± 1`. All three
 // are asked the same question here — the `?->` whose `null` is not a place,
 // the hooked property ADR 0014 § 1 makes a pair of accessors rather than a
-// slot, and the erased receiver ADR 0036 § 4 resolves by name at run time —
+// slot, and the erased receiver `rule:types/erased-member-access` resolves by name at run time —
 // and what this pins is that they *agree* with the answer `=` already gives,
 // which no one of them shows on its own line. Prefix and postfix are one arm.
 class Plain {

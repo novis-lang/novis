@@ -4,7 +4,7 @@
 //! This is the first non-scalar representation the runtime owns, and the one
 //! both `nvs_ir::ty::Ty::Str` and `nvs_ir::ty::Ty::Bytes` lower to. They share
 //! it verbatim — the two differ only in the UTF-8 guarantee
-//! ([ADR 0009](/docs/adr/0009-string-and-bytes.md)), which is a
+//! (`rule:types/bytes`), which is a
 //! checker property, not a layout one — so nothing here validates encoding.
 //! They are told apart at the *tag*, not here; the crate docs'
 //! § *`bytes` is a tag, not a second heap shape* owns that split.
@@ -49,7 +49,7 @@
 //!
 //! # The cached grapheme count, and what it spends
 //!
-//! [ADR 0009](/docs/adr/0009-string-and-bytes.md) § 2 makes a
+//! `rule:types/string-is-utf8` makes a
 //! `string`'s length a count of extended grapheme clusters, which is O(n)
 //! where PHP's `strlen` is O(1) — so a program asking twice used to pay
 //! twice. The fourth word is that answer, kept: [`NvsStr::grapheme_count`]
@@ -130,7 +130,7 @@
 //!
 //! What discharges it is a property of the **tag**, not of this module: a
 //! `string` is well-formed UTF-8 by construction
-//! ([ADR 0009](/docs/adr/0009-string-and-bytes.md)). Its § 3 makes
+//! (`rule:types/bytes`). Its § 3 makes
 //! `bytes as string` — the one conversion that could introduce arbitrary
 //! octets — checked and throwing, and every other producer either copies a
 //! payload whole or joins payloads end to end, neither of which can split a
@@ -570,7 +570,7 @@ impl NvsStr {
         self.header().refcount.get()
     }
 
-    /// How many extended grapheme clusters the payload holds — ADR 0009 § 2's
+    /// How many extended grapheme clusters the payload holds — `rule:types/string-is-utf8`'s
     /// unit, and this module's docs § *The cached grapheme count* for why the
     /// answer is kept.
     ///
@@ -706,7 +706,7 @@ impl NvsStr {
     /// `ptr` must refer to a live Novis string allocation that stays live for
     /// the whole of `'a`, **and** its payload must be a `string`'s rather than
     /// a `bytes`'s: the two share this allocation and only the former carries
-    /// ADR 0009's UTF-8 invariant.
+    /// `rule:types/bytes`'s UTF-8 invariant.
     #[must_use]
     #[expect(
         unsafe_code,
@@ -721,12 +721,12 @@ impl NvsStr {
         let bytes = unsafe { Self::bytes_of(ptr) };
         debug_assert!(
             std::str::from_utf8(bytes).is_ok(),
-            "a `string` payload is well-formed UTF-8 by ADR 0009's construction"
+            "a `string` payload is well-formed UTF-8 by `rule:types/bytes`'s construction"
         );
         #[expect(
             unsafe_code,
             reason = "the caller guarantees this payload is a `string`'s, which \
-                      ADR 0009 makes well-formed UTF-8; the assertion above is \
+                      `rule:types/bytes` makes well-formed UTF-8; the assertion above is \
                       the debug build's check of that"
         )]
         unsafe {
@@ -1144,7 +1144,7 @@ pub unsafe extern "C" fn nvs_str_concat_n(
 /// Exactly two things force a fresh allocation instead:
 ///
 /// - **A reference count above one.** A second owner can see these bytes, and
-///   an append is a write; ADR 0007 § 5's copy-on-write value semantics do not
+///   an append is a write; `rule:types/arrays`'s copy-on-write value semantics do not
 ///   let that owner observe it. This is the same separation `nvs_array_set`
 ///   performs for the same reason, and it is what keeps the in-place path
 ///   sound rather than merely fast.
@@ -1229,7 +1229,7 @@ pub unsafe extern "C" fn nvs_str_append(
 /// `Ty::Str` operand pair.
 ///
 /// A byte comparison, not a collation: `string` is guaranteed-valid UTF-8
-/// ([ADR 0009](/docs/adr/0009-string-and-bytes.md)), and PHP's `===`
+/// (`rule:types/bytes`), and PHP's `===`
 /// on two strings is byte equality, which is what Novis keeps. Neither operand
 /// is retained or released — the same read-only treatment
 /// [`nvs_str_concat`] gives its two.
@@ -1773,7 +1773,7 @@ mod tests {
         "héllo",
     ];
 
-    /// ADR 0009's *Consequences* asks that an immutable string's count be
+    /// `rule:types/bytes`'s *Consequences* asks that an immutable string's count be
     /// computed once: the first ask scans, every later one reads the fourth
     /// word, and a literal — whose header the compiled unit already carries —
     /// never scans at all.

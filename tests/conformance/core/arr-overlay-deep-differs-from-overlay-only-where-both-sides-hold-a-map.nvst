@@ -1,5 +1,5 @@
 --TEST--
-Core\Arr::overlayDeep answers exactly what ::overlay does except where both sides of a key hold a non-list array, and folds its variadic tail one layer at a time, per ADR 0069 § 1
+Core\Arr::overlayDeep answers exactly what ::overlay does except where both sides of a key hold a non-list array, and folds its variadic tail one layer at a time, per `rule:types/array-combination`
 --FILE--
 <?nvs
 // `crates/nvs-stdlib/src/arr.rs:3748`'s doc says the recursion rule is the

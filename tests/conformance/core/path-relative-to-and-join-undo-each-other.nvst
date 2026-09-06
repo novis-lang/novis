@@ -24,7 +24,7 @@ Core\Path::join($base, Core\Path::relativeTo($p, $base)) normalizes back to $p o
 // The answer is `?string`, and a narrowed nullable does not reach an argument
 // position on its own — the narrowing `rule:expressions/nullable-conversion` gives `!= null` is what lets
 // `->` through, not what re-types the local. `as string` inside the guarded
-// branch is the conversion that does, and it is a checked one (ADR 0007 § 2),
+// branch is the conversion that does, and it is a checked one (`rule:types/conversion`),
 // so it would throw rather than lie if the guard above it were wrong.
 final class Pair {
     public static function rel(string $p, string $b): string {

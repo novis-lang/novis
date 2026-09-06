@@ -1,5 +1,5 @@
 --TEST--
-`Core\Hash::hmac` answers what `hash_hmac` answers for a key one octet under, exactly at and one octet over every block width in spec § 11's strong subset, and the zero-extension collision RFC 2104's padding creates holds up to that width and stops at it (spec § 11, RFC 2104, ADR 0009 § 1)
+`Core\Hash::hmac` answers what `hash_hmac` answers for a key one octet under, exactly at and one octet over every block width in spec § 11's strong subset, and the zero-extension collision RFC 2104's padding creates holds up to that width and stops at it (spec § 11, RFC 2104, `rule:types/bytes`)
 --FILE--
 <?nvs
 // `hash-hmac-matches-hash_hmac-over-every-strong-digest` sweeps the ten

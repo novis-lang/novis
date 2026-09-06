@@ -77,7 +77,7 @@ pub enum ArgConv {
     /// `uint` — as [`Self::Int`], and a usage error where the number is
     /// negative.
     Uint,
-    /// `decimal` — ADR 0054's exact number, and a usage error where the text is
+    /// `decimal` — `rule:types/decimal`'s exact number, and a usage error where the text is
     /// not one. [`crate::decimal`]'s parse is the whole grammar, which is the
     /// same one a route capture is narrowed by.
     Decimal,

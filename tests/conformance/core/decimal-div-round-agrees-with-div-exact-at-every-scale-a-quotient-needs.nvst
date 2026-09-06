@@ -1,5 +1,5 @@
 --TEST--
-ADR 0054 § 3: `Core\Decimal::divRound` under every mode equals `Core\Decimal::divExact` wherever the quotient is exact at the named scale, over a sweep
+`rule:types/arithmetic`: `Core\Decimal::divRound` under every mode equals `Core\Decimal::divExact` wherever the quotient is exact at the named scale, over a sweep
 --FILE--
 <?nvs
 // The two members are one long division read two ways, so wherever the

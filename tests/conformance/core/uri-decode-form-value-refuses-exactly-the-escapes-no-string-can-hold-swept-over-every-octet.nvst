@@ -1,5 +1,5 @@
 --TEST--
-`Core\Uri::decodeFormValue`'s refusal is a property of the decoded octet *stream*, counted over every one of the 256 single-byte escapes and every one of the 256 second octets after a two-byte lead: 128 accepted and 128 refused on the first sweep, 64 accepted on the second, `decodeComponent` refusing the identical set in both, and the bound named on both sides — spec § 12, ADR 0009
+`Core\Uri::decodeFormValue`'s refusal is a property of the decoded octet *stream*, counted over every one of the 256 single-byte escapes and every one of the 256 second octets after a two-byte lead: 128 accepted and 128 refused on the first sweep, 64 accepted on the second, `decodeComponent` refusing the identical set in both, and the bound named on both sides — spec § 12, `rule:types/bytes`
 --FILE--
 <?nvs
 // The neighbouring case shows this refusal on five hand-picked families and
@@ -8,7 +8,7 @@
 // one refusing every escape above `%7E` rather than above `%7F`, prints the same
 // five refusals. So the sweep is exhaustive here and the assertion is a count.
 //
-// ADR 0009 makes a `string` UTF-8 by construction, so percent-decoding — which
+// `rule:types/bytes` makes a `string` UTF-8 by construction, so percent-decoding — which
 // answers *octets* — has a refusal PHP's `urldecode` does not. That divergence
 // is the module doc's; what is pinned here is its exact shape.
 

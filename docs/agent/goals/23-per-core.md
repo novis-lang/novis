@@ -115,6 +115,6 @@ core, and M7's acceptance is that 10k concurrent cold requests compile it **exac
   something other than the default.
 - **Ambiguity about where the publisher lives resolves toward `script.rs`** — it owns the cache and
   the revalidation policy already, and its module doc is where the decision is recorded.
-- **What this spends**, per `rule:programs/memory-priority`(../../adr/0004-memory-for-simplicity.md): one scheduler, one
+- **What this spends**, per `rule:programs/memory-priority`: one scheduler, one
   accept loop and one listener handle per core, all per process start and O(cores) rather than
   O(requests). The unit cache holds strictly *less* than N per-core caches would.

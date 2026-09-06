@@ -46,7 +46,7 @@ fn a_written_element_is_visible_through_the_same_local() {
 
 #[test]
 fn a_copy_written_after_aliasing_leaves_the_original_alone() {
-    // ADR 0007 § 5's copy-on-write value semantics, which is the whole reason
+    // `rule:types/arrays`'s copy-on-write value semantics, which is the whole reason
     // an array write yields the array it wrote into.
     assert_eq!(
         output_of(
@@ -201,7 +201,7 @@ fn an_integer_subscript_reaches_the_packed_form_from_compiled_code() {
     const FEW: i64 = 4;
     const MANY: i64 = 404;
 
-    // What the accesses answer, first — and that ADR 0007 § 5 is intact: the
+    // What the accesses answer, first — and that `rule:types/arrays` is intact: the
     // key still *is* a `string`, so both spellings read the same element.
     assert_eq!(
         output_of(&format!(

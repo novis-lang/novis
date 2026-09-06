@@ -1,5 +1,5 @@
 --TEST--
-`& | ^ ~ << >>` answer PHP's own values, including the two rules a machine shift does not give — ADR 0007 § 4
+`& | ^ ~ << >>` answer PHP's own values, including the two rules a machine shift does not give — `rule:types/arithmetic`
 --FILE--
 <?nvs
 int $six = 6;

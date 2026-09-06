@@ -19,7 +19,7 @@ echo Core\Math::clamp(42, 0, 10), "|", Core\Math::clamp(-42, 0, 10), "|",
      Core\Math::clamp(5, 0, 10), "\n";
 
 // `int`'s smallest value has no `int` magnitude, and PHP's answer — becoming a
-// `float` by itself — is what ADR 0007 forbids.
+// `float` by itself — is what `rule:types/declaration` forbids.
 try {
     echo Core\Math::abs(-9223372036854775807 - 1), "\n";
 } catch (Throwable $e) {

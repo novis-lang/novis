@@ -516,7 +516,7 @@ pub(super) fn statement_in(
         {
             nvs_runtime::SlotKey::Index(_) if keys.is_empty() => positional.push(bound),
             nvs_runtime::SlotKey::Str(name) if positional.is_empty() => {
-                // A key is a Novis `string` and so is UTF-8 by ADR 0009;
+                // A key is a Novis `string` and so is UTF-8 by `rule:types/bytes`;
                 // the lossy read is the spelling that needs no unreachable
                 // arm to say so.
                 keys.push((String::from_utf8_lossy(name.as_bytes()).into_owned(), bound));

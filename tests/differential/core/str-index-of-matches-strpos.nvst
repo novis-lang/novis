@@ -17,7 +17,7 @@ final class Show {
     }
 }
 
-// The subject is ASCII throughout. ADR 0009 § 2 makes an Novis position a
+// The subject is ASCII throughout. `rule:types/string-is-utf8` makes an Novis position a
 // grapheme index where `strpos` reports a byte offset, so only an ASCII subject
 // asks about the search rather than about the unit — `str-length-diverges-from-strlen`
 // is where the unit itself is pinned.

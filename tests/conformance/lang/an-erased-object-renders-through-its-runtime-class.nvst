@@ -1,5 +1,5 @@
 --TEST--
-An object whose static type names no class renders through its runtime `toString`, and every spelling of the conversion agrees (ADR 0028 § 1, ADR 0036 § 4, ADR 0007 § 2)
+An object whose static type names no class renders through its runtime `toString`, and every spelling of the conversion agrees (ADR 0028 § 1, `rule:types/erased-member-access`, `rule:types/conversion`)
 --FILE--
 <?nvs
 class Tag implements Stringable {
@@ -10,7 +10,7 @@ class Plain {
     public int $n = 1;
 }
 
-// ADR 0036 § 4: an erased receiver "cannot be checked at compile time at all",
+// `rule:types/erased-member-access`: an erased receiver "cannot be checked at compile time at all",
 // so the conversion is decided by the concrete instance behind the handle —
 // exactly as a property read through the same view is. `mixed` is § 4's third
 // trigger and answers the same way.
@@ -31,9 +31,9 @@ echo $agree, "\n";
 echo $o, "\n";
 
 // The other side of the same bound: a class the erased view might have held
-// but which declares no `toString`. ADR 0036 § 4 makes that "a checked,
-// catchable throw", never a silent value and never a fatal — and ADR 0007
-// § 2's `as` either produces a `string` or throws, so both spellings throw
+// but which declares no `toString`. `rule:types/erased-member-access` makes that "a checked,
+// catchable throw", never a silent value and never a fatal — and `rule:types/conversion`
+// 's `as` either produces a `string` or throws, so both spellings throw
 // the same thing.
 mixed $p = new Plain();
 try {

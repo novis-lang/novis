@@ -1,5 +1,5 @@
 --TEST--
-Core\Arr::sortByKey orders by key and preserves every one, comparing bytewise unless a comparator says otherwise (spec § 2 Ordering, ADR 0007 § 5)
+Core\Arr::sortByKey orders by key and preserves every one, comparing bytewise unless a comparator says otherwise (spec § 2 Ordering, `rule:types/arrays`)
 --FILE--
 <?nvs
 class Render {
@@ -24,10 +24,10 @@ array<int> $scores = ["carol" => 3, "alice" => 1, "bob" => 2];
 echo Render::pairs(Core\Arr::sortByKey($scores)), "\n";
 echo Render::pairs(Core\Arr::sortByKey($scores, {order: Core\Order::Desc})), "\n";
 
-// ADR 0007 § 5 makes every stored key a `string`, so the natural order is a
+// `rule:types/arrays` makes every stored key a `string`, so the natural order is a
 // byte compare and "10" precedes "9". That is PHP's `ksort($a, SORT_STRING)`,
 // not its default `SORT_REGULAR`, which reads numeric-looking keys as numbers
-// — the changes-type-by-itself behaviour ADR 0007 rejects everywhere else.
+// — the changes-type-by-itself behaviour `rule:types/declaration` rejects everywhere else.
 array<string> $rows = ["10" => "ten", "9" => "nine", "100" => "hundred"];
 echo Render::keys(Core\Arr::sortByKey($rows)), "\n";
 

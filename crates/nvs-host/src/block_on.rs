@@ -44,7 +44,7 @@
 //! socket readiness — the ordinary case, since the reactor wakes a task by id
 //! and never through a waker — issues exactly one for its whole life.
 //!
-//! What it spends, per `rule:programs/memory-priority`(/docs/adr/0004-memory-for-simplicity.md):
+//! What it spends, per `rule:programs/memory-priority`:
 //! one `Arc` holding a flag and a slot, one `Waker`, at most one `RemoteWake`,
 //! and the future itself on the coroutine's own stack. Per connection, so
 //! O(in-flight), and nothing at all per poll or per park.

@@ -846,8 +846,7 @@ impl<'a> Lowering<'a> {
         }
         *cur = after_block;
     }
-    /// `foreach ($subject as $k => $v) body` over an `array<T>` — ADR 0007
-    /// § 5's insertion order, walked by the cursor
+    /// `foreach ($subject as $k => $v) body` over an `array<T>` — `rule:types/arrays`'s insertion order, walked by the cursor
     /// [`InstKind::ArrayNextSlot`] steps.
     ///
     /// Structurally [`Self::lower_while`] with a synthesized condition, and it
@@ -881,7 +880,7 @@ impl<'a> Lowering<'a> {
     ///
     /// A by-reference value binding writes each element back into the array
     /// being walked, so the loop must **not** hold a second reference: the
-    /// one thing the extra reference buys — ADR 0007 § 5 separating the array
+    /// one thing the extra reference buys — `rule:types/arrays` separating the array
     /// on the first write, leaving the cursor on the snapshot — is exactly
     /// what an `inout $v` loop must not do. So the by-reference shape drops the
     /// retain, walks the subject variable's *own* `Env` binding rather than a
@@ -914,7 +913,7 @@ impl<'a> Lowering<'a> {
     /// Panics naming the case for a subject that is not an `array<T>` (ADR
     /// 0053's `Iterable`/`Iterator` are a separate lowering, over a
     /// user-visible interface rather than these primitives), for a key
-    /// binding declared as anything but `string` (ADR 0007 § 5 makes every
+    /// binding declared as anything but `string` (`rule:types/arrays` makes every
     /// stored key a `string`, and `nvs_types` reports `E0723` for every other
     /// declared key type, so an arrival is an internal inconsistency rather
     /// than a program), and for a binding with no declared
@@ -975,7 +974,7 @@ impl<'a> Lowering<'a> {
             let ty = binding_ty(k, "key", self.exprs, self.checked_types);
             assert!(
                 ty == Ty::Str,
-                "nvs-ir lowers a `foreach` key binding only at `string`, ADR 0007 § 5's one \
+                "nvs-ir lowers a `foreach` key binding only at `string`, `rule:types/arrays`'s one \
                  stored key type — got {ty:?}, and nvs_types reports E0723 for every other \
                  declared key type before this runs"
             );
@@ -1136,7 +1135,7 @@ impl<'a> Lowering<'a> {
         let mut body_cur = body_block;
         let (one_v, _) = self.emit(body_cur, Ty::Int, InstKind::ConstInt(1));
         // A slot index cannot reach `i64::MAX`, so this add never throws —
-        // but ADR 0007 § 4's checked `int` row is what `nvs-codegen` emits for
+        // but `rule:types/arithmetic`'s checked `int` row is what `nvs-codegen` emits for
         // it either way, and every instruction that returns a status carries a
         // landing block (`Inst::on_error`). The block is on an edge no run
         // takes.
@@ -2139,7 +2138,7 @@ impl<'a> Lowering<'a> {
     /// iteration — silently, since nothing downstream can tell a missing phi
     /// from a local the body never touched.
     ///
-    /// **A closure body is deliberately not walked.** ADR 0031 § 2 captures by
+    /// **A closure body is deliberately not walked.** `rule:types/implicit-capture` captures by
     /// value, so `fn () => $x++` re-points the environment object's own copy
     /// and the enclosing local is untouched; a header phi for it would
     /// describe a write that never happens. The same goes for an anonymous
@@ -2365,7 +2364,7 @@ impl<'a> Lowering<'a> {
     /// name [`Self::collect_reassigned_locals`] owes a loop-header phi.
     ///
     /// A bare `$x` is the obvious one. An array element (`$a[$k]`, `$a[]`) is
-    /// the less obvious one and matters just as much: ADR 0007 § 5's
+    /// the less obvious one and matters just as much: `rule:types/arrays`'s
     /// copy-on-write separation produces a *different* allocation, which
     /// [`Self::write_back_array`] stores back into the base's own local slot.
     /// Missing that phi would leave a loop body writing into the value the

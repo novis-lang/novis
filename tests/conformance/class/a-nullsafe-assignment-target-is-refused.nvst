@@ -1,5 +1,5 @@
 --TEST--
-`?->` is a read operator only: a nullsafe property, and a nullsafe subscript over one, are both refused as assignment targets — ADR 0007 § 3
+`?->` is a read operator only: a nullsafe property, and a nullsafe subscript over one, are both refused as assignment targets — `rule:types/grammar`
 --FILE--
 <?nvs
 // `?->` answers `null` when the receiver is `null`, and `null` is not a place

@@ -1,8 +1,8 @@
 --TEST--
-Unary `+` hands back every numeric type unchanged and is total at the two bounds where `-` throws — ADR 0007 §§ 2, 4
+Unary `+` hands back every numeric type unchanged and is total at the two bounds where `-` throws — `rule:types/conversion` and `rule:types/arithmetic`
 --FILE--
 <?nvs
-// ADR 0007 § 4 gives unary `+` no row of its own because there is nothing
+// `rule:types/arithmetic` gives unary `+` no row of its own because there is nothing
 // for one to say: over `int`, `uint`, `float` and `decimal` alike it hands
 // its operand back. That is asserted here by *agreement* — each column
 // renders the operand and its plus-prefixed self and reports whether the
@@ -30,7 +30,7 @@ echo Plus::agrees($i as string, (+$i) as string),
 // It composes with the negation rather than cancelling it, on either side.
 echo +(-$i), ",", -(+$i), "\n";
 
-// The bound is where the two operators part. ADR 0007 § 4 makes `-i64::MIN`
+// The bound is where the two operators part. `rule:types/arithmetic` makes `-i64::MIN`
 // an `ArithmeticError` — there is no `int` to hold it, and the ADR refuses
 // to wrap or promote — while `+` over the very same value cannot fail,
 // because it is the identity and emits no instruction to fail in.

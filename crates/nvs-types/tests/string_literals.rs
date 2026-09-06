@@ -36,7 +36,7 @@ fn a_unicode_escape_naming_a_surrogate_is_diagnosed() {
 }
 
 /// A lone `\xFF` byte escape can never be a valid UTF-8 sequence on its
-/// own — `string` is guaranteed-valid UTF-8 (ADR 0009), so this is
+/// own — `string` is guaranteed-valid UTF-8 (`rule:types/bytes`), so this is
 /// `E_STRING_LITERAL_INVALID_UTF8`, not silently accepted.
 #[test]
 fn a_byte_escape_producing_invalid_utf8_is_diagnosed() {

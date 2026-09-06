@@ -1,5 +1,5 @@
 --TEST--
-`unset()` takes an array element of a named holder and nothing else — a bare local and a static property are `E0234`/`E0413`, ADR 0028 § 3 and ADR 0007 § 1
+`unset()` takes an array element of a named holder and nothing else — a bare local and a static property are `E0234`/`E0413`, ADR 0028 § 3 and `rule:types/declaration`
 --FILE--
 <?nvs
 class Holder {
@@ -11,11 +11,11 @@ class Holder {
 }
 
 int $x = 1;
-// ADR 0007 § 1: a binding is declared once, with a type, and is definitely
+// `rule:types/declaration`: a binding is declared once, with a type, and is definitely
 // assigned. There is no "undefined again" state to put `$x` back into, so
 // PHP's commonest `unset()` spelling has nothing to mean here.
 unset($x);
-// ADR 0007 § 5 separates the array before the entry is removed, and the
+// `rule:types/arrays` separates the array before the entry is removed, and the
 // separated copy needs a slot to be written back into. A call's result has
 // none, which is the same thing PHP means by "temporary expression in write
 // context".

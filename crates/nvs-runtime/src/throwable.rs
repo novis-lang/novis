@@ -192,7 +192,7 @@ pub enum ThrownClass {
     /// *soft* depth. The hard limit beneath it is a `FATAL` and is not in
     /// this roster at all, because no `catch` ever sees one.
     Recursion,
-    /// `ArithmeticError` — overflow (ADR 0007), division by zero.
+    /// `ArithmeticError` — overflow (`rule:types/declaration`), division by zero.
     Arithmetic,
     /// `Core\Test\Failure` — a failed assertion
     /// (`rule:testing/failure-ledger`), which that section makes an ordinary `Throwable` precisely so a

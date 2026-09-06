@@ -1,8 +1,8 @@
 --TEST--
-`object` is a declared type wherever a class name is one, erasing to the same pointer (ADR 0007 §§ 2-3, ADR 0036 § 4)
+`object` is a declared type wherever a class name is one, erasing to the same pointer (`rule:types/conversion` and `rule:types/grammar`, `rule:types/erased-member-access`)
 --FILE--
 <?nvs
-// ADR 0007 § 3: `object` is the opaque top of every class type. A value of
+// `rule:types/grammar`: `object` is the opaque top of every class type. A value of
 // any class satisfies it, and it erases to exactly the pointer a named class
 // does — so every position that takes a class name takes this too.
 final class Point {
@@ -21,7 +21,7 @@ final class Probe {
     }
 }
 
-// A local binding, and ADR 0036 § 4's name-keyed read through the erasure.
+// A local binding, and `rule:types/erased-member-access`'s name-keyed read through the erasure.
 object $p = new Point();
 echo Probe::nameOf($p), "\n";
 
@@ -62,7 +62,7 @@ if ($p == $q) {
 }
 
 // The class label is still there underneath: `instanceof` finds it, and
-// ADR 0007 § 2's `as` converts back to it or throws.
+// `rule:types/conversion`'s `as` converts back to it or throws.
 if ($q instanceof Point) {
     echo "still a Point\n";
 }

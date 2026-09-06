@@ -45,7 +45,7 @@ fn an_options_bag_may_be_written_or_omitted() {
 }
 
 /// `Core\Arr::hasKey(array<T> $a, int|string $key)` — the first `Core`
-/// signature with a union parameter, checked by ADR 0007 § 6's ordinary
+/// signature with a union parameter, checked by `rule:types/unions-and-mixed`'s ordinary
 /// union rule with nothing added for `Core`.
 #[test]
 fn a_core_union_parameter_takes_either_member_and_nothing_else() {
@@ -138,7 +138,7 @@ fn a_callback_result_parameter_still_accepts_any_callable() {
     assert!(refused.has_errors(), "{refused:?}");
 }
 
-/// The rule that makes a bag its own type rather than an ADR 0036 shape:
+/// The rule that makes a bag its own type rather than an `rule:types/object-top` shape:
 /// a field the member does not declare is an error, where § 3's width
 /// subtyping would have accepted it silently. The help names the real
 /// options, which is the whole value of catching the typo here.
@@ -230,7 +230,7 @@ fn a_post_retried_without_an_idempotency_key_is_a_compile_error() {
 }
 
 /// The bag is not a shape *target* either: `{...}` written anywhere else
-/// still means ADR 0036's anonymous object, width subtyping and all, so
+/// still means `rule:types/object-top`'s anonymous object, width subtyping and all, so
 /// this change is scoped to the one parameter position it describes.
 #[test]
 fn an_object_literal_outside_an_options_position_is_still_a_shape() {
@@ -344,7 +344,7 @@ fn a_task_all_binds_each_fields_own_type() {
 /// print: a field's type binds from a *written* `fn` literal, so a field
 /// holding a `callable`-typed variable is a compile error naming the field.
 ///
-/// ADR 0031 leaves `callable` without a signature, so there is genuinely
+/// `rule:types/closure-literal` leaves `callable` without a signature, so there is genuinely
 /// nothing to bind from — the diagnostic says which field rather than refusing
 /// the call as a whole, because every other field still binds.
 #[test]

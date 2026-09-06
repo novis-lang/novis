@@ -1,16 +1,16 @@
 --TEST--
-`Core\Task::all` reads each field's type off the `fn` literal written there, so a field holding a `callable` variable, and an argument that is a variable at all, are both refused — ADR 0072 § 1, ADR 0031 § 4
+`Core\Task::all` reads each field's type off the `fn` literal written there, so a field holding a `callable` variable, and an argument that is a variable at all, are both refused — ADR 0072 § 1, `rule:types/callable-absorbs-closure`
 --FILE--
 <?nvs
 // § 1: "a field whose value is a `callable`-typed variable rather than a
 // literal is a compile error naming the field, because there is nothing to
-// bind from". ADR 0031 leaves `callable` without a signature, so `$loader`
+// bind from". `rule:types/closure-literal` leaves `callable` without a signature, so `$loader`
 // carries no record of what it returns — the type exists only at the literal.
 //
 // The two refusals are one rule at two widths. A field that is not a literal
 // loses that field; an *argument* that is not a literal loses every field at
 // once, which is why it is refused as a whole rather than field by field.
-// ADR 0007 § 3's deferred typed-`callable` signatures are what would lift
+// `rule:types/grammar`'s deferred typed-`callable` signatures are what would lift
 // both, and that ADR's *Revisiting* is where the case is counted.
 class Page {
     public static function byField(): void {

@@ -1,8 +1,8 @@
 --TEST--
-Every Core\Arr reader answers the packed form and the same content in the hash form alike — ADR 0007 § 5's "which subscripts collide" is about keys, not storage
+Every Core\Arr reader answers the packed form and the same content in the hash form alike — `rule:types/arrays`'s "which subscripts collide" is about keys, not storage
 --FILE--
 <?nvs
-// ADR 0007 § 5 says the array type is a statement about *keys*. The runtime
+// `rule:types/arrays` says the array type is a statement about *keys*. The runtime
 // still holds one array two ways — `nvs_runtime::array`'s `Shape::Packed`, the
 // list whose keys are exactly "0".."n-1" and are therefore not stored at all,
 // and `Shape::Hashed`, the ordered hash every other array degrades into — and

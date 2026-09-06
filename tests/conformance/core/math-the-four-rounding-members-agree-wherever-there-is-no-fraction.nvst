@@ -45,7 +45,7 @@ echo "whole: fixed ", $fixed, "/", $rows, ", four agree ", $agree, "/", $rows, "
 //    four keep the sign they were handed.
 float $nz = -0.0;
 int $keptSign = 0;
-// The reciprocal is `Core\Math::fdiv` and not `/`: ADR 0007 § 4 makes the
+// The reciprocal is `Core\Math::fdiv` and not `/`: `rule:types/arithmetic` makes the
 // operator throw on a zero divisor whatever the operand types, and a zero
 // divisor is the entire question this sweep asks.
 if (Core\Math::fdiv(1.0, Core\Math::ceil($nz)) == Core\Math::fdiv(1.0, $nz)) { $keptSign = $keptSign + 1; }

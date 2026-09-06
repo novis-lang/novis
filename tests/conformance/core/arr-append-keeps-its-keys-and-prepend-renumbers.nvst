@@ -1,5 +1,5 @@
 --TEST--
-Core\Arr::append keeps the subject's keys and prepend always returns a list, spec § 2 and ADR 0069 § 3
+Core\Arr::append keeps the subject's keys and prepend always returns a list, spec § 2 and `rule:types/preserve-keys`
 --FILE--
 <?nvs
 array<string> $list = ["a", "b"];
@@ -29,7 +29,7 @@ echo Core\Str::join(Core\Arr::keys(Core\Arr::append($high, "b")), ","), "\n";
 // there is no non-arbitrary answer — so every key is renumbered from "0", the
 // same uniform rule Core\Arr::padStart takes. PHP's array_unshift renumbers
 // the integer keys and silently keeps the string ones, which is the
-// key-type-dependent behaviour ADR 0069 § 3 removes.
+// key-type-dependent behaviour `rule:types/preserve-keys` removes.
 echo Core\Str::join(Core\Arr::keys(Core\Arr::prepend($map, "c")), ","), "\n";
 echo Core\Str::join(Core\Arr::prepend($map, "c"), ","), "\n";
 echo Core\Str::join(Core\Arr::keys(Core\Arr::prepend($high, "b")), ","), "\n";

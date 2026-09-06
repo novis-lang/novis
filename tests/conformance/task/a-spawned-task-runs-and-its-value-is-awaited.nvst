@@ -52,7 +52,7 @@ echo "ok=", $added->ok ? "true" : "false", "\n";
 
 // `value` is `mixed` — ADR 0006 cannot know a child's return type statically —
 // so reading a structured answer costs the cast that every `mixed` read costs
-// (ADR 0007 § 3). 1+2+…+10 = 55.
+// (`rule:types/grammar`). 1+2+…+10 = 55.
 var $answer = $added->value as array<int>;
 echo "sum=", $answer["sum"], "\n";
 echo "count=", $answer["count"], "\n";

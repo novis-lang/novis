@@ -1,5 +1,5 @@
 --TEST--
-ADR 0054 § 4: every conversion into and out of decimal is exact or throws, and a float is read at the value it prints as
+`rule:types/conversion`: every conversion into and out of decimal is exact or throws, and a float is read at the value it prints as
 --FILE--
 <?nvs
 // Into `decimal`: an integer is always exact, a string must be an exact
@@ -20,7 +20,7 @@ try {
 // `rule:expressions/nullable-conversion`'s non-throwing form answers `null` on the same rows.
 echo ("nope" as ?decimal) ?? 0.0 as decimal, "|", ("7.5" as ?decimal) ?? 0.0 as decimal, "\n";
 
-// ADR 0054 § 3: an overflow throws rather than wrapping or reducing scale.
+// `rule:types/arithmetic`: an overflow throws rather than wrapping or reducing scale.
 try {
     echo (1 as decimal / 0), "\n";
 } catch (Throwable $e) {

@@ -1,11 +1,11 @@
-# ADR 0069 — Array combination is key-type-independent
+# `rule:types/array-combination` — Array combination is key-type-independent
 
 - **Status:** Accepted
 - **Date:** 2026-08-24
 - **Scope:** how two or more arrays combine into one, and what the result's keys and order are; the removal
   of PHP's `array_merge` and `array + array` rules and the three members that replace them; what
   `{preserveKeys: false}` means; the `Core\Arr` shape corrections that follow from the same audit. Not in
-  scope: the array container itself, which is [ADR 0007](0007-explicit-type-system.md) § 5, and the set
+  scope: the array container itself, which is `rule:types/arrays`, and the set
   operations `diff`/`intersect`, whose *selection* rule is unchanged here.
 - **Amends:** [0007](0007-explicit-type-system.md) § 5 — the illustrative stdlib signature
   `Core\Arr::merge(array<T>, array<U>)` becomes `Core\Arr::overlay`, and the section gains the rule that
@@ -16,8 +16,7 @@
 
 > **In short:** `array_merge` does two different things depending on a key's *type* — integer keys are
 > renumbered and appended, string keys are overwritten — and `$a + $b` does a third thing (left wins) under
-> a spelling that looks like arithmetic. Novis has **no integer key at all** ([ADR 0007](0007-explicit-type-system.md)
-> § 5), so importing either rule would mean sniffing the *text* of a key to choose a behaviour. Instead there
+> a spelling that looks like arithmetic. Novis has **no integer key at all** (`rule:types/arrays`), so importing either rule would mean sniffing the *text* of a key to choose a behaviour. Instead there
 > are three members, each doing one thing to every key alike: **`Arr::overlay`** (right wins),
 > **`Arr::underlay`** (left wins, exactly `$a + $b`) and **`Arr::appendAll`** (keys discarded, values
 > appended). `merge` is not a name in the library, `array + array` is a compile error naming `underlay`, and
@@ -36,7 +35,7 @@
   to predict the result, and a mixed array gives both behaviours in one call. It is the most-reported
   surprise in PHP's array surface, and `array_replace` exists precisely because the rule is unusable when
   keys matter.
-- **Novis has no integer key.** [ADR 0007](0007-explicit-type-system.md) § 5 makes every key a `string`;
+- **Novis has no integer key.** `rule:types/arrays` makes every key a `string`;
   `$a[8]` is `$a["8"]`. Reproducing `array_merge` here means asking, of each key, "does this string look
   like a canonical decimal integer?" — a content sniff deciding control flow, under a *name* that shows
   the reader neither side of the question. The PHP rule is not merely inconvenient in Novis; it has no type
@@ -68,7 +67,7 @@ Each walks its arguments left to right and treats every key the same way.
 **Key order** is the same rule for all three: an existing key keeps its position, a new key lands at the
 end in the order first met. This is what makes `overlay` and `underlay` two operations rather than one with
 its arguments flipped — `overlay($b, $a)` and `underlay($a, $b)` hold the same entries in **different
-order**, and Novis arrays are insertion-ordered ([ADR 0007](0007-explicit-type-system.md) § 5), so the
+order**, and Novis arrays are insertion-ordered (`rule:types/arrays`), so the
 difference is observable in `foreach`, in `Core\Json::encode` and in every `Arr::first`. [ADR 0063](0063-core-api-conventions.md)
 R15 is satisfied: two behaviours, two names.
 
@@ -76,7 +75,7 @@ R15 is satisfied: two behaviours, two names.
 an array and **neither is a list**; in every other case the right-hand value replaces the left wholesale. A
 list is replaced, never merged element-wise, because element-wise is the surprise in
 `array_replace_recursive` — overlaying `[9]` onto `[1, 2, 3]` yielding `[9, 2, 3]` is never what a
-configuration merge wanted. `Arr::isList` ([ADR 0007](0007-explicit-type-system.md) § 5's `"0" … "n−1"`
+configuration merge wanted. `Arr::isList` (`rule:types/arrays`'s `"0" … "n−1"`
 test) is the predicate, so the rule is stated in terms the language already has.
 
 ### 2. `merge` is not a name, and `array + array` does not compile
@@ -134,7 +133,7 @@ duplicate values, last occurrence winning**, its result typed `array<string>`.
 
 ### 5. A key comes back as a `string`
 
-[ADR 0007](0007-explicit-type-system.md) § 5 states it and names `Core\Arr::keys(): array<string>`, so
+`rule:types/arrays` states it and names `Core\Arr::keys(): array<string>`, so
 every key-valued **return** in the spec is `string`: `keys`, `keyOf`, `firstKey`, `lastKey`, `findKey` and
 `flip`. A key **parameter** stays `int|string` — that is the subscript
 normalisation rule of the same section, where `$a[8]` and `$a["8"]` are one key.
@@ -147,7 +146,7 @@ position on in its native form instead would make a callback's `$key` type depen
 happens to be stored — PHP's integer-key/string-key split, arriving through the back door of the one
 construct § 1 removed it from. It is refused for that reason and not on the rendering's cost. The
 observable consequence is that `fn($v, int $k)` throws `LogicError` where `fn($v, string $k)` runs, on a
-list exactly as on a map, since [ADR 0007](0007-explicit-type-system.md) § 2 has no implicit `string` → `int`
+list exactly as on a map, since `rule:types/conversion` has no implicit `string` → `int`
 conversion to soften it.
 
 ## Consequences

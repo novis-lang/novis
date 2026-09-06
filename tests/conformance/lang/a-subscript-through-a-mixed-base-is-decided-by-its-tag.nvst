@@ -1,10 +1,10 @@
 --TEST--
-A subscript whose base is `mixed` is answered from the base's runtime tag — the element, the absent key, the base that is no array, and all of it again under `??` — ADR 0007 § 2, ADR 0007 § 5, ADR 0036 § 4
+A subscript whose base is `mixed` is answered from the base's runtime tag — the element, the absent key, the base that is no array, and all of it again under `??` — `rule:types/conversion`, `rule:types/arrays`, `rule:types/erased-member-access`
 --FILE--
 <?nvs
-// ADR 0007 § 2 makes `mixed` the one unchecked position, so `$m[1]` defers
+// `rule:types/conversion` makes `mixed` the one unchecked position, so `$m[1]` defers
 // not only *which* array is behind the handle but *whether there is one* —
-// ADR 0036 § 4's deferral, one storage kind along from a member access. The
+// `rule:types/erased-member-access`'s deferral, one storage kind along from a member access. The
 // four rows below are `nvs_runtime::helpers::value_index`'s, whose doc comment
 // is their home; this pins what each of them prints.
 mixed $list = [10, 20, 30];

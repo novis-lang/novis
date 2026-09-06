@@ -1,5 +1,5 @@
 --TEST--
-Every condition refuses a call that returns `void` where it is written, and the operators beside them keep their own code — `rule:expressions/truthy-table`, ADR 0007 § 4
+Every condition refuses a call that returns `void` where it is written, and the operators beside them keep their own code — `rule:expressions/truthy-table`, `rule:types/arithmetic`
 --FILE--
 <?nvs
 // `rule:expressions/truthy-positions` makes a condition the one place a value is tested without `as`,
@@ -36,12 +36,12 @@ mixed $ternary = Effect::run() ? "a" : "b";
 mixed $elvis = Effect::run() ?: "b";
 
 // `!` and `empty()` are that same truthy test written out, so they take the
-// condition's code rather than one of ADR 0007 § 4's operand ones.
+// condition's code rather than one of `rule:types/arithmetic`'s operand ones.
 bool $not = !Effect::run();
 bool $voidIsEmpty = empty(Effect::run());
 
-// The line the split is pinned by: `&&` is an *operand* position of ADR 0007
-// § 4's table, so it keeps `E0718` however much it reads like a condition.
+// The line the split is pinned by: `&&` is an *operand* position of `rule:types/arithmetic`
+// 's table, so it keeps `E0718` however much it reads like a condition.
 // One rule, one code, both ways round —
 // `nvs_diagnostics::code::E_VOID_IS_NOT_A_CONDITION` is that split's home.
 mixed $and = Effect::run() && $not;

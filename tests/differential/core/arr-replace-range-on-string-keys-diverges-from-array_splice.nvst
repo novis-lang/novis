@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::replaceRange renumbers the whole result, where array_splice renumbers the integer keys and keeps the string ones
 --ORACLE-DIVERGES--
-This is the same ADR 0069 § 3 rule that `arr-slice-on-string-keys-diverges-from-array_slice` pins, on the member that substitutes rather than returns — but here it is not an option's default, because `replaceRange` has no `preserveKeys` at all and could not honestly offer one: the entries either side of the window and the ones spliced into it cannot all keep a key without colliding. `array_splice` resolves that by keeping the strings and renumbering the integers around them, so its result's keys depend on how many earlier entries were integer-keyed; Novis renumbers subject and replacement alike, and the result is always a list from "0".
+This is the same `rule:types/preserve-keys` rule that `arr-slice-on-string-keys-diverges-from-array_slice` pins, on the member that substitutes rather than returns — but here it is not an option's default, because `replaceRange` has no `preserveKeys` at all and could not honestly offer one: the entries either side of the window and the ones spliced into it cannot all keep a key without colliding. `array_splice` resolves that by keeping the strings and renumbering the integers around them, so its result's keys depend on how many earlier entries were integer-keyed; Novis renumbers subject and replacement alike, and the result is always a list from "0".
 --FILE--
 <?nvs
 final class Render {

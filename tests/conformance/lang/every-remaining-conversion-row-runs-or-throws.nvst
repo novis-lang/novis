@@ -1,5 +1,5 @@
 --TEST--
-Every ADR 0007 § 2 row between `int`, `uint` and `float` is asserted at both ends — the last value it accepts and the first it refuses — ADR 0007 §§ 2, 4
+Every `rule:types/conversion` row between `int`, `uint` and `float` is asserted at both ends — the last value it accepts and the first it refuses — `rule:types/conversion` and `rule:types/arithmetic`
 --FILE--
 <?nvs
 // § 2's grid says each of these rows is "exact, or throws", and a row named
@@ -11,7 +11,7 @@ Every ADR 0007 § 2 row between `int`, `uint` and `float` is asserted at both en
 // column rather than printing plausibly on its own.
 //
 // The operand is a parameter throughout: an operand whose own type already
-// names the value is refused where it is written (ADR 0047 § 6), so a bound
+// names the value is refused where it is written (`rule:types/literal-types`), so a bound
 // this table is about has to arrive at run time to be a throw at all.
 class Row {
     public static function iToU(int $i): string {

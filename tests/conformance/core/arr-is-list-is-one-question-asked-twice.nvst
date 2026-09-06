@@ -1,8 +1,8 @@
 --TEST--
-Core\Arr::isList and Core\Json::encode's array test are one predicate, so the members that renumber answer a list from any subject while a chunk run that keeps its keys answers one only where it was given one — ADR 0007 § 5, ADR 0069 §§ 3, 5, spec § 2
+Core\Arr::isList and Core\Json::encode's array test are one predicate, so the members that renumber answer a list from any subject while a chunk run that keeps its keys answers one only where it was given one — `rule:types/arrays`, `rule:types/preserve-keys` and `rule:types/arrays`, spec § 2
 --FILE--
 <?nvs
-// "Are these keys exactly "0" ... "n-1", in that order?" is ADR 0007 § 5's list
+// "Are these keys exactly "0" ... "n-1", in that order?" is `rule:types/arrays`'s list
 // test, and it is asked in two places that share no code: `Core\Arr::isList`,
 // and `Core\Json::encode`'s choice between a JSON array and a JSON object
 // (`nvs_stdlib::json`'s `serialize_array`, which states the rule again rather
@@ -65,7 +65,7 @@ foreach ($subjects as array<string> $s) {
     // its own keys and so answers a list from any subject at all -- and
     // `flip`, which renumbers nothing: its answer's keys are the subject's
     // *values*, so it is a list exactly where those values spelled one
-    // (ADR 0069 § 5's key-answering members).
+    // (`rule:types/arrays`'s key-answering members).
     array<array<mixed>> $answers = [
         $s,
         Core\Arr::values($s),
@@ -79,7 +79,7 @@ foreach ($subjects as array<string> $s) {
     foreach ($answers as array<mixed> $a) {
         $row = $row . Ask::of($a);
     }
-    // ADR 0069 § 3's key rule one level down: a run renumbers by default and
+    // `rule:types/preserve-keys`'s key rule one level down: a run renumbers by default and
     // keeps the subject's keys on request, so a kept-key run is a list only
     // where the subject was one -- and then only the run that starts at "0".
     string $fresh = Ask::ofEvery(Core\Arr::chunk($s, 2));

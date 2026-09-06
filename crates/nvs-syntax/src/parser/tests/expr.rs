@@ -71,7 +71,7 @@ fn power_binds_tighter_than_unary_minus() {
 
 #[test]
 fn as_conversion_binds_tighter_than_any_binary_operator() {
-    // ADR 0007 § 2: `$a as int + 1` is `($a as int) + 1`.
+    // `rule:types/conversion`: `$a as int + 1` is `($a as int) + 1`.
     let e = parse_ok("$a as int + 1");
     let ExprKind::Binary {
         op: BinaryOp::Add,
@@ -151,7 +151,7 @@ fn not_nests_inside_a_rejected_cast_and_other_unary_operators() {
     // recurses straight into [`Parser::parse_unary`], skipping that
     // tier — so without `parse_unary`'s own `Bang` arm, these would fail
     // to parse at all rather than nesting the way PHP accepts. The
-    // legacy-cast spelling is rejected (ADR 0034), but it must still
+    // legacy-cast spelling is rejected (`rule:types/no-legacy-cast`), but it must still
     // consume `!$x` as its operand rather than leaving it dangling.
     let (e, diags) = parse_with_diags("(int) !$x");
     assert!(matches!(e.kind, ExprKind::Error));
@@ -332,7 +332,7 @@ fn a_new_target_followed_by_a_comparison_is_still_a_comparison() {
 
 #[test]
 fn object_literal_parses_as_a_primary_expression() {
-    // ADR 0036 § 2.
+    // `rule:types/object-literal`.
     let e = parse_ok("{x: 1, y: 2}");
     let ExprKind::ObjectLiteral(fields) = e.kind else {
         panic!("expected an object literal: {e:?}");
@@ -351,7 +351,7 @@ fn object_literal_parses_as_a_primary_expression() {
 
 #[test]
 fn object_literal_rejects_shorthand_and_computed_key() {
-    // ADR 0036 § 2: every field is `name: value` — no shorthand, no
+    // `rule:types/object-literal`: every field is `name: value` — no shorthand, no
     // computed key.
     let (_, diags) = parse_with_diags("$o = {x};");
     assert!(
@@ -372,8 +372,8 @@ fn object_literal_rejects_shorthand_and_computed_key() {
 
 #[test]
 fn object_literal_needs_parens_in_an_arrow_body() {
-    // ADR 0036 § 2: `fn() => {...}` already means a block body per
-    // ADR 0031 — returning a literal needs `fn() => ({...})` instead.
+    // `rule:types/object-literal`: `fn() => {...}` already means a block body per
+    // `rule:types/closure-literal` — returning a literal needs `fn() => ({...})` instead.
     let (_, diags) = parse_with_diags("$f = fn() => {x: 1, y: 2};");
     assert!(
         diags
@@ -413,7 +413,7 @@ fn object_literal_needs_parens_in_an_arrow_body() {
 
 #[test]
 fn object_literal_needs_parens_as_a_bare_statement() {
-    // ADR 0036 § 2: a statement-initial `{` already means a block —
+    // `rule:types/object-literal`: a statement-initial `{` already means a block —
     // a discarded literal needs `({...});` instead.
     let (_, diags) = parse_stmt_with_diags("{x: 1, y: 2};");
     assert!(
@@ -439,7 +439,7 @@ fn object_literal_needs_parens_as_a_bare_statement() {
     assert!(matches!(s.kind, StmtKind::Block(_)));
 }
 
-/// ADR 0034: `as` is the only conversion spelling — PHP's legacy
+/// `rule:types/no-legacy-cast`: `as` is the only conversion spelling — PHP's legacy
 /// `(T)expr` cast syntax is diagnosed, naming `as` as the replacement,
 /// the same shape `rule:statements/require-is-the-only-inclusion-construct` already gives `include`/`include_once`/
 /// `require_once` in favor of `require`.
@@ -502,7 +502,7 @@ fn chained_low_keyword_operators_report_once_each() {
     assert!(matches!(e.kind, ExprKind::Error));
 }
 
-/// ADR 0034: at statement start specifically, `(string)$x;` is also a
+/// `rule:types/no-legacy-cast`: at statement start specifically, `(string)$x;` is also a
 /// syntactically valid (if pointless) local declaration with redundant
 /// parens around its type and no initializer — `(string)` parses fine as
 /// a one-member parenthesized union. Without routing this shape past
@@ -533,7 +533,7 @@ fn match_expression() {
 
 #[test]
 fn function_closure_with_use_by_ref_is_rejected() {
-    // ADR 0031 § 1/§ 2: `function` closures don't exist at all, and a
+    // `rule:types/closure-literal`/§ 2: `function` closures don't exist at all, and a
     // `use (&$y)` clause gets its own, more specific diagnostic on top.
     let (e, diags) = parse_with_diags("function (int $x) use (&$y): int { return $x + $y; }");
     assert!(matches!(e.kind, ExprKind::Error));

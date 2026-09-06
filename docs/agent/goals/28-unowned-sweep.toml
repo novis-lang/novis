@@ -87,7 +87,7 @@ memoize_on = ["crates/nvs-stdlib", "crates/nvs-types", "crates/nvs-runtime"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 2 -- an options bag can tell omitted from written `null`. ADR 0147 is the rule; ADR 0036 § 3
+# Stage 2 -- an options bag can tell omitted from written `null`. ADR 0147 is the rule; `rule:types/shape-type`
 # and ADR 0135 § 3 are the shape and the ABI fill it amends.
 # ---------------------------------------------------------------------------------------------------
 

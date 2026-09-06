@@ -1,5 +1,5 @@
 --TEST--
-every `Core\Digest` case PHP can compute answers over one shared corpus what `hash()` answers for that algorithm, and each answer is the octet width spec § 11's roster gives it (spec § 11, ADR 0009 § 1, ADR 0063 R17)
+every `Core\Digest` case PHP can compute answers over one shared corpus what `hash()` answers for that algorithm, and each answer is the octet width spec § 11's roster gives it (spec § 11, `rule:types/bytes`, ADR 0063 R17)
 --FILE--
 <?nvs
 // The roster case for `Core\Hash::of`. Spec § 11 makes the algorithm an
@@ -142,7 +142,7 @@ echo "widths:",
     Core\Bytes::length(Core\Hash::of("abc", Core\Digest::Sha3_384)), "|",
     Core\Bytes::length(Core\Hash::of("abc", Core\Digest::Sha3_512)), "|\n";
 
-// ADR 0009 § 3: `string as bytes` is total, so the same octets under either
+// `rule:types/conversion`: `string as bytes` is total, so the same octets under either
 // tag are one input. Counted over the corpus and both checksum-free families,
 // because it is the property that makes the table above a table of *inputs*
 // rather than of spellings.

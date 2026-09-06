@@ -68,7 +68,7 @@ var $natural = new Core\Heap<int>();
 echo "natural ", Agree::ints($natural, $table, Core\Arr::sort($table)), " of 6\n";
 
 // 2. Reversed. The heap says it with a comparator; `sort` says it with
-// ADR 0069's `{order}` option and a `Core\Order` case, so the two do not even
+// `rule:types/array-combination`'s `{order}` option and a `Core\Order` case, so the two do not even
 // share a spelling — only an answer.
 var $reversed = new Core\Heap<int>(fn (int $a, int $b): int => $b - $a);
 echo "reversed ", Agree::ints($reversed, $table, Core\Arr::sort($table, {order: Core\Order::Desc})), " of 6\n";

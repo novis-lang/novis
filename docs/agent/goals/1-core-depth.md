@@ -73,7 +73,7 @@ there rather than scheduling any of it.
       not plain positional, and a by-reference argument from something other than a bare local or a
       compile-time-known property.
     - `crates/nvs-ir/src/lower/control.rs:744`, `:978` and `:989` — a `switch` label at a representation
-      other than the subject's own, a `foreach` key binding outside ADR 0007 § 5's one stored key type,
+      other than the subject's own, a `foreach` key binding outside `rule:types/arrays`'s one stored key type,
       and a `foreach` over an `rule:iteration/two-interfaces` `Iterable`/`Iterator` subject.
     - `crates/nvs-ir/src/lower/convert.rs:574` — a truthy condition over a representation the conversion
       slice does not carry.
@@ -84,7 +84,7 @@ there rather than scheduling any of it.
       one.
     - `crates/nvs-ir/src/lower/mod.rs:2276`, `:2705` and `:2792` — an array-element write through a shape
       that is not a bare local, a compile-time-known property or a static property, and the two declared
-      type lists that do not yet spell every atom ADR 0007 § 3 allows.
+      type lists that do not yet spell every atom `rule:types/grammar` allows.
     - `crates/nvs-ir/src/lower/stmt.rs:269` and `:1465` — a local declaration shape the control-flow
       slice does not lower, and `unset` on anything but an array element with an explicit subscript.
 
@@ -185,7 +185,7 @@ not an example to read for inspiration.
 ## Stage 6 — the string header
 
 13. **`Core\Str`'s grapheme count is lazily cached, and a concatenation corrects the boundary in O(1).**
-    [ADR 0009](../../adr/0009-string-and-bytes.md) § 2 decided the grapheme cluster is the unit and
+    `rule:types/string-is-utf8` decided the grapheme cluster is the unit and
     `nvs_stdlib::granularity` seams it; that ADR's *Consequences* names the cached count as still owed and
     m4s.md places it here. It belongs in `NvsStr`'s header at
     [string.rs:250](../../../crates/nvs-runtime/src/string.rs), beside the builder at `:311`.

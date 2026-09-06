@@ -177,7 +177,7 @@ what the `SyntaxIndex`'s ancestor paths already make expressible.
   whose whole job is terminal output — so this is an invariant to *keep*, not one to establish, and it is
   kept by a test rather than by care. The server logs to **stderr** and, for anything a user should see,
   `window/logMessage`; `nvs-lsp` does not carry `nvs-cli`'s `clippy::print_stdout` allowance.
-- **Documents are UTF-8, and that is already the language's rule** ([ADR 0009](0009-string-and-bytes.md)):
+- **Documents are UTF-8, and that is already the language's rule** (`rule:types/bytes`):
   a buffer that is not valid UTF-8 gets one diagnostic and no further analysis, rather than a panic
   somewhere further in. A leading BOM is skipped and counted, so every offset after it still lands. CRLF
   is preserved exactly as the document sent it — spans are byte offsets, so stripping or normalizing line
@@ -206,7 +206,7 @@ it — and that test is what keeps the list from drifting back toward M10's cata
 
 Plus **two code actions**, and only two, closing ADR 0040 *Revisiting*'s "one or two cheap ones early"
 question: the casing fix ([ADR 0029](0029-identifier-casing-is-checked.md)/[0030](0030-no-leading-underscores-constructor-spelling.md))
-and the legacy-cast fix `(int)$x` → `$x as int` ([ADR 0034](0034-legacy-cast-syntax-rejected.md)). Both
+and the legacy-cast fix `(int)$x` → `$x as int` (`rule:types/no-legacy-cast`). Both
 are admitted for one reason and it is not that they are useful: their replacement text is **already
 computed**, sitting in the `Diagnostic::suggestions` field `nvs-diagnostics` has carried since M0. The
 provider is a translation from `Suggestion` to `CodeAction`, which is a dozen lines and no new analysis.
@@ -268,22 +268,22 @@ PHP and a borrowed PHP grammar therefore gets wrong:
 - **Heredoc and nowdoc**, including interpolation inside a heredoc and its absence inside a nowdoc.
 - **Type annotations everywhere the grammar allows one** — parameter, return, property, class constant,
   `foreach` binding, typed local, and the inline shape type `{x: int}` from
-  [ADR 0036](0036-anonymous-object-shapes.md). PHP has no syntax for most of these, so this is the single
+  `rule:types/object-top`. PHP has no syntax for most of these, so this is the single
   largest divergence from any PHP grammar.
 - The **qualifiers** `tainted` and `secret` ([ADR 0024](0024-taint-tracking-for-injection-sinks.md),
   [0033](0033-secret-qualifier-for-confidential-values.md)), and `decimal`
-  ([ADR 0054](0054-decimal-scalar-type.md)) as a scalar type keyword beside `int`/`float`/`string`.
+  (`rule:types/decimal`) as a scalar type keyword beside `int`/`float`/`string`.
 - Novis's own keywords, which no PHP grammar has: `spawn` and `spawn script`
   ([ADR 0006](0006-isolated-script-execution.md)), `autoload` (`rule:programs/no-runtime-autoload`),
-  `type` ([ADR 0007](0007-explicit-type-system.md)), `by`-delegation
+  `type` (`rule:types/declaration`), `by`-delegation
   ([ADR 0043](0043-interface-default-methods-and-delegation-replace-traits.md)), property hooks and their
   `get`/`set` bodies ([ADR 0014](0014-property-observer.md)).
-- **Duration literals** (`30s`, `1h30m`) as numeric literals, per [ADR 0070](0070-duration-literals.md).
+- **Duration literals** (`30s`, `1h30m`) as numeric literals, per `rule:types/duration-literal`.
 - `#[...]` **attributes**, distinguished from a `#` comment — the lexer already makes that distinction at
   `#[`, and a grammar that does not will colour every attribute in the file as a comment.
 - **Nothing that Novis rejects may be coloured as though it were valid**: `===`/`!==` are not operators
   (`rule:expressions/one-equality-operator`), legacy casts `(int)$x` are not casts
-  ([ADR 0034](0034-legacy-cast-syntax-rejected.md)), `|>` is not an operator in PHP 8.5's sense
+  (`rule:types/no-legacy-cast`), `|>` is not an operator in PHP 8.5's sense
   (`rule:expressions/pipeline-substitution`) and the alternative colon
   syntax (`if (...): ... endif;`) is not syntax at all. A grammar that colours these confirms a mistake in
   the editor before the server contradicts it, which is worse than no colour.

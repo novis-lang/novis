@@ -1,4 +1,4 @@
-# ADR 0034 — PHP's legacy `(T)expr` cast syntax is rejected; `as` is the only conversion spelling
+# `rule:types/no-legacy-cast` — PHP's legacy `(T)expr` cast syntax is rejected; `as` is the only conversion spelling
 
 - **Status:** Accepted
 - **Date:** 2026-08-21
@@ -12,19 +12,19 @@
 > **In short:** `(int)$x`, `(string)$x`, and the rest of PHP's cast family no longer parse. Each is a
 > parse-time diagnostic (`E0225`) naming `$x as int` (etc.) as the replacement, the same shape `rule:statements/require-is-the-only-inclusion-construct`
 > already gives `include`/`include_once`/`require_once` in favor of `require`. Until this ADR, the parser
-> accepted the legacy spelling and gave it `as`'s checked semantics — a deliberate half-measure ADR 0007 § 2
+> accepted the legacy spelling and gave it `as`'s checked semantics — a deliberate half-measure `rule:types/conversion`
 > took to keep the "pragmatic superset" promise. This ADR spends that promise, on this one construct, for a
 > single conversion operator with no second spelling to teach, document, or diagnose around.
 
 ## Context
 
-- ADR 0007 § 2 already made the semantics honest: `(int)$x` throws on `"abc"` exactly as `$x as int` does.
+- `rule:types/conversion` already made the semantics honest: `(int)$x` throws on `"abc"` exactly as `$x as int` does.
   Priority 1 was already satisfied; what remained was purely a priority-4 question — keep two spellings of
   one operation, or one.
 - Two spellings of one operation is exactly the shape `rule:statements/nothing-gets-a-second-name` and
   `rule:statements/require-is-the-only-inclusion-construct` already rule against elsewhere — a second name buys
   nothing but a second thing to teach and a second question for every style guide and review. `as` was
-  always the one this project would keep: every *other* checked conversion in ADR 0007 is spelled that way,
+  always the one this project would keep: every *other* checked conversion in `rule:types/declaration` is spelled that way,
   including ones with no PHP-cast equivalent at all (`int → uint`).
 - The only cost is losing a slice of the "pragmatic superset" promise — a PHP file using `(int)$x` no longer
   parses unconverted. Smaller than it looks: `nvs convert` (M11) already runs a mechanical rewrite pass for a
@@ -40,9 +40,9 @@ type keyword `)` — so it can emit a precise diagnostic naming the replacement,
 
 ### 1. One conversion operator, no exceptions
 
-`$x as int` (and its siblings for every other target type ADR 0007 § 2's table names) is now the *only*
+`$x as int` (and its siblings for every other target type `rule:types/conversion`'s table names) is now the *only*
 spelling for a checked, explicit type conversion. There is no scalar or array conversion reachable any other
-way — `settype()` was already rejected in favor of `as` (ADR 0007 § 2); this closes the one remaining
+way — `settype()` was already rejected in favor of `as` (`rule:types/conversion`); this closes the one remaining
 alternate spelling.
 
 ### 2. Diagnostic
@@ -56,13 +56,12 @@ use instead — the same pattern `rule:statements/require-is-the-only-inclusion-
 ```
 
 The type keyword itself (`int`, `string`, …) keeps its normal meaning everywhere else — this diagnostic
-fires only for the specific `(` *keyword* `)` shape in an operand position, the same 3-token lookahead ADR
-0007 § 2 already used to *accept* the syntax now used to *reject* it.
+fires only for the specific `(` *keyword* `)` shape in an operand position, the same 3-token lookahead `rule:types/conversion` already used to *accept* the syntax now used to *reject* it.
 
 ### 3. The divergence this leaves
 
 Converting a string to `int` is spelled `"abc" as int`, and that throws on a non-numeric string per
-[ADR 0007](0007-explicit-type-system.md) § 2's conversion table. What this ADR adds to the divergence is
+`rule:types/conversion`'s conversion table. What this ADR adds to the divergence is
 only that the `(int)` spelling no longer parses at all; the throwing behaviour was already there. Both
 facts are rows in [divergences.md](divergences.md), which is where the register lives.
 
@@ -91,8 +90,8 @@ facts are rows in [divergences.md](divergences.md), which is where the register 
 
 ## Alternatives rejected
 
-- **Keep `(int)$x` as a permanent alias for `$x as int` (ADR 0007 § 2's original call).** The status quo
-  ADR 0007 shipped with — argued above to buy nothing once the semantics already matched, and to cost a
+- **Keep `(int)$x` as a permanent alias for `$x as int` (`rule:types/conversion`'s original call).** The status quo
+  `rule:types/declaration` shipped with — argued above to buy nothing once the semantics already matched, and to cost a
   second spelling everywhere else in the language has refused one.
 - **Deprecate first, remove later** (accept with a warning for one milestone, then reject). Novis's casing
   checker and every other rejected-construct diagnostic in this project is a hard error with no warning

@@ -1,8 +1,8 @@
 --TEST--
-`=`, `⊕=`, an increment and `unset()` agree on an element target whose holder is no slot, and each takes exactly one diagnostic — ADR 0007 § 5, ADR 0014 § 1, ADR 0036 § 4
+`=`, `⊕=`, an increment and `unset()` agree on an element target whose holder is no slot, and each takes exactly one diagnostic — `rule:types/arrays`, ADR 0014 § 1, `rule:types/erased-member-access`
 --FILE--
 <?nvs
-// ADR 0007 § 5 separates an array before an element of it is written, and the
+// `rule:types/arrays` separates an array before an element of it is written, and the
 // separated copy has to land back in whatever held it. Three holders have no
 // slot for it to land in — `?->`, whose `null` is not a place, ADR 0014 § 1's
 // hooked property, which is a pair of accessors rather than storage, and ADR

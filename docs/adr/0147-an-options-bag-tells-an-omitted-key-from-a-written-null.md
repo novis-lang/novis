@@ -258,7 +258,7 @@ third and fourth spelling would each be R15's *two behaviours need two names* re
   that reading was chosen because a permanent bearer credential should be something a person typed,
   which is an argument about the member and not about what the bag could express. This ADR removes the
   constraint that also pointed that way; the decision stands on the reason that remains.
-- **What it spends**, per `rule:programs/memory-priority`(0004-memory-for-simplicity.md): nothing per request and nothing
+- **What it spends**, per `rule:programs/memory-priority`: nothing per request and nothing
   per call. One tag discriminant that already exists, one IR constant, and one more arm in codegen.
 
 ## Alternatives rejected

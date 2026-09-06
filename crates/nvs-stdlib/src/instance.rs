@@ -373,7 +373,7 @@ thread_local! {
     static SHAPES: Cell<Option<&'static ClassTable>> = const { Cell::new(None) };
 }
 
-/// Every ADR 0036 shape a `Core` member builds a value of, as
+/// Every `rule:types/object-top` shape a `Core` member builds a value of, as
 /// `(descriptor name, fields in slot order)`.
 ///
 /// **Slot order is the field name order, sorted** — `nvs_types::ty::Ty::Shape`
@@ -398,7 +398,7 @@ fn shape_descriptor(name: &str) -> *const ClassDesc {
         }
         let mut table = ClassTable::new();
         for (shape, fields) in SHAPE_ROSTER {
-            // No parents, and no methods: ADR 0036 § 2 makes a shape value an
+            // No parents, and no methods: `rule:types/object-literal` makes a shape value an
             // anonymous *methodless* instance, so there is nothing to inherit
             // and nothing to dispatch.
             table.define(*shape, fields, &[]);
@@ -413,7 +413,7 @@ fn shape_descriptor(name: &str) -> *const ClassDesc {
     table.desc(id)
 }
 
-/// A fresh ADR 0036 shape value — `{path: "…", message: "…"}` — its slots
+/// A fresh `rule:types/object-top` shape value — `{path: "…", message: "…"}` — its slots
 /// filled from `slots` in [`SHAPE_ROSTER`]'s order.
 ///
 /// The same anonymous methodless instance an Novis `{…}` literal builds, so

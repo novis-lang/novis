@@ -1,5 +1,5 @@
 --TEST--
-`Core\Hash::equals` answers over equal operands, operands differing in their first and in their last octet, and operands of different lengths what `hash_equals` answers, and is reflexive and symmetric across the whole corpus (spec § 11, ADR 0009 § 1, ADR 0063 R17)
+`Core\Hash::equals` answers over equal operands, operands differing in their first and in their last octet, and operands of different lengths what `hash_equals` answers, and is reflexive and symmetric across the whole corpus (spec § 11, `rule:types/bytes`, ADR 0063 R17)
 --FILE--
 <?nvs
 // The one member of `Core\Hash` that had no oracle file. Both sides are

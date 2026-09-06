@@ -43,7 +43,7 @@
 //! `#[Test]` method are all running with nothing inbound, and an empty string
 //! would say the request arrived and sent nothing. Those are different facts,
 //! and collapsing them is the silent-wrong-answer failure mode
-//! [ADR 0007](/docs/adr/0007-explicit-type-system.md) exists to close:
+//! `rule:types/declaration` exists to close:
 //! a program that read a path out of a scheduled script and got `""` would
 //! route on it.
 //!
@@ -118,7 +118,7 @@
 //! comma (`Date` is the standard example), so the exact answer is `headers()`'s
 //! and the convenient one is `header`'s. Answering the *first* line was rejected:
 //! it is the reading that silently drops what a peer sent, which is the failure
-//! mode [ADR 0007](/docs/adr/0007-explicit-type-system.md) exists to
+//! mode `rule:types/declaration` exists to
 //! close.
 //!
 //! **What they spend.** `header` walks the list once and allocates only the

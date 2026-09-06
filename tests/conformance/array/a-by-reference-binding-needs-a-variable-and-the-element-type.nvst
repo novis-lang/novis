@@ -1,5 +1,5 @@
 --TEST--
-`foreach (… as inout $v)` is refused over a subject with no storage to write back to, and over a binding wider than the element type — `rule:iteration/foreach-subjects`, ADR 0007 § 1
+`foreach (… as inout $v)` is refused over a subject with no storage to write back to, and over a binding wider than the element type — `rule:iteration/foreach-subjects`, `rule:types/declaration`
 --FILE--
 <?nvs
 // `inout $v` writes each element back where it came from, so there has to be

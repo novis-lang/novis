@@ -8,11 +8,11 @@ has landed yet.** Goal 17's whole list is this goal's Stage 1 floor.
 The scope line matters here: **this goal does not make array key access shape-checked.** It adds one
 converter from `array<mixed>` to a declared shape and two request members over it. A session that finds
 itself giving `array<T>` per-key types has left the goal — that design was considered and rejected in
-*Standing decisions*, and ADR 0036 rejected the general form of it before that.
+*Standing decisions*, and `rule:types/object-top` rejected the general form of it before that.
 
 What the goal is really buying is one thing said twice. `Core\Request` answers `mixed` at every reader, so
 nothing between the socket and the third frame of a handler is checked; and the type surface that would
-check it — ADR 0036 § 3's inline shape — cannot describe a form, because every field it names is required
+check it — `rule:types/shape-type`'s inline shape — cannot describe a form, because every field it names is required
 and a qualifier cannot reach it. Stage 2 fixes both, and stages 3 and 4 are then ordinary `Core` members.
 
 ## Next group
@@ -30,7 +30,7 @@ and a qualifier cannot reach it. Stage 2 fixes both, and stages 3 and 4 are then
       rewrites each text-carrying field to its tainted variant transitively and is gone before the
       checker. A shape naming no text-carrying field is a diagnostic, not a no-op.
 - [ ] **`is_assignable` learns the bit** — `crates/nvs-types/src/expr/assign.rs`: missing optional
-      satisfies, missing required does not, extra fields still satisfy (ADR 0036 § 3, unchanged).
+      satisfies, missing required does not, extra fields still satisfy (`rule:types/shape-type`, unchanged).
 
 ## Backlog
 

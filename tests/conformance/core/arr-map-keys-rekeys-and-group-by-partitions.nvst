@@ -1,5 +1,5 @@
 --TEST--
-Core\Arr::mapKeys is the one member that changes a key and Core\Arr::groupBy partitions in first-occurrence order keeping every key, per spec § 2 and ADR 0069 § 3
+Core\Arr::mapKeys is the one member that changes a key and Core\Arr::groupBy partitions in first-occurrence order keeping every key, per spec § 2 and `rule:types/preserve-keys`
 --FILE--
 <?nvs
 // Spec § 2: `mapKeys` is `map`'s mirror — that member keeps the key and
@@ -27,7 +27,7 @@ array<string> $people = ["ada" => "engineer", "bo" => "designer", "cy" => "engin
 var $byRole = Core\Arr::groupBy($people, fn (string $role): string => $role);
 echo Core\Str::join(Core\Arr::keys($byRole), ","), "\n";
 
-// ADR 0069 § 3: a bucket keeps each entry's own key. A partition cannot
+// `rule:types/preserve-keys`: a bucket keeps each entry's own key. A partition cannot
 // collide two entries — each lands in exactly one bucket under the key it
 // already had — so there is nothing here for the renumbering `flatten` and
 // `appendAll` do to protect against.

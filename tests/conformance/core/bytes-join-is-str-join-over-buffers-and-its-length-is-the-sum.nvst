@@ -1,5 +1,5 @@
 --TEST--
-`Core\Bytes::join`'s length is its parts plus one separator between each, over a whole sweep, and its answer is `Core\Str::join`'s byte for byte — spec § 7, ADR 0063 R6, ADR 0009 § 3
+`Core\Bytes::join`'s length is its parts plus one separator between each, over a whole sweep, and its answer is `Core\Str::join`'s byte for byte — spec § 7, ADR 0063 R6, `rule:types/conversion`
 --FILE--
 <?nvs
 // `bytes-join-concatenates-buffers.nvst` pins what `join` answers on five
@@ -10,7 +10,7 @@
 // row of (ADR 0063 R6 pairs the two classes by name). Both are counted rather
 // than read off a line: a cursor that emitted a leading or a trailing
 // separator answers the written-out rows plausibly and fails a sweep, and a
-// `join` that grew a rendering of its own — the one thing ADR 0009 § 3 keeps
+// `join` that grew a rendering of its own — the one thing `rule:types/conversion` keeps
 // out of this class — still concatenates correctly and fails the agreement.
 //
 // Part `k` is `k` bytes long, so the sweep carries the empty element the
@@ -34,7 +34,7 @@ for (int $n = 0; $n < 9; $n = $n + 1) {
         $sized = $sized + 1;
     }
     // The same content down both classes' member: the parts are ASCII, so
-    // UTF-8 is the identity (ADR 0009 § 3) and the two answers are comparable
+    // UTF-8 is the identity (`rule:types/conversion`) and the two answers are comparable
     // as the octets they both already are.
     bytes $spelled = Core\Encoding::encodeText(Core\Str::join($texts, "--"), Core\Charset::Utf8);
     if (Core\Bytes::join($parts, $sep) == $spelled) {

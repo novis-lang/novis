@@ -234,7 +234,7 @@ hearts;clubs;
 `E::A|E::B` written as a type accepts only those cases: a case literal outside the set, or a
 value typed as the whole enum, is a compile error. A whole-enum value enters the set through
 `as E::A|E::B`, which throws when the value is not one of them. A comparison does not narrow.
-<!-- src: ADR 0047 -->
+<!-- src: `rule:types/literal-types` -->
 
 ```nvs
 <?nvs

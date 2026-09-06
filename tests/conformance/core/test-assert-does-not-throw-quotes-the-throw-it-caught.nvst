@@ -28,7 +28,7 @@ final class Body {
         throw new LogicError("");
     }
 
-    // Not a `throw` in source: ADR 0007 § 4 makes `/ 0` an `ArithmeticError`,
+    // Not a `throw` in source: `rule:types/arithmetic` makes `/ 0` an `ArithmeticError`,
     // and this member cannot tell the two origins apart.
     public static function divide(): void {
         int $zero = 0;

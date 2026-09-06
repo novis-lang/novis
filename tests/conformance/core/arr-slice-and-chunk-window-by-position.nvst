@@ -1,5 +1,5 @@
 --TEST--
-Core\Arr::slice and ::chunk window by entry position and discard keys unless asked, spec § 2 and ADR 0069 § 3
+Core\Arr::slice and ::chunk window by entry position and discard keys unless asked, spec § 2 and `rule:types/preserve-keys`
 --FILE--
 <?nvs
 array<string> $a = ["a", "b", "c", "d", "e"];
@@ -23,7 +23,7 @@ echo Core\Arr::count(Core\Arr::slice($a, 9)), "\n";
 // The positions are ordinal, never keys: entry 1 of a map is the second one
 // the walk meets, whatever it is stored under. The result renumbers from "0"
 // by default — PHP's array_slice renumbers the integer keys and silently keeps
-// the string ones, the key-type-dependent rule ADR 0069 § 3 removes — and
+// the string ones, the key-type-dependent rule `rule:types/preserve-keys` removes — and
 // {preserveKeys: true} keeps every key instead.
 echo Core\Str::join(Core\Arr::slice($m, 1), ","), "\n";
 echo Core\Str::join(Core\Arr::keys(Core\Arr::slice($m, 1)), ","), "\n";

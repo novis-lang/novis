@@ -1,5 +1,5 @@
 --TEST--
-ADR 0054 §§ 1 and 3: both named divisions refuse a zero divisor, and `divRound` refuses a scale past the type's own bound
+`rule:types/decimal` and `rule:types/arithmetic`: both named divisions refuse a zero divisor, and `divRound` refuses a scale past the type's own bound
 --FILE--
 <?nvs
 decimal $one = 1;

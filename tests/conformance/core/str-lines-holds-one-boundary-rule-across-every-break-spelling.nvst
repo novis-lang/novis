@@ -1,5 +1,5 @@
 --TEST--
-`Core\Str::lines` answers the same lines whichever of the three terminators spells them, and consumes `\r\n` as the single cluster GB3 makes it — spec § 1 *Extraction*, ADR 0009 § 2
+`Core\Str::lines` answers the same lines whichever of the three terminators spells them, and consumes `\r\n` as the single cluster GB3 makes it — spec § 1 *Extraction*, `rule:types/string-is-utf8`
 --FILE--
 <?nvs
 // `line_pieces`'s doc makes three claims about the boundary, and none of them

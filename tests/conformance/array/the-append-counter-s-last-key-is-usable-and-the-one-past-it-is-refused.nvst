@@ -1,5 +1,5 @@
 --TEST--
-`$a[]` lands on the append counter's last usable key and refuses the one past it, catchably — ADR 0007 § 5
+`$a[]` lands on the append counter's last usable key and refuses the one past it, catchably — `rule:types/arrays`
 --FILE--
 <?nvs
 // The counter `nvs_runtime::array`'s `Table::note_index` keeps saturates at

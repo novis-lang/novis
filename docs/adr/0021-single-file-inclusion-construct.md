@@ -49,7 +49,7 @@ missing or unparseable target, and executing every time control reaches it. `inc
 declares — a class, an interface, an enum, a `type` alias — is visible to the requiring file exactly as if
 it had been pasted in, which is the whole point of the construct and what the compile-time graph walk
 delivers. A local variable does not cross: `nvs_types::locals` checks each file's top-level body on its own
-([ADR 0007](0007-explicit-type-system.md) § 1's declare-once rule is per body), so a required file's `$x` is
+(`rule:types/declaration`'s declare-once rule is per body), so a required file's `$x` is
 not the caller's and the caller's is not the required file's — and `nvs-ir` gives each file its own script
 frame accordingly. This is the safe reading of the two, and the only one the checker was ever able to make:
 a shared variable scope would need one flow-sensitive definite-assignment analysis spanning a graph whose
@@ -92,9 +92,9 @@ and the `eval`/`extract`/`settype` rejections already use: *there is exactly one
 ### 3. The expression's type
 
 `require`'s value — what a `return`-ing target file hands back, or `1` when it does not `return` at all —
-cannot be known statically the way [ADR 0007](0007-explicit-type-system.md) otherwise requires every
+cannot be known statically the way `rule:types/declaration` otherwise requires every
 expression's type to be. This is not a new problem needing a new mechanism: it is exactly the case `mixed`
-exists for, ADR 0007's "one unchecked position." `$config = require 'config.nvs';` therefore requires the
+exists for, `rule:types/declaration`'s "one unchecked position." `$config = require 'config.nvs';` therefore requires the
 same explicit `as` conversion any other `mixed`-typed boundary value needs before it can populate a typed
 binding — no special-casing for `require`, and no third exception carved into the type system for it.
 
@@ -128,7 +128,7 @@ of naming the replacement directly:
   control flow has no direct equivalent once a missing file always throws.
 - A `mixed`-typed `require` expression assigned into a typed binding needs an explicit `as` at the call
   site, one more small piece of ceremony than PHP's `$config = require 'config.php';` — accepted as the
-  same trade ADR 0007 already makes at every other boundary of unknown-until-runtime shape.
+  same trade `rule:types/declaration` already makes at every other boundary of unknown-until-runtime shape.
 
 ## Alternatives rejected
 

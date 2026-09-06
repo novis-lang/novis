@@ -1,5 +1,5 @@
 --TEST--
-Core\Arr::flattenDeep answers what iterator_to_array over a RecursiveIteratorIterator answers, at every depth, over both kinds of key, and on the leaves that look like absence — ADR 0069 § 3, ADR 0007 § 3
+Core\Arr::flattenDeep answers what iterator_to_array over a RecursiveIteratorIterator answers, at every depth, over both kinds of key, and on the leaves that look like absence — `rule:types/preserve-keys`, `rule:types/grammar`
 --FILE--
 <?nvs
 // Spec § 2's `flattenDeep` row, whose **Replaces** column names
@@ -8,16 +8,16 @@ Core\Arr::flattenDeep answers what iterator_to_array over a RecursiveIteratorIte
 // This is an *agreement* case and not the divergence its `Core\Arr` neighbours
 // are, and the second argument is why. Every other member carrying a key rule —
 // `reverse`, `slice`, `pad`, `replaceRange` — parts from its twin because PHP
-// renumbers a result's integer keys and keeps its string ones, which ADR 0069
-// § 3 refuses. The twin here is handed `false`, which discards every key alike,
+// renumbers a result's integer keys and keeps its string ones, which `rule:types/preserve-keys`
+// refuses. The twin here is handed `false`, which discards every key alike,
 // so PHP is asked for exactly the rule Novis has. Its *other* setting is not a
 // second answer to compare against: `true` re-keys each leaf by its own level's
 // key, so `[[1,2],[3,4]]` collapses to `[3,4]` and a string-keyed subject to
 // `{"a":1,"c":2,"0":3}` — the twin loses entries at the setting that keeps
-// keys, which is the concrete form of the rule ADR 0069 § 3 states abstractly.
+// keys, which is the concrete form of the rule `rule:types/preserve-keys` states abstractly.
 //
 // The answer is rendered through `Core\Json::encode`, not element by element:
-// the member erases to `array<mixed>` (ADR 0007 § 3's one unchecked position,
+// the member erases to `array<mixed>` (`rule:types/grammar`'s one unchecked position,
 // and the member's own doc comment says why the honest type cannot be
 // narrower), so there is no element binding a `foreach` could declare, and
 // encoding the whole result is byte-identical to `json_encode` over PHP's.

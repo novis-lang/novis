@@ -1,7 +1,7 @@
 //! The arithmetic rows compiled code cannot spell as a machine instruction.
 //!
 //! Every other operator in
-//! [ADR 0007](/docs/adr/0007-explicit-type-system.md) § 4's table is
+//! `rule:types/arithmetic`'s table is
 //! one or two Cranelift instructions, so `nvs-codegen` emits it inline and
 //! this module does not exist for it. `**` over two `float`s is the exception:
 //! there is no `fpow` instruction on any target Cranelift supports and no
@@ -17,7 +17,7 @@
 //! [`crate::nvs_str_eq`] makes for a `string` pair.
 //! `nvs_codegen::emit`'s own module doc records the decision.
 
-/// `**` over two `float`s — ADR 0007 § 4's "either operand a `float`" row.
+/// `**` over two `float`s — `rule:types/arithmetic`'s "either operand a `float`" row.
 ///
 /// Exactly [`f64::powf`], which is IEEE 754's `pow` and therefore PHP's own
 /// answer: PHP's `**` on two floats is C's `pow`, including its edge cases

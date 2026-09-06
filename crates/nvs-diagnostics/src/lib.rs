@@ -76,7 +76,7 @@ pub mod code {
     /// Input that is not valid UTF-8.
     pub const E_INVALID_UTF8: Code = Code::new("E0006");
     /// A duration literal that does not follow
-    /// [ADR 0070](/docs/adr/0070-duration-literals.md) § 1's grammar —
+    /// `rule:types/duration-literal`'s grammar —
     /// out of order, a repeated unit, a fractional count, a mis-cased unit, or
     /// longer than `Core\Time\Duration` can hold.
     pub const E_BAD_DURATION_LITERAL: Code = Code::new("E0007");
@@ -152,19 +152,19 @@ pub mod code {
     /// commits to a block — an expression-bodied `fn() => {...}`, or a bare
     /// statement-initial `{...}` — needs the same parenthesize-to-force-
     /// expression fix JavaScript uses for the identical ambiguity; see
-    /// ADR 0036 § 2.
+    /// `rule:types/object-literal`.
     pub const E_OBJECT_LITERAL_NEEDS_PARENS: Code = Code::new("E0117");
     /// `{x}` — an object literal has no shorthand; every field is written
-    /// `name: value`. See ADR 0036 § 2.
+    /// `name: value`. See `rule:types/object-literal`.
     pub const E_OBJECT_LITERAL_SHORTHAND: Code = Code::new("E0118");
     /// `{[$expr]: value}` — an object literal has no computed/dynamic key;
-    /// every field name is a static identifier. See ADR 0036 § 2.
+    /// every field name is a static identifier. See `rule:types/object-literal`.
     pub const E_OBJECT_LITERAL_COMPUTED_KEY: Code = Code::new("E0119");
-    /// A `float` literal in type position — ADR 0047 § 7 defers float literal
+    /// A `float` literal in type position — `rule:types/literal-types` defers float literal
     /// types until floating-point equality has a real answer, so `0.1` names
     /// no type the way `1` and `"a"` now do.
     pub const E_FLOAT_LITERAL_TYPE: Code = Code::new("E0120");
-    /// An interpolated string in type position — `"a"` is ADR 0047 § 1's
+    /// An interpolated string in type position — `"a"` is `rule:types/literal-types`'s
     /// singleton type, and a type has no scope to interpolate a variable
     /// from.
     pub const E_INTERPOLATION_IN_TYPE: Code = Code::new("E0121");
@@ -264,16 +264,16 @@ pub mod code {
     /// same-frame inclusion construct, `require` — see `rule:statements/require-is-the-only-inclusion-construct`.
     pub const E_INCLUDE_FAMILY_UNSUPPORTED: Code = Code::new("E0221");
     /// An anonymous `function (...) { ... }` literal, with or without a
-    /// `use` clause: `fn` is the only closure literal — see ADR 0031 § 1.
+    /// `use` clause: `fn` is the only closure literal — see `rule:types/closure-literal`.
     pub const E_FUNCTION_CLOSURE_UNSUPPORTED: Code = Code::new("E0222");
     /// `use ($y)` on a closure literal: capture is always implicit and by
-    /// value, so there is no clause to write — see ADR 0031 § 2.
+    /// value, so there is no clause to write — see `rule:types/implicit-capture`.
     pub const E_CLOSURE_USE_UNSUPPORTED: Code = Code::new("E0223");
     /// `use (&$y)` on a closure literal specifically: by-reference capture
-    /// has no replacement syntax — see ADR 0031 § 2.
+    /// has no replacement syntax — see `rule:types/implicit-capture`.
     pub const E_CLOSURE_USE_BY_REF_UNSUPPORTED: Code = Code::new("E0224");
     /// PHP's legacy `(T)expr` cast syntax — `as` is the only conversion
-    /// spelling. See ADR 0034 § 1, which amends ADR 0007 § 2.
+    /// spelling. See `rule:types/no-legacy-cast`, which amends `rule:types/conversion`.
     pub const E_LEGACY_CAST_UNSUPPORTED: Code = Code::new("E0225");
     /// PHP's `and`/`or`/`xor` keyword operators — `&&`/`||` are the only
     /// logical connectives. See `rule:expressions/no-keyword-logical-operators`.
@@ -330,7 +330,7 @@ pub mod code {
     /// `unset($x)` on a bare local, or a subscript of a temporary such as
     /// `unset(rows()["k"])`. ADR 0028 § 3 keeps `unset()` for exactly one job,
     /// removing an array entry: a binding is declared with a type and
-    /// definitely assigned (ADR 0007 § 1), so there is no "undefined again"
+    /// definitely assigned (`rule:types/declaration`), so there is no "undefined again"
     /// state for a local to return to, and a temporary has nothing for ADR
     /// 0007 § 5's separated array to be written back into. An operand that is
     /// a *declared* property is [`E_UNSET_ON_PROPERTY`] instead, which owns
@@ -345,13 +345,12 @@ pub mod code {
     /// to read or write.
     ///
     /// ADR 0014 § 5 keeps its runtime-throw half for the two ways a name
-    /// genuinely arrives late — a reflection-based get/set, and ADR 0036 § 4's
+    /// genuinely arrives late — a reflection-based get/set, and `rule:types/erased-member-access`'s
     /// erased receiver, where the name *is* written out and only the class
-    /// behind the handle is unknown. Neither needs this spelling, and ADR 0036
-    /// § 2 already refuses its literal-side twin, the computed shape key
+    /// behind the handle is unknown. Neither needs this spelling, and `rule:types/object-literal` already refuses its literal-side twin, the computed shape key
     /// `{[$expr]: 1}`.
     ///
-    /// ADR 0126 § 4 carves out the one exception and moves the report with it:
+    /// `rule:types/property-key-access` carves out the one exception and moves the report with it:
     /// `$obj->$key` is admitted where `$key`'s type is a `property<T>` the
     /// receiver satisfies — a set of names checked where the `as` was written,
     /// so nothing request-controlled picks a field — and every other operand is
@@ -431,11 +430,10 @@ pub mod code {
     /// expression position, with no name for the static class table to hold —
     /// the same refusal a conditionally declared class gets, for the same
     /// reason. The rewrite is a named class in the same file, or a closure
-    /// ([ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md)).
+    /// (`rule:types/closure-literal`).
     pub const E_ANONYMOUS_CLASS_UNSUPPORTED: Code = Code::new("E0244");
     /// `catch (A | B $e)`, PHP's multi-class clause. The binding carries one
-    /// static type ([ADR 0007](/docs/adr/0007-explicit-type-system.md)
-    /// § 1's `catch` row), so a clause naming two classes has no type to give
+    /// static type (`rule:types/declaration`'s `catch` row), so a clause naming two classes has no type to give
     /// it; the rewrite is one clause per class, each with its own variable
     /// name, or one clause naming a class they all extend. The expression form
     /// refuses the same shape with the same words
@@ -443,7 +441,7 @@ pub mod code {
     pub const E_CATCH_UNION_TYPE_UNSUPPORTED: Code = Code::new("E0245");
     /// `public const LIMIT = 9;`, PHP's untyped class constant. Every other
     /// binding in the language writes its type
-    /// ([ADR 0007](/docs/adr/0007-explicit-type-system.md) § 1) and a
+    /// (`rule:types/declaration`) and a
     /// constant is no different: the type read off the folded value is a
     /// guess the declaration never made, it is unavailable to an interface
     /// constant at all, and where the value has no constant form there is
@@ -466,7 +464,7 @@ pub mod code {
     pub const E_UNRESOLVED_IMPORT: Code = Code::new("E0306");
     /// A `type` alias whose expression is nothing but one bare class,
     /// interface or enum atom — `use … as …` in disguise; see
-    /// ADR 0015 § 6.
+    /// `rule:types/alias-is-never-a-bare-class`.
     pub const E_TYPE_ALIAS_ALIASES_CLASS: Code = Code::new("E0307");
     /// A `Class::member` reference (a static call, a class constant, an
     /// enum case, or a static property) names nothing declared on that class
@@ -476,7 +474,7 @@ pub mod code {
     pub const E_UNDEFINED_MEMBER: Code = Code::new("E0309");
     /// A `type` alias whose expansion, followed far enough, refers back to
     /// itself — `type A = B; type B = A;` or any longer cycle; see
-    /// ADR 0015 § 5.
+    /// `rule:types/type-alias`.
     pub const E_TYPE_ALIAS_CYCLE: Code = Code::new("E0310");
     /// A `require` whose path is a literal, resolved statically per
     /// `rule:statements/require-is-the-only-inclusion-construct`, but does not name a file that can be loaded as source (it
@@ -570,12 +568,12 @@ pub mod code {
     /// A property or method access on a type that has no such member.
     pub const E_UNKNOWN_MEMBER: Code = Code::new("E0405");
     /// A local variable declared a second time while its first declaration
-    /// is still live — ADR 0007 § 1: "there is no shadowing."
+    /// is still live — `rule:types/declaration`: "there is no shadowing."
     pub const E_REDECLARED_LOCAL: Code = Code::new("E0406");
-    /// `int ⊕ uint` arithmetic — ADR 0007 § 4: there is no representable
+    /// `int ⊕ uint` arithmetic — `rule:types/arithmetic`: there is no representable
     /// common type, so one side must be converted explicitly.
     pub const E_INT_UINT_ARITHMETIC: Code = Code::new("E0407");
-    /// An `array<...>` type nests past ADR 0007 § 5's depth-32 bound.
+    /// An `array<...>` type nests past `rule:types/arrays`'s depth-32 bound.
     pub const E_ARRAY_TYPE_TOO_DEEP: Code = Code::new("E0408");
     /// A non-nullable, no-default property a class declares (itself, or
     /// through a used trait) is not definitely assigned on some path out of
@@ -608,16 +606,15 @@ pub mod code {
     pub const E_UNSET_ON_PROPERTY: Code = Code::new("E0413");
     /// `var $x = [...];` — a bare array literal has no target type to check
     /// against, the one initializer shape `var` cannot infer from; see
-    /// ADR 0037 § 2.
+    /// `rule:types/var-inference`.
     pub const E_VAR_ARRAY_LITERAL_NEEDS_TYPE: Code = Code::new("E0414");
     /// An arithmetic or bitwise operator applied directly to an enum-typed
     /// operand — neither is defined on an enum type; convert to its
-    /// underlying `int`/`uint` with `as` first. See ADR 0010 § 5.
+    /// underlying `int`/`uint` with `as` first. See `rule:types/conversion`.
     pub const E_ENUM_ARITHMETIC_UNSUPPORTED: Code = Code::new("E0415");
     /// `as` from one enum type to a *different* enum type, even when both
     /// share the same underlying integer type — rejected outright; an
-    /// explicit `match` naming every case is the replacement. See ADR 0010
-    /// § 5.
+    /// explicit `match` naming every case is the replacement. See `rule:types/conversion`.
     pub const E_ENUM_CONVERSION_UNSUPPORTED: Code = Code::new("E0416");
     /// `as Core\Html\Markup` on anything but a source-literal string — a
     /// runtime-computed or `tainted` value can never become trusted markup
@@ -627,14 +624,14 @@ pub mod code {
     /// A string passed (or convertible without laundering) where `callable`
     /// is the declared type — PHP's bare-name/`"Class::method"` callable
     /// spellings are both rejected in favor of first-class callable syntax.
-    /// See ADR 0027 § 1.
+    /// See `rule:types/callable-is-a-closure`.
     pub const E_CALLABLE_STRING_UNSUPPORTED: Code = Code::new("E0418");
     /// A `[$obj, 'method']`-shaped array passed where `callable` is the
-    /// declared type. See ADR 0027 § 1.
+    /// declared type. See `rule:types/callable-is-a-closure`.
     pub const E_CALLABLE_ARRAY_UNSUPPORTED: Code = Code::new("E0419");
     /// `$obj(...)` where `$obj`'s static type is not `callable` — Novis has no
     /// `__invoke`, so no class ever makes `()` mean anything else. See
-    /// ADR 0027 § 1.
+    /// `rule:types/callable-is-a-closure`.
     pub const E_NOT_CALLABLE: Code = Code::new("E0420");
     /// A `secret`-qualified value reaching a `Core\Html\Markup`-building
     /// conversion — refused even though the equivalent `tainted`-only value
@@ -676,7 +673,7 @@ pub mod code {
     /// checked against — too large for `int`/`uint` outright, or exactly the
     /// one magnitude `uint` can never represent regardless of width: a
     /// negative value, since an integer literal's digits are never signed and
-    /// the sign comes from a wrapping unary `-`. See ADR 0007 § 4.
+    /// the sign comes from a wrapping unary `-`. See `rule:types/arithmetic`.
     pub const E_INT_LITERAL_OUT_OF_RANGE: Code = Code::new("E0429");
     /// A `\u{...}` escape inside a double-quoted string literal (or an
     /// interpolated-heredoc text run) names a value outside Unicode's valid
@@ -690,7 +687,7 @@ pub mod code {
     pub const E_INVALID_UNICODE_ESCAPE: Code = Code::new("E0430");
     /// A double-quoted string literal's (or interpolated-heredoc text run's)
     /// `\xHH`/octal byte escapes assembled into a sequence that is not valid
-    /// UTF-8 — `string` is guaranteed-valid UTF-8 (ADR 0009), so a byte
+    /// UTF-8 — `string` is guaranteed-valid UTF-8 (`rule:types/bytes`), so a byte
     /// escape's raw output has to actually decode, not just fit in a byte.
     pub const E_STRING_LITERAL_INVALID_UTF8: Code = Code::new("E0431");
     /// A heredoc/nowdoc's closing marker is indented with a mix of spaces and
@@ -709,7 +706,7 @@ pub mod code {
     /// A `float`, `bool`, `null` or enum array key, at each of the three sites
     /// that write one: an explicit `key =>` in an array literal, an `$a[...]`
     /// subscript, and an `$a[...] = v` target. PHP silently truncates a float,
-    /// stringifies `true` to `"1"` and `null` to `""`; ADR 0007 § 5 rejects
+    /// stringifies `true` to `"1"` and `null` to `""`; `rule:types/arrays` rejects
     /// all three outright since each is a silent conversion at the exact
     /// place a mistake becomes a missing row. An enum case is refused one step
     /// further out: `rule:enums/closed-integer-type` makes it a named integer, so the key would be a
@@ -745,14 +742,14 @@ pub mod code {
     /// that would fake one is not offered).
     pub const E_INOUT_ARG_NOT_A_PLACE: Code = Code::new("E0439");
     /// An argument passed to an `inout $x` parameter whose type is not *exactly*
-    /// the parameter's. ADR 0007 § 1 leaves no room for a conversion here:
+    /// the parameter's. `rule:types/declaration` leaves no room for a conversion here:
     /// the callee writes back through the reference at the declared type, so
     /// anything the caller's storage would have to be converted from on the
     /// way in would have to be converted back on the way out — silently, and
     /// lossily.
     pub const E_INOUT_ARG_TYPE_NOT_EXACT: Code = Code::new("E0440");
     /// A `<...>` type-argument list written after a name that takes no type
-    /// parameters. ADR 0007 § 1 parks user-declared generics, and two doors
+    /// parameters. `rule:types/declaration` parks user-declared generics, and two doors
     /// open in that wall — `rule:iteration/concrete-generic-implements`'s compiler-owned generic interfaces,
     /// which `nvs_hir::interfaces::RESERVED` rosters, and a `Core` member
     /// whose spec signature writes one (`Core\Json::decodeAs<T>`), which
@@ -764,7 +761,7 @@ pub mod code {
     /// A name or member written with the wrong number of type arguments,
     /// including none at all: `Iterator` on its own is as much a mistake as
     /// `Iterator<int, string>`, since the element type is the whole reason the
-    /// parameter exists and ADR 0007 leaves no position untyped. A call site
+    /// parameter exists and `rule:types/declaration` leaves no position untyped. A call site
     /// that omits a member's required list reaches the same rule.
     pub const E_TYPE_ARG_COUNT: Code = Code::new("E0442");
     /// A `foreach` subject that is none of `rule:iteration/foreach-subjects`'s three accepted
@@ -778,7 +775,7 @@ pub mod code {
     /// be a second thing `foreach` means.
     pub const E_FOREACH_KEY_ON_CURSOR: Code = Code::new("E0444");
     /// A `yield` in a body that is not a generator's own — at file scope, or
-    /// inside an ADR 0031 closure. `rule:iteration/generators` confines `yield` lexically to
+    /// inside an `rule:types/closure-literal` closure. `rule:iteration/generators` confines `yield` lexically to
     /// the generator's own body, which is the stated price of lowering to a
     /// state machine rather than to a coroutine.
     pub const E_YIELD_OUTSIDE_GENERATOR: Code = Code::new("E0445");
@@ -800,10 +797,10 @@ pub mod code {
     /// 0053 § 1's `Iterator<T>` made it a dispatch to nothing, since its
     /// members are bodiless by design.
     pub const E_INTERFACE_METHOD_MISSING: Code = Code::new("E0449");
-    /// A block-bodied `fn` closure literal (ADR 0031 § 1) with no declared
+    /// A block-bodied `fn` closure literal (`rule:types/closure-literal`) with no declared
     /// return type. An expression body *is* its own answer, so it needs no
     /// annotation; a block body would need whole-body return-type inference,
-    /// which ADR 0007's "nothing is untyped, and no type ever changes by
+    /// which `rule:types/declaration`'s "nothing is untyped, and no type ever changes by
     /// itself" does not ask the compiler to grow.
     pub const E_CLOSURE_RETURN_TYPE_REQUIRED: Code = Code::new("E0450");
     /// A parameter default (`function f(int $n = ...)`) that is not a literal
@@ -819,7 +816,7 @@ pub mod code {
     /// behind an optional one could never be reached — PHP diagnoses the same
     /// shape.
     pub const E_PARAM_DEFAULT_ORDER: Code = Code::new("E0452");
-    /// Something other than an ADR 0036 object literal written at a `Core`
+    /// Something other than an `rule:types/object-top` object literal written at a `Core`
     /// member's trailing options-bag parameter (ADR 0063 R2). The bag has no
     /// runtime representation — it flattens into one argument per declared
     /// option at the call site — so it must be written out there or omitted
@@ -829,7 +826,7 @@ pub mod code {
     /// for either, the bag being the all-optional case of the shape.
     pub const E_OPTIONS_NOT_A_LITERAL: Code = Code::new("E0453");
     /// A field name in an options bag that the member does not declare —
-    /// usually a typo. Unlike ADR 0036 § 3's width subtyping, which accepts an
+    /// usually a typo. Unlike `rule:types/shape-type`'s width subtyping, which accepts an
     /// extra field on purpose, an options bag refuses one: a misspelled option
     /// that is silently ignored is the failure ADR 0063 R2 exists to prevent.
     /// A **shape key** no arm of an ADR 0135 § 1 shape parameter declares is
@@ -840,17 +837,16 @@ pub mod code {
     /// differently and are one code on purpose: a second code would ask the
     /// reader to know which arm they were in before they could look it up.
     pub const E_UNKNOWN_OPTION: Code = Code::new("E0454");
-    /// `decimal ⊕ float` arithmetic, or `**` with a `decimal` base — ADR 0054
-    /// § 3. The same rule and the same reason as [`E_INT_UINT_ARITHMETIC`]:
+    /// `decimal ⊕ float` arithmetic, or `**` with a `decimal` base — `rule:types/arithmetic`. The same rule and the same reason as [`E_INT_UINT_ARITHMETIC`]:
     /// there is no type that represents both operands' values, so one side
     /// must be converted explicitly.
     pub const E_DECIMAL_FLOAT_ARITHMETIC: Code = Code::new("E0455");
     /// A numeric literal placed at `decimal` whose mantissa exceeds 96 bits or
-    /// whose scale exceeds 28 — ADR 0054 § 1's layout. `Core\BigDecimal` (§ 6)
+    /// whose scale exceeds 28 — `rule:types/decimal`'s layout. `Core\BigDecimal` (§ 6)
     /// is the type for a value beyond it.
     pub const E_DECIMAL_LITERAL_OUT_OF_RANGE: Code = Code::new("E0456");
     // `E0457` (`E_LITERAL_TYPE_UNCHECKED`) is **retired**, not reused.
-    // [ADR 0047](/docs/adr/0047-literal-and-enum-case-types.md)'s three
+    // `rule:types/literal-types`'s three
     // atoms intern as real types now (`nvs_types::lower::lower_atom`), so there
     // is nothing left for it to refuse.
     /// A `Core` **instance** member written as a static call —
@@ -901,19 +897,19 @@ pub mod code {
     /// already knows the answer. `rule:expressions/disjoint-comparison-refused`'s table, and § 6 for the two
     /// comparison forms that are not written with the operator.
     pub const E_DISJOINT_EQUALITY: Code = Code::new("E0466");
-    /// `+` or `+=` with an array operand. ADR 0069 § 2 removes PHP's array
+    /// `+` or `+=` with an array operand. `rule:types/array-combination` removes PHP's array
     /// union operator rather than migrating it — the diagnostic names
     /// `Core\Arr::underlay`, which is what it always meant.
     pub const E_ARRAY_PLUS_UNSUPPORTED: Code = Code::new("E0467");
     /// `Foo::BAR` in *type* position where `Foo::BAR` is declared but is not a
-    /// `string`/`int` compile-time constant — ADR 0047 § 2. A class constant is
+    /// `string`/`int` compile-time constant — `rule:types/constant-in-type-position`. A class constant is
     /// sugar that folds to its own literal type, so it folds only when the
     /// value has a literal type to fold to: a `float` (§ 7 defers those), an
     /// `array`, an object, or an expression that is not a literal at all has
     /// none. A name nothing declares is [`E_UNKNOWN_MEMBER`] instead — that is
     /// a different mistake with a different fix.
     pub const E_LITERAL_TYPE_NOT_CONST: Code = Code::new("E0468");
-    /// `"z" as "a"|"b"` — ADR 0047 § 6: a checked conversion into a closed set
+    /// `"z" as "a"|"b"` — `rule:types/literal-types`: a checked conversion into a closed set
     /// of literals whose operand already names a value the set does not
     /// contain, so it would compile and then throw on every execution. The
     /// accepted set in the message is generated from the target type, never
@@ -944,7 +940,7 @@ pub mod code {
     /// literal only.
     pub const E_PROPERTY_DEFAULT_NOT_LITERAL: Code = Code::new("E0472");
     /// `$obj as ?SomeClass` — `rule:expressions/nullable-conversion-availability`'s class row: `instanceof` plus
-    /// ADR 0007 § 6's narrowing already answers class membership, so the
+    /// `rule:types/unions-and-mixed`'s narrowing already answers class membership, so the
     /// conversion would be R17's second spelling of a question the language
     /// already has one for. Reported for the written `?T` sugar only, since
     /// § 1 deliberately leaves the `SomeClass|null` union spelling out of the
@@ -956,7 +952,7 @@ pub mod code {
     /// `Core\Uri::tryParse` is the member that answers a parse instead — which
     /// the help names for a class in `nvs_stdlib::registry::TRY_PARSE_CLASSES`.
     pub const E_CLASS_CONVERSION_TARGET: Code = Code::new("E0473");
-    /// `++`/`--` on a binding that is not one of ADR 0007 § 4's numeric
+    /// `++`/`--` on a binding that is not one of `rule:types/arithmetic`'s numeric
     /// types.
     ///
     /// An increment is `± 1` and nothing else. PHP's `$s++` walking a string
@@ -985,12 +981,12 @@ pub mod code {
     /// a `throw` expression, says the same thing and says it on purpose.
     pub const E_MATCH_NO_ARMS: Code = Code::new("E0476");
     /// A method called on a receiver whose type names no class: a plain
-    /// `object` (ADR 0007 § 3's opaque top of every class type), an ADR 0036
+    /// `object` (`rule:types/grammar`'s opaque top of every class type), an `rule:types/object-top`
     /// shape, a union naming no single class, or a type that can hold no
     /// object at all — a scalar, an `array<T>`, a `void` call's result.
     ///
     /// One code across that whole family, because it is one mistake: a method
-    /// is resolved against a class and none of these names one. ADR 0036 § 4
+    /// is resolved against a class and none of these names one. `rule:types/erased-member-access`
     /// gave the *property* half of an erased receiver a name-keyed runtime
     /// fetch and deliberately stopped there — which is why the property half
     /// splits into a deferral and [`E_RECEIVER_HAS_NO_PROPERTIES`] where this
@@ -998,7 +994,7 @@ pub mod code {
     /// signature and a return type to bind the position it sits in, and no
     /// receiver here supplies either, with no `__call` to fall back on
     /// (ADR 0014). `mixed` is the one receiver deliberately *not* refused:
-    /// ADR 0007 § 2 makes it the one unchecked position, so it defers.
+    /// `rule:types/conversion` makes it the one unchecked position, so it defers.
     ///
     /// The help follows the receiver: narrow one that can hold an object
     /// (`instanceof` proves the class, `as ClassName` converts to it), and
@@ -1008,7 +1004,7 @@ pub mod code {
     /// `$obj->hooked[0] = v`, or any deeper subscript over the same base.
     ///
     /// A hooked property is a pair of accessors, not a slot, so the element
-    /// write has nothing to write *into*: ADR 0007 § 5 separates the array
+    /// write has nothing to write *into*: `rule:types/arrays` separates the array
     /// the `get` hook returned, and the separated copy would then have to be
     /// pushed back through `set`, which PHP does not do either — it raises
     /// "indirect modification of overloaded property" and discards the write.
@@ -1025,11 +1021,11 @@ pub mod code {
     /// $a->b = v; }` says which of the two outcomes was meant.
     pub const E_NULLSAFE_WRITE_TARGET: Code = Code::new("E0479");
     /// An array element written through a property whose receiver erased:
-    /// an ADR 0036 shape, or ADR 0007 § 3's plain `object`.
+    /// an `rule:types/object-top` shape, or `rule:types/grammar`'s plain `object`.
     ///
-    /// ADR 0036 § 4 gave such a property a name-keyed runtime *fetch* and
+    /// `rule:types/erased-member-access` gave such a property a name-keyed runtime *fetch* and
     /// deliberately stopped there, which is enough for a read and not enough
-    /// for a write: ADR 0007 § 5 separates the array on the way in, and the
+    /// for a write: `rule:types/arrays` separates the array on the way in, and the
     /// separated copy needs a slot to be written back into that a by-name
     /// resolution does not supply. A plain `object` receiver has no element
     /// type either — the property reads as `mixed`, and `mixed` is not
@@ -1055,17 +1051,16 @@ pub mod code {
     /// element read as a zero value — which is § 7 row 8 one storage kind
     /// along, not a new judgement.
     pub const E_APPEND_IN_READ_POSITION: Code = Code::new("E0481");
-    /// `$x[…]` where `$x` is not an `array<T>`, and `[…] = $x;` — ADR 0007
-    /// § 3.3's destructuring — for the same reason: every leaf is an element
+    /// `$x[…]` where `$x` is not an `array<T>`, and `[…] = $x;` — `rule:types/grammar`.3's destructuring — for the same reason: every leaf is an element
     /// read, so a value with no elements has nothing to take apart.
     ///
-    /// ADR 0007 § 5 checks an element read and write against the array's
+    /// `rule:types/arrays` checks an element read and write against the array's
     /// *declared* element type, so a base that declares none — a `mixed`, a
     /// scalar, an object, or a `?array<T>` a `!== null` test has not
     /// narrowed — has no element to name and nothing to check against.
     /// PHP answers `null` with a warning for most of these, which is § 7
     /// row 8's family; Novis refuses at check time instead. A `string` is not
-    /// an exception: ADR 0009 § 2 indexes one by grapheme cluster through
+    /// an exception: `rule:types/string-is-utf8` indexes one by grapheme cluster through
     /// `Core\Str`, not through a subscript.
     pub const E_SUBSCRIPT_ON_NON_ARRAY: Code = Code::new("E0482");
     /// `&value` as an element of an array literal, or `[int &$x] = $pair;`
@@ -1073,13 +1068,13 @@ pub mod code {
     /// the same answer.
     ///
     /// PHP's `[&$x]` stores a reference, so writing the element writes
-    /// `$x` too. Novis has nowhere to put one: ADR 0031 § 2 removed
+    /// `$x` too. Novis has nowhere to put one: `rule:types/implicit-capture` removed
     /// by-reference capture, so no binding aliases another, and ADR 0023
     /// fixes what a copy means, so an element is a copy at the point the
     /// literal is evaluated. An aliasing element would therefore have no
     /// owner in either rule — it is not a lowering that is missing, it is
     /// a thing the language does not have. Write the value; to share one
-    /// mutable cell, put it in an object, exactly as ADR 0031 § 2's own
+    /// mutable cell, put it in an object, exactly as `rule:types/implicit-capture`'s own
     /// worked example does.
     pub const E_ARRAY_ELEMENT_BY_REFERENCE: Code = Code::new("E0483");
     /// `[...$x]` where `$x` is not an `array<T>`.
@@ -1156,12 +1151,12 @@ pub mod code {
     /// A `fn` closure literal declaring an `inout $x` parameter.
     ///
     /// A by-reference parameter is a contract between a call site and a
-    /// declaration, and a closure's type is `callable` — ADR 0031 § 4 keeps it
+    /// declaration, and a closure's type is `callable` — `rule:types/callable-absorbs-closure` keeps it
     /// opaque, carrying no parameter list at all, so no call site can know to
     /// stage a cell. The closure may also outlive every frame in scope where
     /// it was written.
     pub const E_CLOSURE_INOUT_PARAM: Code = Code::new("E0493");
-    /// An ADR 0036 § 2 object literal writing one field name twice —
+    /// An `rule:types/object-literal` object literal writing one field name twice —
     /// `{a: 1, a: 2}`.
     ///
     /// A shape's fields are a set: the type `{a: int}` names one slot `a`,
@@ -1181,15 +1176,15 @@ pub mod code {
     /// check-time error instead, for row 8's reason: a declared type is what
     /// makes the answer knowable before the program runs, and nothing in Novis
     /// makes an absent thing read as a zero value. `mixed` is the one receiver
-    /// that keeps PHP's *timing* — ADR 0007 § 2's one unchecked position, so
-    /// it defers to ADR 0036 § 4's name-keyed fetch and its catchable throw.
+    /// that keeps PHP's *timing* — `rule:types/conversion`'s one unchecked position, so
+    /// it defers to `rule:types/erased-member-access`'s name-keyed fetch and its catchable throw.
     pub const E_RECEIVER_HAS_NO_PROPERTIES: Code = Code::new("E0495");
     /// A class named through a value rather than written, and the two
     /// `instanceof` right-hand sides that name no class at all: the dynamic
     /// form `$x instanceof $name`, `new $name()` and `$name::f()`, plus a
     /// `Core` class or an enum on the right of `instanceof`.
     ///
-    /// The dynamic form is ADR 0007 § 2's rule: a class name is written, never
+    /// The dynamic form is `rule:types/conversion`'s rule: a class name is written, never
     /// computed, which is the same line `$$var` and `eval` are already on. Its
     /// three spellings share one report
     /// (`nvs_types::expr::members::reject_dynamic_class_name`) because they are
@@ -1676,7 +1671,7 @@ pub mod code {
     /// An array element written through a root that is not a **place**:
     /// `$h->rows()["a"] = "y"`, `[1, 2]["0"] = "z"`, `($c ? $a : $b)["k"] = v`.
     ///
-    /// ADR 0007 § 5's copy-on-write separation has to be written back into
+    /// `rule:types/arrays`'s copy-on-write separation has to be written back into
     /// whatever holds the array, and a temporary holds it nowhere — the write
     /// would land in a value dropped at the end of the statement. PHP 8.5
     /// accepts the spelling and discards the write with no diagnostic at all
@@ -1691,7 +1686,7 @@ pub mod code {
     /// A reference assignment, `$a = &$b;`.
     ///
     /// PHP binds the two names to one slot, so a later write through either
-    /// is seen through the other. Novis has nowhere to put that: ADR 0031 § 2
+    /// is seen through the other. Novis has nowhere to put that: `rule:types/implicit-capture`
     /// removed by-reference capture, so no binding aliases another, and
     /// ADR 0023 fixes what a copy means, so the right-hand side is a copy at
     /// the point the assignment runs. The same reasoning already refuses
@@ -1725,11 +1720,11 @@ pub mod code {
     /// parameter list is packed and written back at the *call site*, which is
     /// the one thing a call whose callee is unknown until it runs cannot do.
     pub const E_INOUT_ARG_UNEXPECTED: Code = Code::new("E0714");
-    /// `::class` written on a side that carries no class — ADR 0144 § 2.
+    /// `::class` written on a side that carries no class — `rule:types/class-constant`.
     ///
     /// `::class` answers the class the value *is*, so the operand has to carry
     /// one. An object does, and a `class<T>` does; `static::class` and
-    /// `$obj::class` both lower (ADR 0144 § 1), reading the name off a
+    /// `$obj::class` both lower (`rule:types/class-constant`), reading the name off a
     /// descriptor the frame already holds. What is left is the operand that
     /// might hold a class and might not, and the one that never can:
     ///
@@ -1737,7 +1732,7 @@ pub mod code {
     ///   behind a spelling that reads like a member read. The narrowing that
     ///   lifts it is the one `->` already requires, and `Core\Reflect` (ADR
     ///   0019) is the door for a receiver whose type was genuinely erased.
-    /// * a `class<T>` — already a descriptor, so its name is ADR 0125 § 2's
+    /// * a `class<T>` — already a descriptor, so its name is `rule:types/class-reference`'s
     ///   `as string` conversion rather than a member read.
     /// * anything else — a scalar, an `array<T>`, an enum: it never holds an
     ///   object at all.
@@ -1747,7 +1742,7 @@ pub mod code {
     ///
     /// A name that resolves to nothing is not this code: `Bogus::class` is
     /// [`E_UNDEFINED_CLASS`]'s `E0303`, the same mistake `new Undeclared()`
-    /// takes, because ADR 0144 § 1's fold leaves it nowhere later to be
+    /// takes, because `rule:types/class-constant`'s fold leaves it nowhere later to be
     /// caught.
     pub const E_CLASS_NAME_CONST_NOT_STATIC: Code = Code::new("E0702");
     // `E0703` is retired and is never reused: `spawn script` refused its own
@@ -1756,11 +1751,11 @@ pub mod code {
     // **value** is `rule:statements/a-require-expression-is-mixed`'s `mixed` and lowers, the site calling the
     // target file's own script frame and keeping what it hands back
     // (`nvs_ir::lower::Lowering::lower_expr`).
-    /// `-`, `+` or `~` over an operand ADR 0007 § 4's arithmetic table has no
+    /// `-`, `+` or `~` over an operand `rule:types/arithmetic`'s arithmetic table has no
     /// row for — a `string`, a `bytes`, an `array<T>`, a `bool`, `null`, a
     /// `callable` or an enum case. The sibling of [`E_INCREMENT_NOT_NUMERIC`]
     /// one operator over, and it exists for the same reason: PHP answers each
-    /// of these by *converting* the operand first, and ADR 0007 § 2 has no
+    /// of these by *converting* the operand first, and `rule:types/conversion` has no
     /// implicit conversion for that to be — so unary `+`, which is the
     /// identity over every numeric type, would otherwise be a silent identity
     /// over a `string` where PHP produces a number.
@@ -1770,31 +1765,31 @@ pub mod code {
     /// operator overloading" is the sentence that author needs, not "convert
     /// it first".
     pub const E_UNARY_ARITH_NOT_NUMERIC: Code = Code::new("E0705");
-    /// `&`, `|`, `^`, `<<`, `>>` or `~` over an operand ADR 0007 § 4's bitwise
+    /// `&`, `|`, `^`, `<<`, `>>` or `~` over an operand `rule:types/arithmetic`'s bitwise
     /// row has no entry for — that row is `int` and `uint` and nothing else,
     /// so a `float`, a `decimal`, a `string`, a `bool`, `null`, an `array<T>`,
     /// a `callable` or an object all take this code.
     ///
     /// The sibling of [`E_UNARY_ARITH_NOT_NUMERIC`] one row over, and the
     /// division of labour between them is the *numeric* operands: `-1.5` is
-    /// arithmetic ADR 0007 § 4 grants and `~1.5` is not, because a `float` and
+    /// arithmetic `rule:types/arithmetic` grants and `~1.5` is not, because a `float` and
     /// a `decimal` are numbers with no bit pattern to complement. A
     /// non-numeric operand of `~` keeps the unary code, whose sentence — "PHP
     /// converts this operand first" — is the one that author needs.
     ///
     /// What it replaces is worse than a refusal: `1.5 & 1.5` used to answer
     /// `1.5`, a bit-and over the `f64`'s own representation, where PHP answers
-    /// the `int` `1`; a `decimal` operand panicked `nvs-ir`'s ADR 0054 § 3
+    /// the `int` `1`; a `decimal` operand panicked `nvs-ir`'s `rule:types/arithmetic`
     /// table instead.
     pub const E_BITWISE_NOT_INTEGER: Code = Code::new("E0706");
     /// A `bytes`, an `array<T>`, an enum case or a `void` call used where a
     /// `string` is produced *implicitly* — `.`, `.=`, an interpolated piece,
-    /// `echo`/`print`. ADR 0007 § 2's "anything → `string`" row is "total for
+    /// `echo`/`print`. `rule:types/conversion`'s "anything → `string`" row is "total for
     /// scalars; an object needs `Stringable`", and these four are the types it
     /// does not reach at all.
     ///
     /// The explicit `as string` is deliberately not this code's business:
-    /// ADR 0009 § 3 grants `bytes as string`, and the whole of the difference
+    /// `rule:types/conversion` grants `bytes as string`, and the whole of the difference
     /// is an encoding decision made out loud rather than by a `.` operator. An
     /// object with no `toString` keeps [`E_STRINGABLE_REQUIRED`], whose
     /// sentence names the interface to implement.
@@ -1803,10 +1798,10 @@ pub mod code {
     /// PHP's answer and the one a `?string` holding `null` already gets at run
     /// time — `nvs_ir::lower::expr`'s `concat_operand` owns that row.
     pub const E_NO_STRING_FORM: Code = Code::new("E0707");
-    /// An `expr as T` whose operand and target name no row of ADR 0007 § 2's
+    /// An `expr as T` whose operand and target name no row of `rule:types/conversion`'s
     /// conversion table, nor of the three ADRs that table delegates rows to —
-    /// ADR 0009 § 3's `string` ↔ `bytes` pair, ADR 0054 § 4's `decimal` ones
-    /// and ADR 0010 § 5's two enum ones.
+    /// `rule:types/conversion`'s `string` ↔ `bytes` pair, `rule:types/conversion`'s `decimal` ones
+    /// and `rule:types/conversion`'s two enum ones.
     ///
     /// The table is *closed*: `as` "either produces a value of the target type
     /// or throws", so a pair with no row has nothing to produce and nothing to
@@ -1825,7 +1820,7 @@ pub mod code {
     /// `as ?T` "yields `null` exactly where `as T` would throw" — so over a
     /// row that never throws it promises a `null` no run can produce, and
     /// every reader after it is forced to check for it. `$i as ?int` (the
-    /// identity), `$i as ?string` (ADR 0007 § 2's total "anything →
+    /// identity), `$i as ?string` (`rule:types/conversion`'s total "anything →
     /// `string`" row), `$x as ?bool` (`rule:expressions/truthy-positions`'s, which has an answer for
     /// every type) and `Mode::Read as ?Mode` are the shapes that reach it.
     ///
@@ -1854,7 +1849,7 @@ pub mod code {
     /// plain `object`, a shape, `callable`, or a `Core`-owned class — from an
     /// operand that is not already an object.
     ///
-    /// ADR 0007 § 2 tabulates no row producing an object, and the one reason a
+    /// `rule:types/conversion` tabulates no row producing an object, and the one reason a
     /// class target is admitted at all is that it can be *checked*: the
     /// downcast out of `mixed` tests the value's runtime class and throws when
     /// it misses. A target naming no class has nothing to test — there is no
@@ -1876,7 +1871,7 @@ pub mod code {
 
     /// A `name:` argument at a call through a `callable`.
     ///
-    /// ADR 0031 § 1 gives `callable` no parameter list — it is one opaque type
+    /// `rule:types/closure-literal` gives `callable` no parameter list — it is one opaque type
     /// whatever closure a variable holds — so there is no parameter for a name
     /// to fill, at the site or below it: a closure value records its arity and
     /// its parameter *tags*, never their names, so nothing at run time could
@@ -1892,13 +1887,13 @@ pub mod code {
     /// own run-time length, which needs no parameter list to be meaningful.
     ///
     /// A call through a **`mixed` receiver** takes the same code, because it
-    /// is the same absence: ADR 0036 § 4 defers that call to the receiver's
+    /// is the same absence: `rule:types/erased-member-access` defers that call to the receiver's
     /// runtime class, whose method row carries the callee's arity and
     /// parameter tags and — for a closure value's reason — never its parameter
     /// names.
     pub const E_NAMED_ARG_THROUGH_CALLABLE: Code = Code::new("E0712");
 
-    /// `<`, `<=`, `>`, `>=` or `<=>` over an operand ADR 0007 § 4 gives no
+    /// `<`, `<=`, `>`, `>=` or `<=>` over an operand `rule:types/arithmetic` gives no
     /// ordering row for.
     ///
     /// That table orders the numeric types against each other and, through
@@ -1915,18 +1910,18 @@ pub mod code {
     ///
     /// `bool` is deliberately *not* refused: `false < true` is the machine
     /// ordering of the one bit, it is PHP's answer as well, and it needs no
-    /// conversion to be exact — the row is left out of ADR 0007 § 4's table
+    /// conversion to be exact — the row is left out of `rule:types/arithmetic`'s table
     /// because that table is about the numeric widenings, not because two
     /// `bool`s are unordered.
     pub const E_ORDERING_HAS_NO_ROW: Code = Code::new("E0715");
 
-    /// `+`, `-`, `*`, `/`, `%` or `**` over an operand ADR 0007 § 4 gives no
+    /// `+`, `-`, `*`, `/`, `%` or `**` over an operand `rule:types/arithmetic` gives no
     /// arithmetic row for.
     ///
     /// That table's operands are the numeric types — `int`, `uint`, `float`
-    /// and, through ADR 0054 § 3, `decimal` — and it is as *closed* as the
+    /// and, through `rule:types/arithmetic`, `decimal` — and it is as *closed* as the
     /// ordering row [`E_ORDERING_HAS_NO_ROW`] refuses against. Everything else
-    /// PHP adds it adds by converting first, which ADR 0007 § 2 never does by
+    /// PHP adds it adds by converting first, which `rule:types/conversion` never does by
     /// itself, so a `bool`, a `string`, a `bytes`, an `array<T>`, a
     /// `callable`, `null` and an object have no `+` at all and each help names
     /// the spelling that says what was meant.
@@ -1944,7 +1939,7 @@ pub mod code {
     /// `%` with a `float` operand.
     ///
     /// The one row this band refuses that both operands *are* numbers for.
-    /// ADR 0007 § 4's "either operand a `float`" row is written for the
+    /// `rule:types/arithmetic`'s "either operand a `float`" row is written for the
     /// arithmetic operators as a family, but `%` is the one member of it PHP
     /// does not answer that way: PHP converts both operands to an integer and
     /// returns an integer, where the row would return a `float`. The two are
@@ -1960,7 +1955,7 @@ pub mod code {
     /// A call that returns `void` used as an operator's operand.
     ///
     /// Every other refusal in this band is "this type names no row of
-    /// ADR 0007 § 4's table". This one is a step earlier: a `void` call has no
+    /// `rule:types/arithmetic`'s table". This one is a step earlier: a `void` call has no
     /// value *at all*, so there is no operand for a row to be about, and the
     /// question of which row applies never arises. The two ends of the
     /// language agree on nothing here — `nvs-ir` has no representation to
@@ -1980,14 +1975,14 @@ pub mod code {
     ///
     /// `rule:expressions/truthy-positions` makes a condition the one place a value is tested without
     /// `as`, and "a value" is exactly what a `void` call is not — so its
-    /// truthy table, like ADR 0007 § 4's, has nothing to look a row up for.
+    /// truthy table, like `rule:types/arithmetic`'s, has nothing to look a row up for.
     /// The two refusals are one sentence apart and are deliberately two
     /// codes: [`E_VOID_IS_NOT_AN_OPERAND`] is read by an author who wrote an
     /// operator and reads "not an operand", which is the wrong sentence for
     /// `if (V::nothing())`, where no operator is written at all.
     ///
     /// The line between them is *which table has no row*, not which syntax
-    /// was used. `&&`, `||` and `??` are ADR 0007 § 4's operands and keep
+    /// was used. `&&`, `||` and `??` are `rule:types/arithmetic`'s operands and keep
     /// [`E_VOID_IS_NOT_AN_OPERAND`]; `!` and `empty()` are `rule:expressions/truthy-table`'s
     /// truthy test written out and take this one, alongside the four
     /// statement conditions and a ternary's.
@@ -2052,7 +2047,7 @@ pub mod code {
     /// called any number of times has no such moment.
     pub const E_PROMOTED_PARAM_OUTSIDE_CONSTRUCTOR: Code = Code::new("E0722");
     /// A `foreach` key binding over an `array<T>` declared as anything but
-    /// `string` — ADR 0007 § 5's "every key is a `string`" read at the one
+    /// `string` — `rule:types/arrays`'s "every key is a `string`" read at the one
     /// place a program can name a key's type.
     ///
     /// An array has exactly one stored key type, so `foreach ($a as int $k
@@ -2063,7 +2058,7 @@ pub mod code {
     /// names the rule rather than the pair.
     ///
     /// Unrefused it reached no diagnostic *and* no answer: `nvs-ir` lowers a
-    /// key binding only at `string` (ADR 0007 § 5 again, one crate down) and
+    /// key binding only at `string` (`rule:types/arrays` again, one crate down) and
     /// asserted on anything else, so a mistake in the program surfaced as a
     /// panic naming a compiler gap. A subscript's `$a[8]` is normalised to
     /// `$a["8"]` at the subscript rather than converted, and there is no
@@ -2142,7 +2137,7 @@ pub mod code {
     /// shape type — `rule:attributes/structural-retrieval`.
     ///
     /// Retrieval is *structural*: `T` is what an attached literal is matched
-    /// against under ADR 0036 § 3's width subtyping, so a `T` that is not a
+    /// against under `rule:types/shape-type`'s width subtyping, so a `T` that is not a
     /// shape names nothing an attribute payload could ever satisfy.
     pub const E_ATTRIBUTE_TYPE_ARG_NOT_A_SHAPE: Code = Code::new("E0729");
     /// The `$target` of a `Core\Attributes::get`/`all` call does not name a
@@ -2171,9 +2166,9 @@ pub mod code {
     /// `mixed` receiver.
     ///
     /// Every other erased receiver takes [`E_METHOD_ON_ERASED_RECEIVER`] for
-    /// the whole call; `mixed` is ADR 0007 § 2's one unchecked position and
+    /// the whole call; `mixed` is `rule:types/conversion`'s one unchecked position and
     /// defers instead, so a *call* through it dispatches on the receiver's
-    /// runtime class. This spelling does not call at all: ADR 0027 makes it a
+    /// runtime class. This spelling does not call at all: `rule:types/callable-is-a-closure` makes it a
     /// closure **value**, which carries the callee's arity and parameter tags
     /// in the value itself (`nvs_runtime::closure`), and there is no class
     /// here to read either off — the receiver's descriptor answers a call it
@@ -2270,7 +2265,7 @@ pub mod code {
     /// A method declaring a return type other than `void` has a path that
     /// reaches the end of its body without returning or throwing.
     ///
-    /// ADR 0007 § 1's "nothing is untyped" has no answer for what such a path
+    /// `rule:types/declaration`'s "nothing is untyped" has no answer for what such a path
     /// hands back: `nvs_ir::lower::lower_method` seals a body's fall-through
     /// exit with `Terminator::Return(None)`, so the caller reads a value of no
     /// declared type at all where an `int` was promised. PHP returns `null`
@@ -2283,7 +2278,7 @@ pub mod code {
     pub const E_MISSING_RETURN: Code = Code::new("E0739");
     /// The first-class callable spelling written on `new`: `new C(...)`.
     ///
-    /// ADR 0027 § 1's kept list is a list of *members* — `Class::method(...)`,
+    /// `rule:types/callable-is-a-closure`'s kept list is a list of *members* — `Class::method(...)`,
     /// `$obj->method(...)`, `self`/`static`/`parent::method(...)` — and a
     /// constructor is not one of them: `new` names a class, and the closure
     /// this syntax builds carries a callee, not an allocation. PHP refuses it
@@ -2322,7 +2317,7 @@ pub mod code {
 
     /// A parameter declares `void` or `never`.
     ///
-    /// ADR 0007 § 3 says both are return-only, and there is nothing else they
+    /// `rule:types/grammar` says both are return-only, and there is nothing else they
     /// could mean in an argument position: `void` is the absence of a value,
     /// so no argument satisfies it, and `never` is the empty type, so no
     /// argument satisfies that either. A method declaring one has no callable
@@ -2711,7 +2706,7 @@ pub mod code {
     /// there is nothing to bind from". [ADR
     /// 0031](/docs/adr/0031-callable-is-the-only-closure-type.md) leaves
     /// `callable` without a signature, so the field's own result type exists
-    /// only at the literal; ADR 0007 § 3's deferred typed-`callable`
+    /// only at the literal; `rule:types/grammar`'s deferred typed-`callable`
     /// signatures are what would remove this, and that ADR's *Revisiting* is
     /// where the case is counted.
     pub const E_CALLABLE_SHAPE_FIELD_NOT_A_LITERAL: Code = Code::new("E0774");
@@ -2917,7 +2912,7 @@ pub mod code {
     /// author can act on is the one that asked for a value.
     ///
     /// Distinct from [`E_LITERAL_TYPE_NOT_CONST`], which refuses the same
-    /// declaration in *type* position under ADR 0047 § 2's narrower question
+    /// declaration in *type* position under `rule:types/constant-in-type-position`'s narrower question
     /// ("is this a `string` or `int` literal type"). An `array` constant is
     /// legal here and refused there, and after the array fold this code is
     /// down to the shapes no constant emitter exists for at all — another
@@ -2925,11 +2920,10 @@ pub mod code {
     /// container.
     pub const E_CLASS_CONST_NO_CONSTANT_FORM: Code = Code::new("E0792");
 
-    /// ADR 0027 § 1's `(...)` naming a member whose parameter list a
+    /// `rule:types/callable-is-a-closure`'s `(...)` naming a member whose parameter list a
     /// `callable` cannot carry — one declared `inout $x`, or a variadic tail.
     ///
-    /// [ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md)
-    /// § 4 gives `callable` no parameter list, so a call *through* one passes
+    /// `rule:types/callable-absorbs-closure` gives `callable` no parameter list, so a call *through* one passes
     /// what it was written with and nothing else: there is no site that could
     /// know to stage a by-reference cell, and none that could know to collect
     /// a tail into the one array the callee reads that slot as. Both are
@@ -2953,7 +2947,7 @@ pub mod code {
     /// file's `new` the reason a class cannot be written.
     pub const E_DYNAMIC_NEW_DIVERGENT_CONSTRUCTOR: Code = Code::new("E0794");
 
-    /// ADR 0125 § 1: a `class<T>` whose argument is not a class or an
+    /// `rule:types/class-reference`: a `class<T>` whose argument is not a class or an
     /// interface — `class<int>`, `class<array<Dog>>`, an enum name.
     ///
     /// A class reference's value is a class descriptor, so the argument is the
@@ -3011,7 +3005,7 @@ pub mod code {
     /// can tell the two apart.
     pub const E_ATTRIBUTE_MEMBER_NOT_DECLARED: Code = Code::new("E0798");
 
-    /// ADR 0126 § 1: a `property<T>` whose argument is not a class —
+    /// `rule:types/property-key`: a `property<T>` whose argument is not a class —
     /// `property<int>`, an interface, an enum.
     ///
     /// A property key's values are the names of `T`'s public declared
@@ -3027,8 +3021,7 @@ pub mod code {
     /// argument lowered without a complaint of its own, so an unresolvable name
     /// stays [`E_UNDEFINED_CLASS`] alone.
     ///
-    /// **The name is the first of its two rows, not the whole code.** ADR 0126
-    /// § 1 refuses an argument that is not a class *and* a class whose public
+    /// **The name is the first of its two rows, not the whole code.** `rule:types/property-key` refuses an argument that is not a class *and* a class whose public
     /// property set is empty, "since no value of that type could ever exist" —
     /// one rule about what `T` may be, so one code. The second row is reported
     /// from `nvs_types::expr::operators::reject_empty_property_key_set`, at the

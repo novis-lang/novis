@@ -19,8 +19,8 @@ Every `Core\Script\ExitReport` member answers the same thing on a second call, a
 // rows whose `error` is not null, and agreement about `null` is agreement two
 // broken members would also reach.
 
-// Both sets are captured by the two hooks below. Capture is by value (ADR 0031
-// § 2), and an object handle copied is still the one object — which is what
+// Both sets are captured by the two hooks below. Capture is by value (`rule:types/implicit-capture`
+// ), and an object handle copied is still the one object — which is what
 // lets the second hook count what the first one saw. The comparison is
 // `Core\ObjectSet`'s own, and for an object that is identity (`rule:expressions/equality-semantics`),
 // so these counts are claims about *which* object each reading was and not

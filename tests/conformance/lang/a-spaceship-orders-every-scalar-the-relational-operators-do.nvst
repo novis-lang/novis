@@ -1,5 +1,5 @@
 --TEST--
-`<=>` answers -1, 0 or 1 for every scalar `<` already orders, and `1` for an unordered pair (ADR 0013 § 2; ADR 0007 § 4; ADR 0054 § 3)
+`<=>` answers -1, 0 or 1 for every scalar `<` already orders, and `1` for an unordered pair (ADR 0013 § 2; `rule:types/arithmetic`; `rule:types/arithmetic`)
 --FILE--
 <?nvs
 // ADR 0013 § 2 gave `<=>` an *object* row — `Comparable::compareTo`, whose
@@ -27,12 +27,12 @@ float $lower = 1.5;
 float $upper = 2.5;
 echo $lower <=> $upper, " ", $upper <=> $lower, " ", $lower <=> $lower, "\n";
 
-// A mixed numeric pair is ADR 0007 § 4's "exact answer in the mathematical
+// A mixed numeric pair is `rule:types/arithmetic`'s "exact answer in the mathematical
 // integers": it is settled by the same helper `<` uses rather than by § 2's
 // implicit widening, which throws above 2^53 for a pair that still orders.
 echo 1 <=> 1.5, " ", 2.5 <=> 2, "\n";
 
-// ADR 0054 § 3 grants `decimal` every comparison, including the
+// `rule:types/arithmetic` grants `decimal` every comparison, including the
 // `decimal`/`float` pairing arithmetic refuses, because an exact comparison is
 // computable where a common arithmetic type is not.
 decimal $quarter = 1.25;

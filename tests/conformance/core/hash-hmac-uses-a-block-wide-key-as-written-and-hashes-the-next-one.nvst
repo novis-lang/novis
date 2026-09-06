@@ -1,5 +1,5 @@
 --TEST--
-`Core\Hash::hmac` zero-extends a key up to exactly one block and replaces the first key past it with its own digest, asserted from both sides of that bound — spec § 11, ADR 0009 §§ 1 and 3
+`Core\Hash::hmac` zero-extends a key up to exactly one block and replaces the first key past it with its own digest, asserted from both sides of that bound — spec § 11, `rule:types/bytes` and `rule:types/conversion`
 --FILE--
 <?nvs
 // § 11: RFC 2104 has one width at which a key stops being used as written —

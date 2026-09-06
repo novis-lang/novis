@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::slice renumbers every key its preserveKeys option discards, where array_slice renumbers the integers and keeps the strings
 --ORACLE-DIVERGES--
-ADR 0069 § 3 removes every rule that asks what type a key is, and array_slice's `$preserve_keys = false` is one: it renumbers the integer keys of the window and keeps the string ones, so the same call answers a list or a map depending on what the subject's keys happened to be. Novis's `{preserveKeys: false}` discards every key alike and the result is a list from "0", whatever went in; `{preserveKeys: true}` keeps every key alike, and that half of the option does agree with PHP entry for entry.
+`rule:types/preserve-keys` removes every rule that asks what type a key is, and array_slice's `$preserve_keys = false` is one: it renumbers the integer keys of the window and keeps the string ones, so the same call answers a list or a map depending on what the subject's keys happened to be. Novis's `{preserveKeys: false}` discards every key alike and the result is a list from "0", whatever went in; `{preserveKeys: true}` keeps every key alike, and that half of the option does agree with PHP entry for entry.
 --FILE--
 <?nvs
 final class Render {

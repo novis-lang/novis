@@ -1,4 +1,4 @@
-//! `int`/`uint` arithmetic and integer-literal placement — ADR 0007 § 4.
+//! `int`/`uint` arithmetic and integer-literal placement — `rule:types/arithmetic`.
 //!
 //! Moved out of `nvs_types::check`'s inline `mod tests`; every test keeps its
 //! own name and body. See `tests/common/mod.rs` for the shared fixtures.
@@ -35,14 +35,14 @@ fn int_plus_uint_is_diagnosed() {
 
 #[test]
 fn an_integer_literal_assigned_into_a_uint_local_is_fine() {
-    // ADR 0007 § 4: a plain integer literal means `uint` exactly where
+    // `rule:types/arithmetic`: a plain integer literal means `uint` exactly where
     // that's the expected type — this must not be diagnosed as `int`
     // vs. `uint` mismatch.
     let diags = check_in_method("uint $n = 1;\n");
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
-/// ADR 0007 § 4: a literal larger than `i64::MAX` (`9223372036854775807`)
+/// `rule:types/arithmetic`: a literal larger than `i64::MAX` (`9223372036854775807`)
 /// but still within `uint`'s `u64` range is legal exactly where `uint` is
 /// expected.
 #[test]
@@ -51,7 +51,7 @@ fn a_literal_too_large_for_int_assigned_into_a_uint_local_is_fine() {
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
-/// The same literal has no legal home as a plain `int` — ADR 0007 § 4's
+/// The same literal has no legal home as a plain `int` — `rule:types/arithmetic`'s
 /// "otherwise a diagnostic saying exactly that."
 #[test]
 fn a_literal_too_large_for_int_assigned_into_an_int_local_is_diagnosed() {
@@ -120,7 +120,7 @@ fn a_negative_literal_into_a_uint_local_is_an_ordinary_type_mismatch() {
     );
 }
 
-/// ADR 0007 § 4's "either operand a `float`" row, read as a *widening*: a
+/// `rule:types/arithmetic`'s "either operand a `float`" row, read as a *widening*: a
 /// mixed-representation arithmetic pair produces the wider of the two, so it
 /// lands in a `float` binding and is refused at an `int` one. Both operand
 /// orders and both integer tags, because the row is stated over "either
@@ -136,7 +136,7 @@ fn a_mixed_numeric_pair_widens_the_narrower_operand() {
 
     // The widening only ever runs toward `float`. Nothing narrows the pair
     // back to fit a declaration — that would be the implicit conversion
-    // ADR 0007 § 2 has exactly one of, and this is not it.
+    // `rule:types/conversion` has exactly one of, and this is not it.
     let narrowed = check_in_method("int $i = 1;\nfloat $f = 1.5;\nint $n = $i + $f;\n");
     assert!(
         narrowed
@@ -179,7 +179,7 @@ fn a_mixed_numeric_comparison_widens_the_same_way() {
     );
 }
 
-/// ADR 0007 § 4: `int / int` is the union `int|float` — PHP-exact, `6/3`
+/// `rule:types/arithmetic`: `int / int` is the union `int|float` — PHP-exact, `6/3`
 /// being an integer and `7/2` a float — and § 2's one implicit conversion is
 /// what absorbs it, **at the binding**, never at the operator. So the
 /// quotient lands in a declared `float` and is a diagnostic at a declared
@@ -209,7 +209,7 @@ fn an_integer_division_is_a_union_widened_at_its_binding() {
     );
 }
 
-/// ADR 0007 § 4's arithmetic rows are the numeric types, and the table is as
+/// `rule:types/arithmetic`'s arithmetic rows are the numeric types, and the table is as
 /// closed at the operand end as its ordering row is. Everything else PHP adds
 /// it adds by converting first, which § 2 never does by itself — so each of
 /// these is a diagnostic where it is written rather than an answer below it.
@@ -243,7 +243,7 @@ fn an_arithmetic_operand_with_no_row_is_a_compile_error() {
     let nullable = check_in_method("?int $n = null;\nmixed $c = $n * 2;\n");
     assert!(!nullable.has_errors(), "{nullable:?}");
 
-    // An enum keeps ADR 0010 § 5's own diagnostic rather than joining this one.
+    // An enum keeps `rule:types/conversion`'s own diagnostic rather than joining this one.
     let enums = check_src(
         "<?nvs\nenum Mode { Read, Write }\nclass T {\n  function m(): void {\n\
          Mode $a = Mode::Read;\nmixed $c = $a + $a;\n  }\n}\n",
@@ -257,7 +257,7 @@ fn an_arithmetic_operand_with_no_row_is_a_compile_error() {
 }
 
 /// `%` with a `float` operand is the one refusal both operands are numbers
-/// for: PHP converts to an integer and answers one, ADR 0007 § 4's float row
+/// for: PHP converts to an integer and answers one, `rule:types/arithmetic`'s float row
 /// would answer a `float`, and the spec's `Core\Math::mod` row makes `%` the
 /// integer operator. `nvs-codegen` lowers no static one and
 /// `nvs_runtime::helpers::value_arith` throws for the tagged pair, so this is
@@ -282,7 +282,7 @@ fn a_float_modulo_is_a_compile_error() {
     assert!(!integers.has_errors(), "{integers:?}");
 }
 
-/// ADR 0007 § 2's grid gives a `bool` source exactly one row — "anything →
+/// `rule:types/conversion`'s grid gives a `bool` source exactly one row — "anything →
 /// `string`", which is total for scalars — and no numeric one at all, so
 /// `$b as int` has nothing to produce and nothing to throw. The two halves of
 /// the rule are asserted together because either alone reads as an accident.

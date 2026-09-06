@@ -45,7 +45,7 @@
 //!   have. `Core\Task` beside `Core\Task\Channel<T>` is the same pairing
 //!   already on disk, so `Core\Script::args()` (item 22) and this class sit
 //!   together under ADR 0011 exactly as those two do.
-//! - **The result is an ADR 0036 § 3 shape**, not a class. `$result->ok` is
+//! - **The result is an `rule:types/shape-type` shape**, not a class. `$result->ok` is
 //!   read on the next line, and a class read with `->` is the one thing this
 //!   cannot be without new machinery in three crates — a property resolution
 //!   against `CoreClass::slots` in this crate, a slot read in `nvs-ir`, and a
@@ -65,7 +65,7 @@
 //! § *Failure is a value, not an exception* and are **item 22's**, together
 //! with the top-level `return` contract that fills `value`. `rule:testing/debug-probes`'s
 //! coverage data lands on the same shape later, and costs nothing structurally
-//! — ADR 0036 § 3's width subtyping makes a field added to the answer
+//! — `rule:types/shape-type`'s width subtyping makes a field added to the answer
 //! invisible to every call site that does not read it.
 //!
 //! `error` is nullable because the native half makes it `Some` exactly when

@@ -1,8 +1,8 @@
 --TEST--
-An array-element write whose root is only a temporary is refused, whichever write spelling and whichever root — ADR 0007 § 5 and § 7 row 15
+An array-element write whose root is only a temporary is refused, whichever write spelling and whichever root — `rule:types/arrays` and § 7 row 15
 --FILE--
 <?nvs
-// ADR 0007 § 5 separates the array before an element is written, and
+// `rule:types/arrays` separates the array before an element is written, and
 // `nvs_ir::lower::Lowering::write_back_array` has to put the separated copy
 // back into whatever held it — a local, a property, or a static property. A
 // root that is none of those holds it nowhere, so the write would be

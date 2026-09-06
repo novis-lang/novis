@@ -92,7 +92,7 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
 
     // ADR 0014 § 2's pair, written exactly as that section spells it. `$value`
     // is `mixed` because one observer sees properties of every type, which is
-    // the boundary shape ADR 0007 § 2 reserves `mixed` for; both return `void`
+    // the boundary shape `rule:types/conversion` reserves `mixed` for; both return `void`
     // because an observer reports and does not decide (§ 3).
     let void_ty = interner.void();
     let mixed_ty = interner.mixed();
@@ -159,7 +159,7 @@ fn elem_var(interface: &str, interner: &mut TypeInterner) -> TypeId {
 ///
 /// `names` is the parameter list the interface's own ADR writes, one per
 /// entry of `params`: being callable by name is ADR 0063 R2's rule for
-/// `Core` but the *language's* rule for everything (ADR 0007 § 5), so a
+/// `Core` but the *language's* rule for everything (`rule:types/arrays`), so a
 /// reserved interface is not the one surface a `name:` cannot reach.
 fn bodiless(names: &[&str], params: Vec<TypeId>, return_ty: TypeId) -> MethodSig {
     debug_assert_eq!(

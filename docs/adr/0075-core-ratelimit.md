@@ -68,7 +68,7 @@ Core\RateLimit::shed(tainted string $key, uint $limit, Duration $per,
 
 Subject first ([ADR 0063](0063-core-api-conventions.md) R1), the two required arguments in dataflow order,
 one trailing options shape (R2), and `per` a `Duration` rather than a count of seconds (R12), written as an
-[ADR 0070](0070-duration-literals.md) literal.
+`rule:types/duration-literal` literal.
 
 ```php
 $d = RateLimit::consume("login:{$accountId}", 5, 15m);

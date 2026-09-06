@@ -1,5 +1,5 @@
 --TEST--
-The empty subject is a fixed point of every `Core\Str` member that answers a string, and `lines` is the one that has to decide what an empty subject holds — spec § 1, ADR 0009 § 2
+The empty subject is a fixed point of every `Core\Str` member that answers a string, and `lines` is the one that has to decide what an empty subject holds — spec § 1, `rule:types/string-is-utf8`
 --FILE--
 <?nvs
 // The *agreement* shape over the one boundary every transformation in § 1 is
@@ -20,7 +20,7 @@ int $asked = 0;
 $asked = $asked + 1;
 if (Core\Str::lowerFirst($empty) == $empty) { $fixed = $fixed + 1; }
 
-// ADR 0009 § 2's grapheme walk over no graphemes.
+// `rule:types/string-is-utf8`'s grapheme walk over no graphemes.
 $asked = $asked + 1;
 if (Core\Str::reverse($empty) == $empty) { $fixed = $fixed + 1; }
 

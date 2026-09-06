@@ -1,8 +1,8 @@
 --TEST--
-Core\Arr::overlay, ::underlay and ::appendAll are one key-order rule asked three ways, over a table mixing integer and string keys — ADR 0069 §§ 1 and 5
+Core\Arr::overlay, ::underlay and ::appendAll are one key-order rule asked three ways, over a table mixing integer and string keys — `rule:types/array-combination` and `rule:types/arrays`
 --FILE--
 <?nvs
-// The depth claim is *agreement*: ADR 0069 § 1 gives all three combining
+// The depth claim is *agreement*: `rule:types/array-combination` gives all three combining
 // members one key-order rule — an existing key keeps its position, a new key
 // lands at the end in the order first met — and lets them differ only in which
 // side's value survives. So each pair below is put to every member and what is
@@ -112,7 +112,7 @@ echo $verdicts, "\n";
 echo $held, " of ", Core\Arr::count($tables), "\n";
 echo $reordered, " of ", Core\Arr::count($tables), "\n";
 
-// The first row's pair, as ADR 0069 § 1 writes it: the same three entries, in
+// The first row's pair, as `rule:types/array-combination` writes it: the same three entries, in
 // the order each member's own left argument gave them.
 array<string> $base = ["a" => "1", "b" => "2"];
 array<string> $layer = ["b" => "9", "c" => "3"];

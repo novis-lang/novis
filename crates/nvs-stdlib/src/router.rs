@@ -951,7 +951,7 @@ nvs_runtime::nvs_helper! {
         // Unreachable from source, as every mistyped argument slot is: the
         // row's parameter is `CoreTy::Text(Qual::Neutral)`, so `E0401` refuses
         // anything but a `string` before this body runs. The tag is also the
-        // whole UTF-8 guarantee (ADR 0009 § 3), so there is nothing left to
+        // whole UTF-8 guarantee (`rule:types/conversion`), so there is nothing left to
         // check about the path before comparing it against a declared one.
         let path = args[0].as_text().ok_or_else(|| {
             Fault::fatal(format!(
@@ -992,7 +992,7 @@ nvs_runtime::nvs_helper! {
 ///
 /// **A capture whose octets are not UTF-8 refuses**, which is
 /// [`crate::uri::decode_capture`]'s throw. [`CAPTURE`]'s text arm is a
-/// `tainted string` and ADR 0009 § 1 guarantees a `string` is valid UTF-8 by
+/// `tainted string` and `rule:types/bytes` guarantees a `string` is valid UTF-8 by
 /// construction, so `%ff` in a path segment has no capture to become; answering
 /// the undecoded text instead would hand the program a `%20` that every other
 /// capture had already lost, and answering `bytes` would widen [`CAPTURE`] to a
@@ -1125,7 +1125,7 @@ mod tests {
     /// `%2520` is the case that tells "once" from "until it stops changing" —
     /// a second pass would answer a space where one pass answers `%20` — and
     /// `%ff` is the boundary, since a capture binds as a `tainted string` and
-    /// ADR 0009 § 1 leaves no `string` for those octets to be.
+    /// `rule:types/bytes` leaves no `string` for those octets to be.
     #[test]
     fn a_route_capture_is_percent_decoded_once_where_it_crosses() {
         assert_eq!(

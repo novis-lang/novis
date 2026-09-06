@@ -1,5 +1,5 @@
 --TEST--
-`Core\Arr::padStart` and `::padEnd` count the shortfall from the subject's own count, place one and the same run on opposite sides, and repeat the one `$value` rather than a copy of it — spec § 2, ADR 0069 § 3
+`Core\Arr::padStart` and `::padEnd` count the shortfall from the subject's own count, place one and the same run on opposite sides, and repeat the one `$value` rather than a copy of it — spec § 2, `rule:types/preserve-keys`
 --FILE--
 <?nvs
 // The two members share `padding` and `append_copies`, so what is worth

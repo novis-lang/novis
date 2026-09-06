@@ -476,14 +476,14 @@ pub fn encode(value: Value) -> io::Result<Option<Vec<u8>>> {
             // cast reads back to the same bits.
             float.to_string()
         }
-        // Exact on both sides, as the other two drivers' is: ADR 0054's
+        // Exact on both sides, as the other two drivers' is: `rule:types/decimal`'s
         // `decimal` renders as digits and a point, which is `decimal`'s own
         // input form, so nothing rounds here the way binding a `float` would.
         Some(Tag::Decimal) => value
             .as_decimal()
             .map(|exact| exact.to_string())
             .unwrap_or_default(),
-        // A `string` is UTF-8 by ADR 0009; `text_param` widens it to UCS-2 on
+        // A `string` is UTF-8 by `rule:types/bytes`; `text_param` widens it to UCS-2 on
         // the way out, so the octets go out as they are.
         Some(Tag::Str) => {
             return Ok(Some(value.as_str_bytes().unwrap_or_default().to_vec()));

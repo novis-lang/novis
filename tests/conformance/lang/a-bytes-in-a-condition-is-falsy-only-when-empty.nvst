@@ -4,7 +4,7 @@
 <?nvs
 // `rule:expressions/truthy-table`'s `bytes` row is the one PHP does not hand over, because PHP
 // has no such type. Its `string` neighbour is falsy for the one-character
-// `"0"` because PHP reads a string as a possible number, and ADR 0009 makes
+// `"0"` because PHP reads a string as a possible number, and `rule:types/bytes` makes
 // `bytes` the type that never converts to one — so the exception is dropped
 // and emptiness is the only question a buffer answers here.
 //

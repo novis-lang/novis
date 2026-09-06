@@ -1,5 +1,4 @@
-//! Literal and enum-case types — [ADR 0047](/docs/adr/0047-literal-and-enum-case-types.md)
-//! §§ 1-4, at the point each atom becomes a real type and a value of one
+//! Literal and enum-case types — `rule:types/literal-types`, `rule:types/constant-in-type-position` and `rule:types/enum-case-type`, at the point each atom becomes a real type and a value of one
 //! becomes writable.
 //!
 //! Three halves are pinned here: *what an atom interns to* (§§ 1-3), § 4's
@@ -11,7 +10,7 @@
 //! The two facts this file exists to hold are the ones § 3 turns on — an enum
 //! case is **not** an int literal of its backing value, and a class constant
 //! **is** its value's own literal type — because unifying either one reopens
-//! [ADR 0010](/docs/adr/0010-enums-are-a-value-type.md) § 5's hole.
+//! `rule:types/conversion`'s hole.
 
 mod common;
 
@@ -113,7 +112,7 @@ fn a_class_constant_folds_and_an_enum_case_narrows() {
     assert_ne!(
         types.of("Mode::Read", "$m"),
         zero,
-        "folding a case to its backing value is exactly the hole ADR 0010 § 5 closed"
+        "folding a case to its backing value is exactly the hole `rule:types/conversion` closed"
     );
 }
 
@@ -215,7 +214,7 @@ fn a_literal_type_widens_to_its_base() {
     assert_eq!(types.interner.literal_base(one), int);
 }
 
-/// § 4's producer half: a literal expression takes ADR 0047 § 1's singleton
+/// § 4's producer half: a literal expression takes `rule:types/literal-types`'s singleton
 /// type from the position it lands in, so writing the value out is what
 /// satisfies the type — the step without which nothing but an `as` ever could.
 #[test]
@@ -302,7 +301,7 @@ fn a_base_type_does_not_narrow_to_a_literal_type_by_assignment() {
 /// § 3's atom, both halves at once: `Mode::Read` written where the position
 /// names it *is* that case's type, it widens to `Mode` for free, and the raw
 /// `int` its backing value equals still does not satisfy it — which is the
-/// hole [ADR 0010](/docs/adr/0010-enums-are-a-value-type.md) § 5
+/// hole `rule:types/conversion`
 /// closed and § 3 refuses to reopen.
 #[test]
 fn an_enum_case_expression_satisfies_a_case_subset_type_and_widens_to_the_enum() {
@@ -382,7 +381,7 @@ fn a_folded_class_constant_accepts_the_bare_value_it_names() {
 }
 
 /// § 4's checked `as`, on the rows the operand settles by itself: a literal
-/// the target names is *statically* satisfied — ADR 0054 § 2's placement,
+/// the target names is *statically* satisfied — `rule:types/numeric-literal-placement`'s placement,
 /// extended to § 1's string atom — while a base-typed operand still converts,
 /// which is the row that has to keep compiling.
 #[test]
@@ -476,7 +475,7 @@ fn an_enum_case_conversion_the_operand_disproves_is_refused() {
     );
 }
 
-/// A literal type is usable at every binding site ADR 0007 § 1 lists, not
+/// A literal type is usable at every binding site `rule:types/declaration` lists, not
 /// only at a local — so the same free widening runs at a parameter and at a
 /// return.
 #[test]

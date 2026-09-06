@@ -8,8 +8,8 @@ Core\Arr::replaceRange substitutes the same window as array_splice at every sign
 // what is being compared is the *array afterwards*, not the removed entries.
 //
 // The subject is a list because `array_splice` renumbers the integer keys and
-// keeps the string ones, where `replaceRange` renumbers everything — ADR 0069
-// § 3's rule rather than this member's opinion, and the divergence
+// keeps the string ones, where `replaceRange` renumbers everything — `rule:types/preserve-keys`
+// 's rule rather than this member's opinion, and the divergence
 // `arr-replace-range-on-string-keys-diverges-from-array_splice` pins. Over a
 // list the two rules coincide, so what remains to compare is the window
 // itself: which entries went, where the replacement landed, and how the tail

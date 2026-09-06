@@ -1,5 +1,5 @@
 --TEST--
-ADR 0009 § 3's conversion pair: `string as bytes` is total, `bytes as string` is checked and throws
+`rule:types/conversion`'s conversion pair: `string as bytes` is total, `bytes as string` is checked and throws
 --FILE--
 <?nvs
 class Convert {

@@ -24,8 +24,8 @@
   PHP code is overwhelmingly written with the symbols — the word forms appear almost nowhere outside of
   legacy code and this specific idiom.
 - Novis already declined to inherit the idiom that motivates keeping them. Priority 2 is PHP-*compatible
-  observable behaviour*, not PHP-*identical syntax* — the same distinction that let ADR 0034 drop `(int)$x`
-  and ADR 0027 drop string/array callables. A precedence trap with no counterbalancing benefit is not
+  observable behaviour*, not PHP-*identical syntax* — the same distinction that let `rule:types/no-legacy-cast` drop `(int)$x`
+  and `rule:types/callable-is-a-closure` drop string/array callables. A precedence trap with no counterbalancing benefit is not
   behaviour worth preserving.
 - The status quo was already a half-built feature, not a working one: `nvs-syntax` parses `and`/`or`/`xor`
   into `BinaryOp::LowAnd`/`LowOr`/`LowXor`, and `nvs-types` type-checks them to `bool` — but `nvs-ir`
@@ -42,7 +42,7 @@
 **`and`, `or`, and `xor` are rejected at parse time, in every position.** `nvs-syntax` still recognizes each
 keyword where an infix logical operator would go, so it can name the exact fix, but produces
 `ExprKind::Error` — the AST loses `BinaryOp::LowAnd`, `BinaryOp::LowOr`, and `BinaryOp::LowXor` entirely,
-the same way ADR 0034 dropped `ExprKind::Cast`.
+the same way `rule:types/no-legacy-cast` dropped `ExprKind::Cast`.
 
 ### 1. `&&`/`||` are the only surviving logical connectives
 
@@ -89,7 +89,7 @@ remain reserved purely to be diagnosed (`rule:statements/require-is-the-only-inc
 **Negative**
 
 - **Keyword `xor` has no one-token replacement**, unlike every other rejected-and-replaced construct this
-  project has recorded so far (`rule:statements/require-is-the-only-inclusion-construct`, ADR 0034). A PHP program using it needs a real rewrite, not a
+  project has recorded so far (`rule:statements/require-is-the-only-inclusion-construct`, `rule:types/no-legacy-cast`). A PHP program using it needs a real rewrite, not a
   mechanical substitution — `nvs convert` (M11) can offer `(a || b) && !(a && b)` as its default rewrite
   (correct for any truthy operand, matching PHP's own semantics) but cannot safely narrow to `a != b`
   without knowing both operands are already `bool`.
@@ -105,7 +105,7 @@ remain reserved purely to be diagnosed (`rule:statements/require-is-the-only-inc
   building and testing a whole extra lowering path (a second short-circuit shape in `nvs-ir`, at a third
   precedence tier) whose only purpose is to reproduce a footgun this project has no reason to keep.
 - **Keep `and`/`or` as plain aliases for `&&`/`||` (same precedence, just a second spelling), drop only
-  `xor`.** Rejected for the same reason ADR 0034 rejected keeping `(int)$x` as a permanent `as int` alias:
+  `xor`.** Rejected for the same reason `rule:types/no-legacy-cast` rejected keeping `(int)$x` as a permanent `as int` alias:
   a second spelling buys nothing once the semantics already match, and costs a second thing to teach
   everywhere else in the language has refused one.
 - **Deprecate first, remove later.** Every other rejected-construct diagnostic in this project is a hard

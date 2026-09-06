@@ -22,7 +22,7 @@
 > paths, Novis already knows exactly where it comes from. This ADR spends that fact: a `string`/`bytes`
 > returned by one of those classes (or by anything else that hands a script data it did not itself just
 > compute — see *Context*) carries a `tainted` qualifier, erased before codegen, that behaves like any other
-> checked type distinction in [ADR 0007](0007-explicit-type-system.md) — no implicit conversion out of it,
+> checked type distinction in `rule:types/declaration` — no implicit conversion out of it,
 > concatenation/interpolation poisons the result, and a handful of `Core` sinks (HTML output, SQL query
 > text, process arguments, HTTP headers, filesystem paths) refuse it outright. Laundering happens only
 > through narrow, sink-named `Core` functions whose return type is provably safe for that one sink, plus one
@@ -53,7 +53,7 @@
 ### 1. `tainted` is a compile-time qualifier on `string`/`bytes`, erased before codegen
 
 `tainted string` and `tainted bytes` join the type grammar as a qualified form of the two scalar types
-[ADR 0009](0009-string-and-bytes.md) already defines — not a class, not a wrapper, not a runtime tag. It is
+`rule:types/bytes` already defines — not a class, not a wrapper, not a runtime tag. It is
 checked exactly once, by `nvs check`, and carries no representation at all past that point: no extra byte in
 the value's header, no refcount change, no cost on the hot path. This is security bought for free under
 `rule:programs/memory-priority`'s ordering, the same way a `readonly` property costs nothing once
@@ -61,10 +61,10 @@ compiled.
 
 ```
 scalar_type   := 'string' | 'bytes'
-qualified_type := 'tainted'? scalar_type | <every other atom in ADR 0007 § 3, unqualified>
+qualified_type := 'tainted'? scalar_type | <every other atom in `rule:types/grammar`, unqualified>
 ```
 
-**This is new grammar, not only a new type-checker fact.** [ADR 0007](0007-explicit-type-system.md) requires
+**This is new grammar, not only a new type-checker fact.** `rule:types/declaration` requires
 every binding — parameter, return, property, local, `foreach` binding — to carry an explicit spelled type,
 with no inference. A function that receives a tainted value and needs to pass it on (a validation helper, a
 logging wrapper, anything short of laundering on the very next line) has nowhere to put that fact unless
@@ -86,7 +86,7 @@ whatever it already returned. **An outbound reply's body is input in the same se
 ([ADR 0058](0058-outbound-request-policy.md) § 2) settles which host the bytes came from and says nothing
 about what is in them, and a reply a program asked for is no safer than one it was sent. Its `status()` is
 not tainted — three digits carry nothing a sink can misread. Structured input stays `array<mixed>` exactly as
-[ADR 0007](0007-explicit-type-system.md) § 6 and [ADR 0009](0009-string-and-bytes.md) § 4 already decided —
+`rule:types/unions-and-mixed` and `rule:types/bytes` already decided —
 this ADR is about the scalar payload once it is pulled out of `mixed`, the same framing those two ADRs
 already used.
 
@@ -94,14 +94,14 @@ already used.
 
 Any operation combining a tainted operand with an untainted one — concatenation, interpolation, a string
 function, an array of scalars — produces a tainted result. This is the same "poisoned" shape
-[ADR 0007](0007-explicit-type-system.md) already uses for mixed-type arithmetic, applied to a new axis.
+`rule:types/declaration` already uses for mixed-type arithmetic, applied to a new axis.
 
 A checked `as` conversion to a type that already throws on a malformed shape — `as uint`, `as int`,
 `as float`, `as bool`, `as` an enum's backing type — **removes the qualifier on success**, no new syntax
 needed: `Core\Request::query('id') as uint` already throws on `"abc"`, `"-1"`, or `""`
 (`rule:statements/no-host-populated-variables`'s own example), and a value that survives that check has had its shape
 proven, which is what laundering means for a non-string type. `bytes as string` and `string as bytes`
-([ADR 0009](0009-string-and-bytes.md) § 3) preserve the qualifier across either direction — UTF-8 validity
+(`rule:types/conversion`) preserve the qualifier across either direction — UTF-8 validity
 says nothing about whether the content is safe for a given sink.
 
 ### 3. Laundering functions are narrow, sink-named, and never generic
@@ -187,7 +187,7 @@ terminal control sequence is not text at all and is today consumed by the termin
 substituting it visibly makes output *more* faithful, not less. Where that asymmetry does not hold, the
 default does not follow: § 4's other sinks still refuse rather than transform.
 
-`Core\Html\Markup` is a small value type, peer to `string` the way [ADR 0009](0009-string-and-bytes.md)'s
+`Core\Html\Markup` is a small value type, peer to `string` the way `rule:types/bytes`'s
 `bytes` is peer to `string`, representing HTML known to be safe to write raw:
 
 - A **source-literal string**, converted with `as Markup`, is trusted — it is exactly what the developer
@@ -249,7 +249,7 @@ default does not follow: § 4's other sinks still refuse rather than transform.
   the app itself wrote to its own session) can still be marked tainted once it round-trips through a
   persisted store this ADR treats conservatively; `Core\Taint::assertTrusted` exists for exactly this, at
   the cost of one written reason per call site.
-- **`nvs convert` gains a real, non-mechanical gap**, in the family [ADR 0009](0009-string-and-bytes.md) and
+- **`nvs convert` gains a real, non-mechanical gap**, in the family `rule:types/bytes` and
   [ADR 0023](0023-clone-serialize-and-cross-boundary-copy.md) already carry: a ported PHP page that
   deliberately echoed raw HTML built from a variable (a common templating pattern) now gets an implicit
   escape it did not have before — a behavior change, not a syntax rewrite, and it needs a human to add
@@ -294,11 +294,11 @@ default does not follow: § 4's other sinks still refuse rather than transform.
 
 Verification, in the order it becomes possible:
 
-- **M1**: `nvs ast` parses `tainted string`/`tainted bytes` in every declaration slot ADR 0007 already
+- **M1**: `nvs ast` parses `tainted string`/`tainted bytes` in every declaration slot `rule:types/declaration` already
   requires a spelled type for — parameter, return, property, local, `foreach` binding — and the qualifier
   round-trips through an AST snapshot test the same way `uint` already does; folded into M1's existing fuzz
   run and PHP-corpus parse rather than a separate pass.
-- **M2**: the `nvs check` corpus [ADR 0007](0007-explicit-type-system.md) already builds gains its own
+- **M2**: the `nvs check` corpus `rule:types/declaration` already builds gains its own
   entries — concatenating a `tainted` value into a sink that requires the plain type is a diagnostic naming
   the qualifier and the sink; a checked `as uint`/`as` an enum's backing type on a tainted source produces
   an unqualified result with no extra syntax; `tainted string as Markup` is refused even though

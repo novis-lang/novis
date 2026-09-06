@@ -79,7 +79,7 @@ class Row {
         panic!("§ 5 replaces the call with the payload itself, and this recorded {folded:?}");
     };
     // The payload *whole*, not the fields the shape asked for: § 5 compiles in
-    // the attached literal, and ADR 0036 § 3's width subtyping is what let it
+    // the attached literal, and `rule:types/shape-type`'s width subtyping is what let it
     // match while carrying `unique` as well.
     let names: Vec<&str> = fields.iter().map(|(name, _)| name.as_str()).collect();
     assert_eq!(names, ["column", "unique"], "{fields:?}");

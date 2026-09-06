@@ -1,5 +1,5 @@
 --TEST--
-A class or interface constant writes its type, as every other binding does (ADR 0007 § 1)
+A class or interface constant writes its type, as every other binding does (`rule:types/declaration`)
 --FILE--
 <?nvs
 // PHP's untyped constant parses, and the type read off the folded value is a

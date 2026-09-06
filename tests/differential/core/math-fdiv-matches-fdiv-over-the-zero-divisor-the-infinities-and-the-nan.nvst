@@ -3,7 +3,7 @@ Core\Math::fdiv answers what PHP's fdiv answers over every row a division can ha
 --FILE--
 <?nvs
 // Spec § 3's `fdiv` row, and `math.rs:1810`'s doc comment for why the member
-// exists at all: ADR 0007 § 4 refuses the zero divisor for `/` before the
+// exists at all: `rule:types/arithmetic` refuses the zero divisor for `/` before the
 // operand types are consulted, so an infinity is otherwise unreachable through
 // a division. PHP grew `fdiv` for exactly that reason once `/` began throwing,
 // which makes this the one member in the module whose whole surface is the
@@ -80,7 +80,7 @@ echo Core\Math::fdiv(Core\Math::FLOAT_MAX, 0.5), " ", Core\Math::fdiv(Core\Math:
 
 // The reason the member exists, asserted rather than described: `/` throws on
 // a zero divisor in *both* languages — PHP's `DivisionByZeroError` and Novis's
-// refusal under ADR 0007 § 4 — and `fdiv` is what each offers instead. The
+// refusal under `rule:types/arithmetic` — and `fdiv` is what each offers instead. The
 // divisor is a local rather than a literal so that the refusal is the one a
 // division takes at run time, which is the one PHP can be asked about.
 float $zero = 0.0;

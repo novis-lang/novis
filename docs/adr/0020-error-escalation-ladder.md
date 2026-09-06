@@ -58,7 +58,7 @@ whole request.
 One deliberate non-member: the value a resource-limit `FATAL` carries (illustrative name `Core\Fatal\LimitReport`
 — exact shape is stdlib work, see *Revisiting*) **does not implement `Throwable`.** This is not a runtime
 check that could be forgotten at one call site and not another — it is a type-checker fact
-([ADR 0007](0007-explicit-type-system.md)): `catch (Throwable $e)` around code that hits a memory or CPU
+(`rule:types/declaration`): `catch (Throwable $e)` around code that hits a memory or CPU
 limit provably cannot catch the report, the same way `int + uint` provably cannot compile. Enforcing "FATAL
 is not catchable" in the type system, rather than in runtime discipline, is what keeps the ABI-level
 guarantee `rule:errors/propagation` already tested from depending on every future `catch` site getting a special case right.
@@ -87,7 +87,7 @@ spend.
 limit in the `nvs.toml` directive's own spelling — `memory`, `cpu_time` — because the report is built
 where the breach is, in `nvs-runtime`, which holds no `Core` class descriptor to instantiate one from, and
 because a keyed array takes a later field without changing the signature of a handler already written.
-[ADR 0031](0031-callable-is-the-only-closure-type.md) § 4 leaves `callable` opaque either way, so the
+`rule:types/callable-absorbs-closure` leaves `callable` opaque either way, so the
 registry row is `callable` and a handler declaring no parameter runs unchanged.
 
 **Zero retries.** If the handler itself throws, panics, or exceeds its own reserved slice, it is abandoned

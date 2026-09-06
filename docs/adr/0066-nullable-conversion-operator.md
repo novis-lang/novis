@@ -17,9 +17,9 @@
 
 > **In short:** `$s as ?int` yields the converted value where `$s as int` would succeed and `null` where it
 > would throw, so a failed conversion becomes a value you test rather than control flow you catch. **The
-> syntax already parses** — `as` takes a type and `?int` is one; ADR 0007 § 2's table simply had no nullable
+> syntax already parses** — `as` takes a type and `?int` is one; `rule:types/conversion`'s table simply had no nullable
 > row, so this defines an unspecified corner rather than adding surface. A `null` operand yields `null`.
-> The form is available for exactly the conversions § 2 and ADR 0047 already define, is **refused where the
+> The form is available for exactly the conversions § 2 and `rule:types/literal-types` already define, is **refused where the
 > conversion cannot fail**, and remains a compile error where no conversion exists at all. **`as` never
 > targets a class**, with no exceptions: text becomes a `Core\Uri` or a `Core\Uuid` through that class's own
 > `tryParse`. It never launders `tainted` or `secret`.
@@ -52,11 +52,11 @@
 
 `expr as ?T` produces the value that `expr as T` would produce where that succeeds, and `null` where it
 would throw. Every other property of the conversion — what counts as success, the whole-string rule for
-`string → int`, the range checks — is ADR 0007 § 2's, unchanged. This ADR adds no notion of validity of its
+`string → int`, the range checks — is `rule:types/conversion`'s, unchanged. This ADR adds no notion of validity of its
 own; it only changes what happens to a failure.
 
-There is **one definition and no family that escapes it**: every `as ?T` is the `as T` of ADR 0007 § 2 or
-ADR 0047, with `null` where it throws. A target those two do not define is not a conversion this operator
+There is **one definition and no family that escapes it**: every `as ?T` is the `as T` of `rule:types/conversion` or
+`rule:types/literal-types`, with `null` where it throws. A target those two do not define is not a conversion this operator
 performs, whatever it is — *3*'s table is that sentence enumerated.
 
 ```
@@ -86,12 +86,12 @@ conflation rather than prevent it, at the cost of a line on the most common shap
 
 | operand → target | `as ?T` | why |
 |---|---|---|
-| any row ADR 0007 § 2's conversion table defines | **available**; `null` where the row throws | the row already defines success and failure |
-| into a literal or enum-case type ([ADR 0047](0047-literal-and-enum-case-types.md)) | **available** | that conversion is already checked and throwing; this is its non-throwing twin |
-| from `mixed` | **available** — every target has a checked path from `mixed` | ADR 0007 § 6 |
+| any row `rule:types/conversion`'s conversion table defines | **available**; `null` where the row throws | the row already defines success and failure |
+| into a literal or enum-case type (`rule:types/literal-types`) | **available** | that conversion is already checked and throwing; this is its non-throwing twin |
+| from `mixed` | **available** — every target has a checked path from `mixed` | `rule:types/unions-and-mixed` |
 | a conversion that **cannot fail** (`decimal as ?string`, `?int as ?int`) | **compile error**, naming `as T` | a `?T` that is never `null` is a lie in the type and forces a pointless check; R17 forbids the second spelling |
 | no conversion exists at all (`array<int> as ?int`) | **compile error**, exactly as today | otherwise `as ?T` becomes a universal escape hatch that erases genuine type errors |
-| **any** class or interface type (`$obj as ?SomeClass`, `$s as ?Core\Uri`) | **compile error**, no exceptions | `as` converts between the types ADR 0007 § 2 tabulates, and none of them is a class; text becomes a value through `tryParse` below |
+| **any** class or interface type (`$obj as ?SomeClass`, `$s as ?Core\Uri`) | **compile error**, no exceptions | `as` converts between the types `rule:types/conversion` tabulates, and none of them is a class; text becomes a value through `tryParse` below |
 
 The distinction in the last three rows is the one to keep straight: **a conversion that exists and failed
 is `null`; a conversion that does not exist is a diagnostic.** From `mixed` every conversion exists, so
@@ -180,7 +180,7 @@ in the language, which is a larger decision than this one and is not taken here.
 ## Consequences
 
 - **M2's checker** gains the form, which is small: the result type is the target with a nullability flag,
-  and ADR 0007 § 6's existing `?T` narrowing handles everything downstream. There is **no parser work** —
+  and `rule:types/unions-and-mixed`'s existing `?T` narrowing handles everything downstream. There is **no parser work** —
   the grammar already accepts a nullable type after `as`.
 - **One parse instead of two** on the request path, where check-then-convert scanned the same bytes twice.
   Priority 3, and it removes a call from the hottest thing a web program does.
@@ -191,7 +191,7 @@ in the language, which is a larger decision than this one and is not taken here.
   closed by *3a*'s three conditions instead, which is a rule rather than an operator and therefore has to
   be applied by whoever reviews the next `Core` class.
 - **The `as` operator has one rule with no exceptions**, which is the language-surface half of priority 4:
-  its targets are ADR 0007 § 2's table and ADR 0047's types, and a class is never one. A reader arriving
+  its targets are `rule:types/conversion`'s table and `rule:types/literal-types`'s types, and a class is never one. A reader arriving
   from Swift or Kotlin, where `as?` is a downcast, is no longer told that Novis spells a *parse* the same way
   for two class names and refuses it for the rest.
 - **`nvs convert` (M11) must not take the obvious shortcut.** PHP's `(int)$x` now has a tempting mechanical
@@ -240,7 +240,7 @@ in the language, which is a larger decision than this one and is not taken here.
   `parse`, and neither class declares an `isValid` —
   `nvs_stdlib::registry`'s `a_parse_is_the_only_definition_of_its_own_validity`.
 - **M3/M4:** a runtime suite asserting `"abc" as ?int`, `"12abc" as ?int` and `"" as ?int` are each `null`
-  while `"42" as ?int` is `42` — the whole-string rule of ADR 0007 § 2 reaching the nullable form unchanged
+  while `"42" as ?int` is `42` — the whole-string rule of `rule:types/conversion` reaching the nullable form unchanged
   — and that `19.99 as ?int` is `null` rather than `19`.
   **§§ 1–3's lowering has landed for the checked numeric targets.**
   `tests/conformance/lang/a-nullable-conversion-yields-null-rather-than-throwing.nvst` is that suite, and it
@@ -249,7 +249,7 @@ in the language, which is a larger decision than this one and is not taken here.
   since the form cannot fail — and each dispatches on the operand's runtime tag, which is why § 2's and
   § 3's rows need no lowering branch of their own. Each row has exactly one implementation, shared with the
   throwing form: `nvs_runtime::helpers`' own `row` module. Still owed: the enum/literal-type target, blocked
-  on the same case set ADR 0010 § 5's integer-into-an-enum row waits for, and every § 3 **refusal** —
+  on the same case set `rule:types/conversion`'s integer-into-an-enum row waits for, and every § 3 **refusal** —
   `nvs_types` does not yet reject a conversion that cannot fail or one that does not exist, so `nvs-ir`
   panics naming this ADR where it should have been a diagnostic.
 - **M4B:** `nvs check` warns on `if ($s as ?int)` and on any `?T` condition, naming `!= null`, and does

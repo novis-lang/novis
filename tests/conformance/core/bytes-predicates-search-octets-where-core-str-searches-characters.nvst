@@ -1,10 +1,10 @@
 --TEST--
-Spec § 7: `Core\Bytes::contains`, `startsWith` and `endsWith` search octets where `Core\Str`'s three search characters — they answer the same question on every needle a `string` can name, and 18 of the 28 windows of one subject are needles no `string` can name at all — ADR 0009 §§ 1-3, ADR 0063 R6
+Spec § 7: `Core\Bytes::contains`, `startsWith` and `endsWith` search octets where `Core\Str`'s three search characters — they answer the same question on every needle a `string` can name, and 18 of the 28 windows of one subject are needles no `string` can name at all — `rule:types/bytes`, `rule:types/string-is-utf8` and `rule:types/conversion`, ADR 0063 R6
 --FILE--
 <?nvs
 // `Core\Bytes` and `Core\Str` carry the same three predicate names, and every
 // other case about them uses an ASCII subject, where the two classes cannot be
-// told apart. ADR 0009 § 2 makes a `string` position a *character* and § 1
+// told apart. `rule:types/string-is-utf8` makes a `string` position a *character* and § 1
 // makes a `bytes` position an *octet*, so the whole difference lives on a
 // subject whose characters are wider than one byte — and it is a difference in
 // the **domain**, not in the answers: on a needle both classes can be asked,
@@ -18,7 +18,7 @@ Spec § 7: `Core\Bytes::contains`, `startsWith` and `endsWith` search octets whe
 // `:850` and `:860` are their counterparts, and neither trio calls the other.
 
 final class Unit {
-    // `bool as string` renders `false` as the empty string (ADR 0007 § 2), so
+    // `bool as string` renders `false` as the empty string (`rule:types/conversion`), so
     // a rendered answer needs a spelling of its own to be visible.
     public static function yn(bool $b): string {
         if ($b) { return "y"; }
@@ -26,7 +26,7 @@ final class Unit {
     }
 
     // Whether a buffer is a needle `Core\Str` could be handed at all: a
-    // `string` is UTF-8 by ADR 0009 § 2, so an octet run that splits a
+    // `string` is UTF-8 by `rule:types/string-is-utf8`, so an octet run that splits a
     // character has no `string` spelling and no `Core\Str::contains` call.
     public static function namable(bytes $w): bool {
         return Core\Encoding::isValidText($w, Core\Charset::Utf8);
@@ -39,7 +39,7 @@ int $chars = Core\Str::length($subject) as int;
 int $octets = Core\Bytes::length($buffer) as int;
 
 // 1. The two units, named on the same subject. `$subject as bytes` is the
-//    identity on the buffer (ADR 0009 § 3), so the counts below are two
+//    identity on the buffer (`rule:types/conversion`), so the counts below are two
 //    measurements of one value rather than of two.
 echo "chars ", $chars, " octets ", $octets, " hex ", Core\Encoding::toHex($buffer), "\n";
 
@@ -47,7 +47,7 @@ echo "chars ", $chars, " octets ", $octets, " hex ", Core\Encoding::toHex($buffe
 //    counts characters and `Core\Bytes` counts octets, and the byte answer is
 //    exactly the octet length of the character prefix before it. Counted, so a
 //    member reporting the engine's byte offset through the `string` door — the
-//    bug ADR 0009 § 2 exists to prevent — fails here rather than looking
+//    bug `rule:types/string-is-utf8` exists to prevent — fails here rather than looking
 //    plausible on the `a` row, where the two units still coincide.
 int $placed = 0;
 int $differ = 0;

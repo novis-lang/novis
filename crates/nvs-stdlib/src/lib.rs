@@ -39,7 +39,7 @@
 //!
 //! Three modules are not domains, and all exist for the same reason — more
 //! than one domain reaches for what they hold, so no domain may decide it
-//! alone. `granularity` holds ADR 0009 § 2's answer to "what unit does a
+//! alone. `granularity` holds `rule:types/string-is-utf8`'s answer to "what unit does a
 //! `string` count in"; `ordering` holds what "smaller" means with no
 //! comparator given, which `Core\Arr::sort`/`min`/`max` and
 //! `Core\Math::min`/`max`/`clamp` would otherwise be free to answer
@@ -103,7 +103,7 @@
 //!    [`registry::CoreTy::Variadic`] — one ABI argument holding a fresh
 //!    `array<T>` of the tail, built by `nvs_ir::lower::lower_variadic_tail`,
 //!    since a helper's `args: [N]` is a fixed arity. `Core\Str::format` is the
-//!    first row to declare one; ADR 0069's
+//!    first row to declare one; `rule:types/array-combination`'s
 //!    `overlay`/`overlayDeep`/`underlay`/`appendAll`, `Arr::append`,
 //!    `Arr::prepend` and `Path::join` need only writing.
 //!
@@ -178,7 +178,7 @@
 //!    an Novis array is a copy-on-write **value**, so an element-covariant read
 //!    cannot be aliased into an unsound write the way a mutable container's
 //!    could.
-//! 2. **A type variable is inferred, never declared by user code.** ADR 0007's
+//! 2. **A type variable is inferred, never declared by user code.** `rule:types/declaration`'s
 //!    *Revisiting* section and `docs/agent/loop-goal.md` both scope `<T>` to
 //!    declarations the compiler owns, which is exactly what
 //!    [`registry::CoreTy::Var`] is; `nvs-types` owns the unification and

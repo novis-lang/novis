@@ -127,7 +127,7 @@ array<int> $layer = ["bob" => 9, "dee" => 1];
 
 // The second operands, declared rather than written inline: a bare `[99]` in
 // argument position is `array<mixed>` and does not narrow into an
-// `array<int>` parameter, which is `E0401` at the literal (ADR 0007 § 3).
+// `array<int>` parameter, which is `E0401` at the literal (`rule:types/grammar`).
 array<int> $splice = [99];
 array<int> $against = [4, 2];
 array<int> $tail = [7, 8];

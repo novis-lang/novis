@@ -1,5 +1,5 @@
 --TEST--
-`Core\Json::encode` writes every value JSON has a spelling for and refuses the rest in `LogicError`, each refusal wrapped in its own name — spec § 6, ADR 0063 R4, ADR 0071 § 5, ADR 0009 § 1
+`Core\Json::encode` writes every value JSON has a spelling for and refuses the rest in `LogicError`, each refusal wrapped in its own name — spec § 6, ADR 0063 R4, ADR 0071 § 5, `rule:types/bytes`
 --FILE--
 <?nvs
 // ADR 0071 § 5: participation in a wire format is written, never inferred, so
@@ -26,7 +26,7 @@ uint $width = Core\Str::length("ab");
 
 // One value per tag JSON has a spelling for, plus both array shapes: spec § 6
 // writes a list as an array and a string-keyed map as an object. A `decimal`
-// is written as the exact number ADR 0054 makes it rather than through a
+// is written as the exact number `rule:types/decimal` makes it rather than through a
 // `float`.
 array<mixed> $writable = [
     null, true, false, 7, $width, 1.5, $exact, "text",
@@ -112,7 +112,7 @@ try {
 }
 
 // The text bound: the same four octets are a document as a `string` and are
-// nothing JSON can hold as `bytes`. ADR 0009 § 1 makes that a difference in
+// nothing JSON can hold as `bytes`. `rule:types/bytes` makes that a difference in
 // type rather than in content, so the conversion is where the answer changes.
 echo "text=", Core\Json::encode("text"), "\n";
 try {

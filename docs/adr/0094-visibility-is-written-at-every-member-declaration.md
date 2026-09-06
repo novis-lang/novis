@@ -8,14 +8,14 @@
   member slot at all (`rule:enums/no-class-machinery`, `E0220`), so nothing here reaches
   one. Does **not** cover
   what each level *means* at an access site (who may read a `private` property), which is
-  [ADR 0007](0007-explicit-type-system.md)'s checker debt owned by `nvs-types`; nor modifier *order*
+  `rule:types/declaration`'s checker debt owned by `nvs-types`; nor modifier *order*
   ([ADR 0039](0039-canonical-code-formatting.md) § 1); nor casing ([ADR 0029](0029-identifier-casing-is-checked.md));
   nor property-hook semantics ([ADR 0014](0014-property-observer.md)).
 
 > **In short:** every member declaration in a class, interface or anonymous-class body writes exactly
 > one of `public`, `protected` or `private`. **There is no default, because there is nothing to default** —
 > an omission is `E_MISSING_VISIBILITY`, a hard compile error with no suppression, exactly as a missing type
-> is under [ADR 0007](0007-explicit-type-system.md). PHP's implicit `public` (`function f()`, `const X = 1`,
+> is under `rule:types/declaration`. PHP's implicit `public` (`function f()`, `const X = 1`,
 > `var $x`, `static $x`, `readonly int $x`) does not survive; neither does Novis's own looser property grammar,
 > which parses a bare `int $x;` today. A **parameter is not a member**: an unmodified constructor parameter
 > stays a plain parameter, because visibility is what promotes one to a property, and that stays the marker.
@@ -37,7 +37,7 @@
   one modifier on a property declaration, so `class A { int $x; }` is a parse error there. Here the class-body
   parser reaches its property arm on `can_start_type()`, so `int $x;` parses. The one place PHP was strict,
   Novis currently is not.
-- **This trade is already made for types.** ADR 0007's table marks the same slots "PHP syntax, now
+- **This trade is already made for types.** `rule:types/declaration`'s table marks the same slots "PHP syntax, now
   mandatory" for the *type*. A member that must spell `uint` but may leave its visibility to a rule nobody
   wrote is an inconsistency, not a smaller rule.
 - **The default is a security default, not a style one.** An inferred `public` is the mechanism by which an
@@ -100,7 +100,7 @@ to know instead of a word you can see.
 
 ### 4. `var`, and the PHP property shapes that no longer parse
 
-`var` is [ADR 0037](0037-var-local-type-inference.md)'s local-inference keyword, so PHP's `var $x;` property
+`var` is `rule:types/var-inference`'s local-inference keyword, so PHP's `var $x;` property
 form is doubly dead. Because it is the shape a porting author actually types, a class body's `var` reports
 **E0122 naming the visibility** — "write `public int $x;`" — rather than falling through to the
 local-declaration grammar and reporting something about statements. The same holds for the bare `int $x;`

@@ -1,4 +1,4 @@
-# ADR 0031 — `callable` is the only closure type; `fn` is the only closure literal
+# `rule:types/closure-literal` — `callable` is the only closure type; `fn` is the only closure literal
 
 - **Status:** Accepted
 - **Date:** 2026-08-21
@@ -22,7 +22,7 @@
 > closures is an ordinary object in user code, not a language feature. **A closure that needs to call itself
 > may carry an optional self-name** (`fn factorial($n) => ... factorial($n - 1) ...`), visible only inside
 > its own body — the one capability `use (&$y)` provided that has no other route back. **`callable` is the
-> only surviving type name** — `Closure` is retired, since after [ADR 0027](0027-callable-is-closures-only.md)
+> only surviving type name** — `Closure` is retired, since after `rule:types/callable-is-a-closure`
 > the two names had identical membership. `Closure::fromCallable`, `call_user_func` and
 > `call_user_func_array` are all dropped as dead weight: nothing is left to convert from, and direct
 > invocation (`$fn(...)` / `$fn(...$args)`) already does what they did.
@@ -30,10 +30,10 @@
 ## Context
 
 - PHP's closure surface is eleven moving parts, several already narrowed by
-  [ADR 0027](0027-callable-is-closures-only.md) (closed the string/array spellings and `__invoke`) and
+  `rule:types/callable-is-a-closure` (closed the string/array spellings and `__invoke`) and
   `rule:statements/a-closure-binds-this-only-where-it-uses-it` (closed the `static` closure modifier). Left standing: two
   literal spellings (`function(...) use (...) {...}` and `fn(...) => ...`) for the same value, `use`'s two
-  capture modes, and a `Closure`/`callable` type-name pair that — once ADR 0027 landed — have identical
+  capture modes, and a `Closure`/`callable` type-name pair that — once `rule:types/callable-is-a-closure` landed — have identical
   membership: two names, zero remaining semantic difference, the pattern `rule:statements/nothing-gets-a-second-name`
   already refuses elsewhere.
 - The two literal forms only diverged historically because PHP's arrow form was added later and never grew a
@@ -113,7 +113,7 @@ to call itself once.
 `Closure` is retired as a type name. `callable` is the only spelling — for a parameter, a property, a return
 type, or a stdlib signature like `Core\Arr::map(array<T>, callable(T, string): U): array<U>`, whose
 parameter list [0136](0136-a-callable-carries-its-signature.md) adds. This is a rename, not a
-behavior change: [ADR 0027](0027-callable-is-closures-only.md)'s decision (only a closure/arrow-function
+behavior change: `rule:types/callable-is-a-closure`'s decision (only a closure/arrow-function
 value or a first-class-callable-syntax reference satisfies it; PHP's string/array spellings and `__invoke`
 are still refused) is entirely unaffected, just read with `callable` in every place that ADR wrote `Closure`.
 
@@ -126,14 +126,14 @@ does, not how PHP happened to represent it.
 The two operations `Closure::bind`/`bindTo`/`call` still exist, called with the same method-call syntax, now
 under `callable` rather than a class named `Closure` — they are builtin operations on an opaque type, not
 inherited methods from a base class a program could ever `instanceof` or extend, exactly as
-[ADR 0007](0007-explicit-type-system.md) § 3 already made `Closure` opaque. `Closure::fromCallable` is
-dropped: after [ADR 0027](0027-callable-is-closures-only.md), the only value that ever satisfied `callable`
+`rule:types/grammar` already made `Closure` opaque. `Closure::fromCallable` is
+dropped: after `rule:types/callable-is-a-closure`, the only value that ever satisfied `callable`
 was already a `Closure`/`callable` value, so there is nothing left for `fromCallable` to normalize away from.
 
 ### 5. `call_user_func`/`call_user_func_array` are dropped from the stdlib
 
 Both exist in PHP only to dispatch through the string/array callable shapes
-[ADR 0027](0027-callable-is-closures-only.md) already refuses. Every `callable` value now supports direct
+`rule:types/callable-is-a-closure` already refuses. Every `callable` value now supports direct
 invocation:
 
 ```php
@@ -240,7 +240,7 @@ Verification, in the order it becomes possible:
   bind-only-where-used rule is satisfied with no code of its own. A parameter shadows an outer local rather
   than capturing it. One decision taken alongside, about the checker rather than about this surface: a
   **block-bodied** `fn` must declare its return type (`E0450`), since inferring one would be whole-body
-  return-type inference, which [ADR 0007](0007-explicit-type-system.md) does not ask for.
+  return-type inference, which `rule:types/declaration` does not ask for.
   **Still open:** § 3's self-name is parsed and ignored, so a recursive call inside the body reports an
   undefined name.
 - **M4** (lowering and stdlib) — **done for §§ 1-2**: `nvs_ir::lower::lower_closure` turns a literal into an

@@ -1,5 +1,5 @@
 --TEST--
-Spec § 7: `Core\Bytes`'s three predicates answer the magic-byte questions R6 names, and `fill`/`repeat` build a buffer without one — ADR 0009 § 1, ADR 0063 R4
+Spec § 7: `Core\Bytes`'s three predicates answer the magic-byte questions R6 names, and `fill`/`repeat` build a buffer without one — `rule:types/bytes`, ADR 0063 R4
 --FILE--
 <?nvs
 class Probe {

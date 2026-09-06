@@ -1,5 +1,5 @@
 --TEST--
-`->$name` and `->{expr}` over an operand that is no property key are `E0235` in every position a member is named — read, write, call and `?->` — reported by the checker, per ADR 0014 § 5 and ADR 0126 § 4
+`->$name` and `->{expr}` over an operand that is no property key are `E0235` in every position a member is named — read, write, call and `?->` — reported by the checker, per ADR 0014 § 5 and `rule:types/property-key-access`
 --FILE--
 <?nvs
 class Box {
@@ -8,7 +8,7 @@ class Box {
 }
 var $b = new Box();
 string $n = "name";
-// ADR 0126 § 4 moved this refusal out of the parser, because the operand's
+// `rule:types/property-key-access` moved this refusal out of the parser, because the operand's
 // *type* is what decides it now: a plain `string` names a member only when
 // the statement runs, and there is nothing to resolve it against.
 echo $b->$n, "\n";
@@ -27,27 +27,27 @@ error[E0235]: a member name cannot be computed (`->$name` / `->{expr}`)
    |
 11 | echo $b->$n, "\n";
    |          ^^ this names a member only when the statement runs
-   = help: ADR 0126 § 4 admits `$obj->$key` only where `$key` is a `property<T>` the receiver satisfies — convert the name with `as property<ClassName>`, where the set it may hold is checked, or write the member out; data whose keys are only known at run time belongs in an `array<string, T>`
+   = help: `rule:types/property-key-access` admits `$obj->$key` only where `$key` is a `property<T>` the receiver satisfies — convert the name with `as property<ClassName>`, where the set it may hold is checked, or write the member out; data whose keys are only known at run time belongs in an `array<string, T>`
 
 error[E0235]: a member name cannot be computed (`->$name` / `->{expr}`)
    --> %s:14:6
    |
 14 | $b->{$n} = "z";
    |      ^^ this names a member only when the statement runs
-   = help: ADR 0126 § 4 admits `$obj->$key` only where `$key` is a `property<T>` the receiver satisfies — convert the name with `as property<ClassName>`, where the set it may hold is checked, or write the member out; data whose keys are only known at run time belongs in an `array<string, T>`
+   = help: `rule:types/property-key-access` admits `$obj->$key` only where `$key` is a `property<T>` the receiver satisfies — convert the name with `as property<ClassName>`, where the set it may hold is checked, or write the member out; data whose keys are only known at run time belongs in an `array<string, T>`
 
 error[E0235]: a member name cannot be computed (`->$name` / `->{expr}`)
    --> %s:17:11
    |
 17 | echo $b->{"lab" . "el"}(), "\n";
    |           ^^^^^^^^^^^^ this names a member only when the statement runs
-   = help: ADR 0014 § 6 refuses a computed *dispatch* itself rather than its spelling, and ADR 0126's `property<T>` names a property rather than a method — write the call out, or `match` on the name and call each arm
+   = help: ADR 0014 § 6 refuses a computed *dispatch* itself rather than its spelling, and `rule:types/property-key`'s `property<T>` names a property rather than a method — write the call out, or `match` on the name and call each arm
 
 error[E0235]: a member name cannot be computed (`->$name` / `->{expr}`)
    --> %s:20:11
    |
 20 | echo $b?->$n, "\n";
    |           ^^ this names a member only when the statement runs
-   = help: ADR 0126 § 4 admits `$obj->$key` only where `$key` is a `property<T>` the receiver satisfies — convert the name with `as property<ClassName>`, where the set it may hold is checked, or write the member out; data whose keys are only known at run time belongs in an `array<string, T>`
+   = help: `rule:types/property-key-access` admits `$obj->$key` only where `$key` is a `property<T>` the receiver satisfies — convert the name with `as property<ClassName>`, where the set it may hold is checked, or write the member out; data whose keys are only known at run time belongs in an `array<string, T>`
 
 error: aborting due to 4 errors

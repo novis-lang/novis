@@ -36,7 +36,7 @@ try {
 } catch (ParseError $bad) {
     echo "issues=", Core\Arr::count($bad->issues), "\n";
     // § 5's whole point is *which* fields, in declaration order — which needs
-    // the issue's own `path`, read off an ADR 0036 § 4 shape receiver.
+    // the issue's own `path`, read off an `rule:types/erased-member-access` shape receiver.
     foreach ($bad->issues as {path: string, message: string} $issue) {
         echo "  bad=", $issue->path, "\n";
     }

@@ -1,4 +1,4 @@
-//! ADR 0031's closure literal: what a body captures, and what its declared return type has to be.
+//! `rule:types/closure-literal`'s closure literal: what a body captures, and what its declared return type has to be.
 //!
 //! Moved out of `nvs_types::check`'s inline `mod tests`; every test keeps its
 //! own name and body. See `tests/common/mod.rs` for the shared fixtures.
@@ -8,7 +8,7 @@ mod common;
 use common::*;
 use nvs_diagnostics::code;
 
-/// ADR 0031 § 2: "captures exactly the outer variables its body reads."
+/// `rule:types/implicit-capture`: "captures exactly the outer variables its body reads."
 /// The second local is in scope and never named, so it is not captured —
 /// which is the whole difference between this rule and snapshotting the
 /// enclosing frame.
@@ -19,7 +19,7 @@ fn a_closure_captures_exactly_the_outer_names_its_body_reads() {
     assert_eq!(captures, vec!["a".to_owned()]);
 }
 
-/// A parameter shadows an outer local of the same name (ADR 0007 § 1's
+/// A parameter shadows an outer local of the same name (`rule:types/declaration`'s
 /// declare-once rule is per body), so nothing is captured at all.
 #[test]
 fn a_closure_parameter_shadows_an_outer_local_rather_than_capturing_it() {

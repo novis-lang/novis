@@ -1,5 +1,5 @@
 --TEST--
-Core\Str::at indexes by grapheme cluster, and ::upper/::lower are Unicode-aware — ADR 0009 § 2
+Core\Str::at indexes by grapheme cluster, and ::upper/::lower are Unicode-aware — `rule:types/string-is-utf8`
 --FILE--
 <?nvs
 string $accented = "héllo";

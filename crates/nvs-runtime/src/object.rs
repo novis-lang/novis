@@ -44,7 +44,7 @@
 //!   tagged value; a uniform slot is the only representation that holds one
 //!   without a second, boxed layout beside the first.
 //! * **The read side pays nothing.** A field's static type is known
-//!   ([ADR 0007](/docs/adr/0007-explicit-type-system.md)), so codegen
+//!   (`rule:types/declaration`), so codegen
 //!   loads the payload half directly and never checks the tag on a read. Only
 //!   a write pays, and it pays one extra store.
 //!
@@ -147,7 +147,7 @@
 //!
 //! # What a shape write checks
 //!
-//! [ADR 0036](/docs/adr/0036-anonymous-object-shapes.md) § 4 requires a
+//! `rule:types/erased-member-access` requires a
 //! write through an erased or widened view to check the incoming value against
 //! the field's *real, concrete declared type*, because § 3 compares a shape's
 //! field types by ordinary assignability — so `{n: int}` satisfies a
@@ -269,7 +269,7 @@ pub struct ClassDesc {
     /// Compiled code never reaches these: a `$obj->prop` on a named class is
     /// resolved to a fixed offset at compile time and loads inline. What
     /// needs them is a read through an *erased* view —
-    /// [ADR 0036](/docs/adr/0036-anonymous-object-shapes.md) § 4's
+    /// `rule:types/erased-member-access`'s
     /// name-keyed fetch, [`ClassDesc::field_slot`] — where the receiver's
     /// static shape is not the concrete value's own layout. **Cost:** one
     /// `String` per field per class, once per process, not per instance.
@@ -352,7 +352,7 @@ pub struct ClassDesc {
     /// one the compiler synthesized rather than laid out from a declaration,
     /// a closure's environment or a generator's state; an empty list means
     /// "unknown", never "no field admits anything". Every class an
-    /// [ADR 0036](/docs/adr/0036-anonymous-object-shapes.md) § 4
+    /// `rule:types/erased-member-access`
     /// write can name from source carries one entry per slot.
     ///
     /// This is the whole of § 4's *"a write's incoming value is checked
@@ -440,7 +440,7 @@ pub struct ClassDesc {
 /// the other side. So the row carries what a closure object already carries in
 /// `nvs_ir::lower`'s `FN_ARITY` and `FN_PARAM_TAGS` slots, in the same
 /// encoding, and [`crate::closure`]'s `check_param_tags` is the one
-/// implementation both paths share rather than a second copy of ADR 0007 § 2's
+/// implementation both paths share rather than a second copy of `rule:types/conversion`'s
 /// `int`-into-`float` widening. `docs/adr/README.md` § *Decisions taken at
 /// project start* owns why this rides on the descriptor rather than on a
 /// per-method thunk.
@@ -587,7 +587,7 @@ pub enum CodecTy {
     /// `string`.
     Str,
     /// `mixed` — whatever the document held, unchecked
-    /// ([ADR 0007](/docs/adr/0007-explicit-type-system.md)).
+    /// (`rule:types/declaration`).
     Mixed,
     /// Another class that carries a codec of its own — ADR 0071 § 2's "another
     /// class that itself has a codec", decoded by running that class's own
@@ -702,7 +702,7 @@ impl ClassDesc {
     }
 
     /// Whether this class is the one an
-    /// [ADR 0036](/docs/adr/0036-anonymous-object-shapes.md) § 2 shape
+    /// `rule:types/object-literal` shape
     /// literal constructs, rather than one a `class` declaration named.
     ///
     /// Read off the label `nvs_ir::lower::shape_class_label` mints —
@@ -733,7 +733,7 @@ impl ClassDesc {
 
     /// The slot `name` occupies on an instance of this class, or `None` if
     /// this class has no such field —
-    /// [ADR 0036](/docs/adr/0036-anonymous-object-shapes.md) § 4's
+    /// `rule:types/erased-member-access`'s
     /// name-keyed fetch, which is what a read through an erased or widened
     /// view resolves through.
     ///
@@ -2939,8 +2939,7 @@ pub unsafe extern "C" fn nvs_object_field_get(ptr: *mut ObjHeader, index: usize)
 }
 
 /// Reads the field *named* `name` off the object at `ptr`, writing what the
-/// slot holds to `out` — [ADR 0036](/docs/adr/0036-anonymous-object-shapes.md)
-/// § 4's name-keyed fetch, and `nvs_ir::InstKind::SlotGet`'s whole emission.
+/// slot holds to `out` — `rule:types/erased-member-access`'s name-keyed fetch, and `nvs_ir::InstKind::SlotGet`'s whole emission.
 ///
 /// The name arrives as static bytes `nvs-codegen` put in the unit's data
 /// section rather than as an [`crate::NvsStr`]: a read through a shape must not
@@ -2955,7 +2954,7 @@ pub unsafe extern "C" fn nvs_object_field_get(ptr: *mut ObjHeader, index: usize)
 /// [`ClassDesc::field_slot`] for what it buys and when it is wrong.
 ///
 /// The receiver arrives as a whole [`Value`] by address rather than as a bare
-/// pointer, because § 4's erased half now includes a `mixed` — ADR 0007 § 2's
+/// pointer, because § 4's erased half now includes a `mixed` — `rule:types/conversion`'s
 /// one unchecked position, whose tag nothing before this proved. The tag is
 /// therefore checked here, where the *name* is already checked, and an
 /// unchecked untag in compiled code (which would dereference an `int` payload)
@@ -2964,7 +2963,7 @@ pub unsafe extern "C" fn nvs_object_field_get(ptr: *mut ObjHeader, index: usize)
 /// # Errors
 ///
 /// A [`Fault::Thrown`] naming the field and the concrete class when that class
-/// has no such field — ADR 0036 § 4's "checked, catchable throw; never a
+/// has no such field — `rule:types/erased-member-access`'s "checked, catchable throw; never a
 /// silent value, never PHP's warning-plus-`null`". Reached only through a
 /// widened or erased view, since a field the receiver's own shape lists is
 /// proven present.
@@ -3022,7 +3021,7 @@ pub unsafe extern "C" fn nvs_object_slot_get(
 }
 
 /// `$issue->path = "x";` — [`nvs_object_slot_get`]'s write half, and
-/// [ADR 0036](/docs/adr/0036-anonymous-object-shapes.md) § 4's whole
+/// `rule:types/erased-member-access`'s whole
 /// write rule: the slot is found by **name** on the receiver's own descriptor,
 /// the incoming value is checked against what that class declares the field to
 /// hold, and **no field is ever created** — a name the concrete class does not
@@ -3046,7 +3045,7 @@ pub unsafe extern "C" fn nvs_object_slot_get(
 ///
 /// A [`Fault::Thrown`] when the concrete class has no such field, and a second
 /// when it has one whose declared type does not admit this value's tag — the
-/// case a *widened* view creates, since ADR 0036 § 3 checks a shape's field
+/// case a *widened* view creates, since `rule:types/shape-type` checks a shape's field
 /// types by ordinary assignability and a shape value is aliased rather than
 /// copied. See [`ClassDesc::field_tags`] for the granularity of that check and
 /// this module's docs for what it does not catch.
@@ -3100,13 +3099,12 @@ pub unsafe extern "C" fn nvs_object_slot_set(
 }
 
 /// `$obj->$key` —
-/// [ADR 0126](/docs/adr/0126-a-property-key-is-a-checked-name-and-as-is-its-only-source.md)
-/// § 4's keyed read, which is [`nvs_object_slot_get`] with the field name
+/// `rule:types/property-key-access`'s keyed read, which is [`nvs_object_slot_get`] with the field name
 /// arriving as a **value** rather than as a static byte range.
 ///
 /// § 5 decided that these are one lookup and not two: a key *is* a name, so
 /// what the access needs is exactly the by-name search on the receiver's own
-/// descriptor that ADR 0036 § 4 already performs, and every rule that read
+/// descriptor that `rule:types/erased-member-access` already performs, and every rule that read
 /// states holds here unchanged — the same catchable throw for a name the
 /// concrete class does not carry, the same ADR 0022 § 3 refusal for a slot
 /// never written, the same borrow. There is no `hint`: the caller has no static
@@ -3160,7 +3158,7 @@ pub unsafe extern "C" fn nvs_object_key_get(
     }
 }
 
-/// `$obj->$key = v;` — [`nvs_object_key_get`]'s write half, and ADR 0126 § 5's
+/// `$obj->$key = v;` — [`nvs_object_key_get`]'s write half, and `rule:types/property-key-access`'s
 /// checked erased store: [`nvs_object_slot_set`] with the field name arriving
 /// as a value, over the same [`write_erased_property`] a reflective write
 /// reaches.
@@ -3204,7 +3202,7 @@ pub unsafe extern "C" fn nvs_object_key_set(
     }
 }
 
-/// The member name an ADR 0126 § 4 key holds, as the `&str` both halves of the
+/// The member name an `rule:types/property-key-access` key holds, as the `&str` both halves of the
 /// access are keyed on.
 ///
 /// A key erases to a `string` and nothing else can be written where one is
@@ -3216,8 +3214,8 @@ fn key_name(key: &Value) -> Result<&str, Fault> {
         .ok_or_else(|| Fault::fatal("internal error: a property key that is not a string"))
 }
 
-/// ADR 0036 § 4's erased *read*, factored out of [`nvs_object_slot_get`] so
-/// that ADR 0126 § 4's keyed read is the same lookup and not a second copy of
+/// `rule:types/erased-member-access`'s erased *read*, factored out of [`nvs_object_slot_get`] so
+/// that `rule:types/property-key-access`'s keyed read is the same lookup and not a second copy of
 /// its rules — the shape [`write_erased_property`] already has on the write
 /// side, and for its reason.
 ///
@@ -3282,7 +3280,7 @@ fn read_erased_property_hinted(receiver: Value, name: &str, hint: usize) -> crat
     Ok(held)
 }
 
-/// ADR 0036 § 4's erased write and
+/// `rule:types/erased-member-access`'s erased write and
 /// [ADR 0014](/docs/adr/0014-property-observer.md) § 3's observer step
 /// over it — the whole of what [`nvs_object_slot_set`] does, written here so
 /// that a *reflective* write reaches the same code rather than a second copy of
@@ -3835,7 +3833,7 @@ mod tests {
         assert!(rendered.contains("refcount: 1"), "{rendered}");
     }
 
-    /// ADR 0036 § 4's name-keyed fetch: the hint is tried first and is right
+    /// `rule:types/erased-member-access`'s name-keyed fetch: the hint is tried first and is right
     /// where the receiver's shape is the value's own, wrong through a widened
     /// view — and a name the class does not carry answers `None`, which is
     /// what `nvs_object_slot_get` turns into a catchable throw.

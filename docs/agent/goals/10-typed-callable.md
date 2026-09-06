@@ -1,7 +1,7 @@
 # Loop goal 10 — a `callable` carries its signature
 
 Give the type system the one thing it still cannot say about a function value: what it takes and what it
-gives back. [ADR 0136](../../adr/0136-a-callable-carries-its-signature.md) is the whole design and this
+gives back. `rule:types/callable-signature` is the whole design and this
 goal is its implementation — the grammar, the assignability rule, the inference that makes it free to
 use, the retirement of the two bespoke binding-site variants that stood in for it, and the codegen that
 finally spends the proof.
@@ -30,7 +30,7 @@ Core\Arr::map($users, fn($u) => $u->name);    // $u : User, inferred; result arr
 
 ## Stage 0 — the catch-up
 
-Nothing. ADR 0136 landed with this goal, and no fixture predates it.
+Nothing. `rule:types/callable-signature` landed with this goal, and no fixture predates it.
 
 ## Stage 1 — the floor
 
@@ -42,14 +42,14 @@ Goal 9's whole acceptance list — the parity program, the temp sweep, `Core\Pro
 One file set: `crates/nvs-syntax/src/parser/ty.rs`, `crates/nvs-syntax/src/ast.rs`,
 `crates/nvs-types/src/ty.rs`, `crates/nvs-types/src/expr/assign.rs`.
 
-1. **The grammar.** `parse_type` (`crates/nvs-syntax/src/parser/ty.rs:167`) gains ADR 0136 § 1's
+1. **The grammar.** `parse_type` (`crates/nvs-syntax/src/parser/ty.rs:167`) gains `rule:types/callable-signature`'s
    production. A `(` after `callable` is only ever a parameter list — a type position has no call syntax
    — so this needs none of the checkpointed trial parse `array<T>` and `new Foo<...>` require. A missing
    `: R` and a named parameter are both diagnostics here, not parses that fail later.
 2. **The representation.** A `Ty::CallableSig { params, ret }` beside `Ty::Callable`
    (`crates/nvs-types/src/ty.rs:170`), interned like every other type, and rendered by the display arm at
    `:520` as it is written.
-3. **Assignability.** `is_assignable` (`crates/nvs-types/src/expr/assign.rs:56`) gains ADR 0136 §§ 3-4:
+3. **Assignability.** `is_assignable` (`crates/nvs-types/src/expr/assign.rs:56`) gains `rule:types/callable-arity` and `rule:types/callable-variance`:
    arity `n ≤ m` comparing the first *n*, parameters contravariant, return covariant, and every callable
    type assignable to bare `callable`. This is the first non-invariant relation in the checker; § 4 of
    the ADR is the one home for why `array<T>`'s invariance does not reach it.
@@ -62,7 +62,7 @@ One file set: `crates/nvs-types/src/expr/calls.rs`, `crates/nvs-types/src/expr/a
    (`crates/nvs-types/src/expr/calls.rs:1513`) already checks the body in a scope of its own; it gains an
    expected type, and each unannotated parameter takes the corresponding position's type from it. An
    annotated parameter is checked against it under § 4 and wins where it is wider.
-2. **`E0450` is unchanged** — a block-bodied `fn` still declares its return type. ADR 0136 § 5 says so
+2. **`E0450` is unchanged** — a block-bodied `fn` still declares its return type. `rule:types/callable-literal-inference` says so
    explicitly; do not relax it here.
 
 ## Stage 4 — the stdlib rows, and the first variant retired
@@ -77,7 +77,7 @@ One file set: `crates/nvs-stdlib/src/registry.rs`, `arr.rs`, `cli.rs`, `db/regis
 2. **Five rows write an ordinary type instead** — `arr.rs:118` (`map`), `cli.rs:318` and `:327`,
    `db/registry.rs:361` and `db/transaction.rs:646`. `map` becomes
    `map(array<T> $a, callable(T, string): U $fn): array<U>`.
-3. **`bind` descends into a callable type** (`crates/nvs-types/src/generics.rs`), which is ADR 0136 § 6's
+3. **`bind` descends into a callable type** (`crates/nvs-types/src/generics.rs`), which is `rule:types/callable-signature`'s
    first extension: one more structural position, no constraint set, no occurs check. The gap this
    closes is that module's own — a callback that is a *variable* now binds what only a written literal
    bound before.
@@ -92,7 +92,7 @@ section.
 1. **`CoreTy::CallableShapeTo` is deleted** (`crates/nvs-stdlib/src/registry.rs:361`) with
    `callable_shape_var` (`crates/nvs-types/src/generics.rs:152`), and `task.rs:137`/`:148` write
    `{name: callable(): T, …}` instead.
-2. **A shape of callables rebuilds a shape** — ADR 0136 § 6's second extension: walk each field, take its
+2. **A shape of callables rebuilds a shape** — `rule:types/callable-signature`'s second extension: walk each field, take its
    callable return type, assemble a shape with the same names. One descent, one construction, in the
    same single pass the module already makes.
 3. **`Task::all`'s written-literal restriction is removed**, in the spec and in the checker: a field
@@ -117,13 +117,13 @@ One file set: `crates/nvs-ir/src/lower/expr.rs`, `crates/nvs-ir/src/lower/closur
 
 ## Standing decisions
 
-- **ADR 0136 is settled and is not re-derived.** Its five decisions — the spelling with a mandatory
+- **`rule:types/callable-signature` is settled and is not re-derived.** Its five decisions — the spelling with a mandatory
   return, no parameter names, bare `callable` as the lattice top, prefix arity, contravariant
   parameters with a covariant return, and inference from the expected type — were taken with the user
   before this goal was written. A session that finds an implementation reason one of them is wrong
   records it in the ADR's *Revisiting* and implements the decision as written; it does not choose
   differently and it does not report `BLOCKED`.
-- **This goal may open no new ADR number.** Every design question inside it has a home: ADR 0136's body
+- **This goal may open no new ADR number.** Every design question inside it has a home: `rule:types/callable-signature`'s body
   for the rule, the touched module's doc comment for a mechanism, the playbook for a trap.
 - **The new diagnostics go in `E08xx`, opening at `E0800`** — ADR 0136 § *Diagnostics* and
   [docs/adr/README.md](../../adr/README.md) § *Decisions taken at project start* both record the

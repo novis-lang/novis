@@ -1,8 +1,8 @@
 --TEST--
-`array<T> as array<U>` walks every element and throws on the first one `U` does not admit, and `as ?array<U>` answers `null` in exactly the same places — ADR 0007 §§ 2, 5, 6 and `rule:expressions/nullable-conversion`
+`array<T> as array<U>` walks every element and throws on the first one `U` does not admit, and `as ?array<U>` answers `null` in exactly the same places — `rule:types/conversion`, `rule:types/arrays` and `rule:types/unions-and-mixed` and `rule:expressions/nullable-conversion`
 --FILE--
 <?nvs
-// ADR 0007 § 2's one row whose check is per *element* rather than per value.
+// `rule:types/conversion`'s one row whose check is per *element* rather than per value.
 // Every subject arrives through `mixed`, which is § 6's way into it: two are
 // arrays of strings, one is an array holding something else, and one is not an
 // array at all.
@@ -32,7 +32,7 @@ foreach ($subjects as mixed $subject) {
 echo "agreed on ", $agreed as string, " of 4\n";
 echo "walked ", $elements as string, " elements\n";
 
-// ADR 0007 § 5's "nests to any depth", which the walk follows: an element of
+// `rule:types/arrays`'s "nests to any depth", which the walk follows: an element of
 // the grid that is not itself an array of strings fails the outer conversion.
 mixed $grid = [["a"], ["b", "c"]];
 array<array<string>> $cells = $grid as array<array<string>>;
@@ -47,7 +47,7 @@ try {
 }
 
 // `array<mixed>` is the target every tag satisfies, so there is nothing for
-// the walk to decide and the array comes back as it was — ADR 0007 § 3's one
+// the walk to decide and the array comes back as it was — `rule:types/grammar`'s one
 // unchecked position, one container in.
 array<int> $ints = [1, 2, 3];
 array<mixed> $any = $ints as array<mixed>;

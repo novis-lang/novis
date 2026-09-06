@@ -1,9 +1,9 @@
 --TEST--
-Spec § 5: `Core\Regex\Match::offset` counts ADR 0009 § 2's graphemes, from `0` to the subject's own length inclusive
+Spec § 5: `Core\Regex\Match::offset` counts `rule:types/string-is-utf8`'s graphemes, from `0` to the subject's own length inclusive
 --FILE--
 <?nvs
 // ADR 0063 R8: a position Novis hands back is in the same unit every other
-// `string` position uses, which ADR 0009 § 2 fixes as the grapheme cluster.
+// `string` position uses, which `rule:types/string-is-utf8` fixes as the grapheme cluster.
 // A single case can read `0` off a match at the start and never learn which
 // of the three plausible units it is counting, so every block below is a
 // place where the three answers differ.

@@ -133,7 +133,7 @@ fn a_type_alias_has_no_type_parameters_but_may_be_one() {
 
 /// A parameter whose declared type mentions no variable is known before any
 /// binding, so it is checked *with* that expectation — which is what tells an
-/// integer literal at a `uint` position that it is one (ADR 0007 § 4). Before
+/// integer literal at a `uint` position that it is one (`rule:types/arithmetic`). Before
 /// `nvs_types::expr::args::check_generic_args` did that, a `uint` parameter on a
 /// generic `Core` member was unreachable from a literal, while the identical
 /// parameter on a non-generic one (`Core\Str::padStart`) accepted it.
@@ -167,8 +167,7 @@ fn a_core_member_that_infers_its_variables_refuses_a_written_type_argument() {
     );
 }
 
-/// A user-declared method is the same refusal from the other side: ADR 0007
-/// § 1 parks user-declared generics, so nothing a program writes has a type
+/// A user-declared method is the same refusal from the other side: `rule:types/declaration` parks user-declared generics, so nothing a program writes has a type
 /// parameter to name.
 #[test]
 fn a_user_declared_method_refuses_a_written_type_argument() {

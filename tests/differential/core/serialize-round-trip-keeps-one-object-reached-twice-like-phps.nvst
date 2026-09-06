@@ -9,7 +9,7 @@ An object reached twice from one array comes back as one object and not as two, 
 // and read back through the other — a duplicating copy renders identically on
 // every line that does not do that.
 //
-// `decode` answers `mixed`, and ADR 0007 § 2 refuses `as array<Cell>` because a
+// `decode` answers `mixed`, and `rule:types/conversion` refuses `as array<Cell>` because a
 // runtime tag does not decide a class (`E0711`): the array is converted to
 // `array<mixed>` and each element is converted where it is read, which is the
 // spelling that diagnostic names.

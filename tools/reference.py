@@ -508,7 +508,7 @@ def build(reg: dict) -> str:
             used.add(name)
             return TABLES[name](reg)
         body = PLACEHOLDER_RE.sub(sub, body)
-        # A chapter's `<!-- src: ADR 0007 § 3 -->` lines are for this repository's own
+        # A chapter's `<!-- src: `rule:types/grammar` -->` lines are for this repository's own
         # readers -- which decision owns the paragraph -- and never for the generated file.
         return SRC_RE.sub("", body)
 

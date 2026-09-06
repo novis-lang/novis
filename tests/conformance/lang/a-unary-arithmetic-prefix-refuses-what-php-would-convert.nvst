@@ -1,5 +1,5 @@
 --TEST--
-`+`, `-` and `~` agree on refusing every operand ADR 0007 § 4 has no row for, and an object gets the one sentence the others do not — ADR 0007 §§ 2, 4
+`+`, `-` and `~` agree on refusing every operand `rule:types/arithmetic` has no row for, and an object gets the one sentence the others do not — `rule:types/conversion` and `rule:types/arithmetic`
 --FILE--
 <?nvs
 class Thing {
@@ -12,7 +12,7 @@ array<int> $xs = [1, 2];
 Thing $o = new Thing();
 
 // PHP answers each of these by converting the operand first — `+"5"` is
-// `5`, `-true` is `-1`, `~"ab"` is a bytewise NOT. ADR 0007 § 2 has no
+// `5`, `-true` is `-1`, `~"ab"` is a bytewise NOT. `rule:types/conversion` has no
 // implicit conversion for any of them to be, so all three prefixes refuse,
 // and they refuse *alike*: the asserted property is that the three agree,
 // not that any one of them reports.
@@ -40,35 +40,35 @@ error[E0705]: `+` has no meaning for `string`
    |
 16 | string $s1 = +$s;
    |              ^^^ a unary arithmetic operator is over numbers
-   = help: ADR 0007 § 4's arithmetic is over `int`, `uint`, `float` and `decimal`; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
+   = help: `rule:types/arithmetic`'s arithmetic is over `int`, `uint`, `float` and `decimal`; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
 
 error[E0705]: `-` has no meaning for `string`
    --> %s:17:14
    |
 17 | string $s2 = -$s;
    |              ^^^ a unary arithmetic operator is over numbers
-   = help: ADR 0007 § 4's arithmetic is over `int`, `uint`, `float` and `decimal`; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
+   = help: `rule:types/arithmetic`'s arithmetic is over `int`, `uint`, `float` and `decimal`; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
 
 error[E0705]: `~` has no meaning for `string`
    --> %s:18:14
    |
 18 | string $s3 = ~$s;
    |              ^^^ a unary arithmetic operator is over numbers
-   = help: ADR 0007 § 4's arithmetic is over `int`, `uint`, `float` and `decimal`; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
+   = help: `rule:types/arithmetic`'s arithmetic is over `int`, `uint`, `float` and `decimal`; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
 
 error[E0705]: `-` has no meaning for `bool`
    --> %s:23:12
    |
 23 | bool $b1 = -$b;
    |            ^^^ a unary arithmetic operator is over numbers
-   = help: ADR 0007 § 4's arithmetic is over `int`, `uint`, `float` and `decimal`; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
+   = help: `rule:types/arithmetic`'s arithmetic is over `int`, `uint`, `float` and `decimal`; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
 
 error[E0705]: `~` has no meaning for `array<int>`
    --> %s:26:17
    |
 26 | array<int> $q = ~$xs;
    |                 ^^^^ a unary arithmetic operator is over numbers
-   = help: ADR 0007 § 4's arithmetic is over `int`, `uint`, `float` and `decimal`; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
+   = help: `rule:types/arithmetic`'s arithmetic is over `int`, `uint`, `float` and `decimal`; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
 
 error[E0401]: `-` has no meaning for `Thing`
    --> %s:31:13

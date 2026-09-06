@@ -285,7 +285,7 @@ pub(super) fn converted(
     use nvs_runtime::CodecTy;
 
     match ty {
-        // ADR 0007's `mixed`: whatever the column held, unchecked.
+        // `rule:types/declaration`'s `mixed`: whatever the column held, unchecked.
         CodecTy::Mixed => Ok(held),
         // § 6's three crossings, and a field asks for one in exactly the words
         // a `Db\Row` reader does: the helpers below are the rule's one home, so
@@ -589,7 +589,7 @@ pub(super) fn column_out_of_range(member: &str, name: &[u8], holds: &str) -> Fau
 /// questions and a caller says so in different words: [`Self::Lossy`] is the
 /// right family and a value that does not survive the crossing, while
 /// [`Self::Mismatched`] is a family with no crossing to consider at all. A
-/// `DECIMAL` asked for `float` is the second and not the first — ADR 0054 keeps
+/// `DECIMAL` asked for `float` is the second and not the first — `rule:types/decimal` keeps
 /// those apart by construction, so there is no value of one that is a value of
 /// the other.
 pub(super) enum Requested<T> {
@@ -629,7 +629,7 @@ pub(super) fn requested_bool(value: Value) -> Requested<bool> {
     }
 }
 
-/// § 6's `int` request, which crosses from the other half of ADR 0007 § 4's one
+/// § 6's `int` request, which crosses from the other half of `rule:types/arithmetic`'s one
 /// integer and stops where `int` does.
 pub(super) fn requested_int(value: Value) -> Requested<i64> {
     if let Some(signed) = value.as_int() {
@@ -930,7 +930,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `$row->bytes(string $name): ?bytes` — [`nvs_core_db_row_string`]'s twin
-    /// on ADR 0009's other side.
+    /// on `rule:types/bytes`'s other side.
     fn nvs_core_db_row_bytes(_ctx, args: [2]) {
         let (name, found) = typed_column(args, "bytes")?;
         let Some(value) = found else {
@@ -944,7 +944,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$row->int(string $name): ?int` — the signed half of ADR 0007 § 4's one
+    /// `$row->int(string $name): ?int` — the signed half of `rule:types/arithmetic`'s one
     /// integer, and one of the two readers that cross.
     fn nvs_core_db_row_int(_ctx, args: [2]) {
         let (name, found) = typed_column(args, "int")?;
@@ -1015,7 +1015,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$row->decimal(string $name): ?decimal` — ADR 0054's exact scalar, where
+    /// `$row->decimal(string $name): ?decimal` — `rule:types/decimal`'s exact scalar, where
     /// PHP hands back a string and leaves the parsing to the caller.
     fn nvs_core_db_row_decimal(_ctx, args: [2]) {
         let (name, found) = typed_column(args, "decimal")?;
@@ -1275,7 +1275,7 @@ mod tests {
     /// obvious `u64::MAX`.
     ///
     /// The other direction is the same rule and is asserted beside it, since
-    /// `int` and `uint` are ADR 0007 § 4's one integer read two ways: a
+    /// `int` and `uint` are `rule:types/arithmetic`'s one integer read two ways: a
     /// negative `BIGINT` has no `uint` reading, and `0` is the bound there.
     #[test]
     fn bigint_unsigned_past_i64_max_reads_uint_and_throws_for_int() {
@@ -1342,7 +1342,7 @@ mod tests {
 
     /// § 6's third named crossing, which is the one that is not a crossing: **a
     /// `DECIMAL` refuses a `float` field**, since
-    /// [ADR 0054](/docs/adr/0054-decimal-scalar-type.md) keeps the two
+    /// `rule:types/decimal` keeps the two
     /// apart.
     ///
     /// This is the ADR's own § *Context* defect at the hydration boundary. PDO
@@ -1354,7 +1354,7 @@ mod tests {
     /// against a value that already fails to round-trip would pass over a
     /// codec that widened whenever it could.
     ///
-    /// Both directions, since ADR 0054 keeps them apart in both: a `FLOAT`
+    /// Both directions, since `rule:types/decimal` keeps them apart in both: a `FLOAT`
     /// column has no `decimal` field either, and `->decimal()` is the reader
     /// the exact column has.
     #[test]
@@ -1378,7 +1378,7 @@ mod tests {
             );
         }
 
-        // The other side of ADR 0054's wall, and the reason this is a
+        // The other side of `rule:types/decimal`'s wall, and the reason this is a
         // `Mismatched` rather than a range: there is no `DECIMAL` a `float`
         // field takes and no `FLOAT` a `decimal` field takes, at any value.
         let refused = converted(CodecTy::Float, None, None, Value::int(1))

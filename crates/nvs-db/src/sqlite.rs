@@ -213,7 +213,7 @@ impl SqliteValue {
     /// # Errors
     ///
     /// `InvalidData` for a `TEXT` cell that is not UTF-8. Every other driver
-    /// gets [ADR 0009](/docs/adr/0009-string-and-bytes.md)'s guarantee
+    /// gets `rule:types/bytes`'s guarantee
     /// from § 3's forced connection charset; SQLite has no charset to force and
     /// will store whatever bytes were handed to it, so the guarantee has to be
     /// checked here or abandoned. Lossy conversion is the one answer that is
@@ -282,7 +282,7 @@ impl rusqlite::types::ToSql for SqliteValue {
 ///   three: those two write a *literal* into text and neither dialect has one
 ///   for any of them, where this binds a double and two of the three survive it.
 /// - **A `decimal` goes out as `TEXT`, and what becomes of it then is the
-///   column's.** [ADR 0054](/docs/adr/0054-decimal-scalar-type.md)'s
+///   column's.** `rule:types/decimal`'s
 ///   digits are exact and text is the only arm that keeps them so; a column with
 ///   `TEXT` affinity holds them exactly, and one with `NUMERIC` affinity — which
 ///   is what `DECIMAL(10,2)` has — converts them to a `REAL` by SQLite's own
@@ -337,7 +337,7 @@ pub fn encode(value: Value) -> io::Result<SqliteValue> {
                 .map(|exact| exact.to_string())
                 .unwrap_or_default(),
         ),
-        // A `string` is UTF-8 by ADR 0009, so this checks a guarantee rather
+        // A `string` is UTF-8 by `rule:types/bytes`, so this checks a guarantee rather
         // than converting one. [`SqliteValue::read`] checks the other direction
         // because the *file* may hold anything, and this side may not.
         Some(Tag::Str) => {
@@ -1415,7 +1415,7 @@ mod tests {
         );
     }
 
-    /// ADR 0009's guarantee, which every other driver gets from § 3's forced
+    /// `rule:types/bytes`'s guarantee, which every other driver gets from § 3's forced
     /// charset and this one has to check: a `TEXT` cell that is not UTF-8 is an
     /// error, never a lossy string.
     #[test]

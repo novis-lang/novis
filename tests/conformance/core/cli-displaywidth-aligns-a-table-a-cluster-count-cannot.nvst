@@ -1,9 +1,9 @@
 --TEST--
-`Core\Cli::displayWidth` is the count a column of text aligns on, asserted over a sweep of labels rather than off one line: padding to a column count aligns every one of them, padding to a cluster count aligns only the labels where the two measures happen to agree — ADR 0086 § 3, ADR 0009 § 2
+`Core\Cli::displayWidth` is the count a column of text aligns on, asserted over a sweep of labels rather than off one line: padding to a column count aligns every one of them, padding to a cluster count aligns only the labels where the two measures happen to agree — ADR 0086 § 3, `rule:types/string-is-utf8`
 --FILE--
 <?nvs
 // § 3 sites this member on `Core\Cli` and not on `Core\Str` because a column
-// count is a property of the renderer: ADR 0009 § 2 fixed `string`'s own unit
+// count is a property of the renderer: `rule:types/string-is-utf8` fixed `string`'s own unit
 // as the grapheme cluster, and a terminal does not draw clusters, it draws
 // columns. This case is that difference made observable, and it is asserted by
 // **counting** the labels that came out ten columns wide — a member answering

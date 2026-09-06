@@ -55,15 +55,14 @@ implements, exactly the shape `Stringable` already has in PHP. Nothing about thi
 widen its scope.
 
 `compareTo` returns an `int`: negative if `$this` orders before `$other`, zero if neither orders before the
-other, positive if `$this` orders after — the same convention `strcmp` and [ADR 0007](0007-explicit-type-system.md)
-§ 4's `<=>` already use for scalars, so a typical implementation is a one-line delegation:
+other, positive if `$this` orders after — the same convention `strcmp` and `rule:types/arithmetic`'s `<=>` already use for scalars, so a typical implementation is a one-line delegation:
 
 ```php
 final class Money implements Comparable {
     public function constructor(private readonly int $cents) {}
 
     public function compareTo(self $other): int {
-        return $this->cents <=> $other->cents;   // int <=> int, already defined by ADR 0007 § 4
+        return $this->cents <=> $other->cents;   // int <=> int, already defined by `rule:types/arithmetic`
     }
 }
 ```
@@ -89,7 +88,7 @@ If the compiler cannot show that both operands' static type implements `Comparab
 PHP's recursive property-by-property walk described in *Context* is not implemented anywhere in Novis — there
 is no code path that falls back to it. A class that wants its instances ordered says so once, in its own
 declaration; a class that does not implement `Comparable` simply cannot be ordered, the same certainty
-[ADR 0007](0007-explicit-type-system.md) already gives every other operator whose operand types do not
+`rule:types/declaration` already gives every other operator whose operand types do not
 support it (`int + uint`, arithmetic on a `bool`).
 
 ### 4. Same class only — `self`, no cross-class overload
@@ -114,7 +113,7 @@ into this interface, so that `compareTo` returning `0` also means `==`, was cons
 *Alternatives rejected*. Writing `$a->compareTo($b) == 0` is how a class that implements `Comparable` asks
 the content question explicitly, which is `rule:expressions/object-identity-equality`'s answer to it.
 
-### 6. The row this adds to [ADR 0007](0007-explicit-type-system.md) § 4
+### 6. The row this adds to `rule:types/arithmetic`
 
 | operation | result | on overflow / edge |
 |---|---|---|
@@ -131,7 +130,7 @@ the content question explicitly, which is `rule:expressions/object-identity-equa
 - Costs nothing beyond an ordinary virtual call already paid for by every other method
   (`rule:programs/memory-priority`) — no new storage class (`rule:statements/static-is-a-member-modifier`),
   no new runtime representation.
-- Reuses [ADR 0007](0007-explicit-type-system.md) § 4's already-defined `<=>` for scalars inside
+- Reuses `rule:types/arithmetic`'s already-defined `<=>` for scalars inside
   `compareTo`, so the common case (delegate to one field's existing orderable type) is one line.
 - Closes an unbounded-cost comparison over attacker-influenced object graphs, a small instance of priority 1
   bought at the same time as priorities 2 and 4.
@@ -139,7 +138,7 @@ the content question explicitly, which is `rule:expressions/object-identity-equa
 **Negative**
 
 - **A structural break from PHP**, one of the divergences [divergences.md](divergences.md) registers, `rule:statements/static-is-a-member-modifier` and
-  `rule:enums/closed-integer-type`(0010-enums-are-a-value-type.md): PHP source ordering two objects of the same class with `<`/
+  `rule:enums/closed-integer-type`: PHP source ordering two objects of the same class with `<`/
   `>`, relying on the implicit property walk, does not convert unconverted. `nvs convert`
   ([M11](../implementation-plan.md)) can detect the pattern but must leave adding `Comparable` and writing
   `compareTo` as a `TODO` for a human — there is no mechanical rewrite, because the walk's actual ordering
@@ -154,7 +153,7 @@ the content question explicitly, which is `rule:expressions/object-identity-equa
 
 - **Per-operator magic methods** (`__lessThan`, `__greaterThan`, …). Rejected: splits one logical decision
   into up to five methods a class could implement inconsistently (`$a < $b` true but `$b > $a` false),
-  the "one operator, one API" principle [ADR 0007](0007-explicit-type-system.md),
+  the "one operator, one API" principle `rule:types/declaration`,
   `rule:enums/closed-integer-type` and
   [ADR 0011](0011-functions-and-constants-are-class-members.md) already lean on.
 - **Keep PHP's property-walk fallback for classes that do not implement `Comparable`.** Rejected per
@@ -185,7 +184,7 @@ Verification, in the order it becomes possible:
 - **M2**: the checker refuses `<`/`>`/`<=`/`>=`/`<=>` between two objects whose static types are not both
   provably the same `Comparable`-implementing class, with a diagnostic naming `Comparable`; the same
   operators between two objects that do satisfy it type-check as *Decision § 6*'s table gives, joining the
-  diagnostic corpus [ADR 0007](0007-explicit-type-system.md)'s own M2 entry already builds.
+  diagnostic corpus `rule:types/declaration`'s own M2 entry already builds.
 - **M4**: a `Comparable` implementation's `compareTo` actually runs at all five operators, including a
   throwing `compareTo` propagating correctly through `rule:errors/propagation`'s checked-return
   path; two unrelated classes each implementing `Comparable` still refused when compared against each other.

@@ -57,7 +57,7 @@
 //!    (`nvs_types::expr::quals::reject_secret_debug_argument`) and a
 //!    `secret`-typed *property* is a [`Node::Redacted`](nvs_render::Node::Redacted),
 //!    read off `nvs_runtime::ClassDesc::field_is_secret` — but neither end
-//!    reaches a `secret` value held in an `array<T>` element or in an ADR 0036
+//!    reaches a `secret` value held in an `array<T>` element or in an `rule:types/object-top`
 //!    shape literal's field. Both are ADR 0033's unmodelled container axis
 //!    rather than a hole here: the element type of an array of `secret string`
 //!    is not something the qualifier composes onto today, and a shape field's
@@ -65,12 +65,12 @@
 //!    is no declaration for the bit to be carried off. A `secret` property of
 //!    a *nested* object is redacted, that object's own class having declared
 //!    it.
-//! 2. **An enum case dumps as its backing integer.** ADR 0010 § 5 gives an
+//! 2. **An enum case dumps as its backing integer.** `rule:types/conversion` gives an
 //!    enum no tag of its own — it *is* an `int` at run time — so a case
 //!    arriving through `mixed` is indistinguishable from one here.
 //!    `nvs_render::Node::EnumCase` exists and is what a producer with a static
 //!    type would build; reaching it from a dump wants the tag roster to
-//!    distinguish an enum, which is a representation change ADR 0010 § 5
+//!    distinguish an enum, which is a representation change `rule:types/conversion`
 //!    deliberately declined.
 //! 3. **The `Throwable` producer is not here.** `rule:errors/record-producers` makes an uncaught
 //!    `Throwable` a record at `Error` with its frames as Sequence-of-Object
@@ -331,7 +331,7 @@ fn node_of(value: Value, caps: &Caps, depth: usize, seen: &mut Seen) -> Node {
 /// A `string`, cut at [`Caps::text`].
 ///
 /// The bytes are decoded lossily rather than refused: a `string` is UTF-8 by
-/// ADR 0009's promise, so a run that is not is a value that came from outside
+/// `rule:types/bytes`'s promise, so a run that is not is a value that came from outside
 /// the type system, and a dump is exactly the tool a developer reaches for to
 /// see one.
 fn text_node(bytes: &[u8], caps: &Caps) -> Node {
@@ -483,7 +483,7 @@ fn object_body(
     let class = object.class_name().to_owned();
     let id = Some(seen.depth());
 
-    // ADR 0031 § 2 gives a closure no user-visible state at all — the fields
+    // `rule:types/implicit-capture` gives a closure no user-visible state at all — the fields
     // are its captures, and a dump that showed them would be showing an
     // implementation. A synthesized closure class is named `{owner}$fn{n}` by
     // `nvs_types::expr::calls`, and `$` cannot appear in a declared name

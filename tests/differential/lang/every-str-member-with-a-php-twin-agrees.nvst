@@ -1,5 +1,5 @@
 --TEST--
-every Core\Str member the spec gives a PHP twin answers what that twin answers over one shared ASCII corpus, and the ten identities the members hold jointly hold in PHP too (spec § 1, ADR 0063 R5, ADR 0009 § 2)
+every Core\Str member the spec gives a PHP twin answers what that twin answers over one shared ASCII corpus, and the ten identities the members hold jointly hold in PHP too (spec § 1, ADR 0063 R5, `rule:types/string-is-utf8`)
 --FILE--
 <?nvs
 // The roster case for `Core\Str`. Every other file under
@@ -11,7 +11,7 @@ every Core\Str member the spec gives a PHP twin answers what that twin answers o
 // per-member file can make.
 //
 // The corpus is ASCII throughout and holds no `\r`. That is not a weakening:
-// ADR 0009 § 2 counts grapheme clusters where PHP's byte functions count
+// `rule:types/string-is-utf8` counts grapheme clusters where PHP's byte functions count
 // bytes, so outside ASCII a good half of this roster is *supposed* to
 // disagree, and the files named `…-diverges-…` are where each of those is
 // pinned instead. Inside ASCII the units coincide, which is exactly the region

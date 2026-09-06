@@ -383,7 +383,7 @@ is why" — is this file.
   module doc, which is the home of the reasoning — the wrong version of this bullet costs a session
   either way round.
 - **Making a previously infallible instruction fallible moves two guards that name neither it
-  nor the operator.** ADR 0007 § 4's overflow throw gave `+`/`-`/`*` and unary `-` an
+  nor the operator.** `rule:types/arithmetic`'s overflow throw gave `+`/`-`/`*` and unary `-` an
   `Inst::on_error` edge, and the build then failed twice a long way from the change.
   `benches/abi-probe/tests/perf_guards.rs`'s `a_typed_arithmetic_loop_contains_no_call` counts
   machine-code `call`s against IR probe/safepoint sites, and each new edge adds *two* — the
@@ -740,7 +740,7 @@ is why" — is this file.
   "`foreach` lost the `Env` binding `{name}` it walks" — which no program reaches and which will
   still be there when the last hole closes, so counting them puts the gate's own end state out of
   reach permanently. Wording cannot separate the two either, in *either* direction: an invariant
-  names the front-end guarantee it trusts, and so do two real holes (both of ADR 0027's `(...)`
+  names the front-end guarantee it trusts, and so do two real holes (both of `rule:types/callable-is-a-closure`'s `(...)`
   panics say "has no resolved target recorded in the typed-expression table"). The recognizer that
   works takes the construct **and** the claim's shape — "only lowers X", "lowers X only through Y",
   "has no arm for" — and the mechanical fix, whenever a session wants one, is to make the *source*
@@ -1777,7 +1777,7 @@ is why" — is this file.
   `E0503` for a `nvs-types` refusal; `E05xx` is IR and codegen, and both types bands were full
   (`E0499`, `E0799`). The answer was already written down twice — `E0799`'s own doc comment says the
   next types diagnostic opens a band, and `docs/adr/README.md` § *Decisions taken at project start*
-  had set `E08xx` aside and recorded that ADR 0136 claimed `E0800` for work that has not landed. So
+  had set `E08xx` aside and recorded that `rule:types/callable-signature` claimed `E0800` for work that has not landed. So
   when `brief.py`/`orient.py` reports every band FULL for your phase, read that README section rather
   than taking a neighbouring band's number: the decision exists, and one `grep -n E0500
   docs/adr/README.md` finds it.
@@ -2393,7 +2393,7 @@ is why" — is this file.
   `tools/gen-attribution.py`'s `PREFERENCE`, in the same commit: that script fails if the two disagree.
   The dependency *sweep* is a pass the user fires by hand (ADR 0068); never start it as a side effect.
 - **A registry rule quoted by test name may not be that rule, or may not exist.** A handoff opened
-  ADR 0069's slice with "`registry`'s own `a_union_is_only_ever_a_parameter` says a union cannot be a
+  `rule:types/array-combination`'s slice with "`registry`'s own `a_union_is_only_ever_a_parameter` says a union cannot be a
   return type", which would have forced `array<mixed>` on four members. There is no test by that name —
   the real one is `a_union_option_excludes_null`, which restricts an **option's** type and
   nothing else, and `CoreTy::Union`'s doc says "legal in **either** direction" outright. One
@@ -3006,14 +3006,14 @@ is why" — is this file.
   a typed local one line above and pass it, which is what every existing case already does; a scratch probe
   written the obvious way fails at the checker before it ever reaches the member you are testing.
 - **A case cannot index into an `array<mixed>`'s elements, and `Core\Json::encode` is the way round
-  it.** `$q["b"] as array<string>` panics `nvs-ir` outright — *"got `Tagged as Array`"*, ADR 0007 § 2's
+  it.** `$q["b"] as array<string>` panics `nvs-ir` outright — *"got `Tagged as Array`"*, `rule:types/conversion`'s
   `array<T> as array<U>` row being the one still missing — so a member answering a nested shape has no
   spelling that reaches past the first level. `Core\Json::encode($q)` renders the whole structure in one
   line and it is byte-identical to PHP's `json_encode` over `parse_str`'s array, which makes it the
   strongest assertion available as well as the only one. `$q["a"] as string` on a top-level scalar does
   lower.
 - **A named class does not satisfy a shape type**, whatever its properties are called: `View::y(new
-  Point(3, 4))` against a `{y: int}` parameter is `E0401: expected {y: int}, found Point`. ADR 0036 § 3's
+  Point(3, 4))` against a `{y: int}` parameter is `E0401: expected {y: int}, found Point`. `rule:types/shape-type`'s
   width subtyping is shape-to-shape only (`nvs_types::expr::assign`), so the *one* way a shape receiver's
   static layout differs from the value's own is a narrower shape — which is the only widening a case
   testing § 4's name-keyed read can write. Several doc comments claimed the class direction worked; they
@@ -3054,7 +3054,7 @@ is why" — is this file.
   everything the compiler enforces.
 - **A row the checker accepts is not a row that runs.** `nvs-codegen` refuses a binary operator over two
   representations with *"does not lower a binary operator over mismatched representations"*. Equality is
-  out of that hole, and so is ADR 0007 § 4's whole promotion table: `$n + $f`, `$n * $f`, `$n ** $f`,
+  out of that hole, and so is `rule:types/arithmetic`'s whole promotion table: `$n + $f`, `$n * $f`, `$n ** $f`,
   `$n < $f`, `$n <=> $f` and `$u + $f` all run today, `nvs-ir` having widened the narrower operand before
   the instruction is emitted. The ordering half of the hole is closed at the *checker* now (`E0715`, the
   neighbouring bullet), so what still reaches this refusal is a mismatched pair no widening exists for and
@@ -3066,7 +3066,7 @@ is why" — is this file.
   it writes one it cannot.** There is no `bytes` literal at all (`00-overview` § 5), so those are the two
   spellings; `as bytes` is total and free and only reaches octets that are valid UTF-8, which is why an
   arbitrary buffer — a lone `ff`, a truncated sequence — still has to come from `fromHex`. Assert the
-  result with `toHex` either way, since `echo` has no `bytes` row: ADR 0009 § 3 makes `bytes as string`
+  result with `toHex` either way, since `echo` has no `bytes` row: `rule:types/conversion` makes `bytes as string`
   *checked*, and an implicit render is not that check.
 - **`<`/`<=`/`>`/`>=`/`<=>` over two `string`s is `E0715` where it is written**, and this bullet used to
   say it compiled and then failed at run time — it does not any anymore, and the diagnostic names the
@@ -3207,7 +3207,7 @@ is why" — is this file.
   (`Core\ObjectMap<Tag, int>`) is accepted in that method's parameter list, so the helper can take the
   collection the case is about.
 - **A case that sweeps a table can factor the sweep into a closure now, but `function (…) { … }` is
-  still `E0222` outright** — `fn (…) => …` or `fn (…) => { … }` is the one closure literal (ADR 0031).
+  still `E0222` outright** — `fn (…) => …` or `fn (…) => { … }` is the one closure literal (`rule:types/closure-literal`).
   Calling one through the variable holding it lowers (it used to panic), and so does `$f(...$args)`;
   what a call through a `callable` answers is `mixed`, so the result takes an `as T` wherever a
   narrower type is declared. The array-plus-`foreach` shape below is still the one to reach for when
@@ -3550,7 +3550,7 @@ is why" — is this file.
   `Core\Path::relativeTo`, is `E0401: expected string, found string|null`, and declaring the local
   `?string` instead of `var` changes nothing. Two spellings do work and both are worth preferring to a
   narrowing that would silently start working later: `$r as string` inside the branch, a checked
-  conversion (ADR 0007 § 2) that would throw rather than lie if the guard above it were wrong, and
+  conversion (`rule:types/conversion`) that would throw rather than lie if the guard above it were wrong, and
   `$r ?? "<null>"` where the value is only being echoed — which is also how a case prints the refusal
   itself, since `echo` has no `null` row.
 - **A green conformance case can be pinning the bug you are about to fix.**
@@ -3585,7 +3585,7 @@ is why" — is this file.
 - **Two file-scope `catch`es may share a binding name only while they name the same class.** The
   neighbouring bullet says several file-scope `try`s each binding `$e` compile, and that holds — but
   `catch (ArithmeticError $e)` followed by `catch (LogicError $e)` is `E0406: `$e` is already declared`,
-  pointing at the first clause, with no loop anywhere in the file. ADR 0007 § 1's declare-once rule is
+  pointing at the first clause, with no loop anywhere in the file. `rule:types/declaration`'s declare-once rule is
   about the *binding*, so a case that catches two different classes needs two names (`$a` for every
   `ArithmeticError` clause, `$l` for every `LogicError` one) and can keep reusing each within its class.
 - **A property default is a scalar literal or `[]`, and a *hooked* property takes none at
@@ -3621,7 +3621,7 @@ is why" — is this file.
   scratch `.agent-tmp/*.nvs`, write the same program as `.php`, and **diff the two** before
   filling in `--EXPECT--` — a conformance case takes no `--ORACLE--`, which is exactly why
   its expectation is the one nothing else checks against PHP.
-- **An array literal's key arrow is `=>`, not the shape literal's `:`.** ADR 0036's
+- **An array literal's key arrow is `=>`, not the shape literal's `:`.** `rule:types/object-top`'s
   anonymous object is `{x: 1}` and it is easy to carry that colon into the array
   form, where `["a": 1, "b": 2]` is not a near-miss but a parse failure that
   reports `E0102`/`E0101` three times over one line and hides whatever else the
@@ -3668,7 +3668,7 @@ is why" — is this file.
 - **A `for` header's initialiser cannot declare a typed local.** `for (int $i = 0; $i <
   200000; $i = $i + 1)` is twelve diagnostics in one line — `E0102`/`E0101` at the type
   keyword, then `E0301` and `E0401` on the `$i` that never got declared — because the
-  header's first clause is an *expression*, not a statement, and ADR 0007 § 1 wants every
+  header's first clause is an *expression*, not a statement, and `rule:types/declaration` wants every
   binding declared. Declare it above the loop and leave the clause empty, or write the
   `while` the loop already is: `int $i = 0; while ($i < 200000) { … $i = $i + 1; }`. The
   first error's span points at the type keyword, which reads like the type is unknown
@@ -3720,7 +3720,7 @@ is why" — is this file.
   that wants a set-equality helper takes its two operands as the parameterized type and
   never as an algebra result. `Core\ObjectMap`'s members have the same shape.
 - **A counting sweep adds `$b ? 1 : 0`, never `$b as int`.** `bool` converts to `string` and to
-  `bool` alone (`E0708`, ADR 0007 § 2), so the *invariance over a sweep* shape — the one that
+  `bool` alone (`E0708`, `rule:types/conversion`), so the *invariance over a sweep* shape — the one that
   asserts a property by counting agreements rather than reading them off a line — spells its
   counter `$n = $n + (Core\Str::contains(…) ? 1 : 0);`. The diagnostic's own help says so, but it
   costs a compile to find out. The rest of the shape does work: an
@@ -3752,7 +3752,7 @@ is why" — is this file.
   (`E0406`), because the catch binding is the function's — name each catch for what it caught.
 - **A closure is an object of a compiler-synthesized class, so `shown`'s `a closure` arm is
   unreachable from source.** `Core\Test::assertSame($f, $g)` over two `callable`s prints
-  ``a `Script$fn0` `` and ``a `Script$fn1` `` — ADR 0031's closure lowering makes a literal an
+  ``a `Script$fn0` `` and ``a `Script$fn1` `` — `rule:types/closure-literal`'s closure lowering makes a literal an
   object with one field per capture, so the value carries `Tag::Object` and the class name it
   reports is the synthesized label. Keep a `callable` out of a case about how a value renders:
   the row pins a name no ADR owns. The same goes for `Tag::Resource` and `Tag::Unset`, which no
@@ -3775,7 +3775,7 @@ is why" — is this file.
   The mirror of the same rule on the way out: `Core\Str::length` *returns* `uint`, so a loop
   counter fed from it wants `as int` or a `uint` of its own.
 - **A `Core` member whose parameter is an enum-case union will not take the whole enum.**
-  `Core\Hash::hmac`'s third parameter is ADR 0047 § 3's
+  `Core\Hash::hmac`'s third parameter is `rule:types/enum-case-type`'s
   `Core\Digest::Sha256|Core\Digest::Sha384|Core\Digest::Sha512`, not `Core\Digest`, so a helper
   that forwards a digest to it must declare that union verbatim — a parameter typed
   `Core\Digest` is refused at the forward even though every value reaching it is one of the
@@ -3800,7 +3800,7 @@ is why" — is this file.
   syntax and dies at the colon. Both are two seconds in a scratch file and ten minutes if a
   written case is where you find out. In the same family, and the one worth knowing on its own:
   **an enum case behind a `mixed` reads *falsy* in a condition when its backing integer is `0`**,
-  because ADR 0047 § 5 spends no representation on hiding it and the runtime table dispatches on
+  because `rule:types/literal-types` spends no representation on hiding it and the runtime table dispatches on
   the tag — while the same case behind its declared type is truthy, which is what `rule:enums/truthiness`
   actually decided. Do not assert the erased row as if it were the ADR's answer.
 - **A `!= null` narrowing does not survive into a loop body, so a nullable receiver is
@@ -3814,7 +3814,7 @@ is why" — is this file.
   reads it with `?->` plus a `??`, rather than narrowing once at the top and trusting it. In
   the same family and cheaper to hit: `foreach ($m?->groups() as …)` is `E0443` outright, the
   nullsafe chain's own `null` being part of the iterated type.
-- **How a case counts what a callback did: ADR 0031 § 2's `Counter` object, at file scope, in a
+- **How a case counts what a callback did: `rule:types/implicit-capture`'s `Counter` object, at file scope, in a
   block-bodied `fn`.** A closure captures by value and there is no `use (&$n)`, so "was this callback
   called, and how often" looks unaskable from a `.nvst` case — but a captured *object* is still shared,
   and the whole shape lowers today: `final class Seen { public int $calls = 0; }`, `var $t = new
@@ -3851,7 +3851,7 @@ is why" — is this file.
   spaceship all refuse a `Core` object, so `$x->compareTo($y)` written out is the only order
   such a pair has; and a `{comparator: ...}` closure over them must declare its parameters as
   the class itself, because `mixed as Core\Uri` is `E0711` ("this target names no class to
-  test the value against") — ADR 0007 § 2 tabulates no conversion into an object.
+  test the value against") — `rule:types/conversion` tabulates no conversion into an object.
 - **A multi-argument `echo` prints its arguments as it evaluates them, so a `try` whose
   `echo` mixes a label with the call being tested prints the label and then throws**,
   leaving a half-written line above the `catch`'s own output that no amount of reading
@@ -3881,7 +3881,7 @@ is why" — is this file.
 - **A `--EXPECT--` block written by hand gets *precomposed* accented letters and the case
   emits *decomposed* ones**, which render identically in every terminal and in the diff
   the runner prints — so the failure reads as "expected X, actual X" and looks like a
-  line-ending bug. Any case whose subject is ADR 0009 § 2's grapheme unit has combining
+  line-ending bug. Any case whose subject is `rule:types/string-is-utf8`'s grapheme unit has combining
   marks in its output; build the block from the binary's own bytes rather than by typing
   it.
 - **`Core\Str::slice`'s third argument is a *length*, not an end offset, and getting it
@@ -3946,7 +3946,7 @@ is why" — is this file.
   section and many of them also carry `--EXPECT--`, so there is no discriminator to relax the rule
   with; a section meaning "stderr of a run that succeeded" would be a new one.
 - **A `.nvst` case cannot hold `Core` instances in an `array<mixed>`** — `$one as Core\Uri`
-  on an element is `E0711` ("ADR 0007 § 2 tabulates no conversion into an object"), so a
+  on an element is `E0711` ("`rule:types/conversion` tabulates no conversion into an object"), so a
   sweep that builds many objects and then asks one question of each has to collect the
   *answers*, not the objects: `$built[] = $u->toString();` and assert over the text. Two
   other spellings cost time in the same session and are worth having together: a `for`
@@ -4133,7 +4133,7 @@ is why" — is this file.
 - **An `array` key that is `bytes` panics in `nvs-ir` instead of being diagnosed**, the same
   shape as the `catch (Core\Error $e)` bullet above: `bytes $k = "a" as bytes; $pairs[$k] = "z";`
   reaches `lower/expr.rs:1972`'s *"an array key lowered to Bytes — nvs_types::check_program is
-  trusted to have already rejected a float/bool/null key (ADR 0007 § 5)"*. The assertion names
+  trusted to have already rejected a float/bool/null key (`rule:types/arrays`)"*. The assertion names
   the pass that should have refused it, so the fix is a `nvs-types` diagnostic beside the
   float/bool/null one. Worth knowing when a probe asks "can this key be invalid UTF-8": the
   answer is no, but the reason is an ICE rather than a refusal.
@@ -4243,7 +4243,7 @@ is why" — is this file.
   `foreach ([1, 2, 3] as string $k => int $n)` is `E0401: expected 'int', found 'mixed'` pointing at the
   binding rather than at the literal, because element types are not inferred into the literal's own type;
   `array<int> $steps = [1, 2, 3];` and then looping over `$steps` compiles unchanged. The key binding is a
-  separate and well-diagnosed question — always `string`, `E0723` with ADR 0007 § 5 in the help line.
+  separate and well-diagnosed question — always `string`, `E0723` with `rule:types/arrays` in the help line.
 - **Taking a member to the floor of three is two edits, and the second one is a
   `BELOW_THE_FLOOR` line you did not write.** `crates/nvs-stdlib/tests/conformance_coverage.rs`
   carries an explicit worklist of the members still under the floor, and
@@ -4337,7 +4337,7 @@ is why" — is this file.
   crates/nvs-stdlib/tests/conformance_coverage.rs` before writing the cases is the cheap check, and
   a group aimed at a member `gaps.py --coverage` shows below 3 should assume it is listed.
 - **An array subscript whose key is a `string|int` union is an ICE, not a diagnostic, on both the
-  read and the write — and it is the type `foreach` binds over `array<string|int>`.** ADR 0007 § 5
+  read and the write — and it is the type `foreach` binds over `array<string|int>`.** `rule:types/arrays`
   makes `int|string` the key type and `nvs_types::check_array_key_type` accepts the union, so
   `foreach ($keys as string|int $k) { $seen[$k] = true; }` compiles and then panics in `nvs-ir`:
   *"an array key lowered to Tagged — nvs_types::check_program is trusted to have already rejected a
@@ -4479,7 +4479,7 @@ is why" — is this file.
   diagnostic the case would otherwise have had to predict, and prints them for *every* line at once so
   one probe answers a whole group of members.
 - **`as array<SomeClass>` is refused with `E0711`, and the diagnostic's own help is the fix: convert to
-  `array<mixed>` and convert each element where it is read.** ADR 0007 § 2's `array<T> as array<U>` row
+  `array<mixed>` and convert each element where it is read.** `rule:types/conversion`'s `array<T> as array<U>` row
   checks every element against `U` as it walks, and what checks one element is its runtime tag — which a
   class is not decided by. `as array<int>` is fine for exactly that reason, so the refusal only shows up
   once a case rounds a container of *objects* through something answering `mixed`, which
@@ -4818,7 +4818,7 @@ is why" — is this file.
   the way to write a PHC literal, since `"$argon2id$v=19$…"` interpolates four variables.
 - **An acceptance fixture written ahead of its members can name a member that never existed, and two
   of `examples/crypto.nvs`'s six lines did.** It called `Core\Encoding::toBytes(…)` — there is no
-  such row; the `string`→`bytes` conversion is ADR 0009 § 3's `as bytes` cast, total and free — and
+  such row; the `string`→`bytes` conversion is `rule:types/conversion`'s `as bytes` cast, total and free — and
   it wrote `Core\Bytes::slice($b, 0, Core\Bytes::length($b) - 1)`, where `length` answers `uint` and
   `slice`'s third parameter is `int|null`, so the obvious arithmetic is `E0401: expected int|null,
   found uint` and the spelling is `(Core\Bytes::length($b) as int) - 1`. A fixture on disk reads
@@ -4996,7 +4996,7 @@ is why" — is this file.
 - **A `Core` member's `T` does not bind from an array literal written inline at the call site, and
   the diagnostic reads as if the member were wrong.** `string $one = Core\Cli::select("q", ["a",
   "b"])` is `E0401: expected string, found mixed` — not because `select<T>`'s row is broken, but
-  because ADR 0007 § 2 leaves an untyped literal unplaced and a type variable is the one position
+  because `rule:types/conversion` leaves an untyped literal unplaced and a type variable is the one position
   with nothing to place it against, so `crate::generics::bind` reads `array<mixed>` off the first
   pass. `array<string> $choices = [...]` on its own line binds `T` correctly, and both spellings
   behave identically at run time — a case only notices when it *asserts the type* by binding the
@@ -5015,7 +5015,7 @@ is why" — is this file.
   `tests/conformance/error/a-limit-fatal-is-not-catchable.nvst` is the same shape for a
   `FATAL`, whose stderr is a plain sentence rather than a record.
 - **A negative `decimal` has no literal spelling, and the diagnostic is `E0401: expected `decimal`,
-  found `int``.** ADR 0054 § 2 target-types the *literal*, and a unary minus in front of one is an
+  found `int``.** `rule:types/numeric-literal-placement` target-types the *literal*, and a unary minus in front of one is an
   ordinary operator over an `int`, so the target type never reaches through it: `decimal $d = -4;`
   does not compile. Build it by subtraction from a `decimal` that does —
   `decimal $four = 4; decimal $minusFour = 0 - $four;` — which is what
@@ -6387,14 +6387,14 @@ sibling in the same namespace unqualified.
 - **A case that sweeps code points writes `Core\Str::fromCodePoint($c as uint)`, and orders two strings
   with `Core\Str::compare`.** The obvious spellings both fail: `Core\Str::fromCodePoints` takes
   `array<uint>` while `Core\Arr::range` answers `array<int>`, and `array<int> as array<uint>` is the
-  conversion ADR 0007 § 2 still owes — so the singular member, with the loop's `int` counter converted at
+  conversion `rule:types/conversion` still owes — so the singular member, with the loop's `int` counter converted at
   the argument, is the way a sweep names a code point at all. For ordering, the neighbouring bullet's
   `<`/`>` hole over two `string`s is real but no longer the end of it: `Core\Str::compare($a, $b) <= 0`
   is an `int` comparison, it lowers, and over fixed-width zero-padded hex it *is* the numeric comparison —
   which is what lets a case assert that a `Core\Uuid::v7` sweep never goes backwards without leaving for
   the crate's own `#[test]`.
 - **`Core\Math::INT_MAX as float` throws, so a case reaching for "a huge finite float" has to
-  reach for `Core\Math::FLOAT_MAX` instead.** `int as float` is one of ADR 0007 § 2's *checked*
+  reach for `Core\Math::FLOAT_MAX` instead.** `int as float` is one of `rule:types/conversion`'s *checked*
   conversions and 2^63-1 is not representable in an `f64`, so the row lands as
   `Uncaught Exception: cannot convert `int` 9223372036854775807 to `float`` at run time with
   nothing said at compile time. `Core\Math`'s roster already has the four floats a numeric table
@@ -6435,11 +6435,11 @@ sibling in the same namespace unqualified.
   `$mathMinRefused` from the first draft; a `.nvst` case tends to want several near-identical names
   at once (one `catch` binding per clause, since they are all function-scoped) and that is exactly
   where the underscore creeps in.
-- **ADR 0007 § 2's one implicit conversion was not implemented at all, and it reads as a
+- **`rule:types/conversion`'s one implicit conversion was not implemented at all, and it reads as a
   division problem until you probe a plain assignment.** `float $x = $n;` over an `int $n`
   was `E0401: expected float, found int` — `nvs_types::expr::assign::is_assignable` had no
   `int`/`uint` → `float` row and no rule for a *union* source against a non-union target, so
-  ADR 0007 § 4's `int|float` quotient could not reach a declared `float` either. Both rows are
+  `rule:types/arithmetic`'s `int|float` quotient could not reach a declared `float` either. Both rows are
   there now, with `nvs_ir::lower::Lowering::coerce` performing the conversion — and that is
   the shape of the trap for anything similar: the widening **throws** above 2^53, so it could
   not live in `coerce` until `&Env` was threaded through all 17 of its call sites *and*
@@ -6456,7 +6456,7 @@ sibling in the same namespace unqualified.
   is four errors deep — the lexer reads `1.25d` as a *duration* literal and reports `E0007:
   \`.\` has no meaning in a duration`, then the parser loses the statement and the checker
   reports the wreckage as `E0401: expected \`decimal\`, found \`mixed\``, none of which names
-  the real problem. ADR 0054 § 2 is why there is no suffix at all: a numeric literal is untyped
+  the real problem. `rule:types/numeric-literal-placement` is why there is no suffix at all: a numeric literal is untyped
   until placed, so `decimal $d = 1.25;` is the whole spelling and the binding's declared type is
   what makes it a `decimal`.
 - **An enum is not spelled the way PHP spells it.** `enum Mode: int { case Read = 1; }` parses
@@ -6487,7 +6487,7 @@ sibling in the same namespace unqualified.
   never panics.
 - **A `...spread` array-literal element lowers now, and it is PHP-exact on keys** — an
   integer-looking key is renumbered under the destination's counter, every other key is
-  preserved (ADR 0007 § 5). So `[...$xs, ...$ys]` concatenates two lists and
+  preserved (`rule:types/arrays`). So `[...$xs, ...$ys]` concatenates two lists and
   `[...$m, "k" => "v"]` overrides by name, `[...Core\Arr::keys($m), "end"]` works with a
   call as the subject, and a keyless element beside a spread continues from what the
   spread contributed rather than from its own position. The one refusal left is the
@@ -6549,7 +6549,7 @@ sibling in the same namespace unqualified.
 - **A closure's declared parameter types are checked by nobody, and a mismatch is an arbitrary
   dereference rather than a fault.** `Core\Arr::map($ints, fn (string $s): string => $s)` over an
   `array<int>` dies inside `nvs-runtime`'s `string.rs` on a misaligned pointer, and `$f(1)` on a
-  `fn (string $s)` does the same now that a direct call lowers: ADR 0031 § 1 gives `callable` no
+  `fn (string $s)` does the same now that a direct call lowers: `rule:types/closure-literal` gives `callable` no
   parameter list, so nothing compares a call site against the body it reaches and the compiled
   `invoke` reads each slot at its own declared representation. So a case or a fixture that hands a
   closure to a `Core` member must spell the element type and the parameter type *the same*, and a
@@ -6559,7 +6559,7 @@ sibling in the same namespace unqualified.
   declared element type says.** `array<uint> $u = [7, 8];` compiles and its elements carry the
   **`int`** tag, while `array<uint> $u = [7 as uint, 8 as uint];` carries `uint` — so a sweep whose
   point is the `int`/`uint` split silently asks the wrong question on the bare-literal row and
-  answers plausibly. ADR 0054 § 2's "a numeric literal is untyped until placed" is applied at a
+  answers plausibly. `rule:types/numeric-literal-placement`'s "a numeric literal is untyped until placed" is applied at a
   parameter and at a binding but not at an element, and the only place it is observable today is a
   `callable`'s parameter-tag check, `Core\Reflect::typeOf` not existing yet. Convert in the literal
   whenever the tag is the subject.
@@ -6584,8 +6584,7 @@ sibling in the same namespace unqualified.
   the `new`, or in `constructor` — and the same rule bites a `public static` one, where there is no
   constructor to fall back on and the writes have to be top-level statements.
 - **A panic's message names the shape it was written for, not the shape that reaches it.**
-  `stmt.rs`'s property-write panic said "its receiver erased to a plain `object`, which ADR
-  0036 § 4's erased half still does not lower", and the erased half had landed sessions
+  `stmt.rs`'s property-write panic said "its receiver erased to a plain `object`, which `rule:types/erased-member-access`'s erased half still does not lower", and the erased half had landed sessions
   earlier — `$o->name = "z"` through a plain `object`, a `mixed` and a shape all run, and
   both of § 4's write throws (missing name, wrong type for the field's *real* declared type)
   fire correctly. What actually reached it was a **computed member name** and an undeclared
@@ -6709,8 +6708,7 @@ sibling in the same namespace unqualified.
   instructions return a status, so make it say so and let the suite enumerate the producers rather
   than trusting a grep over the emitters.
 - **`Class::CONST` is `mixed` at every expression site, whatever the constant declares.**
-  `nvs_types::signatures`' own module doc names it as a known gap: the const table holds ADR 0047
-  § 2's folded *values* and there is no table of a class constant's declared *type*, so `int $n =
+  `nvs_types::signatures`' own module doc names it as a known gap: the const table holds `rule:types/constant-in-type-position`'s folded *values* and there is no table of a class constant's declared *type*, so `int $n =
   Limits::MAX;` is `E0401` and a payload field holding one satisfies no shape declaring a scalar.
   A `.nvst` that wants a constant in a typed position writes the literal, or an enum case, which
   does carry its type.
@@ -6796,7 +6794,7 @@ sibling in the same namespace unqualified.
   editing, so it is only found by the conformance leg. Any check that reads `is_core()` as "in the
   registry" owes `errors::is_exception_class` beside it.
 - **"ADR § X makes this return-only" is a rule with two enforcement sites, and a tree can have
-  neither while looking like it has one.** ADR 0007 § 3's `void`/`never` were return-only in the
+  neither while looking like it has one.** `rule:types/grammar`'s `void`/`never` were return-only in the
   grammar's prose and nowhere else: `never $p` panicked `nvs-ir`'s `lower_checked_ty`, and `void $p`
   type-checked, *lowered fine*, and died one crate further down with `internal error: reading a
   value of representation 'void'`. Both `docs/agent/loop-goal.md` item 25 and `type_atoms.rs`'s
@@ -7058,7 +7056,7 @@ sibling in the same namespace unqualified.
   what `nvs_safepoint` gives `SafepointFlags::CANCEL`.
 - **A task that dies by `rule:errors/propagation`'s return status leaves a *pending* message on its context, and whatever collects that context must not read it as a throw.** The symptom is a program whose deadline works perfectly printing `uncaught in a cancelled sibling: the request was cancelled` and then an uncaught exception at the `Core\Task::map` call site — a cancelled child, collected by `nvs_host::group::Child::run`, whose `ctx.pending()` was the safepoint's own record of the teardown rather than anything the script threw. `Ctx::cancelled()` is the discriminator and it is asked *before* `pending()`; a cancelled child's slot stays empty, exactly as it does for one a forced unwind tore down. The same trap is waiting for every future collector of a child context — the request boundary under `nvs serve`, and whatever reports a `spawn script`.
 - **A `CoreTy::Uint` parameter arrives tagged `Tag::Uint` (3), not `Tag::Int` (2), so `Value::as_int()`
-  on one answers `None`.** `uint` is a tag of its own by ADR 0007 § 4, and the two are not interchangeable
+  on one answers `None`.** `uint` is a tag of its own by `rule:types/arithmetic`, and the two are not interchangeable
   at the ABI however interchangeable they look in a signature. The failure is not a compile error and not
   a wrong number — it is the member's *own* "expected an int, got tag 3" fatal, which reads as a caller
   bug and is not one. `Value::as_uint()` is the reader, `Value::uint(…)` is what a `-p nvs-stdlib` test
@@ -7190,14 +7188,14 @@ sibling in the same namespace unqualified.
   declaration, deliberately, so that declaring an unfoldable constant and never naming it stays
   legal. It then reported over the top of `E0246` (`const LIMIT = 9;` has no type, so it folds to
   nothing *because* it was already refused) and over `E0727` in the secret-payload case (`const
-  secret bytes BLOB = "b";` cannot fold because ADR 0009 § 1 gives the language no `bytes`
+  secret bytes BLOB = "b";` cannot fold because `rule:types/bytes` gives the language no `bytes`
   literal). Neither failure named the constant folder. The rule that falls out: before reporting on
   a *use* of a declaration, ask which declared types can never have reached this point cleanly —
   `mixed` here is "already `E0246`" and `bytes` is "no literal exists to write" — and return early
   for each with the other diagnostic named, because a read is not where either mistake is worth
   saying twice.
 - **A hand-built forwarding call must forward the whole calling convention, and the two parameter
-  shapes that do not survive one abort inside `nvs-runtime` rather than reporting.** ADR 0027's
+  shapes that do not survive one abort inside `nvs-runtime` rather than reporting.** `rule:types/callable-is-a-closure`'s
   `(...)` lowers to a thunk that passes its own parameters straight through, which is right for
   every ordinary parameter and wrong for exactly two: an `inout $x` wants an address where the
   thunk has an `int`, and a variadic tail wants the collected array where it has the first element.
@@ -7255,7 +7253,7 @@ sibling in the same namespace unqualified.
   ADR body in the same commit, because the body is the rule. Anything else naming the old code
   (`loop-goal.md`, the `[[check]]` test name in `loop-goal.toml`) moves with it.
 - **A type atom whose first token is already a statement keyword needs the *statement* arm guarded too,
-  not just `can_start_type`.** ADR 0125 § 1's `class<T>` is recognised by two tokens, so
+  not just `can_start_type`.** `rule:types/class-reference`'s `class<T>` is recognised by two tokens, so
   `Parser::at_class_reference` went beside `at_negative_int_literal` in `can_start_type` — which is the
   right place and is not enough: `parse_statement`'s dispatch matches
   `TokenKind::Keyword(Keyword::Abstract | Keyword::Final | Keyword::Class)` at
@@ -7275,7 +7273,7 @@ sibling in the same namespace unqualified.
   compiler error.
 - **A representation that can hold `null` has six lowering sites, not the four a `grep` for
   `Ty::Tagged` finds — and `==` against a written `null` is the one that looks covered and is
-  not.** ADR 0125 § 2's `?class<T>` erases to `Ty::ClassDesc` with the null descriptor as its
+  not.** `rule:types/class-reference`'s `?class<T>` erases to `Ty::ClassDesc` with the null descriptor as its
   `null`, which meant giving that representation a row everywhere the crate had been reading
   "only a tagged operand can be null" off the operand. Five were where they looked —
   `lower_coalesce`, `lower_isset_operand`, `truthy_convert`, `coerce` and `lower_binary` — and
@@ -7379,7 +7377,7 @@ sibling in the same namespace unqualified.
   and `CoreConst::desc` field for an `ADR` mention and fails the whole `-p nvs-stdlib` leg,
   because `nvs meta --json` ships a card verbatim to a reader who has no ADR tree. The trap is
   that the *rule* the card is describing lives two lines above it in a `///` that must name its
-  ADR, so the citation carries straight across: "ADR 0031 makes a closure an ordinary object"
+  ADR, so the citation carries straight across: "`rule:types/closure-literal` makes a closure an ordinary object"
   reads exactly right in the module doc and is a failure in a `CaseDoc`. State the fact without
   the number — "a closure is an ordinary object here" — and note that the conventions' § *A
   `Core` member* lists the card's other rules and not this one, so the first time you meet it is
@@ -7464,7 +7462,7 @@ sibling in the same namespace unqualified.
   step over *every* property write, and `nvs_ir::lower` emits it beside the `FieldSet` — which is
   correct precisely because § 4 answers "does this class implement `PropertyObserver`" from the
   declaration. A write through an **erased** receiver has no declaration to answer from, so
-  `nvs_object_slot_set` stored the slot and told nobody, and had done since ADR 0036 § 4 landed. It
+  `nvs_object_slot_set` stored the slot and told nobody, and had done since `rule:types/erased-member-access` landed. It
   reads as complete from either end: the ADR says "always both", the lowering plainly emits both, and
   the one path that bypasses both is the one no `.nvst` case reaches, because writing through a
   `mixed` on an observing class is a shape nobody writes by hand. The general question worth asking of
@@ -7785,7 +7783,7 @@ sibling in the same namespace unqualified.
   spelling for the exception, and a program that hits this panic is looking for a shadowed
   binding rather than for a capture it wrote.
 - **`nvs_config::value`'s `Unit::Duration` reads one unit and not a compound, so `"1m30s"` is
-  refused where `"90s"` and a bare `90` are the same duration.** ADR 0070's *literal* is `1h30m`,
+  refused where `"90s"` and a bare `90` are the same duration.** `rule:types/duration-literal`'s *literal* is `1h30m`,
   the two spellings look like one feature, and a test asserting that two spellings of a bound agree
   is exactly where the difference surfaces — as `is not a duration` against a value the language
   itself accepts. The parser is `crates/nvs-config/src/value.rs`'s and nothing in a block's own
@@ -8439,8 +8437,7 @@ sibling in the same namespace unqualified.
   walk rather than a diagnostic at the line.** Changing `Core\Uri::parseQuery` to answer a value as
   `bytes` broke every case that rendered the answer, and the obvious repair — a walk converting each
   leaf with `$value as string` — compiles and then throws `cannot convert a `bytes` value to
-  `string`` on the *first* leaf, because `value_to_string` refuses `Tag::Bytes` exactly as ADR 0009
-  § 3 says it must and `mixed` gives it no second chance. The spelling that works is
+  `string`` on the *first* leaf, because `value_to_string` refuses `Tag::Bytes` exactly as `rule:types/conversion` says it must and `mixed` gives it no second chance. The spelling that works is
   `$value as bytes as string`: narrow the `mixed` to the type it actually holds, *then* take § 3's
   checked row. The same shape applies to any `mixed` holding a type `as string` has no total
   conversion for. The other half of that slice's cost is worth knowing before you start it:
@@ -8564,8 +8561,7 @@ every session. Nothing below was reworded on the way.
 - **Four other twins sit outside the key rule**: `array_unique` renumbers nothing at all, so the
   divergence there is `SORT_STRING`'s comparison by *spelling*; `array_count_values` names a bucket
   through the same key normalization `countBy` uses, so that pair parts only where PHP
-  warns-and-skips a value `countBy` refuses; `ksort` reads a numeral *key* as a number where ADR
-  0007 § 5 makes every stored key a `string` compared bytewise, so `sortByKey` parts from it over a
+  warns-and-skips a value `countBy` refuses; `ksort` reads a numeral *key* as a number where `rule:types/arrays` makes every stored key a `string` compared bytewise, so `sortByKey` parts from it over a
   numeral or mixed-key subject and a `comparator` is the way back; and `array_fill` takes a start
   index `fill` drops, so every non-zero start is `Core\Arr::fillKeys` over the keys the caller
   wanted.
@@ -8707,7 +8703,7 @@ every session. Nothing below was reworded on the way.
   argument with `% 256`, which makes `chr(55296)`, `chr(1114112)` and `chr(0)` one byte and the
   function not injective past 255 — with no diagnostic. `fromCodePoint` refuses instead: a
   surrogate in `55296..=57343` and anything past `1114111` are a catchable `Fault::thrown`
-  (`nvs_stdlib::str::scalar_value`), never a substituted U+FFFD, ADR 0009 § 3's
+  (`nvs_stdlib::str::scalar_value`), never a substituted U+FFFD, `rule:types/conversion`'s
   checked-not-repaired rule reaching a code point exactly as it reaches a buffer.
 - **PHP is retreating from the wrap from its own end**: on 8.5.9 `chr()` *deprecates* an argument
   outside `0..255`, and the notice it prints to stdout is itself why that half cannot be an oracle
@@ -8870,7 +8866,7 @@ every session. Nothing below was reworded on the way.
   changed rather than only being asserted.** What `Core\Json::encode` refuses is a partition over
   the *tags* rather than a list: eleven values with a JSON spelling render — both array shapes
   among them, a list as an array and a string-keyed map as an object, and a `decimal` written as
-  ADR 0054's exact number rather than through a `float` — while the five without one all throw in
+  `rule:types/decimal`'s exact number rather than through a `float` — while the five without one all throw in
   `LogicError`, the class saying the value was built by the program rather than handed to it by the
   world, and each is wrapped in the member's own name. The three sentences are frozen and two of
   them are new here: a non-finite `float` is quoted the way `echo` spells it, `NAN` and `INF`
@@ -8901,7 +8897,7 @@ every session. Nothing below was reworded on the way.
 - **`Core\Arr::average`'s one catchable refusal and `Core\Out::capture`'s are closed, and the
   second of them changed the check rather than only asserting it.** `average` divides an exact
   total by the entry count as a `decimal`, so the only subject it has no answer for is one whose
-  rounding carries past ADR 0054 § 1's 96-bit mantissa — a knife edge rather than a half-line,
+  rounding carries past `rule:types/decimal`'s 96-bit mantissa — a knife edge rather than a half-line,
   which is why the bound is named on both sides by the same division over the same count: seven
   tenths of `2^96 - 1`, read one place further out, lands on exactly that mantissa with a remainder
   that rounds away, while the total one tenth below has a digit to spare and answers at a wider
@@ -8915,7 +8911,7 @@ every session. Nothing below was reworded on the way.
   arm having a range to run out of. The neighbouring `arr.rs:4098` `fatal` — more entries than a
   `uint` counts — is unreachable and owed nothing.
 - **`Core\Out::capture`'s `through` now refuses by class rather than by objecthood.** A `callable`
-  is opaque as to signature (ADR 0031), so nothing static stands between § 12's option and what its
+  is opaque as to signature (`rule:types/closure-literal`), so nothing static stands between § 12's option and what its
   closure answers, and a check that asked only whether the answer was an *object* let a foreign one
   through under the member's declared `Core\Cli\Text` return — a claim about the value that was not
   true, and one that failed much later, wherever the carrier was next read. It compares the
@@ -8945,7 +8941,7 @@ every session. Nothing below was reworded on the way.
   four sentences distinct over all sixteen ordered pairs.
 - **The last site, `csv.rs:512`, is not reachable from source at all and is owed no case**:
   `Core\Csv::format` takes an `array<array<string>>` and its `{header:}` an `array<string>`, a
-  `mixed` is not implicitly assignable to a narrower type, and ADR 0007 § 2's `array<T> as
+  `mixed` is not implicitly assignable to a narrower type, and `rule:types/conversion`'s `array<T> as
   array<U>` does not lower — so no program can put a non-`string` in a cell, and the column that
   refusal names cannot be reached until that conversion row lands.
 - **Every count-shaped producer in the library draws fallibly now, and the last of them needed a
@@ -9013,7 +9009,7 @@ every session. Nothing below was reworded on the way.
 - **`Core\Arr::flattenDeep` agrees with `iterator_to_array` over a `RecursiveIteratorIterator`
   outright, keys and all** (`arr-flatten-deep-matches-iterator_to_array-over-a-recursive-array-iterator`)
   — the one `Core\Arr` member carrying a key rule that does *not* diverge, because the twin's second
-  argument is `false` and that discards every key alike, which is ADR 0069 § 3's rule exactly. The
+  argument is `false` and that discards every key alike, which is `rule:types/preserve-keys`'s rule exactly. The
   twin's other setting is not a second answer to compare against: `true` re-keys each leaf by its own
   level's key, so `[[1,2],[3,4]]` collapses to `[3,4]` and entries are lost. Both sides also agree
   that an empty level contributes nothing and no hole, that `0`/`""`/`false`/`null` are leaves, and
@@ -9021,7 +9017,7 @@ every session. Nothing below was reworded on the way.
 - **`0 - $x` at `int`'s smallest value wraps back to itself in silence** — no throw, no diagnostic, the
   answer is `-9223372036854775808` again. This is what makes `Core\Math::abs` a member rather than sugar
   for `Core\Math::max($x, 0 - $x)`: the composition is *total* at that row and quietly wrong, while `abs`
-  refuses with "its magnitude is one past the largest" (ADR 0007's no-silent-promotion rule). A case
+  refuses with "its magnitude is one past the largest" (`rule:types/declaration`'s no-silent-promotion rule). A case
   asserting the divergence should assert that the derivation *answered* and `abs` *refused*, not what the
   arithmetic wrapped to — the overflow policy is a different member's question and pinning it here would
   make this case fail for the wrong reason. `math-abs-and-sign-are-the-ordering-trio-and-part-from-it-only-where-they-refuse.nvst`
@@ -9264,7 +9260,7 @@ every session. Nothing below was reworded on the way.
   but has neither a receiver nor a called class`. A closure is lifted to its own `Class$fnN::invoke`
   frame, and that frame captures neither `$this` nor the called class, so every late-bound spelling
   reaching for one panics rather than diagnosing. `static::tag()` does it with no `::class` involved,
-  so it is not the `::class` work (ADR 0144) that opened it — that work only added a second spelling
+  so it is not the `::class` work (`rule:types/class-constant`) that opened it — that work only added a second spelling
   that reaches the same hole. The checker is the layer that is expected to have refused this
   (`lsb`'s own panic message says so) and does not. Whichever way it is closed — capturing the
   enclosing called class, or a diagnostic — the test to write first is a closure inside both a

@@ -1,5 +1,5 @@
 --TEST--
-`new C(...)` on a class that declares no `constructor` is held to zero arguments, while an inherited one still takes its own — ADR 0007 § 1
+`new C(...)` on a class that declares no `constructor` is held to zero arguments, while an inherited one still takes its own — `rule:types/declaration`
 --FILE--
 <?nvs
 // An arity check is a count against a *signature*, so a class with no

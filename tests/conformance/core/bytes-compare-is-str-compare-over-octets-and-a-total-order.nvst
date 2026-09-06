@@ -1,5 +1,5 @@
 --TEST--
-`Core\Bytes::compare` answers the ordering `Core\Str::compare` gives the same octets, and is a total order over a swept table — spec § 7, ADR 0009 § 1, ADR 0063 R20
+`Core\Bytes::compare` answers the ordering `Core\Str::compare` gives the same octets, and is a total order over a swept table — spec § 7, `rule:types/bytes`, ADR 0063 R20
 --FILE--
 <?nvs
 // `bytes-indexes-and-orders-by-byte-offset.nvst` pins what `compare` answers
@@ -15,8 +15,8 @@
 
 final class Ord {
     // The two members under test, over the same octets: a `string` is UTF-8,
-    // so `$s as bytes` is the identity on the buffer both then read (ADR 0009
-    // § 3), which is what makes "the same octets" a fact rather than a hope.
+    // so `$s as bytes` is the identity on the buffer both then read (`rule:types/conversion`
+    // ), which is what makes "the same octets" a fact rather than a hope.
     public static function bytes(string $a, string $b): int {
         return Core\Bytes::compare($a as bytes, $b as bytes);
     }

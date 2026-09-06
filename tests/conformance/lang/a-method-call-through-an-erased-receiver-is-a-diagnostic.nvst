@@ -1,5 +1,5 @@
 --TEST--
-A method called on a plain `object` or on a shape is `E0477` where it is written, never a panic below it — ADR 0007 § 3, ADR 0036 § 4
+A method called on a plain `object` or on a shape is `E0477` where it is written, never a panic below it — `rule:types/grammar`, `rule:types/erased-member-access`
 --FILE--
 <?nvs
 final class Point {
@@ -9,15 +9,15 @@ final class Point {
     }
 }
 
-// ADR 0036 § 4 gave the *property* half of an erased receiver a name-keyed
+// `rule:types/erased-member-access` gave the *property* half of an erased receiver a name-keyed
 // runtime fetch and stopped there: a call additionally needs a signature to
 // check its arguments against and a return type for the position it sits in,
-// and `object` — ADR 0007 § 3's opaque top of every class type — supplies
+// and `object` — `rule:types/grammar`'s opaque top of every class type — supplies
 // neither. There is no `__call` to fall back on (ADR 0014).
 object $o = new Point();
 echo $o->scaled(3) as string, "\n";
 
-// A shape is the structural type beside it, and ADR 0036 gives it fields and
+// A shape is the structural type beside it, and `rule:types/object-top` gives it fields and
 // no methods at all, so the same refusal covers it.
 var $s = ({x: 1});
 echo $s->scaled(3) as string, "\n";
@@ -27,13 +27,13 @@ error[E0477]: `object` names no class, so it has no method `scaled`
    |
 15 | echo $o->scaled(3) as string, "\n";
    |      ^^^^^^^^^^ called on a receiver that names no class here
-   = help: narrow the receiver to the class that declares `scaled` first — `if ($x instanceof ClassName) { … }`, or `$x as ClassName`; ADR 0007 § 3 makes `object` the opaque top of every class type, and ADR 0036 § 4 erases a property access through one but not a call
+   = help: narrow the receiver to the class that declares `scaled` first — `if ($x instanceof ClassName) { … }`, or `$x as ClassName`; `rule:types/grammar` makes `object` the opaque top of every class type, and `rule:types/erased-member-access` erases a property access through one but not a call
 
 error[E0477]: `{x: int}` names no class, so it has no method `scaled`
    --> %s:20:6
    |
 20 | echo $s->scaled(3) as string, "\n";
    |      ^^^^^^^^^^ called on a receiver that names no class here
-   = help: narrow the receiver to the class that declares `scaled` first — `if ($x instanceof ClassName) { … }`, or `$x as ClassName`; ADR 0007 § 3 makes `object` the opaque top of every class type, and ADR 0036 § 4 erases a property access through one but not a call
+   = help: narrow the receiver to the class that declares `scaled` first — `if ($x instanceof ClassName) { … }`, or `$x as ClassName`; `rule:types/grammar` makes `object` the opaque top of every class type, and `rule:types/erased-member-access` erases a property access through one but not a call
 
 error: aborting due to 2 errors

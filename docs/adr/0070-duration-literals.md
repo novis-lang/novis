@@ -1,4 +1,4 @@
-# ADR 0070 — A duration is a literal: `30s`, `1h30m`
+# `rule:types/duration-literal` — A duration is a literal: `30s`, `1h30m`
 
 - **Status:** Accepted
 - **Date:** 2026-08-24
@@ -67,12 +67,12 @@ unit     := ns | us | ms | s | m | h | d | w
 
 ### 2. The type is `Core\Time\Duration`, always
 
-There is nothing untyped-until-placed about it, unlike [ADR 0054](0054-decimal-scalar-type.md)'s fractional
+There is nothing untyped-until-placed about it, unlike `rule:types/decimal`'s fractional
 literal: the suffix *is* the type.
 
 ```php
-Core\Time\Duration $x = 1h30m;   // explicit, per ADR 0007
-var $y = 1h30m;                  // ADR 0037 infers Duration, fixed forever
+Core\Time\Duration $x = 1h30m;   // explicit, per `rule:types/declaration`
+var $y = 1h30m;                  // `rule:types/var-inference` infers Duration, fixed forever
 Time::sleep(500ms);
 $db->query($sql, $params, {timeout: 30s});
 $cutoff = Time::now()->minus(7d);

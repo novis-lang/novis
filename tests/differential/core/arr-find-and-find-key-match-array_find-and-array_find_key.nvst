@@ -11,7 +11,7 @@ Core\Arr::find and findKey answer what array_find and array_find_key answer, onc
 //
 // `findKey` answers a `string` where PHP answers the int key a list was written
 // with; `arr-first-key-and-last-key-match-array_key_first-and-array_key_last`
-// owns why (ADR 0007 § 5), and `echo` renders both as the same digits, so what
+// owns why (`rule:types/arrays`), and `echo` renders both as the same digits, so what
 // these rows compare is *which* key.
 final class Show {
     public static function value(?int $found): string {

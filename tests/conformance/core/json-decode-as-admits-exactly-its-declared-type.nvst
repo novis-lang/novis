@@ -1,5 +1,5 @@
 --TEST--
-`Core\Json::decodeAs<T>` admits exactly the wire spellings a field's declared type names, and `uint` ⊂ `int` ⊂ `float` ⊂ `mixed` is strict at one named spelling each — ADR 0071 §§ 2 and 4, ADR 0007 § 2
+`Core\Json::decodeAs<T>` admits exactly the wire spellings a field's declared type names, and `uint` ⊂ `int` ⊂ `float` ⊂ `mixed` is strict at one named spelling each — ADR 0071 §§ 2 and 4, `rule:types/conversion`
 --FILE--
 <?nvs
 // ADR 0071 § 4's table read as a *bound*: one class per codec type, each with
@@ -112,7 +112,7 @@ echo "strict-int=", Probe::mark(Probe::asInt("-1") && !Probe::asUint("-1")), "\n
 echo "null-taken=", $nullTaken, "\n";
 
 // `uint`'s bound, named on both sides at each end. The floor is the ordinary
-// one, and the ceiling is not: ADR 0007 § 4 gives `uint` the range up to
+// one, and the ceiling is not: `rule:types/arithmetic` gives `uint` the range up to
 // 2^64−1, but a JSON document carries one number type and this reader refuses
 // a literal past `int` before any field is looked at, so `i64::MAX` is as high
 // as a `uint` field can be reached from the wire.

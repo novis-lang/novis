@@ -18,7 +18,7 @@ try {
     echo "not reached\n";
 } catch (ParseError $malformed) {
     echo "malformed=", Core\Arr::count($malformed->issues), "\n";
-    // An issue is an ADR 0036 shape, so its fields are read by name off the
+    // An issue is an `rule:types/object-top` shape, so its fields are read by name off the
     // value the list holds (§ 4). `path` is empty for a failure about the
     // document rather than about a field in it, and that issue's message is
     // the throw's own — one bad document is one issue, not a second story.

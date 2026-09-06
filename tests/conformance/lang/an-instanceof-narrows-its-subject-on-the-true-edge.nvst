@@ -1,8 +1,8 @@
 --TEST--
-`instanceof` narrows its subject to the class it names, on the edge where the test holds — ADR 0007 § 6
+`instanceof` narrows its subject to the class it names, on the edge where the test holds — `rule:types/unions-and-mixed`
 --FILE--
 <?nvs
-// ADR 0007 § 6 names `instanceof` as the first of the four narrowing forms,
+// `rule:types/unions-and-mixed` names `instanceof` as the first of the four narrowing forms,
 // and makes it flow-sensitive and branch-local.
 
 interface Speaks {

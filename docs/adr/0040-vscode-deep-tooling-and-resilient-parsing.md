@@ -174,7 +174,7 @@ first, so the catalog is honest about sequencing rather than implying all of it 
 - **Inspections and quick fixes** as LSP code actions, each backed by a diagnostic the checker already
   emits or will emit: a casing violation offers "rename to `camelCase`/`PascalCase`"
   ([ADR 0029](0029-identifier-casing-is-checked.md)/[0030](0030-no-leading-underscores-constructor-spelling.md));
-  a legacy `(int)$x` cast offers "replace with `$x as int`" ([ADR 0034](0034-legacy-cast-syntax-rejected.md));
+  a legacy `(int)$x` cast offers "replace with `$x as int`" (`rule:types/no-legacy-cast`);
   a missing constructor property assignment offers to add it
   ([ADR 0022](0022-definite-property-initialization.md)); `include`/`require_once` offer "replace with
   `require`" (`rule:statements/require-is-the-only-inclusion-construct`); a `tainted`/`secret` value reaching a
@@ -201,7 +201,7 @@ first, so the catalog is honest about sequencing rather than implying all of it 
   `rule:statements/nothing-gets-a-second-name`'s "nothing gets a second name."
 - **Deeper completion**: signature help, cross-file/workspace symbol search, auto-import limited to
   inserting the correct fully-qualified name (never an alias, same `rule:statements/nothing-gets-a-second-name` constraint), inlay hints for
-  `var`-inferred types ([ADR 0037](0037-var-local-type-inference.md)) and call-site parameter names.
+  `var`-inferred types (`rule:types/var-inference`) and call-site parameter names.
 - Format-on-save and the format commands, wired to `nvs fmt` once it exists
   ([ADR 0039](0039-canonical-code-formatting.md)) — unchanged from ADR 0016 § 2.
 - **A native Test Explorer**, using VS Code's finalized Testing API, wired to `nvs test`/`.nvst`, with

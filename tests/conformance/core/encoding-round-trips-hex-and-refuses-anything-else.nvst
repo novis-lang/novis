@@ -1,9 +1,9 @@
 --TEST--
-`Core\Encoding`'s hex pair round-trips octets and throws rather than guessing — spec § 7, ADR 0009 §§ 1 and 3
+`Core\Encoding`'s hex pair round-trips octets and throws rather than guessing — spec § 7, `rule:types/bytes` and `rule:types/conversion`
 --FILE--
 <?nvs
 class Hex {
-    // ADR 0009 § 3: the decoding direction is the checked one, so the failure
+    // `rule:types/conversion`: the decoding direction is the checked one, so the failure
     // is a throw rather than a value that silently lost a nibble.
     public static function decode(string $text): string {
         try {
@@ -14,7 +14,7 @@ class Hex {
     }
 }
 
-// A `bytes` is a binding like any other (ADR 0009 § 1), and `toHex` is total.
+// A `bytes` is a binding like any other (`rule:types/bytes`), and `toHex` is total.
 bytes $raw = Core\Encoding::fromHex("00ff10ab");
 echo Core\Encoding::toHex($raw), "\n";
 

@@ -9,7 +9,7 @@ The docs are optimised for an agent that reads one file and starts working. Keep
 - **Never quote a measured number outside the ADR that owns it.** Numbers live with their guard test.
 - **Fold, never overlay.** When a decision changes, edit the ADR that stated it so its body is true, and
   leave a one-line cross-link. Never add a paragraph to one file describing what another file changed —
-  that is what makes a reader apply patches in their head, and it is how ADR 0007 came to carry eighteen of
+  that is what makes a reader apply patches in their head, and it is how `rule:types/declaration` came to carry eighteen of
   them at once. `git log` is the changelog.
 - **Front-load.** Decision first, reasoning below it. Assume the reader stops after the first screen.
 - A choice that would be expensive to reverse gets its own numbered ADR if the reasoning is subtle or

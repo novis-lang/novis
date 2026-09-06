@@ -1,8 +1,8 @@
 --TEST--
-A property access through a plain `object` receiver is keyed on the written name at run time, reads and writes, and throws on a name the concrete class does not carry — ADR 0036 § 4
+A property access through a plain `object` receiver is keyed on the written name at run time, reads and writes, and throws on a name the concrete class does not carry — `rule:types/erased-member-access`
 --FILE--
 <?nvs
-// ADR 0036 § 4's fully *erased* half. A receiver typed `object` carries no
+// `rule:types/erased-member-access`'s fully *erased* half. A receiver typed `object` carries no
 // field list at all, so the access answers `mixed` and nothing about it is
 // known until the concrete class is in hand: the fetch is keyed on the
 // written name, the write is checked against what that class declares the
@@ -62,7 +62,7 @@ object $erased = $point;
 echo $erased->x, " ", $erased->label, "\n";
 
 // The write lands on the value itself, not on a copy — a shape is an
-// ordinary refcounted instance (ADR 0036 § 2) and `object` erases only the
+// ordinary refcounted instance (`rule:types/object-literal`) and `object` erases only the
 // static view of it.
 $erased->label = "wrote";
 echo $point->label, "\n";

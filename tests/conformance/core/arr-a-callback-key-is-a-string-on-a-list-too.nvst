@@ -1,8 +1,8 @@
 --TEST--
-Every Core\Arr callback is handed its key as a `string` over a list, where the key is a position, and every one of them refuses an `int $k` — ADR 0069 § 5, ADR 0007 §§ 2, 5
+Every Core\Arr callback is handed its key as a `string` over a list, where the key is a position, and every one of them refuses an `int $k` — `rule:types/arrays`, `rule:types/conversion` and `rule:types/arrays`
 --FILE--
 <?nvs
-// The depth claim is *agreement about a type*. ADR 0069 § 5 makes the `$key` a
+// The depth claim is *agreement about a type*. `rule:types/arrays` makes the `$key` a
 // callback receives a `string` in every member and over every array shape, and
 // a list is the one shape where that costs something: `SlotKey::Index` holds
 // the position, so the decimal is rendered for the call and for nothing else
@@ -64,7 +64,7 @@ echo Core\Str::join(Core\Arr::keys(Core\Arr::sort($list,
 
 // The other half. `nvs_runtime::call_closure` checks each argument against the
 // tags the closure declared, so a callback writing `int $k` throws
-// `LogicError` — ADR 0007 § 2 has no implicit `string` → `int` conversion, and
+// `LogicError` — `rule:types/conversion` has no implicit `string` → `int` conversion, and
 // the only widening it does admit runs the other way. Both counters are
 // incremented from inside the same fourteen blocks, so a member that quietly
 // stopped offering a key raises `asked` without raising `refused`.

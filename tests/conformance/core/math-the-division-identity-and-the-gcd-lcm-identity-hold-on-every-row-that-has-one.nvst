@@ -89,7 +89,7 @@ echo "int min over -1: quotient refused ", $quotientRefused,
      ", remainder ", Core\Math::mod(0.0 - 9223372036854775808.0, -1.0), "\n";
 
 // 3. Why the table above stops where it does, named on both sides: `int as
-//    float` is one of ADR 0007 § 2's checked conversions and it admits exactly
+//    float` is one of `rule:types/conversion`'s checked conversions and it admits exactly
 //    the magnitudes a `float` holds without rounding. 2^53 is the last dividend
 //    the float leg can be asked about; the next integer up has no `float` at
 //    all, so the identity is unaskable there rather than false.

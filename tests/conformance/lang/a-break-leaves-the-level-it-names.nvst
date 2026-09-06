@@ -1,5 +1,5 @@
 --TEST--
-`break N` and `continue N` leave the N-th enclosing loop or `switch`, counted PHP's way — ADR 0007 § 4's neighbours in the statement grammar, and `nvs_ir::lower::Lowering::lower_break`/`lower_continue`
+`break N` and `continue N` leave the N-th enclosing loop or `switch`, counted PHP's way — `rule:types/arithmetic`'s neighbours in the statement grammar, and `nvs_ir::lower::Lowering::lower_break`/`lower_continue`
 --FILE--
 <?nvs
 // A level names an enclosing statement by count, outermost last: level 1 is

@@ -44,7 +44,7 @@
   [ADR 0013](0013-comparable-interface.md)'s `Comparable` replacement of property-walk `<`/`>` is the direct
   precedent followed here for `__get`/`__set`. `__call`/`__callStatic` get no replacement at all — dispatch by
   an unresolvable name is rejected outright.
-- Undeclared-property access as a hard error extends [ADR 0007](0007-explicit-type-system.md)'s existing rule
+- Undeclared-property access as a hard error extends `rule:types/declaration`'s existing rule
   for undeclared locals to property access — not new territory.
 
 ## Decision
@@ -88,7 +88,7 @@ put `Comparable` and PHP itself puts `Stringable` — **not** under `Core`.
 `static` methods and constants; `PropertyObserver` holds neither, it is a contract an ordinary class
 implements. `$name` is the property's declared name; `$value` is `mixed` because a class may have properties
 of any type and one observer method has to see all of them, the same reason `mixed` is the escape hatch
-[ADR 0007](0007-explicit-type-system.md) already reserves for exactly this shape of boundary. Both methods
+`rule:types/declaration` already reserves for exactly this shape of boundary. Both methods
 return `void`: an observer reports, it does not decide — see *3*.
 
 The name is deliberately not `__get`/`__set`. PHP's spelling signals "the runtime recognizes this name and
@@ -135,7 +135,7 @@ already treats as free relative to every other method call in the language.
 the access asked for. Every status-returning instruction owns one, so `$obj->n = $obj->n + 1` carries an
 overflow raise and a `Release` of the receiver with it — machine calls sitting on mutually exclusive cold
 edges, exactly one of which is entered and only once something has already thrown. Those belong to
-`rule:errors/propagation`'s checked return and to [ADR 0007](0007-explicit-type-system.md) § 4's
+`rule:errors/propagation`'s checked return and to `rule:types/arithmetic`'s
 overflow throw; counting them as per-access cost prices this ADR for two others' mechanisms. The access
 itself is a `FieldGet` and a `FieldSet` in the block that runs, with no call between them, which is what the
 guard named under *Verification* measures.
@@ -143,12 +143,12 @@ guard named under *Verification* measures.
 ### 5. Accessing an undeclared property is always a hard error — no `__get`/`__set` fallback
 
 Novis has no dynamic properties: every property is declared with a type, per
-[ADR 0007](0007-explicit-type-system.md), and that list is exhaustive for a given class. Naming one that is
+`rule:types/declaration`, and that list is exhaustive for a given class. Naming one that is
 not on the list:
 
 - is a **compile-time diagnostic** when the property name is a literal identifier (`$obj->typo`) — the same
   point in the pipeline that already refuses an undeclared local, an unresolvable method or an unresolvable
-  constant ([ADR 0007](0007-explicit-type-system.md), [ADR 0011](0011-functions-and-constants-are-class-members.md));
+  constant (`rule:types/declaration`, [ADR 0011](0011-functions-and-constants-are-class-members.md));
 - is a **checked runtime throw** when the property name is only known at runtime — the compiler cannot refuse
   it statically, but the set of valid names is still exactly the class's declared properties, and a name
   outside it throws rather than silently creating a new property the way PHP does (deprecated, but still
@@ -157,19 +157,19 @@ not on the list:
 A name arrives late in exactly three ways, and an *unchecked* computed property-access expression is not one
 of them. `$obj->$name` and `$obj->{$expr}` are refused, `E0235`, in front of the parentheses of a call as
 much as on a property — the sibling of `$$name`'s own refusal one level in, and the access-side twin of the
-computed shape key [ADR 0036](0036-anonymous-object-shapes.md) § 2 already refuses. Novis has no spelling
+computed shape key `rule:types/object-literal` already refuses. Novis has no spelling
 that computes which member is meant out of nothing: a name only known when the statement runs defeats the
 resolution every access below the checker is built on, and it is the one construct that would let a
 request-controlled string pick which field to read or write, which priority 1 does not trade. The one
 operand that carries its own answer is a **property key**,
-[ADR 0126](0126-a-property-key-is-a-checked-name-and-as-is-its-only-source.md)'s `property<T>`, whose value
+`rule:types/property-key`'s `property<T>`, whose value
 is by construction one of `T`'s public declared property names — so `$obj->$key` is admitted for it and
 `E0235` is the **checker's** refusal for every other operand, the operand's type being the question a
 parser cannot answer.
 
 What is left, and what the runtime throw above is *for*, is the pair where the name is written out and
 something else is unknown: a **reflection-based get/set**, whose name is a `string` by construction, and
-[ADR 0036](0036-anonymous-object-shapes.md) § 4's **erased receiver**, where the class behind the handle is
+`rule:types/erased-member-access`'s **erased receiver**, where the class behind the handle is
 what the compiler cannot see. The property key is the third, and it is the same runtime throw moved to the
 one place the name enters — the conversion — rather than repeated at every access. Both throw for a name the concrete class does not declare, and § 4's write half
 additionally checks the incoming value against the field's real declared type.
@@ -265,7 +265,7 @@ Deferred deliberately, each needing its own argument:
 
 Settled since, and no longer deferred: **a checked property key, `property<T>`** — the typed spelling of
 *5*'s late-arriving name — is
-[ADR 0126](0126-a-property-key-is-a-checked-name-and-as-is-its-only-source.md), which decides the set, the
+`rule:types/property-key`, which decides the set, the
 one source, the widening direction and the `readonly` question that were open here; *5* above states what
 it changed about `E0235`.
 
@@ -278,7 +278,7 @@ Verification, in the order it becomes possible:
   with a diagnostic, for every literal-identifier access, on every receiver — `nvs_hir::members` for
   `$this` (`E_UNDEFINED_PROPERTY`), `nvs-types::expr::check_property_access` for every other statically
   resolvable receiver (`E_UNKNOWN_MEMBER`) — joining the diagnostic corpus
-  [ADR 0007](0007-explicit-type-system.md)'s own M2 entry already builds; a method named `__call` or
+  `rule:types/declaration`'s own M2 entry already builds; a method named `__call` or
   `__callStatic` never reaches any resolution logic at all, since `nvs-syntax`'s casing check
   ([ADR 0029](0029-identifier-casing-is-checked.md)) already refuses the name itself.
 - **M4**, § 1's half: each hook body compiles to its own function and a read/write of a hooked property is

@@ -81,7 +81,7 @@ echo "float: abs=max ", $fAbsIsMax, "/", $frows, ", abs=-min ", $fAbsIsNegatedMi
 //    the sign of a zero rather than passing it through, which is the answer a
 //    magnitude owes and the opposite of what the four rounding members do with
 //    the same input. The reciprocal is what separates the two zeros, and it is
-//    spelled `Core\Math::fdiv` because ADR 0007 § 4 makes `/` throw on exactly
+//    spelled `Core\Math::fdiv` because `rule:types/arithmetic` makes `/` throw on exactly
 //    the divisor this row is asking about.
 float $nz = -0.0;
 echo "abs(-0.0) reciprocal ", Core\Math::fdiv(1.0, (Core\Math::abs($nz) as float)),
@@ -89,7 +89,7 @@ echo "abs(-0.0) reciprocal ", Core\Math::fdiv(1.0, (Core\Math::abs($nz) as float
 
 // 4. At `int`'s smallest value the member and its derivation *agree*, and both
 //    refuse: the magnitude is one past the largest, so `0 - $x` has nowhere to
-//    land, and ADR 0007 § 4 makes that arithmetic throw `ArithmeticError`
+//    land, and `rule:types/arithmetic` makes that arithmetic throw `ArithmeticError`
 //    rather than wrap. What is asserted is the agreement — neither side
 //    answers, and `sign` is unaffected because it never negates anything.
 int $min = 0 - 9223372036854775807 - 1;

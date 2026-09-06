@@ -1,5 +1,4 @@
-//! `Core\Decimal` — [ADR 0054](/docs/adr/0054-decimal-scalar-type.md)
-//! § 3's named-rounding members: the two spellings a program reaches for when
+//! `Core\Decimal` — `rule:types/arithmetic`'s named-rounding members: the two spellings a program reaches for when
 //! rounding is business logic rather than an artifact of the operator.
 //!
 //! The `/` operator is already total over `decimal` and already rounds — half
@@ -35,12 +34,12 @@
 //!   split whose parts add back to the sum exactly — and § 3 and § 4 name the
 //!   other four; `crate::math`'s own gap note explains why the four rounding
 //!   members land on this class rather than widening `Core\Math`'s `float`
-//!   ones. The two members here are the ones ADR 0054's *Still owed* line puts
+//!   ones. The two members here are the ones `rule:types/decimal`'s *Still owed* line puts
 //!   first, and the ones the M8 acceptance check names.
 //! * **`divRound` refuses at a scale the answer cannot hold rather than
 //!   narrowing to one it can.** That is the same refusal `*` already makes for
 //!   a product whose scale would exceed 28, and the same divergence from
-//!   `System.Decimal` ADR 0054 § 3 argues for: silently narrowing would make a
+//!   `System.Decimal` `rule:types/arithmetic` argues for: silently narrowing would make a
 //!   second operation inexact without saying so.
 
 use nvs_runtime::decimal::Discard;
@@ -49,7 +48,7 @@ use nvs_runtime::{Decimal, Fault, ThrownClass, Value};
 use crate::math::{RoundMode, round_mode};
 use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc};
 
-/// ADR 0054 § 3's two named-rounding members, in that section's own order.
+/// `rule:types/arithmetic`'s two named-rounding members, in that section's own order.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: r"Core\Decimal",
     methods: &[
@@ -194,7 +193,7 @@ fn rounds_away(mode: RoundMode, discard: Discard, mantissa: u128) -> bool {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Decimal::divExact(decimal $value, decimal $divisor): decimal` —
-    /// ADR 0054 § 3's "throws unless the quotient is exact".
+    /// `rule:types/arithmetic`'s "throws unless the quotient is exact".
     ///
     /// The zero divisor is separated from the rest because it is a different
     /// mistake: dividing by nothing is a bug in the program, while an
@@ -225,7 +224,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Decimal::divRound(decimal $value, decimal $divisor, uint $scale,
-    /// Core\RoundMode $mode): decimal` — ADR 0054 § 3's "names both".
+    /// Core\RoundMode $mode): decimal` — `rule:types/arithmetic`'s "names both".
     ///
     /// Both arguments are required rather than optional, which is the one
     /// place this member parts from ADR 0063 R3's trailing options shape: a
@@ -341,7 +340,7 @@ mod tests {
         }
     }
 
-    /// ADR 0054 § 3's two named-rounding members over the same divisions:
+    /// `rule:types/arithmetic`'s two named-rounding members over the same divisions:
     /// where `divExact` refuses, `divRound` answers under the mode it was
     /// given, and where `divExact` answers the two agree.
     #[test]
@@ -391,7 +390,7 @@ mod tests {
             );
         }
         // ...and the named scale is the answer's, so it pads rather than
-        // reduces: ADR 0054 § 4 makes scale observable.
+        // reduces: `rule:types/conversion` makes scale observable.
         assert_eq!(
             rounded(&mut ctx, "1.00", "4", 5, HALF_EVEN).as_deref(),
             Ok("0.25000")
@@ -450,7 +449,7 @@ mod tests {
         assert_eq!(
             rounded(&mut ctx, "-1", "1000", 2, DOWN).as_deref(),
             Ok("0.00"),
-            "a zero has no sign to keep — ADR 0054 § 1 has no `-0`"
+            "a zero has no sign to keep — `rule:types/decimal` has no `-0`"
         );
     }
 }

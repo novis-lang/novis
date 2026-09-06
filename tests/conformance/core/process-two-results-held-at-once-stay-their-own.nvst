@@ -20,7 +20,7 @@ Two `Core\Process\Result`s held at once each keep their own run's status and out
 // `process-a-completed-runs-two-streams-stay-apart.nvst`: the marker that must
 // be there and the other run's marker that must not. `FIRST` and `SECOND` are
 // compared as `bytes` and never converted, since what a child writes is not
-// this program's to assume anything about (ADR 0009).
+// this program's to assume anything about (`rule:types/bytes`).
 //
 // The child is the platform's own shell, named absolutely, for the reason
 // `process-a-completed-run-answers-the-status-the-child-chose.nvst` states:

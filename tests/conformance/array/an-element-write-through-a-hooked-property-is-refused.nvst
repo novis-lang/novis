@@ -1,9 +1,9 @@
 --TEST--
-every shape of array-element write through a hooked property is refused where it is written, PHP's "indirect modification of overloaded property" taken as a compile error — ADR 0014 § 1, ADR 0007 § 5
+every shape of array-element write through a hooked property is refused where it is written, PHP's "indirect modification of overloaded property" taken as a compile error — ADR 0014 § 1, `rule:types/arrays`
 --FILE--
 <?nvs
 // ADR 0014 § 1 makes a hooked property a pair of accessors and not a slot, so
-// the copy ADR 0007 § 5 separates on a write has nowhere to be written back
+// the copy `rule:types/arrays` separates on a write has nowhere to be written back
 // to. PHP agrees at run time — `Error: Indirect modification of Grid::$rows is
 // not allowed` — so refusing at compile time is the compatible answer, not a
 // divergence. All four subscript spellings take the same refusal, because the

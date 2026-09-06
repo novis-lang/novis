@@ -155,7 +155,7 @@ pub fn call_static(ctx: &mut Ctx, label: &str, args: &[Value]) -> Result<Option<
 /// passed and holds whatever that map held, and a compiled callee reads its
 /// slots without asking — so both questions are asked *here*, through
 /// [`crate::closure`]'s `check_param_tags`, which is the one implementation
-/// ADR 0007 § 2's `int`-into-`float` widening lives in and which `callable`
+/// `rule:types/conversion`'s `int`-into-`float` widening lives in and which `callable`
 /// and an erased method call already share. A third copy of that comparison is
 /// exactly what the shared helper exists to prevent.
 ///
@@ -217,7 +217,7 @@ pub fn call_static_bound(
 /// `$m->name(...)` on a **`mixed`** receiver — `nvs_ir::Helper::CallErasedMethod`'s
 /// whole answer, and the one dispatch here that a *program* reaches.
 ///
-/// [ADR 0036](/docs/adr/0036-anonymous-object-shapes.md) § 4 defers
+/// `rule:types/erased-member-access` defers
 /// which class is behind the handle and whether there is one at all, so every
 /// question a checker would have answered is answered here instead, from the
 /// receiver's own [`ClassDesc`]: its [`crate::MethodRow`] carries the callee's
@@ -243,7 +243,7 @@ pub fn call_static_bound(
 /// mistake a program can write rather than one a compiler can make
 /// (`rule:errors/propagation`):
 ///
-/// - a receiver whose tag is not an object at all, worded as ADR 0036 § 4 says
+/// - a receiver whose tag is not an object at all, worded as `rule:types/erased-member-access` says
 ///   the erased property fetch words its own;
 /// - a class whose table has no such member;
 /// - a member that is not `public` — the one visibility question this site can
@@ -254,7 +254,7 @@ pub fn call_static_bound(
 /// - too few arguments for the arity the row records, which is
 ///   [`crate::closure`]'s own wording for a `callable`;
 /// - an argument whose tag is not the one the parameter requires, and which
-///   ADR 0007 § 2's `int`-into-`float` widening does not reconcile.
+///   `rule:types/conversion`'s `int`-into-`float` widening does not reconcile.
 ///
 /// A variadic or `inout` parameter list is **not** refused here and needs no
 /// row of its own: both are packed and written back at the *call site*, which
@@ -908,7 +908,7 @@ pub(crate) fn call_at(
 
 crate::nvs_helper! {
     /// `nvs_ir::Helper::CallErasedMethod` — compiled code's own way into
-    /// [`call_erased_method`], which is ADR 0036 § 4's deferral for a call.
+    /// [`call_erased_method`], which is `rule:types/erased-member-access`'s deferral for a call.
     ///
     /// `args[0]` is the receiver, still **tagged**: nothing proved it holds an
     /// object, so the test is made below rather than here. `args[1]` is the

@@ -1,12 +1,12 @@
 --TEST--
-A `mixed` in a condition, and `$m as bool`, resolve `rule:expressions/truthy-table`'s table on the value's runtime tag — the table's own last row, over ADR 0007 § 2's one unchecked position
+A `mixed` in a condition, and `$m as bool`, resolve `rule:expressions/truthy-table`'s table on the value's runtime tag — the table's own last row, over `rule:types/conversion`'s one unchecked position
 --FILE--
 <?nvs
 // `rule:expressions/truthy-table`'s table names one row per type and then says a `mixed` or a
 // union is "resolved dynamically per this table, dispatching on the value's
 // runtime type". Every other row is picked by the operand's static type
-// before the program runs; this is the one that cannot be, because ADR 0007
-// § 2 makes `mixed` the position where the type is only known at run time.
+// before the program runs; this is the one that cannot be, because `rule:types/conversion`
+// makes `mixed` the position where the type is only known at run time.
 //
 // Each block below holds the *same* value in a `mixed` that a statically
 // typed binding would hold, so the assertion is that the two spellings agree
@@ -14,7 +14,7 @@ A `mixed` in a condition, and `$m as bool`, resolve `rule:expressions/truthy-tab
 
 class Say {
     // A condition is the one place a value is tested without `as`
-    // (ADR 0007 § 2's named carve-out), so this takes the `mixed` straight.
+    // (`rule:types/conversion`'s named carve-out), so this takes the `mixed` straight.
     public static function truthy(string $label, mixed $m): string {
         if ($m) {
             return $label . ": true\n";
@@ -92,7 +92,7 @@ echo Say::converted("as bool: int 0", 0);
 echo Say::converted("as bool: object", new Box());
 echo Say::converted("as bool: null", $absent);
 
-// A `mixed` in each of the other truthy-tested positions ADR 0007 § 2 names,
+// A `mixed` in each of the other truthy-tested positions `rule:types/conversion` names,
 // not just `if`: the operator suite reaches the same table through the same
 // helper, so a position that grew its own conversion would show here.
 mixed $m = "0";

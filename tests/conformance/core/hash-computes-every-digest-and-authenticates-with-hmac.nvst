@@ -1,5 +1,5 @@
 --TEST--
-`Core\Hash` computes every `Core\Digest`, authenticates with HMAC and compares two digests by content — spec § 11, ADR 0009 §§ 1 and 3
+`Core\Hash` computes every `Core\Digest`, authenticates with HMAC and compares two digests by content — spec § 11, `rule:types/bytes` and `rule:types/conversion`
 --FILE--
 <?nvs
 // § 11: the algorithm is an argument, not part of the member's name, so one
@@ -12,7 +12,7 @@ echo Core\Encoding::toHex(Core\Hash::of("abc", Core\Digest::Sha256)), "\n";
 echo Core\Encoding::toHex(Core\Hash::of("abc", Core\Digest::Sha384)), "\n";
 echo Core\Encoding::toHex(Core\Hash::of("abc", Core\Digest::Sha512)), "\n";
 
-// ADR 0009 § 3: `string as bytes` is total and free, so the same octets hash
+// `rule:types/conversion`: `string as bytes` is total and free, so the same octets hash
 // the same whichever of the two tags the caller is holding them under. That is
 // what the `bytes|string` parameter buys, and the reason there is no
 // text-flavoured twin of this member.
@@ -24,7 +24,7 @@ if (Core\Hash::equals($viaBytes, $viaText)) {
 }
 
 // The result is `bytes` — the 32 octets a SHA-256 is, with no `raw_output`
-// flag and no hex until `Core\Encoding` is asked for one (ADR 0009 § 1). Two
+// flag and no hex until `Core\Encoding` is asked for one (`rule:types/bytes`). Two
 // hex digits per octet, so 64 is the width of the spelling and 32 is the
 // width of the value. (`Core\Bytes::length` is § 7's, and unwritten.)
 echo Core\Str::length(Core\Encoding::toHex($viaBytes)), "\n";

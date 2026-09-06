@@ -320,7 +320,7 @@ pub fn migration(driver: nvs_db::Driver) -> Option<&'static [Migration]> {
 /// `utf8mb4`'s four bytes a character with room for the rest of the `jobs.due` key, and the table
 /// declares that charset itself: ADR 0067 § 3 forces the *connection's* charset, which says nothing
 /// about the columns a `create table` builds, and a server still defaulting to `latin1` would
-/// otherwise store text [ADR 0009](/docs/adr/0009-string-and-bytes.md) guarantees is UTF-8
+/// otherwise store text `rule:types/bytes` guarantees is UTF-8
 /// in a column that cannot hold it. `engine=innodb` is named for § 4's sake rather than for
 /// storage's: `for update skip locked` is a row lock, and it is the engine that has them.
 ///

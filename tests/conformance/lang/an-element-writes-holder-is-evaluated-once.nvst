@@ -1,8 +1,8 @@
 --TEST--
-An array-element write evaluates the receiver under its root holder exactly once, whichever spelling writes it and however deep the chain is — ADR 0007 § 5 and § 7 row 15
+An array-element write evaluates the receiver under its root holder exactly once, whichever spelling writes it and however deep the chain is — `rule:types/arrays` and § 7 row 15
 --FILE--
 <?nvs
-// ADR 0007 § 5 separates the array before an element is written, so the write
+// `rule:types/arrays` separates the array before an element is written, so the write
 // is not finished until the separated copy has been put back into whatever
 // held it (`nvs_ir::lower::Lowering::write_back_array`). That re-points the
 // holder by lowering the holder's own *receiver* a second time, which is why

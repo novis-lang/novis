@@ -3,7 +3,7 @@ Core\Uri::decodeComponent and decodeFormValue read `%20` alike and `+` different
 --FILE--
 <?nvs
 // Every row here reads a decoder's answer as text, and a decoder answers
-// `bytes` (spec § 12) — so each one carries the `as string` ADR 0009 § 3 asks
+// `bytes` (spec § 12) — so each one carries the `as string` `rule:types/conversion` asks
 // for. All of these octets are text, so none of the conversions throws; the
 // ones that would are `uri-decode-component-…-refuses-a-non-utf-8-octet`'s.
 //

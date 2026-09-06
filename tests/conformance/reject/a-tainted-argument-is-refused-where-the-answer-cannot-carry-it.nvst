@@ -14,7 +14,7 @@ tainted bytes $tb = "ab" as bytes;
 // An instance answer: `Core\Uri` has no qualifier to carry.
 Core\Uri $uri = Core\Uri::parse($t);
 
-// A `mixed` answer: ADR 0007's one unchecked position is exactly where a
+// A `mixed` answer: `rule:types/declaration`'s one unchecked position is exactly where a
 // qualifier would be lost.
 mixed $decoded = Core\Json::decode($t);
 

@@ -1,5 +1,5 @@
 --TEST--
-A mixed `int`/`uint`/`float` operand pair produces PHP's own value and PHP's own ordering — ADR 0007 § 4
+A mixed `int`/`uint`/`float` operand pair produces PHP's own value and PHP's own ordering — `rule:types/arithmetic`
 --FILE--
 <?nvs
 // `bool as string` renders `false` as the empty string, so a predicate is

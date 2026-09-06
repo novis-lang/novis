@@ -1,7 +1,7 @@
 //! Type variables: binding them from a call's arguments, and substituting
 //! them back through the signature.
 //!
-//! [ADR 0007](/docs/adr/0007-explicit-type-system.md) parks
+//! `rule:types/declaration` parks
 //! user-declared generics and `docs/agent/loop-goal.md` keeps type variables
 //! **compiler-owned**, so exactly two things in the whole compiler produce a
 //! [`Ty::TypeVar`]: [`crate::core_lib`] lowering a `nvs_stdlib::registry`
@@ -77,7 +77,7 @@
 //! parameter, or first-class callable syntax has none to read: it binds
 //! nothing, and the variable substitutes to `mixed` exactly as before.
 //!
-//! [ADR 0136](/docs/adr/0136-a-callable-carries-its-signature.md)
+//! `rule:types/callable-signature`
 //! closes it, and retires this whole special case with it: once `callable`
 //! carries a signature in the type grammar, `U` sits at a structural position
 //! like any other and [`bind`] reaches it by descending into the parameter

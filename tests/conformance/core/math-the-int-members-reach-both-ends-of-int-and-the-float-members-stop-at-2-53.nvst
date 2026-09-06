@@ -1,5 +1,5 @@
 --TEST--
-Core\Math's `int`-parameter members are asked about both ends of `int` and refuse only where the *answer* has no room, while its `float`-parameter members cannot be asked about those ends at all — ADR 0007 §§ 2, 4 and docs/spec/01-core-library.md § 3
+Core\Math's `int`-parameter members are asked about both ends of `int` and refuse only where the *answer* has no room, while its `float`-parameter members cannot be asked about those ends at all — `rule:types/conversion` and `rule:types/arithmetic` and docs/spec/01-core-library.md § 3
 --FILE--
 <?nvs
 // The depth claim is *a bound asserted on both sides*, and the bound is not
@@ -7,7 +7,7 @@ Core\Math's `int`-parameter members are asked about both ends of `int` and refus
 // declared over `float`, and the two families stop in different places. An
 // `int` member stops where its own *answer* leaves `int` — one value for
 // `abs`, one pair for `intDiv`, one pairing for `gcd` — while a `float` member
-// stops where its *argument* does, at ADR 0007 § 2's 2^53, long before either
+// stops where its *argument* does, at `rule:types/conversion`'s 2^53, long before either
 // end of `int` is in sight. A member picked from the wrong family therefore
 // looks total on every row anyone would write and refuses the value the caller
 // actually had.
@@ -78,7 +78,7 @@ echo "lcm at (int min, 1) refused ", $lcmRefused, "
 ";
 
 // 4. The other family. Every member below is declared `float`, so an `int`
-//    argument reaches it only through ADR 0007 § 2's one implicit widening,
+//    argument reaches it only through `rule:types/conversion`'s one implicit widening,
 //    which is exact or throws — and 2^53 is where it stops, which is 1024
 //    times short of `int`'s own ends. The sweep is counted over five members
 //    rather than read off one, so a member that grew a conversion of its own
@@ -99,7 +99,7 @@ foreach ($magnitudes as int $mag) {
 // 5. The refusal is about the argument and says so, which is what tells it
 //    apart from the `int` family's three above: those name a member and its
 //    answer, this one names a conversion the member never saw. The class is
-//    the same — ADR 0007 § 4's `ArithmeticError`, which the *same* rule raises
+//    the same — `rule:types/arithmetic`'s `ArithmeticError`, which the *same* rule raises
 //    at a `callable`'s parameter, pinned in
 //    arr-a-callback-float-parameter-widens-an-int-and-stops-at-2-53.nvst — so
 //    the message is all that tells the two refusals apart.

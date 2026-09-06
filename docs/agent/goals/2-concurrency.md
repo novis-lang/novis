@@ -52,7 +52,7 @@ hardest to find later.
 [ADR 0063](../../adr/0063-core-api-conventions.md) R2 was amended on 2026-08-29, after this goal opened:
 every `Core` parameter is callable by the `$name` [01-core-library.md](../../spec/01-core-library.md)
 writes, and the trailing options bag by `options`, under exactly the rules a user-declared method already
-has ([ADR 0007](../../adr/0007-explicit-type-system.md) § 5). It is catch-up for the same reason Stage 0 is —
+has (`rule:types/arrays`). It is catch-up for the same reason Stage 0 is —
 every case written in the meantime is written positional-only around a surface that is about to exist —
 and it comes *after* Stage 0 in this file because the run order inside the catch-up class is this file's
 order, and the containment rule is the one everything sits inside.

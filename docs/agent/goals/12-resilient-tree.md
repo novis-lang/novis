@@ -23,7 +23,7 @@ are closed: `Class::method(...)` and `$obj->method(...)` build an ordinary `call
 (`tests/conformance/core/a-first-class-callable-lowers.nvst`), a closure is callable through the variable
 holding it in the same case, `do`/`while` lowers, and `bool as string` renders `""` for `false`. The
 fourth item's other half is **not** a hole and must not be reopened: `bool as int` is refused by
-[ADR 0007](../../adr/0007-explicit-type-system.md) § 2 — `E0708`, whose help line names `$b ? 1 : 0` —
+`rule:types/conversion` — `E0708`, whose help line names `$b ? 1 : 0` —
 which is a decision, not a gap.
 
 ## Stage 1 — the floor

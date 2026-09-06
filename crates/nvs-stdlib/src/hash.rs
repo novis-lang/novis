@@ -50,7 +50,7 @@
 //! already the thing that gets compared, logged and concatenated. Here the
 //! digest is the 32 octets it actually is, and `Core\Encoding::toHex`
 //! ([`crate::encoding`]) is the one place a spelling is chosen — the same
-//! seam ADR 0009 draws everywhere else, and the reason `Core\Encoding` exists
+//! seam `rule:types/bytes` draws everywhere else, and the reason `Core\Encoding` exists
 //! as a class rather than as members on `Core\Str`.
 //!
 //! A `crc32` is four octets, big-endian, so `toHex` of it reads as PHP's
@@ -252,8 +252,7 @@ const DIGEST_DOC: EnumDoc = EnumDoc {
 /// Spec § 11's `StrongDigest` — the closed subset [`nvs_core_hash_hmac`]
 /// declares, so `Hash::hmac($m, $k, Digest::Md5)` does not compile.
 ///
-/// A **union of case types** ([ADR 0047](/docs/adr/0047-literal-and-enum-case-types.md)
-/// § 3) rather than a second enum, which is the whole reason
+/// A **union of case types** (`rule:types/enum-case-type`) rather than a second enum, which is the whole reason
 /// [`CoreTy::EnumCase`] exists: `Core\StrongDigest::Sha256` would be a
 /// different type from `Core\Digest::Sha256`, so no single value could be
 /// passed to both `of` and `hmac` and every program holding a configured
@@ -293,8 +292,7 @@ const STRONG: &[CoreTy] = &[
 /// `bytes|string` — what both hashing members take, and the reason neither has
 /// a text-flavoured twin.
 ///
-/// Total in one direction and free ([ADR 0009](/docs/adr/0009-string-and-bytes.md)
-/// § 3): a `string` is valid UTF-8 and therefore already a valid byte
+/// Total in one direction and free (`rule:types/conversion`): a `string` is valid UTF-8 and therefore already a valid byte
 /// sequence, so [`data_of`] reads the same buffer either tag points at without
 /// copying or validating anything.
 const DATA: &[CoreTy] = &[CoreTy::Bytes, CoreTy::Str];

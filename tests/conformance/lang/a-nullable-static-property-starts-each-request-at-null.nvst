@@ -8,7 +8,7 @@ class Cache {
     // This is a deliberate Novis answer rather than PHP's — PHP leaves a typed
     // static *uninitialized* and throws on the read, which is exactly the
     // "reading a binding that may not have reached its initialiser" state
-    // ADR 0007 § 1 does not have.
+    // `rule:types/declaration` does not have.
     public static ?string $entry;
     public static ?int $hits;
 

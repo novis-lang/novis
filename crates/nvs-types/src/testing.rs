@@ -13,8 +13,7 @@
 //!
 //! § 1 writes the payload as `{skip?: string, at?: string, seed?: int,
 //! db?: string, server?: bool, retries?: int, because?: string}` — **every**
-//! field optional. That cannot be a [`crate::ty::Ty::Shape`] target: ADR 0036
-//! § 3's width subtyping requires every field the target names to be present
+//! field optional. That cannot be a [`crate::ty::Ty::Shape`] target: `rule:types/shape-type`'s width subtyping requires every field the target names to be present
 //! in the literal, so a shape of seven fields would refuse the bare `#[Test]`
 //! the ADR's own example writes. It is ADR 0063 R2's options-bag rule
 //! instead, which is the one this shape actually wants: a field the roster
@@ -169,7 +168,7 @@ pub(crate) enum OptionTy {
     /// One enum, by fully-qualified name — the type of an option whose value
     /// is a case of it.
     Enum(&'static str),
-    /// No declared type at all — [ADR 0007](/docs/adr/0007-explicit-type-system.md)'s
+    /// No declared type at all — `rule:types/declaration`'s
     /// one unchecked position, and `rule:attributes/access-payload`'s `allow`.
     ///
     /// The value is still `rule:attributes/payload-is-a-compile-time-constant`'s compile-time constant, which

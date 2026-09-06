@@ -1,11 +1,11 @@
 --TEST--
-A ternary, an elvis and a `match` whose branches lower to two representations join at one value, and the widening happens at the binding — ADR 0007 §§ 2 and 4, `rule:expressions/truthy-positions`
+A ternary, an elvis and a `match` whose branches lower to two representations join at one value, and the widening happens at the binding — `rule:types/conversion` and `rule:types/arithmetic`, `rule:expressions/truthy-positions`
 --FILE--
 <?nvs
 bool $t = true;
 bool $f = false;
 
-// ADR 0007 § 4: the join is the erasure of the checker's union of the two
+// `rule:types/arithmetic`: the join is the erasure of the checker's union of the two
 // arms, not a promotion of one arm into the other. A truthy arm past 2^53
 // still prints exactly — an implicit `int` -> `float` widening is § 2's
 // conversion, which throws above 2^53 rather than rounding, so a promoted
@@ -13,7 +13,7 @@ bool $f = false;
 echo ($t ? 9007199254740993 : 2.5), "\n";
 echo ($f ? 9007199254740993 : 2.5), "\n";
 
-// ADR 0007 § 2: `int`/`uint` widen into a *`float` position*, and a declared
+// `rule:types/conversion`: `int`/`uint` widen into a *`float` position*, and a declared
 // binding is one. Both paths of the same expression reach it.
 float $a = $t ? 1 : 2.5;
 float $b = $f ? 1 : 2.5;

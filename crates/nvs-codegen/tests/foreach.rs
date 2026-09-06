@@ -12,7 +12,7 @@ use common::*;
 fn a_foreach_walks_every_entry_in_insertion_order() {
     // The whole cursor: `array.next_slot`, `array.key_at`, `array.value_at`,
     // and the header phi carrying the cursor across the back edge. Insertion
-    // order rather than key order is ADR 0007 § 5's guarantee, which is why
+    // order rather than key order is `rule:types/arrays`'s guarantee, which is why
     // the keys below are deliberately not alphabetical.
     let source = "<?nvs
 array<int> $a = [\"gamma\" => 3, \"alpha\" => 1];
@@ -40,7 +40,7 @@ echo $sum;
 
 #[test]
 fn a_write_inside_a_foreach_separates_and_leaves_the_walk_alone() {
-    // PHP's by-value `foreach`, falling out of ADR 0007 § 5's copy-on-write
+    // PHP's by-value `foreach`, falling out of `rule:types/arrays`'s copy-on-write
     // rather than a snapshot: the loop's own retained reference puts the array
     // above refcount one, so the body's write separates and the cursor keeps
     // walking what the loop started on. Three iterations, not an unbounded
@@ -172,7 +172,7 @@ echo $a[\"k\"] . \"/\" . $b[\"j\"];
 
 #[test]
 fn an_unset_by_an_int_subscript_normalizes_the_key_and_frees_it() {
-    // ADR 0007 § 5's key normalization on the `unset` path: the converted
+    // `rule:types/arrays`'s key normalization on the `unset` path: the converted
     // decimal string is this frame's own temporary, released once the removal
     // has read it — the mirror of the retain a *stored* key gets.
     let source = "<?nvs

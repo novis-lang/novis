@@ -1,5 +1,5 @@
 --TEST--
-`foreach (… as inout $v)` writes each element back where it came from — at every exit an iteration has, through a nested loop, and through an `inout $x` parameter — while a copy taken before the loop keeps what it was given (ADR 0007 § 5, `rule:iteration/foreach-subjects`)
+`foreach (… as inout $v)` writes each element back where it came from — at every exit an iteration has, through a nested loop, and through an `inout $x` parameter — while a copy taken before the loop keeps what it was given (`rule:types/arrays`, `rule:iteration/foreach-subjects`)
 --FILE--
 <?nvs
 final class Walk {
@@ -34,7 +34,7 @@ foreach ($twice as inout int $again) {
 }
 echo Core\Json::encode($twice), "\n";
 
-// Every key keeps its own kind — ADR 0007 § 5's `int`-looking keys stay
+// Every key keeps its own kind — `rule:types/arrays`'s `int`-looking keys stay
 // `int` and the rest stay strings, exactly as an ordinary element write
 // leaves them.
 array<int> $mixed = ["k" => 1, 2];

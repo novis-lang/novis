@@ -161,7 +161,7 @@ Three defaults close holes PHP leaves open, and none is configurable to the unsa
 - **TLS defaults to `VerifyFull`** for a TCP connection. PHP's `pdo_pgsql` defaults to `sslmode=prefer`,
   which silently connects in plaintext when the server says so.
 - **The connection charset is forced to UTF-8** (`utf8mb4` on MySQL/MariaDB), so text columns arrive as
-  valid UTF-8 and [ADR 0009](0009-string-and-bytes.md)'s guarantee holds by construction.
+  valid UTF-8 and `rule:types/bytes`'s guarantee holds by construction.
 
 A SQLite connection's file path comes from its config block, so `db.connect` covers it; a program-supplied
 path through `open` additionally needs `fs.read`/`fs.write` and is a path sink.

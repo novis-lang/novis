@@ -1,5 +1,5 @@
 --TEST--
-ADR 0054 § 3: every rounding mode agrees with `Core\Decimal::divExact` where the quotient is exact at the named scale
+`rule:types/arithmetic`: every rounding mode agrees with `Core\Decimal::divExact` where the quotient is exact at the named scale
 --FILE--
 <?nvs
 // A mode is a decision about what the truncation discarded, not a

@@ -1,11 +1,11 @@
-//! [ADR 0054](/docs/adr/0054-decimal-scalar-type.md)'s `decimal`
+//! `rule:types/decimal`'s `decimal`
 //! scalar: sign, a 96-bit unsigned mantissa and a scale of 0 to 28, with the
 //! whole of § 3's arithmetic and § 4's conversions.
 //!
 //! # Where the sixteen bytes go, and why they are a [`crate::Value`]'s
 //!
 //! A `decimal` is **exactly a [`crate::Value`] carrying [`Tag::Decimal`]** —
-//! not a second 16-byte shape sitting beside one. ADR 0054 § 1 asks for a
+//! not a second 16-byte shape sitting beside one. `rule:types/decimal` asks for a
 //! register-pair-sized, allocation-free value, and a `Value` already is one:
 //! a tag byte, seven bytes the struct calls padding, and an eight-byte
 //! payload. Sign and scale need two of those seven, which leaves twelve bytes
@@ -34,7 +34,7 @@
 //! # What throws
 //!
 //! Every fallible operation here returns `None`, which the helper layer turns
-//! into ADR 0054 § 3's `ArithmeticError`. That covers both overflow kinds the
+//! into `rule:types/arithmetic`'s `ArithmeticError`. That covers both overflow kinds the
 //! ADR names — a mantissa wider than 96 bits *and* a scale that would exceed
 //! 28 — plus division by zero, and a conversion whose value does not fit.
 //! Division is the one operation that may round: half to even, at the maximum
@@ -59,11 +59,11 @@ use std::cmp::Ordering;
 
 use crate::value::Tag;
 
-/// ADR 0054 § 1's mantissa bound: 96 bits, unsigned, with the sign carried
+/// `rule:types/decimal`'s mantissa bound: 96 bits, unsigned, with the sign carried
 /// beside it rather than in it.
 pub const MAX_MANTISSA: u128 = (1u128 << 96) - 1;
 
-/// ADR 0054 § 1's scale bound: the number of digits after the point.
+/// `rule:types/decimal`'s scale bound: the number of digits after the point.
 pub const MAX_SCALE: u8 = 28;
 
 /// `10^n` for every `n` a `u128` can hold, which is every scale this type
@@ -97,7 +97,7 @@ pub struct Decimal {
 /// What a division threw away when it stopped — the whole of what a rounding
 /// mode has to decide against.
 ///
-/// Public because ADR 0054 § 3 puts the mode itself in `Core\RoundMode`, which
+/// Public because `rule:types/arithmetic` puts the mode itself in `Core\RoundMode`, which
 /// is `nvs-stdlib`'s: `Core\Decimal::divRound` reads this and applies the case
 /// the caller named. Half is stated as its own answer rather than folded into
 /// one of its neighbours precisely because the four `Half*` modes exist to
@@ -181,8 +181,7 @@ impl Decimal {
         self.negative
     }
 
-    /// The number of digits after the point — observable, because ADR 0054
-    /// § 4 makes `19.90 as string` render as `"19.90"`.
+    /// The number of digits after the point — observable, because `rule:types/conversion` makes `19.90 as string` render as `"19.90"`.
     #[must_use]
     pub const fn scale(self) -> u8 {
         self.scale
@@ -216,7 +215,7 @@ impl Decimal {
         Self::new(negative, bits >> 32, scale)
     }
 
-    /// An `int`, exactly — ADR 0054 § 4's first row: every `i64` fits in 96
+    /// An `int`, exactly — `rule:types/conversion`'s first row: every `i64` fits in 96
     /// bits.
     #[must_use]
     pub fn from_i64(value: i64) -> Self {
@@ -237,7 +236,7 @@ impl Decimal {
         }
     }
 
-    /// A `float`, as ADR 0054 § 4 defines that row: "the shortest decimal that
+    /// A `float`, as `rule:types/conversion` defines that row: "the shortest decimal that
     /// round-trips to that `float`; i.e. exactly the value the float prints
     /// as", so `0.1 as decimal` is `0.1` rather than
     /// `0.1000000000000000055…`. `None` for a NaN, an infinity, or a value
@@ -248,7 +247,7 @@ impl Decimal {
         fit(negative, mantissa, scale)
     }
 
-    /// A `string`, as ADR 0054 § 4's row demands: the **whole** string must be
+    /// A `string`, as `rule:types/conversion`'s row demands: the **whole** string must be
     /// an exact decimal literal, with no leading-garbage rule.
     #[must_use]
     pub fn parse(text: &str) -> Option<Self> {
@@ -276,8 +275,7 @@ impl Decimal {
         self.mantissa.is_multiple_of(unit)
     }
 
-    /// This value as an `int` — integral and in range, or `None`. ADR 0054
-    /// § 4: rounding is `Core\Decimal::floor`/`ceil`/`round`, said out loud.
+    /// This value as an `int` — integral and in range, or `None`. `rule:types/conversion`: rounding is `Core\Decimal::floor`/`ceil`/`round`, said out loud.
     #[must_use]
     pub fn to_i64(self) -> Option<i64> {
         let whole = self.whole_part()?;
@@ -315,7 +313,7 @@ impl Decimal {
     /// bit for bit, which is what [`crate::value_hash`] needs and what
     /// [`Self::compare`] answers without needing.
     ///
-    /// Never used for rendering: ADR 0054 § 4 keeps the scale precisely so
+    /// Never used for rendering: `rule:types/conversion` keeps the scale precisely so
     /// `19.90` renders as `"19.90"`.
     #[must_use]
     pub fn reduced(self) -> Self {
@@ -346,7 +344,7 @@ impl Decimal {
         }
     }
 
-    /// `a + b` — ADR 0054 § 3, throwing rather than wrapping or promoting.
+    /// `a + b` — `rule:types/arithmetic`, throwing rather than wrapping or promoting.
     #[must_use]
     pub fn checked_add(self, other: Self) -> Option<Self> {
         let (scale, a, b) = align(self, other)?;
@@ -367,7 +365,7 @@ impl Decimal {
 
     /// `a * b`. The scales add, so a product wanting more than 28 of them
     /// throws rather than silently reducing precision the way `System.Decimal`
-    /// does — ADR 0054 § 3's deliberate divergence.
+    /// does — `rule:types/arithmetic`'s deliberate divergence.
     #[must_use]
     pub fn checked_mul(self, other: Self) -> Option<Self> {
         let scale = self.scale.checked_add(other.scale)?;
@@ -377,7 +375,7 @@ impl Decimal {
 
     /// `a / b` — always a `decimal`, never a union, and the one operation that
     /// may be inexact: it rounds **half to even at the maximum scale the
-    /// result admits**, which ADR 0054 § 3 fixes in the language. A zero
+    /// result admits**, which `rule:types/arithmetic` fixes in the language. A zero
     /// divisor throws.
     #[must_use]
     pub fn checked_div(self, other: Self) -> Option<Self> {
@@ -391,7 +389,7 @@ impl Decimal {
 
     /// `a / b` where the quotient is exact — the language-level operator's
     /// division stopped one decision earlier, before the rounding that is the
-    /// only inexactness ADR 0054 § 3 admits.
+    /// only inexactness `rule:types/arithmetic` admits.
     ///
     /// `None` covers all three refusals `Core\Decimal::divExact` makes: a zero
     /// divisor, a quotient that repeats, and a quotient this type cannot hold.
@@ -540,13 +538,12 @@ impl Decimal {
         }
     }
 
-    /// Exact ordering against a `float`, which ADR 0054 § 3 permits where
+    /// Exact ordering against a `float`, which `rule:types/arithmetic` permits where
     /// `decimal ⊕ float` *arithmetic* is a compile error — an exact comparison
     /// is always computable even where a common arithmetic type is not.
     ///
     /// `None` for a NaN, the one `f64` that orders against nothing. The `f64`
-    /// is read at the value it prints as, which is the same reading ADR 0054
-    /// § 4's `float → decimal` row takes, so `0.1 as decimal == 0.1` holds.
+    /// is read at the value it prints as, which is the same reading `rule:types/conversion`'s `float → decimal` row takes, so `0.1 as decimal == 0.1` holds.
     #[must_use]
     pub fn compare_f64(self, other: f64) -> Option<Ordering> {
         if other.is_nan() {
@@ -570,7 +567,7 @@ impl Decimal {
     }
 }
 
-/// ADR 0054 § 4's `decimal → string` row: total, and **scale-preserving**, so
+/// `rule:types/conversion`'s `decimal → string` row: total, and **scale-preserving**, so
 /// `19.90` renders as `"19.90"` rather than losing the trailing zero the way
 /// every PHP application re-derives with `number_format`.
 impl std::fmt::Display for Decimal {
@@ -609,7 +606,7 @@ fn align(a: Decimal, b: Decimal) -> Option<(u8, u128, u128)> {
 /// `mantissa`: round away from zero when what was thrown away is more than
 /// half, and on exactly half only when that makes the last digit even.
 ///
-/// The operator's mode, and the only one fixed in the language — ADR 0054 § 3.
+/// The operator's mode, and the only one fixed in the language — `rule:types/arithmetic`.
 /// `Core\Decimal::divRound`'s five other modes read the same [`Discard`] and
 /// part from this one only at the tie.
 fn rounds_away(discard: Discard, mantissa: u128) -> bool {
@@ -651,7 +648,7 @@ fn cmp_magnitude(a: u128, ka: i32, b: u128, kb: i32) -> Ordering {
 
 /// A finite `f64` as `(negative, mantissa, scale)` with
 /// `value = (-1)^negative × mantissa × 10^-scale`, read from Rust's own
-/// shortest-round-trip rendering — which is exactly ADR 0054 § 4's definition
+/// shortest-round-trip rendering — which is exactly `rule:types/conversion`'s definition
 /// of what a `float`'s decimal value *is*.
 ///
 /// The scale is an `i32` rather than a `u8` because this is also the input to

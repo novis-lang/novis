@@ -1,8 +1,8 @@
 --TEST--
-`Core\Test::assertNull` asks "is the tag null", not "is this falsy": every falsy value that is not `null` fails, so does every truthy one, and three spellings of `null` hold — `rule:testing/assertions-are-typed`, `rule:expressions/truthy-table`, ADR 0047 § 5
+`Core\Test::assertNull` asks "is the tag null", not "is this falsy": every falsy value that is not `null` fails, so does every truthy one, and three spellings of `null` hold — `rule:testing/assertions-are-typed`, `rule:expressions/truthy-table`, `rule:types/literal-types`
 --FILE--
 <?nvs
-// `assertNull`'s parameter is `mixed` (ADR 0007 § 2's one unchecked position),
+// `assertNull`'s parameter is `mixed` (`rule:types/conversion`'s one unchecked position),
 // which is what lets a subject of *any* type reach it -- so the boundary worth
 // pinning is not a type the checker refuses, it is the values that a reader
 // most expects to pass. `rule:expressions/truthy-table`'s falsy table and "is null" are two
@@ -130,7 +130,7 @@ foreach ($every as mixed $subject) {
 echo "agreed=", $agreed, "/18\n";
 
 // 5. What the report can and cannot tell apart. `int` 0, `uint` 0, `float` 0.0
-// and an enum case backed by `0` all render as `0`, because ADR 0047 § 5 spends
+// and an enum case backed by `0` all render as `0`, because `rule:types/literal-types` spends
 // no representation on hiding a case's integer and the reporter has only the
 // tag -- so the *message* is not what distinguishes these rows, the count above
 // is. `-0.0` and `"0"` do print distinguishably.

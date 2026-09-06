@@ -1,5 +1,5 @@
 --TEST--
-A property default takes `rule:attributes/payload-is-a-compile-time-constant`'s whole compile-time constant set, not only a literal — `rule:attributes/payload-is-a-compile-time-constant`, `rule:enums/no-class-machinery`, ADR 0007 § 2
+A property default takes `rule:attributes/payload-is-a-compile-time-constant`'s whole compile-time constant set, not only a literal — `rule:attributes/payload-is-a-compile-time-constant`, `rule:enums/no-class-machinery`, `rule:types/conversion`
 --FILE--
 <?nvs
 // `rule:attributes/payload-is-a-compile-time-constant`'s constant set is a literal, another class's `const`, or an
@@ -24,7 +24,7 @@ class Config
     public bool $debug = Limits::DEBUG;
     // The declared type decides the decoding, exactly as it does for a
     // literal: one `int` constant reaches a `uint` slot and a `float` one,
-    // the second through ADR 0007 § 2's single implicit widening.
+    // the second through `rule:types/conversion`'s single implicit widening.
     public uint $span = Limits::COUNT;
     public float $widened = Limits::COUNT;
     // `rule:enums/no-class-machinery`: the case *is* its backing integer, so the slot holds

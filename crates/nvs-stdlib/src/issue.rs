@@ -9,7 +9,7 @@
 //!
 //! That is what the ADR writes, and it is the cheaper of the two: a shape needs
 //! no registry row, no member table and no name a program has to import, and
-//! [ADR 0036](/docs/adr/0036-anonymous-object-shapes.md) § 3 already
+//! `rule:types/shape-type` already
 //! makes `{path: string, message: string}` a type the checker compares
 //! structurally. So `Core\Issue` exists as a *type* in
 //! `nvs_types::error_lib::issue_shape` and as a *layout* in

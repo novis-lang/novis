@@ -2,13 +2,13 @@
 //! the five `with(...)` options this compiler will accept.
 //!
 //! `nvs_types::expr::isolate`'s module doc is the home of the decision these
-//! pin — the handle is a registered `Core` class and the result is an ADR 0036
+//! pin — the handle is a registered `Core` class and the result is an `rule:types/object-top`
 //! shape. A shape field the checker did not name falls back to `mixed` with no
 //! diagnostic (`nvs_types::expr::members`), so what a field's *type* is can
 //! only be observed the way a program observes it: by binding it.
 //!
 //! Every case below spawns for its handle rather than declaring a `mixed` one,
-//! because `mixed` no longer satisfies an `await` (ADR 0007 § 6) — which is
+//! because `mixed` no longer satisfies an `await` (`rule:types/unions-and-mixed`) — which is
 //! itself one of the claims here.
 //!
 //! The last four are the same ADR's *operand* rule at ADR 0083 § 2's second

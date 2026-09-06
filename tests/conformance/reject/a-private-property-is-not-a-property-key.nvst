@@ -1,5 +1,5 @@
 --TEST--
-a `private` property is not one of `T`'s keys, and a written-out name says so where it is written — ADR 0126 §§ 1-2
+a `private` property is not one of `T`'s keys, and a written-out name says so where it is written — `rule:types/property-key`
 --FILE--
 <?nvs
 class Vault {

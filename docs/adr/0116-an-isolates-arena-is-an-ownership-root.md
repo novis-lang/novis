@@ -98,7 +98,7 @@ a cycle's members hold each other above zero. An object is the one shape that ca
 is immutable and an array copies on write (`graph.rs`'s identity decision) — so the drain is followed by a
 **sweep**: every object links into its context's intrusive live list when it is allocated and out when it
 is dismantled, and what the drain leaves on that list is dismantled through the same worklist, so native
-teardown runs there too. What the sweep spends, per `rule:programs/memory-priority`(0004-memory-for-simplicity.md): two pointers
+teardown runs there too. What the sweep spends, per `rule:programs/memory-priority`: two pointers
 per live object, and a few non-atomic stores at each object's allocation and death. Decided 2026-09-01,
 after review found the drain-only teardown retained a cycle for the life of the process.
 

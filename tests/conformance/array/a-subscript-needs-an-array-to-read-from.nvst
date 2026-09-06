@@ -1,21 +1,21 @@
 --TEST--
-a subscript whose base has already answered that it holds no array is refused where it is written — a scalar, a `string`, an untested `?array<T>`, and a `mixed` in a *write* target — ADR 0007 § 5, ADR 0009 § 2
+a subscript whose base has already answered that it holds no array is refused where it is written — a scalar, a `string`, an untested `?array<T>`, and a `mixed` in a *write* target — `rule:types/arrays`, `rule:types/string-is-utf8`
 --FILE--
 <?nvs
-// ADR 0007 § 5 checks an element read and write against the array's *declared*
+// `rule:types/arrays` checks an element read and write against the array's *declared*
 // element type, so a base that declares none has nothing to name and nothing
 // to check the read against. PHP answers `null` with a warning for most of
 // these — ADR 0007 § 7 row 8's family — and Novis refuses at check time instead.
-// A `string` is not an exception: ADR 0009 § 2 indexes one by extended
+// A `string` is not an exception: `rule:types/string-is-utf8` indexes one by extended
 // grapheme cluster through `Core\Str`, deliberately not through a subscript.
 // The `?array<string>` is the sharpest: a nullable array has an element type
 // only once it is known not to be `null`, so an *untested* one is refused here
 // while the same subscript inside an `if ($rows != null)` narrows and runs
 // (`nvs_types::locals`' narrowing docs own that half).
 //
-// `mixed` is the one base that is *not* refused for a read: it is ADR 0007
-// § 2's unchecked position, so whether there is an array here is the tag's
-// question and not the site's, exactly as ADR 0036 § 4 defers a property
+// `mixed` is the one base that is *not* refused for a read: it is `rule:types/conversion`
+// 's unchecked position, so whether there is an array here is the tag's
+// question and not the site's, exactly as `rule:types/erased-member-access` defers a property
 // access through an erased receiver. Only the **write** below is refused —
 // an element write separates a copy-on-write buffer and needs a holder to
 // write the separated one back through, which a value that is only a tag does

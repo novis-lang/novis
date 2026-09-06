@@ -9,7 +9,7 @@
 // at once, since an element is `mixed` and cannot be indexed into.
 //
 // A `bytes` has no JSON encoding — which encoding its octets are in is a
-// decision, ADR 0009 § 3 — so the walk below converts each leaf on the way,
+// decision, `rule:types/conversion` — so the walk below converts each leaf on the way,
 // and the octets a leaf can carry are the neighbouring decoder cases' subject
 // rather than this one's. This case is about the *shape*.
 class Shape {

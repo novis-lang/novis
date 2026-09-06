@@ -1,5 +1,5 @@
 --TEST--
-Core\Arr::firstKey and ::lastKey name the ends of the order foreach walks after every step of a script of writes and removals — a write over a held key moving it nowhere, and a removal then a write moving it to the end — ADR 0007 § 5 and spec § 2
+Core\Arr::firstKey and ::lastKey name the ends of the order foreach walks after every step of a script of writes and removals — a write over a held key moving it nowhere, and a removal then a write moving it to the end — `rule:types/arrays` and spec § 2
 --FILE--
 <?nvs
 // `arr-key-answering-members-agree-on-one-spelling` asks the six key-answering
@@ -24,7 +24,7 @@ final class Ends {
         }
 
         // What `foreach` binds is the definition the other members are being
-        // held to: ADR 0007 § 5's insertion order, walked afresh each step.
+        // held to: `rule:types/arrays`'s insertion order, walked afresh each step.
         string $walkedFirst = "";
         string $walkedLast = "";
         uint $n = 0;

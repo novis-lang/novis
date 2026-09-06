@@ -1,4 +1,4 @@
-//! ADR 0007 § 2's conversion table — the implicit widenings `convert` applies at
+//! `rule:types/conversion`'s conversion table — the implicit widenings `convert` applies at
 //! a binding, and the explicit `as` the § 2 grid decides.
 //!
 //! Part of [`super`]'s one `impl Lowering`, split out of [`super::expr`] under the
@@ -14,16 +14,16 @@
 use super::*;
 
 impl<'a> Lowering<'a> {
-    /// Lowers one `expr as T` — ADR 0007 § 2's conversion table, plus
-    /// ADR 0010 § 5's two enum rows.
+    /// Lowers one `expr as T` — `rule:types/conversion`'s conversion table, plus
+    /// `rule:types/conversion`'s two enum rows.
     ///
     /// Three shapes of row exist, and this slice implements the first two:
     ///
     /// * **Free.** The two representations are identical, so nothing runs. A
     ///   conversion to the same representation is the operand itself; an enum
     ///   to its own backing `int`/`uint` is an [`InstKind::Reinterpret`],
-    ///   which ADR 0010 § 5 spells out as "total, free ... same
-    ///   representation, reinterpreted." ADR 0009 § 3's `string as bytes` is
+    ///   which `rule:types/conversion` spells out as "total, free ... same
+    ///   representation, reinterpreted." `rule:types/conversion`'s `string as bytes` is
     ///   the third one, free for the same reason: one `NvsStr` allocation
     ///   under two tags, minus the UTF-8 promise.
     /// * **Total.** A scalar to `string` reuses the same [`Helper`]
@@ -36,11 +36,11 @@ impl<'a> Lowering<'a> {
     ///   therefore [`Ty::Tagged`], so the value travels unchanged under a tag
     ///   — one [`InstKind::Tag`], free in the same sense the free rows are.
     /// * **Checked.** `int` ↔ `uint`, `float` → an integer, `string` → a
-    ///   number and ADR 0009 § 3's `bytes as string` each go through a
+    ///   number and `rule:types/conversion`'s `bytes as string` each go through a
     ///   [`Helper`] that either produces the value or throws, emitted through
     ///   [`Self::emit_fallible`] so it carries `rule:errors/propagation`'s error edge like any
     ///   other call.
-    /// * **Into an enum.** ADR 0010 § 5's other direction is row 1 run
+    /// * **Into an enum.** `rule:types/conversion`'s other direction is row 1 run
     ///   backwards: the operand is converted to the enum's *backing* scalar
     ///   through whichever row above applies, and a free
     ///   [`InstKind::Reinterpret`] puts the tag back on.
@@ -49,7 +49,7 @@ impl<'a> Lowering<'a> {
     /// case names" itself, and cannot: the case set lives on the enum's
     /// declaration, which [`Ty::Enum`] has already erased to a backing type by
     /// the time this runs. [`Self::lower_conversion`] emits it instead — the
-    /// same membership chain ADR 0047 § 5's closed set gets, built from every
+    /// same membership chain `rule:types/literal-types`'s closed set gets, built from every
     /// case of the declaration ([`Self::closed_literal_set`]) — and it is this
     /// function's only caller, so the two halves cannot come apart.
     ///
@@ -75,25 +75,25 @@ impl<'a> Lowering<'a> {
             // took, and the second release of the pair corrupts the heap. One
             // retain makes the free row honour the contract every other row
             // already does. `$s as string` is the shape this was always true
-            // of; ADR 0047 § 5's erasure made `$s as "a"|"b"` a second one.
+            // of; `rule:types/literal-types`'s erasure made `$s as "a"|"b"` a second one.
             if to.is_refcounted() && self.aliasing_read(operand) {
                 self.emit_retain(cur, v);
             }
             return (v, to);
         }
         match (from, to) {
-            // ADR 0010 § 5, row 1 — an enum to its own underlying type.
+            // `rule:types/conversion`, row 1 — an enum to its own underlying type.
             (Ty::Enum(EnumRepr::Int), Ty::Int) | (Ty::Enum(EnumRepr::Uint), Ty::Uint) => {
                 self.emit(cur, to, InstKind::Reinterpret { operand: v })
             }
-            // ADR 0010 § 5, row 2 — the underlying type back into the enum,
+            // `rule:types/conversion`, row 2 — the underlying type back into the enum,
             // and free for the same reason row 1 is: `Ty::Enum` is a
             // zero-byte tag over that integer, so the tag costs one
             // reinterpret and no test.
             //
             // An operand that is not already the backing scalar is converted
             // to it by the rows below *first*, by recursion rather than by a
-            // row per source: `$f as Rank` is ADR 0007 § 2's checked
+            // row per source: `$f as Rank` is `rule:types/conversion`'s checked
             // `float → int` and then this, which is the same two steps the
             // author wrote and keeps every one of those rows' throw messages
             // naming the conversion that actually failed. A `Ty::Tagged`
@@ -112,11 +112,11 @@ impl<'a> Lowering<'a> {
                 let (backed, _) = self.convert(v, from, backing, operand, env, cur);
                 self.emit(cur, to, InstKind::Reinterpret { operand: backed })
             }
-            // ADR 0009 § 3's total row: `string as bytes` is free, because a
+            // `rule:types/conversion`'s total row: `string as bytes` is free, because a
             // `bytes` *is* the `string`'s allocation minus the UTF-8 promise
             // (`Ty::Bytes`, and `nvs_runtime::Value::bytes`). Valid UTF-8 is
             // already a valid byte sequence, so there is nothing to check and
-            // nothing to copy — one `Reinterpret`, exactly as ADR 0010 § 5's
+            // nothing to copy — one `Reinterpret`, exactly as `rule:types/conversion`'s
             // enum row above, and the tag only differs where a `Ty::Tagged`
             // value is built.
             //
@@ -135,7 +135,7 @@ impl<'a> Lowering<'a> {
             // it is `Ty::Tagged` and the value keeps the payload it already
             // has under a tag — one `InstKind::Tag`, the same instruction
             // `Self::coerce` emits where a *declaration* is the wider side.
-            // ADR 0047 § 5's heterogeneous set is the shape that needs it
+            // `rule:types/literal-types`'s heterogeneous set is the shape that needs it
             // (`$s as 1|"a"`: the set is closed, its members share no one
             // representation, so the whole target erases to a tagged value
             // and the membership test below runs on tags), and `as mixed` is
@@ -163,7 +163,7 @@ impl<'a> Lowering<'a> {
                     Ty::Bool => Helper::BoolToString,
                     Ty::Int => Helper::IntToString,
                     Ty::Uint => Helper::UintToString,
-                    // ADR 0054 § 4's row: total, and scale-preserving.
+                    // `rule:types/conversion`'s row: total, and scale-preserving.
                     Ty::Decimal => Helper::DecimalToString,
                     _ => Helper::FloatToString,
                 };
@@ -177,7 +177,7 @@ impl<'a> Lowering<'a> {
                     env,
                 )
             }
-            // ADR 0125 § 2's `class<T>` → `string` row — the descriptor's own
+            // `rule:types/class-reference`'s `class<T>` → `string` row — the descriptor's own
             // fully qualified name, through the same [`Helper::ClassDescName`]
             // `$obj::class` reads one with. No conversion of the operand: a
             // [`Ty::ClassDesc`] slot is already spelled the way that helper
@@ -192,7 +192,7 @@ impl<'a> Lowering<'a> {
                 },
                 env,
             ),
-            // ADR 0007 § 2's "anything → `string`" row at `null`, and the same
+            // `rule:types/conversion`'s "anything → `string`" row at `null`, and the same
             // answer `Self::concat_operand` gives the same value: PHP renders
             // `null` as the empty string, and a `?string` holding one already
             // does through `Helper::TaggedToString`. The static case rendering
@@ -208,7 +208,7 @@ impl<'a> Lowering<'a> {
             //
             // The `None` half is `Self::concat_operand`'s, verbatim and for its
             // reason: an operand whose static type named no class to resolve
-            // against — the erased `object` of ADR 0036 § 4, or a `Core`-owned
+            // against — the erased `object` of `rule:types/erased-member-access`, or a `Core`-owned
             // class — is decided by its *runtime* class instead, which is what
             // `nvs_runtime::stringify` is. Answering that here and something
             // else at `echo` would make one value render two ways depending on
@@ -249,7 +249,7 @@ impl<'a> Lowering<'a> {
                 }
                 out
             }
-            // ADR 0007 § 2's checked rows. Each either produces the value or
+            // `rule:types/conversion`'s checked rows. Each either produces the value or
             // throws, so each is a fallible helper carrying `rule:errors/propagation`'s error
             // edge — the same call shape a method call already has. The
             // operand is a scalar in every one of these except the `string`
@@ -260,14 +260,14 @@ impl<'a> Lowering<'a> {
             | (Ty::Int | Ty::Uint, Ty::Float)
             | (Ty::Float, Ty::Int | Ty::Uint)
             | (Ty::Str, Ty::Int | Ty::Uint | Ty::Float)
-            // ADR 0054 § 4's rows. `→ decimal` is one helper for every source
+            // `rule:types/conversion`'s rows. `→ decimal` is one helper for every source
             // (including `Ty::Tagged`, whose row only its runtime tag names),
             // the same "one tag per target" arrangement `Helper::ToIntOrNull`
             // already follows; the three out of `decimal` are per-target, like
             // every other row here.
             | (Ty::Int | Ty::Uint | Ty::Float | Ty::Str | Ty::Tagged, Ty::Decimal)
             | (Ty::Decimal, Ty::Int | Ty::Uint | Ty::Float)
-            // ADR 0007 § 6's `mixed`: the three numeric targets, each one
+            // `rule:types/unions-and-mixed`'s `mixed`: the three numeric targets, each one
             // helper for every source because only the operand's runtime tag
             // names a row — the same arrangement `Ty::Tagged`'s `string` and
             // `decimal` targets above already use. Each throws where
@@ -306,7 +306,7 @@ impl<'a> Lowering<'a> {
                 }
                 out
             }
-            // ADR 0009 § 3's checked row, and the half of that pair that runs
+            // `rule:types/conversion`'s checked row, and the half of that pair that runs
             // anything: the buffer is validated as well-formed UTF-8 and
             // becomes the `string` over the same allocation, or it throws.
             // Never a replacement character and never a truncation, so it is
@@ -331,7 +331,7 @@ impl<'a> Lowering<'a> {
                 }
                 out
             }
-            // ADR 0009 § 3's row the other way, from an operand whose static
+            // `rule:types/conversion`'s row the other way, from an operand whose static
             // type names no row — a `mixed`, a `?T`, any other union. The
             // statically typed spelling is the free `Reinterpret` above and
             // reaches no helper at all, so this is the only shape of
@@ -360,13 +360,13 @@ impl<'a> Lowering<'a> {
             }
             // Nothing reaches here any more, and that is now the claim rather
             // than a hope: `nvs_types`' `reject_unconvertible` refuses every
-            // pair ADR 0007 § 2's closed table has no row for (`E0708`) and
+            // pair `rule:types/conversion`'s closed table has no row for (`E0708`) and
             // every object target with no class to test against (`E0711`), and
             // the rows whose decision is a *label* `Ty` has erased are arms of
             // `Self::lower_conversion` rather than of this table.
             _ => panic!(
-                "nvs-ir lowers ADR 0007 § 2's scalar conversion rows, ADR 0009 § 3's `string` ↔ \
-                 `bytes` pair, both of ADR 0010 § 5's enum ones, a `Ty::Tagged` operand into \
+                "nvs-ir lowers `rule:types/conversion`'s scalar conversion rows, `rule:types/conversion`'s `string` ↔ \
+                 `bytes` pair, both of `rule:types/conversion`'s enum ones, a `Ty::Tagged` operand into \
                  every scalar target among them and into `bytes`, and every operand into a \
                  tagged target — got `{from:?} as {to:?}`. No row is missing: every other pair \
                  is `E0708` or `E0711` a phase up, so a pair arriving here is a rule that was \
@@ -441,7 +441,7 @@ impl<'a> Lowering<'a> {
             Ty::Bytes => Helper::ToBytesOrNull,
             other => panic!(
                 "nvs-ir lowers `rule:expressions/nullable-conversion`'s `as ?T` for the checked scalar targets and for \
-                 `bytes`, and through `Self::lower_nullable_membership` for ADR 0047's literal \
+                 `bytes`, and through `Self::lower_nullable_membership` for `rule:types/literal-types`'s literal \
                  and enum-case ones — got `{from:?} as ?{other:?}`. Both of § 3's refusals are \
                  `nvs_types`' now (`E0709` for a row that cannot fail, `E0708` for a pair naming \
                  no row), so what reaches here is a row that exists, can fail, and has no `?` \
@@ -491,14 +491,14 @@ impl<'a> Lowering<'a> {
     /// the one row this table does **not** settle here: it converts through
     /// [`Helper::ValueTruthy`], which reads the value's tag and applies
     /// whichever of the rows above it names. That is `rule:expressions/truthy-table`'s own last
-    /// line rather than a fallback, and it is why ADR 0007 § 2 can make
+    /// line rather than a fallback, and it is why `rule:types/conversion` can make
     /// `mixed` the one unchecked position without a condition being a hole in
     /// it: the question a condition asks has an answer for every tag.
     ///
     /// # Panics
     ///
     /// Panics naming the case for anything outside this table, which today is
-    /// `Ty::Void` alone — ADR 0007 already keeps `void`/`never` out of value
+    /// `Ty::Void` alone — `rule:types/declaration` already keeps `void`/`never` out of value
     /// position, so no program reaches it. [`Ty::Null`] *is* in the table and
     /// is reachable only from the literal `null`: a `?T` is one
     /// [`Ty::Tagged`] slot and takes that row instead.
@@ -569,7 +569,7 @@ impl<'a> Lowering<'a> {
             Ty::Null => self.emit(cur, Ty::Bool, InstKind::ConstBool(false)).0,
             // `rule:enums/truthiness`'s class-instance row read one representation over:
             // a class *reference* is a descriptor, so a `class<T>` is always
-            // truthy the way an instance is — and ADR 0125 § 2's `?class<T>`
+            // truthy the way an instance is — and `rule:types/class-reference`'s `?class<T>`
             // is the same row with § 2's first, `null` for the miss. That
             // pairing is exactly the word against zero, since the two answers
             // are one representation here ([`Ty::ClassDesc`], which owns the
@@ -657,7 +657,7 @@ impl<'a> Lowering<'a> {
         self.truthy_value(v, ty, is_alias, *cur, env)
     }
 
-    /// ADR 0007 § 2's `as` — the one conversion spelling. The target
+    /// `rule:types/conversion`'s `as` — the one conversion spelling. The target
     /// type is resolved by `lower_decl_type`, which reads the checker's
     /// own answer for the annotation, so an enum target/source is
     /// already the right representation by the time `convert` sees it.
@@ -674,8 +674,8 @@ impl<'a> Lowering<'a> {
         // `from == to` — the one shape `Self::convert` answers by
         // doing nothing at all.
         //
-        // Every `as ?T` that reaches here is a row of ADR 0007 § 2's table or
-        // one of ADR 0047's types. A **class** target never does: `rule:expressions/nullable-conversion-availability`'s class row is absolute, so `nvs_types` has already refused it
+        // Every `as ?T` that reaches here is a row of `rule:types/conversion`'s table or
+        // one of `rule:types/literal-types`'s types. A **class** target never does: `rule:expressions/nullable-conversion-availability`'s class row is absolute, so `nvs_types` has already refused it
         // with `E0473`. That row used to carry a two-class exception — the
         // parse roster, `$s as ?Core\Uri` — lowered here to one non-member
         // `CoreCall` on a symbol the expression table had to carry, since
@@ -684,7 +684,7 @@ impl<'a> Lowering<'a> {
         // member call now, so nothing about a class reaches this function.
         match nullable_target(ty) {
             Some(target) => {
-                // ADR 0125 § 2's `as ?class<T>`, ahead of everything below:
+                // `rule:types/class-reference`'s `as ?class<T>`, ahead of everything below:
                 // its answer is a `Ty::ClassDesc` rather than the `Ty::Tagged`
                 // every other `?T` erases to, so it never reaches
                 // `Self::convert_or_null` and needs no `?` helper of its own —
@@ -712,7 +712,7 @@ impl<'a> Lowering<'a> {
                 {
                     return self.lower_array_restamp(v, from, tags, inner, true, env, cur);
                 }
-                // ADR 0126 § 2's two run-time rows under `rule:expressions/nullable-conversion-availability`'s sugar:
+                // `rule:types/property-key`'s two run-time rows under `rule:expressions/nullable-conversion-availability`'s sugar:
                 // the same set and the same chain the checked form below gets,
                 // with the miss answering `null` where that one throws. Ahead
                 // of the atom walk, which cannot answer it — `property<T>` is
@@ -749,7 +749,7 @@ impl<'a> Lowering<'a> {
             }
             None => {
                 let to = lower_decl_type(ty, self.exprs, self.checked_types);
-                // ADR 0125 § 2's two rows into a `class<T>`, and the
+                // `rule:types/class-reference`'s two rows into a `class<T>`, and the
                 // compile-time fold of a written-out `Foo::class` under the
                 // same roof — see [`Self::lower_class_reference`].
                 //
@@ -762,7 +762,7 @@ impl<'a> Lowering<'a> {
                 if to == Ty::ClassDesc {
                     return self.lower_class_reference(inner, ty, false, env, cur);
                 }
-                // ADR 0054 § 2: `expr as T` is itself a *placing*
+                // `rule:types/numeric-literal-placement`: `expr as T` is itself a *placing*
                 // position, so a numeric literal written directly
                 // under one takes `T` as its target rather than being
                 // typed first and converted afterwards. Mirrors
@@ -772,7 +772,7 @@ impl<'a> Lowering<'a> {
                 // `f64` and lose everything past ~17 digits.
                 //
                 // An enum target places at its *backing* scalar rather than
-                // at `Ty::Enum` itself, because ADR 0010 § 5's row 2 is
+                // at `Ty::Enum` itself, because `rule:types/conversion`'s row 2 is
                 // written on that integer: without it `5 as Rank` over a
                 // `uint`-backed enum would lower its literal to the `Ty::Int`
                 // an unplaced one defaults to and then need a checked
@@ -784,9 +784,9 @@ impl<'a> Lowering<'a> {
                         other => other,
                     });
                 let (v, from) = self.lower_expr(inner, placed, env, cur);
-                // ADR 0126 § 2's `string` and `property<U>` rows. Both operands
+                // `rule:types/property-key`'s `string` and `property<U>` rows. Both operands
                 // are already a `Ty::Str` here — a key *is* a name, which is the
-                // whole of ADR 0126 § 1's representation — so `Self::convert`
+                // whole of `rule:types/property-key`'s representation — so `Self::convert`
                 // would answer this pair by its free `from == to` row and check
                 // nothing, exactly as it would hand a `class<Animal>` through a
                 // `class<Dog>` two arms above. The conversion's entire content
@@ -810,7 +810,7 @@ impl<'a> Lowering<'a> {
                     }
                     return (v, Ty::Str);
                 }
-                // ADR 0007 § 6's checked way out of `mixed`, and the one row
+                // `rule:types/unions-and-mixed`'s checked way out of `mixed`, and the one row
                 // of this operator whose test is a *class* rather than a tag.
                 // It is here rather than in `Self::convert` because it
                 // branches, and that function's `cur` is by value — the same
@@ -831,7 +831,7 @@ impl<'a> Lowering<'a> {
                 if to == Ty::Object && self.markup_target(ty) {
                     return self.lower_markup_lift(v, inner, env, cur);
                 }
-                // ADR 0007 § 2's `array<T> as array<U>` row, and it is here
+                // `rule:types/conversion`'s `array<T> as array<U>` row, and it is here
                 // for the reason the downcast above is: what decides it is the
                 // *element* type, which `Ty::Array` has erased. Both sides of
                 // `array<int> as array<string>` are one representation, so
@@ -852,7 +852,7 @@ impl<'a> Lowering<'a> {
                 let Some(accepted) = self.closed_literal_set(ty, inner, from) else {
                     return self.convert(v, from, to, inner, env, *cur);
                 };
-                // ADR 0047 § 5's membership test, on whichever side of
+                // `rule:types/literal-types`'s membership test, on whichever side of
                 // the base conversion still holds the value the author
                 // wrote. A `Ty::Tagged` operand into a **literal** set is
                 // tested **first**, against its own runtime tag:
@@ -868,12 +868,12 @@ impl<'a> Lowering<'a> {
                 //
                 // An **enum** target is deliberately not in that first
                 // case, whether the set is § 3's named subset or the whole
-                // declaration. ADR 0010 § 5 words the `mixed → EnumName`
+                // declaration. `rule:types/conversion` words the `mixed → EnumName`
                 // row as "exactly the shape `as uint` already has for
                 // untrusted input", and its own example converts
                 // `Core\Request::query('status')` — a string at run time —
                 // into a case whose value is an integer. So the base
-                // conversion runs first there, which is ADR 0007 § 2's
+                // conversion runs first there, which is `rule:types/conversion`'s
                 // whole-string numeric row and not a coercion of its own,
                 // and the chain then compares two integers. The `"1"`
                 // hazard above cannot arise: an enum's base is never
@@ -922,8 +922,7 @@ impl<'a> Lowering<'a> {
         }
     }
 
-    /// [ADR 0125](/docs/adr/0125-a-class-reference-is-a-type-and-as-is-its-only-source.md)
-    /// § 2's two rows into a `class<T>` — `as` being a class reference's only
+    /// `rule:types/class-reference`'s two rows into a `class<T>` — `as` being a class reference's only
     /// source, this function is the only place a [`Ty::ClassDesc`] a program
     /// can name comes from.
     ///
@@ -936,7 +935,7 @@ impl<'a> Lowering<'a> {
     /// Everything else is [`InstKind::ClassDescIn`], whose own doc comment owns
     /// how the two dynamic rows are answered and what they cost. This function
     /// owns only what happens to its **null**: § 2's rows are checked rows of
-    /// ADR 0007 § 2's grid, so a miss throws rather than substituting, and the
+    /// `rule:types/conversion`'s grid, so a miss throws rather than substituting, and the
     /// throw is built exactly the way [`Self::lower_checked_downcast`]'s is —
     /// same class, same `{previous}` bag, same landing block. The comparison
     /// that finds the null goes through [`InstKind::Reinterpret`] because a
@@ -992,7 +991,7 @@ impl<'a> Lowering<'a> {
                 ty.span
             )
         });
-        // ADR 0125 § 2's compile-time row. `Foo::class` travels as the resolved
+        // `rule:types/class-reference`'s compile-time row. `Foo::class` travels as the resolved
         // name in the same `ExprInfo::CoreConst` an ordinary class constant
         // does — `Self::lower_expr`'s own `ClassNameConst` arm explains why the
         // name is the checker's to give — so the fold reads it from there
@@ -1110,7 +1109,7 @@ impl<'a> Lowering<'a> {
         }
     }
 
-    /// ADR 0007 § 6's checked downcast: a [`Ty::Tagged`] operand — a `mixed`,
+    /// `rule:types/unions-and-mixed`'s checked downcast: a [`Ty::Tagged`] operand — a `mixed`,
     /// a `?C`, a union of classes — converted to the declared class `class`
     /// names.
     ///
@@ -1128,8 +1127,7 @@ impl<'a> Lowering<'a> {
     /// parameter's identical check raises
     /// ([`super::closure`]'s `check_param_class`): this is the `as` operator,
     /// whose string and non-numeric rows throw that class through
-    /// `nvs_runtime::helpers`' `does_not_fit` (its numeric rows are ADR 0007
-    /// § 4's `ArithmeticError`), and an operand out of `mixed` is untrusted
+    /// `nvs_runtime::helpers`' `does_not_fit` (its numeric rows are `rule:types/arithmetic`'s `ArithmeticError`), and an operand out of `mixed` is untrusted
     /// input rather than a call written wrong. What arrived is not
     /// named in the message, for the reason that function's doc comment
     /// records — no [`InstKind`] reads an object's class name.
@@ -1288,7 +1286,7 @@ impl<'a> Lowering<'a> {
         out
     }
 
-    /// [ADR 0007](/docs/adr/0007-explicit-type-system.md) § 2's
+    /// `rule:types/conversion`'s
     /// `array<T> as array<U>` row: every element must satisfy `U`, checked as
     /// the walk goes, in [`Helper::ToArrayOf`] — or in
     /// [`Helper::ToArrayOfOrNull`] when `or_null`, `rule:expressions/nullable-conversion`'s spelling of the
@@ -1306,7 +1304,7 @@ impl<'a> Lowering<'a> {
     /// the one shape that runs nothing: every tag satisfies `mixed`, so the
     /// walk could only answer `true`, and what is left is `convert`'s free
     /// widening row. A [`Ty::Tagged`] operand still calls, because the tag
-    /// test on the operand *itself* is ADR 0007 § 6's whole content there.
+    /// test on the operand *itself* is `rule:types/unions-and-mixed`'s whole content there.
     ///
     /// **Ownership is the `bytes` rows'**, and the buffer is not copied:
     /// [`Helper::ToArrayOf`] hands back the operand's own allocation under one
@@ -1317,12 +1315,12 @@ impl<'a> Lowering<'a> {
     /// # Panics
     ///
     /// Panics for an operand representation that is neither an array nor a
-    /// tagged value: ADR 0007 § 2 gives no other operand a row into an array,
+    /// tagged value: `rule:types/conversion` gives no other operand a row into an array,
     /// and `nvs_types` refuses each where it is written (`E0708`).
     #[expect(
         clippy::too_many_arguments,
         reason = "the same context `lower_conversion` itself threads, plus the one bit that \
-                  chooses between ADR 0007 § 2's spelling of this row and `rule:expressions/nullable-conversion`'s"
+                  chooses between `rule:types/conversion`'s spelling of this row and `rule:expressions/nullable-conversion`'s"
     )]
     fn lower_array_restamp(
         &mut self,
@@ -1336,7 +1334,7 @@ impl<'a> Lowering<'a> {
     ) -> (ValueId, Ty) {
         assert!(
             matches!(from, Ty::Array | Ty::Tagged),
-            "nvs-ir lowers ADR 0007 § 2's `array<T> as array<U>` row from an array or from a \
+            "nvs-ir lowers `rule:types/conversion`'s `array<T> as array<U>` row from an array or from a \
              tagged value — got representation {from:?}, every other operand being `E0708` at \
              the checker"
         );
@@ -1368,12 +1366,12 @@ impl<'a> Lowering<'a> {
 
     /// The closed set of literals an `expr as T` has to test its operand
     /// against at run time —
-    /// [ADR 0047](/docs/adr/0047-literal-and-enum-case-types.md) § 5's
+    /// `rule:types/literal-types`'s
     /// "the only place either type costs anything at runtime" — or `None`
     /// where this conversion is one of § 4's ordinary rows.
     ///
     /// A **whole enum** is one of these sets too, and is where
-    /// [ADR 0010](/docs/adr/0010-enums-are-a-value-type.md) § 5's
+    /// `rule:types/conversion`'s
     /// "throws on a value no case names" is emitted from: the annotation
     /// names no members, but the declaration does, so the set is built from
     /// every case of it ([`whole_enum_set`]) and the chain that follows
@@ -1413,8 +1411,7 @@ impl<'a> Lowering<'a> {
     }
 
     /// The set of names a checked `as property<T>` accepts —
-    /// [ADR 0126](/docs/adr/0126-a-property-key-is-a-checked-name-and-as-is-its-only-source.md)
-    /// § 2's two run-time rows, as the same [`AcceptedSet`] ADR 0047 § 3's
+    /// `rule:types/property-key`'s two run-time rows, as the same [`AcceptedSet`] `rule:types/enum-case-type`'s
     /// literal union already tests against.
     ///
     /// Read off [`ExprInfo::PropertyKey`] rather than off the checked type,
@@ -1511,7 +1508,7 @@ impl<'a> Lowering<'a> {
             .map(|id| match types.get(*id) {
                 CheckedTy::StringLiteral(text) => Some(LiteralAtom::Str(text.clone())),
                 CheckedTy::IntLiteral(value) => Some(LiteralAtom::Int(*value)),
-                // ADR 0007 § 3's two `bool` singletons — one value each, so a
+                // `rule:types/grammar`'s two `bool` singletons — one value each, so a
                 // closed set of exactly the kind § 5 tests, and the reason
                 // `$m as true` is `as bool` plus a membership test rather than
                 // a target the language parses and cannot lower.
@@ -1520,7 +1517,7 @@ impl<'a> Lowering<'a> {
                 // § 3's enum-case subset. The checked type names the enum and
                 // the case but deliberately not the value (see
                 // `nvs_types::ty::Ty::EnumCase`'s own doc comment for why
-                // folding it to an int literal would reopen ADR 0010 § 5), so
+                // folding it to an int literal would reopen `rule:types/conversion`), so
                 // the constant comes from the run's own enum table — the one
                 // place it still exists by the time lowering runs.
                 CheckedTy::EnumCase(qname, _, case) => {
@@ -1612,7 +1609,7 @@ impl<'a> Lowering<'a> {
     /// that ADR's *5* already uses for `$m as int`, emitting no machine
     /// instruction at all. Every comparison over an enum goes through it,
     /// because `nvs-codegen`'s `BinOp` table is `Ty::Int`/`Ty::Uint`/`Ty::Bool`
-    /// and carries no `Ty::Enum` row: ADR 0047 § 5's membership chain, and
+    /// and carries no `Ty::Enum` row: `rule:types/literal-types`'s membership chain, and
     /// `rule:expressions/disjoint-comparison-refused`'s `==` between two cases of one enum.
     ///
     /// Nothing is released or retained around it: an enum is a scalar, so the
@@ -1659,9 +1656,9 @@ impl<'a> Lowering<'a> {
     ///   already *is* one, holding exactly the value the chain just proved it
     ///   holds. Converting first would run `Helper::TaggedToString` and let a
     ///   `mixed` holding `1` satisfy a set naming `"1"`, which is the coercion
-    ///   ADR 0047 § 4 refuses.
+    ///   `rule:types/literal-types` refuses.
     /// * Everything else converts to the target's own base first — an
-    ///   **enum** target included, ADR 0010 § 5 wording that row as "exactly
+    ///   **enum** target included, `rule:types/conversion` wording that row as "exactly
     ///   the shape `as uint` already has for untrusted input" — and a row
     ///   that can fail runs as its `?` form, whose `null` matches no member
     ///   and so reaches the same miss edge with no test of its own. That is
@@ -1736,7 +1733,7 @@ impl<'a> Lowering<'a> {
         (merged, Ty::Tagged)
     }
 
-    /// [ADR 0047](/docs/adr/0047-literal-and-enum-case-types.md) § 5's
+    /// `rule:types/literal-types`'s
     /// membership test: a chain of equality comparisons, each branching
     /// straight to the one block where the conversion succeeded, with the
     /// throw at the far end where every one of them missed.
@@ -1875,7 +1872,7 @@ impl<'a> Lowering<'a> {
 /// cost exactly nothing.
 /// Every case of one enum declaration, as the [`AcceptedSet`] an
 /// `expr as EnumName` tests its operand against —
-/// [ADR 0010](/docs/adr/0010-enums-are-a-value-type.md) § 5's "throws
+/// `rule:types/conversion`'s "throws
 /// on a value no case names" made concrete, and the one thing that keeps an
 /// enum a *closed* set once a plain integer can be converted into it.
 ///
@@ -1919,7 +1916,7 @@ pub(crate) fn whole_enum_set(info: &nvs_types::EnumInfo, name: &str) -> Accepted
 }
 
 /// The closed set of values a checked `as` into an
-/// [ADR 0047](/docs/adr/0047-literal-and-enum-case-types.md) literal
+/// `rule:types/literal-types` literal
 /// type accepts — see [`Lowering::closed_literal_set`], which is the only
 /// thing that builds one, and [`Lowering::lower_literal_membership`], which is
 /// the only thing that consumes it.
@@ -1944,7 +1941,7 @@ pub(crate) struct AcceptedSet {
 enum LiteralAtom {
     Str(String),
     Int(i64),
-    /// `true` or `false` — ADR 0007 § 3's two `bool` singletons, whose
+    /// `true` or `false` — `rule:types/grammar`'s two `bool` singletons, whose
     /// closed set is the smallest one this crate builds.
     Bool(bool),
     EnumCase(nvs_types::EnumValue),
@@ -1964,7 +1961,7 @@ enum LiteralAtom {
 /// they share none — [`erase_checked_ty`]'s own `CheckedTy::Union` fold, over
 /// an atom list rather than over an interned union.
 ///
-/// The `?T` half of ADR 0047 § 5's "zero additional runtime representation"
+/// The `?T` half of `rule:types/literal-types`'s "zero additional runtime representation"
 /// needs this separately because `T|null` is the union that *is* interned, and
 /// folding that one would answer [`Ty::Tagged`] for every target: `null` and
 /// `Ty::Str` are two representations, not one.

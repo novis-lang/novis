@@ -1,4 +1,4 @@
-# ADR 0027 — `callable` is satisfied only by a closure; Novis has no `__invoke`
+# `rule:types/callable-is-a-closure` — `callable` is satisfied only by a closure; Novis has no `__invoke`
 
 - **Status:** Accepted
 - **Date:** 2026-08-21
@@ -69,7 +69,7 @@ The kept list is a list of **members**, and the two spellings that name none are
 written rather than left to a lowering. `new C(...)` is `E0740`: `new` names a class, and the closure this
 syntax builds carries a callee rather than an allocation — PHP refuses the same expression, so `fn (): C =>
 new C(…)` is both the compatible answer and the one that says which arguments the construction takes.
-`$m->method(...)` on a `mixed` receiver is `E0732`: [ADR 0036](0036-anonymous-object-shapes.md) § 4 defers a
+`$m->method(...)` on a `mixed` receiver is `E0732`: `rule:types/erased-member-access` defers a
 *call* through a `mixed` to the receiver's own descriptor when it runs, but a closure value outlives the
 site, so there is no class present to read a callee off. Every other spelling above resolves a member, and
 the checker records that resolved target under `nvs_types::expr_table::ExprInfo::CallableRef` — the same

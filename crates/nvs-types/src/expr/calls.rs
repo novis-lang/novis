@@ -1,5 +1,5 @@
 //! A call's target: which member `$obj->m()`, `C::m()` and `new C()` resolve
-//! to, and ADR 0027's rule that only a closure is ever callable.
+//! to, and `rule:types/callable-is-a-closure`'s rule that only a closure is ever callable.
 //!
 //! Resolution is what this module owns; whether the *arguments* fit is
 //! [`super::args`]. A call that does not statically resolve to a known
@@ -16,7 +16,7 @@
 //! (see [`crate::expr_table`]), and it always carries the *declaring* class
 //! rather than the receiver's.
 //!
-//! **ADR 0027 (`callable` is closures only)** lives here:
+//! **`rule:types/callable-is-a-closure` (`callable` is closures only)** lives here:
 //! [`report_non_callable_value_if_applicable`] gives a bare string or
 //! `[$obj, 'method']`-shaped array literal a targeted diagnostic naming the
 //! first-class-callable-syntax replacement wherever `callable` is the expected
@@ -25,7 +25,7 @@
 //! `$obj(...)` for any `$obj` whose static type is a resolved class — Novis has
 //! no `__invoke`, so no class ever makes `()` mean anything else.
 //! [`check_fn_literal`] is the other half of the same ADR pair: a closure
-//! literal's body is checked like any other body, and it owns ADR 0031's
+//! literal's body is checked like any other body, and it owns `rule:types/closure-literal`'s
 //! capture rule and the one shape it refuses (a block body with no declared
 //! return type).
 //!
@@ -66,7 +66,7 @@ pub(crate) fn infer_method_call(
     // own type gains the `null` that arm yields — see [`nullsafe_result`].
     let receiver_ty = strip_nullsafe_receiver(nullsafe, object_ty, object.span, env);
     check_member_name(method, live, scope, ctx, env);
-    // ADR 0126 § 4's first neighbour: a computed name is admitted at a property
+    // `rule:types/property-key-access`'s first neighbour: a computed name is admitted at a property
     // access and nowhere else, so this is `E0235` whatever the operand's type
     // is. ADR 0014 § 6 refuses computed *dispatch* as a concept rather than as
     // a spelling, and a key names a property, so there is no operand that could
@@ -143,8 +143,8 @@ pub(crate) fn infer_method_call(
         // above read backwards.
         crate::reasons::check_call(owner, name, args, ctx, env);
     }
-    // ADR 0036 § 4's deferral, and the one receiver the refusal above
-    // deliberately leaves alone: `mixed` is ADR 0007 § 2's one unchecked
+    // `rule:types/erased-member-access`'s deferral, and the one receiver the refusal above
+    // deliberately leaves alone: `mixed` is `rule:types/conversion`'s one unchecked
     // position, so which class is behind the handle — and whether there is one
     // at all — is answered by the receiver's own descriptor when the call runs
     // (`docs/adr/README.md` § *Decisions taken at project start*). What the
@@ -162,7 +162,7 @@ pub(crate) fn infer_method_call(
             env.exprs.record(expr.span, ExprInfo::ErasedCall { name });
         }
     }
-    // ADR 0027: `$obj->method(...)` (first-class callable syntax) names a
+    // `rule:types/callable-is-a-closure`: `$obj->method(...)` (first-class callable syntax) names a
     // `Closure` value, not the method's return type — the sentinel
     // `CallArgs::FirstClassCallable` marks exactly this shape, ahead of the
     // ordinary-call typing below. The target is still recorded, as
@@ -252,7 +252,7 @@ pub(crate) fn infer_static_call(
     if let MemberName::Variable(e) | MemberName::Expr(e) = method {
         report_computed_member_name(e.span, COMPUTED_METHOD_HELP, env);
     }
-    // ADR 0125 § 4's second site: a `class<T>` class side resolves the member
+    // `rule:types/class-reference-sites`'s second site: a `class<T>` class side resolves the member
     // on `T`'s roster, the only one this site can see. The value may hold any
     // implementor, so what is checked here is `T`'s declaration and what finds
     // the override at run time is § 4's `InstKind::CallVirtual`.
@@ -418,7 +418,7 @@ pub(crate) fn infer_static_call(
     // See [`infer_method_call`]: first-class callable syntax names a `Closure`,
     // not the resolved method's return type, and records `CallableRef` rather
     // than `Call` for the same span. `static_class` is set here exactly as it
-    // is for a call — ADR 0027 § 1 keeps `static::helper(...)` late-bound.
+    // is for a call — `rule:types/callable-is-a-closure` keeps `static::helper(...)` late-bound.
     if matches!(args, CallArgs::FirstClassCallable) {
         if let (Some((qname, name, _)), Some(sig)) = (&resolved, &sig)
             && !reject_unforwardable_first_class_callable(qname, name, sig, expr.span, env)
@@ -455,7 +455,7 @@ pub(crate) fn infer_static_call(
     // See [`infer_method_call`]: persisted for `nvs-ir` to read back a resolved
     // static call's target, always as the *substituted* signature.
     //
-    // ADR 0125 § 4's class-reference side takes the other entry, for the reason
+    // `rule:types/class-reference-sites`'s class-reference side takes the other entry, for the reason
     // [`infer_new`] gives at its own record: `T` is what the member was
     // *checked* against, so a direct call to `T::f` would run the base's body
     // rather than the implementor's. `ExprInfo::ClassRefCall` carries the same
@@ -620,7 +620,7 @@ pub(crate) fn infer_new(
         // `nvs-ir` needs the constructed class and its resolved constructor (if
         // any) to lower `new` — see `crate::expr_table`'s own module docs.
         //
-        // Two entries, because ADR 0125 § 4's dynamic form cannot answer the
+        // Two entries, because `rule:types/class-reference-sites`'s dynamic form cannot answer the
         // question `ExprInfo::New` is built around: that variant names the
         // class a layout comes from, and for `new $cls(...)` that is whichever
         // implementor the descriptor holds rather than `T`. So the bound goes
@@ -672,7 +672,7 @@ pub(crate) fn infer_new(
 /// `FATAL: internal error: a method with no body was called`.
 ///
 /// **`new $cls()` over a `class<T>` is exempt for the same reason**, and the
-/// exemption is the point rather than a corner: ADR 0125 § 4 types that site
+/// exemption is the point rather than a corner: `rule:types/class-reference-sites` types that site
 /// as `T`, and a class reference exists to hold a concrete implementor of an
 /// `abstract` base or an interface. The descriptor is checked to be one where
 /// the conversion stands (§ 2), which is the only place the question has an
@@ -803,14 +803,14 @@ fn constructor_accepts_everything(
 /// Refuses `new C(...)` — the first-class callable sentinel written on `new`
 /// (`E_FIRST_CLASS_CALLABLE_NEW`).
 ///
-/// ADR 0027 § 1 keeps the spelling for *members*, and a constructor is not
+/// `rule:types/callable-is-a-closure` keeps the spelling for *members*, and a constructor is not
 /// one: the closure it builds carries a callee, and `new` names a class. PHP
 /// refuses the same expression, so this is the compatible answer as well as
 /// the only one with a meaning. Reported ahead of everything else `new`
 /// checks, and reported rather than left to `nvs-ir`, which would otherwise
 /// reach `lower_call_args` with a sentinel where an argument list belongs —
 /// this is the one shape that got a resolved `new` there at all.
-/// ADR 0027 § 1's `(...)` over a member a `callable` cannot forward to —
+/// `rule:types/callable-is-a-closure`'s `(...)` over a member a `callable` cannot forward to —
 /// `E_FIRST_CLASS_CALLABLE_UNFORWARDABLE`, whose own docs own the rule.
 /// Answers `true` when it refused, which is when nothing is recorded: the
 /// pipeline stops at the first error, so `nvs-ir` never looks for the entry.
@@ -842,7 +842,7 @@ fn reject_unforwardable_first_class_callable(
         )
         .with_primary(span, format!("this names a member declaring {offending}"))
         .with_help(
-            "ADR 0031 § 4 gives `callable` no parameter list, so a call through one cannot \
+            "`rule:types/callable-absorbs-closure` gives `callable` no parameter list, so a call through one cannot \
              stage a by-reference cell or collect a variadic tail — the callee would read \
              the slot at the wrong representation. Write the closure out over the \
              arguments the caller does pass"
@@ -869,7 +869,7 @@ fn report_first_class_callable_new(
         )
         .with_primary(span, format!("{named} is constructed here, not called"))
         .with_help(
-            "ADR 0027 § 1 gives the `(...)` spelling to a member — `Class::method(...)`, \
+            "`rule:types/callable-is-a-closure` gives the `(...)` spelling to a member — `Class::method(...)`, \
              `$obj->method(...)`, `self::method(...)` — and a constructor is not one. Write the \
              closure out: `fn (): T => new T(…)`"
                 .to_owned(),
@@ -884,7 +884,7 @@ fn report_first_class_callable_new(
 /// so a class with no constructor had no signature to be counted against and
 /// every argument written there was inferred, checked against nothing and
 /// dropped: `new Plain(1, 2)` compiled and ran, constructing exactly what
-/// `new Plain()` constructs. PHP refuses it, ADR 0007 § 1's "nothing is
+/// `new Plain()` constructs. PHP refuses it, `rule:types/declaration`'s "nothing is
 /// untyped" leaves an unchecked argument no home, and `nvs-ir` lowers `new`
 /// with `ctor: None` — so the arguments were not even evaluated for their
 /// effects.
@@ -934,7 +934,7 @@ fn reject_arguments_to_implicit_constructor(
 /// [`super::args::check_written_type_args`]'s rule at a call site, for the
 /// same reason.
 ///
-/// **The roster is [`nvs_stdlib::registry::GENERIC_CLASSES`].** ADR 0007 § 3
+/// **The roster is [`nvs_stdlib::registry::GENERIC_CLASSES`].** `rule:types/grammar`
 /// makes "which target may carry a list" a resolution question, and the answer
 /// is that table: a `Core`-owned generic class takes exactly the arguments it
 /// declares (`E_TYPE_ARG_COUNT` on any other count, none at all included), and
@@ -977,7 +977,7 @@ fn check_new_type_args(
                 )
                 .with_primary(span, "type arguments written here")
                 .with_help(
-                    "user-declared generic classes are deferred (ADR 0007 § 3), so the only \
+                    "user-declared generic classes are deferred (`rule:types/grammar`), so the only \
                      `new` target that may be written with one is a compiler-owned generic class",
                 ),
             );
@@ -1071,7 +1071,7 @@ pub(crate) fn report_non_callable_value_if_applicable(expr: &Expr, env: &mut Env
     }
 }
 
-/// ADR 0027 § 1: `$obj(...)` is refused whenever `$obj`'s static type
+/// `rule:types/callable-is-a-closure`: `$obj(...)` is refused whenever `$obj`'s static type
 /// resolves to a class — Novis has no `__invoke`, so no class ever makes `()`
 /// mean anything else, regardless of what methods it declares. A `Ty::Mixed`
 /// callee (nothing statically known) and an already-`Ty::Callable` one are
@@ -1092,7 +1092,7 @@ pub(crate) fn report_call_on_non_callable(callee_ty: TypeId, span: Span, env: &m
     );
 }
 
-/// `$m->method(...)` — ADR 0027's first-class callable spelling on a `mixed`
+/// `$m->method(...)` — `rule:types/callable-is-a-closure`'s first-class callable spelling on a `mixed`
 /// receiver, which is the one shape of that receiver's deferral that has no
 /// run-time answer.
 ///
@@ -1112,7 +1112,7 @@ fn report_first_class_callable_on_erased_receiver(span: Span, name: &str, env: &
         )
         .with_primary(span, "a closure value is named here")
         .with_help(format!(
-            "ADR 0036 § 4 defers a *call* through a `mixed` to the receiver's runtime class, but \
+            "`rule:types/erased-member-access` defers a *call* through a `mixed` to the receiver's runtime class, but \
              a closure value carries its callee with it and there is no class here to read one \
              off — call the member directly (`$m->{name}(…)`), or narrow the receiver first with \
              `instanceof` or `as ClassName`"
@@ -1129,10 +1129,9 @@ fn report_first_class_callable_on_erased_receiver(span: Span, name: &str, env: &
 /// are one.
 #[derive(Clone, Copy)]
 pub(crate) enum NoParameterList {
-    /// `$fn(...)` — [ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md)
-    /// § 1's opaque `callable`.
+    /// `$fn(...)` — `rule:types/closure-literal`'s opaque `callable`.
     Callable,
-    /// `$m->method(...)` on a `mixed` receiver — ADR 0036 § 4's deferral, whose
+    /// `$m->method(...)` on a `mixed` receiver — `rule:types/erased-member-access`'s deferral, whose
     /// callee is whatever the receiver's runtime class answers.
     ErasedReceiver,
 }
@@ -1178,11 +1177,11 @@ pub(crate) fn report_args_with_no_parameter_list(
     };
     let inout_help = match callee {
         NoParameterList::Callable => {
-            "ADR 0031 § 1 keeps `callable` opaque and § 4 refuses an `inout` closure parameter \
+            "`rule:types/closure-literal` keeps `callable` opaque and § 4 refuses an `inout` closure parameter \
              outright, so nothing this call reaches can bind one — drop the `inout`"
         }
         NoParameterList::ErasedReceiver => {
-            "ADR 0036 § 4 defers this call to the receiver's runtime class, and an `inout` \
+            "`rule:types/erased-member-access` defers this call to the receiver's runtime class, and an `inout` \
              parameter list is packed and written back here at the call site — so a callee that \
              is not known until the call runs can never bind one; narrow the receiver with \
              `instanceof` or `as ClassName` if the write-back is what was meant"
@@ -1190,12 +1189,12 @@ pub(crate) fn report_args_with_no_parameter_list(
     };
     let name_help = match callee {
         NoParameterList::Callable => {
-            "ADR 0031 § 1: `callable` is one opaque type whatever closure the variable holds, so \
+            "`rule:types/closure-literal`: `callable` is one opaque type whatever closure the variable holds, so \
              neither this call site nor the closure it reaches carries a parameter name to fill \
              — pass the argument positionally"
         }
         NoParameterList::ErasedReceiver => {
-            "ADR 0036 § 4: the receiver's runtime class chooses the callee, and the method row \
+            "`rule:types/erased-member-access`: the receiver's runtime class chooses the callee, and the method row \
              that marshals the call carries its arity and its parameter tags rather than their \
              names — pass the argument positionally, or narrow the receiver to the class that \
              declares the member"
@@ -1235,26 +1234,25 @@ pub(crate) fn report_args_with_no_parameter_list(
 }
 
 /// A method called on a receiver whose type names no class at all — a plain
-/// `object`, an ADR 0036 shape, a union naming no single class, an
+/// `object`, an `rule:types/object-top` shape, a union naming no single class, an
 /// intersection, or a type that can hold no object in the first place (a
 /// scalar, an `array<T>`, a `callable`, a `void` call's result).
 ///
 /// It is **one** code across that whole family, because it is one mistake: a
-/// method is resolved against a class, and none of these names one. ADR 0007
-/// § 3 makes `object` the opaque top of every class type — a pointer with the
-/// class label erased, listing no members — and ADR 0036 gives a shape fields
+/// method is resolved against a class, and none of these names one. `rule:types/grammar` makes `object` the opaque top of every class type — a pointer with the
+/// class label erased, listing no members — and `rule:types/object-top` gives a shape fields
 /// and no methods at all; a union names several classes or none, and a
 /// `Dog|Cat` receiver has no one signature for the argument list to be checked
 /// against or for the call's position to take its type from. That is also why
-/// the *property* half splits where this one does not: ADR 0036 § 4 answers an
+/// the *property* half splits where this one does not: `rule:types/erased-member-access` answers an
 /// erased property read with a name-keyed runtime fetch and refuses the rest
 /// (`E_RECEIVER_HAS_NO_PROPERTIES`), while a call additionally needs a
 /// signature and a return type, which no receiver here supplies. There is no
 /// `__call` to fall back on either (ADR 0014), so every one of them is refused
 /// where it is written rather than reaching `nvs-ir` with no resolved target.
 ///
-/// `mixed` is deliberately **not** here: ADR 0007 § 2 makes it the one
-/// unchecked position and ADR 0036 § 4 defers it to a run-time answer, which
+/// `mixed` is deliberately **not** here: `rule:types/conversion` makes it the one
+/// unchecked position and `rule:types/erased-member-access` defers it to a run-time answer, which
 /// is [`crate::expr`]'s own next slice rather than a refusal.
 ///
 /// The help splits three ways because the fix does. A receiver that can hold
@@ -1274,15 +1272,15 @@ fn report_method_on_erased_receiver(span: Span, name: &str, ty: TypeId, env: &mu
     } else if can_hold_an_object(ty, env.interner) {
         format!(
             "narrow the receiver to the class that declares `{name}` first — \
-             `if ($x instanceof ClassName) {{ … }}`, or `$x as ClassName`; ADR 0007 § 3 makes \
-             `object` the opaque top of every class type, and ADR 0036 § 4 erases a property \
+             `if ($x instanceof ClassName) {{ … }}`, or `$x as ClassName`; `rule:types/grammar` makes \
+             `object` the opaque top of every class type, and `rule:types/erased-member-access` erases a property \
              access through one but not a call"
         )
     } else {
         format!(
             "only an object has methods — convert the receiver to the class that declares \
              `{name}` (`$x as Box`), or declare it `mixed`, which is the one unchecked position \
-             (ADR 0007 § 2) and defers the whole question to a catchable throw at run time"
+             (`rule:types/conversion`) and defers the whole question to a catchable throw at run time"
         )
     };
     env.diags.report(
@@ -1348,7 +1346,7 @@ fn report_exception_accessor(span: Span, qname: &QName, name: &str, env: &mut En
 }
 
 /// Checks the expression a computed member name is written as, and hands its
-/// type back — which is the whole of what ADR 0126 § 4 decides `$obj->$key` on,
+/// type back — which is the whole of what `rule:types/property-key-access` decides `$obj->$key` on,
 /// and the reason `E0235` is reported from this crate rather than from the
 /// parser. `None` is a written-out name: there is no operand to have a type.
 ///
@@ -1457,7 +1455,7 @@ pub(crate) fn check_new_target(
         }
         NewTarget::Expr(e) => {
             // The parser produces this arm only for a target that is not a
-            // written name, so it *is* the dynamic form. ADR 0125 § 4 makes one
+            // written name, so it *is* the dynamic form. `rule:types/class-reference-sites` makes one
             // operand type legal here: a `class<T>` answers with `T`, so
             // [`infer_new`] above resolves `T`'s constructor, types the
             // arguments against that signature and yields a `T`. That is what
@@ -1487,13 +1485,13 @@ pub(crate) fn check_new_target(
     }
 }
 
-/// [ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md)'s
+/// `rule:types/closure-literal`'s
 /// `fn` closure literal.
 ///
 /// Three things happen here, and only the first is ordinary type-checking:
 ///
 /// * The body is checked in a **fresh** [`LocalScope`] holding the closure's
-///   own parameters. ADR 0007 § 1's declare-once rule is per body, so a
+///   own parameters. `rule:types/declaration`'s declare-once rule is per body, so a
 ///   parameter named like an outer local shadows it rather than colliding
 ///   with it.
 /// * Every outer binding is offered to that scope as a *capture* rather than
@@ -1507,7 +1505,7 @@ pub(crate) fn check_new_target(
 /// **A block body must declare its return type.** An expression body is its
 /// own answer, so it needs no annotation; inferring one for a block would
 /// mean whole-body return-type inference, which is a larger thing than ADR
-/// 0037's one-initializer rule and is not something ADR 0007 asks for. A
+/// 0037's one-initializer rule and is not something `rule:types/declaration` asks for. A
 /// block body with none reports `E0450` and is checked against `void`.
 ///
 /// **`yield` is not a generator here.** The inner [`Ctx`] clears
@@ -1516,7 +1514,7 @@ pub(crate) fn check_new_target(
 ///
 /// # The self-name resolves, and is not a binding
 ///
-/// ADR 0031 § 3's optional self-name is bound for this body alone, in
+/// `rule:types/closure-self-name`'s optional self-name is bound for this body alone, in
 /// [`Env::fn_self`], and it is **not** a local holding the closure. It is
 /// legal in exactly one position — the callee of a call written inside this
 /// body — where [`super::infer`]'s `ExprKind::Call` arm resolves it to *this*
@@ -1667,7 +1665,7 @@ pub(crate) fn check_fn_literal(
     env.interner.callable()
 }
 
-/// ADR 0031 § 4's opaque `callable`, as a refusal: a closure declares no `inout $x`
+/// `rule:types/callable-absorbs-closure`'s opaque `callable`, as a refusal: a closure declares no `inout $x`
 /// parameter.
 ///
 /// A by-reference parameter is a contract between a *call site* and a
@@ -1691,7 +1689,7 @@ fn report_by_reference_parameter(param: &nvs_syntax::ast::Param, env: &mut Env<'
         )
         .with_primary(param.name, "declared `inout` here")
         .with_help(
-            "ADR 0031 § 4: a closure's type is `callable`, which carries no parameter list, so \
+            "`rule:types/callable-absorbs-closure`: a closure's type is `callable`, which carries no parameter list, so \
              no call site knows to stage a cell — take the value and `return` the result, or \
              pass an object, whose fields a closure shares by capturing it",
         ),

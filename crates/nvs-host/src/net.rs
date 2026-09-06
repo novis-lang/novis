@@ -25,7 +25,7 @@
 //! poller is level-triggered and the registration is still filed under this
 //! task, so it already reports what the new wait needs. Changing interest —
 //! a `read` after a `write` — costs one `reregister`, never a fresh `register`.
-//! What that spends, per `rule:programs/memory-priority`(/docs/adr/0004-memory-for-simplicity.md):
+//! What that spends, per `rule:programs/memory-priority`:
 //! one kernel registration per *stream a task is holding*, released by
 //! [`Drop`] and swept by `Reactor::retire` when the task ends. O(in-flight).
 //!

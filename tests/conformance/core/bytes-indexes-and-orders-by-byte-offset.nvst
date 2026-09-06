@@ -1,5 +1,5 @@
 --TEST--
-Spec § 7: `Core\Bytes`'s indexing half counts in bytes where `Core\Str`'s members of the same name count characters — ADR 0009 § 1, ADR 0063 R5/R6/R8
+Spec § 7: `Core\Bytes`'s indexing half counts in bytes where `Core\Str`'s members of the same name count characters — `rule:types/bytes`, ADR 0063 R5/R6/R8
 --FILE--
 <?nvs
 class Probe {
@@ -20,7 +20,7 @@ class Probe {
 bytes $png = Core\Encoding::fromHex("89504e470d0a1a0a");
 bytes $empty = Core\Encoding::fromHex("");
 
-// ADR 0009 § 1: the unit is the byte, and there is no other one to be
+// `rule:types/bytes`: the unit is the byte, and there is no other one to be
 // ambiguous about — so `length` is the buffer's own size, not a grapheme count.
 echo Core\Bytes::length($png) as string, "|\n";
 echo Core\Bytes::length($empty) as string, "|\n";

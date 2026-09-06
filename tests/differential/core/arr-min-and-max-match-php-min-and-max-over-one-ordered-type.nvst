@@ -15,7 +15,7 @@ Core\Arr::min and max answer what PHP's min and max answer wherever a subject's 
 // `arr-min-and-max-diverge-from-php-over-an-empty-mixed-or-numeric-string-subject`
 // is where they part.
 //
-// ADR 0069 § 3's key rule cannot bite here, unusually for a `Core\Arr` member:
+// `rule:types/preserve-keys`'s key rule cannot bite here, unusually for a `Core\Arr` member:
 // both members answer a *value*, so there is no result array whose integer keys
 // either language could renumber. That is what lets a map be an agreeing row
 // below rather than a second, diverging case.

@@ -273,7 +273,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "setStatus",
             names: &["code"],
-            // `Uint`, not `Int`: ADR 0007 § 4's type refuses a negative
+            // `Uint`, not `Int`: `rule:types/arithmetic`'s type refuses a negative
             // literal at compile time, and there is no status code below 100
             // for a signed parameter to have been useful about. Not a `Sink`
             // either — the doc below owns why a number cannot be one.

@@ -44,7 +44,7 @@ while ($i < 3) {
 echo Core\Json::encode($three), " ", Core\Json::encode(Core\Arr::flattenDeep($three)), "\n";
 
 // The second reason. Writing an array into itself stores the value it had at
-// the moment of the write — ADR 0069's copy-on-write array is a value, not a
+// the moment of the write — `rule:types/array-combination`'s copy-on-write array is a value, not a
 // handle — so the walk is finite with nothing tracking what it has visited.
 // Once, then again over the result, so the nesting the second write stores is
 // itself already a nested one.

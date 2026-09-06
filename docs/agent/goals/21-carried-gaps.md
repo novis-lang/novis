@@ -247,7 +247,7 @@ One file set: `crates/nvs-stdlib/src/uri.rs`, `crates/nvs-runtime/src/routes.rs`
   best-effort arm that would fire the entry on every host. The lease is a set-if-absent with an
   expiry on the shared tier, not a new `Core\Cache` member.
 - **Item 19's amendment, decided here.** Spec § 12's two decoder rows answer `bytes`; a caller that
-  wants text writes `as string`, which is ADR 0009 § 3's checked row and throws in exactly the place
+  wants text writes `as string`, which is `rule:types/conversion`'s checked row and throws in exactly the place
   the member throws today, so no program is denied an answer it could have used. `encodeComponent` and
   `encodeFormValue` are untouched — they take text and answer text, and they are the class's two
   `Qual::Launder` rows. Every fixture calling a decoder is listed in the stage and corrected as source,

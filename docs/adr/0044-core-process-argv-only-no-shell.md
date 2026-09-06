@@ -78,7 +78,7 @@ and returns a `ProcessResult` carrying the exit code, captured stdout, and captu
 - **`$path` and every element of `$argv` are plain `string`** — [ADR 0024](0024-taint-tracking-for-injection-sinks.md)
   § 4's existing rule, unchanged. A `tainted` value needs an ordinary checked conversion or an explicit
   launderer first, exactly like any other sink.
-- **Captured stdout/stderr are `bytes`, never `string`** — [ADR 0009](0009-string-and-bytes.md)'s UTF-8
+- **Captured stdout/stderr are `bytes`, never `string`** — `rule:types/bytes`'s UTF-8
   guarantee cannot be assumed of an arbitrary child process's output. A caller who knows the output is text
   converts with `as string` (which throws on invalid UTF-8, the same checked conversion every other
   `bytes`-to-`string` boundary uses) rather than getting a silent replacement-character mangling.
@@ -194,7 +194,7 @@ on shell grammar `nvs convert` does not (and, per § 1, Novis never will) interp
   genuinely needs to run a vendor-supplied batch script has no built-in path short of the explicit
   `cmd.exe`-spawn escape hatch, unlike PHP, which runs one with `exec("script.bat")` today, quoting risk and
   all.
-- **`nvs convert` gains another non-mechanical gap**, in the family [ADR 0009](0009-string-and-bytes.md),
+- **`nvs convert` gains another non-mechanical gap**, in the family `rule:types/bytes`,
   [ADR 0023](0023-clone-serialize-and-cross-boundary-copy.md), and
   [ADR 0024](0024-taint-tracking-for-injection-sinks.md) already carry: every ported call site in § 7's table
   needs a human to supply path/argv, not a mechanical rewrite.

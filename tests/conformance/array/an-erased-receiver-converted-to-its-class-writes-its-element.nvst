@@ -1,10 +1,10 @@
 --TEST--
-the way through `E0480`: converting an erased receiver to the class that declares the property makes the element write an ordinary one — ADR 0007 § 2, ADR 0036 § 4
+the way through `E0480`: converting an erased receiver to the class that declares the property makes the element write an ordinary one — `rule:types/conversion`, `rule:types/erased-member-access`
 --FILE--
 <?nvs
 // `E0480` refuses an element write through an erased property and its help
 // names one spelling that works. This pins that the help is true: `as
-// ClassName` is a checked conversion (ADR 0007 § 2), and what it yields is a
+// ClassName` is a checked conversion (`rule:types/conversion`), and what it yields is a
 // receiver with a declaring class, so the write back into the property's own
 // slot is the same one any class-typed receiver gets. `instanceof` is not a
 // second spelling here — it proves the class for a *branch*, and a local

@@ -2,7 +2,7 @@
 Reading an array element whose key is absent throws, where PHP warns and yields null — ADR 0007 §§ 2, 7 row 11
 --FILE--
 <?nvs
-// ADR 0007 § 2: nothing converts by itself, and there is no `null` to put in
+// `rule:types/conversion`: nothing converts by itself, and there is no `null` to put in
 // an `array<string>`. The present side of the bound first, so a case that
 // threw everywhere would fail here rather than look right.
 array<string> $a = ["x" => "y", "0" => "zero"];

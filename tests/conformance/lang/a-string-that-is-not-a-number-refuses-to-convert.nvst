@@ -1,5 +1,5 @@
 --TEST--
-`string as int`/`as float` accepts only a whole numeric spelling — leading space, trailing space, hex and a fractional part all throw — ADR 0007 § 2
+`string as int`/`as float` accepts only a whole numeric spelling — leading space, trailing space, hex and a fractional part all throw — `rule:types/conversion`
 --FILE--
 <?nvs
 class Convert {

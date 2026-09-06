@@ -1,4 +1,4 @@
-# ADR 0054 — `decimal` is a scalar type; `bcmath` and `gmp` are retired
+# `rule:types/decimal` — `decimal` is a scalar type; `bcmath` and `gmp` are retired
 
 - **Status:** Accepted
 - **Date:** 2026-08-23
@@ -35,7 +35,7 @@
 - Three further things a class cannot do, all of which follow from the same fact: it cannot be a
   compile-time constant, so `const decimal VAT = 0.19;` would be impossible and neither
   `rule:attributes/inert-metadata`'s attribute payloads nor
-  [ADR 0047](0047-literal-and-enum-case-types.md)'s literal types could hold one; its only precision-safe
+  `rule:types/literal-types`'s literal types could hold one; its only precision-safe
   constructor takes a **string**, since `Decimal::of(19.99)` has already lost the value before the call;
   and every intermediate in an expression is a heap allocation with a refcount, so a 500-line invoice does
   roughly a thousand of them.
@@ -63,7 +63,7 @@ representations of one value — add subtlety that buys nothing monetary.
 
 A numeric literal carrying a fractional part or an exponent is **untyped until placed**, and takes
 `decimal` or `float` from the type of the position it appears in. This needs no new mechanism:
-[ADR 0007](0007-explicit-type-system.md) already requires a declared type at every binding site, so the
+`rule:types/declaration` already requires a declared type at every binding site, so the
 target is known almost everywhere, and an integer literal already adapts to `int`, `uint` or `float` the
 same way.
 
@@ -86,11 +86,11 @@ than that would be unwritable in any position lacking an annotation.
 `decimal d = 19.99;` outright — there a fractional literal is born a `double` and no implicit conversion
 rescues it. Novis removed that constraint by making literals untyped-until-placed, so a suffix would buy only
 a second spelling of what `as decimal` already says, in the only two positions that lack a target:
-[ADR 0037](0037-var-local-type-inference.md)'s `var`, and a `mixed` or generic argument.
+`rule:types/var-inference`'s `var`, and a `mixed` or generic argument.
 
 ### 3. Arithmetic
 
-Added to [ADR 0007](0007-explicit-type-system.md) § 4's table:
+Added to `rule:types/arithmetic`'s table:
 
 | operation | result | on overflow / edge |
 |---|---|---|
@@ -128,7 +128,7 @@ Note the deliberate divergence from `int / int`, which yields `int|float`: `deci
 
 ### 4. Conversions
 
-Added to [ADR 0007](0007-explicit-type-system.md) § 2's table:
+Added to `rule:types/conversion`'s table:
 
 | conversion | behaviour |
 |---|---|
@@ -235,7 +235,7 @@ between "we cover 99% of this" and "we cover 99% of this and here is the other 1
   `tests/conformance/lang/decimal-arithmetic-is-exact-and-keeps-its-scale.nvst` and
   `…/decimal-conversions-are-checked-in-both-directions.nvst`.
 - **Still owed:** `Core\Decimal::divExact`/`divRound`/`allocate` (§ 3), which land with that class's roster
-  at M8, and a typed decimal arithmetic loop as a `benches/` figure with a guard, alongside the ADR 0007
+  at M8, and a typed decimal arithmetic loop as a `benches/` figure with a guard, alongside the `rule:types/declaration`
   loop the plan already requires. Every `decimal` operator is an out-of-line helper call today; inlining the
   equal-scale `+`, `-` and comparison this ADR anticipates is a backend change with no semantic effect, and
   `nvs_runtime::decimal`'s own known gaps track it.

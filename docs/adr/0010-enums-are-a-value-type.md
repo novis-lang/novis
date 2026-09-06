@@ -19,10 +19,10 @@
 > storage whatsoever. Every enum has exactly one underlying integer type — `int` by default, or `uint` when
 > declared — and PHP's split between "pure" (no backing value) and "backed" enums is gone along with
 > `string` backing: cases auto-increment from `0` unless given an explicit literal, exactly as C#. An enum's
-> name is a type like any other, usable at every binding site [ADR 0007](0007-explicit-type-system.md) § 1
+> name is a type like any other, usable at every binding site `rule:types/declaration`
 > lists, which is the whole point: `enum Status { Active, Banned }` then `public Status $status;` or
 > `public const Status DEFAULT = Status::Active;` is the requirement this ADR exists to satisfy. Converting
-> between an enum and its underlying type goes through the one operator ADR 0007 already has (`as`), checked
+> between an enum and its underlying type goes through the one operator `rule:types/declaration` already has (`as`), checked
 > and throwing on a value no case names — which is where Novis diverges from C# too: C# lets any integer be
 > cast into an enum type even when no case names it, and Novis refuses that as loudly as it refuses
 > `(int)"abc" → 0`.
@@ -39,7 +39,7 @@
   any other typed input, with no second API (`::tryFrom()`) and none of PHP's unused-for-this-size
   machinery (interfaces, methods, singleton identity, reflection).
 - **Priority 5 (memory):** a C#-shaped case is a plain integer, zero extra bytes beyond what
-  [ADR 0007](0007-explicit-type-system.md) § 4 already spends on `uint` — this decision buys priorities 1
+  `rule:types/arithmetic` already spends on `uint` — this decision buys priorities 1
   and 4 for *less* memory than PHP's design, not more.
 - **Priority 2 is the one knowingly spent**: a ported `enum Suit: string { case Hearts = 'H'; }` with a
   method does not run unconverted. *7* below is this ADR's own divergence table;
@@ -49,7 +49,7 @@
 
 **`enum` declares a new, closed, named integer type. A case is a compile-time constant of that type, never
 an object. There is exactly one underlying integer type per enum, `int` by default. The enum's name is a
-type like any other, usable everywhere ADR 0007 § 1 requires a declared type.**
+type like any other, usable everywhere `rule:types/declaration` requires a declared type.**
 
 ### 1. Declaration
 
@@ -113,7 +113,7 @@ storage-class table at all.** A case is baked into generated code the same way a
 no per-isolate slot to build, no teardown, and nothing for [ADR 0006](0006-isolated-script-execution.md)'s
 isolate boundary to copy except the plain integer a value already carries.
 
-### 4. The enum's name is a type, usable everywhere ADR 0007 requires one
+### 4. The enum's name is a type, usable everywhere `rule:types/declaration` requires one
 
 ```php
 enum Status { Active, Banned }
@@ -130,7 +130,7 @@ foreach ($accounts as Status $status => $account) { ... } // foreach binding, sa
 
 This is the requirement in full: the `enum` keyword only ever appears at the *declaration* site, exactly as
 it does in C# and in PHP; everywhere a type is used, it is spelled with the enum's own name, precisely like
-a class. `EnumName` joins `ClassName` as an atom in [ADR 0007](0007-explicit-type-system.md) § 3's grammar —
+a class. `EnumName` joins `ClassName` as an atom in `rule:types/grammar`'s grammar —
 lexically identical to a class reference, distinguished by what the name resolves to, exactly the way
 `self`/`static`/`parent` are already contextual in that grammar.
 
@@ -150,7 +150,7 @@ uint   $bits = Permission::Write as uint;               // total: reads the back
 
 `==` on two values of the same enum type compares the underlying integer — there is no identity
 distinct from value, because there is no object. Comparing values of two *different* enum types is a
-diagnostic, the same rule [ADR 0007](0007-explicit-type-system.md) § 4 already applies to `int` against
+diagnostic, the same rule `rule:types/arithmetic` already applies to `int` against
 `uint`: no representable common type, so the comparison is refused rather than silently coerced.
 
 No arithmetic or bitwise operator is defined on an enum type directly — `Permission::Read | Permission::Write`
@@ -161,8 +161,8 @@ flags-enum construct that skips the round trip is deferred; see *Revisiting*.
 ### 6. Runtime representation
 
 An enum value is a new tag in the existing tagged value, carrying its underlying `int`/`uint` payload —
-**zero additional bytes**, the same trick [ADR 0007](0007-explicit-type-system.md) § 4 used for `uint`
-itself. Where the static type is known — which ADR 0007 makes the common case by construction — there is
+**zero additional bytes**, the same trick `rule:types/arithmetic` used for `uint`
+itself. Where the static type is known — which `rule:types/declaration` makes the common case by construction — there is
 nothing else to carry; codegen already knows which enum it is. Telling *which* enum type a value holds when
 it arrives through `mixed`, or is checked at an [isolate boundary](0006-isolated-script-execution.md), uses
 the same interned type-descriptor pointer mechanism arrays already pay for their element type
@@ -189,13 +189,12 @@ named a language to imitate rather than one to stay compatible with.
 **Positive**
 
 - The requirement is satisfied exactly: `enum` declares a type, and that type is usable as a property,
-  constant, parameter, return, local or `foreach` binding like any other — no special case anywhere in ADR
-  0007's binding-site table.
+  constant, parameter, return, local or `foreach` binding like any other — no special case anywhere in `rule:types/declaration`'s binding-site table.
 - An enum case costs strictly less than any alternative considered: no allocation, no refcount, no entry in
   `rule:statements/static-is-a-member-modifier`'s storage-class table, and zero additional bytes in the tagged value
   beyond what `uint` already costs.
 - Untrusted input into an enum type is a reviewable, throwing conversion through the same operator every
-  other conversion in [ADR 0007](0007-explicit-type-system.md) uses — one fewer per-type API
+  other conversion in `rule:types/declaration` uses — one fewer per-type API
   (`::tryFrom()`) for a reviewer or a static analyzer to know about.
 - The isolate-boundary story ([ADR 0006](0006-isolated-script-execution.md)) is trivial: an enum value is a
   plain scalar, copied exactly like an `int` or `uint`, with no object identity to preserve or discard across
@@ -229,7 +228,7 @@ named a language to imitate rather than one to stay compatible with.
 - **Singleton case objects, but reject methods and interfaces.** Keeps the allocation cost while dropping
   the features that would justify it — worse on priority 5 than either design, for no benefit.
 - **Permissive conversion, matching C# exactly** (`as EnumName` never throws on an out-of-range value).
-  Rejected on priority 1: the "coercion instead of refusal" shape [ADR 0007](0007-explicit-type-system.md)
+  Rejected on priority 1: the "coercion instead of refusal" shape `rule:types/declaration`
   argues against.
 - **Keep `string` as an allowed backing type, matching PHP's backed enums.** Rejected in *Decision § 2*:
   reintroduces a heap-allocated case for something a `match` over the enum already gives for free.
@@ -265,8 +264,7 @@ Verification, in the order it becomes possible:
 - **M1**: the declaration grammar in *1* parses, including an omitted backing type, an explicit `: int`,
   and an explicit literal resetting the auto-increment counter; `enum … implements`, a method inside an
   `enum` body, and `: string` are all rejected with a diagnostic naming the replacement in *3*'s table.
-- **M2**: `EnumName` resolves as its own kind of atom, not a class, in [ADR 0007](0007-explicit-type-system.md)
-  § 3's grammar; a checked conversion into an enum is in the same diagnostic corpus that ADR's M2 entry
+- **M2**: `EnumName` resolves as its own kind of atom, not a class, in `rule:types/grammar`'s grammar; a checked conversion into an enum is in the same diagnostic corpus that ADR's M2 entry
   already builds — a value matching no case, a comparison between two different enum types, arithmetic
   attempted directly on an enum value.
 - **M4**: an enum used at every binding site in *4*'s example; `as` both succeeding and throwing per *5*'s

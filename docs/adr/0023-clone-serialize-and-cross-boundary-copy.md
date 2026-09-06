@@ -91,7 +91,7 @@ sharing no mutable heap state with its source.
 - **Refuses what has no meaning on the other side.** A closure (captures a heap and a scope), an `inout`
   binding (an alias into a specific frame), or an object holding a host handle is refused with a diagnostic
   naming the offending value and its path in the graph — not degraded into a stub, not silently dropped.
-  [ADR 0007](0007-explicit-type-system.md) already notes this is mostly a **compile-time** rejection at the
+  `rule:types/declaration` already notes this is mostly a **compile-time** rejection at the
   copy site given declared types; a `mixed`-typed value carrying one of these is where the runtime check in
   this paragraph is still needed.
 - **Refuses an unresolvable class**, the same rule [ADR 0006](0006-isolated-script-execution.md) already
@@ -151,7 +151,7 @@ is versioned and self-describing enough to be checked before any object is built
 PHP's open, cross-version wire format is not kept. A `nvs convert`-ported script that `serialize()`s data
 for external storage (a cache, a queue payload, a session row) gets the same round-trip guarantee it had in
 PHP; a script that depends on reading *another system's* PHP-format bytes needs a human decision, the same
-class of `nvs convert` gap [ADR 0009](0009-string-and-bytes.md) and others already carry.
+class of `nvs convert` gap `rule:types/bytes` and others already carry.
 
 ### 4. Why neither depth reopens ADR 0022's residual case
 

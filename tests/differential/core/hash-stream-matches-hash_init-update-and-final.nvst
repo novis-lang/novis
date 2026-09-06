@@ -1,5 +1,5 @@
 --TEST--
-`Core\Hash\Stream` answers over every chunking of a subject what PHP's `hash_init`/`hash_update`/`hash_final` answer over the same chunking, and what the one-shot `Core\Hash::of` answers over the whole (spec § 11, ADR 0009 § 1)
+`Core\Hash\Stream` answers over every chunking of a subject what PHP's `hash_init`/`hash_update`/`hash_final` answer over the same chunking, and what the one-shot `Core\Hash::of` answers over the whole (spec § 11, `rule:types/bytes`)
 --FILE--
 <?nvs
 // Spec § 11 gives the incremental digest three members where PHP gives it a

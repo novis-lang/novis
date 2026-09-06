@@ -978,7 +978,7 @@ pub(super) fn sqlite_described_columns(columns: &[nvs_db::SqliteColumn]) -> NvsA
 /// binds into a `REAL` on the way in; refusing one here would mean no `decimal`
 /// column on this backend ever reads back. The shortest round-trip rendering is
 /// therefore the honest answer for what is actually stored, and
-/// [ADR 0054](/docs/adr/0054-decimal-scalar-type.md) is not weakened
+/// `rule:types/decimal` is not weakened
 /// by it — the value crossed binary floating point in the *engine*, and reading
 /// it back as a `float` would only hide that.
 ///

@@ -712,7 +712,7 @@ struct Checked {
     exprs: nvs_types::ExprTypeTable,
     /// Every declared enum's backing type and its cases' values, handed back
     /// by `check_program` rather than rebuilt — `nvs_ir::lower` needs a case's
-    /// constant for ADR 0047 § 3's membership test.
+    /// constant for `rule:types/enum-case-type`'s membership test.
     enums: nvs_types::EnumTable,
     layouts: nvs_types::ClassLayoutTable,
     /// The autoload map the graph walk consulted, kept for

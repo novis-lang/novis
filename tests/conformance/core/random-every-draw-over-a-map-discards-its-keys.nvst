@@ -1,5 +1,5 @@
 --TEST--
-Core\Random::pick, sample and shuffle agree that a subject's keys reach no answer — pick draws a value and never a key, and both array answers come back under fresh 0, 1, … keys — spec § 11, ADR 0063 R5, ADR 0007 § 5
+Core\Random::pick, sample and shuffle agree that a subject's keys reach no answer — pick draws a value and never a key, and both array answers come back under fresh 0, 1, … keys — spec § 11, ADR 0063 R5, `rule:types/arrays`
 --FILE--
 <?nvs
 // One question asked of all three members that draw over an `array<T>`: what

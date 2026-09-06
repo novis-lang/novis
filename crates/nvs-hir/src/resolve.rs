@@ -228,7 +228,7 @@ impl Resolver {
     }
 }
 
-/// ADR 0015 § 6: a `type` alias may not be nothing but one bare class,
+/// `rule:types/alias-is-never-a-bare-class`: a `type` alias may not be nothing but one bare class,
 /// interface or enum atom — that shape is `use … as …` wearing the type
 /// grammar as a disguise. `?SomeClass`, a union, an intersection, and an
 /// `array<...>` wrapper are all still fine; only the fully bare atom, with no
@@ -249,7 +249,7 @@ fn check_alias_is_not_a_bare_class(decl: &TypeAliasDecl, diags: &mut Diagnostics
             .with_primary(decl.ty.span, "aliases exactly one class-shaped atom")
             .with_help(
                 "give a shape a name instead — a union, an intersection, or an `array<...>` \
-                 wrapper (ADR 0015 § 6); a class already has its own name",
+                 wrapper (`rule:types/alias-is-never-a-bare-class`); a class already has its own name",
             ),
         );
     }

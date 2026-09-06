@@ -7,7 +7,7 @@
 // three readings below are the ones a caller writes: the binding, which a
 // non-`bool` return would not compile against; the negation, which a value
 // that were merely falsy would still satisfy; and the textual reading, which
-// is the only conversion ADR 0007 § 2 gives a `bool` — a number out of a
+// is the only conversion `rule:types/conversion` gives a `bool` — a number out of a
 // predicate is a branch said out loud, so `$answer as int` does not compile
 // and is deliberately not what this case asks.
 bool $answer = Core\Server::isDraining();

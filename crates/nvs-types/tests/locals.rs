@@ -1,4 +1,4 @@
-//! ADR 0007 § 1's declare-once rule and the definite-assignment analysis over it, including ADR 0037's `var`.
+//! `rule:types/declaration`'s declare-once rule and the definite-assignment analysis over it, including `rule:types/var-inference`'s `var`.
 //!
 //! Moved out of `nvs_types::check`'s inline `mod tests`; every test keeps its
 //! own name and body. See `tests/common/mod.rs` for the shared fixtures.
@@ -34,7 +34,7 @@ fn redeclaring_a_local_is_diagnosed() {
     );
 }
 
-/// ADR 0037: `var $n = 1;` fixes `$n`'s type to `int`, exactly as if it
+/// `rule:types/var-inference`: `var $n = 1;` fixes `$n`'s type to `int`, exactly as if it
 /// had been written out — so a later assignment of a different type is
 /// the ordinary `E_TYPE_MISMATCH` a typed local would also get.
 #[test]
@@ -64,7 +64,7 @@ fn redeclaring_a_var_local_is_diagnosed_like_any_other() {
     );
 }
 
-/// ADR 0037 § 2: a bare array literal has no target type to synthesize
+/// `rule:types/var-inference`: a bare array literal has no target type to synthesize
 /// against, so `var` cannot infer one — this is the one initializer
 /// shape it refuses rather than silently falling back to `array<mixed>`.
 #[test]

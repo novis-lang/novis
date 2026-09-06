@@ -85,7 +85,7 @@
 ### 3. The roster
 
 **Core.** `Core\Str`, `Core\Arr`, `Core\Math`, `Core\IO` — absorbing `standard`, SPL's data structures,
-`ctype`, and, because [ADR 0009](0009-string-and-bytes.md) guarantees `string` is UTF-8, nearly all of
+`ctype`, and, because `rule:types/bytes` guarantees `string` is UTF-8, nearly all of
 `mbstring`. `Core\Time` (`date`, `calendar`), immutable only. `Core\Regex`
 ([ADR 0056](0056-regex-engine-policy.md)). `Core\Json`. `Core\Hash`, absorbing `openssl`'s digest half.
 `Core\Random`, secure by default. `Core\Reflect` and `Core\Ast`
@@ -98,7 +98,7 @@ libmagic's rule interpreter). `Core\Compress` (`zlib`, plus brotli and zstd — 
 reason `Core\Zip` is, that a decompression bomb is *policy* and policy must be non-optional; the built-in
 server compresses nothing itself, per [ADR 0097](0097-development-server-and-proxied-origin.md) § 1).
 `Core\Zip`. `Core\Decimal` and
-`Core\BigInt` ([ADR 0054](0054-decimal-scalar-type.md)). `Core\Os` (`posix`, minus fork). `Core\Cli`
+`Core\BigInt` (`rule:types/decimal`). `Core\Os` (`posix`, minus fork). `Core\Cli`
 and `Core\Command` (`readline`, and the argument parser every other ecosystem leaves to a package —
 [ADR 0086](0086-core-cli-terminal-is-a-sink.md), admitted by test 2 as an output sink and by test 1 for
 raw-mode input, which no sandboxed tier can reach). `Core\Uuid`. `Core\Cache` ([ADR 0059](0059-cross-request-state-is-explicit.md)). `Core\Csv`.

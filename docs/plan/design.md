@@ -64,7 +64,7 @@ spellings rejected, and the reasoning. Do not restate that detail here when addi
 | Parallelism | Hybrid: `async`/`await` for I/O inside a task (same heap, cooperative) + isolated workers on other cores for CPU work |
 | Suspension | Stackful coroutines — no async colouring; any function may yield |
 | Isolated execution | `spawn script 'file.nvs'` runs another file in-process as a child isolate, file-only, never a source string ([ADR 0006](../adr/0006-isolated-script-execution.md)) |
-| Type system | Static, mandatory, explicit; every binding's declared type never changes; `uint` alongside signed `int` ([ADR 0007](../adr/0007-explicit-type-system.md)) |
+| Type system | Static, mandatory, explicit; every binding's declared type never changes; `uint` alongside signed `int` (`rule:types/declaration`) |
 | Enums | A closed, named integer type, C#-style; PHP's class-like enum design (`::cases()`, methods, `string` backing) is disregarded entirely (`rule:enums/closed-integer-type`) |
 | Scoping and state | `static` is a class-member modifier only; no function-scope `static`, no `static fn`, no `global` (`rule:statements/static-is-a-member-modifier`) |
 | No superglobals | No variable is ever populated by the host; every PHP superglobal becomes a `Core` accessor class, and `$GLOBALS`/`$_REQUEST` have no replacement (`rule:statements/no-host-populated-variables`) |
@@ -79,7 +79,7 @@ spellings rejected, and the reasoning. Do not restate that detail here when addi
 | Regex | Pure Rust two-tier: `regex` (linear-time) → `fancy-regex` (lookaround/backrefs) fallback |
 | Security | Server-level `nvs.toml`, root-owned, TOML ([ADR 0064](../adr/0064-configuration-file-format.md)), deny-by-default capabilities + hard per-request limits ([ADR 0005](../adr/0005-config-changeability.md)) |
 | Serving | Built-in **HTTP/1.1** server, scoped to a development server and a proxied origin; no TLS listener, no h2c, no HTTP/3, no FastCGI, no compression ([ADR 0097](../adr/0097-development-server-and-proxied-origin.md)) |
-| Text and binary | `string` is guaranteed-valid UTF-8 and counts extended grapheme clusters; binary data is the separate `bytes` primitive, counting bytes ([ADR 0009](../adr/0009-string-and-bytes.md)) |
+| Text and binary | `string` is guaranteed-valid UTF-8 and counts extended grapheme clusters; binary data is the separate `bytes` primitive, counting bytes (`rule:types/bytes`) |
 | Databases | One `Core\Db` API over MySQL, MariaDB (a driver of its own, not a MySQL version), PostgreSQL, SQLite and MS SQL Server: connections named in root-owned config, every statement prepared, a transaction is a closure ([ADR 0067](../adr/0067-core-db.md)) |
 | Tooling | LSP + formatter, test runner, debugger + profiler, package manager |
 | Audience | Web applications of every kind; the pitch is isolation and qualifiers, and PHP syntax is an on-ramp rather than a compatibility promise (`rule:programs/audience`) |
@@ -141,10 +141,10 @@ listener for it ([ADR 0097](../adr/0097-development-server-and-proxied-origin.md
   deployment therefore means sizing for concurrency — tasks × stack, plus concurrent requests × their
   `memory` cap — and deployment docs must say so rather than quote a typical RSS.
 - **Existing PHP does not run unconverted.** PHP has no syntax for the type of a `foreach` binding or a
-  destructuring target ([ADR 0007](../adr/0007-explicit-type-system.md)), and every one of its global
+  destructuring target (`rule:types/declaration`), and every one of its global
   functions and global constants needs a new home on a class before it type-checks at all
   ([ADR 0011](../adr/0011-functions-and-constants-are-class-members.md)). A plain local has a type-eliding
-  spelling now — [ADR 0037](../adr/0037-var-local-type-inference.md)'s `var` — so `nvs convert` can emit that
+  spelling now — `rule:types/var-inference`'s `var` — so `nvs convert` can emit that
   directly instead of inferring and writing an annotation, but it still has to write annotations and
   rewrite call sites for everything else, not just drop `.php` files into a document root. M11 stays
   mandatory rather than a convenience, and the imported `.phpt` pass rate is still structurally lower than
@@ -269,7 +269,7 @@ the one below — request framing is a security-critical parser.
 16-byte tagged value: `{ tag: u8, _pad: [u8;7], bits: u64 }`. NaN-boxing is rejected because PHP semantics
 require full-range `i64`. Tags: `null | bool | int(i64) | uint(u64) | float(f64) | string | array | object |
 closure | resource | decimal`. `uint` is a tag, not a wider slot, so it costs nothing here; the type system
-that demands it is [ADR 0007](../adr/0007-explicit-type-system.md), which also owns the array element-type stamp
+that demands it is `rule:types/declaration`, which also owns the array element-type stamp
 carried on the array header. `decimal` is the one tag whose value does not fit the payload alone — its 96-bit
 mantissa spends the padding bytes too, so it is the whole sixteen — and `nvs_runtime::decimal`'s own module
 doc is the home for that layout.

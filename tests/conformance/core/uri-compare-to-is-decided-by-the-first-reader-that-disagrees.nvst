@@ -26,7 +26,7 @@ final class Part {
 
     // Two `?string` components ordered as the class orders them: absent before
     // present, and `Core\Str::compare` otherwise, which is the only ordering
-    // two `string`s have (ADR 0007 § 4 gives them no `<`).
+    // two `string`s have (`rule:types/arithmetic` gives them no `<`).
     public static function texts(?string $a, ?string $b): int {
         if ($a != null) {
             if ($b != null) {

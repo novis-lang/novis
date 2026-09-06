@@ -78,7 +78,7 @@ pub struct Class {
     /// What each field slot's *declared* type lowers to, in [`Self::fields`]'
     /// own order — or **empty**, which means "not known", not "no fields".
     ///
-    /// Populated for every class with a layout, plus an ADR 0036 shape
+    /// Populated for every class with a layout, plus an `rule:types/object-top` shape
     /// literal's synthesized one: [`InstKind::SlotSet`] reaches any class at
     /// all through § 4's erased receiver, and that write is the one site with
     /// no statically known field type of its own. A slot whose declared type
@@ -306,7 +306,7 @@ pub struct Inst {
     /// [`InstKind::BinOp`], and unary `-` over the same two as an
     /// [`InstKind::UnOp`] — and **`/` over
     /// [`crate::ty::Ty::Float`]**. All of those throw
-    /// [ADR 0007](/docs/adr/0007-explicit-type-system.md) § 4's
+    /// `rule:types/arithmetic`'s
     /// `ArithmeticError`: the divisions on a zero divisor, and the other
     /// four on overflow, which that section makes a throw rather than a wrap
     /// or a promotion to `float`. The float `/` is on the list because § 4
@@ -379,8 +379,7 @@ pub enum InstKind {
     ConstUint(u64),
     /// A `float` constant.
     ConstFloat(f64),
-    /// A `decimal` constant — [ADR 0054](/docs/adr/0054-decimal-scalar-type.md)
-    /// § 2's untyped-until-placed literal, once a target type has placed it.
+    /// A `decimal` constant — `rule:types/numeric-literal-placement`'s untyped-until-placed literal, once a target type has placed it.
     ///
     /// Carried as the three parts rather than as the sixteen-byte image
     /// [`crate::ty::Ty::Decimal`] describes, because this crate does not
@@ -414,7 +413,7 @@ pub enum InstKind {
     /// [`crate::ty::Ty::Bytes`], and the same one heap allocation with one
     /// implicit owner, since the two types share a representation and differ
     /// only in the tag a boxed value carries
-    /// ([ADR 0009](/docs/adr/0009-string-and-bytes.md) § 1).
+    /// (`rule:types/bytes`).
     ///
     /// **No expression produces one**: there is no `bytes` literal in the
     /// language, so this exists for a `Core` signature's optional `bytes`
@@ -578,8 +577,7 @@ pub enum InstKind {
         /// `None`.
         args: Vec<ValueId>,
     },
-    /// [ADR 0125](/docs/adr/0125-a-class-reference-is-a-type-and-as-is-its-only-source.md)
-    /// § 2's checked way *into* a `class<T>`: the [`Ty::ClassDesc`] of the
+    /// `rule:types/class-reference`'s checked way *into* a `class<T>`: the [`Ty::ClassDesc`] of the
     /// class `subject` denotes, or a null one when it denotes no class that is
     /// a `base`. Both of § 2's rows are this one instruction, told apart by
     /// `subject`'s own representation:
@@ -594,7 +592,7 @@ pub enum InstKind {
     /// enumerates the classes this unit declares that conform to `base`** and
     /// compares the subject against each — `nvs_runtime::nvs_str_eq` per
     /// candidate for a name, one `icmp` per candidate for a descriptor. That
-    /// closed set is ADR 0125 § 2's own argument for why a `tainted` string may
+    /// closed set is `rule:types/class-reference`'s own argument for why a `tainted` string may
     /// pass through the conversion at all: the output range is the classes the
     /// program's own source declares to be `base`s, and nothing a caller writes
     /// can widen it.
@@ -607,7 +605,7 @@ pub enum InstKind {
     /// instruction would change.
     ///
     /// The null is not a value the language admits: [`crate::lower`] tests for
-    /// it and throws, exactly as ADR 0007 § 2's other checked rows do, so no
+    /// it and throws, exactly as `rule:types/conversion`'s other checked rows do, so no
     /// consumer of a [`Ty::ClassDesc`] ever sees one. `Dog::class as
     /// class<Animal>` never reaches here at all — both sides are written out,
     /// so § 2 decides it where it stands and it lowers to
@@ -627,7 +625,7 @@ pub enum InstKind {
     /// future codegen layout pass, the same "resolved identity, not yet a
     /// machine offset" shape `Call`/`New`'s own `target`/`class` labels
     /// already use. A property access whose receiver erased to a shape or to
-    /// plain `object` (ADR 0036 § 4) never reaches here: it has no declaring
+    /// plain `object` (`rule:types/erased-member-access`) never reaches here: it has no declaring
     /// class to name, so the checker records an
     /// `nvs_types::expr_table::ExprInfo::ShapeProperty` instead and
     /// `crate::lower` emits the name-keyed [`InstKind::SlotGet`].
@@ -702,12 +700,12 @@ pub enum InstKind {
         value: ValueId,
     },
     /// Reads a slot off an object **by index** — `$issue->path`, whose
-    /// receiver is an ADR 0036 § 4 shape rather than a named class.
+    /// receiver is an `rule:types/erased-member-access` shape rather than a named class.
     ///
     /// The difference from [`InstKind::FieldGet`] is that the layout is not
     /// known here. A shape is anonymous and methodless, so there is no class
     /// label for codegen to resolve an offset through — and the receiver's
-    /// *static* shape need not be the concrete value's own: ADR 0036 § 3's
+    /// *static* shape need not be the concrete value's own: `rule:types/shape-type`'s
     /// width subtyping lets a `{x: int, y: int}` reach a `{y: int}`
     /// parameter, where the two lay their slots out differently. So this is
     /// § 4's **name-keyed fetch**, `nvs_runtime::nvs_object_slot_get`, and not
@@ -726,7 +724,7 @@ pub enum InstKind {
     /// it is the erased half of § 4 that can reach it.
     ///
     /// **The receiver may be a [`Ty::Tagged`], and the runtime checks its
-    /// tag.** ADR 0007 § 2's `mixed` is an erased receiver like a plain
+    /// tag.** `rule:types/conversion`'s `mixed` is an erased receiver like a plain
     /// `object` is, with the one difference that nothing proved it holds an
     /// object at all — so `crate::lower::expr`'s `ReceiverProof::Erased` emits no
     /// [`InstKind::Untag`] for it and the whole value travels here. A
@@ -750,7 +748,7 @@ pub enum InstKind {
         slot: u32,
     },
     /// `$issue->path = "x";` — [`InstKind::SlotGet`]'s write half, and
-    /// ADR 0036 § 4's other paragraph: one call to
+    /// `rule:types/erased-member-access`'s other paragraph: one call to
     /// `nvs_runtime::nvs_object_slot_set`, keyed on the **name** and taking
     /// [`Self::SlotSet::slot`] as the same hint, for the same reason the read
     /// does. A write through an erased or widened view **never creates a
@@ -793,13 +791,12 @@ pub enum InstKind {
         value: ValueId,
     },
     /// `$obj->$key` —
-    /// [ADR 0126](/docs/adr/0126-a-property-key-is-a-checked-name-and-as-is-its-only-source.md)
-    /// § 4's keyed read, and [`InstKind::SlotGet`] with the name arriving as a
+    /// `rule:types/property-key-access`'s keyed read, and [`InstKind::SlotGet`] with the name arriving as a
     /// **value** instead of as a `String` this instruction carries.
     ///
     /// That is the whole difference, and it is § 5's recorded choice: a key is
     /// a name, so what the access needs is exactly the by-name lookup on the
-    /// receiver's concrete descriptor that ADR 0036 § 4's erased read already
+    /// receiver's concrete descriptor that `rule:types/erased-member-access`'s erased read already
     /// performs — one call, no allocation, and the same catchable throw for a
     /// name the concrete class does not carry. The alternative § 5 weighed was
     /// a closed-set chain over the key's roster, one `BinOp::Eq` per name and
@@ -811,7 +808,7 @@ pub enum InstKind {
     /// static-read advantage it looks like it buys is not there.
     ///
     /// **Per-property hooks and a declared `PropertyObserver` therefore behave
-    /// exactly as they do on ADR 0036 § 4's erased path**, which is what § 5
+    /// exactly as they do on `rule:types/erased-member-access`'s erased path**, which is what § 5
     /// says and not a second answer: the erased access's own known gap — it
     /// reaches storage past a per-property `get`/`set` hook — is recorded on
     /// `nvs_runtime::nvs_object_key_get` and closes for every caller at once.
@@ -830,8 +827,8 @@ pub enum InstKind {
         key: ValueId,
     },
     /// `$obj->$key = v;` — [`InstKind::KeyGet`]'s write half, which is
-    /// [`InstKind::SlotSet`] with the same one substitution, and ADR 0126 § 5's
-    /// "a write is ADR 0036 § 4's checked erased store".
+    /// [`InstKind::SlotSet`] with the same one substitution, and `rule:types/property-key-access`'s
+    /// "a write is `rule:types/erased-member-access`'s checked erased store".
     ///
     /// Every rule [`InstKind::SlotSet`] states holds here for its reasons: the
     /// name is resolved on the receiver's own descriptor, **no field is ever
@@ -857,7 +854,7 @@ pub enum InstKind {
     /// exactly like [`InstKind::New::class`], and it may name an *interface*
     /// as readily as a class: `nvs_types::layout` gives an interface a
     /// descriptor with no slots for precisely this test (and for a typed
-    /// `catch`, which lowers to the same instruction). ADR 0125 § 4's
+    /// `catch`, which lowers to the same instruction). `rule:types/class-reference-sites`'s
     /// `$x instanceof $cls` supplies a [`Ty::ClassDesc`] value in its place
     /// and asks the identical question — [`TestedClass`] owns why the two
     /// forms are one instruction. Reads `value` without retaining it, the way
@@ -1074,9 +1071,9 @@ pub enum InstKind {
     },
     /// Defines a value with the *same machine bits* as `operand` under a
     /// different [`crate::ty::Ty`] — the whole of a conversion that
-    /// [ADR 0010](/docs/adr/0010-enums-are-a-value-type.md) § 5 calls
+    /// `rule:types/conversion` calls
     /// "total, free ... same representation, reinterpreted": an enum to its
-    /// backing `int`/`uint`, ADR 0009 § 3's `string as bytes`, and one shape
+    /// backing `int`/`uint`, `rule:types/conversion`'s `string as bytes`, and one shape
     /// that is not a language-level conversion at all — a
     /// [`crate::ty::Ty::ClassDesc`] read as an `int` so that
     /// [`InstKind::ClassDescIn`]'s null answer can be *compared*. A descriptor
@@ -1123,7 +1120,7 @@ pub enum InstKind {
     /// representation the value holds — the non-`null` arm of a `??`, a
     /// `?->` or an `if ($x !== null)` narrowing. A runtime *test* is
     /// [`InstKind::IsNull`], and a conversion that can genuinely fail is an
-    /// ADR 0007 § 2 checked row, not this.
+    /// `rule:types/conversion` checked row, not this.
     ///
     /// **Transfers ownership unchanged**, the mirror of [`InstKind::Tag`]:
     /// the narrowed value owns the reference the tagged one owned, so the
@@ -1171,7 +1168,7 @@ pub enum InstKind {
         args: Vec<ValueId>,
     },
     /// `[...]`/legacy `array(...)`: builds a fresh [`crate::ty::Ty::Array`]
-    /// value — ADR 0007 § 5's insertion-ordered, string-keyed hash. A
+    /// value — `rule:types/arrays`'s insertion-ordered, string-keyed hash. A
     /// *purely positional* literal (no element has an explicit `key =>`)
     /// bundles the whole thing into one instruction from a fixed list of
     /// already-lowered `(key, value)` pairs, rather than an allocation plus a
@@ -1219,7 +1216,7 @@ pub enum InstKind {
     /// holding the key) gets the identical retain, mirroring
     /// `crate::lower::Lowering::lower_reassignment`'s `Index`-target arm.
     ArrayNew {
-        /// `(key, value)` pairs, in insertion order — ADR 0007 § 5's
+        /// `(key, value)` pairs, in insertion order — `rule:types/arrays`'s
         /// "iteration order is insertion order, always." Always empty for a
         /// literal with an explicit `key =>` element; see above.
         entries: Vec<(String, ValueId)>,
@@ -1231,8 +1228,7 @@ pub enum InstKind {
     /// of exactly two representations — [`crate::ty::Ty::Str`], or
     /// [`crate::ty::Ty::Int`] for a subscript that was already an `int` and
     /// therefore never rendered — which is the crate docs' *an array key is
-    /// a `string`, and an `int` subscript no longer spells it*. ADR 0007
-    /// § 5's key normalization is unchanged (`$a[8]` is still `$a["8"]`);
+    /// a `string`, and an `int` subscript no longer spells it*. `rule:types/arrays`'s key normalization is unchanged (`$a[8]` is still `$a["8"]`);
     /// where the decimal is produced is what moved. A `uint` subscript is
     /// still rendered by `crate::lower::Lowering::lower_array_key`, with the
     /// exact [`Helper::UintToString`] conversion
@@ -1294,7 +1290,7 @@ pub enum InstKind {
     /// gets) — the array durably owns both after this instruction runs.
     ///
     /// **Defines a fresh [`crate::ty::Ty::Array`] value: the array that now
-    /// holds the entry.** ADR 0007 § 5's copy-on-write value semantics mean a
+    /// holds the entry.** `rule:types/arrays`'s copy-on-write value semantics mean a
     /// write into an array a second binding also holds must separate, which
     /// produces a *different* allocation — so this instruction consumes one
     /// reference to `array` and yields one reference to the result, which is
@@ -1315,7 +1311,7 @@ pub enum InstKind {
         value: ValueId,
     },
     /// Appends `value` to `array` at PHP's own "next available integer key"
-    /// — `$a[] = expr;`, ADR 0007 § 5's append syntax
+    /// — `$a[] = expr;`, `rule:types/arrays`'s append syntax
     /// (`crate::lower::Lowering::lower_reassignment`'s `Index`-target arm,
     /// reached when the target's subscript is `None`). Unlike
     /// [`InstKind::ArraySet`], no key is lowered or carried here at all: PHP's
@@ -1352,7 +1348,7 @@ pub enum InstKind {
         value: ValueId,
     },
     /// Copies every entry of `subject` into `array` — the `...$a` element of
-    /// an array literal (ADR 0007 § 5), lowered by
+    /// an array literal (`rule:types/arrays`), lowered by
     /// `crate::lower::Lowering::lower_array_literal`.
     ///
     /// One instruction rather than a lowered loop over
@@ -1406,7 +1402,7 @@ pub enum InstKind {
         key: ValueId,
     },
     /// The position of the first live entry at or after `from`, or `-1` when
-    /// there is none — one step of a `foreach` cursor over ADR 0007 § 5's
+    /// there is none — one step of a `foreach` cursor over `rule:types/arrays`'s
     /// insertion order, defining a [`crate::ty::Ty::Int`].
     ///
     /// A cursor rather than a borrowed iterator because compiled loop-body
@@ -1495,7 +1491,7 @@ pub enum InstKind {
 /// `nvs-codegen` calls the same runtime helper with the same two arguments,
 /// and all that differs is where the descriptor's address comes from. A
 /// written name is one the unit already laid out, so its address is an
-/// `iconst`; ADR 0125 § 4's `$x instanceof $cls` already has the address in a
+/// `iconst`; `rule:types/class-reference-sites`'s `$x instanceof $cls` already has the address in a
 /// register, because a `class<T>` value *is* a descriptor.
 ///
 /// The written form keeps its label rather than lowering to a
@@ -1506,8 +1502,7 @@ pub enum InstKind {
 /// no descriptor for — and none of them can name a [`ValueId`].
 #[derive(Debug)]
 pub enum TestedClass {
-    /// A class or interface written at the site. Every producer but ADR 0125
-    /// § 4's dynamic one gives this, including the two `catch` ladders and
+    /// A class or interface written at the site. Every producer but `rule:types/class-reference-sites`'s dynamic one gives this, including the two `catch` ladders and
     /// `as`'s own downcast check.
     Named(String),
     /// The [`Ty::ClassDesc`] a `class<T>` operand evaluated to, tested against
@@ -1549,7 +1544,7 @@ pub enum AbsentKey {
 /// verbatim by `crate::lower::Lowering::lower_array_key` to render the one
 /// array subscript that cannot travel unrendered, and `IntToString` by
 /// `crate::lower::Lowering::lower_rendered_array_key` for the one caller
-/// that still needs a `Ty::Str` key (ADR 0007 § 5) — and a
+/// that still needs a `Ty::Str` key (`rule:types/arrays`) — and a
 /// scalar-or-`Ty::Array`-to-[`crate::ty::Ty::Bool`] truthiness test, ADR
 /// 0035's table, used by `crate::lower::Lowering::lower_truthy_cond` for an
 /// `if`/`while` condition whose static type isn't already `bool` (a
@@ -1601,7 +1596,7 @@ pub enum Helper {
     /// [`Self::StrTruthy`]'s row. The one place the two differ is the
     /// one-octet buffer `"0"`, which is falsy for a `string` because that is
     /// PHP's numeric-string rule; a
-    /// [ADR 0009](/docs/adr/0009-string-and-bytes.md) `bytes` never
+    /// `rule:types/bytes` `bytes` never
     /// converts to a number, so carrying the quirk over would make a buffer
     /// falsy for a reason that does not apply to it.
     /// `rule:expressions/truthy-table`'s
@@ -1648,7 +1643,7 @@ pub enum Helper {
     /// `decimal` truthiness: falsy iff zero, at any scale.
     DecimalTruthy,
     /// `a + b` over [`crate::ty::Ty::Decimal`] —
-    /// [ADR 0054](/docs/adr/0054-decimal-scalar-type.md) § 3, which
+    /// `rule:types/arithmetic`, which
     /// **throws** on either overflow kind rather than wrapping or promoting,
     /// so this and the four below carry `rule:errors/propagation`'s error edge like any call.
     ///
@@ -1678,7 +1673,7 @@ pub enum Helper {
     /// also what gives an unordered `NaN` operand PHP's answer.
     ///
     /// Unlike the arithmetic helpers this one takes a `float` operand too:
-    /// ADR 0054 § 3 permits comparison across the pair precisely where it
+    /// `rule:types/arithmetic` permits comparison across the pair precisely where it
     /// forbids arithmetic, because an exact comparison is always computable
     /// even where a common arithmetic type is not.
     DecimalEq,
@@ -1689,13 +1684,13 @@ pub enum Helper {
     /// `a <= b` with a `decimal` operand; `>=` is this one swapped.
     DecimalLtEq,
     /// `a <=> b` with a `decimal` operand — the ordering [`Self::DecimalLt`]
-    /// asks one question of, answered whole as an `int`. ADR 0054 § 3 grants
+    /// asks one question of, answered whole as an `int`. `rule:types/arithmetic` grants
     /// this row for the reason [`Self::DecimalEq`] states: an exact comparison
     /// is computable across every pairing, including the `decimal`/`float` one
     /// arithmetic refuses. An unordered pair is `1`, as it is for
     /// [`Self::NumericCmp`] and [`BinOp::Cmp`].
     DecimalCmp,
-    /// `$n as uint` — ADR 0007 § 2's `int` ↔ `uint` row. Exact, or **throws**
+    /// `$n as uint` — `rule:types/conversion`'s `int` ↔ `uint` row. Exact, or **throws**
     /// on a negative value. The first of nine helpers that can fail rather
     /// than convert, so each is emitted through
     /// `crate::lower::Lowering::emit_fallible` and carries `rule:errors/propagation`'s error
@@ -1705,19 +1700,19 @@ pub enum Helper {
     /// `i64::MAX`.
     UintToInt,
     /// `$n as float` — exact, or throws above 2^53, where `f64` stops
-    /// representing every integer. ADR 0007 § 2 says so outright: `as` "never
+    /// representing every integer. `rule:types/conversion` says so outright: `as` "never
     /// rounds, truncates, or substitutes a default."
     IntToFloat,
     /// `$n as float` from a `uint` — [`Self::IntToFloat`]'s row, unsigned.
     UintToFloat,
     /// `$f as int` — integral and in range, or throws. Rounding is
-    /// `floor`/`ceil`/`round`, "said out loud" (ADR 0007 § 2), so this
+    /// `floor`/`ceil`/`round`, "said out loud" (`rule:types/conversion`), so this
     /// deliberately refuses `1.5` rather than picking one of the three.
     FloatToInt,
     /// `$f as uint` — [`Self::FloatToInt`]'s row, unsigned.
     FloatToUint,
     /// `$s as int` — the *whole* string must be an exact decimal integer
-    /// literal, or this throws. ADR 0007 § 2: "No leading-garbage rule, no
+    /// literal, or this throws. `rule:types/conversion`: "No leading-garbage rule, no
     /// `0`" — PHP's `(int)"12abc" === 12` and `(int)"abc" === 0` are both
     /// gone.
     StrToInt,
@@ -1725,8 +1720,7 @@ pub enum Helper {
     StrToUint,
     /// `$s as float` — the whole string must be an exact numeric literal.
     StrToFloat,
-    /// `$b as string` — [ADR 0009](/docs/adr/0009-string-and-bytes.md)
-    /// § 3's checked row: the buffer is well-formed UTF-8 and becomes the
+    /// `$b as string` — `rule:types/conversion`'s checked row: the buffer is well-formed UTF-8 and becomes the
     /// `string` over the *same* allocation, or this throws. It never replaces,
     /// drops or truncates a bad sequence, so it is fallible and carries
     /// `rule:errors/propagation`'s error edge like every other checked row.
@@ -1759,10 +1753,10 @@ pub enum Helper {
     ///
     /// `rule:expressions/nullable-conversion` makes the two spellings differ only in what they do with a
     /// miss, so this shares that helper's implementation rather than carrying a
-    /// second copy of ADR 0007 § 2's table: an operand that renders renders the
+    /// second copy of `rule:types/conversion`'s table: an operand that renders renders the
     /// same, and one whose *conversion* fails answers `null` instead of
     /// throwing. A `bytes` operand joins them here rather than at
-    /// [`Self::BytesToString`], because ADR 0009 § 3's UTF-8 validation is a
+    /// [`Self::BytesToString`], because `rule:types/conversion`'s UTF-8 validation is a
     /// row that can fail and so has a `null` answer of its own.
     ///
     /// **A `toString()` body that throws still throws.** `rule:expressions/nullable-conversion`'s `null`
@@ -1782,7 +1776,7 @@ pub enum Helper {
     /// would throw" leaves the statically typed `$s as ?bytes` refused
     /// (`E0709`) rather than lowered here.
     ToBytesOrNull,
-    /// `$x as decimal` — ADR 0054 § 4's four `→ decimal` rows, chosen by the
+    /// `$x as decimal` — `rule:types/conversion`'s four `→ decimal` rows, chosen by the
     /// operand's runtime tag the way [`Self::ToIntOrNull`] chooses, so one
     /// helper covers `int`, `uint`, `float`, `string` and `mixed` alike.
     /// Throws where the row fails or does not exist, so it carries an error
@@ -1801,7 +1795,7 @@ pub enum Helper {
     /// every other `as`.
     DecimalToFloat,
     /// `$d as string` — total, and **scale-preserving**: `19.90` renders as
-    /// `"19.90"`, which is ADR 0054 § 4's row.
+    /// `"19.90"`, which is `rule:types/conversion`'s row.
     DecimalToString,
     /// A [`crate::ty::Ty::Tagged`] operand to `string` — the four scalar
     /// conversions above plus `null`, chosen by the operand's **runtime** tag
@@ -1817,7 +1811,7 @@ pub enum Helper {
     /// **An object operand is a `toString` call, not a tag row.** Both
     /// spellings above also land here for an object whose *static* type named
     /// no class to resolve against — an erased `object`
-    /// ([ADR 0036](/docs/adr/0036-anonymous-object-shapes.md) § 4), a
+    /// (`rule:types/erased-member-access`), a
     /// union, a `Core`-owned class — and `nvs_runtime::stringify` answers it
     /// by asking the receiver's runtime class for ADR 0028 § 1's `toString`.
     /// The static path is unchanged and cheaper: where `nvs_types` did resolve
@@ -1830,7 +1824,7 @@ pub enum Helper {
     /// object whose class declares no `toString` have no row, and
     /// `nvs_runtime::value_to_string` owns what each throws and why.
     TaggedToString,
-    /// A [`crate::ty::Ty::Tagged`] operand to `int` — ADR 0007 § 2's `→ int`
+    /// A [`crate::ty::Ty::Tagged`] operand to `int` — `rule:types/conversion`'s `→ int`
     /// rows chosen by the operand's **runtime** tag, which is the only thing
     /// that names a row when the static type is a `mixed`, a `?T` or any other
     /// union.
@@ -1841,14 +1835,14 @@ pub enum Helper {
     /// does with a miss. Fallible, so it is emitted through
     /// `crate::lower::Lowering::emit_fallible` and carries `rule:errors/propagation`'s error
     /// edge — a tag with no row at all (an array, an object, a `bool`) throws
-    /// here, which is ADR 0007 § 6's answer for `mixed` and a compile error for
+    /// here, which is `rule:types/unions-and-mixed`'s answer for `mixed` and a compile error for
     /// anything the checker can name.
     TaggedToInt,
     /// [`Self::TaggedToInt`]'s row set, unsigned.
     TaggedToUint,
     /// [`Self::TaggedToInt`]'s row set, landing on `float`.
     TaggedToFloat,
-    /// A [`crate::ty::Ty::Tagged`] operand to `bytes` — ADR 0009 § 3's
+    /// A [`crate::ty::Ty::Tagged`] operand to `bytes` — `rule:types/conversion`'s
     /// `string as bytes` row chosen by the operand's **runtime** tag, plus the
     /// identical-type row a value that is already a `bytes` takes.
     ///
@@ -1858,23 +1852,22 @@ pub enum Helper {
     /// conversion helper here, this one has no static sibling: a tagged operand
     /// is the only shape whose row nothing before run time can name. Fallible
     /// for the same reason [`Self::TaggedToInt`] is: a tag with no row at all
-    /// throws, which is ADR 0007 § 6's answer for `mixed` and a compile error
+    /// throws, which is `rule:types/unions-and-mixed`'s answer for `mixed` and a compile error
     /// (`E0708`) for anything the checker can name.
     TaggedToBytes,
-    /// [ADR 0007](/docs/adr/0007-explicit-type-system.md) § 2's
+    /// `rule:types/conversion`'s
     /// `array<T> as array<U>` row: the one row of that table whose check is
     /// per *element* rather than per value, so the only one that is a walk.
     ///
     /// Argument 0 is the operand — a [`crate::ty::Ty::Array`], or a
-    /// [`crate::ty::Ty::Tagged`] whose tag is tested first, which is ADR 0007
-    /// § 6's way out of `mixed` for an array. Argument 1 is the element
+    /// [`crate::ty::Ty::Tagged`] whose tag is tested first, which is `rule:types/unions-and-mixed`'s way out of `mixed` for an array. Argument 1 is the element
     /// description, `crate::lower::array_element_tags`' word: one tag nibble
     /// per level of `U`. Both are what a helper *can* carry — arguments are
     /// stored as `nvs_runtime::Value`s — and the reason an element type naming
     /// a class is refused where it is written (`E0711`) rather than lowered
     /// to this.
     ///
-    /// **Nothing is copied.** ADR 0007 § 5 makes `array<T>` invariant so that
+    /// **Nothing is copied.** `rule:types/arrays` makes `array<T>` invariant so that
     /// the O(n) restamp is visible, and the restamp is this walk; the *buffer*
     /// then stays shared, because an Novis array is copy-on-write and whichever
     /// side writes first separates itself (`nvs_runtime::array`'s
@@ -1941,8 +1934,7 @@ pub enum Helper {
     /// error edge.
     Exit,
     /// The throw at the end of
-    /// [ADR 0047](/docs/adr/0047-literal-and-enum-case-types.md)
-    /// § 5's membership test: the operand reached none of the literals its
+    /// `rule:types/literal-types`'s membership test: the operand reached none of the literals its
     /// target names, so the checked `as` § 4 describes fails.
     ///
     /// Two arguments — the operand, which the message renders, and a
@@ -2006,7 +1998,7 @@ pub enum Helper {
     /// `a < b` over that same pair of representations — the ordering half of
     /// [`Self::NumericEq`], and exact for the same reason.
     ///
-    /// [ADR 0007](/docs/adr/0007-explicit-type-system.md) § 4 closes
+    /// `rule:types/arithmetic` closes
     /// its own table with the rule this exists to keep: "a comparison has an
     /// exact answer in the mathematical integers and can be lowered as one".
     /// It says that about `int` against `uint`, and the `int`/`uint` against
@@ -2033,7 +2025,7 @@ pub enum Helper {
     /// [`BinOp::Cmp`] follows for a matched one.
     NumericCmp,
     /// `a < b` where at least one operand is a [`crate::ty::Ty::Tagged`] —
-    /// [ADR 0007](/docs/adr/0007-explicit-type-system.md) § 4's
+    /// `rule:types/arithmetic`'s
     /// ordering row chosen from the operands' runtime **tags**, because a
     /// `mixed` or a union no longer names one.
     ///
@@ -2053,8 +2045,7 @@ pub enum Helper {
     /// `nvs_types::expr::operators::reject_unordered_operand` refuses it where
     /// it is written (`E0715`); where they do not, the refusal is exactly as
     /// real and can only be made when the tags arrive, so it becomes a
-    /// catchable throw carrying that diagnostic's own wording. That is ADR 0036
-    /// § 4's deferral — the checked answer of an erased operand is a throw, not
+    /// catchable throw carrying that diagnostic's own wording. That is `rule:types/erased-member-access`'s deferral — the checked answer of an erased operand is a throw, not
     /// a silent value — applied to the operator table instead of to a member
     /// access.
     ///
@@ -2074,7 +2065,7 @@ pub enum Helper {
     /// four ordering operators.
     ValueCmp,
     /// `a + b` where at least one operand is a [`crate::ty::Ty::Tagged`] —
-    /// [ADR 0007](/docs/adr/0007-explicit-type-system.md) § 4's
+    /// `rule:types/arithmetic`'s
     /// **arithmetic** rows chosen from the operands' runtime tags, exactly as
     /// [`Self::ValueLt`] chooses its ordering ones, and the last shape that
     /// used to reach `nvs_codegen::emit`'s representation catch-all.
@@ -2098,7 +2089,7 @@ pub enum Helper {
     ///   so `E0407`'s refusal arrives here as a throw when only the tags know.
     /// * **A `decimal` operand is a row of this table, not of
     ///   [`Self::DecimalAdd`]'s.** Behind a `mixed` there is no static
-    ///   `decimal` to route on, so ADR 0054 § 3's five arithmetic rows are
+    ///   `decimal` to route on, so `rule:types/arithmetic`'s five arithmetic rows are
     ///   answered from the tag alongside the integer ones — over the very same
     ///   `Decimal` methods, so the two ends of the row cannot disagree.
     ValueAdd,
@@ -2106,7 +2097,7 @@ pub enum Helper {
     ValueSub,
     /// `a * b` over a tagged pair — see [`Self::ValueAdd`].
     ValueMul,
-    /// `a / b` over a tagged pair — see [`Self::ValueAdd`]. ADR 0007 § 4 types
+    /// `a / b` over a tagged pair — see [`Self::ValueAdd`]. `rule:types/arithmetic` types
     /// integer division `int|float`, so this is the one row whose answer's tag
     /// is still a runtime question once the operands' tags are known.
     ValueDiv,
@@ -2114,7 +2105,7 @@ pub enum Helper {
     ValueMod,
     /// `a ** b` over a tagged pair — see [`Self::ValueAdd`].
     ValuePow,
-    /// `a & b` over a tagged pair — see [`Self::ValueAdd`]. ADR 0007 § 4's
+    /// `a & b` over a tagged pair — see [`Self::ValueAdd`]. `rule:types/arithmetic`'s
     /// `& | ^ << >>` row is `int` and `uint` alone, the same list
     /// `nvs_types::expr::operators::reject_bitwise_operand` refuses every
     /// other operand against (`E0706`), so the five bitwise members of this
@@ -2132,7 +2123,7 @@ pub enum Helper {
     ValueShr,
     /// `-a` over a tagged operand — [`Self::ValueAdd`]'s table asked with one
     /// operand instead of two, and the shape of it a *unary* operator reaches.
-    /// The rows are ADR 0007 § 4's own: `int` and `uint` throw rather than
+    /// The rows are `rule:types/arithmetic`'s own: `int` and `uint` throw rather than
     /// wrap, `-i64::MIN` having no `int` and every non-zero `uint` no negation
     /// at all, and `float` and `decimal` cannot fail. Everything else is the
     /// closed table's refusal, arriving as a catchable throw carrying
@@ -2160,10 +2151,9 @@ pub enum Helper {
     /// looked up.
     ///
     /// This is
-    /// [ADR 0036](/docs/adr/0036-anonymous-object-shapes.md) § 4's
+    /// `rule:types/erased-member-access`'s
     /// deferral applied to a subscript rather than to a member access: a
-    /// `mixed` is [ADR 0007](/docs/adr/0007-explicit-type-system.md)
-    /// § 2's one unchecked position, so the read is the tag's question and not
+    /// `mixed` is `rule:types/conversion`'s one unchecked position, so the read is the tag's question and not
     /// the site's, and every base whose *declared* type already answers it —
     /// a scalar, an untested `?array<T>`, a union naming no array — is
     /// refused where it is written instead (`E0482`).
@@ -2217,15 +2207,14 @@ pub enum Helper {
     /// which is the ordering AGENTS.md states.
     SecretEq,
     /// `$fn(...)` —
-    /// [ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md)'s
+    /// `rule:types/closure-literal`'s
     /// closure, called through the variable holding it. `args[0]` is the
     /// closure object and `args[1..]` its arguments in written order.
     ///
     /// **The one variadic [`Helper`]**, and the reason the row exists at all
     /// rather than this being an [`InstKind::Call`]: there is no resolved
     /// target to name. `callable` carries no parameter list
-    /// ([ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md)
-    /// § 1), so the checker types the call `mixed` and cannot say which
+    /// (`rule:types/closure-literal`), so the checker types the call `mixed` and cannot say which
     /// function a variable holds; what answers both questions is the closure
     /// object itself, whose class declares the one `invoke`
     /// `nvs_runtime::call_closure` reaches through. That helper is the same
@@ -2271,7 +2260,7 @@ pub enum Helper {
     /// [`crate::ty::Ty::Tagged`] the callee transferred, and the callee's own
     /// throw travels back as `Fault::Pending`.
     CallClosureArray,
-    /// `$m->method(...)` on a **`mixed`** receiver — ADR 0036 § 4's deferral
+    /// `$m->method(...)` on a **`mixed`** receiver — `rule:types/erased-member-access`'s deferral
     /// applied to a call, dispatched on the value the way
     /// [`CallClosure`](Self::CallClosure) dispatches on a closure object.
     ///
@@ -2324,7 +2313,7 @@ pub enum BinOp {
     /// `*`
     Mul,
     /// `/`. The one operator whose result representation is not its operands':
-    /// ADR 0007 § 4 types the integer row as `int|float`, so it produces a
+    /// `rule:types/arithmetic` types the integer row as `int|float`, so it produces a
     /// [`crate::ty::Ty::Tagged`] and picks between the two at run time.
     ///
     /// It is also the one arithmetic operator that carries [`Inst::on_error`]
@@ -2334,7 +2323,7 @@ pub enum BinOp {
     Div,
     /// `%`
     Mod,
-    /// `**`. ADR 0007 § 4 lists this beside `+`, `-` and `*`, so the integer
+    /// `**`. `rule:types/arithmetic` lists this beside `+`, `-` and `*`, so the integer
     /// row **throws** rather than wrapping and it carries [`Inst::on_error`]
     /// too — including for a *negative* exponent, which that row's "no
     /// promotion to `float`" leaves with no `int` to answer except where the
@@ -2343,7 +2332,7 @@ pub enum BinOp {
     /// calls `nvs_runtime::nvs_float_pow` for the float one, there being no
     /// `fpow` on any target and no `LibCall` for it either.
     Pow,
-    /// `&` — ADR 0007 § 4 preserves the operand type, and this and the two
+    /// `&` — `rule:types/arithmetic` preserves the operand type, and this and the two
     /// below are total: no pair of `int`s or `uint`s has an unrepresentable
     /// bitwise combination, so none of the three carries [`Inst::on_error`].
     BitAnd,
@@ -2356,7 +2345,7 @@ pub enum BinOp {
     /// `int` (a `uint` count cannot be negative), and a count of 64 or more
     /// answers `0` rather than the masked shift x86 would perform.
     Shl,
-    /// `>>` — [`Self::Shl`]'s two rules, and one of its own: ADR 0007 § 4 makes
+    /// `>>` — [`Self::Shl`]'s two rules, and one of its own: `rule:types/arithmetic` makes
     /// this **arithmetic** on an `int` and **logical** on a `uint`, so a count
     /// past the width fills with the sign bit in the first case and with zero
     /// in the second.
@@ -2403,7 +2392,7 @@ pub enum BinOp {
 pub enum UnOp {
     /// Numeric negation, `-x`. Over an `int` or a `uint` it carries
     /// [`Inst::on_error`]: `-i64::MIN` has no `int` and `-$u` no `uint` for any
-    /// non-zero `$u`, and ADR 0007 § 4 makes both a throw rather than a wrap.
+    /// non-zero `$u`, and `rule:types/arithmetic` makes both a throw rather than a wrap.
     Neg,
     /// Boolean negation, `!x`.
     Not,

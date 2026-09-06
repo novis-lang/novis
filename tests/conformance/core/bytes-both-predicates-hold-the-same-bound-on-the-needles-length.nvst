@@ -1,5 +1,5 @@
 --TEST--
-Spec § 7: `Core\Bytes::startsWith` and `endsWith` hold the same bound on the needle's length — empty, full width, and one byte past it — and agree with each other wherever a prefix and a suffix are the same buffer — ADR 0009 § 1, ADR 0063 R6
+Spec § 7: `Core\Bytes::startsWith` and `endsWith` hold the same bound on the needle's length — empty, full width, and one byte past it — and agree with each other wherever a prefix and a suffix are the same buffer — `rule:types/bytes`, ADR 0063 R6
 --FILE--
 <?nvs
 // Both members are written around one bound: a needle is answered `true` up to
@@ -12,7 +12,7 @@ Spec § 7: `Core\Bytes::startsWith` and `endsWith` hold the same bound on the ne
 // 0 … 9 against an 8-byte subject, so the last accepted width and the first
 // refused one are two rows of one loop rather than two hand-picked cases.
 class Yn {
-    // `bool as string` renders `false` as the empty string (ADR 0007 § 2), so
+    // `bool as string` renders `false` as the empty string (`rule:types/conversion`), so
     // a rendered answer needs a spelling of its own to be visible at all.
     public static function of(bool $b): string {
         if ($b) { return "y"; }

@@ -204,7 +204,7 @@ pub enum ScalarType {
     Uint(IntWidth),
     /// Binary floating point.
     Float(FloatWidth),
-    /// `DECIMAL(p, s)` — the exact type [ADR 0054](/docs/adr/0054-decimal-scalar-type.md)
+    /// `DECIMAL(p, s)` — the exact type `rule:types/decimal`
     /// makes a Novis `decimal`.
     Decimal {
         /// Total significant digits, 1 to 38 — SQL Server's ceiling, which is

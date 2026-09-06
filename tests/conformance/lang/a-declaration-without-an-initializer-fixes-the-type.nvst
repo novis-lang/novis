@@ -1,8 +1,8 @@
 --TEST--
-`int $x;` declares without binding: the type is the declaration's and the value arrives later, on one line or on every branch of an `if` — ADR 0007 § 1, ADR 0037
+`int $x;` declares without binding: the type is the declaration's and the value arrives later, on one line or on every branch of an `if` — `rule:types/declaration`, `rule:types/var-inference`
 --FILE--
 <?nvs
-// ADR 0007 § 1 fixes a binding's type where it is declared, and nothing about
+// `rule:types/declaration` fixes a binding's type where it is declared, and nothing about
 // that needs an initializer on the same line: the definite-assignment pass
 // refuses a *read* on a path no assignment reached, which is what makes a
 // bare declaration safe rather than a hole. What it must not do is let the

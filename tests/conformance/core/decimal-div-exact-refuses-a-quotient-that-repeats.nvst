@@ -1,5 +1,5 @@
 --TEST--
-ADR 0054 § 3: `Core\Decimal::divExact` throws where the quotient repeats, and names the division it could not answer
+`rule:types/arithmetic`: `Core\Decimal::divExact` throws where the quotient repeats, and names the division it could not answer
 --FILE--
 <?nvs
 // The refusal is the whole point of the member. The operator answers here --

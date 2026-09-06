@@ -7,7 +7,7 @@
 //!
 //! # `string` is valid UTF-8, so this module never validates
 //!
-//! [ADR 0009](/docs/adr/0009-string-and-bytes.md) guarantees a
+//! `rule:types/bytes` guarantees a
 //! `string`'s bytes are valid UTF-8, which is what lets every member below
 //! reach for `&str` operations directly. [`text`] is the one place an argument
 //! becomes one, and it checks the **tag** and nothing else: the guarantee is a
@@ -67,7 +67,7 @@
 //! # Granularity is decided elsewhere, and read from one place
 //!
 //! `length`, `at` and `padStart`/`padEnd`'s `$length` all count in
-//! [`crate::granularity::DEFAULT`] — ADR 0009 § 2's answer, stated in that
+//! [`crate::granularity::DEFAULT`] — `rule:types/string-is-utf8`'s answer, stated in that
 //! module and in that ADR, never restated here. Every other member is
 //! granularity-independent.
 //!
@@ -1668,7 +1668,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 /// program can catch its way out of.
 ///
 /// There is no *encoding* failure to report, and this is where that shows in
-/// the cost. The tag [`Value::as_text`] checks is itself ADR 0009's UTF-8
+/// the cost. The tag [`Value::as_text`] checks is itself `rule:types/bytes`'s UTF-8
 /// guarantee — `nvs_runtime`'s `string` module owns the argument in its
 /// § *Reading the payload as text* — so re-deriving it here would be an O(n)
 /// pass per argument, at every call site in this file, over a buffer the
@@ -1823,7 +1823,7 @@ nvs_runtime::nvs_helper! {
     /// `Core\Str::length(string $s): uint` — how many characters the string
     /// holds, replacing PHP's `strlen` *and* `mb_strlen` at once.
     ///
-    /// The unit is [`crate::granularity::DEFAULT`], which is ADR 0009 § 2's
+    /// The unit is [`crate::granularity::DEFAULT`], which is `rule:types/string-is-utf8`'s
     /// decision and is stated there and nowhere else. What that means for a
     /// PHP program being ported is the divergence row in that ADR's
     /// *Consequences*: `strlen("café")` is 5 and this is 4.
@@ -1836,7 +1836,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// **And one pass per string, not per call**: the answer is kept in the
     /// string's own header, so a `length` inside a loop over the same subject
-    /// pays the scan once — ADR 0009's *Consequences* asked for exactly that,
+    /// pays the scan once — `rule:types/bytes`'s *Consequences* asked for exactly that,
     /// and `granularity::Unit::length_of` is the seam it arrives through.
     fn nvs_core_str_length(_ctx, args: [1]) {
         let subject = text(&args[0], "length", "the subject")?;
@@ -1863,7 +1863,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// * **The unit is a character, not a byte** — [`crate::granularity`],
     ///   whose own docs record why a byte-indexed `at` cannot exist at all
-    ///   under ADR 0009's UTF-8 invariant.
+    ///   under `rule:types/bytes`'s UTF-8 invariant.
     /// * **An index that addresses nothing throws**, rather than PHP's warning
     ///   plus `""`. The declared return type is `string`, not `?string`, and
     ///   [ADR 0063](/docs/adr/0063-core-api-conventions.md) R4/R5
@@ -2173,7 +2173,7 @@ nvs_runtime::nvs_helper! {
     /// code points wants the numbers, and `Str::graphemes` is already the
     /// member that answers pieces of text. Every element is a Unicode scalar
     /// value, so it is in `0..=0x10FFFF` and never a surrogate — `string` is
-    /// guaranteed well-formed UTF-8 (ADR 0009 § 1), which is what makes this
+    /// guaranteed well-formed UTF-8 (`rule:types/bytes`), which is what makes this
     /// total where PHP's `mb_ord` has a failure mode.
     ///
     /// **This is [`crate::granularity::Unit::CodePoint`], not the class
@@ -2195,7 +2195,7 @@ nvs_runtime::nvs_helper! {
 /// `subject` with every leading and/or trailing character drawn from
 /// `characters` removed — the shared body of `trim`/`trimStart`/`trimEnd`.
 ///
-/// Two deliberate divergences from PHP's `trim`, both consequences of ADR 0009
+/// Two deliberate divergences from PHP's `trim`, both consequences of `rule:types/bytes`
 /// making a `string` text rather than bytes, and of ADR 0063 R13 refusing a
 /// mini-language inside an argument:
 ///
@@ -2417,9 +2417,9 @@ nvs_runtime::nvs_helper! {
             // UTF-8: `nvs_runtime`'s `key_at` renders a packed slot's key as
             // its own decimal digits, a hashed entry's key is the `string` it
             // was written with, and a `string` is guaranteed well-formed UTF-8
-            // (ADR 0009 § 1). Probed with `array<string> $pairs = [1 => "z"];`,
+            // (`rule:types/bytes`). Probed with `array<string> $pairs = [1 => "z"];`,
             // which arrives here as the needle `"1"`; a `bytes` key reaches no
-            // call at all, refused while lowering (ADR 0007 § 5 owns which
+            // call at all, refused while lowering (`rule:types/arrays` owns which
             // pass should say so). Nothing a program writes reaches this arm —
             // unreachable from source.
             let needle = std::str::from_utf8(key.as_bytes()).map_err(|_| {
@@ -2600,7 +2600,7 @@ fn after_match(haystack: &str, at: usize, matched: usize) -> usize {
 }
 
 /// A byte offset into `subject` as the `uint` position a member answers with —
-/// [`crate::granularity::DEFAULT`]'s unit, which is what ADR 0009 § 2 makes
+/// [`crate::granularity::DEFAULT`]'s unit, which is what `rule:types/string-is-utf8` makes
 /// every `string` position Novis hands out.
 fn position(subject: &str, byte: usize) -> HelperResult {
     // Unreachable from source for `nvs_core_str_length`'s reason, which states
@@ -3402,9 +3402,9 @@ fn normal_form_of(value: &Value) -> Result<NormalForm, Fault> {
 /// anything above U+10FFFF, and the surrogate range U+D800..=U+DFFF, which
 /// UTF-8 cannot encode and which is the exact hole a UTF-16 round trip leaks.
 /// PHP's `mb_chr` answers `false` for both; Novis throws, because a `string` is
-/// guaranteed well-formed UTF-8 (ADR 0009 § 1) and a substituted replacement
+/// guaranteed well-formed UTF-8 (`rule:types/bytes`) and a substituted replacement
 /// character would be the silent-lossy conversion
-/// [ADR 0007](/docs/adr/0007-explicit-type-system.md) § 2 refuses
+/// `rule:types/conversion` refuses
 /// everywhere else.
 fn scalar_value(point: i128, member: &str) -> Result<char, Fault> {
     u32::try_from(point)

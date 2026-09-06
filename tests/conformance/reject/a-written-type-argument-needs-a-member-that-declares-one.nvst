@@ -1,5 +1,5 @@
 --TEST--
-a `<T>` written at a call site is refused on every member that infers its variables from its arguments — ADR 0007 § 1
+a `<T>` written at a call site is refused on every member that infers its variables from its arguments — `rule:types/declaration`
 --FILE--
 <?nvs
 array<string> $a = ["one"];

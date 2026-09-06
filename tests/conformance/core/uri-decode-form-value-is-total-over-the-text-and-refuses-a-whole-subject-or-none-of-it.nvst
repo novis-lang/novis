@@ -1,5 +1,5 @@
 --TEST--
-`Core\Uri::decodeFormValue` has exactly one refusal and the text cannot cause it: it answers for every one of the 128 raw ASCII bytes and for all 256 arrangements of a `%` with a non-hex neighbour, and where the octets do refuse it refuses the *whole* subject wherever the escape sits rather than answering the prefix it had already decoded — spec § 12, ADR 0009
+`Core\Uri::decodeFormValue` has exactly one refusal and the text cannot cause it: it answers for every one of the 128 raw ASCII bytes and for all 256 arrangements of a `%` with a non-hex neighbour, and where the octets do refuse it refuses the *whole* subject wherever the escape sits rather than answering the prefix it had already decoded — spec § 12, `rule:types/bytes`
 --FILE--
 <?nvs
 // Two claims that the neighbouring cases each half-state. The malformed-escape
@@ -11,7 +11,7 @@
 //
 // Both halves were checked against PHP 8.5 while this was written: `urldecode`
 // answers the same text for every row below that Novis answers for, the
-// refusals being ADR 0009's divergence, which the module doc owns.
+// refusals being `rule:types/bytes`'s divergence, which the module doc owns.
 
 // First: the raw bytes, unescaped. A `%`-free subject has no escape to be
 // well formed, so every one of the 128 ASCII bytes is text — the `+` that is a

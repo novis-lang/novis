@@ -1,8 +1,8 @@
 --TEST--
-An ordering whose operand the checker could not type is decided by that operand's runtime tag — ADR 0007 § 4's rows where the table has one, and a catchable throw carrying `E0715`'s own wording where it has none (ADR 0007 § 4, ADR 0036 § 4)
+An ordering whose operand the checker could not type is decided by that operand's runtime tag — `rule:types/arithmetic`'s rows where the table has one, and a catchable throw carrying `E0715`'s own wording where it has none (`rule:types/arithmetic`, `rule:types/erased-member-access`)
 --FILE--
 <?nvs
-// ADR 0007 § 4's ordering table is closed, and where the static types name a
+// `rule:types/arithmetic`'s ordering table is closed, and where the static types name a
 // row `nvs-codegen` emits the machine comparison. A `mixed` or a union names
 // none, so the *tag* names it instead — `nvs_ir::Helper::ValueLt` and its two
 // siblings — and the same table's closure becomes a throw rather than a
@@ -79,7 +79,7 @@ uint $big = 18446744073709551615;
 // `f64` first would round them together and answer `le`.
 echo Ask::lt(9223372036854775807, $big), " ", Ask::ltEq(9007199254740993, 9007199254740992.0), "\n";
 
-// ADR 0007 § 4's `bool` row: the ordering of the one bit it already is.
+// `rule:types/arithmetic`'s `bool` row: the ordering of the one bit it already is.
 echo Ask::lt(false, true), " ", Ask::lt(true, false), " ", Ask::ltEq(true, true), "\n";
 
 // `<=>` is the same row read whole rather than asked one question.

@@ -2,8 +2,8 @@
 a `for` header's init clause is a typed declaration or an expression list, and the counter it declares is function-scoped — `rule:iteration/for-init-clause` and `rule:iteration/for-counter-scope`
 --FILE--
 <?nvs
-// `rule:iteration/for-init-clause`: the declaration form. `local-decl` is ADR 0007 § 3.1's,
-// unchanged and in full — so a written type and ADR 0037's `var` are the
+// `rule:iteration/for-init-clause`: the declaration form. `local-decl` is `rule:types/grammar`.1's,
+// unchanged and in full — so a written type and `rule:types/var-inference`'s `var` are the
 // same production, not two.
 for (int $i = 0; $i < 3; $i = $i + 1) {
     echo $i, " ";
@@ -15,7 +15,7 @@ for (var $j = 0; $j < 3; $j = $j + 1) {
 }
 echo "\n";
 
-// `rule:iteration/for-counter-scope`: the counter is function-scoped, exactly as ADR 0007 § 1
+// `rule:iteration/for-counter-scope`: the counter is function-scoped, exactly as `rule:types/declaration`
 // makes every binding — so it is readable after the loop, carrying the
 // value that ended it. That is what makes this a spelling change rather
 // than a scoping one, and it is asserted from the outside.

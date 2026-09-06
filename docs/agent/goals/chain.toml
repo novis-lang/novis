@@ -130,7 +130,7 @@ handoff = "docs/agent/goals/9-schema.handoff.md"
 milestone = "post-parity"
 preflight = "docker"
 
-# Post-parity: ADR 0136's typed `callable`. Last on the chain because it is the only entry that reaches
+# Post-parity: `rule:types/callable-signature`'s typed `callable`. Last on the chain because it is the only entry that reaches
 # the front end -- `nvs-syntax` through `nvs-codegen` -- and every goal before it writes callbacks whose
 # rows this one rewrites; running it earlier would mean converting the same registry rows twice. Docker
 # preflight because its floor is goal 9's, which brings up every backend.
@@ -232,7 +232,7 @@ preflight = "docker"
 
 # ADR 0140's one converter from `array<mixed>` to a declared shape, and the two `Core\Request` members
 # over it -- which is what stops a request reader's answer being `mixed`. Last because its stage 2 is
-# type-surface work (ADR 0036's optional field, ADR 0024's qualifier over a shape) and every goal before
+# type-surface work (`rule:types/object-top`'s optional field, ADR 0024's qualifier over a shape) and every goal before
 # it writes shapes whose spelling this one widens; running it earlier would mean writing them twice. Its
 # stages 4-5 are proven over goal 16's `.nvst` request sections and goal 17's builder, so both have to
 # exist first.

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Hash::hmac` answers the digest its own RFC 2104 construction answers when that construction is streamed through `Core\Hash\Stream` — spec § 11, ADR 0009 §§ 1 and 3
+`Core\Hash::hmac` answers the digest its own RFC 2104 construction answers when that construction is streamed through `Core\Hash\Stream` — spec § 11, `rule:types/bytes` and `rule:types/conversion`
 --FILE--
 <?nvs
 // § 11: `hmac` is a member rather than an option because its third parameter

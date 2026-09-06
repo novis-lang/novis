@@ -17,7 +17,7 @@ echo Core\Str::slice("abcdef", -4, 2), "|\n";
 echo Core\Str::slice("abcdef", 9), "|\n";
 echo Core\Str::slice("abcdef", 0, -9), "|\n";
 echo Core\Str::slice("abcdef", -9, 2), "|\n";
-// The unit is the one `length` counts in (ADR 0009 § 2), so a combining mark
+// The unit is the one `length` counts in (`rule:types/string-is-utf8`), so a combining mark
 // travels with the letter it modifies rather than being cut off it.
 echo Core\Str::length(Core\Str::slice("cafe\u{301}s", 3, 1)) as string, "|\n";
 echo Core\Str::slice("cafe\u{301}s", 4, 1), "|\n";

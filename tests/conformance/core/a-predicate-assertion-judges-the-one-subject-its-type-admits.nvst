@@ -5,7 +5,7 @@
 // § 4's example writes these three beside the equality table without giving
 // them a signature, so what each subject admits is `nvs_stdlib::test`'s own
 // decision: a declared `bool` (`rule:expressions/truthy-positions` makes a *condition* the one place a
-// value is tested without `as`, and an argument is not one), ADR 0007 § 2's
+// value is tested without `as`, and an argument is not one), `rule:types/conversion`'s
 // `mixed`, and `Core\Arr::count`'s own `array<T>` plus `uint`. This runs the
 // holding and the failing side of each, and counts the agreements with the
 // equality spelling rather than reading one off a line.

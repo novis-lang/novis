@@ -1,5 +1,5 @@
 --TEST--
-ADR 0054 § 3: `Core\Decimal::divRound`'s six modes partition by what the truncation discarded, counted, and the same way on either sign
+`rule:types/arithmetic`: `Core\Decimal::divRound`'s six modes partition by what the truncation discarded, counted, and the same way on either sign
 --FILE--
 <?nvs
 // A mode decides what to do with what the truncation threw away, so the whole

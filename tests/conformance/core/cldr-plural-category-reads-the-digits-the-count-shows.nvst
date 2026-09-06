@@ -1,10 +1,10 @@
 --TEST--
-`Core\Cldr::pluralCategory` reads CLDR's operands from the digits the count shows, and refuses the two counts that show none it can read — `rule:programs/framework-core-half`, ADR 0054 § 3
+`Core\Cldr::pluralCategory` reads CLDR's operands from the digits the count shows, and refuses the two counts that show none it can read — `rule:programs/framework-core-half`, `rule:types/arithmetic`
 --FILE--
 <?nvs
 // CLDR's `v` and `f` operands are the fraction digits a reader *sees*, so
 // English's singular is `i = 1 and v = 0` and `1.0` is not it. A `decimal`
-// carries its scale (ADR 0054) and answers that distinction exactly; an `int`
+// carries its scale (`rule:types/decimal`) and answers that distinction exactly; an `int`
 // has no fraction at all; a `float` is read at the digits it prints, which is
 // what `echo` writes for the same value.
 class Form {

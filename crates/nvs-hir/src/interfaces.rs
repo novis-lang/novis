@@ -21,7 +21,7 @@
 //!
 //! # These are the only generics user code can name
 //!
-//! [ADR 0007](/docs/adr/0007-explicit-type-system.md) § 1 parks
+//! `rule:types/declaration` parks
 //! user-declared type parameters and
 //! `rule:iteration/concrete-generic-implements` opens
 //! exactly one door in that wall: a user class may implement a

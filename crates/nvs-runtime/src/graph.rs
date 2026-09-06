@@ -61,7 +61,7 @@
 //!
 //! 1. **A closure is recognized by its class's `invoke` method** — the same
 //!    test [`crate::closure::call_closure`] makes — so a user class that
-//!    declares an `invoke` of its own is refused as one. ADR 0007 makes this a
+//!    declares an `invoke` of its own is refused as one. `rule:types/declaration` makes this a
 //!    compile-time rejection at nearly every copy site; the runtime check is
 //!    for a `mixed` carrying one.
 //! 2. **`decode` resolves a class through the *program's* table only**, so an

@@ -39,7 +39,7 @@ fn converting_one_side_makes_the_same_comparison_compile() {
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
-/// ADR 0009 makes `string` and `bytes` different types on purpose, so the
+/// `rule:types/bytes` makes `string` and `bytes` different types on purpose, so the
 /// table refuses the comparison rather than deciding which encoding it meant.
 #[test]
 fn a_string_never_compares_against_bytes() {

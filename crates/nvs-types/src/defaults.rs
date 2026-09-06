@@ -69,7 +69,7 @@
 //!
 //! A class constant is also only as wide as [`crate::consts`] folds it: an
 //! integer whose magnitude no `int` holds has no folded value at all
-//! (ADR 0047 § 1), so `uint $n = Limits::MAX;` above `i64::MAX` is refused
+//! (`rule:types/literal-types`), so `uint $n = Limits::MAX;` above `i64::MAX` is refused
 //! here even though the literal `= 18446744073709551615` is accepted.
 //!
 //! **A `decimal` default is refused, and is now the shortest thing on this
@@ -122,8 +122,7 @@ pub enum ConstArg {
     ///
     /// Produced only by [`crate::core_lib`], from
     /// `nvs_stdlib::registry::Const::Bytes`: there is no `bytes` literal in
-    /// the language ([ADR 0009](/docs/adr/0009-string-and-bytes.md)
-    /// § 1), so no *written* default can reach this variant, and
+    /// the language (`rule:types/bytes`), so no *written* default can reach this variant, and
     /// [`literal_default`] does not produce it. It is kept apart from
     /// [`Self::Str`] because the two materialize under different runtime tags,
     /// which is the whole difference between the types.
@@ -194,7 +193,7 @@ pub enum ConstArg {
         /// Its arguments, positional.
         args: Vec<ConstArg>,
     },
-    /// An [ADR 0036](/docs/adr/0036-anonymous-object-shapes.md) § 2
+    /// An `rule:types/object-literal`
     /// shape value, its fields in the order they were written.
     ///
     /// Produced only by [`crate::attributes`], for `rule:attributes/retrieval-folds-while-checking`'s fold: a
@@ -204,7 +203,7 @@ pub enum ConstArg {
     /// lowering of its own, so nothing else needs a constant form of one.
     Shape(Vec<(String, ConstArg)>),
     /// An `array<T>` value, each entry as its own already-resolved `string`
-    /// key ([ADR 0007](/docs/adr/0007-explicit-type-system.md) § 5:
+    /// key (`rule:types/arrays`:
     /// every key is a `string`) and its constant value.
     ///
     /// Produced only by [`crate::attributes`], beside [`Self::Shape`] and for
@@ -316,7 +315,7 @@ pub(crate) fn eval_property_default(
 ///
 /// The declared type still decides, as it does for a literal: a case is
 /// accepted where the property declares that enum, an `int` constant widens
-/// into a `float` property under ADR 0007 § 2's one implicit conversion, and
+/// into a `float` property under `rule:types/conversion`'s one implicit conversion, and
 /// nothing else crosses. A `secret` constant ([ADR 0033](/docs/adr/0033-secret-qualifier-for-confidential-values.md)
 /// § 1) is refused into a non-`secret` slot with its own `E_TYPE_MISMATCH`,
 /// which is what the qualifier would otherwise be laundered by: the declared
@@ -407,7 +406,7 @@ pub(crate) fn fold_const_reference(
 ) -> Option<ConstArg> {
     match &expr.kind {
         // `static::class` would resolve here to the *declaring* class, which
-        // `rule:statements/static-is-a-member-modifier`'s late static binding makes the wrong answer: ADR 0144 § 1
+        // `rule:statements/static-is-a-member-modifier`'s late static binding makes the wrong answer: `rule:types/class-constant`
         // reads it off the frame's called class instead, and a constant
         // initializer has no frame to read. Left unfolded rather than answered
         // differently in two places — the read then takes `E0792`, the same
@@ -439,7 +438,7 @@ pub(crate) fn fold_const_reference(
 /// One already-folded constant against the property's own declared type —
 /// [`literal_default`]'s grid, with the literal's syntax already gone.
 ///
-/// The `int`-into-`float` row is the same widening ADR 0007 § 2 allows at any
+/// The `int`-into-`float` row is the same widening `rule:types/conversion` allows at any
 /// ordinary assignment and [`literal_default`] already applies to a written
 /// integer literal in a `float` position; every other pairing is refused
 /// rather than converted, because `as` is the only conversion spelling and a
@@ -458,7 +457,7 @@ fn place_const(value: ConstArg, declared: TypeId, env: &Env<'_>) -> Option<Const
         (Ty::Float, ConstArg::Int(n)) => {
             #[expect(
                 clippy::cast_precision_loss,
-                reason = "the same widening ADR 0007 § 2 already allows at an \
+                reason = "the same widening `rule:types/conversion` already allows at an \
                           ordinary int-to-float assignment, applied to a constant \
                           the author wrote by hand"
             )]
@@ -506,12 +505,12 @@ pub(crate) fn literal_default(
             float_value(*span, env.src).map(|f| ConstArg::Float(if negated { -f } else { f }))
         }
         // An integer literal in a `float` position is the one cross-type
-        // spelling accepted, for ADR 0007 § 4's reason: `int` widens to
+        // spelling accepted, for `rule:types/arithmetic`'s reason: `int` widens to
         // `float` at any ordinary assignment, and a default is one.
         (Ty::Float, ExprKind::Int(span)) => int_magnitude(*span, env).map(|m| {
             #[expect(
                 clippy::cast_precision_loss,
-                reason = "the same widening ADR 0007 § 4 already allows at an \
+                reason = "the same widening `rule:types/arithmetic` already allows at an \
                           ordinary int-to-float assignment, and the literal is \
                           written by hand"
             )]
@@ -584,7 +583,7 @@ pub(crate) fn eval_const_value(
     fold_const_array(items, Some(element), None, env)
 }
 
-/// One array literal's entries under the `string` keys ADR 0007 § 5 gives them,
+/// One array literal's entries under the `string` keys `rule:types/arrays` gives them,
 /// with a keyless run taking its position in that run — every value here is
 /// constant, so the auto-index has one answer and this is the last place it is
 /// cheap to compute.

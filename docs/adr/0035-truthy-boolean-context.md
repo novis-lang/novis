@@ -6,9 +6,9 @@
   already be `bool` — `if`/`elseif`'s condition, `while`/`do…while`'s condition, `for`'s middle clause, the
   ternary/elvis operator's condition, and `&&`/`||`/`!`'s operand(s); the runtime rule those positions use to
   turn an arbitrary value into a branch decision.
-- **Amends:** none. [ADR 0007](0007-explicit-type-system.md) never stated a rule for these positions —
+- **Amends:** none. `rule:types/declaration` never stated a rule for these positions —
   `nvs-types`' `check_stmt` already passes `expected: None` for every condition, and nothing enforced or
-  rejected any type there. This ADR is the first to say so on purpose, closing a gap ADR 0007 left open
+  rejected any type there. This ADR is the first to say so on purpose, closing a gap `rule:types/declaration` left open
   rather than reopening a decision it made.
 - **Amended by:** 0090
 
@@ -19,16 +19,16 @@
 > including every object, callable and enum case, and every array with at least one element
 > regardless of its contents — is truthy. This is the **one** place Novis performs an implicit, PHP-shaped
 > conversion on a value's declared type; everywhere else — assigning into a `bool`-typed parameter, property,
-> return, or local; `==`/`match` — ADR 0007's rule is untouched: an explicit `as bool` or comparison is
+> return, or local; `==`/`match` — `rule:types/declaration`'s rule is untouched: an explicit `as bool` or comparison is
 > still required, and nothing narrower than a condition gets this exception.
 
 ## Context
 
 - Priority 4 argues for it directly: ported PHP code leans on `if ($str)`, `if ($rows)`, `if ($err)`
   constantly. Requiring `$str != ''`, `count($rows) > 0`, or an `as bool` conversion at every such site is
-  exactly the ceremony ADR 0007's own verbosity trade-off already worries about — compounded at every branch
+  exactly the ceremony `rule:types/declaration`'s own verbosity trade-off already worries about — compounded at every branch
   rather than at every declaration.
-- Priority 1 doesn't actually require the strict reading: the risk ADR 0007 § 2 closes is a *declared type
+- Priority 1 doesn't actually require the strict reading: the risk `rule:types/conversion` closes is a *declared type
   silently changing*. A truthiness test produces no value and changes no binding's type, so it can't produce
   a "wrong answer far from its cause." PHP's one real footgun here — `"0"` falsy but `"0.0"`/`"false"` truthy
   — is a string-legibility complaint, not a type-safety hole, and no worse in Novis than it already is in PHP.
@@ -44,13 +44,13 @@ condition, and `&&`/`||`/`!`'s operand(s). Every one of them accepts a value of 
 union, a scalar, an array, an object, an enum case, `callable` — with no diagnostic for not
 already being `bool`.
 
-### 1. The one exception to ADR 0007 § 2, named precisely
+### 1. The one exception to `rule:types/conversion`, named precisely
 
-ADR 0007 § 2 states a declared type never changes except through `as` or a new binding. A condition's
+`rule:types/conversion` states a declared type never changes except through `as` or a new binding. A condition's
 truthiness test is not a conversion at all under that rule — it produces no value of a different type
 that could be read back, assigned, or passed on. It answers exactly one question, "branch or don't," and
 the answer itself is always freshly computed, never stored as a re-typed `$x`. That is what keeps this a
-narrow, named carve-out rather than a hole in ADR 0007: nothing here lets a `string` flow into a `bool`
+narrow, named carve-out rather than a hole in `rule:types/declaration`: nothing here lets a `string` flow into a `bool`
 *binding* without `as bool`, and nothing here changes what `==`/`match` do.
 
 ### 2. The truthy table
@@ -71,12 +71,12 @@ Exactly PHP's own rule, applied to Novis's own type set:
 | `mixed` / a union | resolved dynamically per this table, dispatching on the value's runtime type | — |
 
 `null`/`never`/`void` cannot occur as a condition's static type in the first place outside `mixed`
-(ADR 0007 already keeps `void`/`never` out of value position); this table only needs to cover what can
+(`rule:types/declaration` already keeps `void`/`never` out of value position); this table only needs to cover what can
 actually reach a condition.
 
 **The `bytes` row is the one PHP does not hand over, and it deliberately drops the `"0"` case.** PHP has no
 such type, so its `string` row is the only neighbour — but that row's one-character exception exists because
-PHP reads a string as a possible number, and [ADR 0009](0009-string-and-bytes.md) makes `bytes` the type that
+PHP reads a string as a possible number, and `rule:types/bytes` makes `bytes` the type that
 never converts to one. Carrying the quirk across would make a one-octet buffer falsy for a reason that does
 not apply to it, and it would do so silently, on the type most likely to be holding a length-prefixed frame
 whose first octet is arbitrary. Emptiness is the only question `bytes` answers here. A `bytes` reaching a
@@ -88,7 +88,7 @@ When a condition's static type is a scalar, array, class, `callable`, or enum �
 union — the compiler already knows which row of the table applies, and lowers straight to the matching
 native test (`x != 0`, `len != 0`, `true`, …) with no dispatch. Only a `mixed`/union-typed condition pays for
 a runtime helper that inspects the value's tag and applies the table dynamically — the same "the fast path
-is the typed one" shape ADR 0007 § 6 already commits to for every other `mixed` operation.
+is the typed one" shape `rule:types/unions-and-mixed` already commits to for every other `mixed` operation.
 
 ### 4. Enum cases are always truthy, not judged by their backing value
 
@@ -116,7 +116,7 @@ already test null-vs-not, an entirely separate axis from truthiness, and are lik
 
 - Every "is this set" condition ported from real PHP — `if ($rows)`, `while ($line)`, `if ($err)`,
   `$user && $user->active`, `!$items` — type-checks and runs with its original meaning, with zero rewriting
-  needed by `nvs convert` (M11) for this shape specifically, unlike the mechanical rewrites ADR 0034 and
+  needed by `nvs convert` (M11) for this shape specifically, unlike the mechanical rewrites `rule:types/no-legacy-cast` and
   every other rejected-construct ADR require.
 - The exception is small and precisely bounded — six syntax positions, one table — rather than a general
   "anything convertible to bool converts implicitly" rule that would have no natural edge.
@@ -127,7 +127,7 @@ already test null-vs-not, an entirely separate axis from truthiness, and are lik
 
 - **PHP's own truthy-table footguns travel unchanged**: `"0"` is falsy but `"0.0"` and `"false"` are
   truthy, and a non-empty array is truthy regardless of whether every element is itself falsy. Code review,
-  not the compiler, is what catches a condition that meant something else — the same trade ADR 0007 § 6
+  not the compiler, is what catches a condition that meant something else — the same trade `rule:types/unions-and-mixed`
   already accepts for `mixed` as a whole.
 - **One more rule to hold in mind reading any condition**: "what is this expression's type, and is it one of
   the six positions" now matters for whether a value can appear bare or needs `as bool`. Mitigated by the
@@ -138,7 +138,7 @@ already test null-vs-not, an entirely separate axis from truthiness, and are lik
 
 ## Alternatives rejected
 
-- **No implicit truthiness anywhere — every condition must already be `bool`.** The strict ADR 0007 reading
+- **No implicit truthiness anywhere — every condition must already be `bool`.** The strict `rule:types/declaration` reading
   with zero exceptions. Rejected: the ceremony this forces at every branch is the priority-4 cost this
   decision avoids, and priority 1 doesn't require it (*Context*).
 - **A restricted subset** (only `null`/`bool` tested implicitly; other scalars still need `as bool`).

@@ -59,12 +59,12 @@
 //!
 //! Everything else a tagged value needs is a *reader*, not a representation:
 //! [`value_truthy`] answers `rule:expressions/truthy-positions`'s table for one and [`value_to_string`]
-//! answers ADR 0007 § 2's string rows, each branching on the tag out of line so
+//! answers `rule:types/conversion`'s string rows, each branching on the tag out of line so
 //! that compiled code keeps knowing exactly one tag layout.
 //!
 //! # `bytes` is a tag, not a second heap shape
 //!
-//! [ADR 0009](/docs/adr/0009-string-and-bytes.md) makes `bytes` a
+//! `rule:types/bytes` makes `bytes` a
 //! scalar of its own, and it lands here as **one new [`Tag`] row over the
 //! existing [`NvsStr`] allocation**. A `bytes` payload is a [`StrHeader`]
 //! pointer, allocated, retained, released and freed by exactly the machinery
@@ -75,7 +75,7 @@
 //!
 //! * **One heap shape**, because the difference between the two types is the
 //!   UTF-8 promise, which is a checker property. A second buffer would be the
-//!   "second arena setup" ADR 0009 § 1 already rejected, and it would make
+//!   "second arena setup" `rule:types/bytes` already rejected, and it would make
 //!   § 3's `string as bytes` row — *total, free, the same buffer reinterpreted*
 //!   — allocate. As it stands that conversion is a retain and a tag byte, and
 //!   `bytes as string` is a UTF-8 validation over a borrow. Neither copies.
@@ -96,7 +96,7 @@
 //! collects that debt rather than a convention anyone has to remember.
 //!
 //! Two readers state a rule of their own rather than copying `string`'s.
-//! [`value_to_string`] **refuses** a `bytes`, because ADR 0009 § 3 makes
+//! [`value_to_string`] **refuses** a `bytes`, because `rule:types/conversion` makes
 //! `bytes as string` checked and an implicit `.` or `echo` is not that check;
 //! [`helpers::bytes_to_string`] is that check, reached only from the explicit `as` and
 //! retagging the same allocation once the octets validate.
@@ -147,7 +147,7 @@
 //!   `nvs_ir::InstKind::ArrayNew`/`ArrayGet`/`ArraySet`/`ArrayAppend` and the
 //!   `foreach` cursor. Landed ahead of the codegen that emits them, same as
 //!   the two above;
-//! * [`Decimal`], ADR 0054's scalar — sign, a 96-bit mantissa and a scale of
+//! * [`Decimal`], `rule:types/decimal`'s scalar — sign, a 96-bit mantissa and a scale of
 //!   0 to 28, with the whole of § 3's arithmetic and § 4's conversions. It is
 //!   **not a second heap shape or a second register shape**: a `decimal` is a
 //!   [`Value`] carrying [`Tag::Decimal`], whose mantissa spends the bytes the

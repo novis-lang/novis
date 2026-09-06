@@ -49,11 +49,11 @@
 //! it costs and what it buys — recorded here because the fork is the
 //! expensive part, not the code:
 //!
-//! * **A bag is its own type, not an ADR 0036 shape.** `nvs_types::ty::Ty`
+//! * **A bag is its own type, not an `rule:types/object-top` shape.** `nvs_types::ty::Ty`
 //!   has an `Options` variant beside `Shape`, spellable only from here the
 //!   way `TypeVar` already is. Reusing `Shape` would need an `optional` flag
 //!   on its fields *and* a `?` in the surface type grammar, and would leave an
-//!   unknown option accepted — ADR 0036 § 3's width subtyping allows an extra
+//!   unknown option accepted — `rule:types/shape-type`'s width subtyping allows an extra
 //!   field on purpose, while a mistyped option name must be an error.
 //! * **A bag is always last and always optional**, because every option is.
 //!   Its `MethodSig::defaults` entry is a `ConstArg::Options(...)` carrying
@@ -227,11 +227,11 @@ pub enum CoreTy {
     Bool,
     /// `int`
     Int,
-    /// `uint` — ADR 0007 § 4.
+    /// `uint` — `rule:types/arithmetic`.
     Uint,
     /// `float`
     Float,
-    /// `decimal` — [ADR 0054](/docs/adr/0054-decimal-scalar-type.md)'s
+    /// `decimal` — `rule:types/decimal`'s
     /// scalar, which the spec writes wherever a member is exact over money:
     /// the `int|float|decimal` unions of `Core\Math` and the subject of
     /// `Core\Arr::sum`/`product`/`average`.
@@ -247,7 +247,7 @@ pub enum CoreTy {
     /// this is the only spelling, because a classification describes what a
     /// member does with an argument.
     Str,
-    /// `bytes` — ADR 0009. Unclassified, exactly as [`Self::Str`] is;
+    /// `bytes` — `rule:types/bytes`. Unclassified, exactly as [`Self::Str`] is;
     /// [`Self::Blob`] is the classified spelling.
     Bytes,
     /// A `string` parameter carrying [`Qual`], ADR 0088 § 2's classification.
@@ -345,7 +345,7 @@ pub enum CoreTy {
     /// none, so a row that wrote it there would be documenting a demand no
     /// caller can fail to meet.
     TaintedStr,
-    /// `tainted bytes` — [`Self::TaintedStr`] on the other of ADR 0009's two
+    /// `tainted bytes` — [`Self::TaintedStr`] on the other of `rule:types/bytes`'s two
     /// octet types, and return position only for that variant's reason.
     ///
     /// The row that needs it is `Core\Request::bodyStream`, whose element type
@@ -377,12 +377,11 @@ pub enum CoreTy {
     SecretTaintedStr,
     /// `void`, return position only.
     Void,
-    /// `mixed` — ADR 0007 § 3's one unchecked position.
+    /// `mixed` — `rule:types/grammar`'s one unchecked position.
     Mixed,
     /// `array<T>`, whose element type is the wrapped one.
     Array(&'static CoreTy),
-    /// `callable` — [ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md)
-    /// § 4's one closure type, and opaque: it says nothing about the
+    /// `callable` — `rule:types/callable-absorbs-closure`'s one closure type, and opaque: it says nothing about the
     /// parameters or the result of the closure that satisfies it. What a
     /// `Core` member actually hands a callback is stated by
     /// [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
@@ -425,7 +424,7 @@ pub enum CoreTy {
     /// diagnostics, and `nvs_types::expr::args` is the one place that reads a
     /// field. That is ADR 0072 § 1's own restriction rather than an
     /// implementation limit: `callable` carries no signature, so a variable has
-    /// nothing to bind from, and ADR 0007 § 3's deferred typed-`callable`
+    /// nothing to bind from, and `rule:types/grammar`'s deferred typed-`callable`
     /// signatures are what would lift it.
     ///
     /// **Parameter position only, and never nested**, exactly as
@@ -464,7 +463,7 @@ pub enum CoreTy {
     /// (`E_TYPE_ARGS_NOT_GENERIC`), which is what keeps an *inferred* variable
     /// from gaining a second, unchecked spelling.
     Written(&'static str),
-    /// `A|B|...` — ADR 0007 § 3's union, at least two members.
+    /// `A|B|...` — `rule:types/grammar`'s union, at least two members.
     ///
     /// Legal in **either** direction. A helper's argument slot is a whole
     /// `nvs_runtime::Value` whose tag `nvs-codegen` writes from the argument's
@@ -489,8 +488,7 @@ pub enum CoreTy {
     /// one that showed the restriction was about `null` rather than about
     /// literals. `a_union_option_excludes_null` holds it.
     Union(&'static [CoreTy]),
-    /// **One `int` literal** — [ADR 0047](/docs/adr/0047-literal-and-enum-case-types.md)
-    /// § 1's integer atom, whose only use is inside a [`Self::Union`] that
+    /// **One `int` literal** — `rule:types/literal-types`'s integer atom, whose only use is inside a [`Self::Union`] that
     /// spells out a closed set of numbers.
     ///
     /// The same relationship to [`Self::Int`] that [`Self::EnumCase`] has to
@@ -537,8 +535,7 @@ pub enum CoreTy {
     /// past `i64::MAX`.
     Enum(&'static str),
     /// **One case** of a `Core`-owned enum, named by that enum and the case —
-    /// [ADR 0047](/docs/adr/0047-literal-and-enum-case-types.md)
-    /// § 3's narrowed type, whose only use is inside a [`Self::Union`] that
+    /// `rule:types/enum-case-type`'s narrowed type, whose only use is inside a [`Self::Union`] that
     /// spells out a closed subset.
     ///
     /// `Core\Hash::hmac`'s third parameter is the reason it exists.
@@ -665,7 +662,7 @@ pub enum CoreTy {
     /// ADR 0063 R2's trailing options shape — `{step?: int}`, one
     /// [`CoreOption`] per declared option, in the order the ABI passes them.
     /// See this module's own docs for why it is its own type rather than a
-    /// [`CoreTy`] wrapping an ADR 0036 shape.
+    /// [`CoreTy`] wrapping an `rule:types/object-top` shape.
     ///
     /// Only ever the **last** entry of [`CoreMethod::params`], and never
     /// listed in [`CoreMethod::defaults`] or in [`CoreMethod::names`]: every
@@ -820,8 +817,7 @@ pub enum Const {
     /// A `bytes` default, as the octets themselves.
     ///
     /// Separate from [`Self::Str`] rather than reusing it, because the two
-    /// differ in exactly the way [ADR 0009](/docs/adr/0009-string-and-bytes.md)
-    /// § 1 says they do: a `bytes` default carries no UTF-8 promise, so it is
+    /// differ in exactly the way `rule:types/bytes` says they do: a `bytes` default carries no UTF-8 promise, so it is
     /// written as a byte string (`b"…"`) and materialized under `Tag::Bytes`.
     /// Passing a `Str` default into a `bytes` parameter would be a type lie
     /// the helper would have to `FATAL` on — `Core\Bytes::join`'s
@@ -1260,7 +1256,7 @@ pub const CLASSES: &[CoreClass] = &[
     crate::attributes::CLASS,
     crate::math::CLASS,
     // Beside `Core\Math` because it is the other half of one question: § 3's
-    // rounding is over `float`, and ADR 0054 § 3's two named-rounding members
+    // rounding is over `float`, and `rule:types/arithmetic`'s two named-rounding members
     // are the same decision made exactly. No spec § of its own — the spec's
     // own roster table points at that ADR for the non-operator members of the
     // `decimal` scalar.
@@ -2258,7 +2254,7 @@ pub(crate) fn render_symbol(name: &str) -> Option<&'static str> {
 ///
 /// [`CoreTy::Written`] tells the *checker* what a `<...>` list binds; it says
 /// nothing to the runtime, because a type argument is erased like every other
-/// one ([ADR 0007](/docs/adr/0007-explicit-type-system.md)). A
+/// one (`rule:types/declaration`). A
 /// member like `Core\Json::decodeAs<User>` needs more than the erasure: it has
 /// to build a `User`, which means reaching that class's
 /// `nvs_runtime::ClassDesc` from native Rust.
@@ -3047,7 +3043,7 @@ mod tests {
     #[test]
     fn a_shapes_arms_are_pairwise_disjoint() {
         /// The values a type admits, as atoms, or `None` for a type that is
-        /// not a closed set of them. ADR 0047's enum-case types are what
+        /// not a closed set of them. `rule:types/literal-types`'s enum-case types are what
         /// separate real arms, so this stays deliberately small: anything
         /// wider is simply not a proof, and the pair must be separated by a
         /// required key instead.

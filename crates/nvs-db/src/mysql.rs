@@ -128,7 +128,7 @@
 //! sends `utf8mb4_general_ci`. That is
 //! [ADR 0067 § 3](/docs/adr/0067-core-db.md)'s third default — text
 //! columns arrive as valid UTF-8 by construction, which is what
-//! [ADR 0009](/docs/adr/0009-string-and-bytes.md)'s guarantee needs —
+//! `rule:types/bytes`'s guarantee needs —
 //! and it costs nothing, where a `SET NAMES` after the fact would be a round
 //! trip and a window in which one was not set.
 
@@ -2673,14 +2673,14 @@ pub fn encode(value: Value) -> io::Result<Option<Vec<u8>>> {
             // cast reads back to the same bits.
             float.to_string()
         }
-        // Exact on both sides, as PostgreSQL's is: ADR 0054's `decimal` renders
+        // Exact on both sides, as PostgreSQL's is: `rule:types/decimal`'s `decimal` renders
         // as digits and a point, which is `DECIMAL`'s own input form, so
         // nothing rounds here the way binding it as a `DOUBLE` would.
         Some(Tag::Decimal) => value
             .as_decimal()
             .map(|exact| exact.to_string())
             .unwrap_or_default(),
-        // A `string` is UTF-8 by ADR 0009 and the session is `utf8mb4` by the
+        // A `string` is UTF-8 by `rule:types/bytes` and the session is `utf8mb4` by the
         // connect path, so the octets go out as they are — and so do a
         // `bytes`'s, which is the row that differs from the other driver.
         Some(Tag::Str) => {
@@ -2732,7 +2732,7 @@ pub fn decode(column: &Column, value: &MyValue) -> io::Result<Option<Value>> {
 /// # Errors
 ///
 /// `InvalidData` for a value its column's own type cannot be read out of: a
-/// `DECIMAL` past what [ADR 0054](/docs/adr/0054-decimal-scalar-type.md)'s
+/// `DECIMAL` past what `rule:types/decimal`'s
 /// `decimal` holds, a text column whose octets are not UTF-8, a `BIT(1)` that
 /// is neither bit, a `TIME` outside a day ([`time_of_day`]), and a value whose
 /// shape is not the one its column declared, which is a server that did not
@@ -2873,7 +2873,7 @@ fn time_of_day(
 /// The connection's charset is `utf8mb4` and the server was told so, but a
 /// column's own charset is per column and a `latin1` one still arrives; the
 /// check is what keeps § 9's `tainted string` a Novis `string`, which
-/// [ADR 0009](/docs/adr/0009-string-and-bytes.md) makes UTF-8 by
+/// `rule:types/bytes` makes UTF-8 by
 /// definition.
 fn text<'a>(column: &Column, body: &'a [u8]) -> io::Result<&'a str> {
     std::str::from_utf8(body).map_err(|_| malformed(column, "well-formed UTF-8"))

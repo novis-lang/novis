@@ -1,8 +1,8 @@
 --TEST--
-A grapheme count asked again answers what the first ask answered, and a concatenation's count is corrected at the seam rather than summed — ADR 0009 § 2
+A grapheme count asked again answers what the first ask answered, and a concatenation's count is corrected at the seam rather than summed — `rule:types/string-is-utf8`
 --FILE--
 <?nvs
-// ADR 0009 § 2 makes the extended grapheme cluster the unit `Core\Str::length`
+// `rule:types/string-is-utf8` makes the extended grapheme cluster the unit `Core\Str::length`
 // counts, and the count is meant to be answered a second time out of the
 // string's own header rather than by scanning again. A cache is invisible from
 // source by construction, so what a program can pin is the invariant it must

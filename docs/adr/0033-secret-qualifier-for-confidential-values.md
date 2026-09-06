@@ -13,7 +13,7 @@
   already gave `tainted`; every other row is unchanged.
   [0024](0024-taint-tracking-for-injection-sinks.md) § 1 — the `qualified_type` grammar production gains a
   second, independent optional qualifier: `qualified_type := 'secret'? 'tainted'? scalar_type | <every other
-  atom in ADR 0007 § 3, unqualified>`. § 2's checked-conversion laundering rule now also strips `secret`.
+  atom in `rule:types/grammar`, unqualified>`. § 2's checked-conversion laundering rule now also strips `secret`.
   § 5 — a `secret`-qualified value reaching a `Markup`-building interpolation position (the inline
   `<?= expr ?>` slot or a templating helper) is refused with a diagnostic, not auto-escaped-and-displayed;
   auto-escape neutralizes structure, not exposure, so it is the wrong tool for this qualifier and § 5's "never
@@ -90,7 +90,7 @@
 
 ```
 scalar_type    := 'string' | 'bytes'
-qualified_type := 'secret'? 'tainted'? scalar_type | <every other atom in ADR 0007 § 3, unqualified>
+qualified_type := 'secret'? 'tainted'? scalar_type | <every other atom in `rule:types/grammar`, unqualified>
 ```
 
 `secret` and `tainted` are independent bits, not a combined enum: a value can be `string` (neither),
@@ -351,7 +351,7 @@ operator for everything — and it makes the qualifier awkward for a thing progr
 Verification, in the order it becomes possible:
 
 - **M1**: `nvs ast` parses `secret string`/`secret bytes` and `secret tainted string`/`secret tainted bytes`
-  in every declaration slot [ADR 0007](0007-explicit-type-system.md) already requires a spelled type for; the
+  in every declaration slot `rule:types/declaration` already requires a spelled type for; the
   qualifier round-trips through an AST snapshot test the same way `tainted` already does; `tainted secret
   string` (wrong order) produces a diagnostic naming the required `secret`-before-`tainted` order.
 - **M2**: the `nvs check` corpus gains cases proving `secret` poisons through concatenation/interpolation

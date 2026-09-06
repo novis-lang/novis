@@ -10,7 +10,7 @@ namespace App;
 class User {
     // `self` is the class this method is declared in, and stays folded for
     // that reason. `static::class` is the other spelling and answers the
-    // *called* class instead — ADR 0144 § 1, pinned by its own case.
+    // *called* class instead — `rule:types/class-constant`, pinned by its own case.
     public static function own(): string {
         return self::class;
     }

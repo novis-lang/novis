@@ -1,5 +1,5 @@
 --TEST--
-a `name:` call argument is evaluated where it is written and lands in its own parameter's slot, so a call may reorder its arguments and skip a defaulted parameter in the middle, while a `...` argument binds by position at the end of the list (ADR 0007 § 5, ADR 0063 R2, ADR 0011 § 1)
+a `name:` call argument is evaluated where it is written and lands in its own parameter's slot, so a call may reorder its arguments and skip a defaulted parameter in the middle, while a `...` argument binds by position at the end of the list (`rule:types/arrays`, ADR 0063 R2, ADR 0011 § 1)
 --FILE--
 <?nvs
 final class Fmt {

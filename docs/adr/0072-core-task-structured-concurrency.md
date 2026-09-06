@@ -80,7 +80,7 @@ echo $page->user->name;          // typed User, not mixed
 echo Core\Arr::length($page->orders);
 ```
 
-The argument is an [ADR 0036](0036-anonymous-object-shapes.md) shape literal whose every field is a
+The argument is an `rule:types/object-top` shape literal whose every field is a
 zero-argument closure, and the result is a shape with **the same field names and each closure's own return
 type**. This is the whole reason the member is worth having: the uniform alternative returns
 `array<mixed>`, and every call site then pays a cast, which is the same defect that made a userland DI
@@ -88,8 +88,8 @@ container untypeable and got one rejected during the session this ADR came out o
 
 - **Each field's type binds from a written `fn` literal's declared return type.** A field whose value is a
   `callable`-typed variable rather than a literal is a compile error naming the field, because there is
-  nothing to bind from — [ADR 0031](0031-callable-is-the-only-closure-type.md) leaves `callable` without a
-  signature, and [ADR 0007](0007-explicit-type-system.md) § 3's deferred typed-`callable` signatures are
+  nothing to bind from — `rule:types/closure-literal` leaves `callable` without a
+  signature, and `rule:types/grammar`'s deferred typed-`callable` signatures are
   what would remove this restriction, and that ADR's *Revisiting* is where this case is counted with the
   others.
 - The closures run as ordinary tasks on the calling core unless a body itself spawns elsewhere; each is a
@@ -121,7 +121,7 @@ One trailing options shape (R2), the same two fields on both members:
   **schedules**, it does not throw: this is a concurrency shaper, deliberately unlike § 4's
   `max_concurrent`, which is a host bound and does throw.
 - **`deadline: Duration`** — a wall-clock bound on the whole call, not per child, expressed as an
-  [ADR 0070](0070-duration-literals.md) literal. There is no default: a call that names no deadline is
+  `rule:types/duration-literal` literal. There is no default: a call that names no deadline is
   bounded by the request tree's own `wall_time`, which is finite by
   [ADR 0005](0005-config-changeability.md) and is the only reason omitting it is safe.
 
@@ -316,7 +316,7 @@ is bounded, and it is O(in-flight deferred trees) rather than O(requests served)
   hit rather than what protects them. Any such hook needs its own reserved budget and its own zero-retry
   rule, exactly as `rule:errors/escalation-ladder`'s tiers do; it is not a relaxation of § 5, it
   is a new mechanism, and it needs its own argument.
-- **Typed `callable` signatures** ([ADR 0007](0007-explicit-type-system.md) § 3) remove § 1's `fn`-literal
+- **Typed `callable` signatures** (`rule:types/grammar`) remove § 1's `fn`-literal
   restriction and are now blocking three separate features.
 - **An isolate that outlives its parent tree** stays exactly as open as
   [ADR 0006](0006-isolated-script-execution.md) left it. § 6 is not a step toward it.

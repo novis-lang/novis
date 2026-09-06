@@ -1,4 +1,4 @@
-# ADR 0009 — `string` is text; binary data is a distinct `bytes` type
+# `rule:types/bytes` — `string` is text; binary data is a distinct `bytes` type
 
 - **Status:** Accepted
 - **Date:** 2026-08-20

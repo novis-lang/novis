@@ -208,7 +208,7 @@ runs:
   no second one, since the cascade in *Context* is what those codes exist to delete — which is also why
   a rejected header still keeps whatever declaration it held, so no later phase reports an undeclared
   counter. § 2's re-declaration is the third case there,
-  `a-second-for-header-redeclaring-its-counter-is-refused.nvst`, carrying ADR 0007 § 1's own `E0406`
+  `a-second-for-header-redeclaring-its-counter-is-refused.nvst`, carrying `rule:types/declaration`'s own `E0406`
   rather than a code of this ADR's.
 
 The parser's own tests hold the grammar half — `crates/nvs-syntax/src/parser/tests/stmt.rs` gains the

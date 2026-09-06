@@ -4,7 +4,7 @@ Core\Encoding::encodeText agrees with iconv() over every encoding both of them c
 <?nvs
 // `Core\Encoding::encodeText(string $s, Charset $charset): bytes` is
 // `iconv("UTF-8", $charset, $s)` with the source encoding gone: a Novis
-// `string` is guaranteed-valid UTF-8 (ADR 0009 § 2), so the "from" half of
+// `string` is guaranteed-valid UTF-8 (`rule:types/string-is-utf8`), so the "from" half of
 // `iconv`'s pair is a fact about the type rather than an argument, and the
 // charset is a `Core\Charset` case rather than a label string PHP parses at
 // run time. The answer is `bytes` either way, and the oracle below writes

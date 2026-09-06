@@ -26,9 +26,9 @@ compile-time half wired into `nvs-types` — and, per
 qualifier classification here**, with an unclassified `string`/`bytes` parameter refusing `tainted` and that
 crate's own test suite failing on any member that ships without one (§ 2 of the same ADR); the pass that
 marks the existing rows is part of building §§ 1–12 rather than a separate slice. `Duration::parse` shares its grammar and its implementation with
-M1's duration literal ([ADR 0070](../adr/0070-duration-literals.md)), so build the literal first and this is
+M1's duration literal (`rule:types/duration-literal`), so build the literal first and this is
 the same parser reached from a second entry point. `Core\Str`'s
-unit is [ADR 0009](../adr/0009-string-and-bytes.md) § 2's grapheme cluster, decided and seamed in
+unit is `rule:types/string-is-utf8`'s grapheme cluster, decided and seamed in
 `nvs_stdlib::granularity`; the **lazily cached count** that ADR's *Consequences* names is still owed and
 belongs here, in `nvs_runtime::NvsStr`'s header, alongside the O(1) boundary correction a concatenation
 needs at the seam. `Core\Json` also brings the first **compiler-recognized**

@@ -1,5 +1,5 @@
 --TEST--
-`as property<T>` admits only a public declared property of `T`, checking a written-out name where it is written and a computed one where it arrives — ADR 0126 §§ 1-2
+`as property<T>` admits only a public declared property of `T`, checking a written-out name where it is written and a computed one where it arrives — `rule:types/property-key`
 --FILE--
 <?nvs
 class Animal {
@@ -44,7 +44,7 @@ echo $missed == null ? "null" : "some", "\n";
 ?property<Dog> $found = $absent as ?property<Dog>;
 echo $found == null ? "null" : "some", "\n";
 
-// § 2's row is a row of ADR 0007 § 2's grid, so a miss throws rather than
+// § 2's row is a row of `rule:types/conversion`'s grid, so a miss throws rather than
 // substituting, and the message names the class and the name it was given.
 try {
     property<Animal> $bad = $absent as property<Animal>;

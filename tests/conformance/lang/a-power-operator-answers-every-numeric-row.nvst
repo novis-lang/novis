@@ -1,8 +1,8 @@
 --TEST--
-`**` answers every numeric row ADR 0007 § 4 gives it, throwing where that row has no integer to return (ADR 0007 §§ 2, 4; ADR 0054 § 3)
+`**` answers every numeric row `rule:types/arithmetic` gives it, throwing where that row has no integer to return (`rule:types/conversion` and `rule:types/arithmetic`; `rule:types/arithmetic`)
 --FILE--
 <?nvs
-// ADR 0007 § 4's `int ⊕ int` row: the operand type, exactly, over the whole
+// `rule:types/arithmetic`'s `int ⊕ int` row: the operand type, exactly, over the whole
 // range of it. Square-and-multiply is what lowers this, so the interesting
 // exponents are the ones whose bit pattern makes it square one time too many
 // if the loop is written naively.
@@ -23,7 +23,7 @@ uint $ten = 10;
 uint $nineteen = 19;
 echo $ten ** $nineteen, "\n";
 
-// ADR 0007 § 4's "either operand a `float`" row, and § 2's implicit widening
+// `rule:types/arithmetic`'s "either operand a `float`" row, and § 2's implicit widening
 // of an `int` into a `float` position — `9 ** 0.5` is the second, since the
 // literal `9` is an `int` and the exponent forces the pair to `float`.
 float $x = 2.0;
@@ -35,7 +35,7 @@ int $p = 2;
 $p **= 8;
 echo $p, "\n";
 
-// ADR 0007 § 4 lists `**` beside `+`, `-` and `*`: "no wrap, no promotion to
+// `rule:types/arithmetic` lists `**` beside `+`, `-` and `*`: "no wrap, no promotion to
 // `float`". So a result past the operand type throws rather than becoming a
 // `float`, which is the divergence from PHP that row is spelling out.
 try {

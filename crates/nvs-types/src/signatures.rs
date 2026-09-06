@@ -122,7 +122,7 @@ pub struct MethodSig {
     /// empty for everything else.
     ///
     /// Only a `Core` member registered through [`crate::core_lib`] can have
-    /// any: ADR 0007 § 1 parks user-declared generics, so
+    /// any: `rule:types/declaration` parks user-declared generics, so
     /// [`build_signatures`] always writes an empty list here. It is *not* the
     /// list of every variable the signature mentions — an inferred one
     /// ([`nvs_stdlib::registry::CoreTy::Var`]) is bound from an argument's
@@ -154,7 +154,7 @@ pub struct MethodSig {
     /// worse: interning `static` as a *distinct* type is the principled fix
     /// and rewrites every consumer of a `TypeId`; setting this bit only for a
     /// body that provably forwards would weaken a call site silently, which
-    /// ADR 0007 exists to prevent; and accepting the hole spends priority 2
+    /// `rule:types/declaration` exists to prevent; and accepting the hole spends priority 2
     /// (correctness) to buy priority 4 (simplicity), which AGENTS.md's
     /// ordering forbids outright.
     ///
@@ -313,7 +313,7 @@ impl MethodSig {
 
     /// Whether this signature mentions a type variable anywhere — the test
     /// that decides whether a call site needs [`crate::generics`] at all.
-    /// Always false for a user-declared signature: ADR 0007 parks
+    /// Always false for a user-declared signature: `rule:types/declaration` parks
     /// user-declared generics, so only a `Core` member registered through
     /// [`crate::core_lib`] can answer true.
     #[must_use]
@@ -533,7 +533,7 @@ pub struct ClassSignature {
 ///
 /// Collected here rather than in [`crate::consts`] because both halves need
 /// the interner, and [`crate::consts::build_const_table`] deliberately runs
-/// before the first annotation is interned — ADR 0047 § 2's `Foo::TYPE_A` in
+/// before the first annotation is interned — `rule:types/constant-in-type-position`'s `Foo::TYPE_A` in
 /// *type* position is folded there, out of the written literal alone, and that
 /// pass has to be complete before this one begins. So the two tables answer
 /// two different questions about the same declaration and neither is a copy of
@@ -1040,7 +1040,7 @@ fn collect_members(
                         // and nothing classifies a user-declared one — see
                         // `MethodSig::param_quals`.
                         param_quals: Vec::new(),
-                        // ADR 0007 § 1: a user-declared method
+                        // `rule:types/declaration`: a user-declared method
                         // has no type parameters to write.
                         type_params: Vec::new(),
                         return_ty,
@@ -1133,7 +1133,7 @@ fn record_promoted_properties(
 /// a slot on an instance, armed once where the instance is made, and an
 /// ordinary method has no such moment — it may be called any number of times,
 /// or none.
-/// ADR 0007 § 3: `void` and `never` are return-only, so neither is a parameter.
+/// `rule:types/grammar`: `void` and `never` are return-only, so neither is a parameter.
 ///
 /// Read off the *lowered* type rather than the written spelling, so a `type`
 /// alias resolving to one is refused with the same code as the keyword — and
@@ -1373,7 +1373,7 @@ fn resolve_property_rec(
 /// [`ConstSig::ty`] owns why this is a fallback rather than a diagnostic — an
 /// unannotated `const` parses, so a read of one still has to answer something,
 /// and the value's own type is the closest thing to a declaration the source
-/// contains. A `string` constant answers `string` rather than ADR 0047 § 1's
+/// contains. A `string` constant answers `string` rather than `rule:types/literal-types`'s
 /// literal type: § 2's literal-type fold is what a use in *type* position
 /// gets, and a read is an ordinary expression.
 fn folded_const_ty(qname: &QName, name: &str, env: &mut Env<'_>) -> TypeId {

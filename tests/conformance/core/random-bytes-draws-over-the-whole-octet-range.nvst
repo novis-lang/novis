@@ -1,5 +1,5 @@
 --TEST--
-Core\Random::bytes draws over the whole octet range rather than over any text subset of it — 6000 single-octet draws reach all 256 values, NUL among them, and the high bit is set about half the time — spec § 11, ADR 0009 §§ 1 and 3
+Core\Random::bytes draws over the whole octet range rather than over any text subset of it — 6000 single-octet draws reach all 256 values, NUL among them, and the high bit is set about half the time — spec § 11, `rule:types/bytes` and `rule:types/conversion`
 
 --FILE--
 <?nvs
@@ -8,7 +8,7 @@ Core\Random::bytes draws over the whole octet range rather than over any text su
 // (`random-bytes-draws-a-raw-buffer`, `random-every-draw-is-swept-for-its-
 // invariants`, `random-an-oversized-draw-names-the-check-that-refused-it`).
 // A generator restricted to printable ASCII — the shape a `string`-backed
-// implementation drifts into, since ADR 0009 § 1 is what keeps the two types
+// implementation drifts into, since `rule:types/bytes` is what keeps the two types
 // apart — holds every one of those counts while quietly answering with under
 // a quarter of the entropy its count promises. The range itself is therefore
 // the invariant, and it is counted over a sweep rather than read off a draw.

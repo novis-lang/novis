@@ -1,5 +1,5 @@
 --TEST--
-on ASCII, Core\Str::length and strlen agree — the whole ADR 0009 § 2 question disappears
+on ASCII, Core\Str::length and strlen agree — the whole `rule:types/string-is-utf8` question disappears
 --FILE--
 <?nvs
 echo Core\Str::length(""), "\n";

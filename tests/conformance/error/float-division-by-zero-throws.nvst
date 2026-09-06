@@ -1,8 +1,8 @@
 --TEST--
-`/ 0` throws `ArithmeticError` whatever the operand types — the statically typed `float` row and the tagged one alike, with `Core\Math::fdiv` the one spelling left for IEEE's infinity (ADR 0007 § 4)
+`/ 0` throws `ArithmeticError` whatever the operand types — the statically typed `float` row and the tagged one alike, with `Core\Math::fdiv` the one spelling left for IEEE's infinity (`rule:types/arithmetic`)
 --FILE--
 <?nvs
-// ADR 0007 § 4's float row: "the zero divisor is refused before the operand
+// `rule:types/arithmetic`'s float row: "the zero divisor is refused before the operand
 // types are consulted, so there is one rule and not two". PHP made the same
 // move, and `fdiv` is the function it grew when it did, so this is priority 2
 // — PHP-compatible observable behaviour — rather than a divergence of ours.

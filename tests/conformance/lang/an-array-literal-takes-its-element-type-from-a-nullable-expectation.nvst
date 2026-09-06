@@ -1,5 +1,5 @@
 --TEST--
-An array literal placed against a `?array<T>` expectation is an `array<T>` — in a binding, a `return` and an argument (ADR 0007 §§ 2, 5; `rule:expressions/nullable-conversion`)
+An array literal placed against a `?array<T>` expectation is an `array<T>` — in a binding, a `return` and an argument (`rule:types/conversion` and `rule:types/arrays`; `rule:expressions/nullable-conversion`)
 --FILE--
 <?nvs
 // ADR 0066: `?T` is `null|T`, and the `null` arm is the *other* thing the
@@ -11,7 +11,7 @@ if ($m != null) {
 
 // The element type really reaches the elements: `Core\Str::repeat` takes a
 // `uint`, and an untyped numeric literal only becomes one by being placed
-// (ADR 0007 § 2). An `array<mixed>` fallback would not compile at all.
+// (`rule:types/conversion`). An `array<mixed>` fallback would not compile at all.
 ?array<uint> $u = ["a" => 3];
 if ($u != null) {
     echo Core\Str::repeat("*", $u["a"]), "\n";

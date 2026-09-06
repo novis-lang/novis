@@ -1,8 +1,8 @@
 --TEST--
-`as object`, `as callable` and `as Core\Class` from anything that is not already an object are `E0711`, ADR 0007 § 2's table naming no row that produces one
+`as object`, `as callable` and `as Core\Class` from anything that is not already an object are `E0711`, `rule:types/conversion`'s table naming no row that produces one
 --FILE--
 <?nvs
-// ADR 0007 § 2 tabulates no conversion into an object. A *declared* class
+// `rule:types/conversion` tabulates no conversion into an object. A *declared* class
 // target is admitted anyway because it can be checked — the value's runtime
 // class is compared against a descriptor. These three name no descriptor at
 // all, so the conversion could only assert the tag it cannot verify.
@@ -22,27 +22,27 @@ error[E0711]: `mixed` cannot be converted to `object`
   |
 7 | object $o = $m as object;
   |             ^^^^^^^^^^^^ converted here
-  = help: ADR 0007 § 2 tabulates no conversion into an object, and this target names no class to test the value against: convert to a declared class instead, which is the one checked way out of `mixed`
+  = help: `rule:types/conversion` tabulates no conversion into an object, and this target names no class to test the value against: convert to a declared class instead, which is the one checked way out of `mixed`
 
 error[E0711]: `mixed` cannot be converted to `callable`
   --> %s:8:15
   |
 8 | callable $c = $m as callable;
   |               ^^^^^^^^^^^^^^ converted here
-  = help: ADR 0007 § 2 tabulates no conversion into an object, and this target names no class to test the value against: convert to a declared class instead, which is the one checked way out of `mixed`
+  = help: `rule:types/conversion` tabulates no conversion into an object, and this target names no class to test the value against: convert to a declared class instead, which is the one checked way out of `mixed`
 
 error[E0711]: `mixed` cannot be converted to `Core\Uri`
    --> %s:11:15
    |
 11 | Core\Uri $u = $m as Core\Uri;
    |               ^^^^^^^^^^^^^^ converted here
-   = help: ADR 0007 § 2 tabulates no conversion into an object, and this target names no class to test the value against: convert to a declared class instead, which is the one checked way out of `mixed`
+   = help: `rule:types/conversion` tabulates no conversion into an object, and this target names no class to test the value against: convert to a declared class instead, which is the one checked way out of `mixed`
 
 error[E0711]: `string` cannot be converted to `object`
    --> %s:15:13
    |
 15 | object $p = $s as object;
    |             ^^^^^^^^^^^^ converted here
-   = help: ADR 0007 § 2 tabulates no conversion into an object, and this target names no class to test the value against: convert to a declared class instead, which is the one checked way out of `mixed`
+   = help: `rule:types/conversion` tabulates no conversion into an object, and this target names no class to test the value against: convert to a declared class instead, which is the one checked way out of `mixed`
 
 error: aborting due to 4 errors

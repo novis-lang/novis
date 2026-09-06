@@ -452,12 +452,12 @@ fn parameter_names(sig: &MethodSig) -> String {
 /// [`check_options_arg`] instead.
 ///
 /// The fork exists because a bag is a *type* with no assignability rule: an
-/// ADR 0036 object literal infers to a [`Ty::Shape`], and a shape is never
+/// `rule:types/object-top` object literal infers to a [`Ty::Shape`], and a shape is never
 /// assignable to a [`Ty::CoreShape`] — deliberately, since the two are checked
 /// by opposite rules (width subtyping accepts an unnamed extra field, an
 /// options bag refuses one). Routing the argument here rather than teaching
 /// [`is_assignable`] about bags keeps that asymmetry in one place, and keeps
-/// `{...}` in every *other* position meaning exactly what ADR 0036 says.
+/// `{...}` in every *other* position meaning exactly what `rule:types/object-top` says.
 pub(crate) fn check_arg(
     value: &Expr,
     expected: Option<TypeId>,
@@ -1025,15 +1025,14 @@ pub(crate) fn option_names(options: &[crate::ty::CoreShapeField]) -> String {
 ///
 ///    **An array element is not one of them, and that is permanent** —
 ///    findings.md's D22, which was filed against the word *yet* this refusal
-///    used to carry. ADR 0007 § 5's copy-on-write leaves an element no
+///    used to carry. `rule:types/arrays`'s copy-on-write leaves an element no
 ///    address that survives a call, so the only way to accept
 ///    `M::bump(inout $a["k"])` is to copy the element into a temporary at the
 ///    call site and copy it back afterwards. That is a reference only for as
 ///    long as the callee does not reach the same array: where it does, the
 ///    write-back lands after the callee's own writes and silently discards
 ///    them, and where it does not, the two are identical. Novis does not
-///    offer a reference that is sometimes not one (priority 2, and ADR 0007
-///    § 5's separation is what buys priority 1), so the refusal names the
+///    offer a reference that is sometimes not one (priority 2, and `rule:types/arrays`'s separation is what buys priority 1), so the refusal names the
 ///    rewrite instead — the same copy, written where the reader can see it.
 ///    `an_array_element_passed_by_reference_is_diagnosed` in
 ///    `crates/nvs-types/tests/by_reference.rs` holds it.
@@ -1041,7 +1040,7 @@ pub(crate) fn option_names(options: &[crate::ty::CoreShapeField]) -> String {
 ///    widen on the way in (`int` into a `float` parameter); a by-reference one
 ///    may not, because the callee writes back at the *declared* type and the
 ///    caller's storage would then have to narrow on the way out — silently,
-///    and lossily. ADR 0007 § 1's "no type ever changes by itself" leaves no
+///    and lossily. `rule:types/declaration`'s "no type ever changes by itself" leaves no
 ///    room for that, so the two sides must agree exactly.
 ///
 /// Obligation 2 is only reported when the argument would otherwise have been
@@ -1086,7 +1085,7 @@ pub(crate) fn check_inout_arg(
                 )
                 .with_primary(arg.value.span, "passed by reference here")
                 .with_help(
-                    "ADR 0007 § 5's copy-on-write separation gives an element no stable \
+                    "`rule:types/arrays`'s copy-on-write separation gives an element no stable \
                      address — read it into a local, pass that, and write it back, where \
                      the copy is visible",
                 ),
@@ -1144,7 +1143,7 @@ pub(crate) fn check_inout_arg(
 /// **A position whose declared type mentions no variable is already known**,
 /// so it is checked against it in that first pass, exactly as
 /// [`check_args_typed`] would. That is not an optimization: an expected type
-/// is what tells an integer literal it is a `uint` (ADR 0007 § 4's rule, in
+/// is what tells an integer literal it is a `uint` (`rule:types/arithmetic`'s rule, in
 /// the [`ExprKind::Int`] arm of [`check_expr`]), so without it
 /// `Core\Arr::padStart($a, 4, "-")` would report `expected uint, found int`
 /// for a literal that is plainly in range -- while `Core\Str::padStart`, whose
@@ -1160,7 +1159,7 @@ pub(crate) fn check_inout_arg(
 /// in both directions: `Core\Test::assertSame($u, 2)` binds `T` to `uint` and
 /// then compares an `int` against it, and `assertSame(2, $u)` binds `T` to
 /// `int` and fails the `uint` instead. Placement is what an expected type
-/// *does* for a literal (ADR 0007 § 2, "untyped until placed"), so the third
+/// *does* for a literal (`rule:types/conversion`, "untyped until placed"), so the third
 /// pass checks such an argument a second time against the now-known parameter
 /// type rather than testing it for assignability, and
 /// [`super::literals::is_unplaced_literal`] bounds which arguments are worth
@@ -1294,7 +1293,7 @@ pub(crate) fn check_generic_args(
             arg_types[index] = check_arg(&arg.value, Some(declared), live, scope, ctx, env);
             continue;
         }
-        // ADR 0007 § 2's untyped literal, finally placeable: the bindings
+        // `rule:types/conversion`'s untyped literal, finally placeable: the bindings
         // have produced the type the first pass had none of. Checked rather
         // than compared, and returning rather than falling into the
         // assignability test below, for the bag's reason one arm up —
@@ -1359,7 +1358,7 @@ fn bind_callable_shape(value: &Expr, env: &mut Env<'_>) -> TypeId {
                     )
                     .with_primary(field.value.span, "not an `fn` literal")
                     .with_help(
-                        "`callable` carries no signature (ADR 0031), so this field's own \
+                        "`callable` carries no signature (`rule:types/closure-literal`), so this field's own \
                          result type exists only at the literal — a variable, a parameter or \
                          a first-class callable has none to read",
                     ),
@@ -1440,7 +1439,7 @@ pub(crate) fn check_written_type_args(
             )
             .with_primary(span, "type arguments written here")
             .with_help(
-                "user-declared type parameters are deferred (ADR 0007 § 1), and a `Core` member                  whose spec signature writes none infers every type it needs from its arguments",
+                "user-declared type parameters are deferred (`rule:types/declaration`), and a `Core` member                  whose spec signature writes none infers every type it needs from its arguments",
             ),
         );
         return (Some(sig), written);

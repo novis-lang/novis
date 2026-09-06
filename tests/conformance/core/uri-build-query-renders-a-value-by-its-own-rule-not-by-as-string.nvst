@@ -1,10 +1,10 @@
 --TEST--
-`Core\Uri::buildQuery` renders each value by the query string's own rule rather than by `as string`, and the divergences are exactly the two it is written around: `false` is `0` and a `null` drops its pair — spec § 12, ADR 0007 § 2
+`Core\Uri::buildQuery` renders each value by the query string's own rule rather than by `as string`, and the divergences are exactly the two it is written around: `false` is `0` and a `null` drops its pair — spec § 12, `rule:types/conversion`
 --FILE--
 <?nvs
 // The three neighbouring cases assert `buildQuery` against `parseQuery` — the
 // inverse, the fixed point, the bracket convention. None of them can see what
-// this one asks: whether a value's *text* is the conversion ADR 0007 § 2
+// this one asks: whether a value's *text* is the conversion `rule:types/conversion`
 // already defines. It is not, and `scalar_text` in uri.rs says why — a query
 // string has no spelling for an absent value, and `false as string` is the
 // empty string, which on the wire is indistinguishable from `""`.

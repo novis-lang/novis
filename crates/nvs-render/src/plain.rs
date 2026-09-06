@@ -309,7 +309,7 @@ mod tests {
         );
     }
 
-    /// An enum case renders as its name, never as the integer ADR 0047 § 5
+    /// An enum case renders as its name, never as the integer `rule:types/literal-types`
     /// spends no representation on hiding, and a closure as its signature
     /// rather than as an object with invisible captures.
     #[test]

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Hash::hmac` answers RFC 4231's vectors for a key shorter than the block, a binary key and a key longer than the block, and `Core\Hash::equals` answers over operands of unequal length — spec § 11, ADR 0009 §§ 1 and 3
+`Core\Hash::hmac` answers RFC 4231's vectors for a key shorter than the block, a binary key and a key longer than the block, and `Core\Hash::equals` answers over operands of unequal length — spec § 11, `rule:types/bytes` and `rule:types/conversion`
 --FILE--
 <?nvs
 // RFC 2104's construction pads the key to the hash's block size, or hashes it
@@ -19,8 +19,8 @@ echo Core\Encoding::toHex(Core\Hash::hmac("Hi There", $key20, Core\Digest::Sha51
 // RFC 4231 Case 4: a 25-octet key of ascending octets and 50 octets of `cd`.
 // Neither is text — `secret bytes $key` is a `bytes` parameter and the data
 // side takes `bytes|string`, so a key that came out of a key-derivation and a
-// message that came off a socket both arrive without a UTF-8 detour (ADR 0009
-// §§ 1 and 3).
+// message that came off a socket both arrive without a UTF-8 detour (`rule:types/bytes` and `rule:types/conversion`
+// ).
 bytes $key25 = Core\Encoding::fromHex("0102030405060708090a0b0c0d0e0f10111213141516171819");
 bytes $cd50 = Core\Encoding::fromHex(Core\Str::repeat("cd", 50));
 echo Core\Encoding::toHex(Core\Hash::hmac($cd50, $key25, Core\Digest::Sha256)), "\n";

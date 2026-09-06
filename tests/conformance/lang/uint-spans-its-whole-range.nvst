@@ -1,5 +1,5 @@
 --TEST--
-`uint` holds 0, i64::MAX, i64::MAX + 1 and 2^64 − 1, and never mixes signedness in arithmetic — ADR 0007 § 4
+`uint` holds 0, i64::MAX, i64::MAX + 1 and 2^64 − 1, and never mixes signedness in arithmetic — `rule:types/arithmetic`
 --FILE--
 <?nvs
 uint $zero = 0;

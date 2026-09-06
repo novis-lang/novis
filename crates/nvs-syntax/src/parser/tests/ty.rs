@@ -22,7 +22,7 @@ fn nested_array_generic_closes_through_a_split_shift_token() {
     ));
 }
 
-/// ADR 0125 § 1: `class<T>` is one atom holding one argument, in the
+/// `rule:types/class-reference`: `class<T>` is one atom holding one argument, in the
 /// conversion slot that is its only source and in the local slot that holds
 /// the result.
 #[test]
@@ -58,7 +58,7 @@ fn a_class_reference_is_a_type_atom_with_one_class_argument() {
     assert!(matches!(inner.kind, TypeKind::Atom(TypeAtom::ClassRef(_))));
 }
 
-/// ADR 0126 § 1: `property<T>` is one atom holding one argument, in the
+/// `rule:types/property-key`: `property<T>` is one atom holding one argument, in the
 /// conversion slot that is its only source and in the local slot that holds
 /// the result.
 #[test]
@@ -97,7 +97,7 @@ fn a_property_key_is_a_type_atom_with_one_class_argument() {
     ));
 }
 
-/// ADR 0126 § 1 makes `property` a keyword in front of a `<` in type position
+/// `rule:types/property-key` makes `property` a keyword in front of a `<` in type position
 /// and nowhere else, so the spellings a program already writes keep working —
 /// which is the whole reason `Parser::at_property_key` asks for the `<`.
 #[test]
@@ -177,7 +177,7 @@ fn an_implements_entry_carries_its_type_arguments_and_its_delegation() {
     assert!(decl.implements[2].type_args.is_empty());
 }
 
-// --- ADR 0047: literal and enum-case type atoms -------------------------
+// --- `rule:types/literal-types`: literal and enum-case type atoms -------------------------
 
 /// Parses `<ty>` in the one type position an expression test can reach —
 /// a conversion's target — and returns it with the source text its span
@@ -278,7 +278,7 @@ fn a_class_constant_or_enum_case_parses_in_type_position() {
     assert_eq!(written, "Foo::TYPE_A");
 
     // A namespace-qualified owner, and a union of two — the shape
-    // ADR 0047 §§ 2-3 are both written in.
+    // `rule:types/constant-in-type-position` and `rule:types/enum-case-type` are both written in.
     let (ty, _) = conversion_type("App\\Mode::Read|App\\Mode::Write");
     let TypeKind::Union(members) = ty.kind else {
         panic!("expected a union: {ty:?}");
@@ -366,7 +366,7 @@ fn union_and_intersection_types() {
 
 #[test]
 fn decimal_is_a_type_atom_in_every_slot() {
-    // ADR 0054 § 1: `decimal` is a scalar type atom, so it parses
+    // `rule:types/decimal`: `decimal` is a scalar type atom, so it parses
     // wherever `float` does and stays distinct from it in the AST --
     // § 3's `decimal ⊕ float` compile error is only expressible if the
     // two never collapse.
@@ -403,7 +403,7 @@ fn decimal_is_a_type_atom_in_every_slot() {
 
 #[test]
 fn a_decimal_literal_suffix_does_not_parse() {
-    // ADR 0054 § 2: there is no literal suffix, so `19.99m` is a float
+    // `rule:types/numeric-literal-placement`: there is no literal suffix, so `19.99m` is a float
     // literal followed by a stray identifier rather than a decimal --
     // `19.99 as decimal` is the only spelling. The lexer's
     // `a_trailing_m_is_not_a_decimal_literal_suffix` pins the token pair;
@@ -613,7 +613,7 @@ fn tainted_secret_wrong_order_is_diagnosed() {
 
 #[test]
 fn shape_type_parses_in_every_declaration_slot() {
-    // ADR 0036 § 3, mirroring `tainted`/`secret`'s own
+    // `rule:types/shape-type`, mirroring `tainted`/`secret`'s own
     // every-declaration-slot tests.
     let s = parse_stmt_ok(
         "class C { \
@@ -664,7 +664,7 @@ fn shape_type_parses_in_every_declaration_slot() {
 
 #[test]
 fn shape_type_can_be_empty_and_composes_with_array_and_union() {
-    // ADR 0036 § 3: an empty `{}` in type position carries the same
+    // `rule:types/shape-type`: an empty `{}` in type position carries the same
     // "no field promised" meaning as plain `object` — no ambiguity with
     // a block exists in type position, unlike expression position.
     let e = parse_ok("$m as {}");

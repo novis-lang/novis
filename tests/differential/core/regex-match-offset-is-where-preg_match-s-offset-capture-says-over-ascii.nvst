@@ -8,7 +8,7 @@ Core\Regex\Match::offset is the position PREG_OFFSET_CAPTURE reports and the fro
 //
 // **Every subject here is ASCII**, and that is the case's precondition rather
 // than a convenience. `offset` is a `crate::granularity::DEFAULT`-unit index —
-// a grapheme index, ADR 0009 § 2 — where `PREG_OFFSET_CAPTURE` reports a byte
+// a grapheme index, `rule:types/string-is-utf8` — where `PREG_OFFSET_CAPTURE` reports a byte
 // count, so the two are the same number only while the subject has one byte
 // per cluster. `regex-match-offset-is-a-grapheme-index-from-zero-to-the-
 // subject-length` is the conformance case that owns the other side of that,

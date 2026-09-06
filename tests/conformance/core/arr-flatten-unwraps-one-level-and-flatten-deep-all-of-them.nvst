@@ -1,5 +1,5 @@
 --TEST--
-Core\Arr::flatten unwraps exactly one level and keeps its element type, while ::flattenDeep unwraps every level and erases to mixed, per spec § 2 and ADR 0069 § 3
+Core\Arr::flatten unwraps exactly one level and keeps its element type, while ::flattenDeep unwraps every level and erases to mixed, per spec § 2 and `rule:types/preserve-keys`
 --FILE--
 <?nvs
 // Spec § 2: two members rather than one with a depth count, because every
@@ -8,7 +8,7 @@ array<array<string>> $rows = [["a", "b"], ["c"], []];
 echo Core\Json::encode(Core\Arr::flatten($rows)), "\n";
 echo Core\Json::encode(Core\Arr::flattenDeep($rows)), "\n";
 
-// ADR 0069 § 3: the result is a list, always. Two inner arrays can hold the
+// `rule:types/preserve-keys`: the result is a list, always. Two inner arrays can hold the
 // same key, so there is no rule that keeps both — and "keep the strings,
 // renumber the integers" is the key-type dependence that ADR removes.
 array<array<string>> $keyed = ["x" => ["p" => "a", "q" => "b"], "y" => ["p" => "c"]];

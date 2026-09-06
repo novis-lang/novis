@@ -6,7 +6,7 @@
   declaration, a property declaration, or a parameter — the PHP-Attributes/Java-annotations need, without
   either PHP's doc-comment convention (no compiler involvement at all) or PHP/Java/C#'s requirement that a
   custom attribute be backed by its own declared class. Covers: the `#[Name(...)]`/`#[{...}]` payload syntax
-  and its compile-time-constant-only contents, reusing [ADR 0036](0036-anonymous-object-shapes.md)'s
+  and its compile-time-constant-only contents, reusing `rule:types/object-top`'s
   anonymous-object-literal/shape-type machinery; repeatable attachment; and the `Core\Attributes::get<T>`/
   `::all<T>` retrieval API, including the one new piece of grammar it needs (an explicit type argument at a
   call site) and how a class/property/parameter — none of them a `callable` — gets named as a lookup target.
@@ -28,7 +28,7 @@
 - **Amended by:** 0071, 0077
 
 > **In short:** `#[Name(field: value, ...)]` (or bare `#[{field: value, ...}]`) attaches an object-shape
-> literal — exactly [ADR 0036](0036-anonymous-object-shapes.md)'s literal, not a new kind of value — to a
+> literal — exactly `rule:types/object-top`'s literal, not a new kind of value — to a
 > class, interface, method, property, or parameter declaration. Naming it (`Route(...)` instead of a bare
 > `{...}`) is pure attach-site sugar: `Name` must resolve to a `type` alias whose right-hand side is a shape
 > type, and the literal is checked against it the same way any other shape-typed position already is; an
@@ -44,7 +44,7 @@
 > compile error if more than one attached literal structurally satisfies `T` (use `all<T>` instead), and
 > `null` if none do — no runtime search, no reflection, no ambiguity discovered only when a request happens
 > to hit that code path. A class or its constructor's parameters are named as a lookup target through the
-> class's own `constructor` reference (already nameable per [ADR 0027](0027-callable-is-closures-only.md),
+> class's own `constructor` reference (already nameable per `rule:types/callable-is-a-closure`,
 > since [ADR 0022](0022-definite-property-initialization.md) guarantees every class has one); an ordinary
 > method's parameters are named through that method's own reference. A property has no callable reference of
 > its own, so its lookup takes the owning class's `constructor` reference plus the property's name as a
@@ -69,7 +69,7 @@
   compile time, then erased — no runtime cost, but "custom attribute" still means writing macro-crate
   tooling) and Elixir's `@tag value` module attributes (no declaration of any kind, but no structural
   checking either — any term is accepted). Novis already has a mechanism that sits exactly between those two:
-  [ADR 0036](0036-anonymous-object-shapes.md)'s anonymous object literal and inline shape type — structurally
+  `rule:types/object-top`'s anonymous object literal and inline shape type — structurally
   checked, zero declaration required for the unchecked case, one `type` alias line for the checked case. This
   ADR is mostly the observation that attributes don't need a fourth mechanism; they need that one, attached
   to a declaration instead of a variable.
@@ -114,7 +114,7 @@ Two forms:
   `type` alias whose right-hand side is a shape type (`type Route = {path: string, method: string};`). This
   reads like a constructor call — deliberately, for PHP-attribute familiarity — but is not one: no class is
   instantiated and nothing executes. `nvs-syntax` parses the parenthesized `field: value` list directly into
-  the same anonymous-object-literal AST node ADR 0036 already defines for `{field: value}`; `Name(...)` is
+  the same anonymous-object-literal AST node `rule:types/object-top` already defines for `{field: value}`; `Name(...)` is
   parsed sugar for `Name` immediately followed by that literal, nothing more.
 - **Bare**: `#[{field: value, ...}]`. An ordinary anonymous object literal with no named shape to check
   against — checked only as a well-formed literal, exactly as it would be anywhere else in the language.
@@ -131,7 +131,7 @@ namespace, so it gets no "no such attribute" of its own. A name that resolves to
 shape-typed alias** is `E0726` — a class is the spelling this exists to refuse, being what PHP would have
 instantiated, and a `type Id = int;` is the same mistake one step along. Only a shape gets the third answer,
 which is the check this whole form exists for: the attached literal is checked against it by
-`nvs_types::expr::is_assignable`, ADR 0036 § 3's width subtyping verbatim, so an extra field is fine and a
+`nvs_types::expr::is_assignable`, `rule:types/shape-type`'s width subtyping verbatim, so an extra field is fine and a
 missing or mistyped one is the ordinary `E0401` mismatch rather than an attribute-shaped diagnostic. A
 payload § 2 has already refused is not then checked against the shape — the author is told about the value
 they wrote before they are told what it failed to satisfy.
@@ -184,8 +184,7 @@ function Core\Attributes::all<T>(callable $target, string $member): array<T>;
 ```
 
 `T` must itself be a shape type (an inline `{...}` or a `type` alias naming one). Retrieval is **structural,
-not nominal** — `get<T>`/`all<T>` return every attached literal that structurally satisfies `T` under ADR
-0036's existing width-subtyping rule (extra fields on the attached literal are fine), regardless of whether
+not nominal** — `get<T>`/`all<T>` return every attached literal that structurally satisfies `T` under `rule:types/object-top`'s existing width-subtyping rule (extra fields on the attached literal are fine), regardless of whether
 that literal was attached bare or through a named `Name(...)` form, and regardless of what that `Name` was.
 An attribute's optional attach-time name exists purely to validate the literal against a declared shape at
 the point it's written — it is never part of how a caller later asks for it. This sidesteps two problems at
@@ -196,7 +195,7 @@ to ask for.
 **How a class, method, property, or parameter is named as `$target`:**
 
 - A **method** (including a constructor) is named by its own first-class-callable reference —
-  `Foo::bar(...)` — the exact syntax [ADR 0027](0027-callable-is-closures-only.md) already defines.
+  `Foo::bar(...)` — the exact syntax `rule:types/callable-is-a-closure` already defines.
 - A **class or interface** has no callable of its own, so it is named by its `constructor`'s reference —
   `Foo::constructor(...)`. Every class has one, definitely, per [ADR 0022](0022-definite-property-initialization.md),
   so this needs no new "class as a value" token — including for a class with no user-written constructor,
@@ -238,7 +237,7 @@ extension). It does not open user-defined generics — that stays exactly as out
 - A quick, one-off tag costs one `#[{...}]` literal — no class, no `type` alias, no ceremony. A validated,
   reusable one costs exactly one `type` alias line — nothing close to PHP/Java/C#'s per-attribute-kind class
   declaration.
-- Retrieval reuses three already-accepted mechanisms (ADR 0036 shapes/literals, ADR 0027 first-class
+- Retrieval reuses three already-accepted mechanisms (`rule:types/object-top` shapes/literals, `rule:types/callable-is-a-closure` first-class
   callables, `rule:statements/nothing-gets-a-second-name` `type` aliases) rather than adding a fourth kind of thing to the language.
 - Ambiguity from a repeatable attribute is caught at compile time, at the exact call site that would be
   wrong — not discovered the first time a request happens to hit a site with two matches, the way PHP/Java

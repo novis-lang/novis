@@ -1,5 +1,5 @@
 --TEST--
-`Core\Str::lowerFirst` and `upperFirst` are `lower`/`upper` of the first character glued to the rest of the subject unchanged, and only that — spec § 1 *Case*, ADR 0009 § 2
+`Core\Str::lowerFirst` and `upperFirst` are `lower`/`upper` of the first character glued to the rest of the subject unchanged, and only that — spec § 1 *Case*, `rule:types/string-is-utf8`
 --FILE--
 <?nvs
 // `map_first`'s doc states the rule as "the first character case-mapped and

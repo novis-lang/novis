@@ -3,7 +3,7 @@
 --FILE--
 <?nvs
 // `fields` is `array<string, mixed>`, so a value with no JSON value of its own
-// reaches the rendering. ADR 0009 § 1's `bytes` is the reachable one: it is not
+// reaches the rendering. `rule:types/bytes`'s `bytes` is the reachable one: it is not
 // a string that happens to be binary, it is its own type, and `rule:errors/diagnostic-record`'s
 // model carries it as a scalar. The rendering spells what JSON cannot carry as
 // a one-key `$`-tagged object -- `nvs_render::json`'s module doc is the home of

@@ -1,16 +1,15 @@
-//! What an operator's operands have to be, and what it produces: ADR 0007
-//! § 4's result-type table and the three refusals layered onto it.
+//! What an operator's operands have to be, and what it produces: `rule:types/arithmetic`'s result-type table and the three refusals layered onto it.
 //!
 //! [`binary_result`] is the table itself, including refusing `int ⊕ uint`.
 //! ADR 0013's `Comparable` requirement is the amendment for the five ordering
 //! operators when both operands are objects ([`object_comparison_result`]),
 //! with no property-walk fallback. ADR 0028 § 1's sibling is
-//! [`require_stringable`], which is what ADR 0007 § 2's "anything → `string`"
+//! [`require_stringable`], which is what `rule:types/conversion`'s "anything → `string`"
 //! row is worth at an *implicit* site — interpolation, concatenation,
 //! `echo`/`print`: a scalar, and an object that provably implements the
 //! reserved global `Stringable` interface ([`require_stringable_object`],
 //! which the explicit `as string` calls on its own, since that conversion is
-//! the one ADR 0009 § 3 grants a `bytes` operand). ADR 0054 § 3 refuses
+//! the one `rule:types/conversion` grants a `bytes` operand). `rule:types/arithmetic` refuses
 //! `decimal ⊕ float` outright
 //! ([`reject_decimal_float_operands`]), and `rule:enums/closed-integer-type` refuses arithmetic on an
 //! enum and a conversion between two of them.
@@ -18,13 +17,13 @@
 //! Two more refusals are about which operands may *meet* rather than what they
 //! produce. `rule:expressions/disjoint-comparison-refused` refuses `==`/`!=` between two statically **disjoint**
 //! types ([`reject_disjoint_equality`]), and its § 6 points a `switch` label
-//! and a `match` arm at the same check; ADR 0069 § 2 refuses `+`/`+=` with an
+//! and a `match` arm at the same check; `rule:types/array-combination` refuses `+`/`+=` with an
 //! array operand ([`reject_array_combination`]), naming `Core\Arr::underlay`.
 //!
 //! `++`/`--` is the same table read as `± 1`, so its target has to be one of
 //! § 4's numeric types ([`reject_increment_on_non_numeric`]). **PHP's string
 //! increment does not exist** — `$s++` walking `"a"`→`"b"`→`"aa"` is a
-//! divergence taken deliberately, and this is its home: ADR 0007 § 2 fixes a
+//! divergence taken deliberately, and this is its home: `rule:types/conversion` fixes a
 //! binding's type at its declaration and § 4's table has no row producing
 //! `"b"` from a `string` and a `1`, so there is no arithmetic here to lower
 //! and no type the result could take. Code that wants the next spreadsheet
@@ -32,7 +31,7 @@
 //! against a `string` that silently changes length and alphabet under `+= 1`.
 //!
 //! `as` is here too, as the conversion's *operand* rule
-//! ([`reject_enum_to_enum_conversion`], and ADR 0047 § 6's
+//! ([`reject_enum_to_enum_conversion`], and `rule:types/literal-types`'s
 //! [`reject_impossible_literal_conversion`] for a conversion whose operand
 //! already names a value the target's closed set does not contain), plus
 //! `rule:expressions/nullable-conversion-availability`'s target rule for `as ?T`
@@ -53,9 +52,9 @@
 use super::*;
 
 /// `expr as T` — [`super::infer`]'s `ExprKind::Conversion` arm, and the only
-/// conversion spelling there is (ADR 0034 rejects PHP's legacy `(T)expr`).
+/// conversion spelling there is (`rule:types/no-legacy-cast` rejects PHP's legacy `(T)expr`).
 ///
-/// ADR 0054 § 2: `expr as T` is itself a placing position, so a numeric
+/// `rule:types/numeric-literal-placement`: `expr as T` is itself a placing position, so a numeric
 /// *literal* written directly under one takes `T` as its target rather than
 /// being typed first and converted afterwards. Without this, `19.99 as decimal`
 /// would round-trip through an `f64` and lose everything past ~17 digits — § 4's
@@ -68,7 +67,7 @@ use super::*;
 /// [`check_expr`] would run here would reject every conversion that does any
 /// work.
 ///
-/// ADR 0047 § 4 adds the string literal to that same branch, for the same
+/// `rule:types/literal-types` adds the string literal to that same branch, for the same
 /// reason one step further on: `"a" as "a"|"b"` is a conversion the target
 /// *statically satisfies*, and without the placement the operand would be a
 /// plain `string` converting into the set at run time. What the placement
@@ -94,7 +93,7 @@ pub(crate) fn infer_conversion(
         check_expr(inner, None, live, scope, ctx, env)
     };
     // The *object* half only: `as string` is the explicit conversion, and
-    // ADR 0007 § 2's table grants it rows — `bytes` among them — that no
+    // `rule:types/conversion`'s table grants it rows — `bytes` among them — that no
     // implicit site gets. `rule:expressions/nullable-conversion-availability` row 1 makes `as ?string` available
     // exactly where `as string` is a row, so the sugar asks the same question
     // of the `T` inside it: an object that cannot render is neither.
@@ -125,7 +124,7 @@ pub(crate) fn infer_conversion(
     apply_qualifier_conversion_rule(inner_ty, result, env.interner)
 }
 
-/// ADR 0125 § 2: **a `Foo::class` operand is decided at compile time.**
+/// `rule:types/class-reference`: **a `Foo::class` operand is decided at compile time.**
 /// `Dog::class as class<Animal>` is a compile-time yes when `Dog` is an
 /// `Animal` and a compile-time refusal when it is not — both sides are written
 /// out, so there is no run-time check for the program to reach and no throw for
@@ -182,14 +181,14 @@ fn reject_impossible_class_reference_conversion(
         )
         .with_primary(span, "converted here")
         .with_help(
-            "ADR 0125 § 2 decides a written-out `::class` operand at compile time, and this one \
+            "`rule:types/class-reference` decides a written-out `::class` operand at compile time, and this one \
              names a class outside the hierarchy: convert to `class<T>` at a class the name \
              actually reaches, or make the class an implementor of the one written here",
         ),
     );
 }
 
-/// ADR 0126 § 2: **a written-out operand is decided where it is written.**
+/// `rule:types/property-key`: **a written-out operand is decided where it is written.**
 /// `"email" as property<User>` is a compile-time yes when `User` declares a
 /// public `$email`, and [`code::E_UNKNOWN_MEMBER`] — the diagnostic an ordinary
 /// `$user->emial` already gets — when it does not, rather than a throw the
@@ -268,7 +267,7 @@ fn check_property_key_conversion(
         .collect::<Vec<_>>()
         .join(", ");
     let help = format!(
-        "ADR 0126 § 2 decides a written-out operand where it is written, and a key's values are \
+        "`rule:types/property-key` decides a written-out operand where it is written, and a key's values are \
          `{qname}`'s public declared properties: {listed}"
     );
     env.diags.report(
@@ -281,7 +280,7 @@ fn check_property_key_conversion(
     );
 }
 
-/// ADR 0126 § 1's second refusal: `property<T>` where `T` declares no public
+/// `rule:types/property-key`'s second refusal: `property<T>` where `T` declares no public
 /// property at all is `E0799` where it is written, "since no value of that type
 /// could ever exist".
 ///
@@ -295,7 +294,7 @@ fn check_property_key_conversion(
 /// place the table is real and the roster is already walked.
 ///
 /// Siting it at the conversion loses nothing, because **`as` is this type's
-/// only source** — ADR 0126 § 2, and the ADR's own title. A `property<T>`
+/// only source** — `rule:types/property-key`, and the ADR's own title. A `property<T>`
 /// annotation over an empty `T` that no conversion ever feeds declares a
 /// variable no value can reach, and every spelling that would reach one is
 /// refused here, with the annotation's own span underlined.
@@ -307,7 +306,7 @@ fn reject_empty_property_key_set(qname: &QName, span: Span, env: &mut Env<'_>) {
         )
         .with_primary(span, "no name could ever reach this key")
         .with_help(
-            "ADR 0126 § 1 makes a key's values the public declared property names of its \
+            "`rule:types/property-key` makes a key's values the public declared property names of its \
              argument — its own and its ancestors' — so a class declaring none has an empty set \
              and no value of the type exists; a `private` property is not one of them, so name \
              the class that declares the property publicly, or make it `public`",
@@ -315,8 +314,7 @@ fn reject_empty_property_key_set(qname: &QName, span: Span, env: &mut Env<'_>) {
     );
 }
 
-/// The binary-operator result-type table, ADR 0007 § 4, amended by ADR 0013
-/// § 6 for `< <= > >= <=>` when both operands are objects. Beyond that one
+/// The binary-operator result-type table, `rule:types/arithmetic`, amended by `rule:types/ordering` for `< <= > >= <=>` when both operands are objects. Beyond that one
 /// amendment, only `int`/`uint`/`float` operands are modeled this slice —
 /// anything else (`mixed`, an unresolved call result) falls back to `mixed`
 /// rather than diagnosing, since no general operator-overload rule is
@@ -337,7 +335,7 @@ pub(crate) fn binary_result(
     match op {
         // ADR 0024 § 2 / ADR 0033 § 2: concatenating a qualified operand with
         // an unqualified one poisons the result on that axis, the same
-        // "poisoned" shape ADR 0007 already uses for mixed-type arithmetic —
+        // "poisoned" shape `rule:types/declaration` already uses for mixed-type arithmetic —
         // `tainted` and `secret` poison independently of each other.
         BinaryOp::Concat => {
             let tainted = is_tainted(lhs, env.interner) || is_tainted(rhs, env.interner);
@@ -514,14 +512,14 @@ enum EqDomain<'a> {
     /// and not [`Self::Str`]'s. A class reference's value is a descriptor, so
     /// two of them compare by descriptor identity and nothing else can be
     /// equal to one: an instance is not its own class, and `$cls == "Dog"` is
-    /// exactly the string-as-a-class confusion ADR 0125 § 2 exists to keep out
+    /// exactly the string-as-a-class confusion `rule:types/class-reference` exists to keep out
     /// (`Foo::class` stays a `string`, and `as class<T>` is the only door).
     /// Not parameterised by the argument, because covariance (§ 3) means two
     /// class references at different arguments can hold the same descriptor.
     ClassRef,
     /// `property<T>` — its own domain, for [`Self::ClassRef`]'s reason applied
     /// to a member name: two keys are equal when they name the same property,
-    /// and `$key == "email"` is the string-as-a-member confusion ADR 0126 § 1
+    /// and `$key == "email"` is the string-as-a-member confusion `rule:types/property-key`
     /// keeps out, `as property<T>` being the only door. Not parameterised by
     /// the argument, because § 3's contravariance means two keys at different
     /// arguments can hold the same name.
@@ -540,7 +538,7 @@ fn equality_domain(ty: &Ty) -> Option<EqDomain<'_>> {
             EqDomain::Str
         }
         Ty::Bytes | Ty::TaintedBytes | Ty::SecretBytes | Ty::SecretTaintedBytes => EqDomain::Bytes,
-        // ADR 0047 § 5 gives a literal type its base's representation exactly,
+        // `rule:types/literal-types` gives a literal type its base's representation exactly,
         // so it lands in its base's domain and nothing more: `$mode == "z"`
         // where `$mode` is `"a"|"b"` compares two strings and is answered at
         // run time. Refusing it because the two literal *sets* do not overlap
@@ -553,7 +551,7 @@ fn equality_domain(ty: &Ty) -> Option<EqDomain<'_>> {
         Ty::PropertyKey(_) => EqDomain::PropertyKey,
         Ty::Object | Ty::Class(..) | Ty::Shape(_) => EqDomain::Object,
         Ty::Callable | Ty::CallableTo(_) => EqDomain::Callable,
-        // Both spellings of "a value of this enum" — ADR 0047 § 3 keeps a case
+        // Both spellings of "a value of this enum" — `rule:types/enum-case-type` keeps a case
         // type a *subtype* of its enum, so it shares its enum's domain and
         // stays disjoint from every other one, `int` included.
         Ty::Enum(qname, _) | Ty::EnumCase(qname, _, _) => EqDomain::Enum(qname),
@@ -602,7 +600,7 @@ fn is_declared_class(qname: &QName, env: &Env<'_>) -> bool {
 /// class and that class to (transitively) implement the reserved global
 /// `Comparable` interface — returns `None` when either operand isn't a class
 /// at all, leaving [`binary_result`]'s ordinary scalar/`mixed` fallback in
-/// place untouched, since this ADR only amends ADR 0007 § 4's table with a
+/// place untouched, since this ADR only amends `rule:types/arithmetic`'s table with a
 /// new object-operand row rather than replacing it. An enum operand
 /// (`Ty::Enum`) is deliberately not treated as an object here either — ADR
 /// 0010's own item (still unimplemented) is what would say whether an enum
@@ -698,7 +696,7 @@ enum Unordered {
 /// A call that returns `void` is not an operand of anything, and this is the
 /// refusal that says so — one step earlier than every other one in this file.
 ///
-/// The refusals around it each read a *row* of ADR 0007 § 4's table and object
+/// The refusals around it each read a *row* of `rule:types/arithmetic`'s table and object
 /// that the operand names none. A `void` call names none either, but for a
 /// reason no row can be about: it has no value at all, so there is nothing
 /// there to look up. That is why this runs ahead of all of them, and ahead of
@@ -738,7 +736,7 @@ fn reject_void_operand(
 /// A call that returns `void` is not a condition either, and this is the
 /// refusal that says so.
 ///
-/// [`reject_void_operand`] above objects that ADR 0007 § 4's table has no row
+/// [`reject_void_operand`] above objects that `rule:types/arithmetic`'s table has no row
 /// for a value that is not one. A condition is the one position that table is
 /// not about — `rule:expressions/truthy-table`'s truthy table is, and it has a row for every type
 /// there is, which is exactly why the missing value shows up here as nothing
@@ -780,13 +778,13 @@ fn report_void_operand(span: Span, env: &mut Env<'_>) {
         )
         .with_primary(span, "operated on here")
         .with_help(
-            "ADR 0007 § 4's table has no row for a value that is not one; give the callee a \
+            "`rule:types/arithmetic`'s table has no row for a value that is not one; give the callee a \
              return type and `return` from it, or call it as its own statement",
         ),
     );
 }
 
-/// ADR 0007 § 4's ordering row is a **closed** list, so an operand it does not
+/// `rule:types/arithmetic`'s ordering row is a **closed** list, so an operand it does not
 /// name has no `<`/`<=`/`>`/`>=`/`<=>` at all and is refused where it is
 /// written rather than answered below.
 ///
@@ -794,7 +792,7 @@ fn report_void_operand(span: Span, env: &mut Env<'_>) {
 /// two objects of one `Comparable` class — [`object_comparison_result`] owns
 /// that half and runs first, so everything reaching here either names no class
 /// at all or names one on only one side. Everything else PHP orders, it orders
-/// by converting an operand first, which ADR 0007 § 2 never does by itself:
+/// by converting an operand first, which `rule:types/conversion` never does by itself:
 /// two strings order through `Core\Str::compare`, an enum case through its
 /// backing `as int`, and an `array<T>`, a `callable` and `null` not at all.
 ///
@@ -858,7 +856,7 @@ fn reject_unordered_operand(
     };
     let help = match domain {
         Unordered::Str => {
-            "`Core\\Str::compare` is the ordering two strings have; ADR 0007 § 4 tabulates no \
+            "`Core\\Str::compare` is the ordering two strings have; `rule:types/arithmetic` tabulates no \
              `<` for text, because PHP's own answer there is a conversion Novis never makes by \
              itself"
         }
@@ -867,7 +865,7 @@ fn reject_unordered_operand(
              instead — `($a as int) < ($b as int)`"
         }
         _ => {
-            "ADR 0007 § 4's `< <= > >= <=>` row is the numeric types, plus two objects of one \
+            "`rule:types/arithmetic`'s `< <= > >= <=>` row is the numeric types, plus two objects of one \
              `Comparable` class (ADR 0013); this operand is on neither half"
         }
     };
@@ -885,13 +883,13 @@ fn reject_unordered_operand(
     Some(env.interner.mixed())
 }
 
-/// ADR 0007 § 4's arithmetic table is **closed** at the operand end too, and
+/// `rule:types/arithmetic`'s arithmetic table is **closed** at the operand end too, and
 /// this is the refusal that says so — [`reject_unordered_operand`]'s twin, one
 /// row of the same table over.
 ///
 /// The operands that table names are the numeric types: `int`, `uint`,
-/// `float`, and `decimal` through ADR 0054 § 3. Everything else PHP adds it
-/// adds by *converting* first, and ADR 0007 § 2 has no implicit conversion for
+/// `float`, and `decimal` through `rule:types/arithmetic`. Everything else PHP adds it
+/// adds by *converting* first, and `rule:types/conversion` has no implicit conversion for
 /// that to be, so a `string`, a `bytes`, an `array<T>`, a `callable`, `null`
 /// and an object have no `+` at all.
 ///
@@ -904,7 +902,7 @@ fn reject_unordered_operand(
 /// `echo true + true` printed `1` where PHP prints `2`.
 ///
 /// An **enum** operand passes through to [`reject_enum_operand`], which fires
-/// one level down with ADR 0010 § 5's own wording, so a type never draws two
+/// one level down with `rule:types/conversion`'s own wording, so a type never draws two
 /// codes for one rule. Scoped exactly like [`reject_bitwise_operand`]: an
 /// operand whose type is not yet known ([`equality_domain`] answering `None` —
 /// `mixed`, a union, the `int|float` a division returns) passes through, and
@@ -939,11 +937,11 @@ fn reject_unrowed_arithmetic_operand(
     };
     let help = match domain {
         EqDomain::Bool => {
-            "ADR 0007 § 4's arithmetic rows are the numeric types; PHP converts a `bool` to an \
+            "`rule:types/arithmetic`'s arithmetic rows are the numeric types; PHP converts a `bool` to an \
              `int` first and Novis never converts by itself, so say it — `($b ? 1 : 0)`"
         }
         EqDomain::Str => {
-            "ADR 0007 § 4 tabulates no arithmetic for text; `.` is how two strings combine, and \
+            "`rule:types/arithmetic` tabulates no arithmetic for text; `.` is how two strings combine, and \
              `$s as int`/`$s as float` is how one becomes a number"
         }
         // The two sink carriers are the only classes with an arithmetic row, so
@@ -964,13 +962,13 @@ fn reject_unrowed_arithmetic_operand(
              the way in — `+` is not a sink and will not substitute them for you"
         }
         EqDomain::Object => {
-            "Novis has no operator overloading: ADR 0007 § 4 names two classes in its arithmetic \
+            "Novis has no operator overloading: `rule:types/arithmetic` names two classes in its arithmetic \
              rows and both are sink carriers — ADR 0024 § 5's `Core\\Html\\Markup` and ADR 0086 \
              § 2's `Core\\Cli\\Text` — so for every other class the operation belongs in a method \
              on it"
         }
         _ => {
-            "ADR 0007 § 4's arithmetic rows are `int`, `uint`, `float` and `decimal`; this \
+            "`rule:types/arithmetic`'s arithmetic rows are `int`, `uint`, `float` and `decimal`; this \
              operand is none of them, and `as` is the only way to make it one"
         }
     };
@@ -991,7 +989,7 @@ fn reject_unrowed_arithmetic_operand(
 /// `%` with a `float` operand — the one refusal in this file that both
 /// operands *are* numbers for. [`code::E_FLOAT_MODULO`]'s own doc comment is
 /// that decision's home: PHP's `%` converts to an integer and returns one,
-/// ADR 0007 § 4's "either operand a `float`" row would return a `float`, and
+/// `rule:types/arithmetic`'s "either operand a `float`" row would return a `float`, and
 /// the spec's own `Core\Math::mod` row settles it the third way — "integer `%`
 /// is the operator", so the floating-point remainder is that member and the
 /// operator is refused at both ends rather than guessed at either. The other
@@ -1015,7 +1013,7 @@ fn reject_float_modulo(lhs: TypeId, rhs: TypeId, span: Span, env: &mut Env<'_>) 
         )
         .with_primary(span, "no `float` row for `%`")
         .with_help(
-            "PHP's `%` converts both operands to an integer and answers one, where ADR 0007 § 4's \
+            "PHP's `%` converts both operands to an integer and answers one, where `rule:types/arithmetic`'s \
              float row would answer a `float`; say which was meant — `($a as int) % ($b as int)`, \
              or `Core\\Math::mod($a, $b)` for the floating-point remainder",
         ),
@@ -1031,7 +1029,7 @@ pub(crate) fn arithmetic_result(lhs: TypeId, rhs: TypeId, span: Span, env: &mut 
         return mixed;
     }
     match (env.interner.get(lhs).clone(), env.interner.get(rhs).clone()) {
-        // ADR 0054 § 3: a `decimal` combined with an integer stays `decimal` —
+        // `rule:types/arithmetic`: a `decimal` combined with an integer stays `decimal` —
         // an `int`/`uint` is exact in 96 bits, so nothing is lost. The
         // `decimal`/`float` pair never reaches here; it was rejected above.
         (Ty::Decimal, Ty::Decimal | Ty::Int | Ty::Uint) | (Ty::Int | Ty::Uint, Ty::Decimal) => {
@@ -1122,7 +1120,7 @@ fn carrier_of(ty: TypeId, env: &Env<'_>) -> Option<&'static str> {
         .find(|carrier| *carrier == name)
 }
 
-/// ADR 0010 § 5: "No arithmetic or bitwise operator is defined on an enum
+/// `rule:types/conversion`: "No arithmetic or bitwise operator is defined on an enum
 /// type directly" — `Permission::Read | Permission::Write` must be diagnosed
 /// naming `as uint`/`as int` as the fix rather than silently falling through
 /// to [`arithmetic_result`]/[`bitwise_result`]'s existing `_ => mixed` arm,
@@ -1152,8 +1150,7 @@ pub(crate) fn reject_enum_operand(
     Some(env.interner.mixed())
 }
 
-/// [ADR 0069](/docs/adr/0069-array-combination-is-key-type-independent.md)
-/// § 2: binary `+` and `+=` with an array operand are a compile error naming
+/// `rule:types/array-combination`: binary `+` and `+=` with an array operand are a compile error naming
 /// `Core\Arr::underlay`. PHP's array union operator is *removed*, not migrated,
 /// so there is no silent behaviour change to fall into — the operator simply
 /// stops compiling, and `nvs convert` rewrites `$a + $b` to the member.
@@ -1196,7 +1193,7 @@ pub(crate) fn division_result(lhs: TypeId, rhs: TypeId, span: Span, env: &mut En
         return mixed;
     }
     match (env.interner.get(lhs).clone(), env.interner.get(rhs).clone()) {
-        // ADR 0054 § 3's deliberate divergence from `int / int`: a decimal
+        // `rule:types/arithmetic`'s deliberate divergence from `int / int`: a decimal
         // quotient is always `decimal`, never a union with `float`. Division is
         // the one place the result may be inexact, and the ADR fixes its
         // rounding in the language rather than in a union the caller unpacks.
@@ -1249,22 +1246,21 @@ pub(crate) fn bitwise_result(
     }
 }
 
-/// ADR 0007 § 4's `& | ^ ~ << >>` row is `int` and `uint`, and this is what
+/// `rule:types/arithmetic`'s `& | ^ ~ << >>` row is `int` and `uint`, and this is what
 /// makes that a rule rather than a table the checker happened not to model.
 ///
 /// Every other operand PHP answers by *converting* first — `1.5 & 1.5` is
 /// `1 & 1` there, `"ab" & "cd"` is bytewise, `true & true` is `1` — and
-/// ADR 0007 § 2 has no implicit conversion for any of them to be. Left
+/// `rule:types/conversion` has no implicit conversion for any of them to be. Left
 /// unmodelled they reached [`bitwise_result`]'s `_ => mixed` arm with nothing
 /// reported, and what happened below was worse than a refusal in every
 /// direction: a `float` pair became a bit-and over the `f64`'s own bits and
-/// answered `1.5`, a `decimal` pair panicked `nvs_ir::lower::expr`'s ADR 0054
-/// § 3 table, and a `string` pair reached `nvs-codegen`'s "no `BinOp` over
+/// answered `1.5`, a `decimal` pair panicked `nvs_ir::lower::expr`'s `rule:types/arithmetic` table, and a `string` pair reached `nvs-codegen`'s "no `BinOp` over
 /// this representation".
 ///
 /// A `decimal` is the operand worth naming twice: it is a number, so it
 /// passes every "is this arithmetic" guard around it, and it is a coefficient
-/// and a scale rather than a bit pattern, so ADR 0054 § 3 grants it
+/// and a scale rather than a bit pattern, so `rule:types/arithmetic` grants it
 /// arithmetic, equality and ordering and stops. The refusal here is the one
 /// that leaves that table's own catch-all no reachable target.
 ///
@@ -1318,13 +1314,13 @@ fn report_bitwise_operand(spelling: &str, ty: TypeId, span: Span, env: &mut Env<
         )
         .with_primary(span, "a bitwise operator is over integers")
         .with_help(
-            "ADR 0007 § 4's `& | ^ ~ << >>` row is `int` and `uint` only; PHP converts this \
+            "`rule:types/arithmetic`'s `& | ^ ~ << >>` row is `int` and `uint` only; PHP converts this \
              operand first and Novis never converts by itself, so say it — `$x as int`",
         ),
     );
 }
 
-/// ADR 0054 § 3: `decimal ⊕ float` is a compile error, on the same grounds
+/// `rule:types/arithmetic`: `decimal ⊕ float` is a compile error, on the same grounds
 /// `int ⊕ uint` already is — there is no type that represents both operands'
 /// values, so the fix is to convert one side and say which. Returns
 /// `Some(mixed)` once diagnosed, `None` for every other pair so the caller's
@@ -1352,7 +1348,7 @@ pub(crate) fn reject_decimal_float_operands(
     Some(env.interner.mixed())
 }
 
-/// ADR 0054 § 3's last row: `**` with a `decimal` base is a compile error,
+/// `rule:types/arithmetic`'s last row: `**` with a `decimal` base is a compile error,
 /// because a general decimal power has no exact result at a bounded scale —
 /// `Core\Decimal::pow` names the rounding instead. A decimal *exponent* is
 /// refused by the same diagnostic: the row does not define `int ** decimal`
@@ -1392,14 +1388,14 @@ pub(crate) fn report_int_uint(span: Span, env: &mut Env<'_>) {
 /// operand (including `Ty::Enum`, `mixed`, and a scalar) and for an
 /// unmodeled `Core` class, the same scoping [`object_comparison_result`] and
 /// [`check_property_access`] already use.
-/// Reports the two ways `-`, `+` or `~` can be handed an operand ADR 0007 § 4
+/// Reports the two ways `-`, `+` or `~` can be handed an operand `rule:types/arithmetic`
 /// tabulates no row for. One call site, because it is one question asked of
 /// one operand and a program is owed one diagnostic for it.
 ///
 /// **An object** takes `E_TYPE_MISMATCH`: Novis has no operator overloading, so
 /// there is no arithmetic an object can take part in — and the first place a
 /// program reaches for one is
-/// [ADR 0070](/docs/adr/0070-duration-literals.md) § 4's `-7d`, which
+/// `rule:types/duration-literal`'s `-7d`, which
 /// that ADR refuses outright in favour of `->minus(7d)`. Left unchecked it
 /// reaches `nvs-codegen`, which panics naming the representation; a
 /// diagnostic naming the operator is what the author needs.
@@ -1409,7 +1405,7 @@ pub(crate) fn report_int_uint(span: Span, env: &mut Env<'_>) {
 /// only a type whose [`equality_domain`] is known *and* is not the numeric
 /// one, so `mixed`, a union (`7 / 2` produces `int|float`), a type variable
 /// and an error placeholder all pass through. PHP answers `+"5"`, `-"5"` and
-/// `~"ab"` by *converting* the operand first, and ADR 0007 § 2 has no implicit
+/// `~"ab"` by *converting* the operand first, and `rule:types/conversion` has no implicit
 /// conversion for that to be — which is what makes unary `+` safe to lower as
 /// the identity it is over a number (`nvs_ir::lower::expr`'s `Plus` arm): the
 /// operand it would silently pass through unchanged is refused here instead,
@@ -1451,7 +1447,7 @@ pub(crate) fn reject_unary_arith_operand(op: UnaryOp, ty: TypeId, span: Span, en
         return;
     }
     // `~` parts from `-` and `+` on the numeric row, and this is the whole of
-    // the difference: ADR 0007 § 4 grants arithmetic over four numeric types
+    // the difference: `rule:types/arithmetic` grants arithmetic over four numeric types
     // and bit operations over two, so a `float` or a `decimal` operand is a
     // number with no bit pattern to complement. It takes the *bitwise* code,
     // because the rule that author needs is that row's rather than "this is
@@ -1476,7 +1472,7 @@ pub(crate) fn reject_unary_arith_operand(op: UnaryOp, ty: TypeId, span: Span, en
         )
         .with_primary(span, "a unary arithmetic operator is over numbers")
         .with_help(
-            "ADR 0007 § 4's arithmetic is over `int`, `uint`, `float` and `decimal`; PHP \
+            "`rule:types/arithmetic`'s arithmetic is over `int`, `uint`, `float` and `decimal`; PHP \
              converts this operand first and Novis never converts by itself, so say it — \
              `$x as int`",
         ),
@@ -1484,7 +1480,7 @@ pub(crate) fn reject_unary_arith_operand(op: UnaryOp, ty: TypeId, span: Span, en
 }
 
 /// Reports `E_INCREMENT_NOT_NUMERIC` for `++`/`--` on a target that is not one
-/// of ADR 0007 § 4's numeric types — the module doc above owns the decision,
+/// of `rule:types/arithmetic`'s numeric types — the module doc above owns the decision,
 /// including why PHP's string increment is not among them.
 ///
 /// Scoped exactly the way the refusals around it are: only a type whose
@@ -1507,17 +1503,16 @@ pub(crate) fn reject_increment_on_non_numeric(ty: TypeId, span: Span, env: &mut 
         )
         .with_primary(span, "an increment is `± 1`, and this is not a number")
         .with_help(
-            "ADR 0007 § 4's arithmetic is over `int`, `uint`, `float` and `decimal`; PHP's \
+            "`rule:types/arithmetic`'s arithmetic is over `int`, `uint`, `float` and `decimal`; PHP's \
              string increment does not exist in Novis, because a binding never changes type",
         ),
     );
 }
 
 /// `rule:expressions/nullable-conversion-availability`'s
-/// class row, which is **absolute**: `as` converts between the types ADR 0007
-/// § 2 tabulates and ADR 0047's literal and enum-case types, and none of those
+/// class row, which is **absolute**: `as` converts between the types `rule:types/conversion` tabulates and `rule:types/literal-types`'s literal and enum-case types, and none of those
 /// is a class. `$obj as ?SomeClass` asks class membership, which `instanceof`
-/// plus ADR 0007 § 6's narrowing already answers; `$s as ?Core\Uri` asks for a
+/// plus `rule:types/unions-and-mixed`'s narrowing already answers; `$s as ?Core\Uri` asks for a
 /// parse, which is that class's own `tryParse` (§ 3a).
 ///
 /// That second half is a **reversal**. § 3 first admitted a closed two-class
@@ -1533,7 +1528,7 @@ pub(crate) fn reject_increment_on_non_numeric(ty: TypeId, span: Span, env: &mut 
 /// deliberately leaves the `Core\Uri|null` union spelling out of the form, so
 /// a target reached any other way is not this ADR's and is left alone. A
 /// plain `as SomeClass` is left alone too, and goes to
-/// [`reject_unconvertible`] instead — that is ADR 0007 § 2's table having no
+/// [`reject_unconvertible`] instead — that is `rule:types/conversion`'s table having no
 /// row for a class type, which is a different sentence reaching a different
 /// help. The two never fire on the same expression, since this one runs only
 /// on the written `?T` sugar and that one only where the sugar is absent.
@@ -1607,7 +1602,7 @@ fn nullable_class_target(to: TypeId, env: &Env<'_>) -> Option<String> {
     }
 }
 
-/// `rule:expressions/nullable-conversion-availability`'s table, which is ADR 0007 § 2's asked one row further on:
+/// `rule:expressions/nullable-conversion-availability`'s table, which is `rule:types/conversion`'s asked one row further on:
 /// **a conversion that exists and failed is `null`; a conversion that does
 /// not exist is a diagnostic** — and a conversion that cannot fail is a
 /// diagnostic too, because the `?` then promises a `null` no run produces.
@@ -1694,13 +1689,13 @@ fn nullable_conversion_is_total(from: TypeId, to: TypeId, inner: TypeId, env: &E
         // has an answer for every type — an object and an enum case included,
         // § 4 making both always truthy.
         (_, Bool) => true,
-        // ADR 0010 § 5 row 1: an enum to its own backing type, total and free.
-        // Any *other* number is ADR 0007 § 2's row and throws.
+        // `rule:types/conversion` row 1: an enum to its own backing type, total and free.
+        // Any *other* number is `rule:types/conversion`'s row and throws.
         (Enum(backing), target) => target == enum_backing_kind(backing),
-        // ADR 0009 § 3: every `string` is valid UTF-8, so this direction alone
+        // `rule:types/conversion`: every `string` is valid UTF-8, so this direction alone
         // is total — `bytes as ?string` is the checked one.
         (Str, Bytes) => true,
-        // ADR 0007 § 2's "anything → `string`" row, "total for scalars". An
+        // `rule:types/conversion`'s "anything → `string`" row, "total for scalars". An
         // *object* is the row's exception ("needs `Stringable`, or it throws")
         // and is left fallible here for that reason.
         (Bool | Int | Uint | Float | Decimal | Str | Null, Str) => true,
@@ -1738,14 +1733,14 @@ fn is_closed_value_target(to: TypeId, env: &Env<'_>) -> bool {
     )
 }
 
-/// ADR 0007 § 2's conversion table is **closed**, and this is the refusal that
+/// `rule:types/conversion`'s conversion table is **closed**, and this is the refusal that
 /// says so. `as` "is total in intent and checked in fact: it either produces a
 /// value of the target type or throws" — so a pair naming no row has nothing to
 /// produce and nothing to throw, and the honest answer is a diagnostic where it
 /// is written rather than a wrong value or a panic below.
 ///
-/// The rows are that table's own, plus the three it delegates to: ADR 0009 § 3
-/// for `string` ↔ `bytes`, ADR 0054 § 4 for `decimal`, and ADR 0010 § 5 for an
+/// The rows are that table's own, plus the three it delegates to: `rule:types/conversion`
+/// for `string` ↔ `bytes`, `rule:types/conversion` for `decimal`, and `rule:types/conversion` for an
 /// enum and its backing type. Two are not in any ADR's table and are here
 /// because they are true of every type — `rule:expressions/truthy-positions`'s `as bool`, which is the
 /// condition's own test said out loud, and the widening into a target that
@@ -1775,7 +1770,7 @@ fn reject_unconvertible(from: TypeId, to: TypeId, span: Span, env: &mut Env<'_>)
         return;
     }
     if conversion_row_exists(from_kind, to_kind) {
-        // ADR 0007 § 2's `array<T> as array<U>` row is the one that is checked
+        // `rule:types/conversion`'s `array<T> as array<U>` row is the one that is checked
         // element by element at run time, and what checks one element is its
         // runtime *tag* — so the row exists only for a `U` a tag can decide.
         if to_kind == ConvKind::Array {
@@ -1796,12 +1791,12 @@ fn reject_unconvertible(from: TypeId, to: TypeId, span: Span, env: &mut Env<'_>)
     );
 }
 
-/// A class target, which ADR 0007 § 2 tabulates no row *producing* — and yet
+/// A class target, which `rule:types/conversion` tabulates no row *producing* — and yet
 /// three shapes of `as` legitimately name one, so a blanket refusal is wrong:
 ///
 /// * **A downcast out of an erased view.** `$erased as Plain` over a plain
 ///   `object`, and `$other as Cell` over the interface ADR 0013's `compareTo`
-///   receives, are the two spellings ADR 0036 § 4 leaves standing. Both erase
+///   receives, are the two spellings `rule:types/erased-member-access` leaves standing. Both erase
 ///   to one pointer representation, so the conversion runs nothing and the
 ///   check happens at the member access instead (`InstKind::SlotGet`).
 /// * **A `Core`-owned class**, which decides for itself: ADR 0024's
@@ -1865,7 +1860,7 @@ fn reject_unrelated_class_conversion(from: TypeId, to: TypeId, span: Span, env: 
         )
         .with_primary(span, "converted here")
         .with_help(
-            "ADR 0007 § 2 tabulates no conversion into a class, and these two share no value at \
+            "`rule:types/conversion` tabulates no conversion into a class, and these two share no value at \
              all: ask `$x instanceof Name` and use the value the test narrows, or call that \
              class's own named constructor",
         ),
@@ -1893,7 +1888,7 @@ fn reject_untestable_object_target(from: TypeId, to: TypeId, span: Span, env: &m
         )
         .with_primary(span, "converted here")
         .with_help(
-            "ADR 0007 § 2 tabulates no conversion into an object, and this target names no class \
+            "`rule:types/conversion` tabulates no conversion into an object, and this target names no class \
              to test the value against: convert to a declared class instead, which is the one \
              checked way out of `mixed`",
         ),
@@ -1911,7 +1906,7 @@ fn reject_untestable_object_target(from: TypeId, to: TypeId, span: Span, env: &m
 /// designed around.
 const ARRAY_ELEMENT_TAG_LEVELS: usize = u64::BITS as usize / 4;
 
-/// ADR 0007 § 2's `array<T> as array<U>` row, refused where the element type
+/// `rule:types/conversion`'s `array<T> as array<U>` row, refused where the element type
 /// `U` is one no runtime tag decides.
 ///
 /// The row's whole content is "every element must satisfy `U`", checked once
@@ -1931,12 +1926,12 @@ const ARRAY_ELEMENT_TAG_LEVELS: usize = u64::BITS as usize / 4;
 ///   binding then reads at a *fixed offset*. That is
 ///   [`reject_untestable_object_target`]'s type confusion, one container in.
 /// * An **enum** erases to its backing integer, so a tag would admit any
-///   integer as a case — where ADR 0010 § 5's own `mixed → EnumName` row
+///   integer as a case — where `rule:types/conversion`'s own `mixed → EnumName` row
 ///   throws for a value no case names.
-/// * A **literal type** or a **union** (ADR 0047 § 5's closed sets,
+/// * A **literal type** or a **union** (`rule:types/literal-types`'s closed sets,
 ///   `?T`, `int|string`) admits some values of its representation and not
 ///   others, which is again more than a tag says. `mixed` is not in that list
-///   and is accepted: it is ADR 0007 § 3's one unchecked position, so an
+///   and is accepted: it is `rule:types/grammar`'s one unchecked position, so an
 ///   element of it is checked by every reader instead.
 ///
 /// What to write instead is in the help, and it is the same shape either way:
@@ -1970,7 +1965,7 @@ fn reject_uncheckable_element_type(to: TypeId, span: Span, env: &mut Env<'_>) {
         )
         .with_primary(span, "converted here")
         .with_help(format!(
-            "ADR 0007 § 2's `array<T> as array<U>` row checks every element against `U` as it \
+            "`rule:types/conversion`'s `array<T> as array<U>` row checks every element against `U` as it \
              walks, and what checks one element is its runtime tag — which `{described_element}` \
              is not decided by: convert to `array<mixed>` and convert each element where it is \
              read"
@@ -1978,7 +1973,7 @@ fn reject_uncheckable_element_type(to: TypeId, span: Span, env: &mut Env<'_>) {
     );
 }
 
-/// Which row of ADR 0007 § 2's table a type can appear in — deliberately
+/// Which row of `rule:types/conversion`'s table a type can appear in — deliberately
 /// coarser than [`Ty`], because the table is written over the *language's*
 /// types rather than over an interned identity.
 ///
@@ -1999,14 +1994,14 @@ enum ConvKind {
     Null,
     Void,
     Array,
-    /// An enum or one of its cases, carrying the backing type ADR 0010 § 5's
+    /// An enum or one of its cases, carrying the backing type `rule:types/conversion`'s
     /// two rows are *about* — `Mode::Read as int` is a row and
     /// `Mode::Read as uint` is not.
     Enum(crate::enums::EnumBacking),
     /// A class, a shape, a `callable` or plain `object`: one pointer
     /// representation, and no row of the table produces one.
     Object,
-    /// `class<T>` — ADR 0125 § 2, and the one target kind that *is* produced by
+    /// `class<T>` — `rule:types/class-reference`, and the one target kind that *is* produced by
     /// rows of its own. Deliberately not [`Self::Object`]: a descriptor is one
     /// pointer like an instance is, but the two rows that reach it check a
     /// hierarchy at run time and no row of § 2 reaches an instance at all.
@@ -2016,7 +2011,7 @@ enum ConvKind {
     /// against the descriptor — and where the pair is decidable at compile time
     /// [`reject_impossible_class_reference_conversion`] is what decides it.
     ClassRef,
-    /// `property<T>` — ADR 0126 § 2, and [`Self::ClassRef`]'s story exactly:
+    /// `property<T>` — `rule:types/property-key`, and [`Self::ClassRef`]'s story exactly:
     /// its own kind rather than [`Self::Str`]'s, because a key is not a string
     /// and `as` is the only door into one. Unparameterised for that sibling's
     /// reason too — the table asks only which rows exist, and `property<U> →
@@ -2074,7 +2069,7 @@ fn conversion_kind(id: TypeId, interner: &TypeInterner) -> ConvKind {
 }
 
 /// The table itself, one arm per ADR row. Read [`reject_unconvertible`]'s doc
-/// comment first: everything here is a row of ADR 0007 § 2 or of one of the
+/// comment first: everything here is a row of `rule:types/conversion` or of one of the
 /// three ADRs it delegates to, and `false` is the absence of a row rather than
 /// a judgement of its own.
 fn conversion_row_exists(from: ConvKind, to: ConvKind) -> bool {
@@ -2095,14 +2090,14 @@ fn conversion_row_exists(from: ConvKind, to: ConvKind) -> bool {
         (_, Object) => true,
         // Either side admits more than one runtime shape, so the row is the
         // operand's tag's and no static pair can be judged. `mixed` is the
-        // whole of ADR 0007 § 6 here.
+        // whole of `rule:types/unions-and-mixed` here.
         (Wide, _) | (_, Wide) => true,
         // `rule:expressions/truthy-positions`, which makes a condition the one place a value is tested
         // without `as` — so `as bool` is that same test written out, and it
         // has an answer for every type the table above did not already
         // exclude.
         (_, Bool) => true,
-        // ADR 0125 § 2's two rows, and the whole of what produces a class
+        // `rule:types/class-reference`'s two rows, and the whole of what produces a class
         // reference — which is what makes `as` its only source. The `string`
         // row is the door: the text must name `T` or a class that is a `T`, and
         // it throws where it does not. The `class<U>` row is a narrowing,
@@ -2114,7 +2109,7 @@ fn conversion_row_exists(from: ConvKind, to: ConvKind) -> bool {
         // that keeps `Foo::class` an ordinary `string`.
         (Str | ClassRef, ClassRef) => true,
         (_, ClassRef) => false,
-        // ADR 0126 § 2's three rows, and the whole of what produces a property
+        // `rule:types/property-key`'s three rows, and the whole of what produces a property
         // key — which is what makes `as` its only source, exactly as the two
         // rows above make it a class reference's. The `string` row is the door:
         // the text must name a public declared property of `T`, and it throws
@@ -2129,7 +2124,7 @@ fn conversion_row_exists(from: ConvKind, to: ConvKind) -> bool {
         // to the "anything → `string`" arm below, where it would read as one of
         // the scalars.
         (PropertyKey, Str) => true,
-        // ADR 0125 § 2's own third row, the sibling of the one above and total
+        // `rule:types/class-reference`'s own third row, the sibling of the one above and total
         // for the same reason: a class reference *is* a descriptor, and a
         // descriptor carries the class's fully qualified name. So this closes
         // the round trip the `string` row opens — `$name as class<Animal> as
@@ -2141,38 +2136,38 @@ fn conversion_row_exists(from: ConvKind, to: ConvKind) -> bool {
         // against — the same rule `$obj::class` follows, and the reason this is
         // not the annotation's own name folded at compile time.
         (ClassRef, Str) => true,
-        // ADR 0007 § 2's "anything → `string`" row: total for scalars, and an
+        // `rule:types/conversion`'s "anything → `string`" row: total for scalars, and an
         // object needs `Stringable` — which `require_stringable_object` has
         // already asked at this same span. `null` is in the row for the reason
         // `E_NO_STRING_FORM`'s doc gives: PHP renders it as the empty string
         // and a `?string` holding one already does.
         (Bool | Int | Uint | Float | Decimal | Str | Null | Object, Str) => true,
-        // ADR 0007 § 2's numeric rows, each exact-or-throws.
+        // `rule:types/conversion`'s numeric rows, each exact-or-throws.
         (Int, Uint) | (Uint, Int) | (Int | Uint, Float) | (Float, Int | Uint) => true,
         (Str, Int | Uint | Float) => true,
-        // ADR 0054 § 4's rows. `decimal → string` is in the "anything →
+        // `rule:types/conversion`'s rows. `decimal → string` is in the "anything →
         // `string`" row above with the other scalars.
         (Int | Uint | Float | Str, Decimal) | (Decimal, Int | Uint | Float) => true,
-        // ADR 0009 § 3's pair, and the only two rows either side appears in.
+        // `rule:types/conversion`'s pair, and the only two rows either side appears in.
         (Str, Bytes) | (Bytes, Str) => true,
-        // ADR 0010 § 5 refuses enum → a *different* enum by name rather than
+        // `rule:types/conversion` refuses enum → a *different* enum by name rather than
         // by backing type, and `reject_enum_to_enum_conversion` is where that
         // sentence lives — so this leaves the pair alone rather than reporting
         // a second, vaguer diagnostic on the same span. An enum case converted
         // to its own enum reaches here too, and is the free row.
         (Enum(_), Enum(_)) => true,
-        // ADR 0010 § 5 row 1: an enum to its own underlying type, total and
+        // `rule:types/conversion` row 1: an enum to its own underlying type, total and
         // free. Not to any *other* number — `$case as float` is that row and
-        // then ADR 0007 § 2's, written out.
+        // then `rule:types/conversion`'s, written out.
         (Enum(backing), target) => target == enum_backing_kind(backing),
-        // ADR 0010 § 5 row 2, the same composition `Lowering::convert`
+        // `rule:types/conversion` row 2, the same composition `Lowering::convert`
         // performs: the operand converts to the enum's backing scalar by
         // whichever row above applies, and the tag goes back on for free.
         (source, Enum(backing)) => conversion_row_exists(source, enum_backing_kind(backing)),
-        // ADR 0007 § 2's O(n) element row.
+        // `rule:types/conversion`'s O(n) element row.
         (Array, Array) => true,
         // Two spellings of one representation — a literal type and its base,
-        // `secret bytes` and `bytes`. ADR 0047 § 5 and ADR 0033 § 1 both make
+        // `secret bytes` and `bytes`. `rule:types/literal-types` and ADR 0033 § 1 both make
         // these free, and the qualifier rule that runs after this one
         // ([`super::quals`]) is what decides the result's own qualifiers. The
         // `bool` and `string` pairs are already true two rows up, so naming
@@ -2203,22 +2198,22 @@ fn conversion_help(from: ConvKind, to: ConvKind) -> &'static str {
     use ConvKind::{Array, Bool, Bytes, ClassRef, Enum, Null, Object, PropertyKey, Str, Void};
     match (from, to) {
         (_, PropertyKey) => {
-            "ADR 0126 § 2 gives `property<T>` exactly two sources: a `string` naming a public \
+            "`rule:types/property-key` gives `property<T>` exactly two sources: a `string` naming a public \
              declared property of `T`, and a narrowing from another key — so make the name first \
              and convert that"
         }
         (PropertyKey, _) => {
             "a property key converts back to the `string` it names and to nothing else \
-             (ADR 0126 § 2): read the property through it — `$obj->$key` — or convert to \
+             (`rule:types/property-key`): read the property through it — `$obj->$key` — or convert to \
              `string` first"
         }
         (_, ClassRef) => {
-            "ADR 0125 § 2 gives `class<T>` exactly two sources: a `string` naming a class that \
+            "`rule:types/class-reference` gives `class<T>` exactly two sources: a `string` naming a class that \
              is a `T`, and a narrowing from another class reference — so make the name first \
              (`Foo::class`, or the text a request carried) and convert that"
         }
         (ClassRef, _) => {
-            "a class reference is a class descriptor: ADR 0125 § 4's three sites take the value \
+            "a class reference is a class descriptor: `rule:types/class-reference-sites`'s three sites take the value \
              itself, `as string` reads the class's own name off it, and `Core\\Reflect` answers \
              every other reflective question about a class (ADR 0011)"
         }
@@ -2227,7 +2222,7 @@ fn conversion_help(from: ConvKind, to: ConvKind) -> &'static str {
         }
         (_, Void) => "`void` is a return type, not a value's type — there is nothing to produce",
         (_, Object) => {
-            "ADR 0007 § 2 tabulates no conversion into a class: ask `$x instanceof Name` and use \
+            "`rule:types/conversion` tabulates no conversion into a class: ask `$x instanceof Name` and use \
              the value the test narrows, or call that class's own named constructor"
         }
         (Array, Str) => {
@@ -2239,23 +2234,23 @@ fn conversion_help(from: ConvKind, to: ConvKind) -> &'static str {
              or a member of your own that names it"
         }
         (Enum(_), _) => {
-            "ADR 0010 § 5 converts an enum to its own backing type alone — convert to that first, \
+            "`rule:types/conversion` converts an enum to its own backing type alone — convert to that first, \
              then to the type you want"
         }
         (_, Array) => {
-            "ADR 0007 § 2's only row producing an `array<T>` is another `array<U>` — text becomes \
+            "`rule:types/conversion`'s only row producing an `array<T>` is another `array<U>` — text becomes \
              one through `Core\\Json::decode($s)`"
         }
         (_, Bytes) => {
-            "ADR 0009 § 3 gives `bytes` exactly one source, a `string`: render the value first — \
+            "`rule:types/conversion` gives `bytes` exactly one source, a `string`: render the value first — \
              `$v as string as bytes`"
         }
         (Bytes, _) => {
-            "ADR 0009 § 3 gives `bytes` exactly one target, a `string` — `$b as string`, and then \
+            "`rule:types/conversion` gives `bytes` exactly one target, a `string` — `$b as string`, and then \
              the type you want"
         }
         (Bool, _) => {
-            "`bool` converts to `string` and to `bool` alone (ADR 0007 § 2); a number out of a \
+            "`bool` converts to `string` and to `bool` alone (`rule:types/conversion`); a number out of a \
              predicate is a branch said out loud — `$b ? 1 : 0`"
         }
         (Null, _) => {
@@ -2263,13 +2258,13 @@ fn conversion_help(from: ConvKind, to: ConvKind) -> &'static str {
              would be a substituted default, and `as` never substitutes one"
         }
         _ => {
-            "ADR 0007 § 2's table is the whole list of conversions there is, and it has no row \
+            "`rule:types/conversion`'s table is the whole list of conversions there is, and it has no row \
              for this pair"
         }
     }
 }
 
-/// ADR 0010 § 5: "`EnumName` → a different `EnumName`, even with the same
+/// `rule:types/conversion`: "`EnumName` → a different `EnumName`, even with the same
 /// underlying type — **rejected**, even via `as`." Two enums sharing an
 /// underlying type are not the same closed set, so this refuses the
 /// conversion outright rather than letting [`ExprKind::Conversion`]'s
@@ -2303,7 +2298,7 @@ pub(crate) fn reject_enum_to_enum_conversion(
     );
 }
 
-/// [ADR 0047](/docs/adr/0047-literal-and-enum-case-types.md) § 6: a
+/// `rule:types/literal-types`: a
 /// checked `as` into a closed set of literals or enum cases, whose operand
 /// names one value and that value is not in the set — `"z" as "a"|"b"`,
 /// `Mode::Admin as Mode::Read|Mode::Write`. Nothing about it is conditional at
@@ -2429,7 +2424,7 @@ fn conversion_operand_singleton(
     Some(env.interner.enum_case(qname, backing, case))
 }
 
-/// ADR 0007 § 2's "anything → `string`" row, at the four sites that take it
+/// `rule:types/conversion`'s "anything → `string`" row, at the four sites that take it
 /// *implicitly*: `.`, `.=`, an interpolated piece and `echo`/`print`. The row
 /// reads "total for scalars; an object needs `Stringable`", and this is both
 /// halves of it — [`require_stringable_object`] for the object one, and the
@@ -2450,7 +2445,7 @@ pub(crate) fn require_stringable(ty: TypeId, span: Span, env: &mut Env<'_>) {
     require_stringable_object(ty, span, env);
     let help = match env.interner.get(ty) {
         Ty::Bytes | Ty::TaintedBytes | Ty::SecretBytes | Ty::SecretTaintedBytes => {
-            "ADR 0009 § 3 makes that conversion explicit, because which encoding the octets \
+            "`rule:types/conversion` makes that conversion explicit, because which encoding the octets \
              are in is a decision — `$b as string`"
         }
         Ty::Array(_) => {

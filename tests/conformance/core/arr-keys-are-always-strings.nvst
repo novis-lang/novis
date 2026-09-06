@@ -7,7 +7,7 @@ array<string> $keys = Core\Arr::keys($a);
 echo Core\Str::join($keys, ","), "\n";
 echo Core\Arr::count($keys), "|", Core\Arr::isList($keys) as string, "|\n";
 
-// ADR 0007 § 5 stores every key as a `string`, so a key that looks like an
+// `rule:types/arrays` stores every key as a `string`, so a key that looks like an
 // integer is one only in its spelling — PHP's `array_keys` hands back an `int`
 // there, and the caller who wants the number says so.
 array<string> $list = ["a", "b", "c"];

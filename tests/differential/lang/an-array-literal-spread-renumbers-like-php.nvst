@@ -1,5 +1,5 @@
 --TEST--
-`[...$a]` renumbers an integer-looking key and preserves every other one, exactly as PHP does — ADR 0007 § 5
+`[...$a]` renumbers an integer-looking key and preserves every other one, exactly as PHP does — `rule:types/arrays`
 --FILE--
 <?nvs
 // Two lists concatenate: every key of both is integer-looking, so every

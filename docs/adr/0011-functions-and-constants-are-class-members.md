@@ -89,7 +89,7 @@ Two things are deliberately **not** affected:
   `Core\Script` are the one part of the roster fixed ahead of the stdlib milestones, because they replace
   PHP's superglobals rather than a PHP function library — see `rule:statements/no-host-populated-variables`.
 - **The array domain class is spelled `Core\Arr`, not `Core\Array`.** `array` is a type atom in
-  [ADR 0007](0007-explicit-type-system.md) § 3's grammar; a class literally named `Array` would collide with
+  `rule:types/grammar`'s grammar; a class literally named `Array` would collide with
   it exactly where a type is expected. This is the one naming wrinkle worth fixing now rather than
   discovering it at M2.
 - **Every PHP global function becomes a `public static` method** on the matching domain class, and **every
@@ -160,7 +160,7 @@ every one of them is [divergences.md](divergences.md).
 
 - Every PHP global-function or global-constant call in a converted program needs a name-mapping rewrite
   (`strlen` → `Core\Str::length`), on top of the type-annotation rewrite
-  [ADR 0007](0007-explicit-type-system.md) already requires. `nvs convert` (M11) needs a maintained
+  `rule:types/declaration` already requires. `nvs convert` (M11) needs a maintained
   PHP-name → `Core`-class-and-member table that grows with the stdlib rather than being fixed at M0.
 - A PHP file's own free functions and constants — user-authored procedural code with no built-in
   counterpart — have no destination class the converter can infer automatically. This is the same shape of

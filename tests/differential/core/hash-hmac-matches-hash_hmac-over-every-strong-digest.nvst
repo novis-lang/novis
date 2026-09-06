@@ -1,5 +1,5 @@
 --TEST--
-`Core\Hash::hmac` answers over RFC 4231's key and message vectors what `hash_hmac` answers for each of spec § 11's ten `StrongDigest` cases, including the key longer than the compression block (spec § 11, RFC 2104, ADR 0009 § 1)
+`Core\Hash::hmac` answers over RFC 4231's key and message vectors what `hash_hmac` answers for each of spec § 11's ten `StrongDigest` cases, including the key longer than the compression block (spec § 11, RFC 2104, `rule:types/bytes`)
 --FILE--
 <?nvs
 // `Core\Hash::hmac` is a member rather than an option on `of` because its

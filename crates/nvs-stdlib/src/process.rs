@@ -28,7 +28,7 @@
 //! the same reasons stated there.
 //!
 //! **Captured output is `bytes`, never `string`** — ADR 0044 § 1, over
-//! [ADR 0009](/docs/adr/0009-string-and-bytes.md)'s UTF-8 guarantee,
+//! `rule:types/bytes`'s UTF-8 guarantee,
 //! which cannot be assumed of an arbitrary child's output. A caller who knows
 //! the output is text writes `as string`, which is the checked conversion that
 //! throws rather than the silent replacement-character mangling PHP gives.

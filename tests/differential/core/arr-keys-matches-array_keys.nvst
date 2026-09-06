@@ -5,7 +5,7 @@ Core\Arr::keys answers the key sequence array_keys answers, over the spellings P
 // Spec § 2's `keys` against its twin. Novis types every key `string` where
 // `array_keys` hands back an `int` for an integer key, so what these rows
 // compare is the *sequence* — the same normalisation, the same order, the same
-// gaps — and never the type each language chose for a key; ADR 0069 § 5 owns
+// gaps — and never the type each language chose for a key; `rule:types/arrays` owns
 // that choice. The interesting half is that the normalisation itself has to
 // agree, because a subject is built out of key spellings before `keys` ever
 // sees it: if `"7"` were a string key here and an integer one in PHP, the two

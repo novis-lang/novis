@@ -3,7 +3,7 @@
 //!
 //! | module | grammar |
 //! |---|---|
-//! | [`ty`] | the type grammar (ADR 0007 § 3), and a qualified name |
+//! | [`ty`] | the type grammar (`rule:types/grammar`), and a qualified name |
 //! | [`expr`] | every operator at its PHP precedence, down to a primary |
 //! | [`stmt`] | control flow, `echo`, `unset`, a typed local, destructuring |
 //! | [`decl`] | classes, interfaces, enums, attributes, `namespace`/`use`/`autoload`/`type` |

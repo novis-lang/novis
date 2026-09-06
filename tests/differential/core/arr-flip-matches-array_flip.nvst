@@ -20,7 +20,7 @@ final class Render {
 
 // The plain direction. Novis hands the old key back as a `string` and PHP as
 // whatever type it held, which `echo` cannot tell apart — that is what makes
-// these two lines comparable (ADR 0069 § 5).
+// these two lines comparable (`rule:types/arrays`).
 array<int|string> $roles = ["ann" => "admin", "bob" => "guest"];
 echo Render::of(Core\Arr::flip($roles)), "\n";
 

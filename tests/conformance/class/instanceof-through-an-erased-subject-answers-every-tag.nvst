@@ -1,5 +1,5 @@
 --TEST--
-`instanceof` through a subject whose tag nothing proved — a `mixed`, a plain `object`, a `?Class` tested and untested — walks the concrete class, and every non-object tag answers `false` rather than throwing — ADR 0007 § 2, ADR 0007 § 7 row 14
+`instanceof` through a subject whose tag nothing proved — a `mixed`, a plain `object`, a `?Class` tested and untested — walks the concrete class, and every non-object tag answers `false` rather than throwing — `rule:types/conversion`, ADR 0007 § 7 row 14
 --FILE--
 <?nvs
 final class Ask {
@@ -29,7 +29,7 @@ final class Dog extends Animal {
     }
 }
 
-// ADR 0007 § 2's one unchecked position: nothing proved this holds an object
+// `rule:types/conversion`'s one unchecked position: nothing proved this holds an object
 // at all, which is precisely the question `instanceof` is being asked.
 mixed $erased = new Dog();
 echo Ask::yn($erased instanceof Dog),

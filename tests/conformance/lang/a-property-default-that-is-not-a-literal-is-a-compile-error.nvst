@@ -1,5 +1,5 @@
 --TEST--
-A property default that is not a literal of the property's own declared type does not compile — ADR 0007 § 1
+A property default that is not a literal of the property's own declared type does not compile — `rule:types/declaration`
 --FILE--
 <?nvs
 // The default is evaluated once, at compile time, into the constant every

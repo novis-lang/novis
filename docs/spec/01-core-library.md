@@ -69,7 +69,7 @@ keeps the two from becoming two spellings of one thing:
 | write an element | `$a[$k] = $v` | |
 | remove an element | `unset($a[$k])` | an array element of a named holder, and nothing else — a declared property, static or instance, and every other operand alike are refused ([ADR 0028](../adr/0028-closing-the-remaining-magic-methods.md) § 3) |
 | ask whether a key exists | `Arr::hasKey($a, $k)` | `isset()`/`array_key_exists` both collapse here |
-| combine two arrays | `Arr::overlay` / `underlay` / `appendAll` | `$a + $b` does **not** compile ([ADR 0069](../adr/0069-array-combination-is-key-type-independent.md)) |
+| combine two arrays | `Arr::overlay` / `underlay` / `appendAll` | `$a + $b` does **not** compile (`rule:types/array-combination`) |
 
 The same division applies elsewhere: `**` is exponentiation, so there is no `Math::pow`; `%` is integer
 modulo, so `Math::mod` exists only for the `float` case; `instanceof` is an operator, so `Core\Reflect` has
@@ -102,9 +102,9 @@ from the assertions at the M4S tail to `#[Bench]` and mutation testing at M10.
 
 ## 1. `Core\Str`
 
-`string` is guaranteed-valid UTF-8 ([ADR 0009](../adr/0009-string-and-bytes.md)), so **no member takes an
+`string` is guaranteed-valid UTF-8 (`rule:types/bytes`), so **no member takes an
 encoding argument** (R13) and there is no `mb_` twin of anything. Indexing granularity — what `length`, `at`
-and `slice` count in — is [ADR 0009](../adr/0009-string-and-bytes.md) § 2's, not this file's: **extended
+and `slice` count in — is `rule:types/string-is-utf8`'s, not this file's: **extended
 grapheme clusters**. Every signature below is written granularity-agnostically, so nothing here changes if
 that ADR's own *Revisiting* ever re-opens it.
 
@@ -204,7 +204,7 @@ which is what `Core\Regex` is for — `ctype_alpha($s)` is `Regex::matches($s, "
 numeric ones, which are a *type* question and therefore an `as`: `ctype_digit($s)` is
 `$s as ?uint != null` (`rule:expressions/nullable-conversion`). Adding them as members
 would import ASCII-only semantics into a type that guarantees UTF-8, which is the mistake
-[ADR 0009](../adr/0009-string-and-bytes.md) exists to prevent; `Core\Validate::isAscii` and `isPrintable`
+`rule:types/bytes` exists to prevent; `Core\Validate::isAscii` and `isPrintable`
 are here precisely because they *are* about the ASCII range and say so.
 
 Enums: `NormalForm { Nfc, Nfd, Nfkc, Nfkd }`.
@@ -218,7 +218,7 @@ the stdlib is parametric where user code is not.
 
 Every key is a `string`, so every key-valued **return** below is typed `string`; a key **parameter** is
 `int|string`, matching the subscript normalisation of that same section. How arrays combine, and why no
-member is named `merge`, is [ADR 0069](../adr/0069-array-combination-is-key-type-independent.md).
+member is named `merge`, is `rule:types/array-combination`.
 
 ### Inspection
 
@@ -287,7 +287,7 @@ one does not have. `mixed` on both sides is therefore the *sound* spelling rathe
 caller that knows the depth is two reaches for `flatten` and keeps its `T`. **`{preserveKeys: false}` — the default wherever it appears — discards *every*
 key and renumbers from `"0"`**; `true` keeps every key. PHP renumbers integer keys and silently keeps string
 ones, which is the key-type-dependent behaviour
-[ADR 0069](../adr/0069-array-combination-is-key-type-independent.md) § 3 removes.
+`rule:types/preserve-keys` removes.
 
 `padStart`/`padEnd` **always return a list**, and take no `preserveKeys` option: padding *adds* entries, and
 there is no non-arbitrary key for an added one beside an existing map's, so keeping is not a choice that can
@@ -299,7 +299,7 @@ actually wants are `fillKeys`.
 
 Three members combine arrays, and **each treats every key the same way** — there is no member named
 `merge`, and `array + array` does not compile. The rules, the key order each produces and `nvs convert`'s
-rewrite table are [ADR 0069](../adr/0069-array-combination-is-key-type-independent.md).
+rewrite table are `rule:types/array-combination`.
 
 | Member | Signature | Replaces | Q |
 |---|---|---|---|
@@ -328,7 +328,7 @@ Every callback receives `($value, $key)` and may declare fewer parameters (R9), 
 `ARRAY_FILTER_USE_KEY`, `ARRAY_FILTER_USE_BOTH` and the need for `…WithKey` twins. `reduce` prefixes that
 pair with the accumulator — `($carry, $value, $key)` — since a fold has nowhere else to put it. `$key` is a
 `string` wherever it is offered, on a list exactly as on a map
-([ADR 0069](../adr/0069-array-combination-is-key-type-independent.md) § 5).
+(`rule:types/arrays`).
 
 `reduce`'s `U` is bound by `$initial`, so the fold's type is the seed's: a fold building a string starts
 from `""`, and an empty array is that seed returned unchanged with no call made.
@@ -359,7 +359,7 @@ element typing that makes the rest of this class checkable.
 
 `array_walk` and `array_walk_recursive` have no member: `foreach` is the language's own spelling, and R3
 removes the by-reference mutation that was their only reason to exist
-([ADR 0069](../adr/0069-array-combination-is-key-type-independent.md) § 4).
+(`rule:types/array-combination`).
 
 ### Ordering
 
@@ -386,7 +386,7 @@ Enums: `Order { Asc, Desc }`, `SetOn { Values, Keys, Both }`.
 `ArithmeticError` (R4) — in `intDiv`, in `mod`, and in the `/` operator whatever the operand types, which
 is exactly why `fdiv` *is* a member here: it is the one spelling left for IEEE's `INF`, and PHP has it for
 the same reason. Overflow throws rather than becoming a `float`
-([ADR 0007](../adr/0007-explicit-type-system.md) § 4).
+(`rule:types/arithmetic`).
 
 | Member | Signature | Replaces | Q |
 |---|---|---|---|
@@ -446,7 +446,7 @@ exact count of nanoseconds; a `DateTime` moves by a count of a `Unit`, which is 
 boundary or a short month can make longer or shorter than its nominal length. `Time::now()->plus(72h)` and
 `Time::now()->in($zone)->plus(3, Unit::Day)` are different operations, and PHP's `"+3 days"` is ambiguous
 between them. There is no relative-expression string anywhere in this class: everything `strtotime` spells
-is a typed call, and [ADR 0070](../adr/0070-duration-literals.md)'s `72h`/`30d` literal is what keeps them
+is a typed call, and `rule:types/duration-literal`'s `72h`/`30d` literal is what keeps them
 short.
 
 ### Entry points on `Core\Time`
@@ -529,7 +529,7 @@ because constructing an invalid date throws.
 
 | Member | Signature | Notes |
 |---|---|---|
-| `Duration::seconds` | `seconds(int $n): Duration` | plus `nanoseconds`, `microseconds`, `milliseconds`, `minutes`, `hours`, `days`, `weeks` — for a **computed** count; a literal one is [ADR 0070](../adr/0070-duration-literals.md)'s `30s` |
+| `Duration::seconds` | `seconds(int $n): Duration` | plus `nanoseconds`, `microseconds`, `milliseconds`, `minutes`, `hours`, `days`, `weeks` — for a **computed** count; a literal one is `rule:types/duration-literal`'s `30s` |
 | `Duration::parse` | `parse(string $text): Duration` | the run-time form of that same literal grammar, one implementation for both. Throws on anything it does not accept, so it **launders** a `tainted` config value |
 | `$d->toSeconds` | `$d->toSeconds(): int` | plus `toMilliseconds`, `toMicroseconds`, `toNanoseconds` |
 | `$d->plus` / `minus` / `multipliedBy` / `negated` | `$d->plus(Duration $d): Duration` / `$d->minus(Duration $d): Duration` / `$d->multipliedBy(int $factor): Duration` / `$d->negated(): Duration` | `Duration` is `Comparable` and `Stringable`, emitting the literal grammar so it round-trips through `parse` |
@@ -575,7 +575,7 @@ are [ADR 0056](../adr/0056-regex-engine-policy.md). `preg_match`'s `$matches` ou
 |---|---|---|
 | `group` | `$match->group(int\|string $group): ?string` | one group's text; `null` where the pattern declares it and this match did not reach it, and a **throw** for a group the pattern does not declare |
 | `groups` | `$match->groups(): array<?string>` | every group at once, in `preg_match`'s own order: a named group under its name, then under its number |
-| `offset` | `$match->offset(): int` | where the whole match starts, in [ADR 0009](../adr/0009-string-and-bytes.md) § 2's unit — not `PREG_OFFSET_CAPTURE`'s bytes |
+| `offset` | `$match->offset(): int` | where the whole match starts, in `rule:types/string-is-utf8`'s unit — not `PREG_OFFSET_CAPTURE`'s bytes |
 | `text` | `$match->text(): string` | the whole match, which is group `0` |
 
 `match`'s `from` is a position in that same unit, negative counting from the end (R8), and the match is
@@ -605,7 +605,7 @@ rather than degrading to `float`, because silent precision loss on a wire format
 `Core\Json\Codec`, which declares `toJson(): mixed` and a static `fromJson(mixed $value): static`; there is
 no magic hook and no structural encoding of public properties
 ([ADR 0063 § 4](../adr/0063-core-api-conventions.md)). An inline shape
-([ADR 0036](../adr/0036-anonymous-object-shapes.md)) is the one instance that needs neither, encoding as a
+(`rule:types/object-top`) is the one instance that needs neither, encoding as a
 JSON object keyed by its field names — it has no declaration to carry a codec, and
 [ADR 0071 § 7](../adr/0071-derived-codecs.md) owns why that is not the same rule. A `secret` value cannot be encoded at all
 ([ADR 0033](../adr/0033-secret-qualifier-for-confidential-values.md)).
@@ -620,14 +620,14 @@ carrying every failed field — are [ADR 0071](../adr/0071-derived-codecs.md). T
 | `Core\Json\Derive` | `{}` | a class; generates whichever `Codec` half the class does not declare itself |
 | `Core\Json\Field` | `{name?: string, skip?: bool}` | a property; renames or removes one field |
 
-`decodeAs<T>` accepts an inline shape ([ADR 0036](../adr/0036-anonymous-object-shapes.md)) or a class with a
+`decodeAs<T>` accepts an inline shape (`rule:types/object-top`) or a class with a
 `Codec`, derived or hand-written. Over a `tainted` argument it diagnoses a `T` whose text-carrying fields are
 unqualified, naming the field.
 
 ## 7. `Core\Encoding` and `Core\Bytes`
 
 `Core\Encoding` sits exactly at the `bytes`↔`string` boundary, which is the one place a conversion can
-honestly fail ([ADR 0009](../adr/0009-string-and-bytes.md)).
+honestly fail (`rule:types/bytes`).
 
 | Member | Signature | Replaces | Q |
 |---|---|---|---|
@@ -717,7 +717,7 @@ it is on `Core\Arr` rather than `difference`, because one operation gets one nam
 `ObjectMap`/`ObjectSet` key on identity. `Heap` orders by [ADR 0013](../adr/0013-comparable-interface.md)'s
 `Comparable`, or by a comparator given at construction. These are the only mutable `Core` types, because a
 persistent structure would give up the O(log n) that justifies their existence at all; they are objects,
-so [ADR 0007](../adr/0007-explicit-type-system.md)'s reference semantics apply and nothing about R3 is in
+so `rule:types/declaration`'s reference semantics apply and nothing about R3 is in
 question.
 
 **A `foreach` yields the one thing each collection has to say**: a map's *keys*, as `SplObjectStorage`
@@ -742,7 +742,7 @@ Throwable                     // the root; user classes extend it directly
   │    ├─ ParseError          // input did not match a format this code declared
   │    ├─ TimeoutError        // a deadline passed
   │    └─ RecursionError      // the call stack passed its soft depth (`rule:errors/on-limit`)
-  └─ ArithmeticError          // overflow (ADR 0007), division by zero
+  └─ ArithmeticError          // overflow (`rule:types/declaration`), division by zero
 ```
 
 Every one is constructed the same way — `new RuntimeError("could not reach the host", {previous: $e})` —
@@ -814,7 +814,7 @@ milliseconds and random inside one — the property that makes it the right prim
 identifier, since a `v7` handed to a stranger tells them when the row was created.
 
 `Digest` carries every algorithm including `Md5`, `Sha1` and `Crc32`, because checksum interop genuinely
-needs them. `StrongDigest` is the closed subset ([ADR 0047](../adr/0047-literal-and-enum-case-types.md))
+needs them. `StrongDigest` is the closed subset (`rule:types/literal-types`)
 that the HMAC and signature members declare, so `Hash::hmac($m, $k, Digest::Md5)` is a compile error naming
 the reason. Password hashing takes no algorithm argument at all and is in § 16.
 
@@ -924,7 +924,7 @@ The eight readers are what `parse_url`'s array keys become, with two differences
 **The two decoders answer `bytes`, and the two encoders answer `string`.** Percent-decoding is defined over
 octets and a client may send any of them, so `decodeComponent("%FF")` has an answer and `%ff%fe%fd` is the
 three octets it spells. A caller who wants text writes `as string`, which is
-[ADR 0009](../adr/0009-string-and-bytes.md) § 3's checked conversion and throws in exactly the place a
+`rule:types/conversion`'s checked conversion and throws in exactly the place a
 `string`-returning decoder would have — so nothing is denied an answer it could have used, and the asymmetry
 is the honest one: an encoder takes text and escapes it, a decoder is handed a wire and cannot promise what
 is on it. The encoders are this class's two laundering rows and are unchanged.
@@ -952,7 +952,7 @@ launders anything.**
 Three members that were here are gone as duplicates, each with a one-line rewrite: `isUrl` is
 `Uri::tryParse($s)?->scheme() != null`, `oneOf($value, $allowed)` is `Arr::contains($allowed, $value)` — the same operation with
 PHP's argument order, which R10 exists to stop — and `isIpV4`/`isIpV6` are `{version: 4}`/`{version: 6}`,
-a closed literal set ([ADR 0047](../adr/0047-literal-and-enum-case-types.md)) rather than two more names.
+a closed literal set (`rule:types/literal-types`) rather than two more names.
 
 **There is no `isInteger`, `isFloat` or `isBoolean`**: each is `$s as ?int`/`?float`/`?bool != null`
 (`rule:expressions/nullable-conversion`), and R17 forbids the second spelling. Every
@@ -1251,7 +1251,7 @@ text-family columns only, and the universal path is `->get()` plus `as`. An unkn
 A class participates in `queryAs<T>` by implementing `Core\Db\Codec`, which declares
 `static fromRow(Db\Row $row): static` — read-only by design, since writing rows from objects is an ORM
 concern and not `Core`'s ([ADR 0051](../adr/0051-standard-library-tiers.md) test 6). The other accepted `T`
-is an inline shape ([ADR 0036](../adr/0036-anonymous-object-shapes.md)), validated per row.
+is an inline shape (`rule:types/object-top`), validated per row.
 
 ### Enums, settings and errors
 
@@ -1264,7 +1264,7 @@ ErrorKind  { UniqueViolation, ForeignKeyViolation, NotNullViolation, CheckViolat
              SerializationFailure, ConnectionLost, Timeout, Syntax, Permission, Other }
 ```
 
-`Db\Settings` is a discriminated union over [ADR 0047](../adr/0047-literal-and-enum-case-types.md)'s
+`Db\Settings` is a discriminated union over `rule:types/literal-types`'s
 enum-case types — a `host` on a SQLite literal is a compile error:
 
 ```
@@ -1299,7 +1299,7 @@ in Part II and lands at **M5** rather than M8.
 `all` takes a shape literal of zero-argument closures and returns a shape with the same field names, each
 carrying **that closure's own declared return type**. Every field must be a written `fn` literal — a
 `callable`-typed variable is a compile error naming the field, pending
-[ADR 0007](../adr/0007-explicit-type-system.md) § 3's typed `callable` signatures. `map` preserves its
+`rule:types/grammar`'s typed `callable` signatures. `map` preserves its
 input's keys and order regardless of completion order, and its callback receives `($value, $key)` like
 every other callback here (R9).
 

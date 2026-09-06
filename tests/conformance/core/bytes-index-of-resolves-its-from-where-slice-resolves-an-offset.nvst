@@ -1,5 +1,5 @@
 --TEST--
-Spec § 7: `Core\Bytes::indexOf`'s `from` option resolves a position exactly where `Core\Bytes::slice` resolves an offset — the whole clamp table on both sides, and searching from it is searching the tail it cuts — ADR 0009 § 1, ADR 0063 R5 and R8
+Spec § 7: `Core\Bytes::indexOf`'s `from` option resolves a position exactly where `Core\Bytes::slice` resolves an offset — the whole clamp table on both sides, and searching from it is searching the tail it cuts — `rule:types/bytes`, ADR 0063 R5 and R8
 --FILE--
 <?nvs
 // `from` is a *position*, so R8's sign rule applies to it and it reads through

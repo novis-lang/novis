@@ -18,7 +18,7 @@ pub enum SymbolKind {
     /// An `enum` declaration (`rule:enums/closed-integer-type`).
     Enum,
     /// A `type Name = TypeExpr;` declaration
-    /// ([ADR 0015](/docs/adr/0015-no-name-aliasing.md) § 5).
+    /// (`rule:types/type-alias`).
     TypeAlias,
 }
 

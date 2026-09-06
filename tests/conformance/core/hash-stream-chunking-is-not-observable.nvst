@@ -1,5 +1,5 @@
 --TEST--
-`Core\Hash\Stream` answers one digest for every chunking of one input, wherever a boundary falls inside a compression block — spec § 11, ADR 0009 §§ 1 and 3
+`Core\Hash\Stream` answers one digest for every chunking of one input, wherever a boundary falls inside a compression block — spec § 11, `rule:types/bytes` and `rule:types/conversion`
 --FILE--
 <?nvs
 // § 11: the incremental form's whole contract is that the chunking is not
@@ -60,7 +60,7 @@ $three->update(Core\Str::slice($message, 65, 65));
 $three->update("");
 echo Core\Hash::equals($three->finish(), $whole) ? "same" : "differ", "\n";
 
-// ADR 0009 § 3: `string as bytes` is total, so the tag a chunk arrives under is
+// `rule:types/conversion`: `string as bytes` is total, so the tag a chunk arrives under is
 // not part of the digest either — including when it changes exactly on the
 // block edge.
 var $tagged = Core\Hash::stream(Core\Digest::Sha256);

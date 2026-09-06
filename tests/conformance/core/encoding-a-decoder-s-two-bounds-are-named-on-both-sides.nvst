@@ -1,5 +1,5 @@
 --TEST--
-`Core\Encoding`'s decoders are bounded on both sides in two independent ways — the symbol counts a group admits, and the last symbol whose trailing bits an octet reads — with the accepted and the refused named together — spec § 7, ADR 0009 § 3, RFC 4648 §§ 3.5, 4, 5 and 6
+`Core\Encoding`'s decoders are bounded on both sides in two independent ways — the symbol counts a group admits, and the last symbol whose trailing bits an octet reads — with the accepted and the refused named together — spec § 7, `rule:types/conversion`, RFC 4648 §§ 3.5, 4, 5 and 6
 --FILE--
 <?nvs
 // The neighbouring cases pin what each decoder accepts and what each says when

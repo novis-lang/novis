@@ -101,7 +101,7 @@ echo "atanh: odd to within a rounding step on ", $nearlyOdd, "/", $atanhRows, " 
 float $nz = -0.0;
 int $signCarried = 0;
 // `Core\Math::fdiv` and not `/`: every one of these nine answers is a zero, and
-// ADR 0007 § 4 makes the operator throw on a zero divisor whatever the operand
+// `rule:types/arithmetic` makes the operator throw on a zero divisor whatever the operand
 // types — the reciprocal is the instrument, so it has to be the member.
 if (Core\Math::fdiv(1.0, Core\Math::sin($nz)) < 0.0) { $signCarried = $signCarried + 1; }
 if (Core\Math::fdiv(1.0, Core\Math::tan($nz)) < 0.0) { $signCarried = $signCarried + 1; }

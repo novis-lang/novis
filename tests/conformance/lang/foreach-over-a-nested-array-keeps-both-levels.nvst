@@ -1,5 +1,5 @@
 --TEST--
-A `foreach` nested in a `foreach` binds each level's own key and value — ADR 0007 § 5 types the key `string`
+A `foreach` nested in a `foreach` binds each level's own key and value — `rule:types/arrays` types the key `string`
 --FILE--
 <?nvs
 array<array<int>> $grid = ["top" => [1, 2, 3], "bottom" => [4, 5]];

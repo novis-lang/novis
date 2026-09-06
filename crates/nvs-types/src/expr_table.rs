@@ -156,7 +156,7 @@ pub struct ResolvedCall {
     /// records `User`, and every other call records `None`.
     ///
     /// A type argument is erased like every other one
-    /// ([ADR 0007](/docs/adr/0007-explicit-type-system.md)), so this
+    /// (`rule:types/declaration`), so this
     /// is deliberately not "what `T` bound to": it is the one fact a *native*
     /// member needs that erasure removes, namely which class's
     /// `nvs_runtime::ClassDesc` to build an instance of. `nvs-ir` turns it
@@ -311,7 +311,7 @@ pub enum ExprInfo {
     /// [`nvs_syntax::ast::ExprKind::StaticCall`] whose receiver/class side
     /// resolved to a known signature.
     Call(ResolvedCall),
-    /// `Foo::bar(...)` / `$obj->method(...)` — ADR 0027 § 1's first-class
+    /// `Foo::bar(...)` / `$obj->method(...)` — `rule:types/callable-is-a-closure`'s first-class
     /// callable syntax, which *names* the resolved member rather than calling
     /// it, and whose value is a closure over it.
     ///
@@ -326,7 +326,7 @@ pub enum ExprInfo {
     /// Only ever recorded when the member resolved. The three shapes that
     /// name no member are refused where they are written and record nothing:
     /// a `mixed` receiver (`E_FIRST_CLASS_CALLABLE_ERASED_RECEIVER`, since a
-    /// closure carries its callee with it and ADR 0036 § 4's run-time
+    /// closure carries its callee with it and `rule:types/erased-member-access`'s run-time
     /// dispatch has no callee to carry), an erased `object`/shape receiver
     /// (`E_METHOD_ON_ERASED_RECEIVER`), and an unresolved class expression,
     /// which `nvs_hir::members` has already reported. So a consumer that
@@ -336,12 +336,11 @@ pub enum ExprInfo {
     /// `ResolvedCall::arg_slots` is empty here and means nothing: `(...)` is a
     /// sentinel, not an argument list, so there are no written arguments to
     /// map. Every other field is the one an ordinary call would carry,
-    /// [`ResolvedCall::static_class`] included — ADR 0027 § 1 makes
+    /// [`ResolvedCall::static_class`] included — `rule:types/callable-is-a-closure` makes
     /// `static::helper(...)` late-bound exactly as `static::helper()` is.
     CallableRef(ResolvedCall),
     /// A bare name in callee position that is
-    /// [ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md)
-    /// § 3's self-name — `fact` inside `fn fact(int $n): int => … fact($n - 1)`.
+    /// `rule:types/closure-self-name`'s self-name — `fact` inside `fn fact(int $n): int => … fact($n - 1)`.
     ///
     /// Recorded on the **callee's** span, not the call's, because it is the
     /// resolution of that name and nothing else: the call around it is the
@@ -372,8 +371,7 @@ pub enum ExprInfo {
         ty: TypeId,
     },
     /// `new $cls(...)` over a `class<T>` operand —
-    /// [ADR 0125](/docs/adr/0125-a-class-reference-is-a-type-and-as-is-its-only-source.md)
-    /// § 4's dynamic form, and a variant of its own precisely because it
+    /// `rule:types/class-reference-sites`'s dynamic form, and a variant of its own precisely because it
     /// cannot answer the question [`ExprInfo::New`] is built around. A `New`
     /// entry names **the class a layout comes from**, and here that is
     /// whichever implementor the descriptor in hand holds — a fact no compile
@@ -400,7 +398,7 @@ pub enum ExprInfo {
         /// is § 4's "resolves against `T`" as a consumer sees it.
         ty: TypeId,
     },
-    /// `$cls::f(...)` over a `class<T>` class side — ADR 0125 § 4's second
+    /// `$cls::f(...)` over a `class<T>` class side — `rule:types/class-reference-sites`'s second
     /// site, and an [`ExprInfo::Call`] in every field it carries.
     ///
     /// A variant of its own for [`ExprInfo::NewDynamic`]'s reason, one step
@@ -416,7 +414,7 @@ pub enum ExprInfo {
     /// reference has nothing to do with. [`crate::expr::calls`]'s
     /// static-call refusal is where that is reported.
     ///
-    /// Known gap: `$cls::f(...)` written as ADR 0027's first-class callable
+    /// Known gap: `$cls::f(...)` written as `rule:types/callable-is-a-closure`'s first-class callable
     /// records [`ExprInfo::CallableRef`] like any other class side, so the
     /// closure it names is `T`'s method rather than the implementor's. The
     /// same fallback-versus-override question as above, at a site that has no
@@ -425,8 +423,7 @@ pub enum ExprInfo {
     /// `$m->method(...)` on a **`mixed`** receiver — the one method call that
     /// resolves to no signature and is not refused where it is written.
     ///
-    /// ADR 0007 § 2 makes `mixed` the one unchecked position, so ADR 0036
-    /// § 4's deferral covers a call as well as a property access: which class
+    /// `rule:types/conversion` makes `mixed` the one unchecked position, so `rule:types/erased-member-access`'s deferral covers a call as well as a property access: which class
     /// is behind the handle, and whether there is one at all, is a run-time
     /// question, and `docs/adr/README.md` § *Decisions taken at project start*
     /// owns the convention that answers it — the receiver's own descriptor
@@ -449,7 +446,7 @@ pub enum ExprInfo {
     /// A resolved property access (`$obj->prop`) whose receiver statically
     /// resolved to a known declaring class — a shape receiver and a
     /// plain-`object` one both record [`ExprInfo::ShapeProperty`] instead,
-    /// since ADR 0036 § 4 gives neither a declaring class to name (see
+    /// since `rule:types/erased-member-access` gives neither a declaring class to name (see
     /// [`crate::expr::members::check_property_access`]'s own docs for that erasure).
     /// A consumer with no entry for a `PropertyAccess` span must treat it the
     /// same way the checker did: nothing compile-time-known to read.
@@ -526,7 +523,7 @@ pub enum ExprInfo {
         /// exempt from it — see [`ObserverCalls`].
         observer: Option<ObserverCalls>,
     },
-    /// A resolved property access whose receiver is an ADR 0036 § 4 **shape**
+    /// A resolved property access whose receiver is an `rule:types/erased-member-access` **shape**
     /// that names the field — recorded *instead of* [`ExprInfo::Property`],
     /// because a shape value has no class at all: it is anonymous and
     /// methodless, so there is no declaring name for a consumer to resolve a
@@ -551,7 +548,7 @@ pub enum ExprInfo {
     /// distinguishing at the consumer.
     ShapeProperty {
         /// The field's own name, `$`-sigil not included. What the runtime
-        /// fetch is keyed on: ADR 0036 § 4 makes the read name-keyed, because
+        /// fetch is keyed on: `rule:types/erased-member-access` makes the read name-keyed, because
         /// [`Self::ShapeProperty::slot`] is only the layout of the receiver's
         /// *static* shape and a widened view's is not the value's own.
         name: String,
@@ -563,7 +560,7 @@ pub enum ExprInfo {
     },
     /// A resolved array-element access (`$arr[$expr]`, read or write) whose
     /// base statically resolved to a known `Ty::Array` element type, **or**
-    /// erased to `mixed` in a read position, where ADR 0036 § 4's deferral
+    /// erased to `mixed` in a read position, where `rule:types/erased-member-access`'s deferral
     /// applies one storage kind along from a member access: the element type
     /// is `mixed` too, and `nvs-ir` picks
     /// [`nvs_ir::Helper::ValueIndexGet`](../../nvs_ir/ir/enum.Helper.html)
@@ -710,7 +707,7 @@ pub enum ExprInfo {
     /// Never recorded for an ordinary `Class::CONST`, whose value travels in
     /// [`ExprInfo::CoreConst`] instead.
     /// The enum and the case are carried beside the value for
-    /// [`ExprInfo::InstanceOf`]'s reason a second time: ADR 0047 § 4's guard
+    /// [`ExprInfo::InstanceOf`]'s reason a second time: `rule:types/literal-types`'s guard
     /// row narrows a local to the case's own `Ty::EnumCase`, and *which* case
     /// a written `Mode::Read` names is a question about the namespace and the
     /// imports of the site that wrote it — context
@@ -767,8 +764,7 @@ pub enum ExprInfo {
     ClassNameOf,
     /// `as property<T>` / `as ?property<T>` over an operand that is **not** a
     /// written-out string —
-    /// [ADR 0126](/docs/adr/0126-a-property-key-is-a-checked-name-and-as-is-its-only-source.md)
-    /// § 2's `string` and `property<U>` rows, with `T`'s public roster already
+    /// `rule:types/property-key`'s `string` and `property<U>` rows, with `T`'s public roster already
     /// resolved.
     ///
     /// Recorded because the roster is the one thing the erasure loses. A key's
@@ -776,7 +772,7 @@ pub enum ExprInfo {
     /// [`nvs_ir`'s `Ty::Str`](/crates/nvs-ir/src/ty.rs) because a key
     /// *is* a name, and `nvs-ir` holds no class table to re-derive the set
     /// from. So the set travels here and § 2's two checked rows lower to the
-    /// same compile-time-known membership chain ADR 0047 § 3's literal union
+    /// same compile-time-known membership chain `rule:types/enum-case-type`'s literal union
     /// already does — one `BinOp::Eq` per name, and a throw where every one of
     /// them missed.
     ///
@@ -801,8 +797,7 @@ pub enum ExprInfo {
         names: Vec<String>,
     },
     /// `$obj->$key` / `$obj->{$expr}` —
-    /// [ADR 0126](/docs/adr/0126-a-property-key-is-a-checked-name-and-as-is-its-only-source.md)
-    /// § 4's keyed access, read or write, whose member name arrives as a
+    /// `rule:types/property-key-access`'s keyed access, read or write, whose member name arrives as a
     /// **value** when the statement runs.
     ///
     /// The dynamic-name counterpart of [`ExprInfo::Property`], recorded for
@@ -810,7 +805,7 @@ pub enum ExprInfo {
     /// of this table and has no fallback for a span with no entry. Keyed by the
     /// access expression's own span, like every other property entry.
     ///
-    /// **Both directions lower to ADR 0036 § 4's erased access** — § 5's own
+    /// **Both directions lower to `rule:types/erased-member-access`'s erased access** — § 5's own
     /// decision, recorded in that section: the name is resolved against the
     /// receiver's concrete descriptor at run time, so nothing here carries a
     /// slot to hint with. A key names one of `T`'s public properties and the
@@ -878,11 +873,11 @@ pub enum ExprInfo {
         /// origin in front of everything `url` builds.
         absolute: bool,
     },
-    /// An [ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md)
+    /// An `rule:types/closure-literal`
     /// `fn` closure literal, keyed by the literal's own span.
     ///
     /// A closure's *type* is [`crate::ty::Ty::Callable`] and says nothing
-    /// about it — ADR 0031 § 4 keeps that type opaque, and ADR 0027 already
+    /// about it — `rule:types/callable-absorbs-closure` keeps that type opaque, and `rule:types/callable-is-a-closure` already
     /// fixed what may satisfy it. So everything lowering one needs is here
     /// instead: the class label `nvs-ir` synthesizes the closure's captured
     /// environment as, the outer bindings that environment holds, and the
@@ -1440,7 +1435,7 @@ impl ExprTypeTable {
     ///
     /// **Own only**, joined against the flattened slot order the same way
     /// [`Self::property_defaults`] is — see `nvs_ir::lower`'s `field_slots`,
-    /// which is what ADR 0036 § 4's erased *write* check is built out of: a
+    /// which is what `rule:types/erased-member-access`'s erased *write* check is built out of: a
     /// name this list does not carry leaves that slot unchecked rather than
     /// mistyped.
     #[must_use]
@@ -1700,7 +1695,7 @@ mod tests {
     }
 
     /// The dynamic form records nothing *and* is refused where it is written:
-    /// ADR 0007 § 2 has no dynamic class names, so there is no entry for
+    /// `rule:types/conversion` has no dynamic class names, so there is no entry for
     /// `nvs-ir` to read and no program that reaches it.
     #[test]
     fn a_dynamic_instanceof_records_nothing_and_is_refused() {
@@ -1742,7 +1737,7 @@ mod tests {
         assert_eq!(call.param_tys.len(), 1);
     }
 
-    /// ADR 0027 § 1's first-class callable syntax names the member rather than
+    /// `rule:types/callable-is-a-closure`'s first-class callable syntax names the member rather than
     /// calling it, so the same resolved facts are recorded under a variant a
     /// consumer cannot mistake for a call — see [`ExprInfo::CallableRef`].
     #[test]
@@ -1765,7 +1760,7 @@ mod tests {
     }
 
     /// The other half of the same rule: an explicitly named class *sets* the
-    /// called class, so ADR 0027 § 1's "late-bound, exactly like
+    /// called class, so `rule:types/callable-is-a-closure`'s "late-bound, exactly like
     /// `static::class`" survives the reference.
     #[test]
     fn a_named_class_first_class_callable_records_its_static_class() {
@@ -1794,7 +1789,7 @@ mod tests {
         assert!(!call.is_static);
     }
 
-    /// A closure carries its callee with it, so the one receiver ADR 0036 § 4
+    /// A closure carries its callee with it, so the one receiver `rule:types/erased-member-access`
     /// defers to run time has nothing to defer *to* — it is refused where it is
     /// written and records nothing, which is what makes "no entry on a
     /// first-class-callable span" mean "this program did not compile".
@@ -1881,7 +1876,7 @@ mod tests {
     }
 
     /// A shape receiver has no declaring class either, but it does have a
-    /// layout: ADR 0036 § 4's field read resolves to the field's position in
+    /// layout: `rule:types/erased-member-access`'s field read resolves to the field's position in
     /// the shape's *sorted* list, which is why `path` is slot 1 of
     /// `{path, message}` rather than slot 0.
     #[test]
@@ -1896,7 +1891,7 @@ mod tests {
     }
 
     /// A name the shape does not list is erased exactly like a plain `object`
-    /// receiver: ADR 0036 § 4 answers `mixed` and hints no slot, since whether
+    /// receiver: `rule:types/erased-member-access` answers `mixed` and hints no slot, since whether
     /// the field is there at all is a runtime question. The name is still
     /// recorded — it is what the fetch is keyed on.
     #[test]
@@ -1910,7 +1905,7 @@ mod tests {
         assert_eq!((name.as_str(), *slot), ("nope", 0));
     }
 
-    /// A plain `object`-typed receiver erases per ADR 0036 § 4 — there is no
+    /// A plain `object`-typed receiver erases per `rule:types/erased-member-access` — there is no
     /// declaring class to record and no layout to hint from, so what is
     /// recorded is the written name and nothing else, which is exactly what
     /// the runtime fetch needs.
@@ -1939,7 +1934,7 @@ mod tests {
         assert!(matches!(exprs.lookup(span), Some(ExprInfo::Index { .. })));
     }
 
-    /// An array subscript through a `mixed`-erased base is ADR 0036 § 4's
+    /// An array subscript through a `mixed`-erased base is `rule:types/erased-member-access`'s
     /// deferral rather than a refusal: the entry is recorded with a `mixed`
     /// element type, and `nvs-ir` reads the base's *representation* to pick
     /// the tag-asking read (`nvs_ir::Helper::ValueIndexGet`) over the

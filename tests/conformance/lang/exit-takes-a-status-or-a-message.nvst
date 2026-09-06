@@ -5,7 +5,7 @@
 // The operand carries both of PHP's spellings at once: an `int` is the
 // process status, and a `string` is a message written first, after which the
 // status is `0`. Anything else is a type mismatch at the operand, since
-// ADR 0007 § 2 has no implicit conversion to offer there.
+// `rule:types/conversion` has no implicit conversion to offer there.
 string $msg = "goodbye\n";
 echo "start\n";
 exit($msg);

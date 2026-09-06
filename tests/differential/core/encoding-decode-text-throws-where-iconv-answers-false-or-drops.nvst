@@ -53,7 +53,7 @@ echo "refused=", $refused, "/5\n";
 
 // The same question with the throw taken off, which is what a caller who has
 // somewhere to put a `false` writes instead — `false` renders as the empty
-// string (ADR 0007 § 2), so the refused subject is the short half of this line.
+// string (`rule:types/conversion`), so the refused subject is the short half of this line.
 echo Core\Encoding::isValidText(Core\Encoding::fromHex("61ff62"), Core\Charset::Utf8) as string, "|",
      Core\Encoding::isValidText(Core\Encoding::fromHex("616263"), Core\Charset::Utf8) as string, "\n";
 --EXPECT--

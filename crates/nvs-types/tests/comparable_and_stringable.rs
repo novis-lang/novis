@@ -68,7 +68,7 @@ fn a_subclass_of_a_comparable_class_is_comparable_to_itself() {
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
-/// ADR 0007 § 4's ordering row is closed, so the five spellings have to
+/// `rule:types/arithmetic`'s ordering row is closed, so the five spellings have to
 /// **agree** on every operand it leaves out — asserted by counting the whole
 /// sweep rather than by reading one line off it, since an operator that grew
 /// its own answer still looks right on its own.
@@ -132,7 +132,7 @@ fn the_tabulated_ordering_rows_are_not_refused() {
         "uint $a = 1; float $b = 2.5;",
         "float $a = 1.5; int $b = 2;",
         "decimal $a = 1.5; decimal $b = 2.5;",
-        // ADR 0007 § 4 tabulates no `bool` row because that table is about
+        // `rule:types/arithmetic` tabulates no `bool` row because that table is about
         // the numeric widenings; two `bool`s are the one bit they already
         // are, which orders exactly and is PHP's answer too.
         "bool $a = true; bool $b = false;",

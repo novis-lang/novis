@@ -1,5 +1,5 @@
 --TEST--
-`$name as class<T>` throws where the conversion is written when the name denotes no class that is a `T` (ADR 0125 § 2)
+`$name as class<T>` throws where the conversion is written when the name denotes no class that is a `T` (`rule:types/class-reference`)
 --FILE--
 <?nvs
 // `as` is a class reference's only source, so it is also the only place the

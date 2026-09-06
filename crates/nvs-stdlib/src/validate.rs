@@ -85,7 +85,7 @@
 //!
 //! Omitting `version` accepts either family; `{version: 4}` and
 //! `{version: 6}` accept exactly one. The option is
-//! [ADR 0047](/docs/adr/0047-literal-and-enum-case-types.md)'s
+//! `rule:types/literal-types`'s
 //! literal union rather than an `int`, so `{version: 5}` does not compile —
 //! spec § 12 names this as the reason `isIpV4`/`isIpV6` are *gone* rather than
 //! being two more member names. It is the registry's first union-typed option,
@@ -109,7 +109,7 @@
 //! and they part company from it in the one way an Novis `string` forces:
 //! a PHP string is bytes, so `ctype_print` answers about ASCII `0x20`–`0x7E`
 //! and says `false` for `café`. An Novis `string` is UTF-8
-//! ([ADR 0009](/docs/adr/0009-string-and-bytes.md) § 1), so a
+//! (`rule:types/bytes`), so a
 //! byte-wise reading would leave no member that could ask about text at all.
 //! The two are therefore split by what they actually ask:
 //!
@@ -346,7 +346,7 @@ const IP_OPTIONS: &[CoreOption] = &[CoreOption {
     default: Const::Null,
 }];
 
-/// `4|6` — ADR 0047 § 1's integer literal type, twice.
+/// `4|6` — `rule:types/literal-types`'s integer literal type, twice.
 const IP_VERSION: &[CoreTy] = &[CoreTy::IntLiteral(4), CoreTy::IntLiteral(6)];
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
@@ -374,7 +374,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 /// A [`Fault::fatal`] for a value that is not a `string`, which the checker
 /// has already refused — this is the ABI's own assertion, not a
 /// program-visible outcome. It is the only failure: the tag
-/// [`Value::as_text`] checks is itself ADR 0009's UTF-8 guarantee, so there is
+/// [`Value::as_text`] checks is itself `rule:types/bytes`'s UTF-8 guarantee, so there is
 /// no encoding outcome left to report.
 fn subject<'a>(value: &'a Value, member: &str) -> Result<&'a str, Fault> {
     value.as_text().ok_or_else(|| {

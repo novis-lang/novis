@@ -1,8 +1,8 @@
 --TEST--
-A `match (true)` and a `switch (true)` narrow their subject per arm, under exactly what the arm's own label proves — ADR 0007 § 6, ADR 0047 § 4
+A `match (true)` and a `switch (true)` narrow their subject per arm, under exactly what the arm's own label proves — `rule:types/unions-and-mixed`, `rule:types/literal-types`
 --FILE--
 <?nvs
-// ADR 0007 § 6's fourth narrowing spelling: under the subject `true` a label
+// `rule:types/unions-and-mixed`'s fourth narrowing spelling: under the subject `true` a label
 // is a condition rather than a value, so the arm body is checked under
 // whatever `nvs_types::locals::narrow` installs for that label — the same
 // three tests an `if` reaches, and no others.
@@ -36,7 +36,7 @@ echo match (true) {
     default => "none",
 }, "\n";
 
-// ADR 0047 § 4's guard row under the same subject: the comparison proves the
+// `rule:types/literal-types`'s guard row under the same subject: the comparison proves the
 // literal's own type, so the `string` member of the union is reachable.
 string|int $mode = "read";
 echo match (true) {

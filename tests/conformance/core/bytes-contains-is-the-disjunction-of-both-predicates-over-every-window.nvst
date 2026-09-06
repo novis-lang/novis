@@ -1,5 +1,5 @@
 --TEST--
-Spec § 7: `Core\Bytes::contains` is `startsWith` taken over every suffix and `endsWith` taken over every prefix, counted over 156 needles, and the number of positions each disjunction holds at is the needle's own occurrence count — ADR 0009 § 1, ADR 0063 R6
+Spec § 7: `Core\Bytes::contains` is `startsWith` taken over every suffix and `endsWith` taken over every prefix, counted over 156 needles, and the number of positions each disjunction holds at is the needle's own occurrence count — `rule:types/bytes`, ADR 0063 R6
 --FILE--
 <?nvs
 // The three predicates are one search asked at three positions: a substring is

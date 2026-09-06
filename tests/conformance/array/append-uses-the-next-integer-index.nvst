@@ -1,5 +1,5 @@
 --TEST--
-`$a[] = $v` appends under the next integer index rendered in decimal — ADR 0007 § 5
+`$a[] = $v` appends under the next integer index rendered in decimal — `rule:types/arrays`
 --FILE--
 <?nvs
 class Render {

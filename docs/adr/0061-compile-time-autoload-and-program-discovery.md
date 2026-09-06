@@ -154,7 +154,7 @@ class Core {
 The interface is not the selector's crutch — an attribute would select equally well. It is what gives
 `$module->register($this)` a static type: [`object`](0036-anonymous-object-shapes.md) is opaque, shape
 types describe data rather than methods, and `callable` carries no signature yet
-([ADR 0007](0007-explicit-type-system.md) § 3 leaves that deferred).
+(`rule:types/grammar` leaves that deferred).
 
 Answering the query requires parsing and collecting declarations from every file under every autoload root
 — the one place resolution is not lazy. Type checking and lowering stay lazy: a discovered class nobody
@@ -314,8 +314,8 @@ answer at all.
 
 ## Revisiting
 
-- **Typed `callable` signatures** ([ADR 0007](0007-explicit-type-system.md) § 3,
-  [ADR 0031](0031-callable-is-the-only-closure-type.md)'s *Revisiting*) would let `implementing<T>()` return
+- **Typed `callable` signatures** (`rule:types/grammar`,
+  `rule:types/closure-literal`'s *Revisiting*) would let `implementing<T>()` return
   constructor references and let an attributed static method replace the marker interface entirely. This ADR
   is a second concrete forcing case for that deferral, alongside the boxed-cell one.
 - **An operator-level `nvs.toml` block that adds roots** should be reconsidered if a real deployment needs to

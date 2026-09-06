@@ -1,5 +1,5 @@
 --TEST--
-`Rock::class as ?class<Animal>` is the same compile-time refusal the checked spelling is — ADR 0125 § 2 decides a written-out `::class` operand, so there is no run-time throw for `rule:expressions/nullable-conversion-availability`'s `?` to answer `null` for
+`Rock::class as ?class<Animal>` is the same compile-time refusal the checked spelling is — `rule:types/class-reference` decides a written-out `::class` operand, so there is no run-time throw for `rule:expressions/nullable-conversion-availability`'s `?` to answer `null` for
 --FILE--
 <?nvs
 class Animal {}
@@ -12,6 +12,6 @@ error[E0708]: `Rock` is not a `Animal`, so this can never be a `class<Animal>`
   |
 4 | ?class<Animal> $c = Rock::class as ?class<Animal>;
   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ converted here
-  = help: ADR 0125 § 2 decides a written-out `::class` operand at compile time, and this one names a class outside the hierarchy: convert to `class<T>` at a class the name actually reaches, or make the class an implementor of the one written here
+  = help: `rule:types/class-reference` decides a written-out `::class` operand at compile time, and this one names a class outside the hierarchy: convert to `class<T>` at a class the name actually reaches, or make the class an implementor of the one written here
 
 error: aborting due to 1 error

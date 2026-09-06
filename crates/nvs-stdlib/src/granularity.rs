@@ -1,7 +1,7 @@
-//! ADR 0009 § 2's granularity, in one place: what unit a `string`'s length,
+//! `rule:types/string-is-utf8`'s granularity, in one place: what unit a `string`'s length,
 //! indexing and slicing count in.
 //!
-//! [ADR 0009](/docs/adr/0009-string-and-bytes.md) § 2 is settled
+//! `rule:types/string-is-utf8` is settled
 //! here — [`DEFAULT`] is the answer, and that ADR's own body states the rule.
 //! Every `Core\Str` member that has a unit at all reaches for [`DEFAULT`]
 //! rather than choosing one, so there is exactly one place a granularity is
@@ -22,7 +22,7 @@
 //!
 //! # The Unicode version is part of the answer
 //!
-//! ADR 0009's *Consequences* says this out loud: what counts as one character
+//! `rule:types/bytes`'s *Consequences* says this out loud: what counts as one character
 //! is pinned to whichever Unicode version this crate embeds, and can move
 //! across a dependency bump. That is [`unicode_segmentation::UNICODE_VERSION`],
 //! and `the_embedded_unicode_version_is_recorded` prints it, so a bump that
@@ -32,7 +32,7 @@
 //!
 //! A `string` carries its own grapheme count once anything has asked for one —
 //! `nvs_runtime::StrHeader`'s fourth word, filled lazily and corrected at a
-//! concatenation's seam, which is ADR 0009's *Consequences* paid. Reaching it
+//! concatenation's seam, which is `rule:types/bytes`'s *Consequences* paid. Reaching it
 //! needs the *value*, not the payload, so [`Unit::length_of`] is what a member
 //! calls and [`Unit::length`] is what answers when there is no allocation to
 //! ask (a `&str` this crate built, a `bytes` read as text). The UAX #29
@@ -43,20 +43,20 @@ use unicode_segmentation::UnicodeSegmentation;
 
 /// The unit a `string` operation counts in.
 ///
-/// **Two units, not three.** ADR 0009 § 2 named byte length as its fallback
+/// **Two units, not three.** `rule:types/string-is-utf8` named byte length as its fallback
 /// default, and that fallback is closed off here rather than merely
 /// out-measured: `string` is guaranteed valid UTF-8, so a byte-indexed
 /// `Core\Str::at` would have to hand back the interior byte of a multi-byte
 /// character — a `string` that cannot exist. A byte-length default would
 /// therefore leave `length` counting one unit and `at`/`slice` addressing
-/// another, which is the exact "does length mean what I think" failure ADR 0009
+/// another, which is the exact "does length mean what I think" failure `rule:types/bytes`
 /// was opened to remove. Byte length remains reachable, where it means
 /// something: on `bytes`, whose whole point is that it has no other unit.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Unit {
     /// One Unicode scalar value — what `Core\Str::codePoints` enumerates.
     ///
-    /// Deliberately *not* [`DEFAULT`]: ADR 0009's *Alternatives rejected*
+    /// Deliberately *not* [`DEFAULT`]: `rule:types/bytes`'s *Alternatives rejected*
     /// turns it down for answering "how many scalar values" rather than "how
     /// many characters a person sees" — a flag emoji is two, an accented
     /// letter built from combining marks is two.
@@ -66,17 +66,17 @@ pub enum Unit {
     Grapheme,
 }
 
-/// The unit `Core\Str::length`, `at` and `slice` count in — ADR 0009 § 2's
+/// The unit `Core\Str::length`, `at` and `slice` count in — `rule:types/string-is-utf8`'s
 /// decision, stated once.
 ///
 /// The cost that decides it is measured by
 /// `a_grapheme_index_costs_more_than_a_code_point_index` in
 /// [`benches/abi-probe`](/benches/abi-probe/), which is where the
-/// figure and its bound live; ADR 0009's *Revisiting* asked for exactly that
+/// figure and its bound live; `rule:types/bytes`'s *Revisiting* asked for exactly that
 /// test and its § 2 records the outcome.
 pub const DEFAULT: Unit = Unit::Grapheme;
 
-/// ADR 0009 § 2's two primitives, whose home is the runtime.
+/// `rule:types/string-is-utf8`'s two primitives, whose home is the runtime.
 ///
 /// The count is cached in a string's own header and corrected at a
 /// concatenation's seam, which only the crate owning that header can do — so
@@ -104,7 +104,7 @@ impl Unit {
     /// [`Unit::length`] with the string's own cached grapheme count in front
     /// of it.
     ///
-    /// This is the seam ADR 0009's *Consequences* asks for: a `string`'s
+    /// This is the seam `rule:types/bytes`'s *Consequences* asks for: a `string`'s
     /// length is O(n) where PHP's `strlen` is O(1), and a program asking twice
     /// pays once. The word lives in `nvs_runtime::StrHeader` — that module's
     /// § *The cached grapheme count* owns when it is filled, why a
@@ -164,7 +164,7 @@ impl Unit {
     ///
     /// The bridge every member that talks to a **byte**-addressed engine needs:
     /// `Core\Regex` runs on two crates that report a match in bytes, while
-    /// ADR 0009 § 2 says every `string` position Novis hands back or takes is in
+    /// `rule:types/string-is-utf8` says every `string` position Novis hands back or takes is in
     /// [`DEFAULT`]'s unit. Converting at that seam is what keeps
     /// `Core\Regex\Match::offset` and `Core\Str::indexOf` answering in one unit.
     ///
@@ -294,7 +294,7 @@ mod tests {
 
     /// The example the whole question turns on: a family emoji built from a
     /// ZWJ sequence is one character to a person, four code points, and 25
-    /// bytes. ADR 0009 § 2 picks the first of those three.
+    /// bytes. `rule:types/string-is-utf8` picks the first of those three.
     #[test]
     fn a_zwj_sequence_is_one_grapheme_and_several_code_points() {
         let family = "\u{1f468}\u{200d}\u{1f469}\u{200d}\u{1f467}";
@@ -441,7 +441,7 @@ mod tests {
     }
 
     /// The Unicode version this build answers for, recorded where a bump makes
-    /// it visible — ADR 0009's *Consequences* asks for exactly that.
+    /// it visible — `rule:types/bytes`'s *Consequences* asks for exactly that.
     #[test]
     fn the_embedded_unicode_version_is_recorded() {
         let (major, minor, patch) = unicode_segmentation::UNICODE_VERSION;

@@ -53,7 +53,7 @@
 //! today. That refusal moves the day there is a listener for one; the
 //! classification does not.
 //!
-//! **What it spends**, per `rule:programs/memory-priority`(/docs/adr/0004-memory-for-simplicity.md):
+//! **What it spends**, per `rule:programs/memory-priority`:
 //! one compiled unit per mounted entry, held for the life of the process and
 //! shared by every request that runs it ([ADR 0006]'s "shares immutable compiled code",
 //! which is [`crate::script`]'s cache and nothing else), plus whatever the accept

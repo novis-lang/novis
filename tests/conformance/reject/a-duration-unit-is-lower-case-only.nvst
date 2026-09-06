@@ -1,5 +1,5 @@
 --TEST--
-a duration unit has one spelling, and it is lower case — ADR 0070 § 1 over ADR 0062 § 2
+a duration unit has one spelling, and it is lower case — `rule:types/duration-literal` over ADR 0062 § 2
 --FILE--
 <?nvs
 var $shouted = 30S;

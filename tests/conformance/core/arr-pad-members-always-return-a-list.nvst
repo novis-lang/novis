@@ -12,7 +12,7 @@ echo Core\Str::join(Core\Arr::padEnd($a, 4, "-"), ","), "\n";
 // The result is always a list. Padding *adds* entries and there is no
 // non-arbitrary key for an added one beside an existing map's keys, so every
 // key is renumbered from "0" — PHP renumbers the integer keys and silently
-// keeps the string ones, the key-type-dependent rule ADR 0069 § 3 removes.
+// keeps the string ones, the key-type-dependent rule `rule:types/preserve-keys` removes.
 echo Core\Str::join(Core\Arr::keys(Core\Arr::padStart($a, 4, "-")), ","), "\n";
 echo Core\Str::join(Core\Arr::keys(Core\Arr::padEnd($a, 4, "-")), ","), "\n";
 

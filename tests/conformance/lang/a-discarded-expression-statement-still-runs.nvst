@@ -24,7 +24,7 @@ Note::say("concat") . "x";
 true ? Note::say("ternary") : Note::say("never");
 match (1) { 1 => Note::say("match"), default => Note::say("never") };
 [Note::say("array")];
-// ADR 0036 § 2: a statement-initial `{` is a block, so the literal is
+// `rule:types/object-literal`: a statement-initial `{` is a block, so the literal is
 // parenthesized — which changes nothing about what the statement means.
 ({v: Note::say("shape")});
 (Note::say("paren"));

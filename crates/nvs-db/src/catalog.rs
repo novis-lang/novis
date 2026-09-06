@@ -708,7 +708,7 @@ pub fn column_default(spelling: &str, ty: &ScalarType, dialect: Dialect) -> Opti
         ScalarType::Decimal { .. } => {
             // Not a number this reader parses: a decimal literal keeps the
             // digits the schema wrote, and turning them into a float and back
-            // is exactly the rounding [ADR 0054] gives a `decimal` to avoid.
+            // is exactly the rounding `rule:types/decimal` gives a `decimal` to avoid.
             let digits = value.trim_start_matches(['+', '-']);
             if digits.is_empty()
                 || !digits.chars().all(|c| c.is_ascii_digit() || c == '.')

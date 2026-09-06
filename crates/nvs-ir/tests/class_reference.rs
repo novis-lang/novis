@@ -1,4 +1,4 @@
-//! ADR 0125 § 2's two ways into a `class<T>`, lowered — the compile-time one
+//! `rule:types/class-reference`'s two ways into a `class<T>`, lowered — the compile-time one
 //! and the run-time one, told apart by what each leaves in the IR.
 //!
 //! § 2 makes `as` a class reference's only source and then splits that source

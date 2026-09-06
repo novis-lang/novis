@@ -291,7 +291,7 @@ pub fn decode_column(column: &TdsColumn, value: Option<&[u8]>) -> io::Result<Opt
 /// column's collation decides its code page, and transcoding an arbitrary one
 /// would be a character table this crate does not carry. A UTF-8 collation
 /// (SQL Server 2019 and later) reads; anything else is a refusal naming the
-/// column rather than an ADR 0009 string that is not UTF-8.
+/// column rather than an `rule:types/bytes` string that is not UTF-8.
 ///
 /// # Errors
 ///
@@ -450,7 +450,7 @@ pub(super) fn exact(column: &str, units: i64, scale: u8) -> io::Result<Decimal> 
 }
 
 /// The one place a scaled integer becomes a [`Decimal`]: digits, a point placed
-/// `scale` from the right, and ADR 0054's own parser reading it back.
+/// `scale` from the right, and `rule:types/decimal`'s own parser reading it back.
 ///
 /// Text rather than a constructor because that is the only exact route into a
 /// `Decimal` this crate has, and it is the route the other two drivers take
@@ -679,7 +679,7 @@ pub(super) fn out_of_calendar(column: &str) -> io::Error {
     ))
 }
 
-/// A UCS-2 value as the UTF-8 an ADR 0009 `string` is.
+/// A UCS-2 value as the UTF-8 an `rule:types/bytes` `string` is.
 pub(super) fn wide_text(bytes: &[u8], column: &str) -> io::Result<String> {
     if !bytes.len().is_multiple_of(2) {
         return Err(malformed(format!(
@@ -698,7 +698,7 @@ pub(super) fn wide_text(bytes: &[u8], column: &str) -> io::Result<String> {
     })
 }
 
-/// A non-Unicode value as the UTF-8 an ADR 0009 `string` is, or the refusal
+/// A non-Unicode value as the UTF-8 an `rule:types/bytes` `string` is, or the refusal
 /// [`scalar`]'s doc argues for.
 pub(super) fn narrow_text<'a>(bytes: &'a [u8], column: &str) -> io::Result<&'a str> {
     std::str::from_utf8(bytes).map_err(|_| {
@@ -907,7 +907,7 @@ mod tests {
     /// What a column cannot be read as, on both sides of every boundary
     /// [`scalar`] draws.
     ///
-    /// The refusals are the whole of ADR 0009's guarantee on this driver: SQL
+    /// The refusals are the whole of `rule:types/bytes`'s guarantee on this driver: SQL
     /// Server has no session charset to force, so a `varchar` in a code page
     /// that is not UTF-8 is the one place a `string` could arrive that is not
     /// UTF-8 at all, and it does not.
@@ -918,7 +918,7 @@ mod tests {
         assert!(scalar(&column, Some(&[0, 0, 0])).is_err());
         assert!(scalar(&column, Some(&[0, 0, 0, 0])).is_ok());
 
-        // ADR 0009: a non-UTF-8 collation has no `string`, and the same octets
+        // `rule:types/bytes`: a non-UTF-8 collation has no `string`, and the same octets
         // in the Unicode column beside it do.
         let narrow = scalar(&described(TY_BIGVARCHAR, 0), Some(&[0xE9]))
             .expect_err("a code page this driver cannot transcode");

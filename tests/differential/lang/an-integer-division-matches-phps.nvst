@@ -1,5 +1,5 @@
 --TEST--
-An integer quotient answers PHP's own value and renders PHP's own way, overflow and zero divisor included — ADR 0007 § 4
+An integer quotient answers PHP's own value and renders PHP's own way, overflow and zero divisor included — `rule:types/arithmetic`
 --FILE--
 <?nvs
 int $six = 6;

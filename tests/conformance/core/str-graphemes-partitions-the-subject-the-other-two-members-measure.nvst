@@ -1,5 +1,5 @@
 --TEST--
-`Core\Str::graphemes` is a partition of the subject whose piece count is `Core\Str::length` and whose pieces re-split into `Core\Str::codePoints`, counted over one table — spec § 1 *Extraction*, ADR 0009 § 2
+`Core\Str::graphemes` is a partition of the subject whose piece count is `Core\Str::length` and whose pieces re-split into `Core\Str::codePoints`, counted over one table — spec § 1 *Extraction*, `rule:types/string-is-utf8`
 --FILE--
 <?nvs
 // Three members read the same subject in two units, and a case reading one row

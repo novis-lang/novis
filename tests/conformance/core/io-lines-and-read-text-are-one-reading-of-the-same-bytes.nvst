@@ -1,5 +1,5 @@
 --TEST--
-Core\IO::lines' pieces rebuild the file Core\IO::readText answers whole, over a final terminator, a file without one, a lone terminator and an empty file — and the one place the two members part is the decode, where a second charset changes every row and no line boundary — spec § 14, ADR 0009 § 1
+Core\IO::lines' pieces rebuild the file Core\IO::readText answers whole, over a final terminator, a file without one, a lone terminator and an empty file — and the one place the two members part is the decode, where a second charset changes every row and no line boundary — spec § 14, `rule:types/bytes`
 --FILE--
 <?nvs
 // The two members are `slurp` reached twice: the same door, the same buffer,

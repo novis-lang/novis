@@ -9,7 +9,7 @@
 // not catch.
 final class Trip {
     // `fromHex` is the only way to name a buffer that is not UTF-8
-    // (ADR 0009 § 1), so every row is written as hex and compared as hex.
+    // (`rule:types/bytes`), so every row is written as hex and compared as hex.
     public static function base64(string $hex): bool {
         bytes $raw = Core\Encoding::fromHex($hex);
         string $written = Core\Encoding::toBase64($raw);

@@ -1,5 +1,5 @@
 --TEST--
-A name outside `T`'s public set throws where the key is made rather than where it is used, and `protected` is outside it exactly as an undeclared name is — ADR 0126 §§ 1-2
+A name outside `T`'s public set throws where the key is made rather than where it is used, and `protected` is outside it exactly as an undeclared name is — `rule:types/property-key`
 --FILE--
 <?nvs
 class Account {

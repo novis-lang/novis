@@ -59,7 +59,7 @@
 //!
 //! ## Values are native, not tagged, wherever the type is known
 //!
-//! [ADR 0007](/docs/adr/0007-explicit-type-system.md) settles every
+//! `rule:types/declaration` settles every
 //! operand type before lowering, so an `int` local lives in an `i64` register
 //! and a `string` in a bare `StrHeader` pointer. A 16-byte
 //! [`nvs_runtime::Value`] is *materialized* only where the ABI demands one —
@@ -151,7 +151,7 @@
 //!    literal's bytes beside `emit::Emitter::define_literal`'s counter.
 //! 5. **Integer `/` compiles, and it is the one operator that picks its
 //!    result representation at run time.**
-//!    [ADR 0007](/docs/adr/0007-explicit-type-system.md) § 4 types
+//!    `rule:types/arithmetic` types
 //!    `int / int` as `int|float` — PHP-exact, so `6/3` is an integer and `7/2`
 //!    is not — and that union's representation is [`nvs_ir::Ty::Tagged`], so
 //!    `emit_binop` hands the row to its own `emit_int_div`: a zero-divisor
@@ -179,7 +179,7 @@
 //!    exits before it matters.
 //! 8. **Integer `+`, `-`, `*` and unary `-` throw on overflow rather than
 //!    wrapping**, which
-//!    [ADR 0007](/docs/adr/0007-explicit-type-system.md) § 4 calls the
+//!    `rule:types/arithmetic` calls the
 //!    divergence from PHP it is least willing to trade. `emit_binop` hands all
 //!    three binary rows to `emit_checked_int_arith` and `emit_unop` takes the
 //!    fourth, each reading Cranelift's `sadd_overflow`/`uadd_overflow` family
@@ -1172,7 +1172,7 @@ impl Classes {
         if !class.defaults.is_empty() {
             self.table.set_defaults(id, class.defaults.clone());
         }
-        // ADR 0036 § 4's write check, at the one granularity the runtime can
+        // `rule:types/erased-member-access`'s write check, at the one granularity the runtime can
         // hold: a representation with no single tag — `Ty::Tagged`, `Ty::Void`
         // — becomes `None`, which `nvs_runtime::nvs_object_slot_set` reads as
         // "unchecked". Every class with a layout carries one entry per slot
@@ -1223,8 +1223,7 @@ impl Classes {
 
     /// Every class this unit declares that **is a** `base`, as
     /// `(label, descriptor)` — `base` itself included, since
-    /// [ADR 0125](/docs/adr/0125-a-class-reference-is-a-type-and-as-is-its-only-source.md)
-    /// § 2's rows admit `T` as readily as a class that is a `T`.
+    /// `rule:types/class-reference`'s rows admit `T` as readily as a class that is a `T`.
     ///
     /// This is the closed set `nvs_ir::ir::InstKind::ClassDescIn` is compiled
     /// against, and it is answered here rather than in the runtime because the
@@ -1289,7 +1288,7 @@ struct Signatures {
     /// argument **count** passed beside the slot, for the one helper whose
     /// arity belongs to the call site rather than to its own declaration:
     /// `nvs_runtime::nvs_call_closure`, which is `nvs_ir::Helper::CallClosure`
-    /// and ADR 0031's `$fn(...)`. Every other helper's arity is a literal in
+    /// and `rule:types/closure-literal`'s `$fn(...)`. Every other helper's arity is a literal in
     /// its `nvs_helper!` expansion, so no count crosses the boundary at all.
     helper_variadic: Signature,
     /// `nvs_safepoint(ctx) -> status`.
@@ -1318,7 +1317,7 @@ struct Signatures {
     /// which share one shape: two raw pointers to an `I8`, like
     /// `Sigs::instanceof`.
     ptr_eq: Signature,
-    /// `nvs_float_pow(base, exponent) -> f64` — ADR 0007 § 4's `**` over two
+    /// `nvs_float_pow(base, exponent) -> f64` — `rule:types/arithmetic`'s `**` over two
     /// `float`s, which has no machine instruction and no `LibCall` either. See
     /// [`crate::emit`]'s module doc for why it is a direct call of this shape
     /// rather than one more [`Signatures::helper`].
@@ -1356,20 +1355,20 @@ struct Signatures {
     /// `nvs_runtime::nvs_class_method`.
     class_method: Signature,
     /// `nvs_object_slot_get(ctx, receiver, name, len, hint, out) -> status` —
-    /// ADR 0036 § 4's name-keyed shape read. The one object access that is not
+    /// `rule:types/erased-member-access`'s name-keyed shape read. The one object access that is not
     /// a fixed offset resolved here, and the one that can throw; see
     /// `nvs_ir::ir::InstKind::SlotGet`. The receiver travels by *address*,
     /// as a whole 16-byte value, because a `mixed` one arrives with a tag
     /// nothing proved and this helper is where it is checked.
     slot_get: Signature,
     /// `nvs_object_slot_set(ctx, receiver, name, len, hint, value, out) -> status`
-    /// — ADR 0036 § 4's name-keyed shape *write*. One parameter wider than
+    /// — `rule:types/erased-member-access`'s name-keyed shape *write*. One parameter wider than
     /// [`Self::slot_get`], because the value travels through a caller-owned
     /// 16-byte slot the way [`Self::array_value_at`]'s result does *and* the helper
     /// ABI still writes an (ignored) result of its own; see
     /// `nvs_ir::ir::InstKind::SlotSet`.
     slot_set: Signature,
-    /// `nvs_object_key_get(ctx, receiver, key, out) -> status` — ADR 0126 § 4's
+    /// `nvs_object_key_get(ctx, receiver, key, out) -> status` — `rule:types/property-key-access`'s
     /// keyed read, which is [`Self::slot_get`]'s helper with the name arriving
     /// as a value. Narrower rather than wider: the `(ptr, len)` pair and the
     /// slot hint both go, because a key carries its bytes behind a header only

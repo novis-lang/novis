@@ -1,5 +1,5 @@
 --TEST--
-Core\Arr::replaceRange substitutes exactly the window Core\Arr::slice returns, and renumbers, per spec § 2 and ADR 0069 § 3
+Core\Arr::replaceRange substitutes exactly the window Core\Arr::slice returns, and renumbers, per spec § 2 and `rule:types/preserve-keys`
 --FILE--
 <?nvs
 // `replaceRange` is `slice`'s window with the entries put back differently,
@@ -34,7 +34,7 @@ echo Core\Json::encode(Core\Arr::replaceRange($a, 1, -3, $one)), "\n";
 echo Core\Json::encode(Core\Arr::replaceRange($a, 4, 0, $one)), "\n";
 echo Core\Json::encode(Core\Arr::replaceRange($a, -10, 2, $one)), "\n";
 
-// ADR 0069 § 3: the result renumbers, subject and replacement alike, so no key
+// `rule:types/preserve-keys`: the result renumbers, subject and replacement alike, so no key
 // of either survives. PHP's `array_splice` keeps the string keys of the parts
 // it did not touch and renumbers the rest, which is the key-type dependence
 // that rule refuses.

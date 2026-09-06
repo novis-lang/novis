@@ -7,8 +7,7 @@
 //!
 //! # `array<T|U>` is written literally, not flattened to `array<mixed>`
 //!
-//! [ADR 0069](/docs/adr/0069-array-combination-is-key-type-independent.md)
-//! § 1 writes all four combination members as `array<T|U>`, and the registry
+//! `rule:types/array-combination` writes all four combination members as `array<T|U>`, and the registry
 //! can state exactly that: a union is legal in either direction
 //! ([`crate::registry::CoreTy::Union`]), so the return type is
 //! [`COMBINED`] rather than the `array<mixed>` that would be the safe
@@ -48,8 +47,7 @@
 //! `nvs_runtime::closure_arity` **once before the loop** and builds the key
 //! only where the callback declared a parameter to receive it.
 //!
-//! Rendering it *where it is wanted* is a rule and not a convenience: ADR 0069
-//! § 5 makes the `$key` a callback receives a `string` over every array shape,
+//! Rendering it *where it is wanted* is a rule and not a convenience: `rule:types/arrays` makes the `$key` a callback receives a `string` over every array shape,
 //! so a packed list's `SlotKey::Index` becomes a decimal here even though
 //! [`store_at`] just below would take the position as it stands. Handing the
 //! position on unrendered is what that section refuses, since it would make a
@@ -1859,8 +1857,7 @@ const AVERAGE_DOC: MethodDoc = MethodDoc {
 /// `float|decimal` — what dividing spec § 2's `int|float|decimal` by a count
 /// can land on, and the whole of what `average` answers under its `?`.
 ///
-/// `int` is not on it, deliberately: an average is a quotient, and ADR 0007
-/// § 4 already makes `int / int` yield `int|float` rather than an `int`. A
+/// `int` is not on it, deliberately: an average is a quotient, and `rule:types/arithmetic` already makes `int / int` yield `int|float` rather than an `int`. A
 /// `decimal` subject stays exact (its quotient is a `decimal`), which is the
 /// reason this is a union rather than plain `float`.
 const QUOTIENT: &[CoreTy] = &[CoreTy::Float, CoreTy::Decimal];
@@ -1931,7 +1928,7 @@ const SET_ON_DOC: EnumDoc = EnumDoc {
     ],
 };
 
-/// `int|string` — ADR 0007 § 5's two array-key types, which the spec's § 2
+/// `int|string` — `rule:types/arrays`'s two array-key types, which the spec's § 2
 /// writes at every member taking or producing a key.
 ///
 /// **Element positions only**, which is why its `string` arm stays the
@@ -1959,7 +1956,7 @@ const ARRAY_KEY_NEUTRAL: &[CoreTy] = &[CoreTy::Int, CoreTy::Text(Qual::Neutral)]
 /// let a member do silently.
 const ARRAY_KEY_CONTAGIOUS: &[CoreTy] = &[CoreTy::Int, CoreTy::Text(Qual::Contagious)];
 
-/// `T|U` — the element type ADR 0069's four combination members answer, and
+/// `T|U` — the element type `rule:types/array-combination`'s four combination members answer, and
 /// the spelling this module's own docs record as the one the registry can
 /// state.
 ///
@@ -1980,8 +1977,7 @@ const COMBINED: &[CoreTy] = &[CoreTy::Var("T"), CoreTy::Var("U")];
 /// section says it means: **every** key is discarded and the result renumbered
 /// from `"0"`, rather than PHP's renumber-integers-keep-strings, which is the
 /// key-type-dependent behaviour
-/// [ADR 0069](/docs/adr/0069-array-combination-is-key-type-independent.md)
-/// § 3 removes.
+/// `rule:types/preserve-keys` removes.
 const PRESERVE_KEYS: &[CoreOption] = &[CoreOption {
     name: "preserveKeys",
     ty: CoreTy::Bool,
@@ -2520,8 +2516,7 @@ nvs_runtime::nvs_helper! {
     /// entries side by side renumbers — `flatten`, `appendAll`, `values` — but
     /// each does so because two sources can hold the same key and there is no
     /// rule that keeps both
-    /// ([ADR 0069](/docs/adr/0069-array-combination-is-key-type-independent.md)
-    /// § 3). A partition has no such collision: each entry lands in exactly
+    /// (`rule:types/preserve-keys`). A partition has no such collision: each entry lands in exactly
     /// one bucket under the key it already had, so preserving it loses
     /// nothing and answers "which entries grouped here" as well as "what". A
     /// caller wanting lists writes `Core\Arr::values` over the buckets, which
@@ -2635,7 +2630,7 @@ fn integer(value: &Value, member: &str, position: &str) -> Result<i64, Fault> {
 /// One `int|string` key argument, normalized to the bytes an array actually
 /// stores it under.
 ///
-/// ADR 0007 § 5 makes every stored key a `string`, and `nvs-ir` already
+/// `rule:types/arrays` makes every stored key a `string`, and `nvs-ir` already
 /// normalizes an `int` subscript to its decimal spelling on the way in
 /// (`Lowering::lower_array_key`). A `Core` member reached through the helper
 /// convention gets the argument *un*-normalized, because the tag is written
@@ -2839,7 +2834,7 @@ nvs_runtime::nvs_helper! {
     /// `0, 1, …, n-1` in that order, replacing PHP's `array_is_list`. An empty
     /// array is a list, as it is in PHP.
     ///
-    /// ADR 0007 § 5 stores every key as a `string`, so "is this an integer key"
+    /// `rule:types/arrays` stores every key as a `string`, so "is this an integer key"
     /// is a question about the *bytes*: the key must be the index's decimal
     /// spelling exactly, which rules out `"01"` and `"+1"` the way PHP's
     /// canonical-integer-key normalization already would. The expected spelling
@@ -2859,11 +2854,10 @@ nvs_runtime::nvs_helper! {
     }
 }
 
-/// ADR 0007 § 5's `"0" … "n−1"` test, over a borrowed array.
+/// `rule:types/arrays`'s `"0" … "n−1"` test, over a borrowed array.
 ///
 /// Lifted out of [`nvs_core_arr_is_list`] rather than left inline because
-/// [ADR 0069](/docs/adr/0069-array-combination-is-key-type-independent.md)
-/// § 1 states `overlayDeep`'s recursion rule in terms of it — two sides of a
+/// `rule:types/array-combination` states `overlayDeep`'s recursion rule in terms of it — two sides of a
 /// key merge only where both hold an array and **neither is a list** — so the
 /// member and the rule now read the same predicate rather than two spellings
 /// of it.
@@ -2893,11 +2887,11 @@ nvs_runtime::nvs_helper! {
     /// order under fresh `0, 1, …` keys of its own, replacing PHP's
     /// `array_keys`.
     ///
-    /// **`array<string>`, never `array<int|string>`.** ADR 0007 § 5 stores
+    /// **`array<string>`, never `array<int|string>`.** `rule:types/arrays` stores
     /// every key as a `string`, so a key that *looks* like an integer is one
     /// only in its spelling — `Core\Arr::keys(["10" => "x"])` yields `["10"]`,
     /// and PHP's `array_keys` yielding an `int` there is the key-type-dependent
-    /// behaviour ADR 0069 removes. A caller who wants the number writes
+    /// behaviour `rule:types/array-combination` removes. A caller who wants the number writes
     /// `$k as int`, which is the same thing a `foreach` key binding already
     /// does.
     ///
@@ -2949,7 +2943,7 @@ nvs_runtime::nvs_helper! {
 /// meets first. An ordered hash has no other reading, and it is what makes
 /// `slice` answer the same entries whatever the keys happen to be — the
 /// key-type independence
-/// [ADR 0069](/docs/adr/0069-array-combination-is-key-type-independent.md)
+/// `rule:types/array-combination`
 /// asks of every § 2 member, here reaching the *positions* rather than the
 /// result's keys.
 fn window(
@@ -3008,7 +3002,7 @@ nvs_runtime::nvs_helper! {
     /// the option's `false` default does: every key discarded and the result
     /// renumbered from `"0"`, rather than `array_slice`'s
     /// renumber-the-integers-keep-the-strings. That is the divergence to know
-    /// about, and it is ADR 0069 § 3's rule rather than this member's opinion.
+    /// about, and it is `rule:types/preserve-keys`'s rule rather than this member's opinion.
     ///
     /// An `args: [4]` helper for a three-parameter signature: the option bag
     /// flattens into one ordinary argument, as [`nvs_core_arr_range`]'s docs
@@ -3055,8 +3049,7 @@ nvs_runtime::nvs_helper! {
     /// **The result renumbers**, subject and replacement alike: a list from
     /// `"0"`, never a mix of kept and fresh keys. That is `slice`'s own
     /// default answer and
-    /// [ADR 0069](/docs/adr/0069-array-combination-is-key-type-independent.md)
-    /// § 3's rule rather than this member's opinion — `array_splice`'s
+    /// `rule:types/preserve-keys`'s rule rather than this member's opinion — `array_splice`'s
     /// "renumber the integers, keep the strings" is exactly the key-type
     /// dependence that rule refuses. There is no `{preserveKeys?: bool}`
     /// option, and not only because the spec row declares none: the entries
@@ -3184,8 +3177,7 @@ nvs_runtime::nvs_helper! {
     /// counter to the key it removed, which nothing here reproduces. That is
     /// not a
     /// key-type-dependent rule of the kind
-    /// [ADR 0069](/docs/adr/0069-array-combination-is-key-type-independent.md)
-    /// § 3 removes: the key chosen is one counter's next value whatever the
+    /// `rule:types/preserve-keys` removes: the key chosen is one counter's next value whatever the
     /// existing keys look like, so it never has to ask what type they were.
     /// It is also why this member takes no `preserveKeys` option — appending
     /// invents no key that could collide with one already there, so there is
@@ -3216,7 +3208,7 @@ nvs_runtime::nvs_helper! {
     /// alternatives are to overwrite an entry the call never mentioned or to
     /// pick `"1"` and store it ahead of `"0"` — an order that contradicts the
     /// keys. PHP escapes that by renumbering the integer keys and keeping the
-    /// string ones, which is the key-type-dependent behaviour ADR 0069 § 3
+    /// string ones, which is the key-type-dependent behaviour `rule:types/preserve-keys`
     /// removes; renumbering *every* key is the same answer applied uniformly,
     /// and it is what spec § 2 means by `{preserveKeys: false}` wherever the
     /// option appears. The option is not declared here because, as in the
@@ -3256,8 +3248,7 @@ nvs_runtime::nvs_helper! {
     /// entries without renumbering the ones that remain. That is deliberately
     /// not `array_shift`'s behaviour, which renumbers integer keys and keeps
     /// string ones — the key-type-dependent rule
-    /// [ADR 0069](/docs/adr/0069-array-combination-is-key-type-independent.md)
-    /// § 3 removes. A caller who wants `0, 1, …` writes `Core\Arr::values` and
+    /// `rule:types/preserve-keys` removes. A caller who wants `0, 1, …` writes `Core\Arr::values` and
     /// says so; a caller who wanted to keep a map's keys has no way to get them
     /// back once a member has thrown them away, so keeping is the direction
     /// that loses nothing.
@@ -3366,8 +3357,7 @@ nvs_runtime::nvs_helper! {
     /// subject may already hold. PHP resolves that by renumbering the integer
     /// keys and keeping the string ones, which is exactly the
     /// key-type-dependent rule
-    /// [ADR 0069](/docs/adr/0069-array-combination-is-key-type-independent.md)
-    /// § 3 removes; renumbering *every* key is the same answer applied
+    /// `rule:types/preserve-keys` removes; renumbering *every* key is the same answer applied
     /// uniformly, and it is what spec § 2 says `{preserveKeys: false}` means
     /// wherever the option appears. Neither member declares the option,
     /// because keeping a key here is not a choice that can be offered.
@@ -3472,7 +3462,7 @@ nvs_runtime::nvs_helper! {
     /// PHP's rule and the spec's § 2 *Structure* note. The result is keyed in
     /// first-occurrence order all the same, because a re-`set` of an existing
     /// key overwrites in place rather than moving the entry to the end —
-    /// ADR 0007 § 5's insertion order is a property of the *key*, not of the
+    /// `rule:types/arrays`'s insertion order is a property of the *key*, not of the
     /// most recent write.
     ///
     /// The values become keys through [`key_bytes`], the same normalization
@@ -3519,8 +3509,7 @@ nvs_runtime::nvs_helper! {
     /// **A list, always**: every inner array's keys are discarded and the
     /// result renumbers from `"0"`. Two inner arrays can hold the same key,
     /// so there is no key rule that keeps both, and
-    /// [ADR 0069](/docs/adr/0069-array-combination-is-key-type-independent.md)
-    /// § 3 refuses the one PHP would reach for — keep the strings, renumber
+    /// `rule:types/preserve-keys` refuses the one PHP would reach for — keep the strings, renumber
     /// the integers. `appendAll` is this member's variadic sibling and answers
     /// the same shape for the same reason.
     ///
@@ -3561,8 +3550,7 @@ nvs_runtime::nvs_helper! {
     /// exact — binds `T` to `array<U>` when the argument is three deep, and
     /// the return would then claim one more level of nesting than the answer
     /// has. That is unsound, not merely imprecise, so this member erases
-    /// instead ([ADR 0007](/docs/adr/0007-explicit-type-system.md)
-    /// § 3's one unchecked position). A caller that knows the depth is two
+    /// instead (`rule:types/grammar`'s one unchecked position). A caller that knows the depth is two
     /// uses `flatten` and keeps its `T`; the spec's rows say both.
     ///
     /// An explicit stack rather than recursion: the nesting depth is the
@@ -3821,7 +3809,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// The cursor advances by `checked_add`/`checked_sub` rather than by
     /// multiplying an index: a range whose next step would leave `int` stops
-    /// instead of wrapping, which is ADR 0007 § 4's rule applied to a loop
+    /// instead of wrapping, which is `rule:types/arithmetic`'s rule applied to a loop
     /// this member owns rather than to arithmetic a program wrote.
     fn nvs_core_arr_range(_ctx, args: [3]) {
         let start = integer(&args[0], "range", "the start")?;
@@ -4215,7 +4203,7 @@ nvs_runtime::nvs_helper! {
     /// **two `string`s always compare bytewise**, never numerically. PHP
     /// compares `"10"` and `"9"` as numbers, which is the same
     /// changes-type-by-itself behaviour
-    /// [ADR 0007](/docs/adr/0007-explicit-type-system.md) rejects
+    /// `rule:types/declaration` rejects
     /// everywhere else; a caller who wants a numeric order over numeric
     /// strings writes `{by: ...}` and says so.
     ///
@@ -4387,7 +4375,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// # The natural order is a byte compare
     ///
-    /// [ADR 0007](/docs/adr/0007-explicit-type-system.md) § 5 makes
+    /// `rule:types/arrays` makes
     /// every stored key a `string` — `arr-keys-are-always-strings.nvst` pins
     /// it — so there is no mixed-type case for [`compare_values`] to
     /// arbitrate and the default ordering is `[u8]`'s. That means `"10"`
@@ -4769,10 +4757,10 @@ nvs_runtime::nvs_helper! {
     /// `Core\Arr::firstKey(array<T> $a): ?string` — the first entry's key,
     /// replacing PHP's `array_key_first` and `key`.
     ///
-    /// `?string` and never `?int`: ADR 0007 § 5 stores every key as a string,
+    /// `?string` and never `?int`: `rule:types/arrays` stores every key as a string,
     /// and `Core\Arr::keys` already answers `array<string>` for the same
     /// reason — a member that guessed a key's "original" type would be the
-    /// key-type-dependent behaviour ADR 0069 removes.
+    /// key-type-dependent behaviour `rule:types/array-combination` removes.
     fn nvs_core_arr_first_key(_ctx, args: [1]) {
         let subject = subject(args, "firstKey")?;
         Ok(match subject.next_slot(0) {
@@ -5002,7 +4990,7 @@ nvs_runtime::nvs_helper! {
 ///
 /// The tail arrives as **one** `array` argument holding the trailing
 /// arguments under `"0"`, `"1"`, … — [`crate::registry::CoreTy::Variadic`]
-/// owns why — so all four of ADR 0069's members are ordinary two-slot helpers
+/// owns why — so all four of `rule:types/array-combination`'s members are ordinary two-slot helpers
 /// and this is the walk they share. A layer whose tag is not `Tag::Array` is
 /// a fatal rather than a skip: the row declares `array<U>`, so meeting
 /// anything else means the value did not come through the checker.
@@ -5067,7 +5055,7 @@ fn copy_all(subject: &NvsArray, out: &mut NvsArray) {
     }
 }
 
-/// ADR 0069 § 1's overlay walk: `layer`'s entries written over `out`, an
+/// `rule:types/array-combination`'s overlay walk: `layer`'s entries written over `out`, an
 /// existing key **replacing in place** and a new key landing at the end.
 ///
 /// The key order falls out of `NvsArray::set` rather than being arranged
@@ -5110,7 +5098,7 @@ fn overlay_into(out: &mut NvsArray, layer: &NvsArray, deep: bool) {
 
 /// The recursive half of [`overlay_into`]: what `key` should hold once
 /// `value` is overlaid onto whatever `out` already has there, or `None` where
-/// ADR 0069 § 1's test says the right-hand value replaces the left wholesale.
+/// `rule:types/array-combination`'s test says the right-hand value replaces the left wholesale.
 ///
 /// The test is *both* sides holding an array and **neither** being a list.
 /// A list is replaced rather than merged element-wise because element-wise is
@@ -5120,7 +5108,7 @@ fn overlay_into(out: &mut NvsArray, layer: &NvsArray, deep: bool) {
 /// the language already has.
 ///
 /// The result is a fresh array rather than a mutation of the existing one:
-/// an Novis array is a copy-on-write *value* (ADR 0007 § 5), so the entry `out`
+/// an Novis array is a copy-on-write *value* (`rule:types/arrays`), so the entry `out`
 /// holds may be shared with the caller's own binding and writing through it
 /// would be visible there.
 fn merged(out: &NvsArray, key: &[u8], value: Value) -> Option<NvsArray> {
@@ -5135,7 +5123,7 @@ fn merged(out: &NvsArray, key: &[u8], value: Value) -> Option<NvsArray> {
     Some(nested)
 }
 
-/// ADR 0069 § 1's underlay walk: `layer`'s entries written *under* `out`, an
+/// `rule:types/array-combination`'s underlay walk: `layer`'s entries written *under* `out`, an
 /// existing key ignored and a new key landing at the end.
 fn underlay_into(out: &mut NvsArray, layer: &NvsArray) {
     let mut from = 0usize;
@@ -5153,8 +5141,7 @@ fn underlay_into(out: &mut NvsArray, layer: &NvsArray) {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Arr::overlay(array<T> $base, array<U> ...$layers): array<T|U>` —
-    /// [ADR 0069](/docs/adr/0069-array-combination-is-key-type-independent.md)
-    /// § 1's right-wins combination, replacing PHP's `array_replace` exactly
+    /// `rule:types/array-combination`'s right-wins combination, replacing PHP's `array_replace` exactly
     /// and its `array_merge` over maps.
     ///
     /// **Every key is treated the same way**, which is the whole of that ADR:
@@ -5179,7 +5166,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Arr::overlayDeep(array<T> $base, array<U> ...$layers): array<T|U>`
-    /// — [`nvs_core_arr_overlay`] with ADR 0069 § 1's recursion rule,
+    /// — [`nvs_core_arr_overlay`] with `rule:types/array-combination`'s recursion rule,
     /// replacing PHP's `array_replace_recursive`.
     ///
     /// It recurses only where both sides of a key hold an array and neither
@@ -5201,7 +5188,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Arr::underlay(array<T> $base, array<U> ...$layers): array<T|U>` —
-    /// ADR 0069 § 1's left-wins combination, exactly PHP's `$a + $b` and the
+    /// `rule:types/array-combination`'s left-wins combination, exactly PHP's `$a + $b` and the
     /// member `E0467` names when a program writes that operator.
     ///
     /// Not `overlay` with its arguments flipped: `overlay($b, $a)` holds the
@@ -5223,7 +5210,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Arr::appendAll(array<T> $a, array<U> ...$others): array<T|U>` —
-    /// ADR 0069 § 1's key-discarding combination, replacing PHP's
+    /// `rule:types/array-combination`'s key-discarding combination, replacing PHP's
     /// `array_merge` over lists and its `array_merge(...$arrays)` flatten
     /// idiom.
     ///
@@ -5452,8 +5439,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// **Strict identity, never a string cast.** PHP's `array_diff` compares
     /// `(string) $x === (string) $y`, so `1` and `"1"` are the same element
-    /// and two arrays are the same element as each other. [ADR 0069](/docs/adr/0069-array-combination-is-key-type-independent.md)
-    /// § 3 calls that a bug source rather than a decision; this compares the
+    /// and two arrays are the same element as each other. `rule:types/preserve-keys` calls that a bug source rather than a decision; this compares the
     /// way `contains` and `unique` already do, which is `nvs_runtime`'s
     /// `value_identical`.
     ///
@@ -5553,7 +5539,7 @@ nvs_runtime::nvs_helper! {
     /// a question with an answer rather than a division by zero.
     ///
     /// An exact subject stays exact: a `decimal` total is divided by the count
-    /// as a `decimal`, which ADR 0054 § 3 rounds half to even at the widest
+    /// as a `decimal`, which `rule:types/arithmetic` rounds half to even at the widest
     /// scale the quotient admits. Every other total answers `float`, which is
     /// what makes this member's result type a union rather than one type.
     fn nvs_core_arr_average(_ctx, args: [1]) {
@@ -5577,7 +5563,7 @@ nvs_runtime::nvs_helper! {
                 .ok_or_else(|| {
                     Fault::thrown(
                         "Core\\Arr::average has no `decimal` answer for this subject: the \
-                         quotient is outside ADR 0054 § 1's range"
+                         quotient is outside `rule:types/decimal`'s range"
                             .to_owned(),
                     )
                 }),
@@ -5590,7 +5576,7 @@ nvs_runtime::nvs_helper! {
 /// [`nvs_core_arr_average`] accumulate into — spec § 2's
 /// `int|float|decimal` as the three shapes an accumulator can be in.
 ///
-/// The promotion rules are ADR 0007 § 4's and ADR 0054 § 3's, applied
+/// The promotion rules are `rule:types/arithmetic`'s and `rule:types/arithmetic`'s, applied
 /// entry by entry rather than to a pair of static types:
 ///
 /// * `int` with `int` stays `int` and **throws** on overflow — no wrap and no
@@ -5600,7 +5586,7 @@ nvs_runtime::nvs_helper! {
 ///   does.
 /// * a `decimal` anywhere makes the total a `decimal`, since an `int` is exact
 ///   in 96 bits.
-/// * a `float` and a `decimal` in **one** subject throws: ADR 0054 § 3 makes
+/// * a `float` and a `decimal` in **one** subject throws: `rule:types/arithmetic` makes
 ///   that pair a compile error where the types are static, and there is no
 ///   representable common type here either. It is reachable only through an
 ///   `array<int|float|decimal>` holding both.
@@ -5610,7 +5596,7 @@ enum Total {
     Integer(i64),
     /// A `float`.
     Real(f64),
-    /// A `decimal` — ADR 0054's scalar, and the one arm that is exact.
+    /// A `decimal` — `rule:types/decimal`'s scalar, and the one arm that is exact.
     Exact(Decimal),
 }
 
@@ -5729,7 +5715,7 @@ fn fold(
             Fault::thrown(format!(
                 "Core\\Arr::{member} has no answer for this subject: the running total either \
                  left its type's range or met a `float` and a `decimal` in one array, which \
-                 have no common type (ADR 0007 § 4, ADR 0054 § 3)"
+                 have no common type (`rule:types/arithmetic`, `rule:types/arithmetic`)"
             ))
         })?;
     }
@@ -5929,7 +5915,7 @@ mod tests {
     }
 
     /// Every row verified against PHP 8.5's own `array_is_list`, including the
-    /// two ADR 0007 § 5 makes interesting: a canonical integer *string* key is
+    /// two `rule:types/arrays` makes interesting: a canonical integer *string* key is
     /// a list key (PHP normalizes it to an int), and a non-canonical one
     /// (`"01"`) is not.
     #[test]
@@ -6100,7 +6086,7 @@ mod tests {
     }
 
     /// The default discards every key rather than PHP's renumber-the-integers-
-    /// keep-the-strings, which is ADR 0069 § 3's rule and the one place this
+    /// keep-the-strings, which is `rule:types/preserve-keys`'s rule and the one place this
     /// member is not `array_reverse`.
     #[test]
     fn reverse_renumbers_by_default_and_keeps_every_key_on_request() {
@@ -6257,7 +6243,7 @@ mod tests {
     }
 
     /// The cursor stops rather than wrapping when the next step would leave
-    /// `int` — ADR 0007 § 4's rule applied to a loop this member owns.
+    /// `int` — `rule:types/arithmetic`'s rule applied to a loop this member owns.
     #[test]
     fn a_range_whose_next_step_would_overflow_stops() {
         assert_eq!(range_of(i64::MAX - 1, i64::MAX, 4), vec![i64::MAX - 1]);

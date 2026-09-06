@@ -94,7 +94,7 @@ impl<'a> Lowering<'a> {
                 let lname = strip_sigil(span_text(self.src, *local_name)).to_owned();
                 self.bind_local(*cur, env, lname, v, expected, value);
             }
-            // ADR 0037: `var $x = expr;` — no declared type at all, so there
+            // `rule:types/var-inference`: `var $x = expr;` — no declared type at all, so there
             // is no `expected` to check `value` against. `lower_expr` already
             // synthesizes a type from the expression alone whenever `expected`
             // is `None` (a bare integer literal defaults to `Ty::Int`, etc.) —
@@ -116,8 +116,7 @@ impl<'a> Lowering<'a> {
                 let lname = strip_sigil(span_text(self.src, *local_name)).to_owned();
                 self.bind_local(*cur, env, lname, v, ty, value);
             }
-            // `int $x;` — a declaration with no initializer, which ADR 0007
-            // § 1 makes a complete statement: the type is fixed here and the
+            // `int $x;` — a declaration with no initializer, which `rule:types/declaration` makes a complete statement: the type is fixed here and the
             // value arrives on some later line. There is nothing to emit,
             // because `nvs_types::locals`' definite-assignment pass is what
             // guarantees no path reads the name before an assignment reaches
@@ -263,7 +262,7 @@ impl<'a> Lowering<'a> {
             //   since PHP's "declared when the statement runs" has no reading
             //   a static table built before any code runs can give it.
             //
-            // ADR 0007 § 3.3's destructuring, the other shape that used to
+            // `rule:types/grammar`.3's destructuring, the other shape that used to
             // arrive here, lowers one arm above.
             other => panic!(
                 "nvs-ir's control-flow slice only lowers a typed local declaration with or \
@@ -380,14 +379,14 @@ impl<'a> Lowering<'a> {
                     }
                 }
             }
-            // ADR 0036 § 2's parenthesized reading, and every other one.
+            // `rule:types/object-literal`'s parenthesized reading, and every other one.
             // `nvs_syntax`'s `parse_statement_inner` commits a
             // statement-initial `{` to a *block*, so a discarded shape
             // literal has to be written `({a: 1});` — which arrives here
             // wrapped. Parentheses say nothing about what a statement means,
             // so this unwraps and dispatches again rather than duplicating
             // any arm above.
-            // ADR 0007 § 4's `± 1`, over the target's own numeric type. Both
+            // `rule:types/arithmetic`'s `± 1`, over the target's own numeric type. Both
             // spellings are the same statement — see `Self::lower_incdec_stmt`
             // for why the prefix/postfix distinction has nothing to say here.
             ExprKind::PreIncDec { op, expr: target }
@@ -516,7 +515,7 @@ impl<'a> Lowering<'a> {
         }
         self.lower_read_modify_write(e.span, target, op, Some(value), false, env, cur);
     }
-    /// `$x++;` / `--$x;` — ADR 0007 § 4's `± 1` over the target's own numeric
+    /// `$x++;` / `--$x;` — `rule:types/arithmetic`'s `± 1` over the target's own numeric
     /// type, through the same read-modify-write `$x += 1;` takes.
     ///
     /// **Prefix and postfix are the same statement.** The two differ only in
@@ -537,12 +536,12 @@ impl<'a> Lowering<'a> {
     ) {
         self.lower_incdec(e, op, target, env, cur);
     }
-    /// `$x++` / `--$x` in either position: ADR 0007 § 4's `± 1` over the
+    /// `$x++` / `--$x` in either position: `rule:types/arithmetic`'s `± 1` over the
     /// target's own numeric type, answering `(old, old_ty, new, new_ty)`.
     ///
     /// The whole read-modify-write is [`Self::lower_read_modify_write`], the
     /// one `$x += 1;` already takes, so the target's address is computed once
-    /// however the increment was written; all this adds is ADR 0007 § 4's
+    /// however the increment was written; all this adds is `rule:types/arithmetic`'s
     /// choice of operator. Which of the two values a caller keeps is the only
     /// difference between the prefix and postfix spellings, and between an
     /// expression statement (neither) and a value position (one).
@@ -625,7 +624,7 @@ impl<'a> Lowering<'a> {
         self.stage(target.span, old, old_ty);
         // An increment's `1` has no source span to build an `ExprKind::Int`
         // from, so it is emitted here — at the representation the read just
-        // reported, since ADR 0007 § 4 gives `int ⊕ int` and `uint ⊕ uint`
+        // reported, since `rule:types/arithmetic` gives `int ⊕ int` and `uint ⊕ uint`
         // their own rows and refuses the mixed pair — and staged like the rest
         // of the address. `one` exists only to outlive the borrow below.
         let one;
@@ -665,7 +664,7 @@ impl<'a> Lowering<'a> {
     /// The `1` an increment adds or subtracts, at the target's own
     /// representation.
     ///
-    /// ADR 0007 § 4 gives each numeric type its own arithmetic row and
+    /// `rule:types/arithmetic` gives each numeric type its own arithmetic row and
     /// refuses a mixed-signedness pair outright, so the literal is emitted as
     /// the operand it will be paired with rather than as a default `int`.
     ///
@@ -817,7 +816,7 @@ impl<'a> Lowering<'a> {
     /// that the general rewrite — which is what that fast path replaced, and
     /// is correct — is the right trade against a second append lowering.
     ///
-    /// **Unlike an increment, this owes a retain.** ADR 0007 § 4 leaves an
+    /// **Unlike an increment, this owes a retain.** `rule:types/arithmetic` leaves an
     /// increment only non-refcounted targets, but an assignment's target is
     /// any declared type at all, and the value that landed is owned by the
     /// binding, the field, the slot or the array entry it landed in. This
@@ -931,7 +930,7 @@ impl<'a> Lowering<'a> {
                         .map(|&(_, t)| t)
                         .or_else(|| self.declared_tys.get(&lname).copied());
                     let (v, ty, aliasing) = self.lower_stored(stored, expected, env, cur);
-                    // ADR 0037 fixes a local's type at its declaration, so an
+                    // `rule:types/var-inference` fixes a local's type at its declaration, so an
                     // existing binding's representation wins over whatever the
                     // right-hand side produced -- otherwise a `?int` local
                     // reassigned an `int` would silently change shape, and the
@@ -992,7 +991,7 @@ impl<'a> Lowering<'a> {
                 // (`nvs_types::signatures::PropertyHooks` owns that
                 // decision).
                 //
-                // An ADR 0036 § 4 shape target is neither: it has no
+                // An `rule:types/erased-member-access` shape target is neither: it has no
                 // declaring class to name and no hook to call, so it takes
                 // the name-keyed write its own read mirrors and leaves before
                 // the class machinery below. That arm is also the erased
@@ -1017,8 +1016,8 @@ impl<'a> Lowering<'a> {
                         cur,
                     );
                 }
-                // ADR 0126 § 4's `$obj->$key = v`, whose name arrives as a
-                // value: § 5 makes it ADR 0036 § 4's checked erased store with
+                // `rule:types/property-key-access`'s `$obj->$key = v`, whose name arrives as a
+                // value: § 5 makes it `rule:types/erased-member-access`'s checked erased store with
                 // the name taken from the key, so it leaves before the class
                 // machinery below for the shape target's reason and one more —
                 // there is no name here to ask about a hook with.
@@ -1211,7 +1210,7 @@ impl<'a> Lowering<'a> {
             // unlike every other `Index`-target write.
             //
             // Both instructions *yield* the array that now holds the entry
-            // (ADR 0007 § 5's copy-on-write separation produces a different
+            // (`rule:types/arrays`'s copy-on-write separation produces a different
             // allocation), so the write is not finished until the base's
             // holder has been re-pointed at that result —
             // `Self::write_back_array` does exactly that, and its own doc
@@ -1596,7 +1595,7 @@ impl<'a> Lowering<'a> {
         }
         self.write_back_array(root, written, env, cur);
     }
-    /// ADR 0007 § 3.3's `[int $a, string $b] = $pair;` — a run of element
+    /// `rule:types/grammar`.3's `[int $a, string $b] = $pair;` — a run of element
     /// reads off one subject, and nothing else at all.
     ///
     /// Every leaf is the subscript it is spelled out of: `$pair[0]`,
@@ -1609,7 +1608,7 @@ impl<'a> Lowering<'a> {
     /// leaf's: `nvs_types::locals` records that type under the leaf's own
     /// span as the same [`ExprInfo::Index`] entry a subscript gets, and
     /// [`Self::coerce`] takes it from there to the declared one, which is
-    /// how `[float $f] = $ints;` widens where ADR 0007 § 2 says it does.
+    /// how `[float $f] = $ints;` widens where `rule:types/conversion` says it does.
     ///
     /// **The subject is lowered once**, whatever the pattern's depth, and a
     /// nested target reads through the borrowed element rather than a copy

@@ -4,7 +4,7 @@ Core\Str::reverse answers what strrev answers over an ASCII table, and both are 
 <?nvs
 // Spec § 1's `reverse` row. The subjects here are ASCII on purpose:
 // `Core\Str::reverse` walks grapheme clusters
-// (`nvs_stdlib::granularity::DEFAULT`, ADR 0009 § 2) and `strrev` walks
+// (`nvs_stdlib::granularity::DEFAULT`, `rule:types/string-is-utf8`) and `strrev` walks
 // bytes, and inside ASCII those are the same walk — which is what makes the
 // whole table below an oracle rather than a frozen expectation. Where the two
 // units part is the companion case,

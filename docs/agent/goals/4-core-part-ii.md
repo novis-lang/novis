@@ -177,7 +177,7 @@ M4's, goal 1's, goal 2's and goal 3's whole acceptance lists, **never traded.**
     constant value **with no runtime lookup**, and more than one is a compile-time diagnostic naming
     `all<T>`. M4 landed the attach grammar and the call-site `<T>`; this is the half that reads.
 26. **`Core\Decimal`, `Core\BigInt`, `Core\BigDecimal`** — the method surface around the `decimal` scalar
-    M2–M4 already built ([ADR 0054](../../adr/0054-decimal-scalar-type.md)), including `divExact`,
+    M2–M4 already built (`rule:types/decimal`), including `divExact`,
     `divRound` and `allocate`, since division is the one place a decimal result may be inexact.
 
 ## Stage 9 — the launderers and the framework's privileged half

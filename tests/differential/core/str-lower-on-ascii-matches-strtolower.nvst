@@ -5,7 +5,7 @@ Core\Str::lower maps the same letters strtolower maps over ASCII, and stops at t
 // Spec § 1's `lower` against the half of its twin that is defined over ASCII.
 // `str-upper-diverges-from-strtoupper` owns the other half — past ASCII the two
 // part company, because PHP's byte-wise function has no case table and Novis's
-// member is Unicode-aware (ADR 0009 § 2). What is left, and what this case is,
+// member is Unicode-aware (`rule:types/string-is-utf8`). What is left, and what this case is,
 // is that over the band where PHP *does* map letters the two agree exactly,
 // including at the two bytes on either side of it: `@` and `[` bracket `A`-`Z`
 // in ASCII, and a member built from an arithmetic rather than a table gets one

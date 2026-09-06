@@ -1,5 +1,5 @@
 --TEST--
-`new $c()` and `$c::f()` take a written class name, as `$x instanceof $c` already does (ADR 0007 § 2)
+`new $c()` and `$c::f()` take a written class name, as `$x instanceof $c` already does (`rule:types/conversion`)
 --FILE--
 <?nvs
 // A class name is written, never computed — the same line `$$var` and `eval`

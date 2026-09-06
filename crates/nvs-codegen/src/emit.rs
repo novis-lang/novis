@@ -53,7 +53,7 @@
 //! `crate::Signatures` instead.
 //!
 //! `nvs_float_pow` is the one of those that had a real alternative, so it is
-//! worth naming: ADR 0007 § 4's `**` over two `float`s could have been one
+//! worth naming: `rule:types/arithmetic`'s `**` over two `float`s could have been one
 //! more `nvs_ir::Helper`. It is not, because Cranelift has no `fpow`
 //! instruction and no `LibCall::Pow` either — the row has to be *some* call,
 //! and given that, the cheap shape is the honest one. AGENTS.md's priority
@@ -491,7 +491,7 @@ impl Emitter<'_, '_> {
                 let v = self.b.ins().f64const(*v);
                 self.define(inst, v)?;
             }
-            // ADR 0054 § 2's literal, folded to its sixteen-byte image. This
+            // `rule:types/numeric-literal-placement`'s literal, folded to its sixteen-byte image. This
             // is the one place `nvs_ir`'s three-part constant and
             // `nvs_runtime::decimal`'s bit layout meet — the IR carries the
             // parts because it does not depend on the runtime, and this crate
@@ -501,8 +501,9 @@ impl Emitter<'_, '_> {
                 mantissa,
                 scale,
             } => {
-                let value = NvsDecimal::new(*negative, *mantissa, *scale)
-                    .ok_or_else(|| internal("a `decimal` constant outside ADR 0054 § 1's range"))?;
+                let value = NvsDecimal::new(*negative, *mantissa, *scale).ok_or_else(|| {
+                    internal("a `decimal` constant outside `rule:types/decimal`'s range")
+                })?;
                 let bits = value.to_bits();
                 let word = |bits: u128| -> Result<i64, CodegenError> {
                     Ok(u64::try_from(bits & u128::from(u64::MAX))
@@ -696,9 +697,9 @@ impl Emitter<'_, '_> {
                 })?;
                 // An internal-consistency check with no reachable target, and
                 // the roster is `nvs-ir`'s three producers of this instruction.
-                // Two are ADR 0010 § 5's enum rows in either direction, and
+                // Two are `rule:types/conversion`'s enum rows in either direction, and
                 // `Ty::Enum` is a zero-byte tag over the very integer it
-                // relabels to; the third is ADR 0009 § 3's `string as bytes`,
+                // relabels to; the third is `rule:types/conversion`'s `string as bytes`,
                 // where a `bytes` *is* the string's allocation minus the UTF-8
                 // promise. All three therefore share a machine type by
                 // construction, so an arrival here is a `nvs-ir` site emitting
@@ -1241,7 +1242,7 @@ impl Emitter<'_, '_> {
             // answered for a `string`, a `bytes`, an `array<T>`, an object, an
             // enum case (through `Reinterpret` to its backing integer, in
             // `nvs-ir`, at all four sites that compare one — a written `==`,
-            // ADR 0047 § 5's membership chain, and a `match` or a `switch`
+            // `rule:types/literal-types`'s membership chain, and a `match` or a `switch`
             // label chain) and `null`; ordering is refused where it is *written*
             // for every representation that is not a number or a `bool`
             // (`E0715`, and `E0411` for the object family), and `decimal`'s own
@@ -1260,7 +1261,7 @@ impl Emitter<'_, '_> {
             // operand of `.` (`E0707`), so `Ty::Void` reaches no instruction
             // rather than being absent from the language. The `float` rows do
             // not reach here at all — they are `integral`'s sibling below —
-            // and arithmetic over an operand ADR 0007 § 4 tabulates no row
+            // and arithmetic over an operand `rule:types/arithmetic` tabulates no row
             // for, which used to arrive here as a `Sub` over a `Str` or a
             // `Div` over an `Array`, is `E0716` where it is written now.
             // An empty roster is what makes this an `internal` rather than an
@@ -1275,14 +1276,14 @@ impl Emitter<'_, '_> {
             return self.emit_int_mod(inst, l, r, signed);
         }
         // The other one, and for a second reason on top of the trap it also
-        // guards: ADR 0007 § 4 types integer `/` as a union, so its result is
+        // guards: `rule:types/arithmetic` types integer `/` as a union, so its result is
         // a *tagged* value rather than this function's one representation and
         // it could not join the table below either. See `Self::emit_int_div`.
         if matches!(op, BinOp::Div) && matches!(ty, Ty::Int | Ty::Uint) {
             return self.emit_int_div(inst, l, r, signed);
         }
         // The remaining three integer rows, which own a continuation block for
-        // the same reason: ADR 0007 § 4 makes `+`, `-` and `*` throw on
+        // the same reason: `rule:types/arithmetic` makes `+`, `-` and `*` throw on
         // overflow rather than wrap. See `Self::emit_checked_int_arith`.
         if matches!(op, BinOp::Add | BinOp::Sub | BinOp::Mul) && matches!(ty, Ty::Int | Ty::Uint) {
             return self.emit_checked_int_arith(inst, op, l, r, signed);
@@ -1332,7 +1333,7 @@ impl Emitter<'_, '_> {
             BinOp::Mul if float => self.b.ins().fmul(l, r),
             // The one arm here that is a *call*: there is no `fpow`
             // instruction on any target Cranelift supports and no
-            // `LibCall::Pow` to defer to, so ADR 0007 § 4's float `**` row has
+            // `LibCall::Pow` to defer to, so `rule:types/arithmetic`'s float `**` row has
             // to leave the compiled function. It goes direct rather than
             // through `rule:errors/propagation`'s helper convention for the reason this
             // module's docs give — the row's representation is already known
@@ -1345,14 +1346,14 @@ impl Emitter<'_, '_> {
             }
             // Reached only by `Ty::Bool`, the third member of `integral`
             // above: every `Ty::Int`/`Ty::Uint` pair has already gone to
-            // `Self::emit_checked_int_arith`, which is where ADR 0007 § 4's
+            // `Self::emit_checked_int_arith`, which is where `rule:types/arithmetic`'s
             // overflow throw lives. No `bool` arithmetic exists in the
             // language, so in practice these three arms are the table's
             // exhaustiveness and nothing else.
             BinOp::Add => self.b.ins().iadd(l, r),
             BinOp::Sub => self.b.ins().isub(l, r),
             BinOp::Mul => self.b.ins().imul(l, r),
-            // ADR 0007 § 4 preserves the operand type across these three and
+            // `rule:types/arithmetic` preserves the operand type across these three and
             // they cannot fail, so unlike the shifts they are one instruction
             // in the straight-line table. `Ty::Bool` reaches them too and is
             // exactly right there: a `bool` is one byte holding 0 or 1.
@@ -1421,8 +1422,7 @@ impl Emitter<'_, '_> {
             // representation and it is `float` or `bool`, the two `integral`
             // and `float` admit that the six early returns above do not
             // handle — so the roster is five pairs, and each is refused where
-            // it is written. `Shl`/`Shr` over either is `E0706`, ADR 0007
-            // § 4's `& | ^ ~ << >>` row being `int` and `uint` alone.
+            // it is written. `Shl`/`Shr` over either is `E0706`, `rule:types/arithmetic`'s `& | ^ ~ << >>` row being `int` and `uint` alone.
             // `Div`/`Mod`/`Pow` over a `bool` is `E0716`: that section's
             // arithmetic rows are the numeric types, and a `bool` is PHP's
             // "convert to an `int` first" and nothing else. `Mod` over a
@@ -1492,7 +1492,7 @@ impl Emitter<'_, '_> {
         Ok((value, cont))
     }
 
-    /// Integer `/`, whose result is ADR 0007 § 4's `int|float` union — "PHP-
+    /// Integer `/`, whose result is `rule:types/arithmetic`'s `int|float` union — "PHP-
     /// exact, so `6/3` is an integer and `7/2` is a float" — and therefore the
     /// one arithmetic operator that produces a [`Ty::Tagged`] value rather
     /// than a machine one.
@@ -1598,7 +1598,7 @@ impl Emitter<'_, '_> {
         Ok((value, merge))
     }
 
-    /// Integer `+`, `-` and `*`, which ADR 0007 § 4 makes **throw
+    /// Integer `+`, `-` and `*`, which `rule:types/arithmetic` makes **throw
     /// `ArithmeticError`** rather than wrap — "the divergence from PHP this
     /// ADR is least willing to trade", because a silent promotion to `float`
     /// changes a binding's type behind its declaration and a silent wrap is
@@ -1659,7 +1659,7 @@ impl Emitter<'_, '_> {
     ///   masks the count to 6 bits, so `1 << 64` would be `1`; PHP answers
     ///   `0`. The correction is a `select` on an unsigned compare rather than
     ///   a branch, since both arms are one instruction and neither is cold.
-    /// * **`>>` reads its operand's signedness**, ADR 0007 § 4 making it
+    /// * **`>>` reads its operand's signedness**, `rule:types/arithmetic` making it
     ///   arithmetic on an `int` and logical on a `uint`. That is `sshr` versus
     ///   `ushr`, and it is also what the past-the-width arm fills with: the
     ///   sign bit for the first, zero for the second.
@@ -1709,7 +1709,7 @@ impl Emitter<'_, '_> {
         Ok((self.b.ins().select(past_width, saturated, shifted), cur))
     }
 
-    /// Integer `**` — square-and-multiply, with ADR 0007 § 4's overflow throw
+    /// Integer `**` — square-and-multiply, with `rule:types/arithmetic`'s overflow throw
     /// checked at **every** step rather than only on the result.
     ///
     /// This is the only operator in the table whose emission is a *loop*, and
@@ -1731,7 +1731,7 @@ impl Emitter<'_, '_> {
     ///   `select` keeps it or drops it, so its overflow is only a throw on the
     ///   step that actually wanted the factor.
     /// * **A negative exponent throws**, except over a base of `1` or `-1`.
-    ///   ADR 0007 § 4's row is "the same type … no wrap, no promotion to
+    ///   `rule:types/arithmetic`'s row is "the same type … no wrap, no promotion to
     ///   `float`", so `2 ** -1` has no `int` to answer and PHP's `0.5` is
     ///   exactly the promotion that row refuses; `1 ** -1` and `(-1) ** -3` do
     ///   have one, and answering it costs nothing on the hot path because the
@@ -1938,7 +1938,7 @@ impl Emitter<'_, '_> {
     ) -> Result<(Value, Block), CodegenError> {
         let (v, ty) = self.value(operand)?;
         // `-i64::MIN` is the one `int` with no negation, and every non-zero
-        // `uint` is a `uint` with none, so ADR 0007 § 4's overflow throw
+        // `uint` is a `uint` with none, so `rule:types/arithmetic`'s overflow throw
         // reaches this row too — spelled as `0 - v` because that is exactly
         // what a negation is and `ssub_overflow` already answers it.
         if matches!(op, UnOp::Neg) && matches!(ty, Ty::Int | Ty::Uint) {
@@ -1970,7 +1970,7 @@ impl Emitter<'_, '_> {
             // ahead of them. `UnOp` is three variants: `!` arrives only over a
             // `Ty::Bool`, `rule:expressions/truthy-positions`'s truthy table having already answered one
             // whatever the operand's own type was, and `-` and `~` arrive only
-            // over the numeric representations ADR 0007 § 4 tabulates, because
+            // over the numeric representations `rule:types/arithmetic` tabulates, because
             // `nvs_types::expr::operators::reject_unary_arith_operand` refuses
             // every other operand where it is written (`E0705`, and `E0706` for
             // the `float`/`decimal` pair `~` leaves out). Unary `+` never
@@ -2372,7 +2372,7 @@ impl Emitter<'_, '_> {
     /// stores, on the only path that needs them; the branch is here rather
     /// than in the runtime because the proven case is the common one and it
     /// already had a pointer in hand.
-    /// [`nvs_ir::ir::InstKind::ClassDescIn`] — ADR 0125 § 2's two checked rows
+    /// [`nvs_ir::ir::InstKind::ClassDescIn`] — `rule:types/class-reference`'s two checked rows
     /// into a `class<T>`, as a **branch-free chain** over
     /// [`Classes::conforming_to`]'s closed set.
     ///
@@ -2387,7 +2387,7 @@ impl Emitter<'_, '_> {
     /// materialized address ([`Self::class_desc_value`]),
     /// so there is nothing a branch would guard and no block to build, and the
     /// miss falls out for free as the zero the chain starts from.
-    /// `nvs_ir::lower` turns that zero into ADR 0007 § 2's throw.
+    /// `nvs_ir::lower` turns that zero into `rule:types/conversion`'s throw.
     fn emit_class_desc_in(&mut self, subject: ValueId, base: &str) -> Result<Value, CodegenError> {
         let (subject, subject_ty) = self.value(subject)?;
         let candidates = self.classes.conforming_to(base);
@@ -2413,7 +2413,7 @@ impl Emitter<'_, '_> {
         Ok(answer)
     }
 
-    /// `$x instanceof C` and ADR 0125 § 4's `$x instanceof $cls` — the same
+    /// `$x instanceof C` and `rule:types/class-reference-sites`'s `$x instanceof $cls` — the same
     /// runtime call either way, differing only in where the descriptor comes
     /// from: a relocation against the written class's descriptor symbol
     /// ([`Self::class_desc_value`]), or the [`Ty::ClassDesc`] the class
@@ -2475,7 +2475,7 @@ impl Emitter<'_, '_> {
     /// finds the slot by **name** on the receiver's own descriptor.
     ///
     /// Not the inline load [`Self::emit_field_get`] emits, and deliberately:
-    /// an ADR 0036 § 4 shape value has no class label to resolve a layout
+    /// an `rule:types/erased-member-access` shape value has no class label to resolve a layout
     /// under, and the receiver's static shape may be a *widened* view of a
     /// value that lays its slots out differently — see
     /// `nvs_ir::ir::InstKind::SlotGet`, which owns the whole decision. The
@@ -2655,7 +2655,7 @@ impl Emitter<'_, '_> {
         self.emit_status_check(status, inst.on_error)
     }
 
-    /// The receiver of an ADR 0036 § 4 name-keyed access, in the one shape
+    /// The receiver of an `rule:types/erased-member-access` name-keyed access, in the one shape
     /// both halves of it take: a caller-owned 16-byte
     /// [`nvs_runtime::Value`] passed by address.
     ///

@@ -1,5 +1,5 @@
 --TEST--
-`$cls::f()` dispatches on the descriptor and `$x instanceof $cls` tests against it — ADR 0125 § 4's other two sites
+`$cls::f()` dispatches on the descriptor and `$x instanceof $cls` tests against it — `rule:types/class-reference-sites`'s other two sites
 --FILE--
 <?nvs
 // The two sites that take a class reference and are not `new`. A static call

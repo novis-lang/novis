@@ -109,7 +109,7 @@
 //!
 //! **A text body is checked to be UTF-8 before it becomes a `string`**, and the
 //! `client_encoding` in the startup message is not what makes that safe.
-//! [ADR 0009](/docs/adr/0009-string-and-bytes.md)'s promise is read
+//! `rule:types/bytes`'s promise is read
 //! *unchecked* downstream — `nvs_runtime::NvsStr::text_of` is that crate's one
 //! unchecked read — and a database server is a network peer rather than a part
 //! of this process: an ill-formed body from a compromised or simply
@@ -1642,14 +1642,14 @@ pub fn encode(value: Value) -> io::Result<Option<Vec<u8>>> {
                 float.to_string()
             }
         }
-        // Exact on both sides: ADR 0054's `decimal` renders as digits and a
+        // Exact on both sides: `rule:types/decimal`'s `decimal` renders as digits and a
         // point, which is `numeric`'s own input form, so nothing rounds here
         // the way binding it as a `float8` would.
         Some(Tag::Decimal) => value
             .as_decimal()
             .map(|exact| exact.to_string())
             .unwrap_or_default(),
-        // A `string` is UTF-8 by ADR 0009 and the session is UTF-8 by the
+        // A `string` is UTF-8 by `rule:types/bytes` and the session is UTF-8 by the
         // connect path, so the octets go out as they are.
         Some(Tag::Str) => {
             return Ok(Some(value.as_str_bytes().unwrap_or_default().to_vec()));
@@ -1746,7 +1746,7 @@ impl PgColumn {
     ///
     /// `InvalidData` for a body the column's own type cannot be read out of: a
     /// `NUMERIC` past what
-    /// [ADR 0054](/docs/adr/0054-decimal-scalar-type.md)'s `decimal`
+    /// `rule:types/decimal`'s `decimal`
     /// holds or a `NaN` in one, which that type has no representation for; a
     /// text body that is not UTF-8; a malformed `bytea`. Every such message
     /// names the column and its OID and **never the body**, for the reason
@@ -4074,7 +4074,7 @@ mod tests {
     ///
     /// The check on the way back is not belt and braces. The module doc's
     /// § *Parameters and results are in text format* owns why: a server is a
-    /// network peer, ADR 0009's guarantee is read unchecked downstream, and
+    /// network peer, `rule:types/bytes`'s guarantee is read unchecked downstream, and
     /// `client_encoding` is a request rather than a proof. It is asserted over
     /// **every** OID that reads back as text — § 9's five text rows, its two
     /// JSON ones and the "no Novis type" row every unnamed OID falls to — by
@@ -7176,7 +7176,7 @@ mod tests {
     /// the refusal does not quote it.
     ///
     /// Both halves matter. The first is § 9 read strictly: a `NUMERIC` past
-    /// what ADR 0054's `decimal` holds, or a `NaN` in one, has no value to
+    /// what `rule:types/decimal`'s `decimal` holds, or a `NaN` in one, has no value to
     /// answer with and inventing the nearest one would be a wrong number that
     /// nothing downstream could detect. The second is `PgColumn::malformed`'s
     /// rule — the value stays out of the message — and a test is the only

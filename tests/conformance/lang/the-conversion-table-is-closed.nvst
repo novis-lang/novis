@@ -1,8 +1,8 @@
 --TEST--
-`as` refuses every operand/target pair ADR 0007 § 2's table has no row for, one diagnostic per pair — ADR 0007 § 2, ADR 0009 § 3, ADR 0010 § 5
+`as` refuses every operand/target pair `rule:types/conversion`'s table has no row for, one diagnostic per pair — `rule:types/conversion`, `rule:types/conversion`, `rule:types/conversion`
 --FILE--
 <?nvs
-// ADR 0007 § 2's table is *closed*: `as` "either produces a value of the
+// `rule:types/conversion`'s table is *closed*: `as` "either produces a value of the
 // target type or throws", so a pair naming no row has nothing to produce and
 // nothing to throw. Each binding below is one absent row, and each help names
 // the spelling that says what was meant instead.
@@ -26,11 +26,11 @@ Foo $foo = new Foo();
 // `string`" row is total for *scalars*, and neither is one.
 string $a = $xs as string;
 string $b = $mode as string;
-// ADR 0010 § 5 grants an enum its own backing type and no other number.
+// `rule:types/conversion` grants an enum its own backing type and no other number.
 float $c = $mode as float;
 // `bool` is in the `string` row and in no numeric one.
 int $d = $flag as int;
-// ADR 0009 § 3 gives `bytes` exactly one source and one target, both `string`.
+// `rule:types/conversion` gives `bytes` exactly one source and one target, both `string`.
 bytes $e = $i as bytes;
 // The only row producing an `array<T>` is another `array<U>`.
 array<int> $f = $s as array<int>;

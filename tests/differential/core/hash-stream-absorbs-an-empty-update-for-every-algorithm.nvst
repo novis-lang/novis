@@ -1,5 +1,5 @@
 --TEST--
-`Core\Hash\Stream` answers for every algorithm what `hash_init`/`hash_update`/`hash_final` answer when an empty update is placed before, between and after every real one, and a stream updated only with empty subjects finishes as the empty digest (spec § 11, ADR 0009 § 1)
+`Core\Hash\Stream` answers for every algorithm what `hash_init`/`hash_update`/`hash_final` answer when an empty update is placed before, between and after every real one, and a stream updated only with empty subjects finishes as the empty digest (spec § 11, `rule:types/bytes`)
 --FILE--
 <?nvs
 // `hash-stream-matches-hash_init-update-and-final` already sweeps the chunk

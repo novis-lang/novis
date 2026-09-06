@@ -396,7 +396,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// separates that member from [`nvs_core_io_read`].
 ///
 /// UTF-8 by default because that is what Novis text already is
-/// ([ADR 0009](/docs/adr/0009-string-and-bytes.md) § 1): a caller who
+/// (`rule:types/bytes`): a caller who
 /// says nothing gets the decode that is the identity on a file written the way
 /// the language spells strings, and every other encoding has to name itself. A
 /// default of "whatever the file looks like" is the guess this member exists to
@@ -1764,7 +1764,7 @@ const METADATA_IS_DIR_SLOT: usize = 3;
 ///
 /// # Decision: an instance, not a fixed-key shape
 ///
-/// [`crate::instance`] can build either — an ADR 0036 shape is an anonymous
+/// [`crate::instance`] can build either — an `rule:types/object-top` shape is an anonymous
 /// methodless object whose fields a program reads with `->size`, and a
 /// [`CoreClass`] is one with members and no reachable field. The shape reads
 /// better at the call site and is the wrong one here for one reason:
@@ -3173,7 +3173,7 @@ nvs_runtime::nvs_helper! {
             let entry =
                 entry.map_err(|err| nvs_runtime::capability::io_failure(MEMBER, path, &err))?;
             // Lossy only where a name is not UTF-8, which a Novis `string`
-            // cannot hold at all (ADR 0009) — the same reading as
+            // cannot hold at all (`rule:types/bytes`) — the same reading as
             // [`nvs_core_io_temporary_dir`]'s.
             names.append(Value::str(NvsStr::new(
                 entry.file_name().to_string_lossy().as_bytes(),
@@ -3331,7 +3331,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_io_temporary_dir(ctx, _args: [0]) {
         let made = nvs_runtime::capability::temp_dir(ctx, "Core\\IO::temporaryDir")?;
         // Lossy only where a path is not UTF-8, which a Novis `string` cannot
-        // hold at all (ADR 0009): the alternative is refusing to answer for a
+        // hold at all (`rule:types/bytes`): the alternative is refusing to answer for a
         // temporary root this process did not choose.
         Ok(Value::str(NvsStr::new(made.to_string_lossy().as_bytes())))
     }

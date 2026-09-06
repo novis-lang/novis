@@ -8,7 +8,7 @@ echo ("-7" as ?int) ?? -1, "\n";
 echo ("0" as ?int) ?? -1, "\n";
 echo ("3.5" as ?float) ?? -1.0, "\n";
 
-// § 1 — `null` exactly where `as T` throws. ADR 0007 § 2's whole-string rule
+// § 1 — `null` exactly where `as T` throws. `rule:types/conversion`'s whole-string rule
 // reaches this form unchanged, so "12abc" is null rather than PHP's 12, and
 // 19.99 is null rather than 19.
 echo ("abc" as ?int) ?? -1, "\n";

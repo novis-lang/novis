@@ -1,5 +1,5 @@
 --TEST--
-`instanceof` through a subject whose tag nothing proved answers exactly what PHP answers — every supertype for an object, and `false` for every other tag including `null` — ADR 0007 § 2
+`instanceof` through a subject whose tag nothing proved answers exactly what PHP answers — every supertype for an object, and `false` for every other tag including `null` — `rule:types/conversion`
 --FILE--
 <?nvs
 final class Ask {
@@ -29,7 +29,7 @@ final class Dog extends Animal {
     }
 }
 
-// ADR 0007 § 2's one unchecked position is the shape PHP's own variable
+// `rule:types/conversion`'s one unchecked position is the shape PHP's own variable
 // always has, so these rows are the same program in both languages.
 mixed $dog = new Dog();
 mixed $animal = new Animal();

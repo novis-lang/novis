@@ -12,7 +12,7 @@ string $plain = "ordinary text, punctuation included: a-b_c/d.e (f) [g] {h} 100%
 echo Core\Html::toSource(Core\Html::escape($plain), "comparing the escape against its input") == $plain
      ? "same" : "changed", "\n";
 
-// Not ASCII either. `string` is UTF-8 by ADR 0009, so there is no `$encoding`
+// Not ASCII either. `string` is UTF-8 by `rule:types/bytes`, so there is no `$encoding`
 // argument and nothing here to transliterate.
 string $text = "日本語 — naïve café 👍";
 echo Core\Html::toSource(Core\Html::escape($text), "comparing the escape against its input") == $text

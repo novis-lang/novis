@@ -64,7 +64,7 @@ Every `Core` member obeys all twenty. A proposed member that cannot is a design 
 | # | Rule | Reason |
 |---|---|---|
 | **R1** | **The subject is parameter 1**, always — including for callback-taking and needle-taking members. `Arr::map($array, $fn)`, `Str::replace($subject, $search, $replacement)`, `Arr::contains($haystack, $needle)`. | The single most-cited PHP complaint; a rule with no exceptions is learnable in one sentence. |
-| **R2** | Then required arguments in dataflow order, then **at most one trailing optional shape literal** ([ADR 0036](0036-anonymous-object-shapes.md)) declared as a `type` alias. No `bool` flag parameters, no `int` bitmasks, no positional optional tails longer than one. **Every parameter is also callable by name** — the `$name` the signature in [01-core-library.md](../spec/01-core-library.md) writes, and the trailing bag by the one name `options` — under exactly the rules a user-declared method has ([ADR 0007](0007-explicit-type-system.md) § 5): written order is evaluation order, a name fills its own slot, a defaulted parameter may be skipped, a positional after a name is refused, and a name never reaches a variadic tail. A parameter's **name is compatibility surface**, versioned where its type is: renaming one is a breaking change to the spec. **A bag field may be nullable, and where it is, leaving the key out and writing `null` into it are two different requests** — omitted carries the existing value through, and a written `null` *removes*, never a second meaning a member invented ([ADR 0147](0147-an-options-bag-tells-an-omitted-key-from-a-written-null.md) § 4). So the nullability in the signature is what announces that a field can be cleared, `""` is never a clearing spelling, and a field stays non-nullable wherever the member has no removal to offer. | The bag stays the home of optional knobs — named, order-free, structurally checked, and a compile-time-constant bag folds to a constant. Calling by name is the same feature the language already has for every other method, and a surface a user's own method has that a `Core` member lacks is one more rule to learn. |
+| **R2** | Then required arguments in dataflow order, then **at most one trailing optional shape literal** (`rule:types/object-top`) declared as a `type` alias. No `bool` flag parameters, no `int` bitmasks, no positional optional tails longer than one. **Every parameter is also callable by name** — the `$name` the signature in [01-core-library.md](../spec/01-core-library.md) writes, and the trailing bag by the one name `options` — under exactly the rules a user-declared method has (`rule:types/arrays`): written order is evaluation order, a name fills its own slot, a defaulted parameter may be skipped, a positional after a name is refused, and a name never reaches a variadic tail. A parameter's **name is compatibility surface**, versioned where its type is: renaming one is a breaking change to the spec. **A bag field may be nullable, and where it is, leaving the key out and writing `null` into it are two different requests** — omitted carries the existing value through, and a written `null` *removes*, never a second meaning a member invented ([ADR 0147](0147-an-options-bag-tells-an-omitted-key-from-a-written-null.md) § 4). So the nullability in the signature is what announces that a field can be cleared, `""` is never a clearing spelling, and a field stays non-nullable wherever the member has no removal to offer. | The bag stays the home of optional knobs — named, order-free, structurally checked, and a compile-time-constant bag folds to a constant. Calling by name is the same feature the language already has for every other method, and a surface a user's own method has that a `Core` member lacks is one more rule to learn. |
 | **R3** | **Nothing mutates and nothing takes a reference.** No `inout $out`, no out-parameters, no in-place variants. The result is the return value. | COW makes it free: a refcount-1 argument is mutated in place by the implementation, exactly as PHP's own `sort()` does after a copy-on-write check. |
 | **R4** | **Failure throws; absence is `?T`.** `false` is never returned to signal failure, no member returns an error code, and there are no error globals (`json_last_error`, `error_get_last`). A `?T` return means the absence is an ordinary, expected outcome. | `strpos()` returning `0\|false` is PHP's most productive bug source; unions make it unnecessary. |
 | **R5** | A **fixed verb lexicon**: `is…`/`has…`/`contains`/`startsWith` → `bool`; `find…` → `?T`; `indexOf`/`keyOf` → `?uint`/`?K`; `count…` → `uint`; `to…`/`from…` for conversion and static construction. Two constructor spellings join them: **the unit or component it is built from** (`Duration::seconds`, `TimeOfDay::at`) and **`of`, for a canonical identifier** (`Zone::of`, `Hash::of`). A **stateful** object — a response, a session, a config overlay — may use `set…`/`add…`, which is not a mutation of a value and so not an R3 question. `…OrNull`, `…Safe` and `…Ex` are **banned**, and so is `try…` on every verb but one: **`tryParse`**, which `rule:expressions/try-parse` admits for a class whose `parse` takes exactly one `string` and can fail. That is the one case R4 does not in fact cover — a malformed string is a *failure*, not the absence `?T` means, and § 3's `as ?T` never targets a class — so `Core\Uri` and `Core\Uuid` would otherwise have no non-throwing spelling at all. Every other `try…` stays banned. The `…Safe` half of the ban is a ban on a **non-throwing variant** and reads the suffix as a claim about failure; a suffix that is an ordinary adjective of the subject is untouched, which is why [ADR 0145](0145-a-schema-is-a-value-core-db-schema-converges-a-closed.md) § 9's `Core\Db\Schema::applySafe` is admitted — it is named for the *grade of the steps it will run*, throws where its sibling `applyIncludingRisky` does not, and is the more refusing of the two rather than the quiet one. | One verb per meaning, so a name predicts a return type. |
@@ -73,10 +73,10 @@ Every `Core` member obeys all twenty. A proposed member that cannot is a design 
 | **R8** | **One range convention**, shared by `Core\Str` and `Core\Arr`: `(offset, ?length)`, negative offset counts from the end, negative length stops that many from the end, `null` length runs to the end. | Stated once, never varies. |
 | **R9** | **Callbacks always receive `($value, $key)`, in that order**, and a closure may declare fewer parameters than the call site passes. | Kills the whole `ARRAY_FILTER_USE_KEY`/`USE_BOTH` flag family and the need for `map`/`mapWithKey` pairs. |
 | **R10** | **Haystack before needle, subject before pattern.** A corollary of R1, stated because PHP violates it in `in_array`, `str_replace` and `preg_match` simultaneously. | |
-| **R11** | **No mode strings.** No `fopen($p, "r+b")`, no `hash("sha256", …)`, no `MB_CASE_TITLE`. Enums (`rule:enums/closed-integer-type`), always. A *grammar* is not a mode string and is not covered: a regex pattern, a `printf` template, a CLDR date pattern and a `pack` format each express something no enum can, and all four are `rule:expressions/intrinsic-literals` intrinsics checked at compile time. There are exactly four. | Typo-proof, completable, and [ADR 0047](0047-literal-and-enum-case-types.md) lets a parameter accept a closed subset of cases. |
+| **R11** | **No mode strings.** No `fopen($p, "r+b")`, no `hash("sha256", …)`, no `MB_CASE_TITLE`. Enums (`rule:enums/closed-integer-type`), always. A *grammar* is not a mode string and is not covered: a regex pattern, a `printf` template, a CLDR date pattern and a `pack` format each express something no enum can, and all four are `rule:expressions/intrinsic-literals` intrinsics checked at compile time. There are exactly four. | Typo-proof, completable, and `rule:types/literal-types` lets a parameter accept a closed subset of cases. |
 | **R12** | **Units are types.** Durations are a `Duration`, never "seconds here, microseconds there". Byte sizes are `uint` bytes. | PHP's `sleep`/`usleep`/`time_nanosleep` split is a units bug waiting to happen. |
-| **R13** | **A `string` member never takes an encoding argument.** UTF-8 is the type's guarantee ([ADR 0009](0009-string-and-bytes.md)); all conversion happens at the `bytes`↔`string` boundary in `Core\Encoding`, where it can fail honestly. | This is what removes the entire `mb_*` twin set. |
-| **R14** | **Anything with a lifetime is an object.** No `resource`, no integer handles, no `$link`-first convention. `Core` never exposes the `resource` atom at all; it survives in [ADR 0007](0007-explicit-type-system.md) § 3's grammar only for extension-supplied opaque handles ([ADR 0003](0003-extension-system.md)). | A handle has nowhere to enforce a capability and no methods; an object has both. |
+| **R13** | **A `string` member never takes an encoding argument.** UTF-8 is the type's guarantee (`rule:types/bytes`); all conversion happens at the `bytes`↔`string` boundary in `Core\Encoding`, where it can fail honestly. | This is what removes the entire `mb_*` twin set. |
+| **R14** | **Anything with a lifetime is an object.** No `resource`, no integer handles, no `$link`-first convention. `Core` never exposes the `resource` atom at all; it survives in `rule:types/grammar`'s grammar only for extension-supplied opaque handles ([ADR 0003](0003-extension-system.md)). | A handle has nowhere to enforce a capability and no methods; an object has both. |
 | **R15** | **One name, one signature.** Novis has no overloading; optional arguments are the only variance. Two behaviours need two names, and R5/R6 decide them. | |
 | **R16** | **A domain class is a singular noun**, and its object types nest under it: `Core\Time`, `Core\Time\Instant`, `Core\Time\Duration`. Never `Core\Times`, never `Core\TimeUtils`, never `Core\TimeHelper`. | |
 
@@ -113,7 +113,7 @@ The twin sets these rules retire, with their replacements:
 Four standing reasons. This is the rule; the members that survive are in
 [docs/spec/01-core-library.md](../spec/01-core-library.md), and **every PHP name that does not** is
 accounted for one by one in [docs/spec/02-php-migration.md](../spec/02-php-migration.md). That file exists
-because a reason cannot be audited: prose saying "~120 functions follow from ADR 0007" leaves no way to
+because a reason cannot be audited: prose saying "~120 functions follow from `rule:types/declaration`" leaves no way to
 notice the twelfth one nobody thought about, which is how `ctype_*`, `iterator_to_array` and
 `serialize`/`unserialize` each reached a full spec review with no home.
 
@@ -136,13 +136,13 @@ notice the twelfth one nobody thought about, which is how `ctype_*`, `iterator_t
    a mutable cursor inside a COW *value* is incoherent, since copying an array would copy its iteration
    position); every by-reference mutator (R3); `array_multisort`; `array_merge`, `array_merge_recursive`
    and the `+` operator over two arrays, whose rule is chosen by a key's *type* in a language that has one
-   key type ([ADR 0069](0069-array-combination-is-key-type-independent.md)); `array_walk` and
+   key type (`rule:types/array-combination`); `array_walk` and
    `array_walk_recursive`, which restate `foreach` once R3 removes the mutation; `array_pad`'s negative-size
    mode and the string-cast comparison inside `array_unique`/`array_diff`/`array_intersect`;
    `strip_tags`, `addslashes`,
    `htmlentities` and the rest of the half-escapers ([ADR 0024](0024-taint-tracking-for-injection-sinks.md)
    exists to prevent the false confidence they create); `settype`/`gettype`/`strval`/`intval`
-   ([ADR 0034](0034-legacy-cast-syntax-rejected.md): `as` is the only conversion spelling); `soundex`,
+   (`rule:types/no-legacy-cast`: `as` is the only conversion spelling); `soundex`,
    `metaphone`, `similar_text`, `str_word_count` (ASCII-only algorithms that are wrong on UTF-8);
    `uniqid` (`Core\Uuid`).
 
@@ -159,7 +159,7 @@ Each was a live design question; each is now a rule the spec file applies.
 - **Weak digests are available and structurally refused where unsafe.** One `Digest` enum carries MD5,
   SHA-1 and CRC32 for the interop that genuinely needs them (ETags, checksums, legacy APIs); the HMAC,
   signature and password members declare a narrower closed subset via
-  [ADR 0047](0047-literal-and-enum-case-types.md), so `Hash::hmac($m, $k, Digest::Md5)` is a compile error
+  `rule:types/literal-types`, so `Hash::hmac($m, $k, Digest::Md5)` is a compile error
   naming the reason. `Password::hash()` takes no algorithm argument at all.
 - **Relative dates are typed calls, not a grammar.** There is no `strtotime` and no `shift("+2 weeks")`:
   a `DateTime` moves by `plus(int $count, Unit $unit)`, `next(Weekday)`, `startOf(Unit)` and `with(…)`,
@@ -169,7 +169,7 @@ Each was a live design question; each is now a rule the spec file applies.
   `startOf(Unit::Month)` (R17) and a mode string (R11), and it hid the calendar-versus-exact distinction
   that the `DateTime`/`Instant` split exists to make visible. What genuinely needs a runtime string — a
   duration in config or on a command line — is `Duration::parse`, whose grammar is
-  [ADR 0070](0070-duration-literals.md)'s literal grammar, shares its implementation, throws on anything
+  `rule:types/duration-literal`'s literal grammar, shares its implementation, throws on anything
   else, and therefore launders a `tainted` argument in exactly the sense
   [ADR 0024](0024-taint-tracking-for-injection-sinks.md) § 3 defines. "Next monday" is not something a
   config file supplies, which is why the runtime path needs no more than a duration.
@@ -189,7 +189,7 @@ Each was a live design question; each is now a rule the spec file applies.
   ordering, over [ADR 0013](0013-comparable-interface.md)'s `Comparable`).
 - **Exceptions are a small closed set on one axis.** `Throwable`, then `LogicError` (a bug: bad argument,
   bad state, bad index), `RuntimeError` (the world said no) with `IOError`/`ParseError`/`TimeoutError`, and
-  `ArithmeticError` (overflow per [ADR 0007](0007-explicit-type-system.md), division by zero). PHP's 13 SPL
+  `ArithmeticError` (overflow per `rule:types/declaration`, division by zero). PHP's 13 SPL
   classes are not reproduced: their boundaries are undefined in practice (`OutOfRange` vs `OutOfBounds`
   differ only in *when* the index is known), and half of the parallel `Error` tree — `TypeError`,
   `ArgumentCountError`, most of `ValueError` — is unreachable here because those programs do not compile.
@@ -253,7 +253,7 @@ member added without one is an incomplete member.
   original rule, held from 2026-08-23 to 2026-08-29 on two grounds: named arguments are a real language
   feature (grammar, checker rules), and they make every parameter *name* public compatibility surface
   forever, whereas a declared options `type` alias is versioned like any other type. Reversed, because the
-  first ground expired — [ADR 0007](0007-explicit-type-system.md) § 5 built named arguments for every
+  first ground expired — `rule:types/arrays` built named arguments for every
   user-declared method, so the grammar and the checker rules are paid for and the only thing positional-only
   `Core` members bought was an asymmetry — and the second is accepted on purpose: the spec has published
   every parameter's name since the day it was written, so the surface was already public. R2 carries the

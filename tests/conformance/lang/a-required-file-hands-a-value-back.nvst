@@ -5,7 +5,7 @@
 // `rule:statements/a-require-expression-is-mixed`: `require`'s value is what a `return`-ing target hands back,
 // typed `mixed` at the boundary because it cannot be known statically — so
 // a typed binding takes the same explicit `as` any other `mixed` boundary
-// value needs (ADR 0007 § 2's one unchecked position).
+// value needs (`rule:types/conversion`'s one unchecked position).
 mixed $v = require 'gives.nvs';
 echo "value=", $v as string, "\n";
 

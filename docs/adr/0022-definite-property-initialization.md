@@ -7,7 +7,7 @@
   or inherited), the one residual case static analysis cannot cover (an object built through `Core\Reflect`
   without running a constructor), and the explicit rejection of a new `undefined` value or type to model the
   gap.
-- **Amends:** [ADR 0007](0007-explicit-type-system.md) § 1 — "definite assignment is checked" was written
+- **Amends:** `rule:types/declaration` — "definite assignment is checked" was written
   for local variables only; this ADR names properties as the second binding kind the same analysis covers,
   and is the decision that paragraph's scope was silently missing.
 - **Amended by:** 0038, 0043, 0147
@@ -16,7 +16,7 @@
 > one throws — a correct but purely runtime-discovered failure that surfaces far from the missing
 > assignment that caused it. Novis keeps the throw as a last resort but removes the reason it is usually
 > needed: **every property a class declares must be definitely assigned along every path out of every
-> constructor that class exposes**, checked by the same flow analysis [ADR 0007](0007-explicit-type-system.md)
+> constructor that class exposes**, checked by the same flow analysis `rule:types/declaration`
 > already commits to for local variables, extended here to a second binding kind. A class with no
 > constructor and a non-nullable property with no inline default is refused at the property declaration,
 > before any object is ever built. The only state static analysis cannot rule out is an object constructed
@@ -24,7 +24,7 @@
 > a checked runtime throw — the same "hard error, never a silent value" shape every other "accessed a thing
 > that is not there" case in this project already takes. There is **no new `undefined` type or value**:
 > adding one would make every declared property implicitly `T|undefined`, which is exactly the "a binding's
-> declared type silently holds something else" failure ADR 0007 exists to close, in a new shape. A property
+> declared type silently holds something else" failure `rule:types/declaration` exists to close, in a new shape. A property
 > that may legitimately hold no value already has a spelling — `?T` — and this ADR does not touch it.
 
 ## Context
@@ -32,21 +32,21 @@
 - PHP 7.4 typed properties introduced a state distinct from `null` — declared but unassigned; reading one
   throws only when discovered at the read, often far from the constructor that forgot to set it.
 - **JavaScript's `undefined` was proposed and rejected**: JS has no declared property types to violate, while
-  Novis's typed properties are exactly the guarantee [ADR 0007](0007-explicit-type-system.md) built to prevent
+  Novis's typed properties are exactly the guarantee `rule:types/declaration` built to prevent
   a declared type silently holding something else; a universal `undefined` would reintroduce that failure one
   binding kind later — the same ambient-magic shape already closed for undeclared properties/`__get`/`__set`
   ([ADR 0014](0014-property-observer.md)) and superglobals (`rule:statements/no-host-populated-variables`).
 - Other statically-typed languages split between compile-time-only (Rust/Swift), an opt-in throw-on-early-
   read modifier (Kotlin's `lateinit`), and a silent per-type default (C#/Java) — the last rejected here for
-  the same reason ADR 0007 rejects silent coercion.
-- Novis already has the mechanism: ADR 0007 §1 commits to definite-assignment checking for locals. A property
+  the same reason `rule:types/declaration` rejects silent coercion.
+- Novis already has the mechanism: `rule:types/declaration` commits to definite-assignment checking for locals. A property
   is a second, structurally similar binding kind, extended with `parent::constructor(...)` as what discharges
   inherited properties — mirroring Java/Kotlin's mandatory `super()`.
 
 ## Decision
 
 **No new type or value. Every property a class declares must be definitely assigned along every path out
-of every constructor that class exposes, checked at compile time by the same flow analysis ADR 0007 already
+of every constructor that class exposes, checked at compile time by the same flow analysis `rule:types/declaration` already
 commits to for locals. The one case that analysis cannot reach — an object built through `Core\Reflect`
 without running a constructor — throws a checked, catchable error on first read, exactly once, and never
 produces a value.**
@@ -84,7 +84,7 @@ given):
   initialize and is outside this rule entirely, the same way it is outside plain field access.
 
 This is refused with a diagnostic at the same point and the same M2 timing as the read-before-definite-
-assignment error ADR 0007 already plans for locals — one analysis pass, two binding kinds.
+assignment error `rule:types/declaration` already plans for locals — one analysis pass, two binding kinds.
 
 ### 3. The residual runtime case: `Core\Reflect` bypassing every constructor
 
@@ -106,7 +106,7 @@ from every legal value including `null`. This is **not** a new entry in the type
 anything an expression can produce: it is a transient state that either gets overwritten by the
 first write (the overwhelmingly common case, guaranteed by *2* for every ordinarily-constructed object) or
 is caught and turned into the throw in *3* before it is ever handed to user code. `rule:programs/memory-priority`
-requires stating the cost: the same tagged-value representation that gives `uint` a free tag in ADR 0007 §4
+requires stating the cost: the same tagged-value representation that gives `uint` a free tag in `rule:types/arithmetic`
 gives this marker a free tag too — one more discriminant on the existing value representation, **zero
 additional bytes per property**.
 
@@ -141,14 +141,14 @@ discriminant already exists, and the omitting call site emits one constant eithe
   at the constructor that forgot the assignment, or at the property declaration if there is no constructor
   at all. The runtime throw in *3* survives only for the narrow, explicit case of reflection-driven
   construction, not as the default experience of using typed properties.
-- No new type, no implicit `T|undefined` widening of every declared property — ADR 0007's "a declared type
+- No new type, no implicit `T|undefined` widening of every declared property — `rule:types/declaration`'s "a declared type
   never silently holds something else" stays intact rather than gaining an exception on its first
   anniversary.
 - One definite-assignment analysis covers two binding kinds (locals, properties) instead of two separate
   mechanisms that would have to be kept in agreement.
 - Consistent with every other "hard error, never a silent default" precedent already in this project:
   undeclared property access and no `__get`/`__set` fallback ([ADR 0014](0014-property-observer.md)),
-  undeclared locals and rejected `settype` ([ADR 0007](0007-explicit-type-system.md)).
+  undeclared locals and rejected `settype` (`rule:types/declaration`).
 
 **Negative**
 
@@ -169,14 +169,13 @@ discriminant already exists, and the omitting call site emits one constant eithe
 ## Alternatives rejected
 
 - **A new `undefined` type or value**, modeled on JavaScript. Rejected: JavaScript's `undefined` is safe
-  only absent a declared-type guarantee to violate; Novis has exactly that guarantee, so this recurs ADR
-  0007's failure shape one binding kind later, and is the same ambient-default shape `rule:statements/no-host-populated-variables`/0014 already
+  only absent a declared-type guarantee to violate; Novis has exactly that guarantee, so this recurs `rule:types/declaration`'s failure shape one binding kind later, and is the same ambient-default shape `rule:statements/no-host-populated-variables`/0014 already
   rejected.
-- **Per-type silent defaults** (C#/Java). Rejected for the same reason ADR 0007 rejects silent coercion: a
+- **Per-type silent defaults** (C#/Java). Rejected for the same reason `rule:types/declaration` rejects silent coercion: a
   plausible-looking wrong value is worse than a loud one, since "forgot to initialize" would look identical
   to "legitimately zero."
 - **PHP's status quo — runtime-only throw, no compile-time check.** Rejected: forgoes both correctness
-  caught at its cause and the "one analysis, not two" simplicity gain available for free once ADR 0007's
+  caught at its cause and the "one analysis, not two" simplicity gain available for free once `rule:types/declaration`'s
   mechanism already exists.
 - **An opt-in `lateinit`-style modifier** (Kotlin), reachable from ordinary code rather than only reflection.
   Not rejected outright — deferred at the time this ADR was written, since the compile-time-only, no-opt-out
@@ -199,7 +198,7 @@ Deferred deliberately, each needing its own argument once there is real code to 
 Verification, in the order it becomes possible:
 
 - **M2**: the checker refuses a constructor path that can return without every own-declared, non-nullable
-  property assigned, joining the diagnostic corpus ADR 0007's own M2 entry already builds — a missing
+  property assigned, joining the diagnostic corpus `rule:types/declaration`'s own M2 entry already builds — a missing
   assignment on one branch of an `if`/`else`, a subclass constructor with a path that never calls
   `parent::constructor(...)`, a class with no constructor and a non-nullable property with no default. A
   promoted parameter and an inline default both compile with no diagnostic.

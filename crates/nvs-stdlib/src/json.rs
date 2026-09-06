@@ -475,7 +475,7 @@ impl Serialize for Encodable {
                 }
                 ser.serialize_f64(number)
             }
-            // ADR 0054's scalar is exact, so it is written as the exact number
+            // `rule:types/decimal`'s scalar is exact, so it is written as the exact number
             // it is rather than through an `f64` that would round it. A
             // `RawValue` is the one spelling `serde_json` has for "these bytes
             // are already a JSON number"; it validates them on the way in.
@@ -511,7 +511,7 @@ impl Serialize for Encodable {
 impl Encodable {
     /// This value's string payload as UTF-8.
     ///
-    /// ADR 0009 makes a `string` guaranteed-valid UTF-8 and [`Tag::Bytes`] is
+    /// `rule:types/bytes` makes a `string` guaranteed-valid UTF-8 and [`Tag::Bytes`] is
     /// its own tag over the shared allocation, so "the caller passed binary
     /// data into a text format" is caught one level up — a `bytes` value never
     /// reaches here, it falls into the `_` arm of the match above. What is left
@@ -535,7 +535,7 @@ impl Encodable {
     /// for: participation in a wire format is written, never inferred.
     ///
     /// The one instance that is not a declared class is an
-    /// [ADR 0036](/docs/adr/0036-anonymous-object-shapes.md) § 2
+    /// `rule:types/object-literal`
     /// shape, which encodes as a JSON object keyed by its own field names —
     /// [ADR 0071](/docs/adr/0071-derived-codecs.md) § 7 owns why
     /// that is not an exception to the rule above, and the arm below says what
@@ -563,7 +563,7 @@ impl Encodable {
                       defined its class, which outlives every instance of it"
         )]
         let desc = unsafe { &*object.class() };
-        // ADR 0036 § 2's shape, before the codec is read: a shape is a bag of
+        // `rule:types/object-literal`'s shape, before the codec is read: a shape is a bag of
         // named fields with no declaration to hang `#[Json\Derive]` on, so the
         // refusal below has nothing to ask it for — ADR 0071 § 7. Its slots are
         // walked the way an array's entries are, each value spelled by its own
@@ -886,7 +886,7 @@ nvs_runtime::nvs_helper! {
     /// `json_decode`, `json_last_error`, `json_last_error_msg` and `$depth`.
     ///
     /// Always the associative shape: there is no `$associative` flag, because
-    /// ADR 0036's anonymous object is not what a JSON object decodes to —
+    /// `rule:types/object-top`'s anonymous object is not what a JSON object decodes to —
     /// `decodeAs<T>` is (gap 2).
     fn nvs_core_json_decode(_ctx, args: [2]) {
         let text = text_of(&args[0], "decode")?;
@@ -1480,7 +1480,7 @@ fn scalar(ty: CodecTy, cases: Option<&EnumCases>, found: Value) -> Option<Value>
             .and_then(|number| u64::try_from(number).ok())
             .map(Value::uint),
         // A JSON `1` reaching a `float` field widens, which is the one place
-        // Novis does that — ADR 0007 § 2 has no int-to-float widening in the
+        // Novis does that — `rule:types/conversion` has no int-to-float widening in the
         // language, but a wire format has one number type and refusing an
         // unfractional literal would make `1.0` and `1` different documents.
         CodecTy::Float => found
@@ -1808,7 +1808,7 @@ const DEFAULT_MAX_DEPTH_U32: u32 = DEFAULT_MAX_DEPTH as u32;
 /// One `string` argument, as text.
 ///
 /// One failure, the wrong tag: the tag [`Value::as_text`] checks is itself
-/// ADR 0009's UTF-8 guarantee, so there is no encoding outcome left to report.
+/// `rule:types/bytes`'s UTF-8 guarantee, so there is no encoding outcome left to report.
 /// `crate::str`'s own `text` states why re-deriving it would be an O(n) pass
 /// per argument.
 fn text_of<'a>(value: &'a Value, member: &str) -> Result<&'a str, Fault> {

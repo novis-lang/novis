@@ -82,8 +82,7 @@ fn node_of(value: Value, at: &str) -> Result<nvs_db::schema::Node, Fault> {
 /// An array as either arm of the form: a list where every position from zero is
 /// there, and an ordered map otherwise.
 ///
-/// One `NvsArray` is both of Novis's shapes ([ADR 0007](/docs/adr/0007-explicit-type-system.md)
-/// § 5), so the two are told apart exactly as [`crate::json`]'s decode tells
+/// One `NvsArray` is both of Novis's shapes (`rule:types/arrays`), so the two are told apart exactly as [`crate::json`]'s decode tells
 /// them apart — by asking for the positions. `["tables" => …]` has a count of
 /// one and no index 0, and `[["name" => …]]` has both.
 fn array_node(value: Value, at: &str) -> Result<nvs_db::schema::Node, Fault> {

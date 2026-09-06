@@ -39,6 +39,11 @@
       "topic": "expressions",
       "title": "Expressions",
       "order": 80
+    },
+    {
+      "topic": "types",
+      "title": "Types",
+      "order": 90
     }
   ]
 }

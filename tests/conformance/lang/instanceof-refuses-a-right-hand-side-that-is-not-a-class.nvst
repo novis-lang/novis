@@ -1,5 +1,5 @@
 --TEST--
-`instanceof`'s right-hand side must name a class or interface the program declares — the dynamic form, an enum and a `Core` class are `E0496`, an undeclared name the ordinary `E0303` — ADR 0007 § 2, `rule:enums/closed-integer-type`
+`instanceof`'s right-hand side must name a class or interface the program declares — the dynamic form, an enum and a `Core` class are `E0496`, an undeclared name the ordinary `E0303` — `rule:types/conversion`, `rule:enums/closed-integer-type`
 --FILE--
 <?nvs
 enum Mode: int {
@@ -14,8 +14,8 @@ final class Box {
 mixed $m = new Box();
 string $name = "Box";
 
-// ADR 0007 § 2: a class name is written, never computed — the same line
-// `$$var` and `eval` are already on. ADR 0125 § 4 opens exactly one door,
+// `rule:types/conversion`: a class name is written, never computed — the same line
+// `$$var` and `eval` are already on. `rule:types/class-reference-sites` opens exactly one door,
 // and a bare `string` is not it: the help names the conversion that is.
 bool $a = $m instanceof $name;
 // A string literal is the same dynamic form spelled without a variable.
@@ -37,14 +37,14 @@ error[E0496]: the right-hand side of `instanceof` must be a written class name
    |
 17 | bool $a = $m instanceof $name;
    |                         ^^^^^ not a class name
-   = help: Novis has no dynamic class names (ADR 0007 § 2, the rule that rejects `$$var` and `eval`) — write the class, or convert the name once and carry the result: `$name as class<Base>` yields a class reference this site accepts, checked against `Base`'s hierarchy where the conversion stands (ADR 0125 § 4)
+   = help: Novis has no dynamic class names (`rule:types/conversion`, the rule that rejects `$$var` and `eval`) — write the class, or convert the name once and carry the result: `$name as class<Base>` yields a class reference this site accepts, checked against `Base`'s hierarchy where the conversion stands (`rule:types/class-reference-sites`)
 
 error[E0496]: the right-hand side of `instanceof` must be a written class name
    --> %s:19:25
    |
 19 | bool $b = $m instanceof "Box";
    |                         ^^^^^ not a class name
-   = help: Novis has no dynamic class names (ADR 0007 § 2, the rule that rejects `$$var` and `eval`) — write the class, or convert the name once and carry the result: `$name as class<Base>` yields a class reference this site accepts, checked against `Base`'s hierarchy where the conversion stands (ADR 0125 § 4)
+   = help: Novis has no dynamic class names (`rule:types/conversion`, the rule that rejects `$$var` and `eval`) — write the class, or convert the name once and carry the result: `$name as class<Base>` yields a class reference this site accepts, checked against `Base`'s hierarchy where the conversion stands (`rule:types/class-reference-sites`)
 
 error[E0496]: `Mode` is an enum, and no value is ever an instance of one
    --> %s:22:25

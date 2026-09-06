@@ -23,7 +23,7 @@ fn check_with_node(body: &str) -> Diagnostics {
 /// Wraps `body` in a method taking an erased `object`, so that *failing* to
 /// narrow is observable: a method call on a plain `object` names no member and
 /// is refused where it is written, while the same call on a narrowed receiver
-/// resolves. A `mixed` subject would defer both to run time (ADR 0036 § 4) and
+/// resolves. A `mixed` subject would defer both to run time (`rule:types/erased-member-access`) and
 /// assert nothing either way.
 fn check_with_erased_object(decls: &str, body: &str) -> Diagnostics {
     check_src(&format!(
@@ -185,7 +185,7 @@ fn a_nullable_scalar_and_a_nullable_array_both_narrow() {
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
-/// ADR 0007 § 6's first narrowing form, over the shape every other case here
+/// `rule:types/unions-and-mixed`'s first narrowing form, over the shape every other case here
 /// is written on: the class the test names has no `null` in it, so proving it
 /// removes `E_NULLABLE_RECEIVER` exactly as `!= null` does.
 #[test]
@@ -237,7 +237,7 @@ fn an_instanceof_against_an_interface_drops_null_too() {
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
-/// Wraps `body` in a method taking a `"read"|"write"`, the shape ADR 0047 § 4's
+/// Wraps `body` in a method taking a `"read"|"write"`, the shape `rule:types/literal-types`'s
 /// guard row is about, and declares a `"read"`-typed local it can only be
 /// assigned to where the comparison narrowed it.
 fn check_with_mode(body: &str) -> Diagnostics {
@@ -250,7 +250,7 @@ fn refuses_mismatch(diags: &Diagnostics) -> bool {
     diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH))
 }
 
-/// ADR 0047 § 4's guard row, and the `!=` spelling of the same edge.
+/// `rule:types/literal-types`'s guard row, and the `!=` spelling of the same edge.
 #[test]
 fn a_comparison_against_a_literal_narrows_its_subject() {
     let eq = check_with_mode("if ($mode == \"read\") {\n  \"read\" $only = $mode;\n}\n");

@@ -1,5 +1,5 @@
 --TEST--
-duration units strictly descend and may not repeat — ADR 0070 § 1
+duration units strictly descend and may not repeat — `rule:types/duration-literal`
 --FILE--
 <?nvs
 var $backwards = 30m1h;

@@ -315,8 +315,8 @@ fn a_ternary_expressions_type_mismatch_is_diagnosed() {
 #[test]
 fn a_class_type_still_refuses_the_nullable_conversion() {
     // `rule:expressions/nullable-conversion-availability`'s class row, which is **absolute**: `as` converts between
-    // the types ADR 0007 § 2 tabulates, and none of them is a class.
-    // `instanceof` plus ADR 0007 § 6's narrowing answers class membership,
+    // the types `rule:types/conversion` tabulates, and none of them is a class.
+    // `instanceof` plus `rule:types/unions-and-mixed`'s narrowing answers class membership,
     // and § 3a's `tryParse` answers a parse.
     let diags = check_src(
         "<?nvs\nclass P {\n  public int $n = 1;\n}\nclass T {\n  function m(object $o): void {\n    var $p = $o as ?P;\n  }\n}\n",
@@ -475,7 +475,7 @@ class Config {
 #[test]
 fn a_user_declared_class_constant_reads_at_its_declared_type() {
     // `(annotation, written value, a type the annotation is not)`. The
-    // disagreeing type is never `float` for an integer row: ADR 0007 § 2's one
+    // disagreeing type is never `float` for an integer row: `rule:types/conversion`'s one
     // implicit widening would accept it.
     let rows: &[(&str, &str, &str)] = &[
         ("int", "3", "string"),
@@ -670,7 +670,7 @@ fn a_dynamic_new_is_refused_naming_the_subclass_whose_constructor_differs() {
     assert!(!compatible.has_errors(), "{compatible:?}");
 }
 
-/// ADR 0125 § 4: the three spellings that reach a class through a *value* take
+/// `rule:types/class-reference-sites`: the three spellings that reach a class through a *value* take
 /// a `class<T>` and nothing else. `new $cls()` types its arguments against
 /// `T`'s constructor and yields a `T` -- including where `T` is `abstract`,
 /// which is the case the feature exists for -- `$cls::f()` resolves the member
@@ -748,7 +748,7 @@ fn a_class_reference_carries_the_three_dynamic_sites() {
     );
 }
 
-/// ADR 0125 § 2: `as` is a class reference's only source. A bare `string` does
+/// `rule:types/class-reference`: `as` is a class reference's only source. A bare `string` does
 /// not reach a `class<T>` position, the conversion does, and a written-out
 /// `Foo::class` operand is decided where it stands rather than at run time --
 /// both ways, so that the "decided" half is not satisfied by accepting
@@ -783,7 +783,7 @@ fn a_string_becomes_a_class_reference_only_through_as() {
 
     // The qualifier strips, as every checked conversion strips one: the
     // conversion's whole output range is the classes this program declares to
-    // be `Animal`s, which a tainted string cannot widen (ADR 0125 § 2).
+    // be `Animal`s, which a tainted string cannot widen (`rule:types/class-reference`).
     let laundered = check_src(
         "<?nvs\n\
          class Animal {}\n\
@@ -810,7 +810,7 @@ fn a_string_becomes_a_class_reference_only_through_as() {
     );
 }
 
-/// ADR 0126 §§ 1-2: a property key's values are the public properties of the
+/// `rule:types/property-key`: a property key's values are the public properties of the
 /// class it names -- its own and its ancestors' -- and nothing else, with `as`
 /// the only door into one. The written-out operand is decided where it stands,
 /// both ways, so that "decided" is not satisfied by accepting everything, and
@@ -890,7 +890,7 @@ fn a_property_key_ranges_over_the_public_properties_and_nothing_else() {
     }
 }
 
-/// ADR 0126 §§ 4-5: `$obj->$key` reads as the union of the set the key ranges
+/// `rule:types/property-key-access`: `$obj->$key` reads as the union of the set the key ranges
 /// over -- both sides of that bound, since a read typed too widely and one
 /// typed too narrowly both look right against one half of it. The `private`
 /// property contributes a type no public one has, so its absence from the
@@ -951,7 +951,7 @@ fn a_read_through_a_property_key_types_as_the_union_of_the_set() {
     assert!(!subclass.has_errors(), "{subclass:?}");
 }
 
-/// ADR 0126 § 1's second refusal: `property<T>` over a `T` with no public
+/// `rule:types/property-key`'s second refusal: `property<T>` over a `T` with no public
 /// property is `E0799`, since no value of it could exist -- asked of both
 /// spellings the `as` admits, because the written-out operand and the computed
 /// one take different paths to the same roster and only one of them was ever
@@ -1006,7 +1006,7 @@ fn a_property_key_over_a_class_with_no_public_property_is_refused() {
     assert!(!populated.has_errors(), "{populated:?}");
 }
 
-/// ADR 0126 § 5's last paragraph: a write through a key is refused where the
+/// `rule:types/property-key-access`'s last paragraph: a write through a key is refused where the
 /// key's public set holds a `readonly` property, naming it -- and the bound is
 /// asserted on both sides, since a refusal written over the *receiver* rather
 /// than over the set would look identical on the failing half alone. The read
@@ -1057,7 +1057,7 @@ fn a_write_through_a_key_whose_set_holds_a_readonly_property_is_refused() {
     assert!(!allowed.has_errors(), "{allowed:?}");
 }
 
-/// ADR 0126 § 4: the operand's *type* is what admits `$obj->$key`, so every
+/// `rule:types/property-key-access`: the operand's *type* is what admits `$obj->$key`, so every
 /// other operand keeps `E0235` -- now reported by this crate, since a parser
 /// sees no types. § 4's own table of neighbours is the body: a call, a
 /// receiver with no `T` to check against, and a receiver that is not one.

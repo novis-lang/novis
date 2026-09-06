@@ -1,6 +1,5 @@
 //! Every declared class's **class constants**, folded to the compile-time
-//! values [ADR 0047](/docs/adr/0047-literal-and-enum-case-types.md)
-//! § 2 needs — the fourth thing this crate resolves once and publishes,
+//! values `rule:types/constant-in-type-position` needs — the fourth thing this crate resolves once and publishes,
 //! alongside [`crate::enums`], `crate::expr_table` and `crate::layout`.
 //!
 //! § 2 makes `Foo::TYPE_A` in *type* position sugar for the constant's own
@@ -40,7 +39,7 @@
 //! **Ineligible is recorded, not dropped.** An `array` or object constant is
 //! a real declaration that simply has no literal type to fold to,
 //! and telling that apart from a name nothing declares is what lets
-//! [`crate::lower`] report the right one of ADR 0047 § 2's two mistakes.
+//! [`crate::lower`] report the right one of `rule:types/constant-in-type-position`'s two mistakes.
 
 use nvs_diagnostics::SourceFile;
 use nvs_hir::QName;
@@ -52,7 +51,7 @@ use rustc_hash::FxHashMap;
 
 use crate::span_text;
 
-/// One class constant's folded value, as far as ADR 0047 § 2 and
+/// One class constant's folded value, as far as `rule:types/constant-in-type-position` and
 /// [`crate::defaults`] between them care.
 ///
 /// Not [`Eq`]: [`Self::Float`] holds an `f64`, and this is compared for what
@@ -67,7 +66,7 @@ pub enum ConstValue {
     Int(i64),
     /// A `bool` compile-time constant.
     ///
-    /// Not one of ADR 0047 § 2's two literal types, so it is `mixed` in type
+    /// Not one of `rule:types/constant-in-type-position`'s two literal types, so it is `mixed` in type
     /// position exactly as [`Self::Ineligible`] is — it is folded because a
     /// *value* is what [`crate::defaults`] asks this table for, and `= true`
     /// is as much a compile-time constant there as `= 1` is.
@@ -75,7 +74,7 @@ pub enum ConstValue {
     /// A `float` compile-time constant, negation included.
     ///
     /// Folded for [`Self::Bool`]'s reason, and `mixed` in type position for
-    /// the same one: ADR 0047 § 2 names `string` and `int` and stops.
+    /// the same one: `rule:types/constant-in-type-position` names `string` and `int` and stops.
     Float(f64),
     /// Declared, but not one of the four above: `Foo::ROWS = [1, 2]`,
     /// `Foo::WHEN = Core\Time\Instant::now()`, or an integer whose magnitude
@@ -86,7 +85,7 @@ pub enum ConstValue {
     Ineligible,
 }
 
-/// One class constant, as much of it as this table holds: ADR 0047 § 2's
+/// One class constant, as much of it as this table holds: `rule:types/constant-in-type-position`'s
 /// folded value, and beside it the one bit ADR 0033 § 4's attribute-payload
 /// sink needs.
 ///
@@ -98,7 +97,7 @@ pub enum ConstValue {
 /// it is the place that reads it.
 #[derive(Clone, Debug)]
 struct ConstEntry {
-    /// What ADR 0047 § 2 folds the declaration's right-hand side to.
+    /// What `rule:types/constant-in-type-position` folds the declaration's right-hand side to.
     value: ConstValue,
     /// Whether the declaration's own annotation carries ADR 0033 § 1's
     /// `secret`.
@@ -182,7 +181,7 @@ const MAX_ANCESTOR_DEPTH: u32 = 32;
 /// Folds every `class`/`interface` constant in every file of the program.
 ///
 /// Reports nothing: an ineligible value is a legal declaration, and only a
-/// *use* of it in type position is a mistake — which is where ADR 0047 § 2's
+/// *use* of it in type position is a mistake — which is where `rule:types/constant-in-type-position`'s
 /// diagnostic belongs, since that is the span the author can act on.
 ///
 /// One table spans the whole [`crate::ProgramFile`] slice, for the reason
@@ -278,7 +277,7 @@ fn type_carries_secret(ty: &Type) -> bool {
 /// negated one (the parser produces `-1` as a unary over the literal, never as
 /// part of its digits), a `string`, a `bool` and a `float`. Anything else is
 /// [`ConstValue::Ineligible`] rather than
-/// const-evaluated — ADR 0047 § 2 folds a constant that *is* a literal, and a
+/// const-evaluated — `rule:types/constant-in-type-position` folds a constant that *is* a literal, and a
 /// general constant-expression evaluator is a second evaluator in the language
 /// for no requirement.
 fn fold_const(c: &ConstMember, src: &SourceFile) -> ConstValue {
@@ -308,7 +307,7 @@ fn fold_const(c: &ConstMember, src: &SourceFile) -> ConstValue {
 /// An integer literal's value as an `int`, in whatever radix it was written —
 /// [`crate::expr::int_literal_digits`]'s job, reused so this never grows a
 /// second integer grammar. `None` for a magnitude no `int` holds, which the
-/// caller records as ineligible: ADR 0047 § 1's atom is an `int` literal, so a
+/// caller records as ineligible: `rule:types/literal-types`'s atom is an `int` literal, so a
 /// value outside `int` has no literal type to be.
 fn int_value(span: nvs_diagnostics::Span, negated: bool, src: &SourceFile) -> Option<i64> {
     let (radix, digits) = crate::expr::int_literal_digits(src, span);

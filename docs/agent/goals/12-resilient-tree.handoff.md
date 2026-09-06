@@ -7,7 +7,7 @@ is this goal's Stage 1 floor, and goal 11 already built the trivia layer and `Pa
 so the tree work left is the index and explicit recovery rather than the whole of ADR 0099 § 1.
 
 **Stage 0 is empty and stays empty.** The four M4 language holes M4B was staged with are closed, and
-`bool as int` is not the fourth one — it is `E0708`, a decision of ADR 0007 § 2. A session that finds a
+`bool as int` is not the fourth one — it is `E0708`, a decision of `rule:types/conversion`. A session that finds a
 playbook bullet claiming otherwise has found a stale bullet, not a hole.
 
 ## Next group

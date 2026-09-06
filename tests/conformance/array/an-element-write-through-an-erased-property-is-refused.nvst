@@ -1,10 +1,10 @@
 --TEST--
-an array element written through a property whose receiver erased — a shape's field, or any property of a plain `object` — is refused where it is written — ADR 0036 § 4, ADR 0007 § 3
+an array element written through a property whose receiver erased — a shape's field, or any property of a plain `object` — is refused where it is written — `rule:types/erased-member-access`, `rule:types/grammar`
 --FILE--
 <?nvs
-// ADR 0036 § 4 gave an erased property a name-keyed runtime *fetch* and
+// `rule:types/erased-member-access` gave an erased property a name-keyed runtime *fetch* and
 // stopped there on purpose. That is enough to read one and not enough to write
-// an element through one: ADR 0007 § 5 separates the array on the way in, and
+// an element through one: `rule:types/arrays` separates the array on the way in, and
 // the separated copy needs a slot to land in that a by-name resolution does
 // not supply. The plain-`object` half has no element type either — the
 // property reads as `mixed`, which is not indexable anywhere else in the

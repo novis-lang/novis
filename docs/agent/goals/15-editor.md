@@ -52,9 +52,9 @@ language logic" stops being a promise.
 
 Colour the instant a file opens, before the server exists. Everything it must colour — the dual-mode
 `<?nvs`/`<?php`/`<?=`/`?>` openers with inline HTML outside them, heredoc and nowdoc with interpolation
-only in the former, type annotations in every slot including ADR 0036's inline shapes, the
+only in the former, type annotations in every slot including `rule:types/object-top`'s inline shapes, the
 `tainted`/`secret` qualifiers and `decimal`, Novis's own keywords (`spawn`, `spawn script`, `autoload`,
-`type`, `by`, property hooks), ADR 0070's duration literals, `#[...]` attributes told apart from `#`
+`type`, `by`, property hooks), `rule:types/duration-literal`'s duration literals, `#[...]` attributes told apart from `#`
 comments — and the constructs it must **not** colour as valid, is
 [ADR 0099 § 4](../../adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md)'s list. **Do not re-derive it
 and do not shorten it.** Goal 13 landed `|>` and `let`/`is`, so that list's refusals are now real

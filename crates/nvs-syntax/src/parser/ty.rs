@@ -1,10 +1,10 @@
-//! The type grammar (ADR 0007 § 3) — and the qualified name every other layer
+//! The type grammar (`rule:types/grammar`) — and the qualified name every other layer
 //! parses through.
 //!
 //! The whole of it: nested `array<T>`, DNF unions and intersections, the
 //! `?T` sugar, `tainted`/`secret` qualifiers (ADR 0024 § 1, ADR 0033 § 1), ADR
-//! 0036 § 3's inline `{name: T}` shape, ADR 0047's literal and enum-case
-//! atoms, and `decimal` (ADR 0054). A `>>` closing two nested generics is
+//! 0036 § 3's inline `{name: T}` shape, `rule:types/literal-types`'s literal and enum-case
+//! atoms, and `decimal` (`rule:types/decimal`). A `>>` closing two nested generics is
 //! split back into two `>` closes here rather than in the lexer — see
 //! [`Parser::expect_type_close_angle`].
 //!
@@ -26,7 +26,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     ///
     /// A union parses — the type grammar has no reason to refuse `A|B` here
     /// and refusing it in the grammar would cost a worse diagnostic — and is
-    /// then rejected, because ADR 0007 § 1 gives the binding one static type
+    /// then rejected, because `rule:types/declaration` gives the binding one static type
     /// and a clause naming two classes has no type to give it. The clause is
     /// still built, from the first class alone, so the block's or the arm's
     /// own body is checked rather than abandoned and the file reports the rest
@@ -68,7 +68,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             || self.at_class_reference()
     }
 
-    /// `class<` — ADR 0125 § 1's class reference, the second type atom that
+    /// `class<` — `rule:types/class-reference`'s class reference, the second type atom that
     /// takes two tokens to recognise and so is asked here rather than in
     /// [`Self::token_starts_type`]. The lookahead is not an optimisation: a
     /// bare `class` is the *declaration* keyword, and answering `true` for it
@@ -78,7 +78,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         self.at_keyword(Keyword::Class) && matches!(self.peek_at(1).kind, TokenKind::Lt)
     }
 
-    /// `property<` — ADR 0126 § 1's property key, recognised by spelling
+    /// `property<` — `rule:types/property-key`'s property key, recognised by spelling
     /// because `property` is deliberately not a reserved word: the ADR makes it
     /// a keyword in this one position and nowhere else, so a program keeps
     /// `$property`, `->property()` and a function called `property`.
@@ -91,7 +91,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         self.at_contextual("property") && matches!(self.peek_at(1).kind, TokenKind::Lt)
     }
 
-    /// `-1` — ADR 0047 § 1's one type atom that needs two tokens to
+    /// `-1` — `rule:types/literal-types`'s one type atom that needs two tokens to
     /// recognise, which is why it is asked here rather than in
     /// [`Self::token_starts_type`]. A bare `-` never starts a type on its
     /// own: routing every statement-initial `-$x;` through
@@ -136,7 +136,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 | TokenKind::Question
                 | TokenKind::LParen
                 | TokenKind::LBrace
-                // ADR 0047 § 1's two literal atoms. A statement that merely
+                // `rule:types/literal-types`'s two literal atoms. A statement that merely
                 // *starts* with one (`1 + 2;`, `"x" . $y;`) is no longer a
                 // free ride to the expression path, but it still gets there:
                 // `parse_stmt_maybe_local_decl` trial-parses the type and
@@ -144,7 +144,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 | TokenKind::IntLiteral
                 | TokenKind::SingleQuotedString
                 | TokenKind::DoubleQuoteOpen
-                // Not a type — but ADR 0047 § 7's diagnostic is worth more
+                // Not a type — but `rule:types/literal-types`'s diagnostic is worth more
                 // than the "expected a type" this would otherwise get.
                 | TokenKind::FloatLiteral
         )
@@ -260,7 +260,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// `>=` and `>>=` are split in place, so `array<array<uint>>` closes
     /// correctly even though the lexer already committed to the longer
     /// operator — `array<T>` is parsed only in type position precisely so
-    /// this is the one place that ambiguity has to be resolved (ADR 0007 § 3).
+    /// this is the one place that ambiguity has to be resolved (`rule:types/grammar`).
     pub(super) fn expect_type_close_angle(&mut self) -> Span {
         let (first_len, rest_kind): (u32, TokenKind) = match self.peek().kind {
             TokenKind::Gt => return self.bump().span,
@@ -419,7 +419,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             TokenKind::Keyword(Keyword::SelfKw) => atom!(SelfTy),
             TokenKind::Keyword(Keyword::Static) => atom!(StaticTy),
             TokenKind::Keyword(Keyword::Parent) => atom!(Parent),
-            // ADR 0125 § 1's class reference. `class` is already the
+            // `rule:types/class-reference`'s class reference. `class` is already the
             // declaration keyword, so this arm is only reached through
             // `at_class_reference` (a `<` immediately after it) and the two
             // spellings never compete: a declaration is `class Name`.
@@ -449,7 +449,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                     }
                 }
             }
-            // ADR 0126 § 1's property key. This sits in front of the ordinary
+            // `rule:types/property-key`'s property key. This sits in front of the ordinary
             // name arm because `property` reaches the parser as a plain
             // identifier; the `<` in `at_property_key` is the whole of what
             // tells the two apart, and a name that merely *looks* generic
@@ -466,7 +466,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             }
             TokenKind::Ident | TokenKind::Backslash => {
                 let name = self.parse_name();
-                // ADR 0047 §§ 2-3: `Foo::BAR` in type position. Which of the
+                // `rule:types/constant-in-type-position` and `rule:types/enum-case-type`: `Foo::BAR` in type position. Which of the
                 // two meanings it has depends on what `Foo` resolves to, so
                 // the parser records the pair and stops there — exactly what
                 // it already does for a bare name. A type-argument list is
@@ -487,7 +487,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                     span,
                 }
             }
-            // ADR 0047 § 1's literal atoms, the generalisation of the `true`
+            // `rule:types/literal-types`'s literal atoms, the generalisation of the `true`
             // and `false` atoms just above from `bool`'s two values to every
             // `string` and `int`.
             TokenKind::SingleQuotedString => {
@@ -533,7 +533,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         }
     }
 
-    /// A double-quoted `"a"` in type position — ADR 0047 § 1's string literal
+    /// A double-quoted `"a"` in type position — `rule:types/literal-types`'s string literal
     /// atom, spelled the way the ADR spells it. The body is read with the
     /// ordinary [`Self::parse_string_body`] so escapes lex identically to a
     /// value position's, and an interpolated one is refused: a type has no
@@ -552,7 +552,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 .with_primary(span, "this type names one exact string")
                 .with_help(
                     "write the string out — a type is resolved at compile time, so there is \
-                     nothing to interpolate from (ADR 0047 § 1)",
+                     nothing to interpolate from (`rule:types/literal-types`)",
                 ),
             );
         }
@@ -562,7 +562,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         }
     }
 
-    /// ADR 0047 § 7: there is no `float` literal type, deferred until
+    /// `rule:types/literal-types`: there is no `float` literal type, deferred until
     /// floating-point equality has a real answer. Diagnosed by name rather
     /// than left to `error_expected("a type")`, since the reason a reader
     /// needs is "not this type, on purpose" and not "unparseable here".
@@ -575,7 +575,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             .with_primary(span, "only `string` and `int` literals name a type")
             .with_help(
                 "use `float` and guard the value, or name the accepted set with `int` \
-                 literals (ADR 0047 § 7)",
+                 literals (`rule:types/literal-types`)",
             ),
         );
         Type {
@@ -584,7 +584,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         }
     }
 
-    /// `{name: T, ...}` in type position — ADR 0036 § 3, Novis's one
+    /// `{name: T, ...}` in type position — `rule:types/shape-type`, Novis's one
     /// structurally-checked type. No ambiguity to resolve here the way the
     /// value literal has (see [`Self::parse_object_literal_expr`]): type
     /// position never dispatches `{` to a block, so an empty `{}` is simply

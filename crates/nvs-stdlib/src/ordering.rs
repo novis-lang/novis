@@ -21,7 +21,7 @@ use nvs_runtime::{Decimal, Fault, Tag, Value};
 /// * `decimal` against anything numeric — exactly, through
 ///   [`Decimal::compare`] and [`Decimal::compare_f64`]. It orders against the
 ///   other numeric rows rather than only against its own, because
-///   [ADR 0054](/docs/adr/0054-decimal-scalar-type.md) § 4's first row
+///   `rule:types/conversion`'s first row
 ///   makes an `int`/`uint` exact as a `decimal` and its § 3 permits the
 ///   `decimal`/`float` comparison even where their *arithmetic* has no common
 ///   type. Scale does not enter it: `1.10` and `1.1000` are equal.
@@ -118,7 +118,7 @@ pub(crate) fn comparator_sign(verdict: Value, member: &str) -> Result<std::cmp::
 /// one — in which case the pair has no numeric order and
 /// [`compare_values`]'s throw is the answer.
 ///
-/// Every row is exact: ADR 0054 § 4 makes an `int`/`uint` exact as a
+/// Every row is exact: `rule:types/conversion` makes an `int`/`uint` exact as a
 /// `decimal`, and [`Decimal::compare_f64`] reads the `float` at the value it
 /// prints as rather than widening either side.
 fn against_decimal(left: Decimal, right: &Value) -> Option<std::cmp::Ordering> {
@@ -170,7 +170,7 @@ fn numeric(value: &Value) -> Option<Numeric> {
 #[expect(
     clippy::cast_precision_loss,
     reason = "an integer past 2^53 loses low bits on the way to `f64`, which \
-              is the same rounding ADR 0007 § 4's int-to-float widening \
+              is the same rounding `rule:types/arithmetic`'s int-to-float widening \
               already allows; the alternative is a mixed int/float array \
               having no order at all"
 )]

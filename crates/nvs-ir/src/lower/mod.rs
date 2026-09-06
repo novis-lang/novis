@@ -21,7 +21,7 @@
 //! | [`exception`] | `throw`, `try`/`catch`, the landing blocks, the synthesized `Throwable` constructor |
 //! | [`generator`] | `rule:iteration/generators`'s state machine — the frame, the spills, the three synthesized methods |
 //! | [`call`] | argument ownership, options-bag flattening, an `inout $x` argument staged and written back |
-//! | [`closure`] | ADR 0031 closure literals and their captured-environment class |
+//! | [`closure`] | `rule:types/closure-literal` closure literals and their captured-environment class |
 //!
 //! # Control flow (`if`/`while`)
 //!
@@ -394,7 +394,7 @@ fn static_props(
 /// one walk over one table and two walks could disagree about which
 /// declaration won a slot.
 ///
-/// The representation is the whole of what ADR 0036 § 4's erased **write**
+/// The representation is the whole of what `rule:types/erased-member-access`'s erased **write**
 /// check has to go on; the `secret` bit is the whole of what `rule:errors/record-transformations`'s
 /// redaction row has, `nvs_types::expr::type_is_secret` deciding it at the one
 /// end where the qualifier still exists.
@@ -724,7 +724,7 @@ pub fn lower_program(
             crate::ir::Class {
                 label: label.to_owned(),
                 fields: layout.fields.clone(),
-                // ADR 0036 § 4's erased write reaches *any* class, not just a
+                // `rule:types/erased-member-access`'s erased write reaches *any* class, not just a
                 // shape literal's synthesized one, so every layout carries its
                 // slots' representations — see `field_slots`, which answers the
                 // `secret` bit off the same join.
@@ -924,9 +924,9 @@ pub fn lower_method(
     }
 
     for (i, p) in m.params.iter().enumerate() {
-        let decl_ty =
-            p.ty.as_ref()
-                .unwrap_or_else(|| panic!("ADR 0007 § 1: every parameter has a declared type"));
+        let decl_ty = p.ty.as_ref().unwrap_or_else(|| {
+            panic!("`rule:types/declaration`: every parameter has a declared type")
+        });
         // `...$rest`'s declared type is what each trailing *argument* is
         // checked against; the slot itself receives the one array
         // `Lowering::lower_variadic_tail` collected them into, which is what
@@ -1322,7 +1322,7 @@ pub(crate) struct Lowering<'a> {
     /// Threaded beside `checked_types` because a case's *value* is the one
     /// thing the checker's type does not carry —
     /// [`CheckedTy::EnumCase`](nvs_types::ty::Ty::EnumCase) names the enum and
-    /// the case, and ADR 0047 § 3's membership test needs the integer that
+    /// the case, and `rule:types/enum-case-type`'s membership test needs the integer that
     /// pair stands for. [`ExprInfo::EnumCase`] answers the same question, but
     /// only for a case written as an *expression*; a case named in a **type**
     /// has no expression to record one against.
@@ -1398,7 +1398,7 @@ pub(crate) struct Lowering<'a> {
     /// target's depth long.
     staged_targets: Vec<(Span, ValueId, Ty)>,
     /// The representation of every local this frame has **declared without an
-    /// initializer** — `int $x;`, whose type ADR 0037 fixes at the
+    /// initializer** — `int $x;`, whose type `rule:types/var-inference` fixes at the
     /// declaration while its first value arrives on some later line.
     ///
     /// [`Env`] holds a name only once it has a value, so this is the only
@@ -1410,7 +1410,7 @@ pub(crate) struct Lowering<'a> {
     ///
     /// Read only where `Env` has no entry, so a bound local's own entry
     /// always wins, and never removed: Novis has no shadowing and a name is
-    /// declared once per frame (ADR 0007 § 1), which is also why one flat map
+    /// declared once per frame (`rule:types/declaration`), which is also why one flat map
     /// per frame is the whole scoping rule.
     declared_tys: FxHashMap<String, Ty>,
     /// This frame's late-static-binding class as a [`Ty::ClassDesc`] value,
@@ -1511,12 +1511,12 @@ pub(crate) struct Lowering<'a> {
     /// `advance()` — `None` for every other function there is. See
     /// [`lower_generator`], which owns the whole transform.
     generator: Option<GenFrame>,
-    /// Every ADR 0031 `fn` literal met in this body so far, in source order,
+    /// Every `rule:types/closure-literal` `fn` literal met in this body so far, in source order,
     /// each awaiting a function of its own — see [`lower_closure`]. Drained
     /// by whichever entry point built this frame, since a
     /// [`crate::ir::Function`] has nowhere to carry a second one.
     closures: Vec<PendingClosure>,
-    /// Every ADR 0027 § 1 first-class callable met in this body so far, in
+    /// Every `rule:types/callable-is-a-closure` first-class callable met in this body so far, in
     /// source order, each awaiting the forwarding thunk that gives it the one
     /// closure representation there is — see [`lower_callable`]. Travels out
     /// beside [`Self::closures`], for that field's reason.
@@ -1525,7 +1525,7 @@ pub(crate) struct Lowering<'a> {
     /// because a `Function` is keyed on its label across the whole compiled
     /// unit and two files may each write `Foo::bar(...)`.
     callables: Vec<PendingCallable>,
-    /// One synthesized class per distinct ADR 0036 § 2 shape literal this
+    /// One synthesized class per distinct `rule:types/object-literal` shape literal this
     /// body writes — see [`Lowering::lower_object_literal`], which builds
     /// them, and [`shape_class_label`], which names them.
     ///
@@ -1585,7 +1585,7 @@ pub(crate) enum RefHolder {
 /// rather than one copy-back at the end of the iteration. Both names are
 /// [`Env`] names rather than values because the [`Env`] is what survives a
 /// header phi, a landing block's clone and a generator's spill/reload — the
-/// array's own binding is re-pointed by every write (ADR 0007 § 5's
+/// array's own binding is re-pointed by every write (`rule:types/arrays`'s
 /// separation), so reading a stale [`ValueId`] here would write into the
 /// array the loop *started* on.
 struct InoutElement {
@@ -1814,12 +1814,12 @@ impl<'a> Lowering<'a> {
             // $secret}` literal is `nvs_stdlib::debug`'s own known gap rather
             // than a bit this could set.
             secret_fields: vec![false; field_count],
-            // ADR 0036 § 2 gives a shape literal no visibility keyword to write
+            // `rule:types/object-literal` gives a shape literal no visibility keyword to write
             // and no class to be private to: every slot was written by the
             // literal that built it and every one is readable, which is the one
             // answer `Core\Reflect`'s walk can give a shape.
             public_fields: vec![true; field_count],
-            // ADR 0036 § 5: a shape literal's class has no methods, no
+            // `rule:types/object-literal`: a shape literal's class has no methods, no
             // supertypes and no `implements`, it carries no attribute, and
             // every one of its slots is written by the literal that built it
             // — so there is nothing for a codec, a constructor arity or a
@@ -2075,7 +2075,7 @@ impl<'a> Lowering<'a> {
     /// below is a bug in this crate rather than a conversion, and is left
     /// alone for the instruction that consumes it to reject.
     ///
-    /// The exception is ADR 0007 § 2's implicit `int`/`uint` → `float`
+    /// The exception is `rule:types/conversion`'s implicit `int`/`uint` → `float`
     /// widening, whose target is a machine representation rather than a tag,
     /// and which **can fail** — so unlike the two tag instructions it is a
     /// helper call carrying an error edge, and it is why this takes `env`.
@@ -2096,7 +2096,7 @@ impl<'a> Lowering<'a> {
     ) -> ValueId {
         match (from, to) {
             (a, b) if a == b => v,
-            // ADR 0007 § 2's one implicit conversion: "`int` or `uint`
+            // `rule:types/conversion`'s one implicit conversion: "`int` or `uint`
             // widening into a `float` position", which is exactly what a
             // declared type wider than the value's own is here. It is the
             // *same* conversion `$n as float` performs — exact, or throwing
@@ -2124,7 +2124,7 @@ impl<'a> Lowering<'a> {
                 )
                 .0
             }
-            // The union ADR 0007 § 4 gives integer `/` reaches a declared
+            // The union `rule:types/arithmetic` gives integer `/` reaches a declared
             // `float` the same way, but its representation is already
             // [`Ty::Tagged`] rather than an integer one, so the row is the
             // one that reads the runtime tag. `nvs_types` is what decided the
@@ -2142,7 +2142,7 @@ impl<'a> Lowering<'a> {
                 )
                 .0
             }
-            // ADR 0125 § 2's `?class<T>`: `null` into a class-reference
+            // `rule:types/class-reference`'s `?class<T>`: `null` into a class-reference
             // position is the *null descriptor*, which is the zero word
             // relabelled — see [`Ty::ClassDesc`] for why that representation
             // holds `null` at all, and [`InstKind::Reinterpret`] for why a
@@ -2342,8 +2342,7 @@ impl<'a> Lowering<'a> {
     /// reference consumed is the holder's, and the one produced replaces it in
     /// the same slot. When nothing else held the array the two are the same
     /// reference to the same allocation and this is a pure bookkeeping change
-    /// with no runtime cost at all — which is the whole point of ADR 0007
-    /// § 5's copy-on-write being a *write*-side cost.
+    /// with no runtime cost at all — which is the whole point of `rule:types/arrays`'s copy-on-write being a *write*-side cost.
     ///
     /// Exactly three holders can be written back to, which are the three
     /// [`is_aliasing_read`] already recognises as durable storage: a bare
@@ -2363,7 +2362,7 @@ impl<'a> Lowering<'a> {
     /// the proof: a `PropertyAccess` span carries a `HookedProperty`, a
     /// `ShapeProperty`, a `Property` or nothing, and only the third survives
     /// to here. A *hooked* property (ADR 0014 § 1) is a pair of accessors
-    /// rather than a slot and an *erased* one (ADR 0036 § 4) is resolved by
+    /// rather than a slot and an *erased* one (`rule:types/erased-member-access`) is resolved by
     /// name at run time, so neither could be written back to at all;
     /// `nvs_types::expr::assign`'s `check_write_target` refuses both where the
     /// write is written, as `E0478` — PHP's own "indirect modification of
@@ -2420,7 +2419,7 @@ impl<'a> Lowering<'a> {
                          path it records nothing on, so a body reaching here at all had an \
                          entry. `nvs_types::expr::assign::check_write_target` then refuses \
                          the first two where the write is written — `E0478` for ADR 0014 \
-                         § 1's pair of accessors, `E0480` for ADR 0036 § 4's erased \
+                         § 1's pair of accessors, `E0480` for `rule:types/erased-member-access`'s erased \
                          receiver — for all four write spellings alike, leaving `Property` \
                          as the only entry an element write's holder can still carry",
                         base.span
@@ -2449,7 +2448,7 @@ impl<'a> Lowering<'a> {
             }
             other => panic!(
                 "nvs-ir lowers an array-element write only through a bare local, a \
-                 compile-time-known property or a static property, because ADR 0007 § 5's \
+                 compile-time-known property or a static property, because `rule:types/arrays`'s \
                  copy-on-write separation has to be written back to whatever holds the array — \
                  not through {other:?}, which `nvs_types::expr::assign::check_write_target` \
                  refuses as `E0700` where it is written, so this body was not checked with the \
@@ -2607,7 +2606,7 @@ impl<'a> Lowering<'a> {
         if self.staged(e.span).is_some() {
             return true;
         }
-        // ADR 0031 § 3's self-name reads the invoke's own receiver, a binding
+        // `rule:types/closure-self-name`'s self-name reads the invoke's own receiver, a binding
         // this frame's `Env` holds for the whole body — so a call through it
         // borrows exactly as `$f(...)` borrows the local `$f`, and answering
         // `false` here would have the call release a receiver the rest of the
@@ -2696,8 +2695,7 @@ fn clean_digits(src: &SourceFile, span: nvs_diagnostics::Span) -> String {
     span_text(src, span).chars().filter(|&c| c != '_').collect()
 }
 
-/// A fractional literal's text as [ADR 0054](/docs/adr/0054-decimal-scalar-type.md)
-/// § 1's `(mantissa, scale)`, with any exponent folded into the scale, or
+/// A fractional literal's text as `rule:types/decimal`'s `(mantissa, scale)`, with any exponent folded into the scale, or
 /// `None` where either bound is exceeded.
 ///
 /// Read from the *digits* rather than through an `f64`, which is what makes
@@ -2729,12 +2727,12 @@ pub(crate) fn decimal_literal_parts(text: &str) -> Option<(u128, u8)> {
     (mantissa <= DECIMAL_MAX_MANTISSA && scale <= DECIMAL_MAX_SCALE).then_some((mantissa, scale))
 }
 
-/// ADR 0054 § 1's mantissa bound, restated here for the same reason
+/// `rule:types/decimal`'s mantissa bound, restated here for the same reason
 /// [`decimal_literal_parts`] is: `nvs_runtime::decimal`, which owns it, is not
 /// a dependency of this crate.
 const DECIMAL_MAX_MANTISSA: u128 = (1u128 << 96) - 1;
 
-/// ADR 0054 § 1's scale bound — see [`DECIMAL_MAX_MANTISSA`].
+/// `rule:types/decimal`'s scale bound — see [`DECIMAL_MAX_MANTISSA`].
 const DECIMAL_MAX_SCALE: u8 = 28;
 
 /// Cooks a plain, non-interpolated string literal's span — `nvs_syntax::ast::ExprKind::Str`'s
@@ -2759,8 +2757,7 @@ fn cook_str_literal(src: &SourceFile, span: nvs_diagnostics::Span) -> String {
 /// prefix to strip), and this is the one place that distinction has to be
 /// undone before `str::from_str_radix` can parse the value.
 /// `nvs_types::expr::literals::infer_int_literal` range-checks the same digits (mirroring this
-/// function to do so, since this crate has no reverse dependency on that one) and reports ADR 0007
-/// § 4's diagnostic before lowering ever runs — see its doc comment — so [`Lowering::lower_int_literal`] can
+/// function to do so, since this crate has no reverse dependency on that one) and reports `rule:types/arithmetic`'s diagnostic before lowering ever runs — see its doc comment — so [`Lowering::lower_int_literal`] can
 /// treat an out-of-range literal as unreachable input, the same "trusts `nvs_types::check_program`
 /// already ran" contract every other panic in this crate relies on.
 fn int_literal_digits(src: &SourceFile, span: nvs_diagnostics::Span) -> (u32, String) {
@@ -2785,7 +2782,7 @@ fn int_literal_digits(src: &SourceFile, span: nvs_diagnostics::Span) -> (u32, St
 /// # Panics
 ///
 /// Panics naming `which` binding it was for a header that declares no type at
-/// all. ADR 0007 § 3.2 makes both bindings' types mandatory and
+/// all. `rule:types/grammar`.2 makes both bindings' types mandatory and
 /// `nvs_syntax`'s parser already reported the omission (the `None` here is the
 /// error-recovery placeholder [`ForeachBinding::ty`]'s own doc comment
 /// describes), so lowering never runs on such a file.
@@ -2809,7 +2806,7 @@ fn binding_ty(
 /// `TypeAtom::Name(_)` (a plain class/interface/enum name) as
 /// [`Ty::Object`], `TypeAtom::Array(_)` (bare `array` or `array<T>`) as
 /// [`Ty::Array`], and `TypeAtom::Mixed` as [`Ty::Tagged`]. A plain name needs
-/// no resolution to lower this way: ADR 0007 § 1 already requires it to be
+/// no resolution to lower this way: `rule:types/declaration` already requires it to be
 /// spelled out in full, and this crate erases class identity entirely (see
 /// [`Ty::Object`]'s own doc comment), so "is this atom a class name at all"
 /// is the only question that matters here — which class doesn't need
@@ -2824,7 +2821,7 @@ fn binding_ty(
 /// decided at the call site, not the declaration, and nothing about that
 /// question is a *representation* question. `new static()`'s and
 /// `static::m()`'s actual class travels as a value instead
-/// ([`Ty::ClassDesc`]), which is what [`Lowering::lsb`] produces. ADR 0125's
+/// ([`Ty::ClassDesc`]), which is what [`Lowering::lsb`] produces. `rule:types/class-reference`'s
 /// `class<T>` is the one annotation that names that representation directly,
 /// and it answers the *representation* question without answering the identity
 /// one either — see [`Ty::ClassDesc`].
@@ -2853,39 +2850,39 @@ pub(crate) fn lower_decl_type(
         TypeKind::Atom(TypeAtom::Void) => Ty::Void,
         TypeKind::Atom(TypeAtom::String) => Ty::Str,
         TypeKind::Atom(TypeAtom::Bytes) => Ty::Bytes,
-        // ADR 0047 § 5 again, for the one annotation shape that can be
+        // `rule:types/literal-types` again, for the one annotation shape that can be
         // answered without resolution. `TypeAtom::Member(..)` cannot: whether
         // it erases to a string, an int or an enum tag is exactly the question
         // the checker answered, so it takes the `declared_ty` shortcut above
         // or it is a bug.
         TypeKind::Atom(TypeAtom::StringLiteral(_)) => Ty::Str,
         TypeKind::Atom(TypeAtom::IntLiteral(_)) => Ty::Int,
-        // ADR 0007 § 3's two `bool` singletons, which `nvs_types::ty::Ty::True`
+        // `rule:types/grammar`'s two `bool` singletons, which `nvs_types::ty::Ty::True`
         // records are that same rule read on `bool`'s two values — so they
         // erase to `bool`'s representation exactly as the two atoms above
         // erase to theirs.
         TypeKind::Atom(TypeAtom::True | TypeAtom::False) => Ty::Bool,
-        // `object` — ADR 0007 § 3's opaque top of every class type, which is
+        // `object` — `rule:types/grammar`'s opaque top of every class type, which is
         // the same pointer a named class is. See `erase_checked_ty`, which is
         // the arm this annotation actually takes whenever the checker visited
         // it.
         TypeKind::Atom(TypeAtom::Name(..) | TypeAtom::Object) => Ty::Object,
-        // ADR 0125 § 1's class reference. Its argument is erased exactly the
+        // `rule:types/class-reference`'s class reference. Its argument is erased exactly the
         // way a class name is erased one arm above — see [`Ty::ClassDesc`] for
         // why nothing below this boundary asks `class<T>` what `T` was.
         TypeKind::Atom(TypeAtom::ClassRef(_)) => Ty::ClassDesc,
-        // ADR 0126 § 1's property key, whose values are names — see
+        // `rule:types/property-key`'s property key, whose values are names — see
         // [`erase_checked_ty`]'s own arm, which is the one this annotation
         // takes whenever the checker visited it, for what the argument costs
         // and where the set it erases went.
         TypeKind::Atom(TypeAtom::PropertyKey(_)) => Ty::Str,
-        // ADR 0031 § 4's one closure type. Its *representation* is an object
+        // `rule:types/callable-absorbs-closure`'s one closure type. Its *representation* is an object
         // — see the `ExprKind::Fn` arm of `Lowering::lower_expr`, which
         // synthesizes one class per literal to hold the captured environment
         // — so it erases here exactly the way a class name does.
         TypeKind::Atom(TypeAtom::Callable) => Ty::Object,
         TypeKind::Atom(TypeAtom::Array(_)) => Ty::Array,
-        // `mixed` — ADR 0007 § 3. See `Ty::Tagged`'s own doc comment for
+        // `mixed` — `rule:types/grammar`. See `Ty::Tagged`'s own doc comment for
         // exactly how much this representation does and doesn't do yet: a
         // local/parameter/return/call-argument round-trips, nothing else.
         TypeKind::Atom(TypeAtom::Mixed) => Ty::Tagged,
@@ -2894,7 +2891,7 @@ pub(crate) fn lower_decl_type(
         // `Ty::Tagged`. Reached only for an annotation the checker never
         // visited; everything it did visit takes the `declared_ty` shortcut
         // above and goes through `lower_checked_ty`, which is the *narrower*
-        // answer since ADR 0047 § 5's fold landed there: it folds `"a"|"b"`
+        // answer since `rule:types/literal-types`'s fold landed there: it folds `"a"|"b"`
         // back to the one representation its members share, which needs the
         // resolved members and so cannot be answered from the AST alone.
         TypeKind::Nullable(_) | TypeKind::Union(_) => Ty::Tagged,
@@ -2938,7 +2935,7 @@ fn shape_fills(
     }
 }
 
-/// The label the class synthesized for an ADR 0036 § 2 shape literal carries
+/// The label the class synthesized for an `rule:types/object-literal` shape literal carries
 /// — `$shape{x,y}` for `{x: 1, y: 2}`, from the field names **already
 /// sorted**.
 ///
@@ -2992,7 +2989,7 @@ pub(crate) fn shape_class_label(sorted_fields: &[String]) -> String {
 /// [`Ty::Tagged`] — see that variant's own doc comment for exactly how much
 /// this boundary does and doesn't do with one yet. A **union** never panics:
 /// it is [`Ty::Tagged`] unless every member erases to one and the same
-/// representation, in which case it is that one — ADR 0047 § 5's "zero
+/// representation, in which case it is that one — `rule:types/literal-types`'s "zero
 /// additional runtime representation", which is why a member outside this
 /// scope is asked through [`erase_checked_ty`] rather than asserted.
 pub(crate) fn lower_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
@@ -3026,7 +3023,7 @@ pub(crate) fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Opti
         CheckedTy::Bytes => Ty::Bytes,
         // ADR 0024 § 1 and ADR 0033 § 1: `tainted` and `secret` are two
         // independent bits on the *checker's* type and add **zero** runtime
-        // representation, exactly as ADR 0047 § 5's literal types do above. So
+        // representation, exactly as `rule:types/literal-types`'s literal types do above. So
         // all six qualified atoms erase to the base they share a tag and an
         // allocation with, and everything below this boundary sees a plain
         // `string` or `bytes`.
@@ -3042,7 +3039,7 @@ pub(crate) fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Opti
         CheckedTy::TaintedBytes | CheckedTy::SecretBytes | CheckedTy::SecretTaintedBytes => {
             Ty::Bytes
         }
-        // A shape joins them: ADR 0036 § 2 makes a shape value an ordinary
+        // A shape joins them: `rule:types/object-literal` makes a shape value an ordinary
         // refcounted instance with no methods and no name of its own, so its
         // representation is the object pointer a class already has. What the
         // erasure drops is the field list, and nothing below this boundary
@@ -3050,19 +3047,19 @@ pub(crate) fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Opti
         // the type still existed (`InstKind::SlotGet`).
         //
         // Plain `object` is the same representation with the field list never
-        // present in the first place — ADR 0007 § 3's opaque top of every
-        // class type. A member access through one is ADR 0036 § 4's fully
+        // present in the first place — `rule:types/grammar`'s opaque top of every
+        // class type. A member access through one is `rule:types/erased-member-access`'s fully
         // erased half: the checker records the field's *name* and nothing
         // else, and `InstKind::SlotGet`/`SlotSet` find it on the concrete
         // descriptor or throw.
         CheckedTy::Class(..) | CheckedTy::Callable | CheckedTy::Shape(_) | CheckedTy::Object => {
             Ty::Object
         }
-        // ADR 0125 § 1: a class reference's value is the run-time descriptor
+        // `rule:types/class-reference`: a class reference's value is the run-time descriptor
         // `new static` already carries, so it erases to that representation and
         // its argument goes the way `Class`'s identity goes one arm above.
         CheckedTy::ClassRef(_) => Ty::ClassDesc,
-        // ADR 0126 § 1: **a key is a name**, so its values are exactly the
+        // `rule:types/property-key`: **a key is a name**, so its values are exactly the
         // `string`s `T`'s public properties are declared under and the
         // representation is the one a `string` already has — no descriptor
         // field, no tag of its own, and § 2's third row (`property<T>` →
@@ -3078,7 +3075,7 @@ pub(crate) fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Opti
         // "record it where the type still existed" the erased member access one
         // arm above already relies on.
         CheckedTy::PropertyKey(_) => Ty::Str,
-        // ADR 0047 § 5: a literal type and an enum-case type add **zero**
+        // `rule:types/literal-types`: a literal type and an enum-case type add **zero**
         // runtime representation. Each erases to the base it shares a tag and
         // payload with, so the singleton-ness stops at this boundary and
         // nothing below it learns a new type -- which is the whole of what
@@ -3106,7 +3103,7 @@ pub(crate) fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Opti
         // `Union([Null, T])` — the checker has no separate nullable type — so
         // the two arms below are the whole of `rule:expressions/nullable-conversion`'s representation.
         CheckedTy::Null => Ty::Null,
-        // ADR 0047 § 5 again, and the whole of what it means: there is no
+        // `rule:types/literal-types` again, and the whole of what it means: there is no
         // second representation, so a union whose members all erase to one
         // `Ty` **is** that `Ty`. `"a"|"b"` is a `Ty::Str`, `1|2` a `Ty::Int`
         // and `Mode::Read|Mode::Write` the enum's own tag — the erasure the
@@ -3125,7 +3122,7 @@ pub(crate) fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Opti
         // `int&string` is `Ty::Tagged` rather than a panic — the answer that
         // is wrong for no value, since no value reaches it.
         //
-        // ADR 0007 § 3 admits the type and `nvs_types::expr::assign` has no
+        // `rule:types/grammar` admits the type and `nvs_types::expr::assign` has no
         // arm making anything assignable to one, so nothing can inhabit an
         // intersection today; this arm is what lets the *declaration* compile
         // rather than panic below a checker that accepted it.
@@ -3140,7 +3137,7 @@ pub(crate) fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Opti
         // arm is likewise the declaration's, not any value's.
         CheckedTy::Iterable => Ty::Tagged,
         // `never` is the one atom whose *value* question has no value in it:
-        // ADR 0007 § 3 makes it return-only, and a frame that cannot come back
+        // `rule:types/grammar` makes it return-only, and a frame that cannot come back
         // hands its caller nothing. That is the representation `void` already
         // is, so `never` erases to it — the caller of a `never` member reads no
         // slot, exactly as the caller of a `void` one does.
@@ -3176,7 +3173,7 @@ pub(crate) fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Opti
 ///
 /// Shared by the union and intersection arms of [`erase_checked_ty`]: both ask
 /// the same question — how many representations does this position hold — and
-/// ADR 0047 § 5's "there is no second representation" is what makes the answer
+/// `rule:types/literal-types`'s "there is no second representation" is what makes the answer
 /// a fold rather than a case analysis. A member with no erasure at all is one
 /// more shape below, so it tags too.
 fn shared_erasure(members: &[TypeId], checked_types: &TypeInterner) -> Ty {
@@ -3185,7 +3182,7 @@ fn shared_erasure(members: &[TypeId], checked_types: &TypeInterner) -> Ty {
         match (erase_checked_ty(*member, checked_types), shared) {
             (Some(ty), None) => shared = Some(ty),
             (Some(ty), Some(seen)) if ty == seen => {}
-            // ADR 0125 § 2's `?class<T>` — the one pair of *different*
+            // `rule:types/class-reference`'s `?class<T>` — the one pair of *different*
             // erasures that is still one representation, and the reason this
             // fold is not simply "every member erases the same way". A
             // descriptor is an address and no class lives at address zero, so
@@ -3232,7 +3229,7 @@ pub(crate) fn is_aliasing_read(kind: &ExprKind) -> bool {
     )
 }
 
-/// The one method an [ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md)
+/// The one method an `rule:types/closure-literal`
 /// closure's environment class answers, as the method table spells it.
 pub(crate) const FN_INVOKE: &str = "invoke";
 
@@ -3260,7 +3257,7 @@ pub(crate) const FN_ARITY: &str = "fn#arity";
 ///
 /// # Why the object carries it
 ///
-/// [ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md) § 1
+/// `rule:types/closure-literal`
 /// gives `callable` no parameter list, so **no checker can compare a call site
 /// against the body it will reach** — and the compiled `invoke` reads argument
 /// slot *i* at its own declared representation, which turns a mismatch into an
@@ -3415,7 +3412,7 @@ pub fn param_tag_nibble(ty: Ty) -> u8 {
 /// for two readers that must agree — `lower::closure`'s
 /// `param_tags_word` writes it into a closure object for
 /// `nvs_runtime::call_closure`, and `nvs-codegen` writes it into a
-/// `nvs_runtime::MethodRow` for the erased call ADR 0036 § 4 defers — and both
+/// `nvs_runtime::MethodRow` for the erased call `rule:types/erased-member-access` defers — and both
 /// readers are one `check_param_tags`, so two packings would be two chances
 /// for the shift or the capacity to be read differently.
 ///
@@ -3440,7 +3437,7 @@ pub fn pack_param_tags(params: impl IntoIterator<Item = Ty>) -> u64 {
 /// and the rule's one home — so a deeper annotation never reaches this crate.
 pub const ARRAY_ELEMENT_TAG_LEVELS: usize = u64::BITS as usize / 4;
 
-/// The word ADR 0007 § 2's `array<T> as array<U>` row carries to the runtime:
+/// The word `rule:types/conversion`'s `array<T> as array<U>` row carries to the runtime:
 /// one [`param_tag_nibble`] per level of `U`, outermost first. `array<int>`
 /// is one nibble, `2`; `array<array<int>>` is two, `6` then `2`; and
 /// `array<mixed>` is [`FN_PARAM_TAG_ANY`], the "every tag" nibble that makes
@@ -3518,7 +3515,7 @@ fn array_element_tags(id: TypeId, checked_types: &TypeInterner) -> Option<u64> {
     None
 }
 
-/// One lowered body, plus everything the ADR 0031 closures inside it
+/// One lowered body, plus everything the `rule:types/closure-literal` closures inside it
 /// synthesized.
 ///
 /// A closure literal is an *expression*, so it is met in the middle of

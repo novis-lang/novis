@@ -1,4 +1,4 @@
-//! ADR 0031's closures as compiled objects: the method table, captured values, arity, and a throw out of one.
+//! `rule:types/closure-literal`'s closures as compiled objects: the method table, captured values, arity, and a throw out of one.
 //!
 //! Split out of the single `compile_and_run.rs`; every test keeps its own name
 //! and body. See `tests/common/mod.rs` for the shared fixtures and for why
@@ -10,7 +10,7 @@ use common::*;
 
 #[test]
 fn a_closure_is_reachable_through_the_method_table() {
-    // ADR 0031 end to end: `Core\Arr::filter` is native Rust and reaches the
+    // `rule:types/closure-literal` end to end: `Core\Arr::filter` is native Rust and reaches the
     // closure through `nvs_runtime::call_closure`, which resolves
     // `nvs_runtime::CLOSURE_INVOKE` against the receiver's descriptor — so
     // this fails the moment `nvs-ir`'s label for that method and the
@@ -41,7 +41,7 @@ echo Core\\Arr::count($byKey), \"|\", Core\\Arr::count($byValue);
 
 #[test]
 fn a_closure_captures_an_outer_local_by_value() {
-    // ADR 0031 § 2: the snapshot is taken when the literal is evaluated, so
+    // `rule:types/implicit-capture`: the snapshot is taken when the literal is evaluated, so
     // reassigning the captured local afterwards does not reach the closure.
     let source = "<?nvs
 int $floor = 3;
@@ -108,7 +108,7 @@ array<mixed> $mixed = [\"a\", \"b\", 3];
 
 #[test]
 fn a_mismatched_argument_throws_a_logic_error_out_of_the_core_member_that_called_it() {
-    // ADR 0031 § 1: a `callable` carries no parameter list, so nothing above
+    // `rule:types/closure-literal`: a `callable` carries no parameter list, so nothing above
     // the call site saw what this closure requires and
     // `nvs_runtime::call_closure` is the only thing that can refuse the
     // argument. Caught as `LogicError` specifically, which is the half
@@ -144,12 +144,12 @@ fn a_mismatched_argument_throws_a_logic_error_out_of_the_core_member_that_called
 
 #[test]
 fn an_int_argument_widens_into_a_float_parameter_and_is_refused_past_two_to_the_53() {
-    // ADR 0007 § 2's one implicit conversion, reached from the caller no
+    // `rule:types/conversion`'s one implicit conversion, reached from the caller no
     // written `as float` ever passes through: `Core\Arr::map` hands a native
     // `int` to a closure whose parameter is declared `float`, and
     // `nvs_runtime::call_closure` converts it in place because no checker saw
     // this call site to insert it — a `callable` carries no parameter list
-    // (ADR 0031 § 1).
+    // (`rule:types/closure-literal`).
     //
     // `Core\Json::encode` is the assertion rather than an `echo` of the
     // number: it renders a `float` with a trailing `.0`, so an `int` that
@@ -166,7 +166,7 @@ array<int> $ints = [7, 9007199254740992];
 echo Core\\Json::encode(Core\\Arr::map($ints, $half)), \"\\n\";
 
 // The first refused one, one past that bound. Caught as `ArithmeticError`
-// specifically — ADR 0007 § 4's class for a numeric overflow, and the
+// specifically — `rule:types/arithmetic`'s class for a numeric overflow, and the
 // distinction a `catch (Throwable)` in a `.nvst` case cannot make against the
 // `LogicError` the mismatched-tag row throws.
 array<int> $edge = [1, 9007199254740993];

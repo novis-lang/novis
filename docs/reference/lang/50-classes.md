@@ -383,7 +383,7 @@ class the compiler resolves, so they are folded where they are written. `static:
 was actually allocated from, so both are read at run time and a variable declared as a base class
 reports the subclass it holds. The operand has to carry a class — an object does; a `mixed` or a `?T`
 is `E0702` until it is narrowed, and a `class<T>` converts with `as string` instead
-([ADR 0144](../../adr/0144-class-answers-the-class-a-value-is-so-static-class-and-obj.md)).
+(`rule:types/class-constant`).
 
 ```nvs
 class Base {

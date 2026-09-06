@@ -354,7 +354,7 @@ fn a_literal_uri_is_validated_while_checking() {
 #[test]
 fn a_literal_duration_is_validated_while_checking() {
     // § 1's row 4, and the one grammar whose parser was already shared by
-    // three callers before this pass was a fourth: ADR 0070 § 5 puts it in
+    // three callers before this pass was a fourth: `rule:types/duration-literal` puts it in
     // `nvs-syntax` so the lexer's `1h30m`, `Core\Time\Duration::parse` and an
     // `nvs.toml` directive cannot drift apart. So each refusal below is
     // literally the diagnostic the *lexer* gives the same text.
@@ -390,7 +390,7 @@ fn a_literal_duration_is_validated_while_checking() {
         "a duration wider than the type holds: {wide:?}"
     );
 
-    // And what stays silent: the two spellings § 1 of ADR 0070 opens with, the
+    // And what stays silent: the two spellings § 1 of `rule:types/duration-literal` opens with, the
     // sub-second units, and a computed text, which is § 2's rule.
     let fine = check_call(
         "    string $t = \"30m1h\";\n    \

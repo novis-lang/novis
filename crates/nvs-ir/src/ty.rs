@@ -3,7 +3,7 @@
 //!
 //! The checker's `Ty` exists to make `is_assignable` reject the *wrong*
 //! program: it carries qualifiers (`tainted`, `secret`), full nominal class
-//! identity, shape structure, and canonicalized unions — everything ADR 0007's
+//! identity, shape structure, and canonicalized unions — everything `rule:types/declaration`'s
 //! grammar promises a developer. None of that survives past `check_program`:
 //! by the time a function reaches this crate it has already been proven to
 //! type-check, so lowering only needs to know how a value is *represented*
@@ -49,11 +49,11 @@ pub enum Ty {
     Bool,
     /// `int` — signed.
     Int,
-    /// `uint` — ADR 0007 § 4.
+    /// `uint` — `rule:types/arithmetic`.
     Uint,
     /// `float`.
     Float,
-    /// `decimal` — [ADR 0054](/docs/adr/0054-decimal-scalar-type.md)'s
+    /// `decimal` — `rule:types/decimal`'s
     /// scalar, sign plus a 96-bit mantissa plus a scale of 0 to 28.
     ///
     /// # The representation
@@ -120,7 +120,7 @@ pub enum Ty {
     /// [`crate::ir::Program::classes`] instead, which
     /// [`crate::ir::InstKind::FieldGet`]'s `class`/`field` labels index into.
     Object,
-    /// A reference-counted, heap-allocated `string` — ADR 0009 § 2 has not
+    /// A reference-counted, heap-allocated `string` — `rule:types/string-is-utf8` has not
     /// settled that type's default length/indexing
     /// granularity, but nothing lowered so far needs indexing at all: only a
     /// literal's *bytes*, which are granularity-independent. [`crate::lower`]
@@ -133,7 +133,7 @@ pub enum Ty {
     /// (string concatenation and `tainted`/`secret`-qualified string
     /// variants are still unsupported).
     Str,
-    /// A reference-counted, heap-allocated `bytes` value — ADR 0009's own
+    /// A reference-counted, heap-allocated `bytes` value — `rule:types/bytes`'s own
     /// primitive. The same representation shape as [`Self::Str`], different
     /// content: same retain/release treatment at a local's declare/reassign/
     /// scope-exit lifecycle, a call argument/parameter, a returned value, and
@@ -146,7 +146,7 @@ pub enum Ty {
     /// conversion or constructor, once one exists, would be the first fresh
     /// producer.
     Bytes,
-    /// A reference-counted, heap-allocated `array<T>` — ADR 0007 § 5's
+    /// A reference-counted, heap-allocated `array<T>` — `rule:types/arrays`'s
     /// insertion-ordered, string-keyed hash with copy-on-write value
     /// semantics. Bare and opaque, carrying no element type at all: see this
     /// module's own doc comment for why, mirroring [`Self::Object`]'s
@@ -166,7 +166,7 @@ pub enum Ty {
     Array,
     /// A **tagged** value: one whose runtime type is carried with it rather
     /// than known statically. Every checker type that admits more than one
-    /// runtime shape erases to this one representation — ADR 0007 § 3's
+    /// runtime shape erases to this one representation — `rule:types/grammar`'s
     /// `mixed`, a nullable `?T`, and any other union.
     ///
     /// # The representation
@@ -241,7 +241,7 @@ pub enum Ty {
     ///
     /// Its *representation* is exactly the backing integer it carries, which
     /// is why [`crate::ir::InstKind::Reinterpret`] is all `$e as int` costs:
-    /// ADR 0010 § 5 calls that conversion "total, free ... same
+    /// `rule:types/conversion` calls that conversion "total, free ... same
     /// representation, reinterpreted." So this variant is not here to describe
     /// a different machine value. It is here because one rule reads an enum
     /// differently from the integer under it:
@@ -283,7 +283,7 @@ pub enum Ty {
     /// every local that is ever the target of `inout` out of SSA into an
     /// addressable stack slot, which reaches phis, `crate::lower::Env` and the
     /// refcount policy all at once; and it has no answer at all for
-    /// `inout $arr[0]`, since ADR 0007 § 5's copy-on-write gives an array element
+    /// `inout $arr[0]`, since `rule:types/arrays`'s copy-on-write gives an array element
     /// no stable address. Staging costs one stack slot per by-reference
     /// argument per call site and two copies per call — bought against no SSA
     /// demotion anywhere (the address is loop-invariant, so the callee needs
@@ -331,18 +331,18 @@ pub enum Ty {
     Ref,
     /// A `nvs_runtime::ClassDesc` address — the *class* a frame was called on,
     /// and, since
-    /// [ADR 0125](/docs/adr/0125-a-class-reference-is-a-type-and-as-is-its-only-source.md),
+    /// `rule:types/class-reference`,
     /// the value of a `class<T>` binding.
     ///
     /// This is late static binding's whole representation. It is produced by
     /// [`crate::ir::InstKind::ClassDescConst`] (a class named in source),
     /// [`crate::ir::InstKind::ClassDescOf`] (an instance's own class),
-    /// [`crate::ir::InstKind::ClassDescIn`] (ADR 0125 § 2's two checked `as`
+    /// [`crate::ir::InstKind::ClassDescIn`] (`rule:types/class-reference`'s two checked `as`
     /// rows) and by a static method's [`crate::ir::InstKind::Param`] 0, and
     /// consumed by [`crate::ir::InstKind::NewDynamic`] and
     /// [`crate::ir::InstKind::CallVirtual`].
     ///
-    /// **A declared type lowers to it, and exactly one does.** ADR 0125 § 1
+    /// **A declared type lowers to it, and exactly one does.** `rule:types/class-reference`
     /// makes `class<T>` a type written wherever a type is written, so a
     /// descriptor now reaches a local, a parameter, a field and a return value
     /// — which costs nothing beyond the word it already was, since a
@@ -350,7 +350,7 @@ pub enum Ty {
     /// slot holding one needs no lifecycle at all. What the erasure drops is
     /// the `T`: two `class<T>`s over different bounds are one representation
     /// here, exactly as [`Self::Object`] drops which class an instance is, and
-    /// for the same reason — every decision that needs `T` is ADR 0125 § 4's
+    /// for the same reason — every decision that needs `T` is `rule:types/class-reference-sites`'s
     /// and is taken by the checker, above this boundary.
     ///
     /// **It is the one representation other than [`Self::Tagged`] that can

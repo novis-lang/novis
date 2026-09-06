@@ -1,8 +1,8 @@
 --TEST--
-`echo`, `.`, an interpolated piece and `.=` agree that `bytes`, `array<T>`, an enum case and a `void` call have no string form — ADR 0007 § 2, ADR 0009 § 3, `rule:enums/no-class-machinery`
+`echo`, `.`, an interpolated piece and `.=` agree that `bytes`, `array<T>`, an enum case and a `void` call have no string form — `rule:types/conversion`, `rule:types/conversion`, `rule:enums/no-class-machinery`
 --FILE--
 <?nvs
-// ADR 0007 § 2's "anything → `string`" row is total for scalars and needs
+// `rule:types/conversion`'s "anything → `string`" row is total for scalars and needs
 // `Stringable` for an object. These four types it does not reach at all, and
 // the four *implicit* sites — `echo`, `.`, an interpolated piece and `.=` —
 // agree on refusing them, being one check.
@@ -35,7 +35,7 @@ error[E0707]: `bytes` has no string form
    |
 20 | echo $by;
    |      ^^^ converted to `string` here
-   = help: ADR 0009 § 3 makes that conversion explicit, because which encoding the octets are in is a decision — `$b as string`
+   = help: `rule:types/conversion` makes that conversion explicit, because which encoding the octets are in is a decision — `$b as string`
 
 error[E0707]: `array<int>` has no string form
    --> %s:21:19

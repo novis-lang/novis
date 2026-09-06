@@ -1,5 +1,5 @@
 --TEST--
-`new` on a `Core` class is held to the constructor roster, and an unregistered `Core` name is undeclared rather than a failure below the checker — ADR 0007 § 1, ADR 0011 § 1
+`new` on a `Core` class is held to the constructor roster, and an unregistered `Core` name is undeclared rather than a failure below the checker — `rule:types/declaration`, ADR 0011 § 1
 --FILE--
 <?nvs
 // A `Core` class is not constructed by a `constructor` member: its instances

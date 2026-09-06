@@ -1,5 +1,5 @@
 --TEST--
-Core\Arr::fill, fillKeys, fromKeysAndValues, padStart and padEnd are asked for the same number of entries and agree about how many they build and which keys hold them — spec § 2, ADR 0069 § 3
+Core\Arr::fill, fillKeys, fromKeysAndValues, padStart and padEnd are asked for the same number of entries and agree about how many they build and which keys hold them — spec § 2, `rule:types/preserve-keys`
 --FILE--
 <?nvs
 // Five members build an array whose *count* is stated by an argument rather
@@ -9,7 +9,7 @@ Core\Arr::fill, fillKeys, fromKeysAndValues, padStart and padEnd are asked for t
 // either side — and what this case asserts is their agreement rather than the
 // five answers, each of which already has a case of its own.
 //
-// They split into two families by where the keys come from, and ADR 0069 § 3
+// They split into two families by where the keys come from, and `rule:types/preserve-keys`
 // is why the split is exactly there: `fill`, `padStart` and `padEnd` *invent*
 // keys, and the only non-arbitrary keys to invent are a list; `fillKeys` and
 // `fromKeysAndValues` are handed keys, so they answer whatever key shape the
@@ -69,7 +69,7 @@ class Ask {
 
     // The same for the two key-borrowing members. This one can legitimately be
     // *less* than the count asked for: a key is normalized before it is stored
-    // (ADR 0007 § 5), so two spellings of one key are one entry in both.
+    // (`rule:types/arrays`), so two spellings of one key are one entry in both.
     public static function borrowed(array<string|int> $keys): int {
         uint $n = Core\Arr::count($keys);
         int $a = Core\Arr::count(Core\Arr::fillKeys($keys, "v")) as int;

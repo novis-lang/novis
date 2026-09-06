@@ -3,8 +3,8 @@
 --FILE--
 <?nvs
 // `rule:attributes/structural-retrieval`: retrieval is structural, not nominal. `T` is a shape and an
-// attached literal is an answer exactly when it satisfies `T` under ADR 0036
-// § 3's width subtyping — whether it was attached bare or under a name, and
+// attached literal is an answer exactly when it satisfies `T` under `rule:types/shape-type`
+// 's width subtyping — whether it was attached bare or under a name, and
 // whatever that name was.
 type Route = {path: string};
 
@@ -36,7 +36,7 @@ if ($route != null) { echo "class route=", $route->path, "\n"; }
 ?{audit: bool} $audit = Core\Attributes::get<{audit: bool}>(Controller::constructor(...));
 if ($audit != null) { echo "class audit=", $audit->audit as string, "\n"; }
 
-// ADR 0036 § 3's width subtyping: the attached literal carries `unique` too,
+// `rule:types/shape-type`'s width subtyping: the attached literal carries `unique` too,
 // and an extra field is fine.
 ?{column: string} $column = Core\Attributes::get<{column: string}>(
     Controller::constructor(...),

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Response::bytes` sends its buffer verbatim, including octets no text-shaped body member could carry -- ADR 0088 § 4, ADR 0009
+`Core\Response::bytes` sends its buffer verbatim, including octets no text-shaped body member could carry -- ADR 0088 § 4, `rule:types/bytes`
 --FILE--
 <?nvs
 // ADR 0088 § 4's fourth row is the member for a body that is not text, so the

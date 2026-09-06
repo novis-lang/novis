@@ -53,7 +53,7 @@
 //!
 //! It sits in this module rather than beside `Core\Str`'s units because a
 //! column count is a property of the renderer, not of the string
-//! ([ADR 0009](/docs/adr/0009-string-and-bytes.md) § 2 fixed the two
+//! (`rule:types/string-is-utf8` fixed the two
 //! that are properties of the string, and ADR 0086 § 3's last paragraph is why
 //! this third one is not a `Core\Str` member).
 //!
@@ -587,7 +587,7 @@ fn read_answer(mut file: &std::fs::File) -> std::io::Result<Option<String>> {
         answer.pop();
     }
     // Lossy rather than a failure: a terminal's bytes are whatever encoding it
-    // was configured with, and ADR 0009 § 1 says a `string` is UTF-8 — so the
+    // was configured with, and `rule:types/bytes` says a `string` is UTF-8 — so the
     // replacement character is the honest answer for a byte that is neither,
     // and refusing the whole line would lose an answer over one keystroke.
     Ok(Some(String::from_utf8_lossy(&answer).into_owned()))

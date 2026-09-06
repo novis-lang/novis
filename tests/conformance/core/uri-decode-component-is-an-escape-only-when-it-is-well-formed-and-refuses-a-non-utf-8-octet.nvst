@@ -1,5 +1,5 @@
 --TEST--
-`Core\Uri::decodeComponent` at its two edges: a `%` that does not begin a well-formed escape decodes to itself, and a well-formed escape for an octet no `string` can hold is answered as the `bytes` it is and refused only by the `as string` a caller wanting text writes — a lone byte, a truncated sequence, a surrogate and an overlong form alike — spec § 12, ADR 0009 § 3
+`Core\Uri::decodeComponent` at its two edges: a `%` that does not begin a well-formed escape decodes to itself, and a well-formed escape for an octet no `string` can hold is answered as the `bytes` it is and refused only by the `as string` a caller wanting text writes — a lone byte, a truncated sequence, a surrogate and an overlong form alike — spec § 12, `rule:types/conversion`
 --FILE--
 <?nvs
 // The neighbouring cases show this member against its encoder, over every
@@ -11,7 +11,7 @@
 // The second edge moved one member along when the decoders came to answer
 // `bytes` (spec § 12): the octets themselves always have an answer, and it is
 // the `as string` every row below writes that refuses the ones no `string` can
-// hold — ADR 0009 § 3's checked conversion, in exactly the place the member's
+// hold — `rule:types/conversion`'s checked conversion, in exactly the place the member's
 // own throw used to land. What is pinned here is the *bound*, and the bound is
 // where it always was.
 //
@@ -24,7 +24,7 @@ foreach ($textual as string $row) {
     echo "[", $row, "] -> [", (Core\Uri::decodeComponent($row) as string), "]\n";
 }
 
-// The second edge is the one ADR 0009 draws, and it is a real divergence from
+// The second edge is the one `rule:types/bytes` draws, and it is a real divergence from
 // PHP: a PHP string is a byte string, so `rawurldecode("a%FFb")` there answers
 // three bytes that are not text; a Novis `string` is UTF-8, so there is no
 // value for this member to answer and it throws instead. Every family of

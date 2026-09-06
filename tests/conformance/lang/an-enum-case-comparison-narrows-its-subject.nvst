@@ -1,8 +1,8 @@
 --TEST--
-A comparison against an enum case narrows its subject to that case's own type, on whichever edge the comparison proves it — ADR 0047 § 4, ADR 0007 § 6
+A comparison against an enum case narrows its subject to that case's own type, on whichever edge the comparison proves it — `rule:types/literal-types`, `rule:types/unions-and-mixed`
 --FILE--
 <?nvs
-// ADR 0047 § 4's guard row, over the third of the three spellings
+// `rule:types/literal-types`'s guard row, over the third of the three spellings
 // `nvs_types::locals::literal_residue` admits. A written case is not a
 // literal that cooks to a value with no context — which enum `Read` belongs
 // to is a question about the writing site's namespace and imports — so the
@@ -50,7 +50,7 @@ if ($g != Mode::Read) {
     echo Only::read($g), "\n";
 }
 
-// ADR 0007 § 6's `match (true)`/`switch (true)`: a label there is a condition,
+// `rule:types/unions-and-mixed`'s `match (true)`/`switch (true)`: a label there is a condition,
 // so the arm body sees the same narrowing the `if` spelling installs.
 Mode $viaMatch = Mode::Read;
 echo match (true) {

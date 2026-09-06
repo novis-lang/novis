@@ -174,12 +174,12 @@ beside it is redundant but accepted, exactly as any other route to the same inte
   `readonly` is unaffected: the constructor assigns it like any other.
 - **A field's type must be codec-reachable**: a scalar, `Duration`/`Instant`/`Date`/`TimeOfDay`/`Uuid`/
   `decimal`, an enum (`rule:enums/closed-integer-type`, carried as its backing value and
-  range-checked on decode), an inline shape ([ADR 0036](0036-anonymous-object-shapes.md)), an `array<T>` or
+  range-checked on decode), an inline shape (`rule:types/object-top`), an `array<T>` or
   `array<string, T>` of one of these, `?T` of one of these, or another class that itself has a codec —
   derived or hand-written. Anything else is a compile error at the field. Recursion is fine: the generated
   code calls the other class's codec, so a tree node referring to itself generates once and terminates on
   the data, bounded at decode by `maxDepth` (spec § 6). A `mixed` field is accepted and is exactly as
-  checked as `mixed` ever is ([ADR 0007](0007-explicit-type-system.md)).
+  checked as `mixed` ever is (`rule:types/declaration`).
 
 ### 3. Per-field overrides, and only two of them
 
@@ -268,7 +268,7 @@ standing preference for a hard error over a suppressed one).
   object with no per-class opt-in, preserves identity and cycles, and is not a declared wire contract at
   all. A derive for it would be a second, weaker path to an operation that already works —
   [ADR 0063](0063-core-api-conventions.md) R17.
-- **An [ADR 0036](0036-anonymous-object-shapes.md) § 2 shape encodes with no attribute at all**, as a JSON
+- **An `rule:types/object-literal` shape encodes with no attribute at all**, as a JSON
   object keyed by its field names, and this is not a hole in § 1's written opt-in: a shape literal has no
   declaration to carry an attribute, so there is nothing a program could have written and nothing an
   encoder could refuse it for. The refusal exists because a *declared* class has an identity and an
@@ -302,7 +302,7 @@ derive attribute pays nothing at all, including no pass.
 
 - **The decode half stops costing anything.** [ADR 0063](0063-core-api-conventions.md) § 4 requiring
   `fromJson` was correct and, until now, expensive; this is what makes it affordable, in the same relation
-  [ADR 0070](0070-duration-literals.md) has to R12.
+  `rule:types/duration-literal` has to R12.
 - **Round-trip is provable, not hoped for.** The field list and the constructor's parameter list are checked
   to agree at compile time, so `fromJson(toJson($x))` reconstructing `$x` is a property of the mechanism
   rather than of the care taken writing two functions.
@@ -383,7 +383,7 @@ per-field `name` cannot express — both are additive and neither changes anythi
 **constructor-parameter requirement** if the diagnostic turns out to be what people hit rather than what
 guides them; the fallback is a second, explicitly-named attribute that accepts the `Core\Reflect` bypass,
 never a silent widening of this one. If Novis ever gains user-defined generics
-([ADR 0007](0007-explicit-type-system.md)'s open question), reconsider whether the codec interfaces should
+(`rule:types/declaration`'s open question), reconsider whether the codec interfaces should
 be generic over the format rather than one interface per format.
 
 ## Verification

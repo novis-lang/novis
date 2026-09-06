@@ -20,7 +20,7 @@
 //! [ADR 0071](/docs/adr/0071-derived-codecs.md) § 5's
 //! `issues: array<Core\Issue>`, seeded from
 //! [`nvs_hir::errors::OWN_PROPERTIES`] rather than named here, so that the
-//! slot order and the signature cannot disagree. `Core\Issue` is an ADR 0036
+//! slot order and the signature cannot disagree. `Core\Issue` is an `rule:types/object-top`
 //! **shape**, `{path: string, message: string}` — see [`issue_shape`] — so a
 //! class of that name exists nowhere and a decoder builds one with nothing
 //! declared.
@@ -52,7 +52,7 @@
 //!   case `nvs_ir::Ty::Tagged`'s own known gap names.
 //!
 //! An `issues` entry is read like any other value now: `$issue->path` is a
-//! property access on an ADR 0036 § 4 shape receiver, which
+//! property access on an `rule:types/erased-member-access` shape receiver, which
 //! [`crate::expr_table::ExprInfo::ShapeProperty`] resolves to the field's slot
 //! and `nvs-ir` reads by index — there is no class to name, so there is no
 //! class to record.
@@ -181,7 +181,7 @@ const ERROR_KIND: &str = r"Core\Db\ErrorKind";
 /// `type Core\Issue = {path: string, message: string}` —
 /// [ADR 0071](/docs/adr/0071-derived-codecs.md) § 5's one shape.
 ///
-/// An ADR 0036 shape rather than a class, which is what that ADR writes and
+/// An `rule:types/object-top` shape rather than a class, which is what that ADR writes and
 /// what lets a decoder build one with no declaration anywhere: the value is an
 /// anonymous methodless instance, and `nvs_stdlib::issue` is what builds it.
 /// [`TypeInterner::shape`] canonicalizes the field order, so the runtime slot

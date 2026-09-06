@@ -294,7 +294,7 @@
 //!
 //! Percent-decoding is defined over octets and a client may send any of them,
 //! so [`nvs_core_uri_decode_component`] and [`nvs_core_uri_decode_form_value`]
-//! answer [ADR 0009](/docs/adr/0009-string-and-bytes.md)'s `bytes` rather than
+//! answer `rule:types/bytes`'s `bytes` rather than
 //! a `string`: `decodeComponent("%FF")` has an answer, and `%ff%fe%fd` is the
 //! three octets it spells rather than a refusal. A caller who wants text
 //! writes `as string`, which is that ADR § 3's checked row and throws in
@@ -1066,7 +1066,7 @@ fn decode(text: &str, form: Form) -> Vec<u8> {
 /// cause — the same treatment [`crate::path`] gives its own arguments.
 ///
 /// That is the only failure. The tag [`Value::as_text`] checks is itself
-/// ADR 0009's UTF-8 guarantee, so no encoding outcome is left to report.
+/// `rule:types/bytes`'s UTF-8 guarantee, so no encoding outcome is left to report.
 fn text_of<'a>(args: &'a [Value], member: &str) -> Result<&'a str, Fault> {
     args[0].as_text().ok_or_else(|| {
         Fault::fatal(format!(
@@ -1753,7 +1753,7 @@ struct Level {
 
 /// One value's text for the right-hand side of a pair.
 ///
-/// ADR 0007 § 2's conversion rows through `nvs_runtime::value_to_string`, with
+/// `rule:types/conversion`'s conversion rows through `nvs_runtime::value_to_string`, with
 /// one deliberate exception: `false` writes `0` rather than the empty string
 /// that `false as string` answers. `http_build_query` makes the same exception,
 /// and it is the right one here — the wire has no booleans, an empty value is
@@ -1776,7 +1776,7 @@ fn scalar_text(value: Value, owner: &str, member: &str) -> Result<Vec<u8>, Fault
     // encoder, which turns every one of them into an ASCII escape. There is no
     // `as string` in the way on purpose: a value that survived the wire once
     // has to survive being written back, and `value_to_string` refuses a
-    // `bytes` exactly as ADR 0009 § 3 says it should.
+    // `bytes` exactly as `rule:types/conversion` says it should.
     if let Some(bytes) = value.as_bytes() {
         return Ok(bytes.to_vec());
     }
@@ -2460,7 +2460,7 @@ mod tests {
                     .expect("every member here answers with a `string`")
                     .to_vec(),
             )
-            .expect("ADR 0009 guarantees a `string` is UTF-8");
+            .expect("`rule:types/bytes` guarantees a `string` is UTF-8");
             #[expect(unsafe_code, reason = "this frame owns the reference the helper built")]
             unsafe {
                 value.release();
@@ -2675,7 +2675,7 @@ mod tests {
                 .expect("`buildQuery` answers a `string`")
                 .to_vec(),
         )
-        .expect("ADR 0009 guarantees a `string` is UTF-8");
+        .expect("`rule:types/bytes` guarantees a `string` is UTF-8");
         #[expect(unsafe_code, reason = "this frame owns the string the helper built")]
         unsafe {
             value.release();
@@ -3078,7 +3078,7 @@ mod tests {
                 .expect("`toString` answers a `string`")
                 .to_vec(),
         )
-        .expect("ADR 0009 guarantees a `string` is UTF-8");
+        .expect("`rule:types/bytes` guarantees a `string` is UTF-8");
         #[expect(
             unsafe_code,
             reason = "this frame owns the instance and the reference `toString` \

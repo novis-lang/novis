@@ -457,7 +457,7 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
             let qname = QName::parse(name);
             interner.enum_(qname, crate::enums::EnumBacking::Int)
         }
-        // ADR 0047 § 3's narrowed case type, interned exactly as a source-
+        // `rule:types/enum-case-type`'s narrowed case type, interned exactly as a source-
         // written `Core\Digest::Sha256` in type position is — `crate::lower`
         // reaches the same `enum_case` for that spelling, so the union a
         // registry row builds out of these and one a program could write are
@@ -540,7 +540,7 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
             let null = interner.null();
             interner.make_union([null, inner])
         }
-        // ADR 0047 § 1's integer atom, which the interner already has: the
+        // `rule:types/literal-types`'s integer atom, which the interner already has: the
         // registry variant exists only so a row can *write* one, and there is
         // nothing to translate beyond the value itself.
         CoreTy::IntLiteral(value) => interner.int_literal(*value),
@@ -2002,7 +2002,7 @@ mod tests {
         let expected = interner.options(vec![("version".to_owned(), version, None)]);
         assert_eq!(sig.params[1], expected);
         // A literal is its own type, not the `int` it erases to — the whole
-        // point of ADR 0047 § 1 at this position.
+        // point of `rule:types/literal-types` at this position.
         let int = interner.int();
         assert_ne!(version, int);
     }

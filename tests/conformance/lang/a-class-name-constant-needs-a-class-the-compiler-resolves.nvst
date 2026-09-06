@@ -1,5 +1,5 @@
 --TEST--
-`::class` on a side that carries no class is `E0702` — a `mixed`, a `?T`, a scalar and a `class<T>` each with the help that names where its answer actually lives — and on a name that resolves to nothing it is `E0303` (ADR 0011, ADR 0125)
+`::class` on a side that carries no class is `E0702` — a `mixed`, a `?T`, a scalar and a `class<T>` each with the help that names where its answer actually lives — and on a name that resolves to nothing it is `E0303` (ADR 0011, `rule:types/class-reference`)
 --FILE--
 <?nvs
 class User {
@@ -21,7 +21,7 @@ echo $n::class;
 int $i = 1;
 echo $i::class;
 
-// ADR 0125's `class<T>` is a class reference already, so its name is a
+// `rule:types/class-reference`'s `class<T>` is a class reference already, so its name is a
 // conversion rather than a member read — § 2's third row, `as string`.
 class<User> $c = User::class as class<User>;
 echo $c::class;

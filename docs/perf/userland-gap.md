@@ -314,14 +314,14 @@ member copies whichever one is there:
   result length is known — `replace`, `padStart`/`padEnd`, `join` — the member can write straight
   into one `NvsStr`.~~ **Landed, for every member but `join`** — see below.
 - ~~**`text()` re-validates UTF-8 on every string argument.** 56 call sites in `str.rs` alone, each
-  an O(n) pass over a string [ADR 0009](../adr/0009-string-and-bytes.md) already guarantees valid —
+  an O(n) pass over a string `rule:types/bytes` already guarantees valid —
   the function's own error message says so. `Core\Str::length` then adds two more O(n) passes
   (`is_ascii`, then a scan for `\r`) where `strlen` is O(1); the grapheme unit makes O(n)
   unavoidable, three passes does not.~~ **Landed, both halves.**
 
 Reading a `string` argument is now a tag check. The unchecked read lives once, behind one `unsafe`
 in `nvs_runtime::NvsStr::text_of`, with `Value::as_text` as the safe caller that discharges it —
-the tag *is* ADR 0009's guarantee, so deriving it again per argument was work whose answer the
+the tag *is* `rule:types/bytes`'s guarantee, so deriving it again per argument was work whose answer the
 runtime already held. A debug build re-validates inside that one reader, which is what keeps the
 invariant checked rather than remembered. The second half is `crate::granularity`'s fast-path test:
 the `is_ascii` scan and the search for `\r` are one branchless fold over the bytes, so an ASCII
@@ -490,5 +490,5 @@ ever reads zero passes just as well when it is broken.
 - **Cranelift emits redundant register moves and does not clean up the block chains.** That is the
   baseline tier's ceiling and [M12](../plan/m12.md) is where it is raised. Nothing above is a
   codegen-quality item; every one of them is a representation or an ABI.
-- **`Core\Str::length` is O(n) where `strlen` is O(1).** ADR 0009 makes the grapheme the default
+- **`Core\Str::length` is O(n) where `strlen` is O(1).** `rule:types/bytes` makes the grapheme the default
   unit; item E removes two of its three passes and no item removes the third.

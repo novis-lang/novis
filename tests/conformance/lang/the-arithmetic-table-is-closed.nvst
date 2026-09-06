@@ -1,10 +1,10 @@
 --TEST--
-`+ - * / % **` refuse every operand ADR 0007 § 4 gives no arithmetic row for, and `%` refuses a `float` at both ends — ADR 0007 § 4, ADR 0010 § 5, ADR 0054 § 3
+`+ - * / % **` refuse every operand `rule:types/arithmetic` gives no arithmetic row for, and `%` refuses a `float` at both ends — `rule:types/arithmetic`, `rule:types/conversion`, `rule:types/arithmetic`
 --FILE--
 <?nvs
-// ADR 0007 § 4's arithmetic rows name the numeric types and nothing else, the
+// `rule:types/arithmetic`'s arithmetic rows name the numeric types and nothing else, the
 // same way its ordering row does. Everything PHP adds beyond them it adds by
-// converting an operand first, and ADR 0007 § 2 has no implicit conversion for
+// converting an operand first, and `rule:types/conversion` has no implicit conversion for
 // that to be — so each line below is one absent row, and each help names the
 // spelling that says what was meant instead.
 enum Mode { Read, Write }
@@ -31,7 +31,7 @@ mixed $d = $cell * $cell;
 // A `bytes` and an `array<T>` are on no row either.
 mixed $e = $raw + $raw;
 mixed $g = $xs / $xs;
-// An enum keeps ADR 0010 § 5's own diagnostic rather than joining this one.
+// An enum keeps `rule:types/conversion`'s own diagnostic rather than joining this one.
 mixed $h = $mode * $mode;
 // `%` is the one refusal both operands are numbers for: PHP converts to an
 // integer and answers one, § 4's float row would answer a `float`, and the

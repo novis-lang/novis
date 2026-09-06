@@ -1,8 +1,8 @@
 --TEST--
-`$fn(...)` calls a closure through the variable holding it, and reaches the same body a `Core` member's callback does — ADR 0031 §§ 1, 2
+`$fn(...)` calls a closure through the variable holding it, and reaches the same body a `Core` member's callback does — `rule:types/closure-literal` and `rule:types/implicit-capture`
 --FILE--
 <?nvs
-// ADR 0031 § 1: `callable` is the only closure type and it carries no
+// `rule:types/closure-literal`: `callable` is the only closure type and it carries no
 // parameter list, so a call through one is typed `mixed` and converts on
 // request like any other `mixed` — there is nothing narrower to type it.
 callable $upper = fn (string $s): string => Core\Str::upper($s);
@@ -25,7 +25,7 @@ foreach ($words as string $w) {
 }
 echo "agree ", $agree as string, " of ", Core\Arr::count($words) as string, "\n";
 
-// ADR 0031 § 2: capture is implicit, by value, and snapshotted where the
+// `rule:types/implicit-capture`: capture is implicit, by value, and snapshotted where the
 // literal is evaluated — so rebinding the captured local afterwards is not
 // visible to the closure. There is no `use (&$prefix)` to make it so.
 string $prefix = "one";

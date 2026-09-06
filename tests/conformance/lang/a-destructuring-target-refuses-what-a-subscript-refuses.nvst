@@ -1,5 +1,5 @@
 --TEST--
-A destructuring leaf is an element read, so it takes a subscript's own refusals — `E0482` for a value with no elements, `E0401` for an element type the leaf does not declare, and `E0483` for a leaf that would alias what it read — ADR 0007 §§ 3.3 and 5, ADR 0031 § 2
+A destructuring leaf is an element read, so it takes a subscript's own refusals — `E0482` for a value with no elements, `E0401` for an element type the leaf does not declare, and `E0483` for a leaf that would alias what it read — `rule:types/grammar`.3 and 5, `rule:types/implicit-capture`
 --FILE--
 <?nvs
 array<int> $pair = [1, 2];
@@ -7,7 +7,7 @@ array<int> $pair = [1, 2];
 // same direction and with the same covariance a `foreach` value binding
 // gets: an `int` element does not satisfy a `string` binding.
 [string $wrong] = $pair;
-// ADR 0031 § 2 removed by-reference capture and ADR 0023 makes an
+// `rule:types/implicit-capture` removed by-reference capture and ADR 0023 makes an
 // element a copy, so a leaf that aliased the entry it was read from
 // would have no owner in either rule — the array literal's own `&value`
 // refusal, arrived at from the other side.
@@ -16,7 +16,7 @@ array<int> $pair = [1, 2];
 // has nothing to take apart. This is `E0482`'s rule verbatim, which is
 // why it is `E0482`'s code.
 [int $notAnArray] = 7;
-// A `mixed` is the same answer for the same reason: ADR 0007 § 2 makes
+// A `mixed` is the same answer for the same reason: `rule:types/conversion` makes
 // it the one unchecked position, and an unchecked position names no
 // element type either.
 mixed $anything = 5;
@@ -38,7 +38,7 @@ error[E0483]: a destructuring leaf cannot bind by reference
    |
 11 | [inout int $aliased] = $pair;
    |  ^^^^^^^^^^^^^^^^^^ this would alias the element it was read from
-   = help: drop the `inout` — the leaf is a copy, exactly as an array literal's element is; to share one mutable cell, put it in an object (ADR 0031 § 2)
+   = help: drop the `inout` — the leaf is a copy, exactly as an array literal's element is; to share one mutable cell, put it in an object (`rule:types/implicit-capture`)
 
 error[E0482]: cannot destructure `int`
    --> %s:15:21

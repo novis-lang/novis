@@ -1,5 +1,5 @@
 --TEST--
-`$obj->$key` reads the field the key names and writes it, over the erased access ADR 0036 § 4 already performs — ADR 0126 §§ 4-5
+`$obj->$key` reads the field the key names and writes it, over the erased access `rule:types/erased-member-access` already performs — `rule:types/property-key-access`
 --FILE--
 <?nvs
 class Profile {

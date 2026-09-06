@@ -15,8 +15,8 @@
 //! No crate implements it. The `printf`-alike crates on crates.io format Rust
 //! values or re-expose C's `vsnprintf`; what is needed here is the grammar
 //! applied to a [`Value`] — a tagged union whose conversion rows are
-//! [ADR 0007](/docs/adr/0007-explicit-type-system.md) § 2's and
-//! [ADR 0054](/docs/adr/0054-decimal-scalar-type.md) § 4's, not
+//! `rule:types/conversion`'s and
+//! `rule:types/conversion`'s, not
 //! Rust's `Display`. Adapting one would be more code than the grammar, so
 //! [ADR 0051](/docs/adr/0051-standard-library-tiers.md) § 4's first
 //! question answers itself: this is Novis's own semantics, not an external
@@ -37,7 +37,7 @@
 //!   be named by at least one placeholder, in any order and any number of
 //!   times.
 //! * **A value with no reading for its conversion** — an array for `%d`, a
-//!   non-integral `decimal` for `%x`. The `decimal` row is ADR 0054 § 4's,
+//!   non-integral `decimal` for `%x`. The `decimal` row is `rule:types/conversion`'s,
 //!   which makes rounding something the program says out loud.
 //!
 //! # One parse, two entry points
@@ -462,15 +462,14 @@ impl Spec {
     }
 }
 
-/// One `%s` argument's text — [ADR 0007](/docs/adr/0007-explicit-type-system.md)
-/// § 2's rows, reached through the one implementation of them.
+/// One `%s` argument's text — `rule:types/conversion`'s rows, reached through the one implementation of them.
 ///
 /// `nvs_runtime::value_to_string` answers a `Tag::Str` carrying exactly one
 /// fresh reference, so the handle below owns it and releases it when the
 /// borrowed text has been copied out.
 fn rendered(argument: &Value) -> Result<String, Fault> {
     let value = nvs_runtime::value_to_string(*argument)?;
-    // The tag is ADR 0009's UTF-8 guarantee, so reading the payload as text is
+    // The tag is `rule:types/bytes`'s UTF-8 guarantee, so reading the payload as text is
     // the same check as reading it at all — `nvs_runtime`'s `string` module owns
     // that argument in its § *Reading the payload as text*. Re-deriving it here
     // was an O(n) pass per rendered argument, on `format`'s own hot path.
@@ -498,7 +497,7 @@ fn rendered(argument: &Value) -> Result<String, Fault> {
 /// One argument as the `int` an integer conversion needs.
 ///
 /// A `float` truncates toward zero, as PHP's own `%d` does. A `decimal`
-/// follows ADR 0054 § 4 instead: integral and in range, or a throw naming the
+/// follows `rule:types/conversion` instead: integral and in range, or a throw naming the
 /// rounding member, because silent rounding is what that ADR removed.
 #[expect(
     clippy::cast_possible_truncation,
@@ -538,7 +537,7 @@ fn integer(argument: &Value, conversion: char) -> Result<i64, Fault> {
 }
 
 /// One argument as the `float` a `%f`/`%e`/`%g` needs. A `decimal` converts by
-/// ADR 0054 § 4's `decimal → float` row — nearest `f64`, lossy, and asked for
+/// `rule:types/conversion`'s `decimal → float` row — nearest `f64`, lossy, and asked for
 /// explicitly by writing a float conversion.
 #[expect(
     clippy::cast_precision_loss,
@@ -858,7 +857,7 @@ mod tests {
     }
 
     /// An integral `decimal` reaches `%d` unchanged, and any `decimal` renders
-    /// through `%s` at its own scale — ADR 0054 § 4's two rows, side by side.
+    /// through `%s` at its own scale — `rule:types/conversion`'s two rows, side by side.
     #[test]
     fn a_decimal_follows_adr_0054s_conversion_rows() {
         same(

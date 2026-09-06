@@ -1,6 +1,6 @@
 //! The other half of [`refusals`](/crates/nvs-ir/tests/refusals.rs)' gate: **every shape a
 //! program can spell reaches a diagnostic or an IR, and never a panic** — the
-//! *types* ADR 0007 § 3 admits, in the table this file opened with, and the
+//! *types* `rule:types/grammar` admits, in the table this file opened with, and the
 //! *expressions and statements* `nvs_syntax::ast` admits, in the roster below
 //! it. One harness, two rosters, the same three outcomes and the same ratchet.
 //!
@@ -57,7 +57,7 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use nvs_diagnostics::{Diagnostics, SourceMap};
 
-/// One row of ADR 0007 § 3's `atom` production, plus the three composite forms
+/// One row of `rule:types/grammar`'s `atom` production, plus the three composite forms
 /// its `union`/`intersection`/`qualified` levels build.
 ///
 /// `self`/`static`/`parent` are absent on purpose: all three are *resolution*
@@ -91,7 +91,7 @@ const ATOMS: &[&str] = &[
     "false",
     "iterable",
     "callable",
-    // ADR 0047's literal types, ADR 0036's shape, and a plain class name.
+    // `rule:types/literal-types`'s literal types, `rule:types/object-top`'s shape, and a plain class name.
     "\"a\"",
     "7",
     "{a: int}",
@@ -114,7 +114,7 @@ const ATOMS: &[&str] = &[
 /// emptying it is what closed the last one, not what retires the test.
 ///
 /// The last two rows, for the reader who wonders what it was for. `never` in a
-/// **parameter** is the finding it exists for — ADR 0007 § 3 says `void` and
+/// **parameter** is the finding it exists for — `rule:types/grammar` says `void` and
 /// `never` are return-only and neither was refused there, so `never` panicked
 /// here while `void` lowered and died one crate further down; `E0742` refuses
 /// both at the declaration now (`nvs_types::signatures`). `never` in a

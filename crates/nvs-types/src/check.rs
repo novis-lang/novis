@@ -1,5 +1,5 @@
 //! Entry point: walks a resolved [`Module`]'s classes and methods, type-
-//! checking each method body against ADR 0007 §§ 1-4 (see the crate docs for
+//! checking each method body against `rule:types/declaration`, `rule:types/conversion`, `rule:types/grammar` and `rule:types/arithmetic` (see the crate docs for
 //! the exact scope of this slice), plus the file's own top-level statements
 //! as one synthesized frame ([`ScriptFrame`]) — `rule:statements/storage-that-outlives-a-call`'s "the script
 //! body is a function, so its variables are locals". That frame is threaded
@@ -73,7 +73,7 @@ fn qname_segments(src: &SourceFile, name: &Name) -> Vec<String> {
 ///
 /// Hands the [`crate::EnumTable`] it built back rather than dropping it, for
 /// the same reason `nvs_hir::resolve_program` hands its autoload map back:
-/// `nvs-ir` needs each case's constant value to lower ADR 0047 § 3's
+/// `nvs-ir` needs each case's constant value to lower `rule:types/enum-case-type`'s
 /// enum-case membership test, and [`crate::enums::build_enum_table`] reports
 /// `rule:enums/declaration`/§ 2's declaration errors, so a caller that rebuilt the table
 /// for itself would report every one of them twice. A caller with no use for
@@ -116,7 +116,7 @@ pub fn check_program_granted(
     // needs one, and `build_signatures` interns every declared annotation in
     // the program. See `crate::enums`.
     let enums = crate::enums::build_enum_table(files, diags);
-    // ADR 0047 § 2's fold, on the same terms and for the same reason as the
+    // `rule:types/constant-in-type-position`'s fold, on the same terms and for the same reason as the
     // enum table one line above: `build_signatures` interns every declared
     // annotation, and one of them may be a `Foo::CONST` type.
     let consts = crate::consts::build_const_table(files);
@@ -126,7 +126,7 @@ pub fn check_program_granted(
     // declaration it asks about, so a table filled as the walk descends would
     // answer differently depending on source order.
     let attributes = crate::retrieval::build_attribute_table(files);
-    // Threaded across the files rather than restarted at each: an ADR 0031
+    // Threaded across the files rather than restarted at each: an `rule:types/closure-literal`
     // closure literal at file scope is labelled `Script$fn<n>`, with no
     // declaring class to disambiguate it, so a counter that restarted per
     // file would give two files' first closures the same synthesized class.
@@ -214,7 +214,7 @@ pub fn check_program_granted(
 
 /// Copies every class's own declared property types into the expression
 /// table, so `nvs_ir::lower` can join them against the flattened slot order
-/// and hand each class's per-slot types to codegen — ADR 0036 § 4's erased
+/// and hand each class's per-slot types to codegen — `rule:types/erased-member-access`'s erased
 /// **write** check, which is the one write site that has no statically known
 /// field type of its own and so must ask the receiver's concrete class at run
 /// time.
@@ -657,7 +657,7 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     }
 }
 
-/// ADR 0007 § 1, at the one exit a body takes without writing anything: a
+/// `rule:types/declaration`, at the one exit a body takes without writing anything: a
 /// method promising a value at every exit may not have a path that reaches its
 /// closing brace (`E0739`).
 ///
@@ -779,7 +779,7 @@ fn check_every_path_returns(m: &MethodMember, body: &Block, return_ty: TypeId, e
         )
         .with_help(
             "return a value on that path, throw, or declare `void` — a body that falls off its \
-             end returns nothing at all, and ADR 0007 § 2 has no implicit `null` to stand in for \
+             end returns nothing at all, and `rule:types/conversion` has no implicit `null` to stand in for \
              the declared type",
         ),
     );

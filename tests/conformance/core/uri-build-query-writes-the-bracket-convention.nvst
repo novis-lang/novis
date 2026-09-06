@@ -42,7 +42,7 @@ echo Shape::of(Core\Uri::buildQuery(Core\Uri::parseQuery("a=1&b[]=2&c[k]=v"))), 
 // Both halves are form-encoded: a space is `+`, and `+` and `~` are escaped.
 echo Core\Uri::buildQuery(["a b" => "x y", "c~d" => "e+f"]), "\n";
 
-// Every scalar takes ADR 0007 § 2's text, except that `false` writes `0`
+// Every scalar takes `rule:types/conversion`'s text, except that `false` writes `0`
 // rather than the empty string `false as string` answers — the wire has no
 // booleans, and an empty value is how a query string spells *absent*. A `null`
 // drops its pair for the same reason.

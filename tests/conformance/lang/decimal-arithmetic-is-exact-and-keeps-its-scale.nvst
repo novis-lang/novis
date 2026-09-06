@@ -1,5 +1,5 @@
 --TEST--
-ADR 0054: a decimal literal is exact, arithmetic over it never rounds, and rendering keeps the scale
+`rule:types/decimal`: a decimal literal is exact, arithmetic over it never rounds, and rendering keeps the scale
 --FILE--
 <?nvs
 // The money case `float` cannot represent: 0.1 + 0.2 is 0.3, not

@@ -1,5 +1,5 @@
 --TEST--
-`as ?string` renders exactly what `as string` renders and answers `null` only where that one throws, over every source (`rule:expressions/nullable-conversion`, ADR 0007 § 2, ADR 0009 § 3)
+`as ?string` renders exactly what `as string` renders and answers `null` only where that one throws, over every source (`rule:expressions/nullable-conversion`, `rule:types/conversion`, `rule:types/conversion`)
 --FILE--
 <?nvs
 class Tag implements Stringable {
@@ -12,9 +12,9 @@ class Angry implements Stringable {
     public function toString(): string { throw new LogicError("no text"); }
 }
 
-// ADR 0007 § 2's "anything → `string`" row is total for scalars, so `null`
+// `rule:types/conversion`'s "anything → `string`" row is total for scalars, so `null`
 // here can only come from the three sources that are not: an `array<T>`, an
-// object with no `toString`, and ADR 0009 § 3's UTF-8 validation.
+// object with no `toString`, and `rule:types/conversion`'s UTF-8 validation.
 mixed $n = 7;
 mixed $f = 1.5;
 mixed $t = true;

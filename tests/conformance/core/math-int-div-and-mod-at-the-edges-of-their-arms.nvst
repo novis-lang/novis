@@ -1,5 +1,5 @@
 --TEST--
-Core\Math::intDiv overflows for exactly one dividend and mod's zero divisor is zero whichever sign it carries, per spec § 3 and ADR 0007 § 2
+Core\Math::intDiv overflows for exactly one dividend and mod's zero divisor is zero whichever sign it carries, per spec § 3 and `rule:types/conversion`
 --FILE--
 <?nvs
 // `-1` is the one divisor an overflow is possible at, and it overflows for

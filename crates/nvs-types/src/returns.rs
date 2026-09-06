@@ -1,4 +1,4 @@
-//! "Does every path through this body leave the frame?" — ADR 0007 § 1's
+//! "Does every path through this body leave the frame?" — `rule:types/declaration`'s
 //! *nothing is untyped*, applied to the one exit a body can take without
 //! writing anything at all.
 //!
@@ -7,7 +7,7 @@
 //! there is nothing for it to hand back: `nvs_ir::lower::lower_method` seals a
 //! body's fall-through exit with `Terminator::Return(None)`, so the caller of an
 //! `int` method reads a slot the callee never wrote. PHP answers `null` there;
-//! ADR 0007 § 2 has no implicit conversion for that to be, and inventing one
+//! `rule:types/conversion` has no implicit conversion for that to be, and inventing one
 //! would change a binding's type behind its declaration — so the path is refused
 //! where it is written (`E0739`).
 //!

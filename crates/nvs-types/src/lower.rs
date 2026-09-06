@@ -1,4 +1,4 @@
-//! Resolves a parsed [`Type`] into an interned [`TypeId`] (ADR 0007 § 3's
+//! Resolves a parsed [`Type`] into an interned [`TypeId`] (`rule:types/grammar`'s
 //! grammar, made concrete).
 //!
 //! A `self`/`static` atom resolves against [`Ctx::current_class`]; `parent`
@@ -12,7 +12,7 @@
 //! atom resolves via [`nvs_hir::resolve_ref`] — the same
 //! unqualified/qualified/fully-qualified resolution every `nvs-hir` resolver
 //! already shares — then checks [`nvs_hir::AliasTable`] first (an alias is
-//! "resolved eagerly," per ADR 0015 § 5, so its expansion is substituted
+//! "resolved eagerly," per `rule:types/type-alias`, so its expansion is substituted
 //! in and lowered recursively rather than kept as a name), falling back to
 //! [`nvs_hir::SymbolTable`] to decide between a class-shaped atom (a class or
 //! interface — the type grammar does not distinguish them) and an enum. A
@@ -20,7 +20,7 @@
 //! reference or one of [`nvs_hir::errors`]' exception classes
 //! ([`nvs_hir::QName::is_reserved_global_class`]), is `E_UNDEFINED_CLASS`.
 //!
-//! `array<...>` nesting is bounded at depth 32 (ADR 0007 § 5) — past that,
+//! `array<...>` nesting is bounded at depth 32 (`rule:types/arrays`) — past that,
 //! lowering stops and reports `E_ARRAY_TYPE_TOO_DEEP` rather than recursing
 //! further, so a pathological type cannot make lowering superlinear.
 
@@ -155,7 +155,7 @@ fn lower_atom(atom: &TypeAtom, span: Span, depth: u32, ctx: &Ctx<'_>, env: &mut 
     }
 }
 
-/// ADR 0125 § 1's `class<T>`: the argument names one class or one interface,
+/// `rule:types/class-reference`'s `class<T>`: the argument names one class or one interface,
 /// and anything else is refused where it is written.
 ///
 /// The refusal lives here rather than in the parser because the parser sees
@@ -193,7 +193,7 @@ fn lower_class_ref(inner: &Type, depth: u32, ctx: &Ctx<'_>, env: &mut Env<'_>) -
     env.interner.mixed()
 }
 
-/// ADR 0126 § 1's `property<T>`: the argument names one class, and anything
+/// `rule:types/property-key`'s `property<T>`: the argument names one class, and anything
 /// else is refused where it is written.
 ///
 /// [`lower_class_ref`]'s shape, with its guard and its `mixed` recovery, and
@@ -203,7 +203,7 @@ fn lower_class_ref(inner: &Type, depth: u32, ctx: &Ctx<'_>, env: &mut Env<'_>) -
 /// symbol's kind is the whole test, and `Ty::Class` cannot answer it, since a
 /// class, an interface and an enum all intern as one.
 ///
-/// **The set's own emptiness is not asked here.** ADR 0126 § 1 also refuses a
+/// **The set's own emptiness is not asked here.** `rule:types/property-key` also refuses a
 /// class declaring no public property at all, and that needs the flattened
 /// public roster the `as` conversion is built around — so it lands with the
 /// conversion, as
@@ -243,7 +243,7 @@ fn lower_property_key(inner: &Type, depth: u32, ctx: &Ctx<'_>, env: &mut Env<'_>
     env.interner.mixed()
 }
 
-/// ADR 0047 § 1's `int` literal atom.
+/// `rule:types/literal-types`'s `int` literal atom.
 ///
 /// The atom's span covers a leading `-` when one was written
 /// ([`TypeAtom::IntLiteral`]), so the sign is split off here and the digits go
@@ -280,7 +280,7 @@ fn lower_int_literal_type(lit: Span, env: &mut Env<'_>) -> TypeId {
                 )
                 .with_primary(lit, "outside `int`'s range")
                 .with_help(
-                    "ADR 0047 § 1's literal atom is an `int` literal, so the value has to be \
+                    "`rule:types/literal-types`'s literal atom is an `int` literal, so the value has to be \
                      one an `int` can hold",
                 ),
             );
@@ -299,7 +299,7 @@ fn negate_magnitude(magnitude: u64) -> Option<i64> {
     i64::try_from(magnitude).ok().and_then(i64::checked_neg)
 }
 
-/// `Foo::BAR` in type position — ADR 0047 §§ 2-3's one atom with two meanings,
+/// `Foo::BAR` in type position — `rule:types/constant-in-type-position` and `rule:types/enum-case-type`'s one atom with two meanings,
 /// told apart here because telling them apart is what resolution is for.
 ///
 /// An **enum** name gives § 3's [`crate::ty::Ty::EnumCase`]: a narrowed subtype
@@ -349,7 +349,7 @@ fn lower_member_type(
     lower_class_const_type(&qname, &case, span, env)
 }
 
-/// ADR 0047 § 2's fold, for a name that resolved to something other than an
+/// `rule:types/constant-in-type-position`'s fold, for a name that resolved to something other than an
 /// enum.
 ///
 /// A **declared** class's constants come from [`crate::consts::ConstTable`],
@@ -397,7 +397,7 @@ fn lower_class_const_type(
             let value = *value;
             env.interner.int_literal(value)
         }
-        // ADR 0047 § 2's literal types are `string` and `int`; a `bool` or
+        // `rule:types/constant-in-type-position`'s literal types are `string` and `int`; a `bool` or
         // `float` constant is folded (`crate::defaults` reads the value) but
         // has no literal type to *be*, so it is the same mistake as an array
         // constant here.
@@ -413,7 +413,7 @@ fn lower_class_const_type(
     }
 }
 
-/// ADR 0047 § 2's "a constant backed by a non-scalar type is not eligible, and
+/// `rule:types/constant-in-type-position`'s "a constant backed by a non-scalar type is not eligible, and
 /// using one this way is a diagnostic naming the eligible types."
 fn report_not_const(span: Span, qname: &nvs_hir::QName, name: &str, env: &mut Env<'_>) -> TypeId {
     env.diags.report(
@@ -423,7 +423,7 @@ fn report_not_const(span: Span, qname: &nvs_hir::QName, name: &str, env: &mut En
         )
         .with_primary(span, "no literal type to fold to")
         .with_help(
-            "ADR 0047 § 2 folds a class constant used as a type to that value's own literal \
+            "`rule:types/constant-in-type-position` folds a class constant used as a type to that value's own literal \
              type, so only a `string` or `int` constant may be written here — write the base \
              type instead",
         ),
@@ -559,7 +559,7 @@ fn report_not_generic(qname: &nvs_hir::QName, span: Span, env: &mut Env<'_>) {
         )
         .with_primary(span, "type arguments written here")
         .with_help(
-            "user-declared type parameters are deferred (ADR 0007 § 1); only a \
+            "user-declared type parameters are deferred (`rule:types/declaration`); only a \
              compiler-owned generic declaration may be written with one — \
              `Iterable<T>`/`Iterator<T>` (`rule:iteration/concrete-generic-implements`) and \
              `docs/spec/01-core-library.md` § 9's `Core` collections",
@@ -571,7 +571,7 @@ fn report_not_generic(qname: &nvs_hir::QName, span: Span, env: &mut Env<'_>) {
 /// declaration — `None` for every other name, including the non-generic
 /// reserved interfaces, which take the ordinary path below.
 ///
-/// Two rosters, because ADR 0007 § 3 makes "which name may carry a list" a
+/// Two rosters, because `rule:types/grammar` makes "which name may carry a list" a
 /// resolution question and there are two kinds of compiler-owned answer.
 /// [`nvs_stdlib::registry::GENERIC_CLASSES`] holds spec § 9's collections,
 /// named in full because `Core\ObjectSet` is the only spelling there is.
@@ -802,7 +802,7 @@ mod tests {
 
     #[test]
     fn a_class_name_resolves_to_a_class_type() {
-        // A bare `type Probe = Foo;` is itself rejected by ADR 0015 § 6 (a
+        // A bare `type Probe = Foo;` is itself rejected by `rule:types/alias-is-never-a-bare-class` (a
         // type alias aliasing a single bare class), so this wraps it in
         // `array<...>` to exercise class-name resolution instead.
         let (id, interner, diags) = lower_alias("<?nvs\nclass Foo {}\ntype Probe = array<Foo>;\n");
@@ -818,7 +818,7 @@ mod tests {
         // Nothing declares `Core\Digest`, so the symbol table has no entry for
         // it and the `is_core()` arm below used to intern a `Ty::Class` — which
         // no registry row's `Ty::Enum` unified with, though both print the same
-        // qname. `array<...>` for the same ADR 0015 § 6 reason as above.
+        // qname. `array<...>` for the same `rule:types/alias-is-never-a-bare-class` reason as above.
         let (id, interner, diags) = lower_alias("<?nvs\ntype Probe = array<Core\\Digest>;\n");
         assert!(!diags.has_errors(), "{diags:?}");
         let Ty::Array(elem) = interner.get(id) else {

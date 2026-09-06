@@ -1,4 +1,4 @@
-//! Array literals, element types at depth, and what may be a subscript — ADR 0007 § 5.
+//! Array literals, element types at depth, and what may be a subscript — `rule:types/arrays`.
 //!
 //! Moved out of `nvs_types::check`'s inline `mod tests`; every test keeps its
 //! own name and body. See `tests/common/mod.rs` for the shared fixtures.
@@ -51,7 +51,7 @@ fn a_correctly_typed_nested_array_literal_is_fine() {
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
-// ADR 0007 § 5: an array key is `int`, `uint`, or `string`; a `float`,
+// `rule:types/arrays`: an array key is `int`, `uint`, or `string`; a `float`,
 // `bool`, or `null` key is rejected outright.
 
 #[test]
@@ -122,7 +122,7 @@ fn an_int_subscript_key_is_fine() {
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
-/// ADR 0069 § 2: PHP's array union operator is removed rather than migrated,
+/// `rule:types/array-combination`: PHP's array union operator is removed rather than migrated,
 /// and the diagnostic names the member that replaces it.
 #[test]
 fn two_arrays_do_not_combine_with_plus() {

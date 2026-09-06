@@ -1,11 +1,10 @@
-//! Statements: every control-flow form, `echo`, `unset`, ADR 0007 § 3.1's
+//! Statements: every control-flow form, `echo`, `unset`, `rule:types/grammar`.1's
 //! typed local declaration and § 3.3's destructuring — and the three places
 //! the parser has to guess and take it back.
 //!
-//! `if`/`elseif`/`else`, `while`, `do`/`while`, `for`, `foreach` with ADR 0007
-//! § 3.2's mandatory typed bindings, `switch`, `break`/`continue`,
+//! `if`/`elseif`/`else`, `while`, `do`/`while`, `for`, `foreach` with `rule:types/grammar`.2's mandatory typed bindings, `switch`, `break`/`continue`,
 //! `try`/`catch`/`finally`, and the statement-shaped rejects (`global`,
-//! `goto`, function-scope `static`) are all here, as is ADR 0037's `var $x =
+//! `goto`, function-scope `static`) are all here, as is `rule:types/var-inference`'s `var $x =
 //! e;`.
 //!
 //! # The three backtracking sites
@@ -130,7 +129,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 kind: StmtKind::Empty,
             },
             TokenKind::LBrace if self.at_object_literal_in_block_position() => {
-                // ADR 0036 § 2: a statement-initial `{` already means a
+                // `rule:types/object-literal`: a statement-initial `{` already means a
                 // block — a discarded object-literal statement needs
                 // `({...});` instead.
                 let expr = self.parse_object_literal_needs_parens();
@@ -192,7 +191,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             TokenKind::Keyword(Keyword::Var) => self.parse_var_local_decl(start),
             TokenKind::LBracket => self.parse_stmt_maybe_destructure(start),
             TokenKind::AttributeOpen => self.parse_attributed_decl_stmt(start),
-            // ADR 0125 § 1: `class<` at statement start is a typed local
+            // `rule:types/class-reference`: `class<` at statement start is a typed local
             // holding a class reference, not a declaration — the one place the
             // two spellings meet, and one token of lookahead separates them
             // (`Parser::at_class_reference`). `abstract`/`final` never precede
@@ -225,7 +224,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             // declaration with no initializer — `(int)` parses fine as a
             // one-member parenthesized union, so `parse_stmt_maybe_local_decl`'s
             // trial parse would otherwise commit to that reading and never
-            // report ADR 0034's diagnostic for this one, statement-start
+            // report `rule:types/no-legacy-cast`'s diagnostic for this one, statement-start
             // spelling of the rejected cast. The seven legacy-cast keywords
             // never legitimately need redundant parens around a bare type,
             // so this shape is routed to the expression-statement path
@@ -328,8 +327,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         list
     }
 
-    /// `rule:iteration/for-init-clause`: a `for` header's init clause is either one ADR 0007
-    /// § 3.1 typed local declaration or an expression list, never both. Both
+    /// `rule:iteration/for-init-clause`: a `for` header's init clause is either one `rule:types/grammar`.1 typed local declaration or an expression list, never both. Both
     /// shapes are a comma-separated run of items, so the clause is parsed as
     /// one — each item through [`Self::try_parse_for_decl`] — and a run that
     /// turns out to hold two declarations or one of each is § 3's diagnostic
@@ -448,7 +446,7 @@ impl<'src, 'd> Parser<'src, 'd> {
 
     /// The tail of a `for` init declaration, both spellings, minus the `;` —
     /// the header's own first semicolon terminates it and
-    /// [`Self::parse_for`] is what expects that. `ty: None` is ADR 0037's
+    /// [`Self::parse_for`] is what expects that. `ty: None` is `rule:types/var-inference`'s
     /// `var`, whose initializer is mandatory for the same reason it is at
     /// statement position: there is nothing else to infer the type from.
     fn parse_for_decl_tail(&mut self, start: Span, ty: Option<Type>) -> Stmt {
@@ -492,7 +490,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     /// One `'inout'? type '$' identifier` binding — the shared tail of both
-    /// `foreach`-target alternatives (ADR 0007 § 3.2, `rule:statements/inout-is-the-by-reference-spelling`). The
+    /// `foreach`-target alternatives (`rule:types/grammar`.2, `rule:statements/inout-is-the-by-reference-spelling`). The
     /// marker is parsed here and reported back to the caller, since only the
     /// *value* position may carry one; the key position never calls this
     /// with a marker present without the caller first checking for one.
@@ -510,7 +508,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 )
                 .with_primary(
                     span,
-                    "every `foreach` binding declares a type (ADR 0007 § 3.2)",
+                    "every `foreach` binding declares a type (`rule:types/grammar`.2)",
                 ),
             );
             None
@@ -523,7 +521,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         (ForeachBinding { ty, name, span }, inout)
     }
 
-    /// `foreach (subject as key? value) body`, ADR 0007 § 3.2. The header's
+    /// `foreach (subject as key? value) body`, `rule:types/grammar`.2. The header's
     /// own `as` is looked for explicitly after a suppressed-`as` subject
     /// parse (see [`Self::parse_expr_no_top_as`]), and the first binding is
     /// re-read as the key only once a `=>` confirms it was one — an `inout`
@@ -857,7 +855,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     // ------------------------------------------------------------------------
-    // ADR 0007 § 3.1: typed local declaration, vs. an ordinary expression
+    // `rule:types/grammar`.1: typed local declaration, vs. an ordinary expression
     // statement that happens to start with the same tokens (a class name
     // used as a type, versus the same name used as a constant fetch or a
     // static-call receiver). The one deciding signal is structural — "the
@@ -896,7 +894,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     // ------------------------------------------------------------------------
-    // ADR 0037: `var $name = expr;` — the local's type is never written; it
+    // `rule:types/var-inference`: `var $name = expr;` — the local's type is never written; it
     // is `value`'s own checked type, fixed forever exactly as if that type
     // had been spelled out. Unlike the typed spelling above, the initializer
     // is mandatory here — there is nothing to infer a type from otherwise —
@@ -925,7 +923,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     // ------------------------------------------------------------------------
-    // ADR 0007 § 3.3: destructuring statement
+    // `rule:types/grammar`.3: destructuring statement
     // ------------------------------------------------------------------------
 
     /// `list(...)` is rejected in favour of `[...]` — `rule:expressions/bracket-destructuring`. It is still
@@ -1072,7 +1070,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 )
                 .with_primary(
                     span,
-                    "every destructuring leaf declares a type (ADR 0007 § 3.3)",
+                    "every destructuring leaf declares a type (`rule:types/grammar`.3)",
                 ),
             );
             None

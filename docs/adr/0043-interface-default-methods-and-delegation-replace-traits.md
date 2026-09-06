@@ -28,7 +28,7 @@
 > default or delegated source and the class does not itself override it, that is a compile error — there is
 > no `insteadof`, because there is no implicit winner to pick between two equally-valid sources. `trait`,
 > class-body `use Trait;`, and `insteadof` are removed from the grammar outright, each a parse-time
-> diagnostic naming the replacement — the same shape [ADR 0034](0034-legacy-cast-syntax-rejected.md) already
+> diagnostic naming the replacement — the same shape `rule:types/no-legacy-cast` already
 > gives legacy casts. `nvs convert` (M11) has a fully mechanical rewrite for the common, stateless trait
 > shape and for the stateful shape; only PHP's per-class-copied trait *static* property and a trait method
 > that calls back into an *unrelated* method of its host class have no mechanical destination, named
@@ -83,7 +83,7 @@ class Foo { use A, B { A::hello insteadof B; } }                // rejected
 
 Each of the three produces a parse-time diagnostic — `E_TRAIT_NOT_SUPPORTED` — naming §§ 2–4 below by name
 (default/private interface methods for shared behavior, `by` delegation for shared state), the same shape
-[ADR 0034](0034-legacy-cast-syntax-rejected.md) already gives legacy casts and
+`rule:types/no-legacy-cast` already gives legacy casts and
 `rule:statements/require-is-the-only-inclusion-construct` gives `include`/`require_once`. `nvs-syntax`'s AST loses
 `TraitDecl`, `UseTraitMember`, `TraitAdaptation`/`TraitAdaptationKind`, and `TraitMethodRef` — there is no
 node left to carry, since none of the three constructs produces one any more.

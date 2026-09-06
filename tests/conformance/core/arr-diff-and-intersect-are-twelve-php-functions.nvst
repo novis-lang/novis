@@ -1,5 +1,5 @@
 --TEST--
-Core\Arr::diff and ::intersect ask one question with SetOn, {by} and {comparator}, comparing by strict identity, per ADR 0069 § 3
+Core\Arr::diff and ::intersect ask one question with SetOn, {by} and {comparator}, comparing by strict identity, per `rule:types/preserve-keys`
 --FILE--
 <?nvs
 // Two members plus a three-case enum replace twelve `array_diff*` and
@@ -22,7 +22,7 @@ echo Core\Json::encode(Core\Arr::intersect($a, $b, {on: Core\SetOn::Keys})), "\n
 echo Core\Json::encode(Core\Arr::diff($a, $b, {on: Core\SetOn::Both})), "\n";
 echo Core\Json::encode(Core\Arr::intersect($a, $b, {on: Core\SetOn::Both})), "\n";
 
-// ADR 0069 § 3: the comparison is strict identity, never PHP's string cast, so
+// `rule:types/preserve-keys`: the comparison is strict identity, never PHP's string cast, so
 // `"1"` and `1` are two elements. `array_diff` answers `[]` for this pair.
 array<string|int> $spellings = ["1", 2];
 array<string|int> $numbers = [1, "2"];

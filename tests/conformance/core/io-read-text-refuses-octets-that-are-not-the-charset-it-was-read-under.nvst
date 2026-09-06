@@ -1,5 +1,5 @@
 --TEST--
-Core\IO::readText throws naming the offset of the first sequence the charset cannot read, with the bound asserted on both sides of the one octet that decides it — the same file read under a charset that can spell it still answers, and `read` never asks, so what the throw is about is the conversion and not the path — spec § 14, ADR 0009 § 3
+Core\IO::readText throws naming the offset of the first sequence the charset cannot read, with the bound asserted on both sides of the one octet that decides it — the same file read under a charset that can spell it still answers, and `read` never asks, so what the throw is about is the conversion and not the path — spec § 14, `rule:types/conversion`
 --FILE--
 <?nvs
 // `cafe\n` is five ASCII octets and reads. One character later the file is

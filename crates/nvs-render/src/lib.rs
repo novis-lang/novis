@@ -251,11 +251,11 @@ pub enum Scalar {
     Bool(bool),
     /// `int`.
     Int(i64),
-    /// `uint` — [ADR 0007](/docs/adr/0007-explicit-type-system.md) § 4.
+    /// `uint` — `rule:types/arithmetic`.
     Uint(u64),
     /// `float`.
     Float(f64),
-    /// `decimal` — [ADR 0054](/docs/adr/0054-decimal-scalar-type.md),
+    /// `decimal` — `rule:types/decimal`,
     /// carried as the exact text the value renders as rather than as an `f64`,
     /// which is the whole reason that type exists.
     Decimal(String),
@@ -268,7 +268,7 @@ pub enum Scalar {
         /// The value's own length in bytes, before substitution changed it.
         bytes: usize,
     },
-    /// `bytes` — [ADR 0009](/docs/adr/0009-string-and-bytes.md)'s
+    /// `bytes` — `rule:types/bytes`'s
     /// binary scalar, held raw. A rendering decides how to show them; the
     /// model does not, because they are not text and § 5's substitution is
     /// about text.
@@ -340,7 +340,7 @@ pub enum Node {
         case: String,
     },
     /// A closure, by the signature it declares — never a body, and never
-    /// captured state ([ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md)).
+    /// captured state (`rule:types/closure-literal`).
     Closure {
         /// How many parameters it declares.
         parameters: usize,

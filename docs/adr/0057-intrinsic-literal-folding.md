@@ -23,7 +23,7 @@
 - Several `Core` surfaces accept a string that is not data but a *program*: a pattern, a format, a URI. In
   PHP every one of these is parsed on first use, every request, and a syntax error in one surfaces at run
   time on whichever code path happens to reach it — often the error path, often in production.
-- Novis already has every ingredient. [ADR 0007](0007-explicit-type-system.md) makes types known statically;
+- Novis already has every ingredient. `rule:types/declaration` makes types known statically;
   `rule:attributes/inert-metadata` already defines "compile-time constant" precisely
   and already resolves a `Core` accessor during checking;
   [ADR 0042](0042-on-disk-artifact-cache-format.md) already stores per-unit compiled artifacts. What is
@@ -32,7 +32,7 @@
   compile time is what lets `nvs check` report — or an operator's `nvs.toml` refuse — a pattern that can be
   made to backtrack. That is a security property, not an optimisation, and it is unavailable without this
   mechanism.
-- The alternative shape considered and rejected in [ADR 0054](0054-decimal-scalar-type.md)'s neighbourhood
+- The alternative shape considered and rejected in `rule:types/decimal`'s neighbourhood
   was *new syntax* — regex literals, date literals. Folding gets nearly all of the benefit with none of the
   grammar cost and none of the ambiguity (`/` is division).
 
@@ -52,7 +52,7 @@ The initial list:
 | `Core\Regex::compile` | pattern syntax; engine tier ([ADR 0056](0056-regex-engine-policy.md) § 3) | the compiled program |
 | `Core\Uri::parse` | RFC/WHATWG well-formedness | the parsed components |
 | `Core\Time\DateTime::format` / `Core\Time::parse` | CLDR pattern syntax | the parsed format plan |
-| `Core\Time\Duration::parse` | the duration grammar ([ADR 0070](0070-duration-literals.md)) | the resolved nanosecond count |
+| `Core\Time\Duration::parse` | the duration grammar (`rule:types/duration-literal`) | the resolved nanosecond count |
 | `Core\Str::format` | format-string syntax; placeholder count and types against the argument list | the parsed format plan |
 | `Core\Db\Connection`'s and `Core\Db\Transaction`'s `query` / `queryAs` / `execute` | placeholder count and positional-vs-named consistency against a literal params array ([ADR 0067](0067-core-db.md) § 10) | nothing: the vendors' SQL is not parsed, and § 10 says why |
 

@@ -70,7 +70,7 @@ fn no_member_writes_its_own_allocation_guard() {
 // One check per `string` argument
 // ============================================================================
 
-/// A `string`'s tag **is** ADR 0009's UTF-8 guarantee, so a reader that has
+/// A `string`'s tag **is** `rule:types/bytes`'s UTF-8 guarantee, so a reader that has
 /// already checked the tag may not then walk the payload to re-derive it.
 ///
 /// The banned shape is one chain: [`nvs_runtime::Value::as_str_bytes`], which
@@ -118,7 +118,7 @@ fn no_member_revalidates_a_string_argument() {
     assert!(
         offenders.is_empty(),
         "these sites read a `string`'s bytes and then re-validate them as UTF-8: {offenders:?}. \
-         The tag already is that guarantee (ADR 0009 § 3), so `Value::as_text` is the whole read \
+         The tag already is that guarantee (`rule:types/conversion`), so `Value::as_text` is the whole read \
          — `crates/nvs-stdlib/src/str.rs`'s `text` is the shape to copy, and it states why the \
          O(n) pass is not worth keeping `for safety`."
     );

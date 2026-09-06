@@ -22,7 +22,7 @@
 //! The reason is that each of those is a **second spelling of one value**, and
 //! a program that keys a cache, a rate limiter or an audit log on the text
 //! while authorizing on the UUID then has two strings that are one identity.
-//! ADR 0007 § 2's `string → int` row takes exactly this line — the whole string
+//! `rule:types/conversion`'s `string → int` row takes exactly this line — the whole string
 //! must be the literal, with no leading-garbage rule — and this is the same
 //! decision at the same kind of boundary. A program holding one of the other
 //! three forms writes the trim it means.
@@ -303,7 +303,7 @@ fn read(text: &str) -> Option<Uuid> {
 /// # Errors
 ///
 /// A [`Fault::fatal`] naming the member, for [`uuid_of`]'s reason — and only
-/// that one: a `string` is guaranteed-valid UTF-8 (ADR 0009), and the tag
+/// that one: a `string` is guaranteed-valid UTF-8 (`rule:types/bytes`), and the tag
 /// [`Value::as_text`] checks *is* that guarantee, so nothing here re-derives it.
 fn text_of<'a>(args: &'a [Value], member: &str) -> Result<&'a str, Fault> {
     args[0].as_text().ok_or_else(|| {
@@ -523,7 +523,7 @@ mod tests {
                 .expect("`toString` answers with a `string`")
                 .to_vec(),
         )
-        .expect("ADR 0009 guarantees a `string` is UTF-8");
+        .expect("`rule:types/bytes` guarantees a `string` is UTF-8");
         #[expect(
             unsafe_code,
             reason = "this frame owns the reference each helper built, and \

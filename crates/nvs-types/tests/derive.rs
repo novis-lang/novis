@@ -85,7 +85,7 @@ class Handle {
         "{diags:?}"
     );
 
-    // `bytes` is not a `string` (ADR 0009) and JSON has no spelling for it.
+    // `bytes` is not a `string` (`rule:types/bytes`) and JSON has no spelling for it.
     let diags = check_src(
         "<?nvs
 #[Core\\Json\\Derive]
@@ -335,7 +335,7 @@ class Handle {
     assert!(!diags.has_errors(), "{diags:?}");
 
     // And they disagree the other way round on `bytes`, which is a `BLOB`
-    // column and has no JSON spelling at all (ADR 0009). `decimal` and § 9's
+    // column and has no JSON spelling at all (`rule:types/bytes`). `decimal` and § 9's
     // date and time classes are columns too.
     let scalars = "<?nvs
 #[Core\\{0}\\Derive]

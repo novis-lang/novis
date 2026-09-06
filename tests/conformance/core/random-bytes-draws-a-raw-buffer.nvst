@@ -1,17 +1,17 @@
 --TEST--
-Core\Random::bytes draws a raw buffer of the count it is given, two draws differ, and a zero-byte draw throws — spec § 11, ADR 0009 §§ 1 and 3, ADR 0063 R4
+Core\Random::bytes draws a raw buffer of the count it is given, two draws differ, and a zero-byte draw throws — spec § 11, `rule:types/bytes` and `rule:types/conversion`, ADR 0063 R4
 --FILE--
 <?nvs
 // A random answer cannot be asserted, so every line pins an invariant of the
 // draw rather than the draw itself.
 
-// Spec § 11: `bytes(uint $count): bytes` counts octets, and ADR 0009 § 1 makes
+// Spec § 11: `bytes(uint $count): bytes` counts octets, and `rule:types/bytes` makes
 // that buffer a primitive with its own length member rather than an array.
 var $key = Core\Random::bytes(16);
 echo Core\Bytes::length($key), "\n";
 echo Core\Bytes::length(Core\Random::bytes(1)), "\n";
 
-// ADR 0009 § 3: `bytes as string` is *checked*, and an arbitrary draw is not
+// `rule:types/conversion`: `bytes as string` is *checked*, and an arbitrary draw is not
 // valid UTF-8, so the only way to compare two buffers is to render them.
 // Two 32-byte draws colliding is a 2^-256 event, not a flake.
 var $a = Core\Encoding::toHex(Core\Random::bytes(32));

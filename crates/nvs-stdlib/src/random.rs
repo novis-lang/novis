@@ -558,7 +558,7 @@ nvs_runtime::nvs_helper! {
     /// spelling, and the two exist side by side rather than one being the
     /// other's `2 * n` special case. Nothing here can be asserted by value, so
     /// a case pins `Core\Bytes::length` of the answer and that two draws
-    /// differ; ADR 0009 § 3 is why it renders through `Core\Encoding::toHex`
+    /// differ; `rule:types/conversion` is why it renders through `Core\Encoding::toHex`
     /// to compare them rather than reading the buffer as a `string`.
     ///
     /// **Zero bytes throws** (ADR 0063 R4), for `token`'s reason applied one
@@ -681,8 +681,7 @@ nvs_runtime::nvs_helper! {
     /// a possibly-empty array for an element is not one.
     ///
     /// The **value**, never the key — PHP's `array_rand` answers with a key,
-    /// which is the shape that makes `$a[array_rand($a)]` the idiom. ADR 0007
-    /// § 5 stores every key as a string, so answering with one would hand back
+    /// which is the shape that makes `$a[array_rand($a)]` the idiom. `rule:types/arrays` stores every key as a string, so answering with one would hand back
     /// a `string` for an `array<T>` and lose the type the caller had.
     fn nvs_core_random_pick(ctx, args: [1]) {
         let subject = subject(args, "pick")?;
@@ -791,7 +790,7 @@ mod tests {
                 .expect("the member answered with a `string`")
                 .to_vec(),
         )
-        .expect("ADR 0009 guarantees a `string` is UTF-8");
+        .expect("`rule:types/bytes` guarantees a `string` is UTF-8");
         #[expect(
             unsafe_code,
             reason = "the helper handed back the one reference it built, so \

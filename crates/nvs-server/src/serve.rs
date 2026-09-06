@@ -20,7 +20,7 @@
 //! roots would have to grow its own registry of live connections and its own
 //! shutdown, both of which the task tree already is.
 //!
-//! **What it spends**, per `rule:programs/memory-priority`(/docs/adr/0004-memory-for-simplicity.md):
+//! **What it spends**, per `rule:programs/memory-priority`:
 //! one coroutine stack and one `hyper` connection state per connection being
 //! served, plus the accepting task's own, plus — while a request is actually
 //! running on one of them — that request's isolate, which is one `Ctx` and one

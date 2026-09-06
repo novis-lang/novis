@@ -1,10 +1,10 @@
 //! How a literal takes its type from the position it appears in, and what its
 //! own text has to survive first.
 //!
-//! Three rules meet here, one per literal shape. ADR 0007 § 4 bounds an
+//! Three rules meet here, one per literal shape. `rule:types/arithmetic` bounds an
 //! integer literal's magnitude: the bare digit run either fits `int`'s
 //! `0..=i64::MAX` half, `uint`'s full range where a `uint` is expected, or
-//! neither ([`int_literal_digits`]). ADR 0054 §§ 1-4 place a fractional
+//! neither ([`int_literal_digits`]). `rule:types/decimal`, `rule:types/numeric-literal-placement`, `rule:types/arithmetic` and `rule:types/conversion` place a fractional
 //! literal at `decimal` or `float` by the position rather than by its own
 //! spelling ([`wants_decimal`], [`record_decimal_placement`]) and bound the
 //! mantissa and scale it may carry. A string literal's escape grammar and a
@@ -12,17 +12,17 @@
 //! their complaints reported here, once per literal, so a malformed escape is
 //! a diagnostic rather than a lowering-time surprise.
 //!
-//! ADR 0047 §§ 1 and 4 add a fourth rule of the same shape, and
+//! `rule:types/literal-types` add a fourth rule of the same shape, and
 //! [`placed_literal`] is all of it: a `string` or `int` literal types as its
 //! own singleton exactly where the position names that singleton, and as its
-//! plain base everywhere else. That is what ADR 0047's *Verification* M2 row
+//! plain base everywhere else. That is what `rule:types/literal-types`'s *Verification* M2 row
 //! asks for — without it nothing a caller writes ever satisfies a literal type
 //! except through an `as` — and it is why § 4's free-widening rows in
 //! [`super::assign`] are the only other half needed: every other position
 //! already sees the base. [`super::members`] applies the same helper to an
 //! enum case, which is § 3's atom rather than § 1's.
 //!
-//! [`check_array_literal`] is ADR 0007 § 5's half of the same idea for the one
+//! [`check_array_literal`] is `rule:types/arrays`'s half of the same idea for the one
 //! composite literal: an array literal checked against an `array<T>` target
 //! checks every element directly against `T`, never inferring an element type
 //! and comparing it afterwards.
@@ -34,12 +34,12 @@
 
 use super::*;
 
-/// ADR 0047 § 4's producer half: the literal atom `expected` names that this
+/// `rule:types/literal-types`'s producer half: the literal atom `expected` names that this
 /// literal *is*, or `None` where the position names none — in which case the
 /// caller returns the base type, exactly as it did before this ADR.
 ///
 /// `expected` is searched one level deep, the atom itself or the members of a
-/// union, which is the whole of it: ADR 0007 § 3 canonicalizes a union flat,
+/// union, which is the whole of it: `rule:types/grammar` canonicalizes a union flat,
 /// so there is no deeper level for a literal atom to hide in.
 ///
 /// `is_this_literal` is what makes this shared by three atom kinds — the two
@@ -62,7 +62,7 @@ pub(crate) fn placed_literal(
     }
 }
 
-/// [`placed_literal`] for ADR 0047 § 1's string atom.
+/// [`placed_literal`] for `rule:types/literal-types`'s string atom.
 ///
 /// Two passes on purpose: the first asks the cheap question — does this
 /// position name a string literal type at all — and only then is the literal
@@ -83,8 +83,8 @@ fn placed_string_literal(span: Span, expected: Option<TypeId>, env: &Env<'_>) ->
     )
 }
 
-/// [`placed_literal`] for ADR 0007 § 3's two `bool` singletons, which
-/// [`Ty::True`] records are ADR 0047 § 1's rule read on `bool`'s two values.
+/// [`placed_literal`] for `rule:types/grammar`'s two `bool` singletons, which
+/// [`Ty::True`] records are `rule:types/literal-types`'s rule read on `bool`'s two values.
 ///
 /// One pass, unlike [`placed_string_literal`]: the value is the token itself,
 /// already decoded by the parser, so there is nothing to cook and no reason to
@@ -98,7 +98,7 @@ fn placed_bool_literal(value: bool, expected: Option<TypeId>, env: &Env<'_>) -> 
 /// `true`/`false` — [`super::infer`]'s `ExprKind::Bool` arm.
 ///
 /// A bare `bool` everywhere but a position that names this exact value, which
-/// is ADR 0047 § 4's placement rule and the reason `var $b = true;` still
+/// is `rule:types/literal-types`'s placement rule and the reason `var $b = true;` still
 /// infers `bool` rather than a type only `true` could ever satisfy.
 pub(crate) fn infer_bool_literal(
     value: bool,
@@ -112,9 +112,8 @@ pub(crate) fn infer_bool_literal(
 /// the question [`super::args::check_generic_args`] asks about an argument it
 /// had no parameter type for yet, and which that function's docs answer for.
 ///
-/// The literals of this module's four rules, the negation ADR 0047 § 1 makes
-/// one atom with its operand ([`negated_literal_expectation`]), and ADR 0007
-/// § 5's array literal, whose elements are checked against the target's `T`
+/// The literals of this module's four rules, the negation `rule:types/literal-types` makes
+/// one atom with its operand ([`negated_literal_expectation`]), and `rule:types/arrays`'s array literal, whose elements are checked against the target's `T`
 /// rather than inferred and compared afterwards ([`check_array_literal`]) —
 /// so `[7, 7]` at a generic `array<uint>` is as unplaced as the `7` in it,
 /// and leaving it out would have left D33 intact one level down. Checking one
@@ -176,8 +175,7 @@ pub(crate) fn unplaced_expectation(expr: &Expr, env: &mut Env<'_>) -> Option<Typ
 /// [`super::operators::infer_conversion`]'s § 6 refusal is that caller: by the
 /// time it runs, a literal the target does not accept has already widened back
 /// to its base, taking the only record of which value it was with it. `None`
-/// for every expression that is not one of § 1's two literals or ADR 0007
-/// § 3's two `bool` ones, including a malformed one — a literal that does not
+/// for every expression that is not one of § 1's two literals or `rule:types/grammar`'s two `bool` ones, including a malformed one — a literal that does not
 /// survive its own text has no singleton to be, exactly as
 /// [`infer_str_literal`] and [`infer_int_literal`] already decide.
 pub(crate) fn literal_self_type(expr: &Expr, env: &mut Env<'_>) -> Option<TypeId> {
@@ -200,9 +198,9 @@ pub(crate) fn literal_self_type(expr: &Expr, env: &mut Env<'_>) -> Option<TypeId
 }
 
 /// The expectation a `-e` operand inherits, and `None` for every other unary
-/// operator — which is what [`super::infer`]'s arm passed before ADR 0047.
+/// operator — which is what [`super::infer`]'s arm passed before `rule:types/literal-types`.
 ///
-/// ADR 0047 § 1's int literal atom carries its own sign, so `-1` is *one*
+/// `rule:types/literal-types`'s int literal atom carries its own sign, so `-1` is *one*
 /// atom in type position; a `-1` expression is a negation wrapping the bare
 /// digit run `1`. Placing the operand against the negated value is what lets
 /// the two meet, and [`negated_literal_result`] puts the sign back on. Without
@@ -227,7 +225,7 @@ pub(crate) fn negated_literal_expectation(
     Some(interner.int_literal(value.checked_neg()?))
 }
 
-/// The type `-e` has when its operand took ADR 0047 § 1's int literal type —
+/// The type `-e` has when its operand took `rule:types/literal-types`'s int literal type —
 /// the literal of the negated value, so `-1` placed at the type `-1` stays
 /// that type rather than widening to `int` at the operator. Any other operand
 /// type, and any other operator, is returned unchanged.
@@ -247,7 +245,7 @@ pub(crate) fn negated_literal_result(
         .map_or(inner, |negated| interner.int_literal(negated))
 }
 
-/// ADR 0007 § 2's "a numeric literal is untyped until placed" applied to the
+/// `rule:types/conversion`'s "a numeric literal is untyped until placed" applied to the
 /// one placement a binary operator offers: its *other* operand.
 ///
 /// `uint` is the only type this changes anything for, and it changes
@@ -287,7 +285,7 @@ pub(crate) fn uint_operand_expectation(
 
 /// `123` — [`super::infer`]'s `ExprKind::Int` arm.
 ///
-/// ADR 0007 § 4: "An integer literal that does not fit `int` is legal only
+/// `rule:types/arithmetic`: "An integer literal that does not fit `int` is legal only
 /// where a `uint` is expected, and is otherwise a diagnostic saying exactly
 /// that." The literal's own digits are never negative — a leading `-` is a
 /// separate, wrapping `ExprKind::Unary` node, which already produces an
@@ -296,7 +294,7 @@ pub(crate) fn uint_operand_expectation(
 /// *does* need one: whether the bare digit run fits `int`'s `0..=i64::MAX`
 /// half, `uint`'s full `0..=u64::MAX` range, or neither at all.
 ///
-/// Placed at `decimal` instead, ADR 0054 §§ 3-4 apply: an `int`/`uint` is
+/// Placed at `decimal` instead, `rule:types/arithmetic` and `rule:types/conversion` apply: an `int`/`uint` is
 /// exact in a 96-bit mantissa, so the literal needs only that wider bound
 /// checked rather than `int`'s 64-bit one.
 pub(crate) fn infer_int_literal(
@@ -312,7 +310,7 @@ pub(crate) fn infer_int_literal(
     let wants_uint = expected.is_some_and(|id| matches!(env.interner.get(id), Ty::Uint));
     let (radix, digits) = int_literal_digits(env.src, span);
     let parsed = u64::from_str_radix(&digits, radix);
-    // ADR 0047 § 1, ahead of `uint`'s placement below because no position
+    // `rule:types/literal-types`, ahead of `uint`'s placement below because no position
     // names both: a literal type is a singleton, and `uint` is not one. The
     // digit run is never negative here — a leading `-` is the wrapping
     // `ExprKind::Unary` [`negated_literal_expectation`] handles.
@@ -365,7 +363,7 @@ pub(crate) fn infer_int_literal(
 
 /// `19.99` — [`super::infer`]'s `ExprKind::Float` arm.
 ///
-/// ADR 0054 § 2: a literal carrying a fractional part or an exponent is
+/// `rule:types/numeric-literal-placement`: a literal carrying a fractional part or an exponent is
 /// untyped until placed, and takes `decimal` or `float` from the type of the
 /// position it appears in. `float` is the answer everywhere else, including
 /// `var $x = 19.99;`, which has no target at all.
@@ -402,7 +400,7 @@ pub(crate) fn infer_str_literal(span: Span, expected: Option<TypeId>, env: &mut 
         let run_escapes = !crate::string_lit::heredoc_is_nowdoc(raw);
         check_heredoc_run_issues(&shape.indent, shape.body, true, true, run_escapes, env);
     }
-    // ADR 0047 § 1, after the escape grammar has had its say: a literal that
+    // `rule:types/literal-types`, after the escape grammar has had its say: a literal that
     // does not survive its own text has no singleton to be, and reporting the
     // malformed escape once is what this arm is for.
     placed_string_literal(span, expected, env).unwrap_or_else(|| env.interner.string())
@@ -480,18 +478,18 @@ pub(crate) fn infer_interpolated(
     qualified_scalar(false, tainted, secret, env.interner)
 }
 
-/// ADR 0054 § 1's mantissa bound: 96 bits, unsigned, with the sign carried
+/// `rule:types/decimal`'s mantissa bound: 96 bits, unsigned, with the sign carried
 /// beside it rather than in it.
 const MAX_DECIMAL_MANTISSA: u128 = (1u128 << 96) - 1;
 
-/// ADR 0054 § 1's scale bound: the number of digits after the point.
+/// `rule:types/decimal`'s scale bound: the number of digits after the point.
 const MAX_DECIMAL_SCALE: i32 = 28;
 
 /// Records that the numeric literal at `span` was placed at `decimal`, and
 /// answers that type.
 ///
 /// The recording is what lets `nvs_ir::lower` fold the literal from its own
-/// **digits** rather than through an `f64`. It needs it because ADR 0054 § 2's
+/// **digits** rather than through an `f64`. It needs it because `rule:types/numeric-literal-placement`'s
 /// placing target is not always visible there: a declared type reaches
 /// lowering as `nvs_ir::ty::Ty`, which erases an array's element type, so
 /// `array<decimal> $prices = [19.99];` would otherwise put a `float` in the
@@ -505,12 +503,12 @@ pub(crate) fn record_decimal_placement(span: Span, env: &mut Env<'_>) -> TypeId 
 }
 
 /// Whether the position a literal is being placed in wants a `decimal` —
-/// ADR 0054 § 2's "untyped until placed" rule, asked once per literal arm.
+/// `rule:types/numeric-literal-placement`'s "untyped until placed" rule, asked once per literal arm.
 pub(crate) fn wants_decimal(expected: Option<TypeId>, env: &Env<'_>) -> bool {
     expected.is_some_and(|id| matches!(env.interner.get(id), Ty::Decimal))
 }
 
-/// ADR 0054 § 1's layout, applied to a fractional literal's own text: a 96-bit
+/// `rule:types/decimal`'s layout, applied to a fractional literal's own text: a 96-bit
 /// mantissa and a scale of 0 to 28. Returns the reason it does not fit, or
 /// `None` when it does.
 ///
@@ -552,7 +550,7 @@ pub(crate) fn decimal_literal_overflow(text: &str) -> Option<&'static str> {
     }
 }
 
-/// Reports ADR 0054 § 1's bound for a fractional literal placed at `decimal`.
+/// Reports `rule:types/decimal`'s bound for a fractional literal placed at `decimal`.
 pub(crate) fn check_decimal_float_literal(span: Span, report_span: Span, env: &mut Env<'_>) {
     let text = span_text(env.src, span).to_owned();
     if let Some(reason) = decimal_literal_overflow(&text) {
@@ -581,7 +579,7 @@ pub(crate) fn report_decimal_out_of_range(reason: &str, span: Span, env: &mut En
         )
         .with_primary(span, "outside `decimal`'s range")
         .with_help(
-            "`decimal` holds a 96-bit mantissa at a scale of 0 to 28 (ADR 0054 § 1); \
+            "`decimal` holds a 96-bit mantissa at a scale of 0 to 28 (`rule:types/decimal`); \
              `Core\\BigDecimal` is the type for a value beyond it",
         ),
     );
@@ -592,7 +590,7 @@ pub(crate) fn report_decimal_out_of_range(reason: &str, span: Span, env: &mut En
 /// `nvs_ir::lower::int_literal_digits` does for lowering, duplicated here
 /// rather than shared: this crate has no dependency on `nvs-ir` (the
 /// dependency runs the other way), and the magnitude has to be known here,
-/// at check time, so [`infer_int_literal`] can report ADR 0007 § 4's
+/// at check time, so [`infer_int_literal`] can report `rule:types/arithmetic`'s
 /// diagnostic itself rather than let an out-of-range literal surface only as
 /// a lowering-time panic once `nvs-ir` tries to cook the same span. Strips
 /// `_` digit separators the same way; a legacy leading-zero octal spelling
@@ -654,7 +652,7 @@ pub(crate) fn report_cook_issues(issues: Vec<crate::string_lit::CookIssue>, env:
                     Diagnostic::error(
                         code::E_STRING_LITERAL_INVALID_UTF8,
                         "this string literal's `\\xHH`/octal byte escapes do not form valid \
-                         UTF-8 once assembled — `string` is guaranteed-valid UTF-8, see ADR 0009",
+                         UTF-8 once assembled — `string` is guaranteed-valid UTF-8, see `rule:types/bytes`",
                     )
                     .with_primary(span, "not valid UTF-8"),
                 );
@@ -725,7 +723,7 @@ pub(crate) fn check_heredoc_run_issues(
     }
 }
 
-/// `{a: 1, b: $x}` — ADR 0036 § 2's object literal, whose type is the
+/// `{a: 1, b: $x}` — `rule:types/object-literal`'s object literal, whose type is the
 /// exact-fields shape its own initializers infer to.
 ///
 /// Each field's type is inferred from its initializer with no expectation
@@ -884,7 +882,7 @@ fn check_spread_element(
 /// `&value` as an array-literal element is refused here rather than lowered.
 ///
 /// PHP's `[&$x]` makes the element and `$x` the same storage, and Novis has no
-/// rule that can own one: ADR 0031 § 2 removed by-reference capture, so no
+/// rule that can own one: `rule:types/implicit-capture` removed by-reference capture, so no
 /// binding aliases another, and ADR 0023 fixes an element as a copy taken
 /// where the literal is evaluated. So this is not a gap in `nvs-ir` — the
 /// panic it used to reach was reporting the absence of a feature the language
@@ -900,14 +898,14 @@ fn report_by_reference_element(item: &ArrayItem, env: &mut Env<'_>) {
         )
         .with_primary(item.span, "this element is `&value`")
         .with_help(
-            "Novis has no references: ADR 0031 § 2 removed by-reference capture and ADR 0023 \
+            "Novis has no references: `rule:types/implicit-capture` removed by-reference capture and ADR 0023 \
              makes an element a copy, so drop the `&` — to share one mutable cell, hold it in \
              an object and store that",
         ),
     );
 }
 
-/// ADR 0007 § 5: every array key is a `string`, and an `int`/`uint` key
+/// `rule:types/arrays`: every array key is a `string`, and an `int`/`uint` key
 /// normalizes to its own decimal string — key normalization, not a value
 /// conversion, so neither needs a diagnostic here. A `float`, `bool`, or
 /// `null` key is rejected outright: PHP's silent truncate-to-int/stringify-
@@ -921,7 +919,7 @@ fn report_by_reference_element(item: &ArrayItem, env: &mut Env<'_>) {
 /// a union, an object, ... — isn't statically known to be one of these four,
 /// so it is left alone here, the same "erase to `mixed` rather than guess"
 /// split `division_result`/`bitwise_result` already draw for an operand pair
-/// they don't recognize; ADR 0007 § 5's own runtime normalization/throw
+/// they don't recognize; `rule:types/arrays`'s own runtime normalization/throw
 /// covers it once a value arrives through `mixed`.
 pub(crate) fn check_array_key_type(key_ty: TypeId, span: Span, env: &mut Env<'_>) {
     if matches!(env.interner.get(key_ty), Ty::Float | Ty::Bool | Ty::Null) {

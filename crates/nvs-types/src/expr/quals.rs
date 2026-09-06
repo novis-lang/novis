@@ -6,7 +6,7 @@
 //! etc. — one atom per combination) and one set of helpers
 //! ([`is_tainted`]/[`is_secret`]/[`qualifiable_base`]/[`qualified_scalar`]).
 //! Concatenation and interpolation poison their result on each axis
-//! independently, exactly like ADR 0007's `mixed`-arithmetic precedent.
+//! independently, exactly like `rule:types/declaration`'s `mixed`-arithmetic precedent.
 //! [`apply_qualifier_conversion_rule`] is the conversion half: a checked
 //! conversion to `uint`/`int`/`float`/`bool`/an enum's backing type launders
 //! both qualifiers for free, since none of those targets carry either to begin
@@ -15,7 +15,7 @@
 //! own *Alternatives rejected*), while `bytes`/`string` (including the
 //! identity-shaped `tainted string as string`/`secret string as string`, which
 //! would otherwise be a silent bypass) keep both qualifiers across either
-//! direction, per ADR 0009 § 3. In [`super::assign`]'s relation a same-base
+//! direction, per `rule:types/conversion`. In [`super::assign`]'s relation a same-base
 //! value widens freely on either bit — a trusted, non-secret value is always a
 //! safe over-approximation of "may be tainted"/"may be secret," the same
 //! direction `mixed` never gets — but never narrows through assignment.

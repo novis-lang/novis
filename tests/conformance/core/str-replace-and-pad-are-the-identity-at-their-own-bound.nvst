@@ -32,7 +32,7 @@ try {
     echo $unusable->message, "\n";
 }
 
-// The width is counted in ADR 0009 § 2's unit, like every other length in this
+// The width is counted in `rule:types/string-is-utf8`'s unit, like every other length in this
 // class, so `cafe` + a combining acute is four wide and not five: padding it
 // to four is the identity and to five adds exactly one piece. A byte-counted
 // pad would have called it five already and added nothing.

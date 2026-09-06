@@ -48,7 +48,7 @@ impl<'a> Lowering<'a> {
     /// compile-time-known property.
     ///
     /// The first-class callable sentinel is the fourth, and its roster is
-    /// closed: ADR 0027 § 1's two member spellings record
+    /// closed: `rule:types/callable-is-a-closure`'s two member spellings record
     /// `nvs_types::expr_table::ExprInfo::CallableRef` rather than `Call`, so
     /// [`super::expr`]'s call arms never dispatch here for one, and the two
     /// shapes that name no member are diagnostics where they are written
@@ -93,7 +93,7 @@ impl<'a> Lowering<'a> {
                 "nvs-ir: a resolved call/`new` reached argument lowering with \
                  {args:?} where a written argument list belongs — this crate trusts \
                  nvs_types::check_program to have settled every other shape. The \
-                 roster is closed: ADR 0027's `Class::method(...)` and \
+                 roster is closed: `rule:types/callable-is-a-closure`'s `Class::method(...)` and \
                  `$obj->method(...)` record `ExprInfo::CallableRef` and never reach \
                  this function, `$m->method(...)` on a `mixed` receiver is `E0732`, \
                  and `new C(...)` is `E0740`"
@@ -326,7 +326,7 @@ impl<'a> Lowering<'a> {
     /// one [`ir::InstKind::ArraySpread`] into the tail array rather than one
     /// entry of it: how many arrived is the subject's own run-time length, and
     /// there is no lowering-time key to give them. `nvs_runtime::nvs_array_spread`
-    /// owns which of the subject's keys survive (ADR 0007 § 5) and it is PHP's
+    /// owns which of the subject's keys survive (`rule:types/arrays`) and it is PHP's
     /// unpacking rule as well as PHP's array-literal one — an integer-looking
     /// key is renumbered under the tail's own append counter, so
     /// `f(...$xs, ...$ys)` concatenates, and a string key is preserved, which
@@ -372,7 +372,7 @@ impl<'a> Lowering<'a> {
     /// there) and a call through a `callable` that wrote a `...`
     /// ([`Self::lower_closure_call`], where it is the whole argument list).
     /// `expected` is the element type to widen each written-out entry into, and
-    /// is `None` at the second site: ADR 0031 § 1 gives `callable` no parameter
+    /// is `None` at the second site: `rule:types/closure-literal` gives `callable` no parameter
     /// list, so there is nothing to widen towards.
     ///
     /// The returned array is a **fresh producer** and is left accounted to
@@ -687,7 +687,7 @@ impl<'a> Lowering<'a> {
         self.emit(cur, ty, kind)
     }
 
-    /// An [ADR 0036](/docs/adr/0036-anonymous-object-shapes.md) § 2
+    /// An `rule:types/object-literal`
     /// shape value, materialized from a constant rather than from a written
     /// literal — `rule:attributes/retrieval-folds-while-checking`'s fold is the one producer.
     ///
@@ -736,7 +736,7 @@ impl<'a> Lowering<'a> {
         (obj, Ty::Object)
     }
     /// `$fn(...)` —
-    /// [ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md)'s
+    /// `rule:types/closure-literal`'s
     /// closure, called through the variable holding it.
     ///
     /// One [`Helper::CallClosure`], with the closure at `args[0]` and its
@@ -771,8 +771,7 @@ impl<'a> Lowering<'a> {
     ///
     /// Panics for a first-class-callable argument list, the way
     /// [`Self::lower_call_args`] does for a resolved call, and for a `name:`
-    /// argument — [ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md)
-    /// § 1 gives `callable` no parameter list, so there is no parameter for a
+    /// argument — `rule:types/closure-literal` gives `callable` no parameter list, so there is no parameter for a
     /// name to fill and `nvs_types` refuses one where it is written (`E0712`).
     pub(crate) fn lower_closure_call(
         &mut self,
@@ -838,7 +837,7 @@ impl<'a> Lowering<'a> {
         called
     }
     /// `$m->method(...)` on a **`mixed`** receiver —
-    /// [ADR 0036](/docs/adr/0036-anonymous-object-shapes.md) § 4's
+    /// `rule:types/erased-member-access`'s
     /// deferral applied to a call, which
     /// [`crate::ir::Helper::CallErasedMethod`] owns the convention for.
     ///
@@ -870,7 +869,7 @@ impl<'a> Lowering<'a> {
     /// Panics naming any shape `nvs_types` is trusted to have settled first: a
     /// `name:` argument (`E0712`) and an `inout` one (`E0714`), neither of
     /// which the deferral can express, and the first-class-callable sentinel,
-    /// which is ADR 0027's `$m->method(...)` and names a closure *value*
+    /// which is `rule:types/callable-is-a-closure`'s `$m->method(...)` and names a closure *value*
     /// rather than making a call — refused where it is written (`E0732`),
     /// because a closure carries its callee and the deferral has none to
     /// carry. No program constructs any of the three, so each is an engine
@@ -888,7 +887,7 @@ impl<'a> Lowering<'a> {
             panic!(
                 "nvs-ir: a call through a `mixed` receiver reached lowering with \
                  {args:?} where a written argument list belongs — `ExprInfo::ErasedCall` \
-                 is recorded only for the non-sentinel branch, ADR 0027's \
+                 is recorded only for the non-sentinel branch, `rule:types/callable-is-a-closure`'s \
                  `$m->method(...)` being refused where it is written (`E0732`), so no \
                  program constructs this"
             );
@@ -1087,7 +1086,7 @@ impl<'a> Lowering<'a> {
                         "nvs-ir: the by-reference argument at {:?} is a property with no \
                          resolved declaring class recorded in the typed-expression table — \
                          either it wasn't checked with the same table, or its receiver erased \
-                         to a shape/plain `object` (ADR 0036 § 4); nvs_types' \
+                         to a shape/plain `object` (`rule:types/erased-member-access`); nvs_types' \
                          `check_inout_arg` is expected to have refused both",
                         arg.span
                     );

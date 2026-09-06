@@ -48,7 +48,7 @@
 //!
 //! # What it spends
 //!
-//! Per `rule:programs/memory-priority`(/docs/adr/0004-memory-for-simplicity.md): one buffer
+//! Per `rule:programs/memory-priority`: one buffer
 //! per in-flight static request, holding exactly the bytes that response
 //! carries — the whole file, or the one range that was asked for. Nothing is
 //! cached between requests, so it is O(in-flight) and not O(files served): a

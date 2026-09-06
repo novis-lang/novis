@@ -17,7 +17,7 @@
 //! into a `bytes` parameter, which is a type lie this helper would have to
 //! `FATAL` on, so the default is written as the octets it means and reaches
 //! the call site as `nvs_ir::ir::InstKind::ConstBytes` — the only way a
-//! `bytes` constant enters a program, since ADR 0009 § 1 gives the language no
+//! `bytes` constant enters a program, since `rule:types/bytes` gives the language no
 //! `bytes` literal.
 //!
 //! # The unit is the byte, and that is the whole difference from `Core\Str`
@@ -26,7 +26,7 @@
 //! and R6 makes the names identical because the *operation* is identical. What
 //! differs is the unit: `Core\Str` counts in
 //! [`crate::granularity::DEFAULT`]'s grapheme clusters, and this counts in
-//! bytes — which [ADR 0009](/docs/adr/0009-string-and-bytes.md) § 1
+//! bytes — which `rule:types/bytes`
 //! says is the only unit `bytes` has to be ambiguous about.
 //!
 //! So these bodies are *simpler* than `str.rs`'s rather than a copy of them.
@@ -65,7 +65,7 @@
 //!   `Core\Str::indexOf`'s second option is a Unicode case folding, and there
 //!   is no case in a byte string — a `bytes` carries no charset, which is the
 //!   premise of § 7's whole `Core\Encoding`/`Core\Bytes` split. An ASCII-only
-//!   folding would be that guess made silently, which ADR 0009 § 3 removes
+//!   folding would be that guess made silently, which `rule:types/conversion` removes
 //!   from the language. A caller who wants one decodes first. `from` survives
 //!   unchanged, because a scan resuming where the last one stopped is exactly
 //!   what a sniffing loop is.
@@ -123,7 +123,7 @@
 //!   only in what `unpack` will read back.
 //! - **A `mixed` argument is not converted.** An integer field takes an `int`
 //!   or a `uint` and a float field takes a `float`; anything else throws
-//!   naming the tag it got, because `mixed` is ADR 0007 § 3's one unchecked
+//!   naming the tag it got, because `mixed` is `rule:types/grammar`'s one unchecked
 //!   position and a silent widening there is the language's own rule broken at
 //!   a library boundary.
 //!
@@ -1055,7 +1055,7 @@ nvs_runtime::nvs_helper! {
     /// **No element is ever converted.** `Core\Str::join` renders each element
     /// as text; here every element is already a buffer, so a wrong tag is a
     /// miscompile rather than a conversion this member could perform —
-    /// ADR 0009 § 3 keeps `bytes` and `string` apart at exactly this boundary.
+    /// `rule:types/conversion` keeps `bytes` and `string` apart at exactly this boundary.
     fn nvs_core_bytes_join(_ctx, args: [2]) {
         // Unreachable from source: parameter 0 is `array<bytes>` in `CLASS`
         // above, so a non-container subject is `E0401: expected
@@ -1214,7 +1214,7 @@ fn unknown_code(member: &str, code: char) -> Fault {
 /// How a `mixed` argument's runtime type is named in a throw.
 ///
 /// A `FATAL` names the [`Tag`] the checker placed; this names the one the
-/// *program* placed, because `mixed` is ADR 0007 § 3's one unchecked position
+/// *program* placed, because `mixed` is `rule:types/grammar`'s one unchecked position
 /// and a wrong type here is the caller's mistake rather than a miscompile.
 fn described(value: &Value) -> String {
     value.tag().map_or_else(
@@ -1318,7 +1318,7 @@ fn float_field(
 /// An argument **longer** than the declared width throws rather than being
 /// truncated, which is where this parts company with PHP: a record field too
 /// small for its value is a bug, and silently writing the first half of a name
-/// is the substitution failure ADR 0009 § 3 removes from the language.
+/// is the substitution failure `rule:types/conversion` removes from the language.
 fn buffer_field(out: &mut Vec<u8>, data: &[u8], repeat: Repeat, code: char) -> Result<(), Fault> {
     let pad = if code == 'A' { b' ' } else { 0 };
     let needed = data.len() + usize::from(code == 'Z');
@@ -1530,7 +1530,7 @@ enum Field {
     /// The four float codes.
     Fractional(f64),
     /// `a`, `A` or `Z` — octets, and `bytes` rather than `string` because a
-    /// field of a binary record carries no charset (ADR 0009 § 1). Validating
+    /// field of a binary record carries no charset (`rule:types/bytes`). Validating
     /// it as UTF-8 here would make reading a record throw on data that is
     /// perfectly well-formed for what it is.
     Buffer(Vec<u8>),

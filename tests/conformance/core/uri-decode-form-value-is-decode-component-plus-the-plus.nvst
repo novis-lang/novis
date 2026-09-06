@@ -76,7 +76,7 @@ echo "malformed rows ", Core\Arr::count($malformed) as int, ", same as decodeCom
 // `%` and resume — it steps one byte and reads the next `%41` as the `A` it is.
 echo "[", (Core\Uri::decodeFormValue("%%41") as string), "]\n";
 
-// And the refusals agree too. ADR 0009 makes a `string` UTF-8 by construction,
+// And the refusals agree too. `rule:types/bytes` makes a `string` UTF-8 by construction,
 // so an escape sequence that is not UTF-8 has nothing to decode *to* — five
 // families of it, each refused by both members. Validating only the first octet
 // would accept three of these five, which is why they are counted.
@@ -102,7 +102,7 @@ echo "both refused ", $bothRefused, " of ", Core\Arr::count($invalid) as int, "\
 
 // The message is the one `bytes as string` gives, and it is the same for both
 // decoders now: neither member refuses anything, so the refusal a caller
-// wanting text meets belongs to ADR 0009 § 3's conversion rather than to the
+// wanting text meets belongs to `rule:types/conversion`'s conversion rather than to the
 // member. Pinned once, here.
 try {
     echo (Core\Uri::decodeFormValue("%FF") as string), "\n";

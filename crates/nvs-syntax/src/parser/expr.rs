@@ -4,15 +4,15 @@
 //! The precedence chain runs lowest to highest as a function per level, each
 //! calling the next — `parse_expr` down to [`Parser::parse_primary`] — so a
 //! level's binding power is where it sits in that call graph and nowhere else.
-//! `as` binds tighter than any binary operator (ADR 0007 § 2), and
+//! `as` binds tighter than any binary operator (`rule:types/conversion`), and
 //! `and`/`or`/`xor` are caught at the bottom of the chain rather than parsed,
 //! since `&&`/`||` are the only logical connectives Novis keeps (`rule:expressions/no-keyword-logical-operators`).
 //!
-//! Beyond the operators: `match`, closures and arrow functions (ADR 0031's one
+//! Beyond the operators: `match`, closures and arrow functions (`rule:types/closure-literal`'s one
 //! literal, `fn`, plus the `function` forms it refuses), generators
 //! (`yield`/`yield from`), named arguments, spread, nullsafe, first-class
 //! callable syntax, `require` (an expression, not a statement — `rule:statements/require-is-the-only-inclusion-construct`),
-//! `spawn script … with(…)`, ADR 0036 § 2's `{a: 1}` object literal, and the
+//! `spawn script … with(…)`, `rule:types/object-literal`'s `{a: 1}` object literal, and the
 //! interpolated-string bodies the lexer hands back in parts.
 //!
 //! Several PHP spellings are parsed here only to be diagnosed, and they are
@@ -941,7 +941,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     ///
     /// The last two parse and carry no refusal of their own, which is
     /// [`code::E_VARIABLE_VARIABLE`]'s rule stopping one construct short of
-    /// them: ADR 0126 § 4 admits `$obj->$key` when the operand's *type* is a
+    /// them: `rule:types/property-key-access` admits `$obj->$key` when the operand's *type* is a
     /// `property<T>` the receiver satisfies, and a type is the one thing this
     /// parser cannot see. So the spelling is no longer what is rejected — the
     /// missing check is — and `E0235` is reported by `nvs_types`, at the same
@@ -1322,7 +1322,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     // ========================================================================
-    // Object literals (ADR 0036 § 2)
+    // Object literals (`rule:types/object-literal`)
     // ========================================================================
 
     /// Whether `{` at the current position looks like the start of an
@@ -1353,7 +1353,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 "an object literal here is ambiguous with a block",
             )
             .with_primary(span, "`{` already means a block in this position")
-            .with_help("wrap it in parentheses: `({...})` (ADR 0036 § 2)"),
+            .with_help("wrap it in parentheses: `({...})` (`rule:types/object-literal`)"),
         );
         Expr {
             span,
@@ -1361,7 +1361,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         }
     }
 
-    /// `{name: value, ...}` as a primary expression — ADR 0036 § 2. No
+    /// `{name: value, ...}` as a primary expression — `rule:types/object-literal`. No
     /// shorthand (`{x}`) and no computed key (`{[expr]: value}`); either is
     /// diagnosed in place and the field is dropped rather than aborting the
     /// whole literal, so one bad field doesn't hide problems with the rest.
@@ -1515,7 +1515,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             .with_primary(start.to(class), "this class has no name to be known by")
             .with_help(
                 "declare a named class in the same file and write `new That(…)`, or use a \
-                 closure where the class is one method (ADR 0031)",
+                 closure where the class is one method (`rule:types/closure-literal`)",
             ),
         );
         let args = if self.at(TokenKind::LParen) {
@@ -1696,7 +1696,10 @@ impl<'src, 'd> Parser<'src, 'd> {
             let span = self.peek().span.shrink_to_start();
             self.diags.report(
                 Diagnostic::error(code::E_EXPECTED_TOKEN, "expected a parameter type")
-                    .with_primary(span, "every parameter declares a type (ADR 0007)"),
+                    .with_primary(
+                        span,
+                        "every parameter declares a type (`rule:types/declaration`)",
+                    ),
             );
             None
         };
@@ -1724,7 +1727,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     /// `function (...) { ... }` / `function (...) use (...) { ... }`: not a
-    /// spelling Novis keeps at all (ADR 0031 § 1) — `fn` covers both a block
+    /// spelling Novis keeps at all (`rule:types/closure-literal`) — `fn` covers both a block
     /// and an expression body, so there is nothing left for a second
     /// literal to do. Recovers by parsing the whole shape (params, an
     /// optional `use` clause, an optional return type, the block) so the
@@ -1766,7 +1769,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     /// Parses a `use (...)` capture clause if one is present, purely for
-    /// error recovery — `fn` has no `use` clause of any kind (ADR 0031 § 2).
+    /// error recovery — `fn` has no `use` clause of any kind (`rule:types/implicit-capture`).
     /// Returns `Some(saw_by_ref)` if a clause was present at all.
     pub(super) fn parse_and_discard_closure_use_clause(&mut self) -> Option<bool> {
         self.eat_keyword(Keyword::Use)?;
@@ -1785,7 +1788,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         Some(saw_by_ref)
     }
 
-    /// ADR 0031 § 2/§ 6: a closure has no `use` clause, ever; capture by
+    /// `rule:types/implicit-capture`/§ 6: a closure has no `use` clause, ever; capture by
     /// reference specifically has no replacement syntax at all.
     pub(super) fn report_closure_use_clause(&mut self, span: Span, by_ref: bool) {
         if by_ref {
@@ -1813,7 +1816,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     /// `fn [name] (...): T => expr` or `fn [name] (...): T => { ... }` — the
-    /// one closure literal (ADR 0031 § 1). `name` is an optional self-name
+    /// one closure literal (`rule:types/closure-literal`). `name` is an optional self-name
     /// for recursion (§ 3); a stray `use (...)` clause is still accepted
     /// for recovery and diagnosed the same way the rejected `function`
     /// literal is.
@@ -1839,7 +1842,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         self.expect(TokenKind::FatArrow, "`=>`");
         let body = if self.at(TokenKind::LBrace) {
             if self.at_object_literal_in_block_position() {
-                // ADR 0036 § 2: `{` here already means a block body — an
+                // `rule:types/object-literal`: `{` here already means a block body — an
                 // object literal needs `fn() => ({...})` instead.
                 FnBody::Expr(Box::new(self.parse_object_literal_needs_parens()))
             } else {
@@ -2010,7 +2013,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         self.expect(TokenKind::RParen, "`)`");
     }
 
-    /// `eval(...)` — ADR 0007 § 2: there is no such construct, since a string
+    /// `eval(...)` — `rule:types/conversion`: there is no such construct, since a string
     /// has no stable identity to compile ahead of time.
     pub(super) fn parse_eval(&mut self) -> Expr {
         let start = self.bump().span;
@@ -2030,7 +2033,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         }
     }
 
-    /// `extract(...)` — ADR 0007 § 2: introduces bindings whose names are not
+    /// `extract(...)` — `rule:types/conversion`: introduces bindings whose names are not
     /// known statically, which every later stage assumes it can enumerate.
     pub(super) fn parse_extract(&mut self) -> Expr {
         let start = self.bump().span;
@@ -2050,7 +2053,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         }
     }
 
-    /// `settype(...)` — ADR 0007 § 2: no assignment, operator or call may
+    /// `settype(...)` — `rule:types/conversion`: no assignment, operator or call may
     /// change what a binding's declared type is; `as` converts into a new
     /// binding instead.
     pub(super) fn parse_settype(&mut self) -> Expr {

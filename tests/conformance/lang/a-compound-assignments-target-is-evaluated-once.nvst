@@ -1,5 +1,5 @@
 --TEST--
-A compound assignment computes its target's address once, whichever shape the target has and whichever of the three spellings writes it — ADR 0007 § 3 and § 4
+A compound assignment computes its target's address once, whichever shape the target has and whichever of the three spellings writes it — `rule:types/grammar` and § 4
 --FILE--
 <?nvs
 // `nvs_ir::lower::Lowering::lower_read_modify_write` rewrites `$t ⊕= e` into

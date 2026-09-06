@@ -58,7 +58,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// One attribute — `rule:attributes/attach-sites-and-forms`'s named `Name(field: value, ...)` or bare
     /// `{field: value, ...}`. Both carry the same payload, so the
     /// parenthesized list is parsed by the very function that parses an
-    /// ADR 0036 § 2 object literal's fields: an attribute payload is that
+    /// `rule:types/object-literal` object literal's fields: an attribute payload is that
     /// literal written without its braces, not an argument list, so a
     /// positional argument is "expected a field name" where it is written
     /// rather than something a later pass has to refuse.
@@ -696,7 +696,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// [ADR 0094](/docs/adr/0094-visibility-is-written-at-every-member-declaration.md)
     /// § 4 answers with the same `E_MISSING_VISIBILITY` a bare `int $x;`
     /// gets. It needs its own arm because `var` is
-    /// [ADR 0037](/docs/adr/0037-var-local-type-inference.md)'s
+    /// `rule:types/var-inference`'s
     /// local-inference keyword and starts no type, so without this the
     /// declaration falls through to `expected a class member` — a message
     /// about the grammar, aimed at an author who wrote the one shape the
@@ -1099,7 +1099,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         }
     }
 
-    /// The `: Type` backing-type clause, parsed with the full ADR 0007 § 3
+    /// The `: Type` backing-type clause, parsed with the full `rule:types/grammar`
     /// grammar — only the one rejection `rule:enums/no-class-machinery` names explicitly
     /// (`string`) is checked here; that the result is otherwise exactly
     /// `int` or `uint` is a later check, not the parser's.

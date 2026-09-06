@@ -1,4 +1,4 @@
-//! Calling an [ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md)
+//! Calling an `rule:types/closure-literal`
 //! closure value from native code.
 //!
 //! A closure is an ordinary Novis object whose class declares exactly one
@@ -24,7 +24,7 @@
 //!
 //! # Why the parameter types are checked here, of all places
 //!
-//! [ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md) § 1
+//! `rule:types/closure-literal`
 //! gives `callable` no parameter list, so **no checker can compare a call site
 //! against the body it will reach**, and the compiled `invoke` reads argument
 //! slot *i* at its own declared representation. Hand it a mismatch and the
@@ -40,10 +40,10 @@
 //! [`check_param_tags`] compares one against each argument on the way in —
 //! throwing the [`crate::ThrownClass::Logic`] `LogicError` [`nvs_call_closure`]
 //! answers a bad arity with. It sits in [`call_closure`] because that is the
-//! one path *both* callers take, a `Core` member's callback and ADR 0031's
+//! one path *both* callers take, a `Core` member's callback and `rule:types/closure-literal`'s
 //! `$fn(...)` alike; putting it in either caller would leave the other one
 //! holding the hole. What it costs, and the one argument it converts rather
-//! than compares — ADR 0007 § 2's `int`-into-`float` widening, which no checker
+//! than compares — `rule:types/conversion`'s `int`-into-`float` widening, which no checker
 //! was there to insert — are that function's own doc comment.
 
 use crate::abi::{Fault, NvsFn, OK};
@@ -151,12 +151,12 @@ const CLOSURE_PARAM_TAGS_CAPACITY: usize = 16;
 /// throws or faults, so the exception the callee recorded in `ctx` reaches
 /// the request unchanged rather than being replaced by a message from here.
 /// [`Fault::Thrown`] for an argument whose tag is not the one the closure
-/// declares in that position, and which ADR 0007 § 2's `int`-into-`float`
+/// declares in that position, and which `rule:types/conversion`'s `int`-into-`float`
 /// widening does not reconcile — [`check_param_tags`], which runs before
 /// anything is retained or passed.
 /// [`Fault::Fatal`] when `closure` is not a closure value at all, or declares
 /// more parameters than the caller has to offer — both engine faults: the
-/// checker only admits an ADR 0027 closure value where a `callable` is
+/// checker only admits an `rule:types/callable-is-a-closure` closure value where a `callable` is
 /// expected, and no `Core` member offers fewer than the spec says it does.
 pub fn call_closure(ctx: &mut Ctx, closure: Value, args: &[Value]) -> Result<Value, Fault> {
     let target = invoke_address(closure)?;
@@ -205,7 +205,7 @@ pub fn call_closure(ctx: &mut Ctx, closure: Value, args: &[Value]) -> Result<Val
     })
 }
 
-/// `nvs_ir::Helper::CallClosure` — ADR 0031's `$fn(...)`, which is compiled
+/// `nvs_ir::Helper::CallClosure` — `rule:types/closure-literal`'s `$fn(...)`, which is compiled
 /// code's own way into [`call_closure`]. `args[0]` is the closure and
 /// `args[1..argc]` the arguments it was called with, in written order.
 ///
@@ -223,8 +223,7 @@ pub fn call_closure(ctx: &mut Ctx, closure: Value, args: &[Value]) -> Result<Val
 /// the catchable `LogicError` below rather than the engine fault
 /// [`call_closure`] answers a native caller with: a `callable` carries no
 /// parameter list for the checker to count against
-/// ([ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md)
-/// § 1), so a program can reach it, and a program-reachable failure is a
+/// (`rule:types/closure-literal`), so a program can reach it, and a program-reachable failure is a
 /// throw (`rule:errors/propagation`).
 ///
 /// # Safety
@@ -263,7 +262,7 @@ pub unsafe extern "C" fn nvs_call_closure(
 }
 
 crate::nvs_helper! {
-    /// `nvs_ir::Helper::CallClosureArray` — ADR 0031's `$fn(...)` where the
+    /// `nvs_ir::Helper::CallClosureArray` — `rule:types/closure-literal`'s `$fn(...)` where the
     /// call site wrote a `...` argument, so how many arguments there are is the
     /// spread subject's own run-time length rather than the site's own count.
     ///
@@ -313,7 +312,7 @@ crate::nvs_helper! {
 /// A native caller has no arity mistake to make — a `Core` member offers every
 /// argument the spec says it does, so [`call_closure`] answers it with an
 /// engine fault. An Novis call site's list is whatever was written there, and
-/// [ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md) § 1
+/// `rule:types/closure-literal`
 /// gives the checker no parameter list to count it against, so too few is
 /// program-reachable and therefore a throw
 /// (`rule:errors/propagation`).
@@ -486,20 +485,20 @@ pub fn closure_param_names(closure: Value) -> Result<Option<Vec<String>>, Fault>
 /// checker can make — over the nibble `word` that callee recorded, naming it
 /// `callee` in whatever it has to report.
 ///
-/// [ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md) § 1
+/// `rule:types/closure-literal`
 /// gives `callable` no parameter list, so a call site has nothing to compare
 /// against and the compiled `invoke` reads argument slot *i* at its own
 /// declared representation — an `int` handed to a `string` parameter is
 /// dereferenced as an `NvsStr` pointer. This is the one place that can still
 /// tell, because the closure object carries what the literal declared
 /// (`nvs_ir::lower`'s `FN_PARAM_TAGS`), and it is on the path *both* callers
-/// take: a `Core` member's callback and ADR 0031's `$fn(...)` alike.
+/// take: a `Core` member's callback and `rule:types/closure-literal`'s `$fn(...)` alike.
 ///
 /// **It is the erased *method* call's check too**, which is why it takes a
 /// word rather than a closure object. A `mixed` receiver defers the same
-/// question one storage kind along (ADR 0036 § 4), and
+/// question one storage kind along (`rule:types/erased-member-access`), and
 /// [`crate::MethodRow::param_tags`] carries the callee's nibbles in this very
-/// encoding so that ADR 0007 § 2's one implicit conversion is written once —
+/// encoding so that `rule:types/conversion`'s one implicit conversion is written once —
 /// two copies of it are two places for it to stop agreeing.
 /// `docs/adr/README.md` § *Decisions taken at project start* owns that
 /// decision, and [`crate::dispatch::call_erased_method`] is the other caller.
@@ -512,12 +511,12 @@ pub fn closure_param_names(closure: Value) -> Result<Option<Vec<String>>, Fault>
 /// # The one conversion, rather than a refusal
 ///
 /// The comparison is exact everywhere except the single position
-/// [ADR 0007](/docs/adr/0007-explicit-type-system.md) § 2 admits an
+/// `rule:types/conversion` admits an
 /// implicit conversion: an `int` or `uint` arriving at a `float` parameter is
 /// *widened in place* rather than refused, through
 /// [`crate::helpers::widen_to_float`] and therefore through the same row a
 /// written `as float` takes. Above 2^53 that row refuses, and so does this —
-/// as `ArithmeticError`, the class ADR 0007 § 4 names for a numeric overflow
+/// as `ArithmeticError`, the class `rule:types/arithmetic` names for a numeric overflow
 /// and the one `crate::helpers`' `numeric_does_not_fit` raises for the written
 /// `as float`.
 ///
@@ -574,11 +573,11 @@ pub(crate) fn check_param_tags(callee: &str, word: u64, args: &mut [Value]) -> R
             ))
         })?;
         if given != required {
-            // ADR 0007 § 2's one implicit conversion, and there is no second:
+            // `rule:types/conversion`'s one implicit conversion, and there is no second:
             // an `int` or `uint` arriving at a `float` parameter widens under
             // that ADR's 2^53 rule instead of being refused. It is applied
             // here because no checker saw this call site to insert it — a
-            // `callable` has no parameter list (ADR 0031 § 1) — and out of
+            // `callable` has no parameter list (`rule:types/closure-literal`) — and out of
             // `crate::helpers`'s own row, so the boundary is the same one a
             // written `as float` lands on.
             // `tests/conformance/core/arr-a-callback-float-parameter-widens-an-int-and-stops-at-2-53.nvst`

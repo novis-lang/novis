@@ -7,14 +7,14 @@
 //! # Two rules cover every member here, so no member restates them
 //!
 //! * **A division by zero throws `ArithmeticError`**, in `intDiv` and in `mod`
-//!   alike, and in the `/` operator over every operand type (ADR 0007 § 4) —
+//!   alike, and in the `/` operator over every operand type (`rule:types/arithmetic`) —
 //!   spec § 3's opening paragraph. [`nvs_core_math_fdiv`] is the single
 //!   exception and is there to be one: with the operator throwing on a `float`
 //!   divisor too, it is the only way left to ask for IEEE's infinity, which is
 //!   why PHP has the same function for the same reason. So does an operation
 //!   whose exact answer does
 //!   not fit its result type: `intDiv(int::MIN, -1)`, `abs(int::MIN)`, an
-//!   `lcm` past `int`, a `uint` argument past `int` — ADR 0007 § 4's class for
+//!   `lcm` past `int`, a `uint` argument past `int` — `rule:types/arithmetic`'s class for
 //!   an overflow, the same one the operators raise. A refusal that is about
 //!   the *argument* rather than the arithmetic — a base outside 2..=36, an
 //!   empty range for `clamp`, a `NaN` for `sign` — stays a `RuntimeError`.
@@ -37,7 +37,7 @@
 //! `truncate` and `round`, each registered at `float` alone and each returning
 //! one, so widening them is a change of *result* type rather than one more
 //! decode arm: an exact rounding has to answer `decimal` to be worth anything.
-//! `Core\Decimal`'s own roster (ADR 0054 § 3) is where the four naturally
+//! `Core\Decimal`'s own roster (`rule:types/arithmetic`) is where the four naturally
 //! land, which is why they wait rather than growing a `float` answer here.
 
 use nvs_runtime::{Decimal, Fault, NvsStr, Tag, ThrownClass, Value};
@@ -1445,7 +1445,7 @@ fn str_at<'a>(args: &'a [Value], index: usize, member: &str) -> Result<&'a [u8],
 /// One argument of the spec's `int|float` union, decoded.
 ///
 /// A `uint` is accepted as well as an `int` even though the declared union
-/// holds neither ADR 0007 § 4 type twice: a `uint` reaches a union parameter
+/// holds neither `rule:types/arithmetic` type twice: a `uint` reaches a union parameter
 /// through the same tagged slot, and refusing it here would be a `FATAL` for
 /// a value the member has an exact answer for.
 #[derive(Clone, Copy)]
@@ -1454,7 +1454,7 @@ enum Number {
     Integer(i64),
     /// A `float`.
     Real(f64),
-    /// A `decimal` — ADR 0054's scalar, and the one arm that is exact.
+    /// A `decimal` — `rule:types/decimal`'s scalar, and the one arm that is exact.
     Exact(Decimal),
 }
 
@@ -1647,7 +1647,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// `abs(int::MIN)` throws: its magnitude is one past `int`'s largest
     /// value, and PHP's answer — silently becoming a `float` — is exactly the
-    /// by-itself type change ADR 0007 forbids.
+    /// by-itself type change `rule:types/declaration` forbids.
     fn nvs_core_math_abs(_ctx, args: [1]) {
         Ok(match number_at(args, 0, "abs")? {
             Number::Integer(n) => Value::int(n.checked_abs().ok_or_else(|| {
@@ -1811,7 +1811,7 @@ nvs_runtime::nvs_helper! {
     /// replacing PHP's `fdiv`, and the one division in this module that
     /// answers a zero divisor rather than throwing on it.
     ///
-    /// It exists because ADR 0007 § 4 refuses the zero divisor for `/` before
+    /// It exists because `rule:types/arithmetic` refuses the zero divisor for `/` before
     /// the operand types are consulted, so an infinity is otherwise
     /// unreachable through a division — which is the same reason PHP grew this
     /// function once `/` began throwing. That is a member *named* for the
@@ -2107,8 +2107,7 @@ fn readable(byte: u8) -> String {
     }
 }
 
-/// The throw an exact answer that does not fit `int` is — the shape ADR 0007
-/// § 4 makes an overflow, `ArithmeticError`, rather than PHP's silent widening
+/// The throw an exact answer that does not fit `int` is — the shape `rule:types/arithmetic` makes an overflow, `ArithmeticError`, rather than PHP's silent widening
 /// to `float`.
 fn does_not_fit(member: &str) -> Fault {
     Fault::thrown_as(
@@ -2316,7 +2315,7 @@ fn digits_of(number: Number, decimals: usize) -> Result<(bool, String, String), 
         }
         // Rounded over the digits themselves rather than over the value: a
         // `decimal` is exact, so rounding it through any numeric intermediate
-        // would be the one place this member lost the precision ADR 0054
+        // would be the one place this member lost the precision `rule:types/decimal`
         // exists to keep. It also lifts the `f64` path's ceiling — `decimals`
         // may be anything up to `MAX_DECIMALS`, where a `decimal`'s own scale
         // stops at 28.
@@ -2412,7 +2411,7 @@ mod tests {
         let mut ctx = Ctx::buffered();
         let value = call(function, &mut ctx, args).expect("the call succeeds");
         let text = String::from_utf8(value.as_str_bytes().expect("a string result").to_vec())
-            .expect("ADR 0009 makes a string UTF-8");
+            .expect("`rule:types/bytes` makes a string UTF-8");
         #[expect(
             unsafe_code,
             reason = "the result carries the one reference this test owns"

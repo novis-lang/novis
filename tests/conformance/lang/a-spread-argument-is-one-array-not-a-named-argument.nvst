@@ -1,5 +1,5 @@
 --TEST--
-a `...` call argument builds the variadic tail by ADR 0007 § 5's one spread rule, so a mix of string and integer-looking keys is accepted where PHP refuses it as a positional-after-named unpack (ADR 0007 § 5, § 7 row 12)
+a `...` call argument builds the variadic tail by `rule:types/arrays`'s one spread rule, so a mix of string and integer-looking keys is accepted where PHP refuses it as a positional-after-named unpack (`rule:types/arrays`, § 7 row 12)
 --FILE--
 <?nvs
 final class Tail {

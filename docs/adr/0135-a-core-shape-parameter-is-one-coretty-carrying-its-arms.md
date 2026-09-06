@@ -28,10 +28,10 @@
 > field's nullability with the constant its omission fills
 > ([0147](0147-an-options-bag-tells-an-omitted-key-from-a-written-null.md) § 1). The arms are **pairwise disjoint**, so exactly one accepts a written literal and the
 > "discriminant" is a consequence of that rather than a declared field; `Db\Settings`'s separator is
-> `driver`, an ADR 0047 enum-case-typed field, which is the whole of why a `host` on a SQLite literal is a
+> `driver`, an `rule:types/literal-types` enum-case-typed field, which is the whole of why a `host` on a SQLite literal is a
 > compile error. Both registry spellings intern to **one** checked type, so `E0453` and `E0454` widen from
 > "option" to "shape key" and **no new diagnostic code is needed** — a *missing* required key is an ordinary
-> argument-type mismatch, unlike an *extra* key, which ADR 0036 § 3's width subtyping would otherwise accept.
+> argument-type mismatch, unlike an *extra* key, which `rule:types/shape-type`'s width subtyping would otherwise accept.
 
 ## Context
 
@@ -43,7 +43,7 @@ full, and has every one of its fields optional. `Db\Settings` is none of those t
 named, required, and half its fields are required too.
 
 The bag's own design already settled the hard half of the question, and `nvs_stdlib::registry`'s module doc
-records it: a `Core` shape is **not** an ADR 0036 shape, because ADR 0036 § 3's width subtyping accepts a
+records it: a `Core` shape is **not** an `rule:types/object-top` shape, because `rule:types/shape-type`'s width subtyping accepts a
 field the target does not name and a mistyped key must be an error; and a bag **flattens** at the call site
 into one ABI argument per declared field, because the alternative builds an `array<mixed>` per call and
 needs a spelling the IR does not have. Both hold verbatim for a required shape parameter. What is genuinely
@@ -158,7 +158,7 @@ key" — one clause each in their doc comments — and cover the two conditions 
 errors: an argument that is not a written shape literal, and a key the member does not declare. A **missing
 required key** needs no code of its own, because an incomplete literal genuinely *is* a value of the wrong
 type and the existing argument-type mismatch already reports it, naming the parameter. That asymmetry is not
-an accident: an *extra* key is the one that needed a code, precisely because ADR 0036 § 3's width subtyping
+an accident: an *extra* key is the one that needed a code, precisely because `rule:types/shape-type`'s width subtyping
 would otherwise have accepted it.
 
 This matters more than it looks. Both type diagnostic bands are full — `E04xx` at `E0499` and its `E07xx`

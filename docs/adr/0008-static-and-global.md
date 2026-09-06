@@ -97,7 +97,7 @@ Four reasons, strongest first.
 initialiser a *compile* error. A function static breaks that flatly: its initialiser runs on the first call
 and on no later one, so on every call after the first the binding is live while its initialiser is not on
 the executed path. The rule would need one carve-out, for one keyword, in the exact analysis whose value
-comes from having none. Every other new declaration slot in ADR 0007 strengthens the checker; this one would
+comes from having none. Every other new declaration slot in `rule:types/declaration` strengthens the checker; this one would
 be the sole hole in it.
 
 **It is a third storage class, for one keyword.** A per-function slot, per isolate, with a run-once flag the
@@ -139,7 +139,7 @@ a `$this`-free closure inside a method and then `bindTo()`s it to a *different* 
 ignores the binding. That pattern is rare, it is precisely what `static fn` was used to forbid, and
 `nvs convert` can see it: a `bindTo` whose target closure never names `$this` is reportable at convert time
 rather than surprising at run time. (The closure literal itself is `fn`, and `bindTo`/`bind` are `callable`
-operations rather than a `Closure` class's methods — [ADR 0031](0031-callable-is-the-only-closure-type.md).)
+operations rather than a `Closure` class's methods — `rule:types/closure-literal`.)
 
 ### 5. Diagnostics
 
@@ -159,7 +159,7 @@ only says "not supported" is a bug in this decision, not a faithful implementati
 
 - One storage-class table per isolate instead of two, and one teardown path — the shape
   [0006](0006-isolated-script-execution.md) requires rather than tolerates.
-- ADR 0007's definite-assignment analysis has no exceptions, so "reading an undeclared or unassigned binding
+- `rule:types/declaration`'s definite-assignment analysis has no exceptions, so "reading an undeclared or unassigned binding
   is a compile error" is true without qualification. That is worth more than the construct.
 - The M1 parser has one fewer new declaration slot to invent syntax for. There is no `static` type slot to
   design, because there is no `static` declaration.
@@ -170,7 +170,7 @@ only says "not supported" is a bug in this decision, not a faithful implementati
 
 **Negative**
 
-- Two more PHP constructs stop compiling, on top of the ADR 0007 list. Both have mechanical rewrites, so
+- Two more PHP constructs stop compiling, on top of the `rule:types/declaration` list. Both have mechanical rewrites, so
   they land in `nvs convert` as rewrites rather than `TODO`s, but they are still work in M11.
 - The function-static rewrite is not purely local: it needs a class to hang the property on. For a free
   function in a procedural file the converter must introduce one, or hoist the state into a parameter, and
@@ -178,11 +178,11 @@ only says "not supported" is a bug in this decision, not a faithful implementati
   surrounding code.
 - Closure capture becoming use-based is a real semantic difference in a corner (`bindTo` on a `$this`-free
   closure) rather than a pure removal, so it belongs in the divergence accounting for the `.phpt` corpus
-  alongside ADR 0007's nine.
+  alongside `rule:types/declaration`'s nine.
 
 ## Alternatives rejected
 
-- **Keep the function static and give it a type slot** (what ADR 0007 originally assumed). Rejected on
+- **Keep the function static and give it a type slot** (what `rule:types/declaration` originally assumed). Rejected on
   the definite-assignment argument in § 3: the carve-out would land in the one analysis that pays for
   the mandatory annotations.
 - **Run the initialiser at isolate start rather than on first call.** Rejected: changes PHP's semantics

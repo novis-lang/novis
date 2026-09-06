@@ -1,4 +1,4 @@
-//! ADR 0031's closure literals, lowered to an object of a synthesized class with one field per capture.
+//! `rule:types/closure-literal`'s closure literals, lowered to an object of a synthesized class with one field per capture.
 //!
 //! Part of [`super`]'s one `impl Lowering`, split across this directory so a
 //! session editing one area does not carry the rest in context. Every item
@@ -53,7 +53,7 @@ pub(crate) struct PendingClosure {
 ///
 /// # Panics
 ///
-/// Naming ADR 0007 § 1 for a parameter with no declared type, exactly as
+/// Naming `rule:types/declaration` for a parameter with no declared type, exactly as
 /// [`lower_closure`] does for the same parameter list.
 pub(crate) fn param_tags_word(
     fn_expr: &FnExpr,
@@ -61,9 +61,9 @@ pub(crate) fn param_tags_word(
     checked_types: &TypeInterner,
 ) -> i64 {
     let word = super::pack_param_tags(fn_expr.params.iter().map(|p| {
-        let decl_ty =
-            p.ty.as_ref()
-                .unwrap_or_else(|| panic!("ADR 0007 § 1: every parameter has a declared type"));
+        let decl_ty = p.ty.as_ref().unwrap_or_else(|| {
+            panic!("`rule:types/declaration`: every parameter has a declared type")
+        });
         lower_decl_type(decl_ty, exprs, checked_types)
     }));
     // A sixteenth parameter puts a nibble in the sign bit. The slot holds the
@@ -106,8 +106,7 @@ pub(crate) fn drain_closures(
 }
 
 /// Lowers one `fn` literal's body to the `invoke` method of its own
-/// captured-environment class — [ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md)
-/// § 1/§ 2.
+/// captured-environment class — `rule:types/closure-literal`/§ 2.
 ///
 /// # The representation
 ///
@@ -152,12 +151,12 @@ pub(crate) fn drain_closures(
 ///
 /// The assert on an `inout $x` parameter is an internal-consistency check rather
 /// than a gap: `callable` carries no parameter list for a call site to read
-/// (ADR 0031 § 4), so `nvs_types::expr::calls` refuses one as `E0493` and
+/// (`rule:types/callable-absorbs-closure`), so `nvs_types::expr::calls` refuses one as `E0493` and
 /// nothing that reaches here declares one.
 ///
 /// # Returns
 ///
-/// The environment class first, then one per ADR 0036 § 2 shape literal the
+/// The environment class first, then one per `rule:types/object-literal` shape literal the
 /// body wrote — [`Lowering::shapes`], which has nowhere else to travel.
 pub(crate) fn lower_closure(
     pending: &PendingClosure,
@@ -220,9 +219,9 @@ pub(crate) fn lower_closure(
              know to stage the cell — `nvs_types::expr::calls` refuses this where it is \
              written, as `E0493`"
         );
-        let decl_ty =
-            p.ty.as_ref()
-                .unwrap_or_else(|| panic!("ADR 0007 § 1: every parameter has a declared type"));
+        let decl_ty = p.ty.as_ref().unwrap_or_else(|| {
+            panic!("`rule:types/declaration`: every parameter has a declared type")
+        });
         let ty = lower_decl_type(decl_ty, exprs, checked_types);
         let index = u32::try_from(i + 1).expect("far more parameters than a call could ever take");
         let pname = strip_sigil(span_text(src, p.name)).to_owned();
@@ -238,7 +237,7 @@ pub(crate) fn lower_closure(
     }
 
     match &fn_expr.body {
-        // An expression body is an implicit `return` (ADR 0031 § 1), lowered
+        // An expression body is an implicit `return` (`rule:types/closure-literal`), lowered
         // through the same path `StmtKind::Return` uses: retain if the value
         // is a borrowed read, release the frame's locals, return.
         FnBody::Expr(body) => {
@@ -259,7 +258,7 @@ pub(crate) fn lower_closure(
     }
 
     let more = std::mem::take(&mut low.closures);
-    // ADR 0027's `(...)` written inside a closure body has the same nowhere
+    // `rule:types/callable-is-a-closure`'s `(...)` written inside a closure body has the same nowhere
     // else to go — see `Lowering::callables`.
     let more_callables = std::mem::take(&mut low.callables);
     // A shape literal written *inside* a closure body synthesizes its class
@@ -317,7 +316,7 @@ pub(crate) fn lower_closure(
 /// `None` where nothing can check it. Two callers ask the same question: a
 /// closure parameter's entry check below, and
 /// [`Lowering::lower_checked_downcast`](super::Lowering::lower_checked_downcast),
-/// ADR 0007 § 6's checked way out of `mixed`. `nvs_types` refuses the `None`
+/// `rule:types/unions-and-mixed`'s checked way out of `mixed`. `nvs_types` refuses the `None`
 /// case at the conversion (`E0711`), so the second caller's `None` is a
 /// conversion this crate has no lowering for rather than a shape it declines.
 ///
@@ -443,7 +442,7 @@ fn check_param_class(
 /// The reserved field an **instance** first-class callable's object holds its
 /// target's receiver under — `$obj->method(...)` and the `self::method(...)`
 /// spelling of a non-`static` member alike
-/// ([ADR 0027](/docs/adr/0027-callable-is-closures-only.md) § 1).
+/// (`rule:types/callable-is-a-closure`).
 ///
 /// Absent from a static target's class, which has nothing to remember: its
 /// called class is a compile-time constant the thunk materializes for itself.
@@ -485,12 +484,12 @@ pub(crate) struct PendingCallable {
 }
 
 /// Lowers one first-class callable to the `invoke` method of a class
-/// synthesized for that one site — ADR 0027 § 1, on top of
+/// synthesized for that one site — `rule:types/callable-is-a-closure`, on top of
 /// [`lower_closure`]'s representation and adding nothing to it.
 ///
 /// # Why a thunk rather than a fourth call shape
 ///
-/// ADR 0031 § 1 makes `callable` the only closure type, so the *value* a
+/// `rule:types/closure-literal` makes `callable` the only closure type, so the *value* a
 /// `(...)` produces has to be the same object every `fn` literal produces:
 /// [`FN_ARITY`], [`FN_PARAM_TAGS`], and one `invoke` the runtime reaches
 /// through the method table. Given that, the cheapest correct body for that
@@ -505,7 +504,7 @@ pub(crate) struct PendingCallable {
 /// # What the thunk captures, and what it does not
 ///
 /// An instance target's receiver is stored **by value at the point the
-/// `(...)` is evaluated**, which is ADR 0031 § 2's rule for a capture and the
+/// `(...)` is evaluated**, which is `rule:types/implicit-capture`'s rule for a capture and the
 /// answer PHP's own first-class callable syntax gives. A static target's
 /// called class is baked in as an [`InstKind::ClassDescConst`] instead.
 ///

@@ -1016,7 +1016,7 @@ fn budget_exhausted(member: &str, pattern: &str, err: &fancy_regex::Error) -> Fa
 
 /// One `string` argument's text. The one failure is `FATAL` for `Core\Str`'s
 /// reasons, which that module's own `text` states — including why there is no
-/// second, encoding one: the tag [`Value::as_text`] checks is ADR 0009's UTF-8
+/// second, encoding one: the tag [`Value::as_text`] checks is `rule:types/bytes`'s UTF-8
 /// guarantee itself.
 fn text<'a>(value: &'a Value, member: &str, position: &str) -> Result<&'a str, Fault> {
     value.as_text().ok_or_else(|| {

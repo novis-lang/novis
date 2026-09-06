@@ -104,6 +104,6 @@ Goal 19's whole acceptance list — the parity program, never traded.
 - **Ambiguity about where the address-or-path key lives resolves toward `cache.rs`** — it owns the
   policy half already, `redis.rs` owns what talks, and that split is the one the module doc states.
   Decided-and-recorded in that module's doc comment, never `BLOCKED`.
-- **What this spends**, per `rule:programs/memory-priority`(../../adr/0004-memory-for-simplicity.md): nothing new per request.
+- **What this spends**, per `rule:programs/memory-priority`: nothing new per request.
   One socket per core either way, and a local connect that skips the IP stack is strictly less work than
   the loopback round trip it replaces.

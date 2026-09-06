@@ -1,4 +1,4 @@
-# ADR 0136 — A `callable` carries its signature
+# `rule:types/callable-signature` — A `callable` carries its signature
 
 - **Status:** Accepted
 - **Date:** 2026-09-03

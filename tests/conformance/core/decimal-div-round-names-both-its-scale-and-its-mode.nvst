@@ -1,5 +1,5 @@
 --TEST--
-ADR 0054 § 3: `Core\Decimal::divRound` names the scale and the mode at the call, and the six modes part at the tie
+`rule:types/arithmetic`: `Core\Decimal::divRound` names the scale and the mode at the call, and the six modes part at the tie
 --FILE--
 <?nvs
 // One eighth is 0.125 exactly, so two places is exactly the tie and every mode

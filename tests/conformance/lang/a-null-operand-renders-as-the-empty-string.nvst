@@ -1,5 +1,5 @@
 --TEST--
-A statically `null` operand renders as the empty string at every implicit string site, agreeing with the `?string` holding one — ADR 0007 § 2
+A statically `null` operand renders as the empty string at every implicit string site, agreeing with the `?string` holding one — `rule:types/conversion`
 --FILE--
 <?nvs
 // The row the four refusals beside this case do *not* include. `null` has an

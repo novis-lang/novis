@@ -1,10 +1,10 @@
-# ADR 0125 — A class reference is a type, and `as` is its only source
+# `rule:types/class-reference` — A class reference is a type, and `as` is its only source
 
 - **Status:** Accepted
 - **Date:** 2026-08-31
 - **Scope:** the `class<T>` type — its grammar, its one source, its widening, the three sites that accept
   it, the constructor rule a dynamic `new` is checked against, and what a qualifier does across the
-  conversion. It does **not** reopen [ADR 0007](0007-explicit-type-system.md) § 2's rejected list, which
+  conversion. It does **not** reopen `rule:types/conversion`'s rejected list, which
   keeps `eval`, `$$var` and `settype()` refused; it does not touch `E0235`, the dynamic *member* name,
   whose reasoning lives on `E_DYNAMIC_MEMBER_NAME` in
   [`crates/nvs-diagnostics/src/lib.rs`](../../crates/nvs-diagnostics/src/lib.rs); and it says nothing
@@ -44,7 +44,7 @@ entirely. The language refuses the unsafe spelling and offers no safe one.
 What is missing is not a permission but a **type**. `Foo::class` already exists and is a `string`; the
 descriptor it names already exists at run time, because `new static(...)` allocates from exactly that
 value ([`InstKind::NewDynamic`](../../crates/nvs-ir/src/ir.rs)). The two have never been connected by
-anything the checker can read. ADR 0007 § 2 already owns the one operator that turns an unchecked value
+anything the checker can read. `rule:types/conversion` already owns the one operator that turns an unchecked value
 into a checked one, and it already throws rather than substituting. A class reference is that operator
 applied to a class name.
 
@@ -64,7 +64,7 @@ two class references compare by descriptor identity, and nothing else is ever eq
 is not its own class, and `$cls == "Dog"` is exactly the string-as-a-class confusion § 2 exists to keep
 out. Ordering one is refused with the other unordered types.
 
-The grammar is one line, [ADR 0007](0007-explicit-type-system.md) § 3's `atom` production reads it, and
+The grammar is one line, `rule:types/grammar`'s `atom` production reads it, and
 it is parsed only in type position, where a `<` is unambiguously a type-argument list and not a
 comparison. `class` is already a keyword, so `class<` is two tokens of lookahead and there is no new
 ambiguity: a class *declaration* is `class Name`, never `class <`.
@@ -81,7 +81,7 @@ holding one costs a word and frees nothing.
 
 **There is no other way to obtain a `class<T>`.** `Foo::class` is a `string` and stays one, so nothing
 about the existing spelling changes and no program acquires a class reference by accident. Two
-conversions produce one, and [ADR 0007](0007-explicit-type-system.md) § 2's grid holds both:
+conversions produce one, and `rule:types/conversion`'s grid holds both:
 
 | conversion | behaviour |
 |---|---|
@@ -136,7 +136,7 @@ fix the author can take.
 `$obj->$name` is untouched *by this ADR*: a class reference answers "which class", which the checker can
 use, and never "which member", which it cannot — so no `class<T>` operand ever admits one. The member-name
 door is a different type's to open, and
-[ADR 0126](0126-a-property-key-is-a-checked-name-and-as-is-its-only-source.md) § 4 opens it for
+`rule:types/property-key-access` opens it for
 `property<T>` alone.
 
 ### 5. A `new` over `class<T>` is checked against `T`'s constructor, and a divergent implementor is refused

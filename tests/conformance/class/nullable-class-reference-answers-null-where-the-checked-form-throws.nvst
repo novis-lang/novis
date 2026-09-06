@@ -1,5 +1,5 @@
 --TEST--
-`as ?class<T>` answers `null` on every miss the checked form throws for, and the value is an ordinary `?T` under `==`, `??`, `isset` and a condition — ADR 0125 § 2, `rule:expressions/nullable-conversion-availability`
+`as ?class<T>` answers `null` on every miss the checked form throws for, and the value is an ordinary `?T` under `==`, `??`, `isset` and a condition — `rule:types/class-reference`, `rule:expressions/nullable-conversion-availability`
 --FILE--
 <?nvs
 class Animal {
@@ -9,7 +9,7 @@ class Animal {
 class Dog extends Animal {
     public function speak(): string { return "woof"; }
 }
-// A real class that is not an `Animal` — ADR 0125 § 2 makes it the *same*
+// A real class that is not an `Animal` — `rule:types/class-reference` makes it the *same*
 // failure as a name that resolves to nothing, so both answer `null` here.
 class Rock {}
 
@@ -36,8 +36,8 @@ class<Animal> $missed = $b ?? $fallback;
 class<Animal> $found = $a ?? $fallback;
 echo "coalesce ", (new $missed())->speak(), " ", (new $found())->speak(), "\n";
 
-// ADR 0007 § 6's narrowing: past a `!= null` test the binding is a
-// `class<Animal>` and ADR 0125 § 4's `new $cls()` accepts it.
+// `rule:types/unions-and-mixed`'s narrowing: past a `!= null` test the binding is a
+// `class<Animal>` and `rule:types/class-reference-sites`'s `new $cls()` accepts it.
 if ($a != null) {
     Animal $made = new $a();
     echo "narrowed ", $made->speak(), "\n";

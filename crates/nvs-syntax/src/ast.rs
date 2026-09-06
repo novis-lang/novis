@@ -2,14 +2,14 @@
 //!
 //! # What is here so far
 //!
-//! Types ([`Type`]/[`TypeKind`]/[`TypeAtom`], ADR 0007 § 3) and expressions
+//! Types ([`Type`]/[`TypeKind`]/[`TypeAtom`], `rule:types/grammar`) and expressions
 //! ([`Expr`]/[`ExprKind`], every construct M1's plan names — `match`, closures
 //! and arrow functions, `spawn script`, `require`, named arguments,
 //! spread, nullsafe, first-class callable syntax, the `as` conversion
 //! operator). [`Block`]/[`Stmt`]/[`StmtKind`] now also cover every
 //! control-flow statement (`if`, `while`, `do`/`while`, `for`, `foreach`'s
 //! mandatory typed bindings, `switch`, `break`/`continue`, `try`/`catch`/
-//! `finally`), `echo`, `unset`, ADR 0007 § 3.1's typed local declaration,
+//! `finally`), `echo`, `unset`, `rule:types/grammar`.1's typed local declaration,
 //! § 3.3's destructuring statement, and the statement-shaped rejects
 //! (`global`, `goto`, function-scope `static`). Classes, interfaces and
 //! enums ([`ClassDecl`]/[`InterfaceDecl`]/[`EnumDecl`]), their members
@@ -53,7 +53,7 @@ pub struct Name {
 }
 
 // ============================================================================
-// Types (ADR 0007 § 3)
+// Types (`rule:types/grammar`)
 // ============================================================================
 
 /// A type expression: `int`, `array<uint>`, `int|string`, `?User`, `A&B`.
@@ -67,7 +67,7 @@ pub struct Type {
 
 /// The shape of a [`Type`].
 ///
-/// Mirrors ADR 0007 § 3's grammar directly: `type := union`,
+/// Mirrors `rule:types/grammar`'s grammar directly: `type := union`,
 /// `union := intersection ('|' intersection)*`,
 /// `intersection := atom ('&' atom)* | '(' union ')'`. [`Self::Paren`] preserves
 /// an explicit `(...)` grouping used to nest a union inside an intersection for
@@ -97,18 +97,18 @@ pub enum TypeAtom {
     Bool,
     /// `int`
     Int,
-    /// `uint` — new, unsigned, ADR 0007 § 4.
+    /// `uint` — new, unsigned, `rule:types/arithmetic`.
     Uint,
     /// `float`
     Float,
-    /// `decimal` — ADR 0054 § 1: a scalar, not a class, and never a spelling
+    /// `decimal` — `rule:types/decimal`: a scalar, not a class, and never a spelling
     /// of `float`. It is its own atom for the same reason `uint` is: § 3 makes
     /// `decimal ⊕ float` a compile error, which is only expressible if the two
     /// never collapse to one type.
     Decimal,
     /// `string`
     String,
-    /// `bytes` — ADR 0009.
+    /// `bytes` — `rule:types/bytes`.
     Bytes,
     /// `tainted string` — ADR 0024 § 1. A compile-time qualifier on `String`,
     /// erased before codegen; kept as its own atom (rather than a generic
@@ -136,11 +136,11 @@ pub enum TypeAtom {
     SecretTaintedBytes,
     /// `array`, or `array<T>` when a type argument is given.
     Array(Option<Box<Type>>),
-    /// `class<T>` — ADR 0125 § 1's class reference, whose value is the
+    /// `class<T>` — `rule:types/class-reference`'s class reference, whose value is the
     /// run-time class descriptor of a class that is a `T`.
     ///
     /// The argument is held as a whole [`Type`] rather than as a [`Name`],
-    /// even though ADR 0007 § 3's production admits only a `Name` there: an
+    /// even though `rule:types/grammar`'s production admits only a `Name` there: an
     /// argument that is not a class or interface name is refused by the
     /// checker, where the name has been resolved and the refusal can say what
     /// it resolved *to*. The parser refusing it would have to report on the
@@ -151,7 +151,7 @@ pub enum TypeAtom {
     /// keyword, and a reference to "some class" with no bound is what
     /// [`Self::Object`] already is.
     ClassRef(Box<Type>),
-    /// `property<T>` — ADR 0126 § 1's property key, whose values are the names
+    /// `property<T>` — `rule:types/property-key`'s property key, whose values are the names
     /// of `T`'s public declared properties.
     ///
     /// The argument is held as a whole [`Type`] for [`Self::ClassRef`]'s
@@ -163,7 +163,7 @@ pub enum TypeAtom {
     PropertyKey(Box<Type>),
     /// `object`
     Object,
-    /// `{name: T, ...}` — ADR 0036 § 3: an inline structural shape type,
+    /// `{name: T, ...}` — `rule:types/shape-type`: an inline structural shape type,
     /// checked by width subtyping rather than nominal `implements` — Novis's
     /// one deliberate exception to otherwise fully nominal typing. May be
     /// empty (`{}`), which carries the same "no field promised" meaning as
@@ -181,7 +181,7 @@ pub enum TypeAtom {
     True,
     /// `false`, the type inhabited by exactly the literal `false`.
     False,
-    /// `"a"` — the type inhabited by exactly that one string, ADR 0047 § 1:
+    /// `"a"` — the type inhabited by exactly that one string, `rule:types/literal-types`:
     /// the generalisation of [`Self::True`]/[`Self::False`] from `bool`'s two
     /// values to `string`'s. The span covers the whole literal, quotes
     /// included, exactly as [`ExprKind::Str`]'s does, so one decoder serves
@@ -189,10 +189,10 @@ pub enum TypeAtom {
     /// a type has nothing to interpolate from.
     StringLiteral(Span),
     /// `1`, `-1` — the type inhabited by exactly that one integer,
-    /// ADR 0047 § 1. The span covers a leading `-` when one was written.
+    /// `rule:types/literal-types`. The span covers a leading `-` when one was written.
     /// There is deliberately no `float` counterpart (§ 7).
     IntLiteral(Span),
-    /// `Foo::BAR` in type position — ADR 0047 §§ 2-3. The [`Name`] is the
+    /// `Foo::BAR` in type position — `rule:types/constant-in-type-position` and `rule:types/enum-case-type`. The [`Name`] is the
     /// class or enum, the [`Span`] the member identifier after `::`.
     ///
     /// One atom, two meanings, and the parser cannot tell them apart: a
@@ -215,7 +215,7 @@ pub enum TypeAtom {
     /// parser) decides which kind of atom it resolves to — together with any
     /// `<...>` type-argument list written after it.
     ///
-    /// The argument list is almost always empty: ADR 0007 § 1 parks
+    /// The argument list is almost always empty: `rule:types/declaration` parks
     /// user-declared type parameters, and `rule:iteration/concrete-generic-implements` opens one door for a
     /// *compiler-owned* generic interface (`Iterator<int>`). The parser
     /// accepts the syntax on any name and records what it saw; refusing it on
@@ -224,7 +224,7 @@ pub enum TypeAtom {
     Name(Name, Vec<Type>),
 }
 
-/// One `name: T` field of a [`TypeAtom::Shape`] — ADR 0036 § 3.
+/// One `name: T` field of a [`TypeAtom::Shape`] — `rule:types/shape-type`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ShapeField {
     /// The field's name.
@@ -415,7 +415,7 @@ pub struct ArrayItem {
     pub span: Span,
 }
 
-/// One `name: value` field of an [`ExprKind::ObjectLiteral`] — ADR 0036 § 2.
+/// One `name: value` field of an [`ExprKind::ObjectLiteral`] — `rule:types/object-literal`.
 /// Unlike [`ArrayItem`], there is no shorthand, no spread and no computed
 /// key: every field name is a static identifier, full stop.
 #[derive(Clone, Debug, PartialEq)]
@@ -452,8 +452,7 @@ pub struct AttributeGroup {
 /// One attribute inside an [`AttributeGroup`] — `rule:attributes/attach-sites-and-forms`'s two forms,
 /// `Name(field: value, ...)` and a bare `{field: value, ...}`.
 ///
-/// Both attach the *same* thing: [ADR 0036](/docs/adr/0036-anonymous-object-shapes.md)
-/// § 2's anonymous object literal. The named form is sugar for a name
+/// Both attach the *same* thing: `rule:types/object-literal`'s anonymous object literal. The named form is sugar for a name
 /// immediately followed by that literal, so the payload is
 /// [`ObjectLiteralField`]s in either case rather than a [`CallArgs`] list —
 /// an attribute payload has no positional argument, no shorthand and no
@@ -513,7 +512,7 @@ pub enum Visibility {
 
 /// One parameter of a function, method, closure or arrow function.
 ///
-/// Every parameter's type is mandatory per ADR 0007 § 1; `ty` is `Option` only
+/// Every parameter's type is mandatory per `rule:types/declaration`; `ty` is `Option` only
 /// so a parameter written without one still parses into a node — the missing
 /// type is reported as a diagnostic at the point of parsing, not silently
 /// accepted.
@@ -570,7 +569,7 @@ impl Param {
     }
 }
 
-/// The body of an `fn` closure literal (ADR 0031 § 1): an expression with an
+/// The body of an `fn` closure literal (`rule:types/closure-literal`): an expression with an
 /// implicit return, or a block requiring an explicit `return`.
 #[derive(Clone, Debug, PartialEq)]
 pub enum FnBody {
@@ -581,10 +580,10 @@ pub enum FnBody {
 }
 
 /// `fn [name] (...): T => expr` or `fn [name] (...): T => { ... }`, optionally
-/// `static` — the one closure literal ADR 0031 keeps. There is no `use`
+/// `static` — the one closure literal `rule:types/closure-literal` keeps. There is no `use`
 /// clause: every outer variable the body reads is captured automatically, by
-/// value (ADR 0031 § 2). `name` is the optional self-name for recursion
-/// (ADR 0031 § 3), resolvable only inside this closure's own body.
+/// value (`rule:types/implicit-capture`). `name` is the optional self-name for recursion
+/// (`rule:types/closure-self-name`), resolvable only inside this closure's own body.
 #[derive(Clone, Debug, PartialEq)]
 pub struct FnExpr {
     /// Whether declared `static` (no `$this` binding) — rejected with a
@@ -744,7 +743,7 @@ pub enum ExprKind {
     /// A float literal; the digits are cooked later.
     Float(Span),
     /// A duration literal — `30s`, `1h30m`
-    /// ([ADR 0070](/docs/adr/0070-duration-literals.md)).
+    /// (`rule:types/duration-literal`).
     ///
     /// A span like every other literal, cooked by
     /// [`crate::duration::parse`] wherever the value is wanted. The lexer has
@@ -752,8 +751,8 @@ pub enum ExprKind {
     /// cannot fail.
     ///
     /// Its type is `Core\Time\Duration` and nothing places it, unlike
-    /// [ADR 0054](/docs/adr/0054-decimal-scalar-type.md)'s fractional
-    /// literal — the suffix *is* the type (ADR 0070 § 2).
+    /// `rule:types/decimal`'s fractional
+    /// literal — the suffix *is* the type (`rule:types/duration-literal`).
     Duration(Span),
     /// A single-quoted string, or a double-quoted/heredoc/nowdoc string with
     /// no interpolation in it — both are plain literal text, uncooked.
@@ -942,7 +941,7 @@ pub enum ExprKind {
     /// `clone expr`
     Clone(Box<Expr>),
     /// `fn (...) => expr` or `fn (...) => { ... }` — the one closure literal
-    /// (ADR 0031).
+    /// (`rule:types/closure-literal`).
     Fn(FnExpr),
     /// `match (subject) { ... }`
     Match {
@@ -1010,7 +1009,7 @@ pub enum ExprKind {
     /// than discarded in favour of the inner expression — only so its span
     /// covers the parentheses; it carries no other meaning.
     Paren(Box<Expr>),
-    /// `{name: value, ...}` — ADR 0036 § 2: an anonymous, methodless object
+    /// `{name: value, ...}` — `rule:types/object-literal`: an anonymous, methodless object
     /// literal. May be empty (`{a: 1}`'s fields are the common case, but
     /// `{}` is not rejected here). The two positions where `{` already means
     /// a block (a bare statement, an arrow-bodied `fn`'s body) never reach
@@ -1045,7 +1044,7 @@ pub struct Stmt {
     pub span: Span,
 }
 
-/// One binding of a `foreach` header (ADR 0007 § 3.2): a mandatory type and
+/// One binding of a `foreach` header (`rule:types/grammar`.2): a mandatory type and
 /// a name. A reference marker only ever applies to the *value* binding, never
 /// the key, so it lives on [`StmtKind::Foreach`] rather than here.
 #[derive(Clone, Debug, PartialEq)]
@@ -1060,8 +1059,8 @@ pub struct ForeachBinding {
 }
 
 /// A `for` header's init clause, `rule:iteration/for-init-clause`. Either one typed local
-/// declaration — ADR 0007 § 3.1's, unchanged and in full, including
-/// ADR 0037's `var` spelling — or the comma-separated expression list PHP's
+/// declaration — `rule:types/grammar`.1's, unchanged and in full, including
+/// `rule:types/var-inference`'s `var` spelling — or the comma-separated expression list PHP's
 /// own `for` grammar has, which is what the condition and step clauses still
 /// are. Never both and never two declarations; `E0124` and `E0125` are what
 /// those two shapes are told (`rule:iteration/for-init-refusals`).
@@ -1130,7 +1129,7 @@ pub struct SwitchCase {
 }
 
 /// One leaf, nested target, or empty slot inside a destructuring pattern
-/// (ADR 0007 § 3.3).
+/// (`rule:types/grammar`.3).
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum DestructureElement {
@@ -1249,7 +1248,7 @@ pub enum StmtKind {
         /// The loop body.
         body: Box<Stmt>,
     },
-    /// `foreach (subject as key? value) body`, ADR 0007 § 3.2's mandatory
+    /// `foreach (subject as key? value) body`, `rule:types/grammar`.2's mandatory
     /// typed bindings. `value_inout` is the one place a reference marker
     /// may appear; a key binding never carries one.
     Foreach {
@@ -1289,11 +1288,11 @@ pub enum StmtKind {
     /// `unset(expr, ...);` — kept as an ordinary accepted builtin, unlike
     /// `extract`/`settype`.
     Unset(Vec<Expr>),
-    /// ADR 0007 § 3.1's typed local declaration:
+    /// `rule:types/grammar`.1's typed local declaration:
     /// `type '$' identifier ('=' expr)? ';'`. Exactly one binding per
     /// statement — there is no comma-separated multi-declaration form.
     ///
-    /// ADR 0037 adds a second spelling, `'var' '$' identifier '=' expr ';'`,
+    /// `rule:types/var-inference` adds a second spelling, `'var' '$' identifier '=' expr ';'`,
     /// with no type written at all — [`None`] here means "infer it from
     /// `value`'s own checked type," never "no type." `value` is mandatory in
     /// that case; the parser never produces `ty: None, value: None`.
@@ -1305,7 +1304,7 @@ pub enum StmtKind {
         /// The initializer, if any (always present when `ty` is [`None`]).
         value: Option<Expr>,
     },
-    /// ADR 0007 § 3.3's destructuring statement:
+    /// `rule:types/grammar`.3's destructuring statement:
     /// `destructure-target '=' expr ';'`.
     Destructure {
         /// The left-hand pattern.
@@ -1343,7 +1342,7 @@ pub enum StmtKind {
     UseDecl(UseDecl),
     /// An `autoload` declaration, either form (`rule:programs/autoload`).
     AutoloadDecl(AutoloadDecl),
-    /// `type Name = TypeExpr;` (ADR 0007 § 3.5 / ADR 0015 § 5), at
+    /// `type Name = TypeExpr;` (`rule:types/grammar`.5 / `rule:types/type-alias`), at
     /// file/namespace scope.
     TypeAliasDecl(TypeAliasDecl),
     /// `function foo() { ... }` outside any class body — rejected, ADR 0011
@@ -1362,7 +1361,7 @@ pub enum StmtKind {
 // ============================================================================
 // Declarations: classes, interfaces, traits, enums, and their members
 // (`rule:enums/closed-integer-type`, ADR 0011, ADR 0014); `namespace`, `use` and `type`-alias
-// declarations (ADR 0007 § 3.5, `rule:statements/nothing-gets-a-second-name`)
+// declarations (`rule:types/grammar`.5, `rule:statements/nothing-gets-a-second-name`)
 // ============================================================================
 
 /// `class Name (extends Base)? (implements Iface, ...)? { ... }`.
@@ -1441,7 +1440,7 @@ pub struct EnumDecl {
     /// The declared name.
     pub name: Name,
     /// The `: Type` backing-type clause, if written. Parsed with the full
-    /// ADR 0007 § 3 grammar; that only `int`/`uint` are legal (no `string`,
+    /// `rule:types/grammar` grammar; that only `int`/`uint` are legal (no `string`,
     /// no other atom) is enforced only for the one case `rule:enums/no-class-machinery` names
     /// explicitly (`string`) — anything else is a later check.
     pub backing: Option<Type>,
@@ -1555,7 +1554,7 @@ pub enum PropertyHookBody {
     Block(Block),
 }
 
-/// `modifiers const type? Name = expr;` (ADR 0007 § 1's
+/// `modifiers const type? Name = expr;` (`rule:types/declaration`'s
 /// `public const int MAX = 10;`, PHP 8.3's optional type). A declaration
 /// naming several constants at once (`public const int A = 1, B = 2;`) is
 /// flattened into one [`ClassMember`] per name at parse time, same as
@@ -1669,10 +1668,10 @@ pub enum AutoloadKind {
     },
 }
 
-/// `type Name = TypeExpr;` (ADR 0007 § 3.5 / ADR 0015 § 5), at
+/// `type Name = TypeExpr;` (`rule:types/grammar`.5 / `rule:types/type-alias`), at
 /// file/namespace scope, never inside a class body. `TypeExpr` uses the
-/// full ADR 0007 § 3 grammar unconditionally — the restriction that it may
-/// not be a single bare class/interface/enum atom (ADR 0015 § 6) is a
+/// full `rule:types/grammar` grammar unconditionally — the restriction that it may
+/// not be a single bare class/interface/enum atom (`rule:types/alias-is-never-a-bare-class`) is a
 /// resolution-time check (M2), not a parse-time one; `type Id = SomeClass;`
 /// parses exactly like any other alias.
 #[derive(Clone, Debug, PartialEq)]
@@ -1702,7 +1701,7 @@ pub struct TypeAliasDecl {
 /// buried inside one is refused where it is *checked*, not here.
 ///
 /// It never descends into a nested `fn` body, because a closure appears only
-/// as an *expression* and this walk visits none — so ADR 0031's closures
+/// as an *expression* and this walk visits none — so `rule:types/closure-literal`'s closures
 /// cannot make their enclosing method a generator, which is exactly `rule:iteration/generators`'s "`yield` is lexically confined to the generator's own body".
 #[must_use]
 pub fn is_generator_body(body: &Block) -> bool {

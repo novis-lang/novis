@@ -1,8 +1,8 @@
 --TEST--
-`$a = &$b;` is `E0701` in every position it can be written, never a panic — ADR 0031 § 2, ADR 0023
+`$a = &$b;` is `E0701` in every position it can be written, never a panic — `rule:types/implicit-capture`, ADR 0023
 --FILE--
 <?nvs
-// Novis has no references at all: ADR 0031 § 2 removed by-reference capture, so
+// Novis has no references at all: `rule:types/implicit-capture` removed by-reference capture, so
 // no binding aliases another, and ADR 0023 makes the right-hand side a copy.
 // So `= &` has no owner in either rule — a refusal, not a missing lowering.
 int $b = 1;
@@ -24,20 +24,20 @@ error[E0701]: a binding cannot be assigned by reference
   |
 7 | $a = &$b;
   | ^^^^^^^^ this would share `$b`'s own slot
-  = help: Novis has no references: ADR 0031 § 2 removed by-reference capture and ADR 0023 makes this a copy, so drop the `&` — `inout` is a parameter and binding mode (`rule:statements/inout-is-the-by-reference-spelling`), not a way to make two names one place, and to share one mutable cell you hold it in an object and assign that
+  = help: Novis has no references: `rule:types/implicit-capture` removed by-reference capture and ADR 0023 makes this a copy, so drop the `&` — `inout` is a parameter and binding mode (`rule:statements/inout-is-the-by-reference-spelling`), not a way to make two names one place, and to share one mutable cell you hold it in an object and assign that
 
 error[E0701]: a binding cannot be assigned by reference
    --> %s:12:1
    |
 12 | $rows["0"] = &$b;
    | ^^^^^^^^^^^^^^^^ this would share `$b`'s own slot
-   = help: Novis has no references: ADR 0031 § 2 removed by-reference capture and ADR 0023 makes this a copy, so drop the `&` — `inout` is a parameter and binding mode (`rule:statements/inout-is-the-by-reference-spelling`), not a way to make two names one place, and to share one mutable cell you hold it in an object and assign that
+   = help: Novis has no references: `rule:types/implicit-capture` removed by-reference capture and ADR 0023 makes this a copy, so drop the `&` — `inout` is a parameter and binding mode (`rule:statements/inout-is-the-by-reference-spelling`), not a way to make two names one place, and to share one mutable cell you hold it in an object and assign that
 
 error[E0701]: a binding cannot be assigned by reference
    --> %s:16:11
    |
 16 | int $c = ($a = &$b);
    |           ^^^^^^^^ this would share `$b`'s own slot
-   = help: Novis has no references: ADR 0031 § 2 removed by-reference capture and ADR 0023 makes this a copy, so drop the `&` — `inout` is a parameter and binding mode (`rule:statements/inout-is-the-by-reference-spelling`), not a way to make two names one place, and to share one mutable cell you hold it in an object and assign that
+   = help: Novis has no references: `rule:types/implicit-capture` removed by-reference capture and ADR 0023 makes this a copy, so drop the `&` — `inout` is a parameter and binding mode (`rule:statements/inout-is-the-by-reference-spelling`), not a way to make two names one place, and to share one mutable cell you hold it in an object and assign that
 
 error: aborting due to 3 errors

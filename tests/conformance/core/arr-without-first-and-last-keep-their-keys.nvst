@@ -9,7 +9,7 @@ echo Core\Str::join(Core\Arr::withoutLast($a), ","), "\n";
 
 // PHP's `array_shift`/`array_pop` renumber the integer keys of the remainder
 // and silently keep the string ones — the key-type-dependent behaviour
-// ADR 0069 § 3 removes. Neither member declares a `preserveKeys` option, so
+// `rule:types/preserve-keys` removes. Neither member declares a `preserveKeys` option, so
 // there is nothing to choose: every surviving key is kept.
 echo Core\Str::join(Core\Arr::keys(Core\Arr::withoutFirst($a)), ","), "\n";
 echo Core\Str::join(Core\Arr::keys(Core\Arr::withoutLast($a)), ","), "\n";

@@ -49,7 +49,7 @@
 //! * `assertTrue` takes a **`bool`**, not a `mixed` resolved through `rule:expressions/truthy-positions`'s
 //!   truthy table. That ADR makes a *condition* the one place a value is tested
 //!   without `as`, and an argument is not one.
-//! * `assertNull` takes a **`mixed`**, ADR 0007 § 2's one position that admits
+//! * `assertNull` takes a **`mixed`**, `rule:types/conversion`'s one position that admits
 //!   every type — a `?T` would refuse the non-`null` half of the union the
 //!   question is about.
 //! * `assertCount` takes an **`array<T>`** and a `uint`, which is
@@ -378,7 +378,7 @@ pub(crate) const RESPONSE_NAME: &str = r"Core\Test\Response";
 
 /// What one in-process request answered with — `rule:testing/in-process-request`.
 ///
-/// A `Core`-owned instance rather than an [ADR 0036] shape, which is the one
+/// A `Core`-owned instance rather than an `rule:types/object-top` shape, which is the one
 /// place this surface departs from § 18's worked example's `$rs->status`. A
 /// shape would be the smaller surface, and `Core\Script\Result` is the
 /// precedent for spelling a result as one; what decides it the other way is
@@ -391,7 +391,6 @@ pub(crate) const RESPONSE_NAME: &str = r"Core\Test\Response";
 /// than the two accessors below, and `Core\Script\ExitReport` is the shape a
 /// `Core`-owned result already takes here.
 ///
-/// [ADR 0036]: /docs/adr/0036-anonymous-object-shapes.md
 pub(crate) const RESPONSE: CoreClass = CoreClass {
     name: RESPONSE_NAME,
     methods: &[],
@@ -1268,11 +1267,11 @@ nvs_runtime::nvs_helper! {
     /// `Core\Test::assertNull(mixed $actual, {message?: string}): void` — § 4's
     /// second predicate row.
     ///
-    /// The subject is `mixed` rather than a `?T`: ADR 0007 § 2 makes `mixed`
+    /// The subject is `mixed` rather than a `?T`: `rule:types/conversion` makes `mixed`
     /// the one position that admits every type, and a `?T` parameter would
     /// refuse the `string` half of the very question this member asks about a
     /// union. What it costs is that a subject whose declared type cannot hold
-    /// `null` at all still compiles — a mistake ADR 0047 § 4's literal types
+    /// `null` at all still compiles — a mistake `rule:types/literal-types`'s literal types
     /// would have to be extended to `null` to catch, which is not this
     /// member's to decide.
     fn nvs_core_test_assert_null(ctx, args: [2]) {
@@ -1820,8 +1819,7 @@ fn array_difference(
     Ok(None)
 }
 
-/// Every live `(key, value)` of an array, in iteration order — which ADR 0007
-/// § 5 makes part of the value, so this walk preserves it rather than keying a
+/// Every live `(key, value)` of an array, in iteration order — which `rule:types/arrays` makes part of the value, so this walk preserves it rather than keying a
 /// map with it.
 fn entries(value: Value) -> Option<Vec<(String, Value)>> {
     let array = crate::arr::borrowed(value.array_ptr()?);
@@ -1958,7 +1956,7 @@ fn shown(value: Value) -> String {
 
 /// A `string`'s first [`SHOWN_CHARS`] characters, with an ellipsis where
 /// anything was dropped. Decoded lossily for [`crate::debug`]'s reason: a
-/// `string` is UTF-8 by ADR 0009's promise, so a run that is not is exactly
+/// `string` is UTF-8 by `rule:types/bytes`'s promise, so a run that is not is exactly
 /// what a failing assertion is there to show.
 fn quoted(bytes: &[u8]) -> String {
     let text = String::from_utf8_lossy(bytes);
@@ -2046,7 +2044,7 @@ mod tests {
                 // A `bool`, not a `mixed` resolved through `rule:expressions/truthy-positions`'s truthy
                 // table: an argument is not a condition.
                 "assertTrue" => vec![CoreTy::Bool],
-                // ADR 0007 § 2's one position that admits every type.
+                // `rule:types/conversion`'s one position that admits every type.
                 "assertNull" => vec![CoreTy::Mixed],
                 // `Core\Arr::count`'s own signature, which is where a length
                 // is answered for this domain.

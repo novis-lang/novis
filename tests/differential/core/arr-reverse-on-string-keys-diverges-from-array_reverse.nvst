@@ -1,7 +1,7 @@
 --TEST--
 Core\Arr::reverse renumbers every key its preserveKeys option discards, where array_reverse renumbers the integers and keeps the strings
 --ORACLE-DIVERGES--
-The same divergence `arr-slice-on-string-keys-diverges-from-array_slice` records, in the other member that carries the option: ADR 0069 § 3 removes every rule that asks what type a key is, and `array_reverse`'s `$preserve_keys = false` is one — it renumbers the integer keys and keeps the string ones, so the same call answers a list or a map depending on what the subject's keys happened to be. Novis's `{preserveKeys: false}` discards every key alike and the result is a list from "0", whatever went in. `{preserveKeys: true}` keeps every key alike in both languages, and that half of the option agrees entry for entry — which is what makes this a divergence about the meaning of `false` and not about the order the member produces.
+The same divergence `arr-slice-on-string-keys-diverges-from-array_slice` records, in the other member that carries the option: `rule:types/preserve-keys` removes every rule that asks what type a key is, and `array_reverse`'s `$preserve_keys = false` is one — it renumbers the integer keys and keeps the string ones, so the same call answers a list or a map depending on what the subject's keys happened to be. Novis's `{preserveKeys: false}` discards every key alike and the result is a list from "0", whatever went in. `{preserveKeys: true}` keeps every key alike in both languages, and that half of the option agrees entry for entry — which is what makes this a divergence about the meaning of `false` and not about the order the member produces.
 --FILE--
 <?nvs
 final class Render {

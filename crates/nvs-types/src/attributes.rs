@@ -17,7 +17,7 @@
 //! never anything to instantiate — it is a pre-existing `type` alias whose
 //! right-hand side is a shape, and the payload is then checked against it by
 //! the very rule an ordinary shape-typed binding is checked by
-//! ([`crate::expr::is_assignable`], ADR 0036 § 3's width subtyping). So an
+//! ([`crate::expr::is_assignable`], `rule:types/shape-type`'s width subtyping). So an
 //! attribute's name resolves in the ordinary namespace/`use` scope, and an
 //! unresolvable one is the ordinary `E0303` rather than a refusal of its own.
 //!

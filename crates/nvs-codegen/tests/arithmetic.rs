@@ -1,4 +1,4 @@
-//! Integer arithmetic whose edges diverge from a native instruction — `%`'s signs, a divisor that throws rather than traps, ADR 0007 § 4's overflow throw, and the integer compare an enum pair reaches one representation down.
+//! Integer arithmetic whose edges diverge from a native instruction — `%`'s signs, a divisor that throws rather than traps, `rule:types/arithmetic`'s overflow throw, and the integer compare an enum pair reaches one representation down.
 //!
 //! Split out of the single `compile_and_run.rs`; every test keeps its own name
 //! and body. See `tests/common/mod.rs` for the shared fixtures and for why
@@ -60,7 +60,7 @@ try {
 
 #[test]
 fn an_integer_division_emits_both_of_its_representations() {
-    // ADR 0007 § 4 types `int / int` as `int|float`, PHP-exact, so which of the
+    // `rule:types/arithmetic` types `int / int` as `int|float`, PHP-exact, so which of the
     // two a given pair produces is a *runtime* question and
     // `Emitter::emit_int_div` answers it with a branch rather than with a type.
     // Both arms are asked, because either alone is satisfied by an
@@ -112,7 +112,7 @@ echo $q;
 
 #[test]
 fn an_integer_addition_traps_on_overflow() {
-    // ADR 0007 § 4's overflow row, at the bound and one step inside it. The check is
+    // `rule:types/arithmetic`'s overflow row, at the bound and one step inside it. The check is
     // the machine's own overflow flag (`Emitter::emit_checked_int_arith`), so
     // the not-taken side is a predicted branch and the taken one raises spec
     // § 10's `ArithmeticError` from a baked-in descriptor, exactly as the zero
@@ -165,7 +165,7 @@ fn two_enum_values_compare_as_their_backing_integer() {
     // is no `Ty::Enum` row anywhere in its table, so `rule:expressions/disjoint-comparison-refused`'s "an enum
     // is its own equality domain" is answered one representation down: the
     // lowering relabels each operand with the free `InstKind::Reinterpret`
-    // ADR 0010 § 5 already spends on `$m as int`, and what arrives here is an
+    // `rule:types/conversion` already spends on `$m as int`, and what arrives here is an
     // ordinary integer compare. This guards the whole path rather than the
     // relabel, since a missing arm shows up as `output_of` failing to compile
     // at all rather than as a wrong answer.
@@ -340,11 +340,11 @@ fn a_spaceship_answers_minus_one_zero_or_one_for_a_scalar() {
         ),
         "1-10"
     );
-    // A mixed numeric pair does not widen: ADR 0007 § 2's implicit `int` into
+    // A mixed numeric pair does not widen: `rule:types/conversion`'s implicit `int` into
     // `float` throws above 2^53, and a pair that far apart still orders.
     assert_eq!(output_of("<?nvs\necho 1 <=> 1.5, 2.5 <=> 2;\n"), "-11");
     // Unordered, in both directions and against itself. The `NaN` comes from
-    // the constant and not from `0.0 / 0.0`, which ADR 0007 § 4 now makes a
+    // the constant and not from `0.0 / 0.0`, which `rule:types/arithmetic` now makes a
     // throw — the zero divisor is refused before the operand types are
     // consulted, so there is no float division left that answers one.
     assert_eq!(

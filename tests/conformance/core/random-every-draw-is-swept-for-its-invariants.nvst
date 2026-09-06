@@ -51,7 +51,7 @@ for ($i = 0; $i < 120; $i = $i + 1) {
 }
 echo "unit ", $unit, " ", ($lowHalf > 0 && $lowHalf < 120) ? "both halves" : "one half", "\n";
 
-// `bytes` counts octets, and ADR 0009 § 3 makes `bytes as string` checked, so
+// `bytes` counts octets, and `rule:types/conversion` makes `bytes as string` checked, so
 // a draw is compared through `Core\Encoding::toHex`. Every buffer is its
 // stated length and no two of 24 draws are the same — a generator seeded once
 // per process, or one reseeded identically per call, fails the second count.

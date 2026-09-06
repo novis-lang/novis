@@ -93,7 +93,7 @@ pub enum CaptureConv {
     Int,
     /// `uint` — as [`Self::Int`], and no match where the number is negative.
     Uint,
-    /// `decimal` — ADR 0054 § 4's literal, whole, and no match where the
+    /// `decimal` — `rule:types/conversion`'s literal, whole, and no match where the
     /// segment is not one. The parse is [`crate::decimal::Decimal::parse`]
     /// itself rather than a grammar written here: a second decimal reader that
     /// agreed today is gap 3's failure mode, one type along.
@@ -142,7 +142,7 @@ pub enum Param {
     /// A `uint` capture, converted.
     Uint(u64),
     /// A `decimal` capture, converted — the value, not the text it arrived as,
-    /// so `19.90` keeps the scale ADR 0054 § 4 says it renders with.
+    /// so `19.90` keeps the scale `rule:types/conversion` says it renders with.
     Decimal(Decimal),
     /// A `Core\Uuid` capture, converted: the sixteen octets, in the order the
     /// canonical text writes them. The bytes rather than a type, because the
@@ -829,7 +829,7 @@ mod tests {
             Some(&Param::Decimal(Decimal::parse("-7").expect("a decimal")))
         );
 
-        // The grammar admitted is ADR 0054 § 4's whole literal and not a
+        // The grammar admitted is `rule:types/conversion`'s whole literal and not a
         // narrower one this arm picked: an exponent is a decimal literal, so a
         // segment written that way matches. Asserted because delegating is the
         // rule here — a hand-written `[0-9.]` check would pass every other line

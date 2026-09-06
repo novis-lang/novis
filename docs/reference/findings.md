@@ -28,12 +28,12 @@ in that goal. An item's owner is the row it sits in.
 | Code — lowering and library gaps | P1, P4, D1, D7, D8, D10, D12, D16, D17, D21, D22, D23, D27, D33, D35, U21, M1 | item 34 |
 | Docs in the tree — cards, help texts, module docs, reference chapters | M10, D2, D3, D4, D6, D9, D20, D29, U13, M2, M3, M4, M6, M7, and § *Facts worth keeping* | item 35 |
 | Planned, and unchanged by this pass | U7, U8, U9 (goal 3 items 11, 12, 17 — 11 and 17 widened to say so), U16 and D31 (goal 4), D11 (goal 6 item 19b), D28 (goal 3 stage 5) | the goal named |
-| Closed — the binary is right and the doc now says so | U10 (ADR 0103 § 6 states the `run`/`check`/`dump` exemption), U17 (ADR 0007 § 3: a bare `array` is `array<mixed>`), D13 (ADR 0006: capture is the default), D18 (ADR 0036 § 4), D19 (ADR 0047 § 3: `as` is the only narrowing), D26 (`divergences.md`), D32 (a validator does not launder) | — |
+| Closed — the binary is right and the doc now says so | U10 (ADR 0103 § 6 states the `run`/`check`/`dump` exemption), U17 (`rule:types/grammar`: a bare `array` is `array<mixed>`), D13 (ADR 0006: capture is the default), D18 (`rule:types/erased-member-access`), D19 (`rule:types/enum-case-type`: `as` is the only narrowing), D26 (`divergences.md`), D32 (a validator does not launder) | — |
 
 ## Panics and aborts (P)
 
 - [x] **P1** First-class callable syntax `Class::method(...)` / `$obj->method(...)` type-checks and
-      panics in `nvs-ir` (`lower/expr.rs:2870`, "records `ExprInfo::CallableRef` … no arm"). ADR 0027
+      panics in `nvs-ir` (`lower/expr.rs:2870`, "records `ExprInfo::CallableRef` … no arm"). `rule:types/callable-is-a-closure`
       keeps the spelling. Works only as the argument of `Core\Attributes::get/all`, where it is
       folded at check time. *probes1 `fcc`, probes2 `fcc_case`* — it lowers to the same closure
       object a `fn` literal builds, over a forwarding thunk (`nvs_ir::lower::closure`'s
@@ -75,7 +75,7 @@ in that goal. An item's owner is the row it sits in.
       likewise `$className::f()`. *ref30; php-diff probes* — both are `E0496` where they are written,
       the code the third spelling `$x instanceof $className` already had: one mistake under one report
       (`nvs_types::expr::members::reject_dynamic_class_name`), so neither reaches the lowerer. All
-      three now accept a `class<T>` value instead (ADR 0125 § 4), and the refusal's help names the
+      three now accept a `class<T>` value instead (`rule:types/class-reference-sites`), and the refusal's help names the
       `as` that produces one — a `string` stays refused at every one of them.
 - [x] **P10** Anonymous classes `new class { … }` pass the checker and panic in `nvs-ir`. *probes p03*
       `E0244` at `new class` stops the pipeline before `nvs-ir`; the declaration is still parsed whole,
@@ -299,7 +299,7 @@ in that goal. An item's owner is the row it sits in.
       *ref-core-probes2*
 - [x] **D18** `object` is not fully opaque: a method call through `object` is refused (E0477) but a
       property read compiles and resolves at run time ("`A` has no field `nope`" on a miss); the
-      diagnostic cites ADR 0036 § 4, so this may be intended. *r02, s01*
+      diagnostic cites `rule:types/erased-member-access`, so this may be intended. *r02, s01*
 - [x] **D19** A comparison (`$e == E::A || $e == E::B`) does not narrow an enum value to the
       case-union type; only `as E::A|E::B` does. *q06, r03b*
 - [x] **D20** An empty shape `{}` is satisfied by every attached attribute literal, so a bare marker
@@ -319,9 +319,9 @@ in that goal. An item's owner is the row it sits in.
       retrieval's). `E0731` is left for a constant whose own declaration folds to nothing.
 - [x] **D22** `inout` accepts only a local: `M::bump(inout $a["k"])` is E0439, and the refusal is
       permanent — the `yet` is gone (`nvs_types::expr::args::check_inout_arg` owns why). *ref30*
-- [x] **D23** ADR 0031 § 3's named-closure recursion (`fn fact(int $n): int => … fact($n - 1)`)
+- [x] **D23** `rule:types/closure-self-name`'s named-closure recursion (`fn fact(int $n): int => … fact($n - 1)`)
       parses, but the recursive call resolves as a free function (E0320). *ref30*
-- [x] **D24** `1.0 / 0` answers `INF` without throwing; ADR 0007 § 4's `/ 0` row is the integer one.
+- [x] **D24** `1.0 / 0` answers `INF` without throwing; `rule:types/arithmetic`'s `/ 0` row is the integer one.
       *ref30*
 - [ ] **D25** A property default of `null` on a `?T` property is refused (E0472, "must be a `int|null`
       constant … not a constant of the declared type") — `null` is exactly such a constant. *probes2
@@ -400,7 +400,7 @@ in that goal. An item's owner is the row it sits in.
       and do not exist. E0211's table now cites `rule:statements/no-host-populated-variables`'s map rather than restating a row of it,
       and E0319 names `Core\Math::PI`, which ships.
 - [ ] **M10** The registry cards cite ADR numbers inline in 33 places ("ADR 0056's two engines",
-      "ADR 0009's default unit") — meaningless to the reference's readers. `tools/reference.py`
+      "`rule:types/bytes`'s default unit") — meaningless to the reference's readers. `tools/reference.py`
       strips the parenthesised form `(ADR 0013)`; the inline ones need rewording in the cards.
 
 ## Facts worth keeping (not bugs, but not written anywhere a user reads until now)

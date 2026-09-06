@@ -1,5 +1,5 @@
 --TEST--
-A call through a `mixed` receiver defers to the receiver's runtime class, and refuses the three spellings that deferral cannot express — ADR 0007 § 2, ADR 0036 § 4, ADR 0027
+A call through a `mixed` receiver defers to the receiver's runtime class, and refuses the three spellings that deferral cannot express — `rule:types/conversion`, `rule:types/erased-member-access`, `rule:types/callable-is-a-closure`
 --FILE--
 <?nvs
 final class Box {
@@ -7,8 +7,8 @@ final class Box {
 }
 
 // Accepted, and written first so that a spelling that stops deferring fails
-// here rather than as a missing refusal. ADR 0007 § 2 makes `mixed` the one
-// unchecked position, so ADR 0036 § 4's deferral covers a call as well as a
+// here rather than as a missing refusal. `rule:types/conversion` makes `mixed` the one
+// unchecked position, so `rule:types/erased-member-access`'s deferral covers a call as well as a
 // property access: an ordinary positional call is answered by the receiver's
 // own descriptor when it runs, and so is a `...`, whose count is its own
 // run-time length rather than anything this site resolved.
@@ -29,7 +29,7 @@ $m->value(n: 1);
 int $n = 1;
 $m->value(inout $n);
 
-// ADR 0027's first-class callable spelling makes no call at all: it names a
+// `rule:types/callable-is-a-closure`'s first-class callable spelling makes no call at all: it names a
 // closure value, which carries its callee with it, and there is no class here
 // to read one off.
 $m->value(...);
@@ -39,20 +39,20 @@ error[E0712]: `n:` names no parameter of a call through a `mixed` receiver
    |
 21 | $m->value(n: 1);
    |           ^^^^ written by name here
-   = help: ADR 0036 § 4: the receiver's runtime class chooses the callee, and the method row that marshals the call carries its arity and its parameter tags rather than their names — pass the argument positionally, or narrow the receiver to the class that declares the member
+   = help: `rule:types/erased-member-access`: the receiver's runtime class chooses the callee, and the method row that marshals the call carries its arity and its parameter tags rather than their names — pass the argument positionally, or narrow the receiver to the class that declares the member
 
 error[E0714]: `inout` names no parameter of a call through a `mixed` receiver
    --> %s:27:11
    |
 27 | $m->value(inout $n);
    |           ^^^^^^^^ marked `inout` here
-   = help: ADR 0036 § 4 defers this call to the receiver's runtime class, and an `inout` parameter list is packed and written back here at the call site — so a callee that is not known until the call runs can never bind one; narrow the receiver with `instanceof` or `as ClassName` if the write-back is what was meant
+   = help: `rule:types/erased-member-access` defers this call to the receiver's runtime class, and an `inout` parameter list is packed and written back here at the call site — so a callee that is not known until the call runs can never bind one; narrow the receiver with `instanceof` or `as ClassName` if the write-back is what was meant
 
 error[E0732]: `value(...)` names no closure through a `mixed` receiver
    --> %s:32:1
    |
 32 | $m->value(...);
    | ^^^^^^^^^^^^^^ a closure value is named here
-   = help: ADR 0036 § 4 defers a *call* through a `mixed` to the receiver's runtime class, but a closure value carries its callee with it and there is no class here to read one off — call the member directly (`$m->value(…)`), or narrow the receiver first with `instanceof` or `as ClassName`
+   = help: `rule:types/erased-member-access` defers a *call* through a `mixed` to the receiver's runtime class, but a closure value carries its callee with it and there is no class here to read one off — call the member directly (`$m->value(…)`), or narrow the receiver first with `instanceof` or `as ClassName`
 
 error: aborting due to 3 errors

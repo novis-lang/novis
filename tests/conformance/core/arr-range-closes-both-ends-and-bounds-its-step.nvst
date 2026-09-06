@@ -1,5 +1,5 @@
 --TEST--
-Core\Arr::range closes both of its ends and bounds its `step` on both sides — the last entry is inside the range while one step further is outside it, `1` is the smallest step accepted and `0` or less throws, and a cursor that would leave `int` stops rather than wrapping — spec § 2, ADR 0007 § 4, ADR 0063 R2
+Core\Arr::range closes both of its ends and bounds its `step` on both sides — the last entry is inside the range while one step further is outside it, `1` is the smallest step accepted and `0` or less throws, and a cursor that would leave `int` stops rather than wrapping — spec § 2, `rule:types/arithmetic`, ADR 0063 R2
 --FILE--
 <?nvs
 // `range` is written around one claim: both ends are closed. That is only
@@ -110,7 +110,7 @@ try {
     echo "[", $negative->message, "]\n";
 }
 
-// ADR 0007 § 4's overflow rule, inside a loop this member owns rather than in
+// `rule:types/arithmetic`'s overflow rule, inside a loop this member owns rather than in
 // arithmetic a program wrote: the cursor advances by a checked add, so a range
 // whose next step would leave `int` stops at the last value that fits. The
 // closed end is reachable at `int`'s own maximum, and a stride that would

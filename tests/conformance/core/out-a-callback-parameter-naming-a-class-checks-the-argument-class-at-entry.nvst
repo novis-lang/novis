@@ -1,5 +1,5 @@
 --TEST--
-A closure parameter naming a class is checked against the argument's own ancestry at the closure's entry, so an unrelated class refuses by name while a subclass, an interface and every erased spelling accept — ADR 0007 § 2, ADR 0031 § 1
+A closure parameter naming a class is checked against the argument's own ancestry at the closure's entry, so an unrelated class refuses by name while a subclass, an interface and every erased spelling accept — `rule:types/conversion`, `rule:types/closure-literal`
 --FILE--
 <?nvs
 // The depth claim is *a bound asserted on both sides*, over the one argument
@@ -25,7 +25,7 @@ A closure parameter naming a class is checked against the argument's own ancestr
 // `Core\Out::capture`'s `{through:}` is the vehicle for the first half because
 // it is the one `Core` member that hands a callback an object — its own
 // `Core\Cli\Text` carrier (spec § 12). A `callable` is opaque as to signature
-// (ADR 0031 § 1), so nothing static stands between the option and what the
+// (`rule:types/closure-literal`), so nothing static stands between the option and what the
 // closure declares, and these two checks are the whole of what stands there at
 // run time.
 final class Marker {
@@ -48,7 +48,7 @@ array<callable> $filters = [
     fn (?bool $c) => $c,
     fn (array<string> $c) => $c,
     fn (?array<string> $c) => $c,
-    // `float` is the one representation with a widening rule (ADR 0007 § 2),
+    // `float` is the one representation with a widening rule (`rule:types/conversion`),
     // and it is a rule about an `int` or a `uint` arriving — an object is
     // refused here like any other mismatch.
     fn (float $c) => $c,
@@ -59,7 +59,7 @@ array<callable> $filters = [
     // at all — the same nothing `mixed` gets, and for the same reason.
     fn (Marker $c) => $c,
     fn (?Marker $c) => $c,
-    // ADR 0007 § 3's opaque top, and § 2's one unchecked position.
+    // `rule:types/grammar`'s opaque top, and § 2's one unchecked position.
     fn (object $c) => $c,
     fn (mixed $c) => $c,
 ];

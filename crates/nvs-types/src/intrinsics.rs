@@ -98,7 +98,7 @@ enum Grammar {
     Uri,
     /// `nvs_stdlib::cldr`'s pattern letters.
     DateFormat,
-    /// ADR 0070's `30s`/`1h30m` grammar.
+    /// `rule:types/duration-literal`'s `30s`/`1h30m` grammar.
     Duration,
     /// `Core\Str::format`'s `printf` template, which is the one grammar that
     /// is also checked *against the call's other arguments*.
@@ -143,8 +143,7 @@ struct Intrinsic {
     /// § 3's merged ABI does not answer this and is not what this addresses:
     /// that flattening is `nvs_ir::lower`'s, and it happens to an argument
     /// already checked. Here the shape is still one written literal, so the
-    /// address is a field *name* — [ADR 0036](/docs/adr/0036-anonymous-object-shapes.md)
-    /// § 2 makes [`ExprKind::ObjectLiteral`] the only spelling a shape argument
+    /// address is a field *name* — `rule:types/object-literal` makes [`ExprKind::ObjectLiteral`] the only spelling a shape argument
     /// has, and it carries no shorthand, no spread and no computed key for the
     /// match to fall through.
     ///
@@ -363,7 +362,7 @@ pub(crate) fn check_call(
                 report_malformed(span, &message, env);
             }
         }
-        // ADR 0070 § 5's three places that must agree already share one parser,
+        // `rule:types/duration-literal`'s three places that must agree already share one parser,
         // and it lives in `nvs-syntax` because the lexer is one of the three.
         // So this arm reaches no validator of its own: the function below is
         // the same call `nvs_core_time_duration_parse` makes and the same one
@@ -551,7 +550,7 @@ fn may_be_number(ty: TypeId, env: &Env<'_>) -> bool {
         | Ty::True
         | Ty::False
         | Ty::IntLiteral(_) => true,
-        // ADR 0007 § 2's one unchecked position, and the two shapes standing
+        // `rule:types/conversion`'s one unchecked position, and the two shapes standing
         // for a type this call site does not name: nothing is knowable here,
         // so nothing is refused.
         Ty::Mixed | Ty::TypeVar(_) | Ty::Never => true,

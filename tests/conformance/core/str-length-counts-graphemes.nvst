@@ -1,5 +1,5 @@
 --TEST--
-Core\Str::length counts extended grapheme clusters, not code points (ADR 0009 § 2)
+Core\Str::length counts extended grapheme clusters, not code points (`rule:types/string-is-utf8`)
 --FILE--
 <?nvs
 echo Core\Str::length(""), "\n";

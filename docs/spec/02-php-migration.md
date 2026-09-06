@@ -62,7 +62,7 @@ prose claim about four APIs. Most of the rest are already covered wholesale by a
 
 ## Strings
 
-`Core\Str` is UTF-8 throughout ([ADR 0009](../adr/0009-string-and-bytes.md)), which is why every
+`Core\Str` is UTF-8 throughout (`rule:types/bytes`), which is why every
 byte-oriented and ASCII-only algorithm below is dropped rather than ported: it would be wrong on the type
 Novis actually has.
 
@@ -177,15 +177,15 @@ Novis actually has.
 | `utf8_encode` | member | `Core\Encoding::decodeText` with `Charset::Latin1`; deprecated in PHP itself |
 | `vfprintf` | member | `Core\Str::format` with `...$args` into `$file->write` |
 | `vprintf` | member | `echo Core\Str::format(…, ...$args)` |
-| `vsprintf` | member | `Core\Str::format(…, ...$args)` — argument unpacking replaces the `v` family ([ADR 0031](../adr/0031-callable-is-the-only-closure-type.md)) |
+| `vsprintf` | member | `Core\Str::format(…, ...$args)` — argument unpacking replaces the `v` family (`rule:types/closure-literal`) |
 | `wordwrap` | member | `Core\Str::wrap` |
 
 ## Arrays
 
 `array<T>` is one insertion-ordered, `string`-keyed, copy-on-write value
-([ADR 0007](../adr/0007-explicit-type-system.md) § 5), so the two things PHP's array API is mostly made of
+(`rule:types/arrays`), so the two things PHP's array API is mostly made of
 — by-reference mutators and key-type-dependent rules — have nothing to attach to
-([ADR 0069](../adr/0069-array-combination-is-key-type-independent.md)).
+(`rule:types/array-combination`).
 
 | PHP | Outcome | Novis |
 |---|---|---|
@@ -281,7 +281,7 @@ Novis actually has.
 ## Numbers
 
 Overflow throws rather than promoting to `float`, and division by zero throws
-([ADR 0007](../adr/0007-explicit-type-system.md)) — which is why the members that existed to paper over
+(`rule:types/declaration`) — which is why the members that existed to paper over
 either are gone.
 
 | PHP | Outcome | Novis |
@@ -345,7 +345,7 @@ either are gone.
 ### Arbitrary precision
 
 `decimal` is a scalar with operators, not a function family
-([ADR 0054](../adr/0054-decimal-scalar-type.md)), and there is no ambient scale to set.
+(`rule:types/decimal`), and there is no ambient scale to set.
 
 | PHP | Outcome | Novis |
 |---|---|---|
@@ -396,7 +396,7 @@ dropped outright ([ADR 0051](../adr/0051-standard-library-tiers.md)).
 | `date_diff` | member | `Core\Time\DateTime::difference` in whole units, or `Core\Time\Instant::since` for an exact `Duration`. There is no `DateInterval` |
 | `date_format` | member | `Core\Time\DateTime::format` |
 | `date_get_last_errors` | dropped | a parse failure throws rather than recording itself (R4) |
-| `date_interval_create_from_date_string` | dropped | the relative-expression grammar does not exist; `Core\Time\Duration::parse` reads the exact-duration subset ([ADR 0070](../adr/0070-duration-literals.md)) |
+| `date_interval_create_from_date_string` | dropped | the relative-expression grammar does not exist; `Core\Time\Duration::parse` reads the exact-duration subset (`rule:types/duration-literal`) |
 | `date_interval_format` | dropped | a `Duration` is `Stringable` in that same literal grammar, so it round-trips through `parse` and needs no second one |
 | `date_isodate_set` | member | `Core\Time\DateTime::with` |
 | `date_modify` | member | `Core\Time\DateTime::plus` / `Core\Time\DateTime::minus`, or `Core\Time\DateTime::next` for a weekday |
@@ -517,7 +517,7 @@ needs a capability and every one is constant-foldable. Anything that has to ask 
 
 ## Types and conversions
 
-`as` is the only conversion spelling ([ADR 0034](../adr/0034-legacy-cast-syntax-rejected.md)), `as ?T` the
+`as` is the only conversion spelling (`rule:types/no-legacy-cast`), `as ?T` the
 non-throwing one (`rule:expressions/nullable-conversion`), and a declared type makes
 almost every predicate below a question the checker has already answered.
 
@@ -531,7 +531,7 @@ almost every predicate below a question the checker has already answered.
 | `intval` | language | `$x as int`, or `$x as ?int` where PHP relied on `0` for a failure |
 | `is_array` | member | `Core\Reflect::typeOf` — meaningful only on a `mixed` |
 | `is_bool` | member | `Core\Reflect::typeOf` |
-| `is_callable` | member | `Core\Reflect::typeOf`; `callable` is closures only ([ADR 0027](../adr/0027-callable-is-closures-only.md)) |
+| `is_callable` | member | `Core\Reflect::typeOf`; `callable` is closures only (`rule:types/callable-is-a-closure`) |
 | `is_countable` | member | `Core\Reflect::typeOf` |
 | `is_double` | member | `Core\Reflect::typeOf` |
 | `is_float` | member | `Core\Reflect::typeOf` |
@@ -545,7 +545,7 @@ almost every predicate below a question the checker has already answered.
 | `is_resource` | dropped | there is no `resource` type (R14) |
 | `is_scalar` | member | `Core\Reflect::typeOf` |
 | `is_string` | member | `Core\Reflect::typeOf` |
-| `settype` | dropped | a variable's type never changes ([ADR 0007](../adr/0007-explicit-type-system.md)) |
+| `settype` | dropped | a variable's type never changes (`rule:types/declaration`) |
 | `strval` | language | `$x as string` |
 
 ## Runtime configuration, the environment and the process
@@ -564,7 +564,7 @@ how this runtime is built.
 | `ini_alter` | member | `Core\Config::set` — `ini_alter` is PHP's own alias for `ini_set` |
 | `ini_restore` | member | `Core\Config::restore` |
 | `ini_get_all` | member | `Core\Config::all`, string keys to string values, never PHP's per-directive `global_value`/`local_value`/`access` array (R11) |
-| `ini_parse_quantity` | dropped | a size or a duration is its own literal ([ADR 0070](../adr/0070-duration-literals.md)), so there is no quantity string for a program to parse; a directive's value string is read by `Core\Config::set` itself, with the parser the boot path uses ([ADR 0064](../adr/0064-configuration-file-format.md) § 5) |
+| `ini_parse_quantity` | dropped | a size or a duration is its own literal (`rule:types/duration-literal`), so there is no quantity string for a program to parse; a directive's value string is read by `Core\Config::set` itself, with the parser the boot path uses ([ADR 0064](../adr/0064-configuration-file-format.md) § 5) |
 | `get_cfg_var` | member | `Core\Config::get`. PHP's split between the file's value and the active one does not exist — the snapshot is the value ([ADR 0078](../adr/0078-config-reload-and-control-socket.md) § 1) |
 | `php_ini_loaded_file` | dropped | there is no INI file. The configuration is a tree of TOML files, and which one set a directive is what `nvs config dump --origin` reports ([ADR 0103](../adr/0103-configuration-is-a-tree-of-files.md) § 9) rather than something a request reads |
 | `php_ini_scanned_files` | dropped | same — the tree's shape is the operator's to audit, not a request's to introspect |
@@ -796,7 +796,7 @@ of the known hole named above rather than rows this section is missing. What is 
 |---|---|---|
 | `hash` | member | `Core\Hash::of`, whose second argument is a `Digest` case rather than an algorithm name (R11) — a misspelling is a compile error and not a runtime `false` |
 | `hash_algos` | dropped | the roster *is* the `Digest` enum, which the compiler already holds. A list built at run time exists to be searched for a name, which is the failure this removes |
-| `hash_hmac_algos` | dropped | `StrongDigest` is that list, and `Core\Hash::hmac` declares it ([ADR 0047](../adr/0047-literal-and-enum-case-types.md)) |
+| `hash_hmac_algos` | dropped | `StrongDigest` is that list, and `Core\Hash::hmac` declares it (`rule:types/literal-types`) |
 | `hash_hmac` | member | `Core\Hash::hmac`, whose key is `secret bytes` ([ADR 0033](../adr/0033-secret-qualifier-for-confidential-values.md)) and whose digest cannot be a broken one |
 | `hash_equals` | member | `Core\Hash::equals`, constant-time |
 | `hash_init` | member | `Core\Hash::stream` |
@@ -888,7 +888,7 @@ answers the second by never accepting a shell string at all, which is why `escap
 | `unregister_tick_function` | dropped | same |
 | `cli_set_process_title` | dropped | it mutates process-global state, and one process serves many requests: the title one of them set is a label on all the others |
 | `cli_get_process_title` | dropped | same |
-| `sapi_windows_cp_get` | dropped | a `string` is UTF-8 ([ADR 0009](../adr/0009-string-and-bytes.md)), so there is no console code page to read or set; conversion at the `bytes` boundary is `Core\Encoding` |
+| `sapi_windows_cp_get` | dropped | a `string` is UTF-8 (`rule:types/bytes`), so there is no console code page to read or set; conversion at the `bytes` boundary is `Core\Encoding` |
 | `sapi_windows_cp_set` | dropped | same, and it is process-global besides |
 | `sapi_windows_cp_is_utf8` | dropped | same; the answer is fixed |
 | `sapi_windows_cp_conv` | dropped | same — converting between encodings is `Core\Encoding`, on every platform alike |
@@ -908,7 +908,7 @@ question the compiler has already answered or one member of `Core\Reflect`
 ([01 § 13](01-core-library.md)), and never a lookup that can load a file as a side effect.
 
 The rest divides in two. The **dynamic-call** family is the language: a `callable` is closures only
-([ADR 0027](../adr/0027-callable-is-closures-only.md)) and a closure is called by writing the call, a
+(`rule:types/callable-is-a-closure`) and a closure is called by writing the call, a
 variadic parameter is the list `func_get_args` reconstructed, and no static call takes a target assembled
 at run time. The **dumping** family is one diagnostic record with three renderings
 (`rule:errors/diagnostic-record`), which is `Core\Debug`.
@@ -925,7 +925,7 @@ identify.
 | `interface_exists` | member | `Core\Reflect::forClass`. Which kind of declaration carries the name is not a second question, and the description it answers with says which |
 | `trait_exists` | dropped | there is no `trait` ([ADR 0043](../adr/0043-interface-default-methods-and-delegation-replace-traits.md)), so no name could answer `true` |
 | `enum_exists` | member | `Core\Reflect::forClass`, the same door. An enum's cases are closed and known while compiling (`rule:enums/closed-integer-type`), so its existence is the only thing left to ask at run time |
-| `get_class` | language | `$object::class`, one load off the receiver's own class descriptor ([ADR 0144](../adr/0144-class-answers-the-class-a-value-is-so-static-class-and-obj.md) § 1). It answers the class the receiver *is*, so a variable declared as a base still reports the subclass it holds. A receiver whose type erased to `mixed` is `Core\Reflect::forObject` instead, whose description carries the name |
+| `get_class` | language | `$object::class`, one load off the receiver's own class descriptor (`rule:types/class-constant`). It answers the class the receiver *is*, so a variable declared as a base still reports the subclass it holds. A receiver whose type erased to `mixed` is `Core\Reflect::forObject` instead, whose description carries the name |
 | `get_called_class` | language | `static::class`. Late static binding has its own spelling, and a function that reads the calling scope is not one |
 | `get_parent_class` | member | `Core\Reflect::forObject`'s description. The test a parent name usually feeds is `instanceof`, which the compiler answers without producing a name at all |
 | `get_object_vars` | member | `Core\Reflect::forObject`, whose property walk respects the visibility the *calling site* has ([ADR 0019](../adr/0019-reflection-and-ast-parsing-are-core-features.md) § 2) rather than silently returning more when called from inside the class |
@@ -952,7 +952,7 @@ identify.
 | `spl_autoload_call` | dropped | there is no moment at which a name is declared but not yet resolved |
 | `spl_autoload` | dropped | the default loader, which is the `include`-path search `autoload`'s literal paths replace |
 | `spl_autoload_extensions` | dropped | same — `autoload` names paths, so there is no extension list to guess a filename from |
-| `call_user_func` | language | `$f(...)`. A `callable` is closures only ([ADR 0027](../adr/0027-callable-is-closures-only.md)), and a closure is invoked by writing the call; the `"Class::method"` string form has no spelling at all |
+| `call_user_func` | language | `$f(...)`. A `callable` is closures only (`rule:types/callable-is-a-closure`), and a closure is invoked by writing the call; the `"Class::method"` string form has no spelling at all |
 | `call_user_func_array` | language | `$f(...$args)`, argument unpacking |
 | `forward_static_call` | dropped | it exists to forward late static binding through a call whose target is a string. A static call's target is a name the compiler resolves, and the binding is `static::` written directly |
 | `forward_static_call_array` | dropped | the same, with unpacking |
@@ -1118,7 +1118,7 @@ being a switch.
 | `xml_parser_create` | member | `Core\Xml`'s streaming reader, constructed over the bytes it will read rather than created empty and then fed |
 | `xml_parser_create_ns` | member | the same reader. Namespaces are not a mode: a qualified name is a name, so there is no second constructor for documents that use them |
 | `xml_parser_free` | dropped | a reader's lifetime is its object's (R14). There is no handle to free, and nothing observes the difference |
-| `xml_parser_set_option` | dropped | its options are settled rather than configurable — case folding is `Core\Str`'s job on a name the caller chose to fold, the namespace separator does not exist because a qualified name is a pair rather than a joined string, and the target encoding is `Core\Encoding` at the `bytes`↔`string` boundary ([ADR 0009](../adr/0009-string-and-bytes.md)) |
+| `xml_parser_set_option` | dropped | its options are settled rather than configurable — case folding is `Core\Str`'s job on a name the caller chose to fold, the namespace separator does not exist because a qualified name is a pair rather than a joined string, and the target encoding is `Core\Encoding` at the `bytes`↔`string` boundary (`rule:types/bytes`) |
 | `xml_parser_get_option` | dropped | reads back what nothing sets |
 | `xml_parse` | member | the reader's step, as an iteration over events rather than a call returning `0` with the reason left in a second function |
 | `xml_parse_into_struct` | member | the tree half of `Core\Xml`. PHP's flat array of tags carrying a `level` field is a tree pretending to be an array, and materialising the real one is what the tree API is for |
@@ -1131,7 +1131,7 @@ being a switch.
 | `xml_set_notation_decl_handler` | dropped | a DTD notation declaration, which is only interesting to a parser that acts on the DTD. This one does not |
 | `xml_set_unparsed_entity_decl_handler` | dropped | it announces an entity naming an external file, so that the program can go and read it. Nothing here resolves one |
 | `xml_set_external_entity_ref_handler` | dropped | the XXE hook itself: PHP hands the program a system id and asks it to fetch and parse what it names. There is no such door (section lead) |
-| `xml_set_object` | dropped | it rebinds every string-named handler onto a method of an object — a workaround for callables that are strings, which Novis does not have ([ADR 0031](../adr/0031-callable-is-the-only-closure-type.md)) |
+| `xml_set_object` | dropped | it rebinds every string-named handler onto a method of an object — a workaround for callables that are strings, which Novis does not have (`rule:types/closure-literal`) |
 | `xml_get_error_code` | dropped | a failed parse throws ([ADR 0063](../adr/0063-core-api-conventions.md)), so there is no code left on a parser to read afterwards |
 | `xml_error_string` | dropped | the message arrives on the throw. A code-to-string table is what one diagnostic record with three renderings replaces (`rule:errors/diagnostic-record`) |
 | `xml_get_current_line_number` | member | position belongs to the event and to the failure, not to an implicit *current* state: the reader reports where the event it just yielded came from, and a parse failure carries the same on the throw |
@@ -1244,7 +1244,7 @@ one row here that grows a member rather than losing one.
 
 PHP's error model is four mechanisms that do not compose: a global error handler, a severity **bitmask**, a
 second and separate exception handler, and `assert()`, whose calls a configuration directive can remove
-from the program. Novis has one ladder instead — `rule:errors/escalation-ladder`(../adr/0020-error-escalation-ladder.md): a
+from the program. Novis has one ladder instead — `rule:errors/escalation-ladder`: a
 failure throws ([ADR 0063](../adr/0063-core-api-conventions.md)), an uncaught throw reaches `Core\Fatal`'s
 tier-2 hook on the engine's own reserved budget, and a fatal never reaches an ordinary `catch`. There are no
 warnings and no notices to convert into exceptions, which is what most `set_error_handler` calls in the wild
@@ -1319,7 +1319,7 @@ restore.
 | `readline_info` | dropped | reads and writes libreadline's internal state by string key — the widest of the terminal's back doors, and the one [ADR 0086](../adr/0086-core-cli-terminal-is-a-sink.md)'s sink rule could not survive |
 | `setlocale` | dropped | process-global C state, unsound per-core and leaky across requests. Locale is an explicit argument, and there is no ambient one to set ([ADR 0051](../adr/0051-standard-library-tiers.md) § 3) |
 | `localeconv` | dropped | reads that global's number and currency table. Formatting takes the locale it formats for |
-| `hebrev` | dropped | it reorders logical-order Hebrew into visual order for terminals that could not do bidi. Text is UTF-8 in logical order ([ADR 0009](../adr/0009-string-and-bytes.md)) and ordering is the renderer's |
+| `hebrev` | dropped | it reorders logical-order Hebrew into visual order for terminals that could not do bidi. Text is UTF-8 in logical order (`rule:types/bytes`) and ordering is the renderer's |
 
 ## The program describing itself
 
@@ -1357,7 +1357,7 @@ deployment: a program reads the one key it needs through `Core\Config::get`, and
 | `highlight_string` | dropped | the same over a string. Highlighting is the editor's ([ADR 0016](../adr/0016-ide-integration.md)); a program that renders code renders text, through `Core\Html::escape` |
 | `show_source` | dropped | `highlight_file`'s alias |
 | `version_compare` | dropped | its ordering is PHP's own — `pl` above everything, `RC` below release, `beta` folded in by a string scan — and it is a resolver's rule rather than a string operation. Versions are resolved while building ([ADR 0081](../adr/0081-packages-are-digests-resolution-is-a-maximum.md)), where a pin is a digest and a range is a maximum |
-| `clone` | language | the `clone` keyword, unchanged — PHP's shallow, single-level copy ([ADR 0023](../adr/0023-clone-serialize-and-cross-boundary-copy.md)). The function spelling exists so that cloning can be passed as a callable, and a callable here is a closure ([ADR 0031](../adr/0031-callable-is-the-only-closure-type.md)) |
+| `clone` | language | the `clone` keyword, unchanged — PHP's shallow, single-level copy ([ADR 0023](../adr/0023-clone-serialize-and-cross-boundary-copy.md)). The function spelling exists so that cloning can be passed as a callable, and a callable here is a closure (`rule:types/closure-literal`) |
 | `pack` | member | `Core\Bytes::pack` ([01 § 7](01-core-library.md)), whose format string is a template rather than a mode string, so R11 does not reach it |
 | `unpack` | member | `Core\Bytes::unpack`, which names its fields the same way |
 | `parse_ini_file` | dropped | Novis's own configuration is TOML, read by the runtime rather than by the program ([ADR 0064](../adr/0064-configuration-file-format.md)); `Core\Config` is the request-local view of it. Parsing somebody else's `.ini` is an ordinary parse, and a package's |
@@ -1410,7 +1410,7 @@ site left.
 | `mysqli_close` | member | `Db\Connection`'s `->close()`, which releases one connection early. The runtime releases the rest at request teardown, and a later `Core\Db::connect` acquires a fresh one ([ADR 0067](../adr/0067-core-db.md) § 2) |
 | `mysqli_change_user` | dropped | re-authenticates an open connection as a different user. The pool key includes every credential ([ADR 0067](../adr/0067-core-db.md) § 13), so two users are two connections and never one connection twice |
 | `mysqli_select_db` | dropped | switches the default database mid-session. The database is a field of the config block or of `Db\Settings`, and a program that needs two of them opens two connections |
-| `mysqli_set_charset` | dropped | a `string` is UTF-8 ([ADR 0009](../adr/0009-string-and-bytes.md)) and the driver fixes the connection charset to match it. A charset the program can change at runtime is what made `SET NAMES` a documented way around an escaper |
+| `mysqli_set_charset` | dropped | a `string` is UTF-8 (`rule:types/bytes`) and the driver fixes the connection charset to match it. A charset the program can change at runtime is what made `SET NAMES` a documented way around an escaper |
 | `mysqli_character_set_name` | dropped | reads that setting back |
 | `mysqli_get_charset` | dropped | the same, as an object with the collation beside it |
 | `mysqli_real_escape_string` | dropped | binding is the mechanism ([ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md) § 4), and an escaper is refused permanently as a second, weaker answer ([ADR 0067](../adr/0067-core-db.md) § 12). The one case binding cannot carry — a dynamic table or column name — is `Core\Db::quoteIdentifier` |
@@ -1577,7 +1577,7 @@ with better manners.
 | `pg_version` | member | `Db\Connection`'s readonly `serverVersion`, for the half of PHP's array that is about the server. The client and protocol versions in the other half are `libpq`'s, and the driver here is Novis's own |
 | `pg_parameter_status` | dropped | one of the server's settings as reported during the handshake — `server_encoding`, `TimeZone`, `integer_datetimes`. Every one that changes how a value arrives is fixed by the driver instead of reported to the program: the charset is forced to UTF-8 and a zone-less timestamp reads in the zone the connection declares ([ADR 0067](../adr/0067-core-db.md) §§ 3, 9) |
 | `pg_change_password` | dropped | hashes a password and issues `ALTER USER` with it. Credentials belong to the operator ([ADR 0067](../adr/0067-core-db.md) § 2), and an application that genuinely administers a database writes that statement as a statement |
-| `pg_client_encoding` | dropped | reads the connection's client encoding back. A `string` is UTF-8 ([ADR 0009](../adr/0009-string-and-bytes.md)) and the driver forces the connection to match, so text columns arrive as valid UTF-8 by construction |
+| `pg_client_encoding` | dropped | reads the connection's client encoding back. A `string` is UTF-8 (`rule:types/bytes`) and the driver forces the connection to match, so text columns arrive as valid UTF-8 by construction |
 | `pg_clientencoding` | dropped | the deprecated spelling, and the same answer |
 | `pg_set_client_encoding` | dropped | changes it mid-session, with no option to reach the unsafe value ([ADR 0067](../adr/0067-core-db.md) § 3). A charset a program can change at runtime is what made `SET NAMES` a documented way around an escaper |
 | `pg_setclientencoding` | dropped | the deprecated spelling, and the same answer |

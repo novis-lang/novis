@@ -1,5 +1,5 @@
 --TEST--
-A `!= null` test narrows a `?T` local to whatever dropping `null` leaves — an array, a scalar, a class — and the narrowed local is readable, indexable, writable and iterable (`rule:expressions/nullable-conversion`, ADR 0007 §§ 2 and 5)
+A `!= null` test narrows a `?T` local to whatever dropping `null` leaves — an array, a scalar, a class — and the narrowed local is readable, indexable, writable and iterable (`rule:expressions/nullable-conversion`, `rule:types/conversion` and `rule:types/arrays`)
 --FILE--
 <?nvs
 // ADR 0066: `null` is dropped on the branch the test proves, and what is
@@ -10,7 +10,7 @@ array<string> $seed = ["k" => "v"];
 ?array<string> $rows = $seed;
 if ($rows != null) {
     echo $rows["k"], "\n";
-    // ADR 0007 § 5: a write through the narrowed name separates and is
+    // `rule:types/arrays`: a write through the narrowed name separates and is
     // written back into the local it came out of, so the next read of it
     // sees the new element and the one before it alike.
     $rows["j"] = "w";

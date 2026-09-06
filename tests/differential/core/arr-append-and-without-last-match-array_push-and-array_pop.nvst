@@ -9,7 +9,7 @@ Core\Arr::append and ::withoutLast answer what array_push and array_pop leave be
 // before calling either.
 //
 // This is the half of the family where Novis and PHP agree *and had no reason
-// to*: ADR 0069 § 3 refuses any rule that asks what type a key is, which is
+// to*: `rule:types/preserve-keys` refuses any rule that asks what type a key is, which is
 // exactly what `array_unshift` and `array_shift` do — see
 // `arr-prepend-and-without-first-diverge-from-array_unshift-and-array_shift`.
 // The back end escapes it because neither operation has to invent or reassign

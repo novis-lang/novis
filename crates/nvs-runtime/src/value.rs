@@ -8,12 +8,11 @@
 //!   does not fit alongside a tag in 64 bits. Sixteen bytes instead of eight
 //!   is memory spent to buy correct semantics — priority 5 spent on priority 2
 //!   in [AGENTS.md](/AGENTS.md)'s ordering, not an oversight.
-//! * **`uint` is a tag, not a wider slot.** [ADR 0007](/docs/adr/0007-explicit-type-system.md)
-//!   § 4's separate unsigned type therefore costs nothing here.
+//! * **`uint` is a tag, not a wider slot.** `rule:types/arithmetic`'s separate unsigned type therefore costs nothing here.
 //!
 //! # Where a `Value` actually appears
 //!
-//! Less often than it looks. Because ADR 0007 makes operand types known by
+//! Less often than it looks. Because `rule:types/declaration` makes operand types known by
 //! construction, `nvs-codegen`'s baseline tier keeps a statically-typed local
 //! in a native register — an `int` is an `i64`, a `string` is a bare
 //! [`StrHeader`] pointer — and only *materializes* a `Value` where the ABI
@@ -44,7 +43,7 @@ pub enum Tag {
     Bool = 1,
     /// `int`; the payload is an `i64`'s bit pattern.
     Int = 2,
-    /// `uint`; the payload is a `u64` ([ADR 0007](/docs/adr/0007-explicit-type-system.md) § 4).
+    /// `uint`; the payload is a `u64` (`rule:types/arithmetic`).
     Uint = 3,
     /// `float`; the payload is an `f64`'s bit pattern.
     Float = 4,
@@ -59,7 +58,7 @@ pub enum Tag {
     /// owns one reference to it.
     Object = 7,
     /// Reserved, and unused: an
-    /// [ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md)
+    /// `rule:types/closure-literal`
     /// closure is an ordinary object — one field per capture, one `invoke`
     /// method — so it carries [`Self::Object`]. `nvs_ir::lower::lower_closure`
     /// owns that decision and says why it reuses the object machinery rather
@@ -68,14 +67,14 @@ pub enum Tag {
     Closure = 8,
     /// An engine-owned resource handle; no representation exists yet.
     Resource = 9,
-    /// `decimal` — [ADR 0054](/docs/adr/0054-decimal-scalar-type.md)'s
+    /// `decimal` — `rule:types/decimal`'s
     /// scalar, and the one tag whose value does **not** fit in the payload
     /// alone: its 96-bit mantissa spans the padding bytes too, so a `decimal`
     /// is the whole sixteen bytes rather than a tag plus eight. See
     /// [`crate::decimal`]'s own module docs for the bit positions and why one
     /// `Value` shape carries it rather than a representation of its own.
     Decimal = 10,
-    /// `bytes` — [ADR 0009](/docs/adr/0009-string-and-bytes.md)'s
+    /// `bytes` — `rule:types/bytes`'s
     /// binary scalar. The payload is a [`StrHeader`] pointer and the value
     /// owns one reference to it, exactly as [`Self::Str`] does: the two types
     /// differ only in the UTF-8 promise, which is a checker property rather
@@ -302,7 +301,7 @@ impl Value {
     /// The handle is an [`NvsStr`] because a `bytes` *is* one, minus the UTF-8
     /// promise — see [`Tag::Bytes`]. `string as bytes` is therefore this
     /// constructor over a retained payload rather than a copy, which is what
-    /// makes [ADR 0009](/docs/adr/0009-string-and-bytes.md) § 3's
+    /// makes `rule:types/conversion`'s
     /// "total, free" row literally free.
     #[must_use]
     pub fn bytes(value: NvsStr) -> Self {
@@ -443,7 +442,7 @@ impl Value {
     }
 
     /// How many extended grapheme clusters this value holds, if it is a
-    /// string — ADR 0009 § 2's unit, answered from the header rather than
+    /// string — `rule:types/string-is-utf8`'s unit, answered from the header rather than
     /// rescanned once anything has asked before.
     ///
     /// The safe seam `nvs_stdlib::granularity` reads: the tag check is what
@@ -749,7 +748,7 @@ impl fmt::Debug for Value {
             Some(Tag::Bytes) => {
                 // Length, not content: a `bytes` payload is by definition not
                 // text, so rendering it as one would be the lossy substitution
-                // ADR 0009 exists to refuse — in a `Debug` line as much as in
+                // `rule:types/bytes` exists to refuse — in a `Debug` line as much as in
                 // a conversion.
                 write!(
                     f,

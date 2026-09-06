@@ -1,5 +1,5 @@
 --TEST--
-`Core\Str::graphemes` answers the class's own unit and `Core\Str::codePoints` answers scalar values — spec § 1 *Extraction*, ADR 0009 § 2
+`Core\Str::graphemes` answers the class's own unit and `Core\Str::codePoints` answers scalar values — spec § 1 *Extraction*, `rule:types/string-is-utf8`
 --FILE--
 <?nvs
 class Render {
@@ -15,7 +15,7 @@ class Render {
 // `graphemes` hands back the pieces `Str::at` walks and `Str::length` counts.
 echo Core\Str::join(Core\Str::graphemes("abc"), "|"), "\n";
 
-// It is ADR 0009 § 2's unit, so it agrees with `Str::length` by construction:
+// It is `rule:types/string-is-utf8`'s unit, so it agrees with `Str::length` by construction:
 // an accented letter built from a combining mark is one piece, not two. The
 // counts are asserted rather than the pieces, because the two spellings of an
 // accented letter print identically and an exact-match block cannot tell them

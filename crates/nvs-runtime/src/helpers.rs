@@ -15,7 +15,7 @@
 //!
 //! Every helper below re-checks its arguments' tags and returns [`Fault::Fatal`] on a
 //! mismatch rather than reading the payload anyway. A mismatch cannot happen
-//! in a well-typed program — [ADR 0007](/docs/adr/0007-explicit-type-system.md)
+//! in a well-typed program — `rule:types/declaration`
 //! settles every operand type before lowering, and `nvs_ir::lower` picks the
 //! helper from that type — so the check is not defending against user code. It
 //! is defending against a *miscompile*: reading a `Value`'s payload under the
@@ -147,7 +147,7 @@ crate::nvs_helper! {
     /// `nvs_ir::Helper::BytesTruthy` — falsy iff the buffer is empty, which
     /// is [`nvs_str_truthy`]'s row **without** its `"0"` case. That case is
     /// PHP's numeric-string rule and
-    /// [ADR 0009](/docs/adr/0009-string-and-bytes.md)'s binary scalar
+    /// `rule:types/bytes`'s binary scalar
     /// never converts to a number, so a one-octet buffer holding `0x30` is
     /// truthy here where the `string` spelling of the same octet is not.
     /// [`value_truthy`]'s `Tag::Bytes` arm is this rule reached through a
@@ -482,7 +482,7 @@ crate::nvs_helper! {
 
 crate::nvs_helper! {
     /// `nvs_ir::Helper::NumericLt` — `<` over two operands whose
-    /// representations differ but whose types are ADR 0007 § 4's one numeric
+    /// representations differ but whose types are `rule:types/arithmetic`'s one numeric
     /// domain. The row is [`crate::numeric_ordering`], and `>` is this helper
     /// with its operands swapped.
     ///
@@ -523,7 +523,7 @@ crate::nvs_helper! {
     }
 }
 
-/// ADR 0007 § 4's ordering table, chosen from two runtime **tags** rather than
+/// `rule:types/arithmetic`'s ordering table, chosen from two runtime **tags** rather than
 /// from two static types — the row a `mixed` or a union operand defers, and the
 /// one `nvs_ir::Helper::ValueLt` and its two siblings are all reading.
 ///
@@ -539,16 +539,16 @@ crate::nvs_helper! {
 /// same refusal — made here only because the tags are where it first became
 /// answerable.
 ///
-/// An enum case is deliberately *not* one of those pairs: ADR 0047 § 5 spends
+/// An enum case is deliberately *not* one of those pairs: `rule:types/literal-types` spends
 /// no representation on one, so behind a `mixed` it is the `int` or `uint` its
 /// cases are, and it orders as one. The static spelling still refuses it
 /// (`E0715`), which is where an author is told to say `as int` out loud.
 fn value_ordering(left: Value, right: Value) -> Result<Option<std::cmp::Ordering>, Fault> {
     match (left.tag(), right.tag()) {
-        // ADR 0007 § 4's `bool` row: the ordering of the one bit it already
+        // `rule:types/arithmetic`'s `bool` row: the ordering of the one bit it already
         // is, `false < true`.
         (Some(Tag::Bool), Some(Tag::Bool)) => Ok(Some(left.bits().cmp(&right.bits()))),
-        // ADR 0054 § 3's comparison row spans every pairing one side of which
+        // `rule:types/arithmetic`'s comparison row spans every pairing one side of which
         // is a `decimal`, the `decimal`/`float` one included.
         (Some(Tag::Decimal), Some(Tag::Decimal | Tag::Int | Tag::Uint | Tag::Float))
         | (Some(Tag::Int | Tag::Uint | Tag::Float), Some(Tag::Decimal)) => {
@@ -561,12 +561,12 @@ fn value_ordering(left: Value, right: Value) -> Result<Option<std::cmp::Ordering
     }
 }
 
-/// One operand's type as ADR 0007 spells it, for a message a program reads.
+/// One operand's type as `rule:types/declaration` spells it, for a message a program reads.
 ///
 /// Shared by every refusal a tag-dispatched row makes — [`no_ordering`] and
 /// [`no_arithmetic`] — so that "a `string` against an `array<T>`" reads the
 /// same whichever operator asked. `Tag::Closure` renders as `object` because a
-/// closure *is* one (ADR 0031 § 1), and the fallback covers the tags no source
+/// closure *is* one (`rule:types/closure-literal`), and the fallback covers the tags no source
 /// value carries.
 fn tag_name(value: Value) -> &'static str {
     match value.tag() {
@@ -584,7 +584,7 @@ fn tag_name(value: Value) -> &'static str {
     }
 }
 
-/// The catchable throw [`value_ordering`] raises for a pair ADR 0007 § 4
+/// The catchable throw [`value_ordering`] raises for a pair `rule:types/arithmetic`
 /// tabulates no row for, naming the spelling that says what was meant wherever
 /// there is one — the same three wordings `E0715` carries.
 fn no_ordering(left: Value, right: Value) -> Fault {
@@ -640,7 +640,7 @@ crate::nvs_helper! {
     }
 }
 
-/// One row of ADR 0007 § 4's arithmetic and bitwise table, named so that the
+/// One row of `rule:types/arithmetic`'s arithmetic and bitwise table, named so that the
 /// eleven helpers below share one implementation of it rather than eleven
 /// copies of the tag dispatch.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -678,7 +678,7 @@ impl ArithRow {
 
     /// The operation as the two overflow messages name it — `nvs-codegen`'s
     /// `emit_checked_int_arith` and `emit_int_pow` word theirs "Integer
-    /// {word} overflowed", and [`arithmetic_error`] words ADR 0054 § 3's
+    /// {word} overflowed", and [`arithmetic_error`] words `rule:types/arithmetic`'s
     /// "`decimal` {word} is outside the type's range", so one word serves both
     /// and the statically and dynamically typed ends of a row cannot drift
     /// apart in their wording.
@@ -695,7 +695,7 @@ impl ArithRow {
     }
 }
 
-/// ADR 0007 § 4's **arithmetic** rows, chosen from two runtime **tags** rather
+/// `rule:types/arithmetic`'s **arithmetic** rows, chosen from two runtime **tags** rather
 /// than from two static types — the row a `mixed`, a union or the `int|float` a
 /// division returns defers, and the one the `nvs_ir::Helper::ValueAdd` family
 /// is all reading. It is [`value_ordering`]'s twin, one table over from it.
@@ -705,7 +705,7 @@ impl ArithRow {
 ///
 /// * **A pair the table names no row for** — a `string`, an `array<T>`, an
 ///   object, `null`, a `bool` — has no arithmetic at all rather than PHP's
-///   converted one, since ADR 0007 § 2 has no implicit conversion for that to
+///   converted one, since `rule:types/conversion` has no implicit conversion for that to
 ///   be. That is [`no_arithmetic`].
 /// * **`int ⊕ uint`** is refused outright: § 4 gives the pair no representable
 ///   common type, so there is nothing to return. `E0407` where it is written,
@@ -716,7 +716,7 @@ impl ArithRow {
 /// Two rows are deliberately narrower than "the operands are numbers", and both
 /// are guarded rather than answered:
 ///
-/// * The **`decimal`** rows are ADR 0054 § 3's five arithmetic ones and no
+/// * The **`decimal`** rows are `rule:types/arithmetic`'s five arithmetic ones and no
 ///   more — its `**` is `E0455` and its bit operators `E0706` — so a `decimal`
 ///   under one of the six it grants nothing takes the refusal.
 /// * The **`float`** rows are § 4's "either operand a `float`" for `+ - * / **`
@@ -766,7 +766,7 @@ fn value_arith(op: ArithRow, left: Value, right: Value) -> Result<Value, Fault> 
     }
 }
 
-/// The catchable throw [`value_arith`] raises for a pair ADR 0007 § 4
+/// The catchable throw [`value_arith`] raises for a pair `rule:types/arithmetic`
 /// tabulates no row for, naming the spelling that says what was meant wherever
 /// there is one — the same shape [`no_ordering`] takes for its own table.
 fn no_arithmetic(op: ArithRow, left: Value, right: Value) -> Fault {
@@ -787,7 +787,7 @@ fn no_arithmetic(op: ArithRow, left: Value, right: Value) -> Fault {
     ))
 }
 
-/// ADR 0007 § 4's `int ⊕ uint` row, which is a *compile* error wherever the
+/// `rule:types/arithmetic`'s `int ⊕ uint` row, which is a *compile* error wherever the
 /// static types show it — [`nvs_types::expr::operators::report_int_uint`]'s
 /// `E0407`, whose wording this is, because it is the same refusal made at the
 /// first moment two `mixed` operands make it answerable.
@@ -799,7 +799,7 @@ fn mixed_signedness() -> Fault {
     )
 }
 
-/// ADR 0007 § 4's overflow throw, worded exactly as `nvs-codegen`'s
+/// `rule:types/arithmetic`'s overflow throw, worded exactly as `nvs-codegen`'s
 /// `raise_arithmetic_error` words the statically typed row's, and of the same
 /// class: a tagged operand reaching this row and a typed one reaching that
 /// one are the same operation, so one `catch (ArithmeticError)` sees both.
@@ -841,7 +841,7 @@ fn signed_arith(op: ArithRow, left: i64, right: i64) -> Result<Value, Fault> {
     Ok(Value::int(value))
 }
 
-/// ADR 0007 § 4's `int / int` row: `int|float`, "PHP-exact — `6/3` is an
+/// `rule:types/arithmetic`'s `int / int` row: `int|float`, "PHP-exact — `6/3` is an
 /// integer, `7/2` is a float", which is why the quotient's *type* is a runtime
 /// question and this returns a tagged value.
 ///
@@ -857,7 +857,7 @@ fn signed_div(left: i64, right: i64) -> Result<Value, Fault> {
     }
     #[expect(
         clippy::cast_precision_loss,
-        reason = "the inexact arm is exactly what `float` means here — ADR 0007 § 4's `int|float`"
+        reason = "the inexact arm is exactly what `float` means here — `rule:types/arithmetic`'s `int|float`"
     )]
     let inexact = Ok(Value::float(left as f64 / right as f64));
     if left == i64::MIN && right == -1 {
@@ -869,7 +869,7 @@ fn signed_div(left: i64, right: i64) -> Result<Value, Fault> {
     inexact
 }
 
-/// ADR 0007 § 4's `int ** int` row, square-and-multiply with the overflow throw
+/// `rule:types/arithmetic`'s `int ** int` row, square-and-multiply with the overflow throw
 /// checked at every step — `nvs-codegen`'s `emit_int_pow` in Rust, including
 /// its two details: the square is not taken after the last set bit, and a
 /// negative exponent throws except over a base of `1` or `-1`, which do have an
@@ -903,7 +903,7 @@ fn signed_pow(base: i64, exponent: i64) -> Result<i64, Fault> {
     }
 }
 
-/// ADR 0007 § 4's `<<`/`>>` over an `int`, whose count PHP judges where the
+/// `rule:types/arithmetic`'s `<<`/`>>` over an `int`, whose count PHP judges where the
 /// machine masks it — `nvs-codegen`'s `emit_shift` in Rust, and its three rules
 /// unchanged: a negative count throws, a count of 64 or more answers all-zeros
 /// or all-sign, and `>>` is arithmetic on an `int`.
@@ -957,7 +957,7 @@ fn unsigned_arith(op: ArithRow, left: u64, right: u64) -> Result<Value, Fault> {
     Ok(Value::uint(value))
 }
 
-/// ADR 0007 § 4's `uint / uint` row — [`signed_div`]'s `uint|float`, with no
+/// `rule:types/arithmetic`'s `uint / uint` row — [`signed_div`]'s `uint|float`, with no
 /// overflow arm, an unsigned type having no asymmetric minimum.
 fn unsigned_div(left: u64, right: u64) -> Result<Value, Fault> {
     if right == 0 {
@@ -971,7 +971,7 @@ fn unsigned_div(left: u64, right: u64) -> Result<Value, Fault> {
     }
     #[expect(
         clippy::cast_precision_loss,
-        reason = "the inexact arm is exactly what `float` means here — ADR 0007 § 4's `uint|float`"
+        reason = "the inexact arm is exactly what `float` means here — `rule:types/arithmetic`'s `uint|float`"
     )]
     Ok(Value::float(left as f64 / right as f64))
 }
@@ -997,7 +997,7 @@ fn unsigned_pow(base: u64, exponent: u64) -> Result<u64, Fault> {
     }
 }
 
-/// ADR 0007 § 4's "either operand a `float`" row.
+/// `rule:types/arithmetic`'s "either operand a `float`" row.
 ///
 /// The integer side widens through [`row::int_to_float`], which is the *checked*
 /// widening § 2 names as the language's one implicit conversion — exact, or
@@ -1053,7 +1053,7 @@ fn float_arith(op: ArithRow, left: Value, right: Value) -> Result<Value, Fault> 
     }))
 }
 
-/// ADR 0054 § 3's five arithmetic rows behind a `mixed`, over
+/// `rule:types/arithmetic`'s five arithmetic rows behind a `mixed`, over
 /// [`decimal_operand`]'s one promotion of an `int`/`uint` operand — the same
 /// implementation the statically typed `decimal` helpers use, so the two ends
 /// of the row cannot answer differently.
@@ -1100,7 +1100,7 @@ value_arith_helper! {
 value_arith_helper! {
     /// `nvs_ir::Helper::ValueDiv` — see [`value_arith`]. The one row whose
     /// answer's *tag* is a runtime question even once the operands' are known:
-    /// ADR 0007 § 4 types integer division `int|float`.
+    /// `rule:types/arithmetic` types integer division `int|float`.
     fn nvs_value_div = Div
 }
 value_arith_helper! {
@@ -1112,7 +1112,7 @@ value_arith_helper! {
     fn nvs_value_pow = Pow
 }
 value_arith_helper! {
-    /// `nvs_ir::Helper::ValueBitAnd` — see [`value_arith`]. ADR 0007 § 4's
+    /// `nvs_ir::Helper::ValueBitAnd` — see [`value_arith`]. `rule:types/arithmetic`'s
     /// `& | ^ << >>` row is `int` and `uint` alone, so every other pair of tags
     /// is the refusal rather than PHP's converted answer.
     fn nvs_value_bit_and = BitAnd
@@ -1135,7 +1135,7 @@ value_arith_helper! {
     fn nvs_value_shr = Shr
 }
 
-/// ADR 0007 § 4's **unary** rows, chosen from one runtime tag rather than from
+/// `rule:types/arithmetic`'s **unary** rows, chosen from one runtime tag rather than from
 /// a static type — [`value_arith`]'s one-operand twin, and the last shape of
 /// that table an erased operand had no answer for.
 ///
@@ -1144,7 +1144,7 @@ value_arith_helper! {
 /// non-zero `uint` has no negation at all, so § 4's overflow throw reaches the
 /// unary row too, worded exactly as `nvs-codegen`'s `emit_unop` words the
 /// statically typed spelling's. `float` and `decimal` cannot fail — a float's
-/// sign bit is one flip, and ADR 0054's mantissa is unsigned, so there is no
+/// sign bit is one flip, and `rule:types/decimal`'s mantissa is unsigned, so there is no
 /// asymmetric minimum to overflow. Every other tag is the closed table's
 /// refusal, which is [`no_unary`].
 fn value_neg(value: Value) -> Result<Value, Fault> {
@@ -1173,7 +1173,7 @@ fn value_neg(value: Value) -> Result<Value, Fault> {
     }
 }
 
-/// ADR 0007 § 4's `~` row behind a `mixed`, which is narrower than
+/// `rule:types/arithmetic`'s `~` row behind a `mixed`, which is narrower than
 /// [`value_neg`]'s by exactly the two rows `& | ^ << >>` is narrower than the
 /// arithmetic ones by: the bit operators are over `int` and `uint` alone, so a
 /// `float` or a `decimal` operand is a number with no bit pattern to
@@ -1195,20 +1195,20 @@ fn value_bit_not(value: Value) -> Result<Value, Fault> {
     }
 }
 
-/// ADR 0007 § 4's negation overflow, worded as `nvs-codegen`'s `emit_unop`
+/// `rule:types/arithmetic`'s negation overflow, worded as `nvs-codegen`'s `emit_unop`
 /// words the statically typed row's so the two ends cannot drift apart.
 fn negation_overflowed() -> Fault {
     Fault::thrown("Integer negation overflowed".to_owned())
 }
 
-/// The catchable throw the two unary rows raise for an operand ADR 0007 § 4
+/// The catchable throw the two unary rows raise for an operand `rule:types/arithmetic`
 /// tabulates no row for — [`no_arithmetic`]'s shape with one operand, carrying
 /// the reading `nvs_types::expr::operators::reject_unary_arith_operand` gives
 /// the same refusal (`E0705`, and `E0706` for the two `~` leaves out) wherever
 /// the static type shows it.
 fn no_unary(spelling: &str, value: Value) -> Fault {
     // The one operand PHP would have converted silently, and [`no_arithmetic`]'s
-    // reason for naming it: ADR 0007 § 2 has no implicit conversion, so a
+    // reason for naming it: `rule:types/conversion` has no implicit conversion, so a
     // numeric-looking `string` is where an author is told to say `as int` out
     // loud.
     let hint = if matches!(value.tag(), Some(Tag::Str)) {
@@ -1287,7 +1287,7 @@ crate::nvs_helper! {
 }
 
 /// The [`Fault::Thrown`] a checked conversion produces when the value does not
-/// fit — ADR 0007 § 2's "`as` ... either produces a value of the target type or
+/// fit — `rule:types/conversion`'s "`as` ... either produces a value of the target type or
 /// throws. It never rounds, truncates, or substitutes a default."
 ///
 /// Spec § 10's `RuntimeError` — "the world said no" — for a string that is not
@@ -1299,7 +1299,7 @@ fn does_not_fit(what: &str, target: &str) -> Fault {
 
 /// [`does_not_fit`] for a number the target type has no room for — an `int`
 /// past 2^53 into `float`, a `float` with a fraction into `int`, a `uint` past
-/// `int::MAX` — which is the overflow ADR 0007 § 4 names `ArithmeticError`,
+/// `int::MAX` — which is the overflow `rule:types/arithmetic` names `ArithmeticError`,
 /// and the class `crate::closure`'s identical widening check already raises.
 /// Same wording as the non-numeric case, so a diagnostic quoting one quotes
 /// both.
@@ -1310,7 +1310,7 @@ fn numeric_does_not_fit(what: &str, target: &str) -> Fault {
     )
 }
 
-/// ADR 0007 § 2's checked conversion rows, one function each, answering `None`
+/// `rule:types/conversion`'s checked conversion rows, one function each, answering `None`
 /// exactly where the row fails.
 ///
 /// Every row has two entry points and never a third: the statically chosen
@@ -1324,7 +1324,7 @@ fn numeric_does_not_fit(what: &str, target: &str) -> Fault {
 /// and the nullable form cannot drift apart, because there is one row.
 mod row {
     /// The magnitude past which an `f64` no longer represents every integer —
-    /// ADR 0007 § 2's 2^53 boundary, shared by both integer-to-`float` rows.
+    /// `rule:types/conversion`'s 2^53 boundary, shared by both integer-to-`float` rows.
     const F64_EXACT_INT_LIMIT: u64 = 1 << 53;
 
     pub(super) fn int_to_uint(value: i64) -> Option<u64> {
@@ -1377,7 +1377,7 @@ mod row {
     /// `value` as an exact integer, or `None` if it is not integral, is not
     /// finite, or is too large for the `i128` both integer targets fit inside.
     ///
-    /// ADR 0007 § 2: "integral and in range, or throws. Rounding is
+    /// `rule:types/conversion`: "integral and in range, or throws. Rounding is
     /// `floor`/`ceil`/`round`, said out loud" — so `1.5` is refused here rather
     /// than silently becoming any of `1`, `2`, or `1`.
     fn exact_integral(value: f64) -> Option<i128> {
@@ -1457,7 +1457,7 @@ crate::nvs_helper! {
     }
 }
 
-/// The one shape ADR 0007 § 2's `string` → number row accepts: the *whole*
+/// The one shape `rule:types/conversion`'s `string` → number row accepts: the *whole*
 /// string, with no surrounding whitespace, no leading `+`-and-garbage rule, and
 /// no PHP-style prefix parse. Returned as `&str` so each caller can hand it to
 /// the standard library's own exact parser.
@@ -1511,14 +1511,14 @@ fn str_operand(value: &Value) -> Option<&str> {
     str::from_utf8(value.as_str_bytes()?).ok()
 }
 
-/// ADR 0007 § 2's `→ int` rows, chosen by the operand's **runtime** tag —
+/// `rule:types/conversion`'s `→ int` rows, chosen by the operand's **runtime** tag —
 /// `None` where the row fails *or* where no row exists at all.
 ///
 /// Dispatching on the tag is why one function covers every source. That is not
 /// a shortcut: it is what makes `rule:expressions/nullable-conversion`'s "a `null` operand yields `null`"
 /// and § 3's "from `mixed` every target has a checked path" the same code as
 /// `"42" as ?int`, with no branch in lowering and no second implementation of
-/// any row (see [`row`]). A tag ADR 0007 § 2 defines no row from — an array, an
+/// any row (see [`row`]). A tag `rule:types/conversion` defines no row from — an array, an
 /// object, a `bool` — is a conversion that does not exist, which § 3 makes a
 /// compile error for a statically-known operand and a failure for a `mixed`
 /// one.
@@ -1560,12 +1560,12 @@ fn to_float(value: Value) -> Option<f64> {
     }
 }
 
-/// ADR 0007 § 2's one *implicit* conversion — an `int` or `uint` arriving in a
+/// `rule:types/conversion`'s one *implicit* conversion — an `int` or `uint` arriving in a
 /// `float` position — as a value-to-value row, for the one caller that cannot
 /// reach it through a lowered `as`.
 ///
 /// `crate::closure::check_param_tags` is that caller: a `callable` carries no
-/// parameter list (ADR 0031 § 1), so no checker ever saw the call site and
+/// parameter list (`rule:types/closure-literal`), so no checker ever saw the call site and
 /// nothing inserted the widening conversion the declared `float` earns. It is
 /// applied there instead, out of the same [`row`] set every written `as float`
 /// goes through, so the 2^53 boundary cannot drift between the two spellings.
@@ -1585,7 +1585,7 @@ pub(crate) fn widen_to_float(value: Value) -> Option<Value> {
 }
 
 crate::nvs_helper! {
-    /// `nvs_ir::Helper::TaggedToInt` — ADR 0007 § 2's checked `as int` over an
+    /// `nvs_ir::Helper::TaggedToInt` — `rule:types/conversion`'s checked `as int` over an
     /// operand whose representation is `nvs_ir::ty::Ty::Tagged`, so [`to_int`]'s
     /// `None` is the throw rather than a `null`.
     fn nvs_tagged_to_int(_ctx, args: [1]) {
@@ -1638,7 +1638,7 @@ crate::nvs_helper! {
     }
 }
 
-/// [ADR 0007](/docs/adr/0007-explicit-type-system.md) § 2's
+/// `rule:types/conversion`'s
 /// scalar-to-`string` rows, applied to a value whose representation is
 /// `nvs_ir::ty::Ty::Tagged` — a `mixed`, a `?T`, or any other union.
 ///
@@ -1653,7 +1653,7 @@ crate::nvs_helper! {
 /// **Three tags convert to nothing, and each throws** rather than producing
 /// PHP's `"Array"`-plus-warning: [ADR 0063](/docs/adr/0063-core-api-conventions.md)
 /// R4 makes failure a throw, and a silent placeholder is exactly the class of
-/// answer ADR 0007 § 2 removed from the language. An **object** is among them
+/// answer `rule:types/conversion` removed from the language. An **object** is among them
 /// here, but this is the *tag* table and not the whole rule: ADR 0028 § 1 makes
 /// `Stringable` the one way an object renders, and [`fn@stringify`] is where that
 /// dispatch happens — every helper reaches this function through that one, so an
@@ -1702,7 +1702,7 @@ pub fn value_to_string(value: Value) -> Result<Value, Fault> {
             }
             Ok(value)
         }
-        // ADR 0054 § 4's `decimal → string` row: total, and scale-preserving,
+        // `rule:types/conversion`'s `decimal → string` row: total, and scale-preserving,
         // so `19.90` renders as `"19.90"` — `crate::decimal`'s `Display` is
         // the one implementation of it.
         Some(Tag::Decimal) => {
@@ -1711,7 +1711,7 @@ pub fn value_to_string(value: Value) -> Result<Value, Fault> {
         }
         Some(Tag::Array) => Err(refused("an array")),
         // Refused on purpose, and it is the only tag here that is refused for
-        // a *semantic* reason rather than a missing one: ADR 0009 § 3 makes
+        // a *semantic* reason rather than a missing one: `rule:types/conversion` makes
         // `bytes as string` a checked conversion that validates UTF-8, so
         // letting an implicit `.` or `echo` do it silently would be exactly
         // the substitution that ADR exists to remove.
@@ -1795,7 +1795,7 @@ const TO_STRING: &str = "toString";
 /// then emits an ordinary call — nothing on that path reaches here. What is
 /// left is every operand whose static type names *no* class to resolve against:
 /// a `mixed`, a `?T` or another union, and the erased `object` of
-/// [ADR 0036](/docs/adr/0036-anonymous-object-shapes.md) § 4, whose
+/// `rule:types/erased-member-access`, whose
 /// receiver "cannot be checked at compile time at all" and whose answer is
 /// therefore decided by the concrete instance behind the handle. Refusing those
 /// instead would diverge from PHP — `function f(object $o) { echo $o; }` calls
@@ -1803,7 +1803,7 @@ const TO_STRING: &str = "toString";
 /// depending on which binding it was read through, which is the worse half.
 ///
 /// A class that declares no `toString` still throws, and throws the same
-/// catchable `Throwable` the tag row already answers with: ADR 0036 § 4's read
+/// catchable `Throwable` the tag row already answers with: `rule:types/erased-member-access`'s read
 /// through an erased view is "a checked, catchable throw", never a fatal.
 ///
 /// **A `Core`-owned class renders here too, and through the same member.** Its
@@ -1857,11 +1857,11 @@ crate::nvs_helper! {
 /// `as ?string`: [`fn@stringify`]'s answer, with `null` exactly where that one
 /// throws.
 ///
-/// One implementation of ADR 0007 § 2's `→ string` rows and not a second copy
+/// One implementation of `rule:types/conversion`'s `→ string` rows and not a second copy
 /// of them, which is the whole point of § 1's "yields `null` exactly where
 /// `expr as T` would throw" — a twin that decided any row for itself could
 /// disagree with the checked spelling on that row. A `bytes` operand is here
-/// rather than at [`bytes_to_string`] for the same reason: ADR 0009 § 3's
+/// rather than at [`bytes_to_string`] for the same reason: `rule:types/conversion`'s
 /// UTF-8 validation is a row that can fail, so it has a `null` answer, and the
 /// tag it is chosen by is the operand's own.
 ///
@@ -1895,7 +1895,7 @@ crate::nvs_helper! {
     }
 }
 
-/// [ADR 0009](/docs/adr/0009-string-and-bytes.md) § 3's
+/// `rule:types/conversion`'s
 /// `bytes as string` row: **checked**, and the one direction of that pair that
 /// runs any code at all.
 ///
@@ -1948,7 +1948,7 @@ crate::nvs_helper! {
     }
 }
 
-/// [ADR 0009](/docs/adr/0009-string-and-bytes.md) § 3's pair the other
+/// `rule:types/conversion`'s pair the other
 /// way, applied to a value whose representation is `nvs_ir::ty::Ty::Tagged` — a
 /// `mixed`, a `?T`, or any other union.
 ///
@@ -1962,12 +1962,12 @@ crate::nvs_helper! {
 ///
 /// Exactly two tags have a row, and both are free. A [`Tag::Str`] *is* the
 /// buffer a `bytes` is, minus the UTF-8 promise, so it is handed back under the
-/// other tag over the same allocation; a [`Tag::Bytes`] is ADR 0007 § 2's
+/// other tag over the same allocation; a [`Tag::Bytes`] is `rule:types/conversion`'s
 /// identical-type row, which converts nothing anywhere it is written. Both
 /// answer with one **fresh** reference, so the caller owns the result exactly as
 /// it owns a converted one, and neither copies an octet.
 ///
-/// `None` for every other tag — ADR 0007 § 2's table produces a `bytes` from a
+/// `None` for every other tag — `rule:types/conversion`'s table produces a `bytes` from a
 /// `string` and from nothing else, so an `int`, an array or an object has no
 /// answer here rather than a lossy one. Rendering one through
 /// [`value_to_string`] on the way would be exactly the implicit conversion that
@@ -1991,7 +1991,7 @@ fn to_bytes(value: Value) -> Option<Value> {
 }
 
 crate::nvs_helper! {
-    /// `nvs_ir::Helper::TaggedToBytes` — ADR 0007 § 2's checked `as bytes` over
+    /// `nvs_ir::Helper::TaggedToBytes` — `rule:types/conversion`'s checked `as bytes` over
     /// a tagged operand, so [`to_bytes`]'s `None` is the throw rather than a
     /// `null`.
     fn nvs_tagged_to_bytes(_ctx, args: [1]) {
@@ -2022,7 +2022,7 @@ crate::nvs_helper! {
 /// `array<array<int>>` is checked all the way down.
 ///
 /// No widening, unlike the closure-entry check: an `int` element does not
-/// satisfy `array<float>`. ADR 0007 § 2's implicit `int → float` widening is a
+/// satisfy `array<float>`. `rule:types/conversion`'s implicit `int → float` widening is a
 /// conversion, and a conversion here would have to *rewrite* the element,
 /// which is the copy this row exists without.
 fn element_has_tag(value: Value, tags: u64) -> bool {
@@ -2053,7 +2053,7 @@ fn element_has_tag(value: Value, tags: u64) -> bool {
 }
 
 /// [`element_has_tag`] over every entry of one array, in insertion order —
-/// ADR 0007 § 2's O(n) element walk itself.
+/// `rule:types/conversion`'s O(n) element walk itself.
 ///
 /// # Safety
 ///
@@ -2089,15 +2089,15 @@ unsafe fn every_element_has_tag(array: *mut crate::array::ArrayHeader, tags: u64
     }
 }
 
-/// ADR 0007 § 2's `array<T> as array<U>` row, shared by its throwing and its
+/// `rule:types/conversion`'s `array<T> as array<U>` row, shared by its throwing and its
 /// `null`-answering spelling exactly as [`to_bytes`] shares that pair's.
 ///
-/// `None` for an operand that is not an array at all — ADR 0007 § 6's `mixed`
+/// `None` for an operand that is not an array at all — `rule:types/unions-and-mixed`'s `mixed`
 /// reaching this row — and for one whose walk found an element `U` does not
 /// admit.
 ///
 /// **The result is the operand's own allocation under one more reference.**
-/// ADR 0007 § 5 makes `array<T>` invariant so that the restamp is visible
+/// `rule:types/arrays` makes `array<T>` invariant so that the restamp is visible
 /// rather than hidden inside an assignment, and the restamp is the walk; the
 /// buffer itself can stay shared, because an Novis array is copy-on-write and
 /// whichever of the two views writes first separates itself
@@ -2122,12 +2122,12 @@ fn to_array_of(value: Value, tags: Value) -> Option<Value> {
 }
 
 crate::nvs_helper! {
-    /// `nvs_ir::Helper::ToArrayOf` — ADR 0007 § 2's `array<T> as array<U>`
+    /// `nvs_ir::Helper::ToArrayOf` — `rule:types/conversion`'s `array<T> as array<U>`
     /// row, so [`to_array_of`]'s `None` is the throw rather than a `null`.
     ///
     /// The two ways that `None` arises are told apart here rather than inside
     /// the shared walk, because they are two different mistakes: an operand
-    /// that is not an array at all is ADR 0007 § 6's `mixed` holding something
+    /// that is not an array at all is `rule:types/unions-and-mixed`'s `mixed` holding something
     /// else, and it reads as every other row's refusal does; an element the
     /// target's `U` does not admit is the row's *own* failure and says so.
     /// Which element is not named, for the reason
@@ -2157,13 +2157,13 @@ crate::nvs_helper! {
     }
 }
 
-/// [ADR 0054](/docs/adr/0054-decimal-scalar-type.md) § 3's
+/// `rule:types/arithmetic`'s
 /// `ArithmeticError`: an overflow of either kind, or a zero divisor.
 fn arithmetic_error(operation: &str) -> Fault {
     Fault::thrown_as(
         crate::ThrownClass::Arithmetic,
         format!(
-            "`decimal` {operation} is outside the type's range (ADR 0054 § 1: a 96-bit \
+            "`decimal` {operation} is outside the type's range (`rule:types/decimal`: a 96-bit \
              mantissa at a scale of 0 to 28), or divides by zero"
         ),
     )
@@ -2172,7 +2172,7 @@ fn arithmetic_error(operation: &str) -> Fault {
 /// One arithmetic or comparison operand as a [`Decimal`].
 ///
 /// An `int` or a `uint` operand is promoted here rather than by a conversion
-/// instruction in lowering, which is what makes ADR 0054 § 3's
+/// instruction in lowering, which is what makes `rule:types/arithmetic`'s
 /// `decimal ⊕ int` row cost nothing extra: both are exact in 96 bits, and the
 /// promotion is a tag test the helper already performs. A `float` operand
 /// **never reaches an arithmetic helper** — § 3 makes `decimal ⊕ float` a
@@ -2248,7 +2248,7 @@ crate::nvs_helper! {
     }
 }
 
-/// ADR 0054 § 3's comparison row: a `decimal` against a `decimal`, an `int`, a
+/// `rule:types/arithmetic`'s comparison row: a `decimal` against a `decimal`, an `int`, a
 /// `uint` **or a `float`**, "mathematically exact over the full range of
 /// both". `None` is the unordered answer a `NaN` operand gives, which is what
 /// makes every comparison against one false and `!=` true.
@@ -2295,7 +2295,7 @@ crate::nvs_helper! {
 
 crate::nvs_helper! {
     /// `nvs_ir::Helper::DecimalCmp` — `<=>` with a `decimal` operand, which is
-    /// [`nvs_decimal_lt`]'s row read whole. ADR 0054 § 3 grants it across
+    /// [`nvs_decimal_lt`]'s row read whole. `rule:types/arithmetic` grants it across
     /// every pairing, including the `decimal`/`float` one arithmetic refuses.
     fn nvs_decimal_cmp(_ctx, args: [2]) {
         Ok(Value::int(spaceship(decimal_ordering(args[0], args[1]))))
@@ -2326,7 +2326,7 @@ crate::nvs_helper! {
     }
 }
 
-/// ADR 0054 § 4's four `→ decimal` rows, chosen by the operand's **runtime**
+/// `rule:types/conversion`'s four `→ decimal` rows, chosen by the operand's **runtime**
 /// tag rather than by a static type — the same "one tag per target, not one
 /// per (source, target) pair" arrangement [`to_int`] and [`value_to_string`]
 /// already follow, which is what makes `$mixed as decimal` the same code as
@@ -2365,7 +2365,7 @@ crate::nvs_helper! {
 }
 
 crate::nvs_helper! {
-    /// `nvs_ir::Helper::DecimalToInt` — ADR 0054 § 4: integral and in range,
+    /// `nvs_ir::Helper::DecimalToInt` — `rule:types/conversion`: integral and in range,
     /// or throws. Rounding is `Core\Decimal::floor`/`ceil`/`round`, said out
     /// loud, exactly as `float → int` already is.
     fn nvs_decimal_to_int(_ctx, args: [1]) {
@@ -2431,7 +2431,7 @@ crate::nvs_helper! {
     /// used to be.
     ///
     /// **Ill-formed UTF-8 goes through `from_utf8_lossy` first.** A `Tag::Str`
-    /// is UTF-8 by [ADR 0009](/docs/adr/0009-string-and-bytes.md), so
+    /// is UTF-8 by `rule:types/bytes`, so
     /// this is unreachable from a well-formed value; where a test reaches it
     /// anyway, `�` is the answer the table already gives a byte that is never
     /// legitimate text, and a raw control byte cannot survive the pass. Reading
@@ -2586,7 +2586,7 @@ crate::nvs_helper! {
 }
 
 /// One operand of a failed
-/// [ADR 0047](/docs/adr/0047-literal-and-enum-case-types.md) § 5
+/// `rule:types/literal-types`
 /// membership test, rendered the way § 6's compile-time sibling renders it:
 /// a `string` double-quoted, an integer bare. Only the representations a
 /// closed literal set can name reach this — `nvs-codegen` boxed the operand
@@ -2601,7 +2601,7 @@ fn rendered_operand(value: Value) -> String {
         ),
         Some(Tag::Int) => value.as_int().map_or_else(String::new, |n| n.to_string()),
         Some(Tag::Uint) => value.as_uint().map_or_else(String::new, |n| n.to_string()),
-        // ADR 0007 § 3's two `bool` singletons name a value each, so a miss
+        // `rule:types/grammar`'s two `bool` singletons name a value each, so a miss
         // against one has a value to name back — `false`, spelled as the type
         // `true` is spelled, not "a `Bool` value".
         Some(Tag::Bool) => value
@@ -2613,7 +2613,7 @@ fn rendered_operand(value: Value) -> String {
 }
 
 crate::nvs_helper! {
-    /// `nvs_ir::Helper::LiteralMismatch` — ADR 0047 § 5's membership test
+    /// `nvs_ir::Helper::LiteralMismatch` — `rule:types/literal-types`'s membership test
     /// having missed every literal its target names, which § 4 makes a throw.
     ///
     /// **Never returns `Ok`.** The comparison chain that calls it already
@@ -3062,7 +3062,7 @@ mod tests {
         call(helper, &mut ctx, &[argument]).expect("the conversion succeeded")
     }
 
-    /// Calls a checked conversion helper, expecting ADR 0007 § 2's throw.
+    /// Calls a checked conversion helper, expecting `rule:types/conversion`'s throw.
     fn refused(helper: HelperFn, argument: Value) {
         let mut ctx = Ctx::buffered();
         assert_eq!(
@@ -3252,7 +3252,7 @@ mod tests {
         assert_eq!(names.len(), count, "a symbol name is registered twice");
     }
 
-    /// ADR 0007 § 2's `int` ↔ `uint` row: exact, or throws. The two ends that
+    /// `rule:types/conversion`'s `int` ↔ `uint` row: exact, or throws. The two ends that
     /// have no counterpart on the other side are the whole content of the row.
     #[test]
     fn int_and_uint_convert_where_the_ranges_overlap_and_throw_where_they_do_not() {
@@ -3271,7 +3271,7 @@ mod tests {
         refused(nvs_uint_to_int, Value::uint(u64::MAX));
     }
 
-    /// ADR 0007 § 2: an integer to `float` is "exact, or throws above 2^53,
+    /// `rule:types/conversion`: an integer to `float` is "exact, or throws above 2^53,
     /// where `f64` stops representing every integer."
     #[test]
     fn an_integer_to_float_throws_past_the_point_it_would_stop_being_exact() {
@@ -3287,7 +3287,7 @@ mod tests {
         refused(nvs_uint_to_float, Value::uint(u64::MAX));
     }
 
-    /// ADR 0007 § 2: "integral and in range, or throws. Rounding is
+    /// `rule:types/conversion`: "integral and in range, or throws. Rounding is
     /// `floor`/`ceil`/`round`, said out loud" — so a fractional value is
     /// refused rather than silently picking one of the three.
     #[test]
@@ -3307,7 +3307,7 @@ mod tests {
         refused(nvs_float_to_int, Value::float(1e30));
     }
 
-    /// ADR 0007 § 2: "the whole string must be an exact numeric literal, or
+    /// `rule:types/conversion`: "the whole string must be an exact numeric literal, or
     /// throws. No leading-garbage rule, no `0`" — PHP's `(int)"12abc" === 12`
     /// and `(int)"abc" === 0` are both gone.
     #[test]
@@ -3392,7 +3392,7 @@ mod tests {
         }
     }
 
-    /// A tag ADR 0007 § 2 writes no row from throws rather than substituting
+    /// A tag `rule:types/conversion` writes no row from throws rather than substituting
     /// PHP's `"Array"`-plus-warning. An array stands for the four such tags:
     /// they share one arm.
     #[test]

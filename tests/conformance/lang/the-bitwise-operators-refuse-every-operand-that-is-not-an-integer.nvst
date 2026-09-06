@@ -1,8 +1,8 @@
 --TEST--
-`& | ^ ~ << >>` agree on refusing every operand ADR 0007 § 4's bitwise row has no entry for, `decimal` among them — ADR 0007 §§ 2, 4, ADR 0054 § 3
+`& | ^ ~ << >>` agree on refusing every operand `rule:types/arithmetic`'s bitwise row has no entry for, `decimal` among them — `rule:types/conversion` and `rule:types/arithmetic`, `rule:types/arithmetic`
 --FILE--
 <?nvs
-// Every spelling in ADR 0007 § 4's `& | ^ ~ << >>` row, over the operand
+// Every spelling in `rule:types/arithmetic`'s `& | ^ ~ << >>` row, over the operand
 // domains that row has no entry for. What is asserted is that the six
 // *agree* — one code and one sentence, whatever the operator and whatever
 // the operand — rather than that any one of them reports. The accepted half
@@ -14,7 +14,7 @@ string $s = "ab";
 bool $b = true;
 
 // PHP converts first: `1.5 & 1.5` is `1`, `"ab" & "cd"` is bytewise, and
-// `true & true` is `1`. ADR 0007 § 2 has no implicit conversion for any of
+// `true & true` is `1`. `rule:types/conversion` has no implicit conversion for any of
 // them to be. The `float` row is the one worth having a case for — before
 // this refusal it answered `1.5`, a bit-and over the `f64`'s own bits, which
 // is neither PHP's answer nor a wrong one that shows.
@@ -25,7 +25,7 @@ mixed $a4 = $f << $f;
 mixed $a5 = $f >> $f;
 mixed $a6 = ~$f;
 
-// A `decimal` parts from its own § 3 table here: ADR 0054 § 3 grants
+// A `decimal` parts from its own § 3 table here: `rule:types/arithmetic` grants
 // arithmetic, equality and ordering, because a coefficient and a scale
 // answer those exactly, and grants no bit operation because there is no bit
 // pattern to read.
@@ -37,7 +37,7 @@ mixed $e1 = $s & $s;
 mixed $e2 = $b & $b;
 
 // `-$f` is still arithmetic and still compiles: the line between the two
-// refusals is that ADR 0007 § 4 grants arithmetic over four numeric types
+// refusals is that `rule:types/arithmetic` grants arithmetic over four numeric types
 // and bit operations over two.
 echo -$f, $a1, $a2, $a3, $a4, $a5, $a6, $c1, $c2, $e1, $e2;
 --EXPECTF-ERROR--
@@ -46,69 +46,69 @@ error[E0706]: `&` has no meaning for `float`
    |
 18 | mixed $a1 = $f & $f;
    |             ^^^^^^^ a bitwise operator is over integers
-   = help: ADR 0007 § 4's `& | ^ ~ << >>` row is `int` and `uint` only; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
+   = help: `rule:types/arithmetic`'s `& | ^ ~ << >>` row is `int` and `uint` only; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
 
 error[E0706]: `|` has no meaning for `float`
    --> %s:19:13
    |
 19 | mixed $a2 = $f | $f;
    |             ^^^^^^^ a bitwise operator is over integers
-   = help: ADR 0007 § 4's `& | ^ ~ << >>` row is `int` and `uint` only; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
+   = help: `rule:types/arithmetic`'s `& | ^ ~ << >>` row is `int` and `uint` only; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
 
 error[E0706]: `^` has no meaning for `float`
    --> %s:20:13
    |
 20 | mixed $a3 = $f ^ $f;
    |             ^^^^^^^ a bitwise operator is over integers
-   = help: ADR 0007 § 4's `& | ^ ~ << >>` row is `int` and `uint` only; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
+   = help: `rule:types/arithmetic`'s `& | ^ ~ << >>` row is `int` and `uint` only; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
 
 error[E0706]: `<<` has no meaning for `float`
    --> %s:21:13
    |
 21 | mixed $a4 = $f << $f;
    |             ^^^^^^^^ a bitwise operator is over integers
-   = help: ADR 0007 § 4's `& | ^ ~ << >>` row is `int` and `uint` only; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
+   = help: `rule:types/arithmetic`'s `& | ^ ~ << >>` row is `int` and `uint` only; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
 
 error[E0706]: `>>` has no meaning for `float`
    --> %s:22:13
    |
 22 | mixed $a5 = $f >> $f;
    |             ^^^^^^^^ a bitwise operator is over integers
-   = help: ADR 0007 § 4's `& | ^ ~ << >>` row is `int` and `uint` only; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
+   = help: `rule:types/arithmetic`'s `& | ^ ~ << >>` row is `int` and `uint` only; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
 
 error[E0706]: `~` has no meaning for `float`
    --> %s:23:13
    |
 23 | mixed $a6 = ~$f;
    |             ^^^ a bitwise operator is over integers
-   = help: ADR 0007 § 4's `& | ^ ~ << >>` row is `int` and `uint` only; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
+   = help: `rule:types/arithmetic`'s `& | ^ ~ << >>` row is `int` and `uint` only; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
 
 error[E0706]: `&` has no meaning for `decimal`
    --> %s:29:13
    |
 29 | mixed $c1 = $d & $d;
    |             ^^^^^^^ a bitwise operator is over integers
-   = help: ADR 0007 § 4's `& | ^ ~ << >>` row is `int` and `uint` only; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
+   = help: `rule:types/arithmetic`'s `& | ^ ~ << >>` row is `int` and `uint` only; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
 
 error[E0706]: `~` has no meaning for `decimal`
    --> %s:30:13
    |
 30 | mixed $c2 = ~$d;
    |             ^^^ a bitwise operator is over integers
-   = help: ADR 0007 § 4's `& | ^ ~ << >>` row is `int` and `uint` only; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
+   = help: `rule:types/arithmetic`'s `& | ^ ~ << >>` row is `int` and `uint` only; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
 
 error[E0706]: `&` has no meaning for `string`
    --> %s:33:13
    |
 33 | mixed $e1 = $s & $s;
    |             ^^^^^^^ a bitwise operator is over integers
-   = help: ADR 0007 § 4's `& | ^ ~ << >>` row is `int` and `uint` only; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
+   = help: `rule:types/arithmetic`'s `& | ^ ~ << >>` row is `int` and `uint` only; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
 
 error[E0706]: `&` has no meaning for `bool`
    --> %s:34:13
    |
 34 | mixed $e2 = $b & $b;
    |             ^^^^^^^ a bitwise operator is over integers
-   = help: ADR 0007 § 4's `& | ^ ~ << >>` row is `int` and `uint` only; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
+   = help: `rule:types/arithmetic`'s `& | ^ ~ << >>` row is `int` and `uint` only; PHP converts this operand first and Novis never converts by itself, so say it — `$x as int`
 
 error: aborting due to 10 errors

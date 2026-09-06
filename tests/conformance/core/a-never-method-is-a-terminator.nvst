@@ -1,8 +1,8 @@
 --TEST--
-A method declared `: never` lowers whether or not it is called, and a call to one does not come back: the statement after it is never reached and the frame leaves through the enclosing `catch` — ADR 0007 § 3, `rule:errors/propagation`
+A method declared `: never` lowers whether or not it is called, and a call to one does not come back: the statement after it is never reached and the frame leaves through the enclosing `catch` — `rule:types/grammar`, `rule:errors/propagation`
 --FILE--
 <?nvs
-// ADR 0007 § 3 makes `never` a return-only atom, and it is the one atom whose
+// `rule:types/grammar` makes `never` a return-only atom, and it is the one atom whose
 // value question has no value in it: a frame that cannot come back hands its
 // caller nothing. `nvs_ir::lower::erase_checked_ty` gives it `void`'s
 // representation for that reason, and that arm owns the rest of the decision.

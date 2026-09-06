@@ -89,7 +89,7 @@ T::bump(inout T::one());
     );
 }
 
-/// ADR 0007 § 5's copy-on-write leaves an element no stable address, and
+/// `rule:types/arrays`'s copy-on-write leaves an element no stable address, and
 /// the staged-slot model has no write-back path for one either -- so this
 /// is refused with a message that says which of the two it is, and refused
 /// permanently (`check_inout_arg`'s own docs, findings.md D22).
@@ -247,7 +247,7 @@ T::keep(inout $n);
         "{diags:?}"
     );
 
-    // Through a `callable` it can never be right: ADR 0031 § 4 refuses the
+    // Through a `callable` it can never be right: `rule:types/callable-absorbs-closure` refuses the
     // declaration end outright, so nothing the call reaches can bind one.
     let diags = check_src(
         "<?nvs

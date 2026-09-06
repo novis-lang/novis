@@ -77,7 +77,7 @@ error[E0729]: `Core\Attributes::get` retrieves a shape, and `int` is not one
    |
 33 | ?int $scalar = Core\Attributes::get<int>(Twice::constructor(...));
    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `int` written here
-   = help: `rule:attributes/structural-retrieval`: retrieval is structural — an attached literal is an answer exactly when it satisfies `T` under ADR 0036 § 3's width subtyping, so `T` is an inline `{...}` or a `type` alias naming one
+   = help: `rule:attributes/structural-retrieval`: retrieval is structural — an attached literal is an answer exactly when it satisfies `T` under `rule:types/shape-type`'s width subtyping, so `T` is an inline `{...}` or a `type` alias naming one
 
 error[E0730]: a `Core\Attributes` retrieval names no declaration
    --> case.nvs:38:48

@@ -1,8 +1,8 @@
-# ADR 0037 — `var` infers a local's type from its initializer
+# `rule:types/var-inference` — `var` infers a local's type from its initializer
 
 - **Status:** Accepted
 - **Date:** 2026-08-21
-- **Scope:** a second spelling for a local variable declaration, alongside ADR 0007 § 1's typed one.
+- **Scope:** a second spelling for a local variable declaration, alongside `rule:types/declaration`'s typed one.
   Nothing else — parameters, properties, constants, `foreach`/destructuring bindings, closures and
   returns all still require a written type.
 - **Amends:** [0007](0007-explicit-type-system.md) — § 1's binding-site table gains a second local-decl
@@ -13,7 +13,7 @@
 > **In short:** `var $name = expr;` declares a local without writing its type — the type is `expr`'s own
 > checked type, fixed onto the binding forever, exactly as if that type had been written by hand. It is
 > sugar over the checker's existing bidirectional *synthesis* path, not an inference engine: nothing new
-> propagates through the IR, and every rule ADR 0007 already states about a binding's type never changing
+> propagates through the IR, and every rule `rule:types/declaration` already states about a binding's type never changing
 > applies unchanged. The one thing `var` cannot do is infer a bare array literal (`var $x = [1, 2];`) — an
 > array literal has no target to synthesize against, so this is a diagnostic naming the fix
 > (`array<T> $x = [1, 2];`).
@@ -23,17 +23,17 @@
 **A local declaration may omit its type by writing `var` instead, provided it has an initializer. The
 type stored on the binding is the initializer's own type, computed the same way `check_expr` already
 computes a type for any position with no expected type (an `echo` argument, a bare expression statement).
-That type is then fixed on the binding exactly like a written one — ADR 0007 § 1's "no binding's type ever
+That type is then fixed on the binding exactly like a written one — `rule:types/declaration`'s "no binding's type ever
 changes" is unaffected; `var` only changes how that first type gets there.**
 
 - `var $name = expr;` — `expr` is mandatory; there is nothing to infer a type from otherwise, and this is a
   parse-time requirement (`` `=` expected ``), not a checker one.
 - The inferred type is exact: `var $n = 1;` gives `$n` the type `int` (or `uint`/`float`/etc. by the same
-  literal rules ADR 0007 § 4 already states), `var $id = Core\Request::query('id');` gives `$id` the type
+  literal rules `rule:types/arithmetic` already states), `var $id = Core\Request::query('id');` gives `$id` the type
   `mixed`, honestly, because that is what the initializer's own type is.
 - A bare array-literal initializer is refused: `var $x = [1, 2];` is `E_VAR_ARRAY_LITERAL_NEEDS_TYPE`,
   naming `array<T> $x = [1, 2];` as the fix. This is the one case `var` cannot cover, for the same reason
-  ADR 0007 § 5 checks an array literal against a target rather than inferring one. That a literal's own
+  `rule:types/arrays` checks an array literal against a target rather than inferring one. That a literal's own
   type *can* be computed does not reopen this —
   [ADR 0114](0114-an-array-literals-own-type-is-synthesized-for-one-code-action.md) computes one for an
   editor action whose answer lands as text in the file, read in a diff and approved, where an element type
@@ -46,9 +46,9 @@ changes" is unaffected; `var` only changes how that first type gets there.**
   reference-typing, redeclaration diagnostics — applies to a `var` declaration unchanged, because by the
   time those checks run there is no distinction left: `var` has already resolved to a concrete type.
 
-### Why this fits without reopening ADR 0007
+### Why this fits without reopening `rule:types/declaration`
 
-ADR 0007 rejected general inference because it would mean two type systems (declared vs. inferred) that
+`rule:types/declaration` rejected general inference because it would mean two type systems (declared vs. inferred) that
 must agree, a soundness boundary between them, and a baseline backend that has to special-case whatever
 inference failed to resolve. `var` avoids all three: it is not a solver — it never looks at how a variable
 is *used* later, only at its initializer, and it always terminates in one synthesis pass with no
@@ -63,7 +63,7 @@ typed.
 
 **Positive**
 
-- Removes the most common source of ADR 0007's verbosity complaint — a local whose type is obvious from
+- Removes the most common source of `rule:types/declaration`'s verbosity complaint — a local whose type is obvious from
   its initializer (`var $count = 0;`, `var $user = new User();`) no longer needs it spelled out twice.
 - Lands in the language itself rather than only in `nvs convert`'s M11 migration pass, so hand-written Novis
   gets the same ergonomics a converted PHP file would.
@@ -82,11 +82,11 @@ typed.
 ## Alternatives rejected
 
 - **Full inference across a variable's later uses**, narrowing or widening the declared type from how it
-  is subsequently assigned. This is exactly the "two type systems to keep in agreement" ADR 0007 rejected;
+  is subsequently assigned. This is exactly the "two type systems to keep in agreement" `rule:types/declaration` rejected;
   `var` fixes the type once, from the initializer alone, and every later assignment is checked against that
   fixed type like any other local.
 - **Letting `var $x = [];` infer `array<never>`** (as the empty literal already means when checked against
-  a target, per ADR 0007 § 5). Rejected because it silently produces a binding that can never usefully hold
+  a target, per `rule:types/arrays`). Rejected because it silently produces a binding that can never usefully hold
   anything without a further `as`, which is a worse trap than a clear diagnostic at the declaration site.
 - **A distinct keyword instead of reusing PHP 4's `var`.** `var` was already a reserved token with no
   meaning in Novis — PHP 4's property declarator use is vanishingly rare in modern code and unhandled by this

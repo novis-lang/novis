@@ -33,7 +33,7 @@ if ((Core\Serialize::decode(Core\Serialize::encode(1.5)) as float) == 1.5) {
 if ((Core\Serialize::decode(Core\Serialize::encode("héllo")) as string) == "héllo") {
     $agree = $agree + 1;
 }
-// ADR 0009's binary scalar: a `bytes` must come back a `bytes`, which is what a
+// `rule:types/bytes`'s binary scalar: a `bytes` must come back a `bytes`, which is what a
 // carrier that folded the two tags into one heap shape would lose.
 bytes $raw = Core\Encoding::fromHex("00ff01");
 if (Core\Bytes::length(Core\Serialize::decode(Core\Serialize::encode($raw)) as bytes) == 3) {

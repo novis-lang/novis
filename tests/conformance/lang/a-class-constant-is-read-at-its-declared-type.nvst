@@ -1,5 +1,5 @@
 --TEST--
-A user-declared class constant reads at its own declared type through `extends`, `implements` and `self::`, and lowers to its value — ADR 0007 § 1, ADR 0011 § 1
+A user-declared class constant reads at its own declared type through `extends`, `implements` and `self::`, and lowers to its value — `rule:types/declaration`, ADR 0011 § 1
 --FILE--
 <?nvs
 // A user-declared class constant carries its own declared type, and that type

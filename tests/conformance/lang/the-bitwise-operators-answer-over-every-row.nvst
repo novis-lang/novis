@@ -1,11 +1,11 @@
 --TEST--
-`& | ^ ~ << >>` hold their algebraic identities over a swept table, `>>` reads its operand's signedness, and the five compound forms are their binary forms — ADR 0007 § 4
+`& | ^ ~ << >>` hold their algebraic identities over a swept table, `>>` reads its operand's signedness, and the five compound forms are their binary forms — `rule:types/arithmetic`
 --FILE--
 <?nvs
 // The differential case beside this one pins the `int` arm against PHP's own
 // output. What is left, and what this asks, is the half PHP cannot answer:
 // the `uint` arm, where `>>` is logical rather than arithmetic, and the
-// compound spellings, which ADR 0007 § 4 does not list separately because
+// compound spellings, which `rule:types/arithmetic` does not list separately because
 // `$x op= e` is `$x = $x op e` and nothing else.
 
 // 1. The identities, counted over a table rather than read off a chosen row.

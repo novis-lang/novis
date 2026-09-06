@@ -18,7 +18,7 @@ try {
 // compile time rather than printed: `select<T>` answers `T` and `multiSelect<T>`
 // answers `array<T>`, so a case that binds one to an `array<string>` and still
 // compiles has pinned which of the two this member is. `$choices` is written as
-// a typed local rather than inline for ADR 0007 § 2's reason — an array literal
+// a typed local rather than inline for `rule:types/conversion`'s reason — an array literal
 // in a generic position has nothing to be placed against, so `T` would come out
 // `mixed` here exactly as it does for `select`.
 try {

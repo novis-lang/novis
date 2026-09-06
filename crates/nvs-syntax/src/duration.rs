@@ -1,4 +1,4 @@
-//! [ADR 0070](/docs/adr/0070-duration-literals.md)'s duration grammar,
+//! `rule:types/duration-literal`'s duration grammar,
 //! in the one implementation its § 5 requires.
 //!
 //! `30s`, `1h30m`, `500ms` — Go's `time.ParseDuration` grammar with `d` and `w`
@@ -22,7 +22,7 @@
 //! A count of **nanoseconds** as an `i64`, which is `Core\Time\Duration`'s
 //! whole state and its range: ±292 years, Go's own bound, and the one under
 //! which `$d->toNanoseconds(): int` is total. Anything wider is
-//! [`DurationError::Overflow`] — ADR 0070 § 3's "a literal whose value exceeds
+//! [`DurationError::Overflow`] — `rule:types/duration-literal`'s "a literal whose value exceeds
 //! `Duration`'s range is a compile error, not a wrap", and the same throw at
 //! run time.
 //!
@@ -53,7 +53,7 @@ pub enum DurationError {
     /// § 2 makes "the same word, wrong case" a distinct thing to say, and this
     /// is the message that says it.
     MisCasedUnit(String),
-    /// Two units in the wrong order, or the same one twice — ADR 0070 § 1's
+    /// Two units in the wrong order, or the same one twice — `rule:types/duration-literal`'s
     /// "units strictly descend and may not repeat".
     OutOfOrder(&'static str, &'static str),
     /// A character that begins nothing — a `_` separator, a `.`, a sign.
@@ -94,7 +94,7 @@ impl DurationError {
 
 /// The units, coarsest first, with each one's length in nanoseconds.
 ///
-/// Order in this table *is* ADR 0070 § 1's descent rule: a unit may only be
+/// Order in this table *is* `rule:types/duration-literal`'s descent rule: a unit may only be
 /// followed by one later in the table.
 const UNITS: &[(&str, i64)] = &[
     ("w", 7 * 24 * 60 * 60 * 1_000_000_000),
@@ -205,7 +205,7 @@ pub fn parse(text: &str) -> Result<i64, DurationError> {
 ///
 /// Zero is `"0s"`: the grammar has no empty spelling, and `s` is the unit a
 /// reader expects a bare zero in. A negative value is rendered with a leading
-/// `-`, which [`parse`] deliberately does **not** accept (ADR 0070 § 1) — a
+/// `-`, which [`parse`] deliberately does **not** accept (`rule:types/duration-literal`) — a
 /// negative duration is producible only by `->negated()` or `->minus()`, and
 /// showing it as `-1h30m` is more useful than refusing to show it.
 #[must_use]
@@ -250,7 +250,7 @@ mod tests {
         assert_eq!(parse("1w2d3h4m5s6ms7us8ns"), Ok(788_645_006_007_008));
     }
 
-    /// Each of ADR 0070 § 1's refusals, by the rule it names.
+    /// Each of `rule:types/duration-literal`'s refusals, by the rule it names.
     #[test]
     fn the_grammar_refuses_what_adr_0070_refuses() {
         assert_eq!(parse("30m1h"), Err(DurationError::OutOfOrder("m", "h")));
@@ -267,7 +267,7 @@ mod tests {
     }
 
     /// The range is `i64` nanoseconds, and the edge of it is an error rather
-    /// than a wrap — the property ADR 0070 § 3 asks the *compiler* to hold.
+    /// than a wrap — the property `rule:types/duration-literal` asks the *compiler* to hold.
     #[test]
     fn a_duration_past_the_range_is_an_error_not_a_wrap() {
         assert_eq!(parse("292y"), Err(DurationError::UnknownUnit("y".into())));
@@ -288,7 +288,7 @@ mod tests {
         }
     }
 
-    /// ADR 0070 § 5: a `Duration`'s `Stringable` form re-parses to the value
+    /// `rule:types/duration-literal`: a `Duration`'s `Stringable` form re-parses to the value
     /// it came from.
     #[test]
     fn a_rendered_duration_parses_back_to_itself() {

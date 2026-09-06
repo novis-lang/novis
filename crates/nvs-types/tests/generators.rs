@@ -133,7 +133,7 @@ fn yield_from_and_a_keyed_yield_are_both_refused() {
     }
 }
 
-/// `mixed` is the one unchecked position (ADR 0007 § 1), so it neither
+/// `mixed` is the one unchecked position (`rule:types/declaration`), so it neither
 /// yields an element type nor is refused as a subject.
 #[test]
 fn a_mixed_subject_is_neither_checked_nor_refused() {

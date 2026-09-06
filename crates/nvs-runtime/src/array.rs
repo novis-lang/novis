@@ -1,5 +1,4 @@
-//! Novis's array: [ADR 0007](/docs/adr/0007-explicit-type-system.md)
-//! § 5's insertion-ordered, string-keyed hash, refcounted and copy-on-write.
+//! Novis's array: `rule:types/arrays`'s insertion-ordered, string-keyed hash, refcounted and copy-on-write.
 //!
 //! This is what `nvs_ir::ty::Ty::Array` lowers to, and the other half of M4's
 //! Stage 1 gate — `Core\Arr`'s whole contract rests on it
@@ -151,7 +150,7 @@
 //!
 //! # Decision: a mutation consumes one reference and returns one
 //!
-//! ADR 0007 § 5 gives arrays copy-on-write **value semantics**, so
+//! `rule:types/arrays` gives arrays copy-on-write **value semantics**, so
 //! `$b = $a; $b["k"] = 1;` must not be visible through `$a`. The separation
 //! that guarantees it produces a *different allocation*, which the writer must
 //! then be holding — and compiled code keeps a local in an SSA register, not
@@ -218,7 +217,7 @@
 //!
 //! # Known gap: no interned element-type descriptor
 //!
-//! ADR 0007 § 5 gives an array header a pointer to an interned, immutable
+//! `rule:types/arrays` gives an array header a pointer to an interned, immutable
 //! descriptor of its element type, so a value arriving through `mixed`,
 //! `json_decode` or an isolate boundary can be checked. Nothing constructs an
 //! array from any of those routes yet — every array here is built by compiled
@@ -305,7 +304,7 @@ impl Default for Table {
 /// Canonical means what PHP means by it: an optional `-`, then either `0` or a
 /// digit run with no leading zero, and the whole thing in range. `"08"` and
 /// `"-0"` are therefore ordinary string keys that collide with nothing, which
-/// is ADR 0007 § 5's "which subscripts collide does not change".
+/// is `rule:types/arrays`'s "which subscripts collide does not change".
 fn integer_key(bytes: &[u8]) -> Option<i64> {
     let (negative, digits) = match bytes.split_first() {
         Some((b'-', rest)) => (true, rest),
@@ -396,7 +395,7 @@ impl Table {
     ///
     /// An overwrite keeps the existing entry's position and its existing key
     /// allocation, so `$a["k"] = 1; $a["k"] = 2;` does not move `"k"` to the
-    /// end — PHP's own behaviour, and what ADR 0007 § 5's "iteration order is
+    /// end — PHP's own behaviour, and what `rule:types/arrays`'s "iteration order is
     /// insertion order, always" means for a repeated write.
     ///
     /// The packed form holds for a write at an existing position or at exactly
@@ -1005,7 +1004,7 @@ impl NvsArray {
     }
 
     /// Every key in insertion order — `Core\Arr::keys`, and what a test reads
-    /// to assert ADR 0007 § 5's ordering.
+    /// to assert `rule:types/arrays`'s ordering.
     #[must_use]
     pub fn keys(&self) -> Vec<Vec<u8>> {
         let table = self.header().table.borrow();
@@ -1455,7 +1454,7 @@ pub unsafe extern "C" fn nvs_array_get(
 /// `nvs_ir::InstKind::ArrayGet`.
 ///
 /// Semantically identical to [`nvs_array_get`] called with `index`'s decimal
-/// form: `$a[8]` is `$a["8"]` (ADR 0007 § 5), and a negative index names the
+/// form: `$a[8]` is `$a["8"]` (`rule:types/arrays`), and a negative index names the
 /// key `"-1"` exactly as it always did. What differs is that a list-shaped
 /// array answers straight out of its `Vec<Value>` — no decimal, no `NvsStr`,
 /// no hash — which is the saving this module's packed decision exists for.
@@ -1640,8 +1639,7 @@ pub unsafe extern "C" fn nvs_array_append(
 /// value copied is **retained** before it is stored, because the entry is now
 /// held by two arrays; the caller emits no retain of its own beside this.
 ///
-/// **Which key survives is [ADR 0007](/docs/adr/0007-explicit-type-system.md)
-/// § 5's rule, not a representation question.** A key that reads as a
+/// **Which key survives is `rule:types/arrays`'s rule, not a representation question.** A key that reads as a
 /// canonical decimal integer is *renumbered* — appended under this array's own
 /// counter — and every other key is preserved, overwriting an entry already
 /// there in place. That is PHP's own spread, expressed in the two writes Novis
@@ -1780,7 +1778,7 @@ pub unsafe extern "C" fn nvs_array_count(array: *const ArrayHeader) -> i64 {
 }
 
 /// The position of the first live entry at or after `from`, or `-1` when there
-/// is none — one `foreach` step over ADR 0007 § 5's insertion order. Consumes
+/// is none — one `foreach` step over `rule:types/arrays`'s insertion order. Consumes
 /// nothing.
 ///
 /// A cursor rather than a borrowed iterator because the loop body runs
@@ -2046,7 +2044,7 @@ mod tests {
         assert!(list.has_key(b"31"));
 
         // And the keys that are not there are the same ones a hash would miss:
-        // one past the end, a negative, and `"08"`, which ADR 0007 § 5 keeps
+        // one past the end, a negative, and `"08"`, which `rule:types/arrays` keeps
         // distinct from `"8"`.
         assert!(list.get(b"32").is_none());
         assert!(list.get(b"-1").is_none());
@@ -2302,7 +2300,7 @@ mod tests {
         assert!(!named.is_packed());
         assert_eq!(keys_of(&named), ["0", "1", "2", "name"]);
 
-        // A non-canonical decimal, which ADR 0007 § 5 keeps distinct from
+        // A non-canonical decimal, which `rule:types/arrays` keeps distinct from
         // `"8"` — the degrade is what preserves that.
         let mut padded = list_of(3);
         padded.set(key("08"), Value::int(1));

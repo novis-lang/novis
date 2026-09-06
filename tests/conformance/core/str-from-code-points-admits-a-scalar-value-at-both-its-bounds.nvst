@@ -1,5 +1,5 @@
 --TEST--
-`Core\Str::fromCodePoint` and `fromCodePoints` admit exactly Unicode's scalar values, named on both sides of all three boundaries, and agree at every point — spec § 1 *Transformation*, ADR 0009 § 1
+`Core\Str::fromCodePoint` and `fromCodePoints` admit exactly Unicode's scalar values, named on both sides of all three boundaries, and agree at every point — spec § 1 *Transformation*, `rule:types/bytes`
 --FILE--
 <?nvs
 class Points {

@@ -691,7 +691,7 @@ fn reachable(
 ///
 /// Wider than [`json_reachable`] in one place and narrower in another, which
 /// is the whole reason the two formats are not one map. `bytes` is a column
-/// type — `BLOB`/`BYTEA` — where ADR 0009 leaves it no JSON spelling at all;
+/// type — `BLOB`/`BYTEA` — where `rule:types/bytes` leaves it no JSON spelling at all;
 /// and a **nested class is not**, because a row is a flat list of columns and
 /// § 9 maps none of them to an object. The classes it does map are that
 /// section's own value types, [`DB_COLUMN_CLASSES`].
@@ -701,7 +701,7 @@ fn reachable(
 /// which file declared what first.
 fn db_reachable(ty: TypeId, interner: &crate::ty::TypeInterner) -> bool {
     match interner.get(ty) {
-        // § 9's scalar rows, plus ADR 0047's three singleton refinements of
+        // § 9's scalar rows, plus `rule:types/literal-types`'s three singleton refinements of
         // them. `tainted` is not a distinction a column makes — § 6 makes
         // every text column tainted on the way out.
         Ty::Null
@@ -768,7 +768,7 @@ fn json_reachable(
     exprs: &crate::expr_table::ExprTypeTable,
 ) -> bool {
     match interner.get(ty) {
-        // The scalars, plus ADR 0047's three singleton refinements of them:
+        // The scalars, plus `rule:types/literal-types`'s three singleton refinements of them:
         // each erases to a scalar and is exactly as spellable on the wire.
         Ty::Null
         | Ty::Bool
@@ -786,14 +786,14 @@ fn json_reachable(
         // ADR 0010: an enum travels as its backing value, range-checked on
         // the way back in.
         Ty::Enum(..) | Ty::EnumCase(..) => true,
-        // ADR 0036's inline shape, and `array<T>`/`array<string, T>`, both
+        // `rule:types/object-top`'s inline shape, and `array<T>`/`array<string, T>`, both
         // reachable exactly when what they hold is.
         Ty::Shape(fields) => fields
             .iter()
             .all(|(_, held)| json_reachable(*held, interner, signatures, exprs)),
         Ty::Array(elem) => json_reachable(*elem, interner, signatures, exprs),
         Ty::Class(class, _) => class_has_codec(class, signatures, exprs),
-        // Everything else: `bytes` has no JSON spelling (ADR 0009 makes it a
+        // Everything else: `bytes` has no JSON spelling (`rule:types/bytes` makes it a
         // separate type for that reason), `object`, `callable` and `iterable`
         // name no contract, and a union of two non-`null` arms gives a
         // decoder nothing to pick between — § 2 lists none of them.

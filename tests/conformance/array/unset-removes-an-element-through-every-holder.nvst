@@ -1,5 +1,5 @@
 --TEST--
-`unset()` reaches an element through each of the three holders a separated array can be written back into, and through a nested chain — ADR 0007 § 5, ADR 0028 § 3
+`unset()` reaches an element through each of the three holders a separated array can be written back into, and through a nested chain — `rule:types/arrays`, ADR 0028 § 3
 --FILE--
 <?nvs
 class Holder {
@@ -12,7 +12,7 @@ array<string> $a = ["k" => "1", "j" => "2"];
 unset($a["k"]);
 echo Core\Arr::count($a), " ", $a["j"], "\n";
 
-// A static property. ADR 0007 § 5 separates the array before the entry
+// A static property. `rule:types/arrays` separates the array before the entry
 // goes, so the copy has to land back in the same slot — the one thing this
 // case is asserting for all three holders at once.
 Holder::$rows["a"] = "x";
@@ -48,7 +48,7 @@ try {
 }
 echo Core\Arr::count($grid), "\n";
 
-// An `int` subscript is ADR 0007 § 5's key normalisation, here and at a
+// An `int` subscript is `rule:types/arrays`'s key normalisation, here and at a
 // read alike.
 int $i = 1;
 array<string> $nums = ["0" => "zero", "1" => "one"];

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Str::padStart` and `::padEnd` cut one and the same run at the run's own end, and place it on opposite sides of a subject they never otherwise touch — spec § 1, ADR 0009 § 2
+`Core\Str::padStart` and `::padEnd` cut one and the same run at the run's own end, and place it on opposite sides of a subject they never otherwise touch — spec § 1, `rule:types/string-is-utf8`
 --FILE--
 <?nvs
 // The two members share `padding_run` and `write_run`, so what is worth
@@ -33,7 +33,7 @@ final class Run {
         if ($after != $subject . $run) {
             return 0;
         }
-        // Counted in ADR 0009 § 2's unit, which is what makes the row below
+        // Counted in `rule:types/string-is-utf8`'s unit, which is what makes the row below
         // with a combining mark in the padding an assertion and not a
         // coincidence: a run cut mid-cluster would leave a bare combining mark
         // that this length does not count, and the width would come up short.

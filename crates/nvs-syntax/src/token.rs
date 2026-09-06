@@ -79,7 +79,7 @@ pub enum TokenKind {
     /// A floating-point literal, including an exponent (`1e10`, `1.5e-3`).
     FloatLiteral,
     /// A duration literal — `30s`, `1h30m`, `500ms`
-    /// ([ADR 0070](/docs/adr/0070-duration-literals.md)).
+    /// (`rule:types/duration-literal`).
     ///
     /// **One token, maximal munch**: `1h30m` is this, not three tokens. The
     /// lexer has already checked the whole grammar

@@ -362,7 +362,7 @@ fn schema(ty: Option<&str>, allowed: Option<&[String]>) -> Value {
         Some("uint") => json!({"type": "integer", "minimum": 0}),
         Some("float") => json!({"type": "number"}),
         // Not `number`: a decimal that survives a JSON round trip is a string,
-        // which is `Core\Json`'s own reading of ADR 0054's type.
+        // which is `Core\Json`'s own reading of `rule:types/decimal`'s type.
         Some("decimal") => json!({"type": "string", "format": "decimal"}),
         Some("string" | "tainted string") => json!({"type": "string"}),
         // The one class a capture may be declared at (§ 5), and the format

@@ -19,7 +19,7 @@
 //!   and reads it from below. It moved there when `rule:errors/log-write`'s tier-4 floor
 //!   became a dependent of `nvs-render`, which `rule:errors/diagnostic-record` requires be the
 //!   leaf — that crate's own § *Where this sits* is the home of why.
-//! - [`duration`] — ADR 0070's duration grammar, the one place `30s` is
+//! - [`duration`] — `rule:types/duration-literal`'s duration grammar, the one place `30s` is
 //!   defined. Public because it is shared: `nvs-stdlib`'s
 //!   `Core\Time\Duration::parse` and (at M6) `nvs.toml`'s reader both call in,
 //!   which is what stops the three from drifting.
@@ -47,7 +47,7 @@
 //!   token, and there is no plan to add one. It is pure call-chain sugar (`$x |> f(...) |> g(...)` is
 //!   just `g(f($x))`), so it adds no expressiveness a nested call or a local variable doesn't already
 //!   give, while costing a new operator with its own precedence tier and a special-cased RHS shape
-//!   (reusing the `...` first-class-callable placeholder from ADR 0027). It also undercuts its own
+//!   (reusing the `...` first-class-callable placeholder from `rule:types/callable-is-a-closure`). It also undercuts its own
 //!   usual justification here: ADR 0011 makes every function a method, so idiomatic Novis code already
 //!   reaches for `->` chaining instead of PHP's global-function nesting, which is the pain `|>` exists
 //!   to solve in vanilla PHP. Do not add a `Pipe`/`|>` token or an `ExprKind::Pipe` node.
@@ -60,15 +60,14 @@
 //!
 //! - **`goto` target labels** (`label:` as its own statement) are unparsed — only `goto ident;`
 //!   itself is handled (and rejected, per `rule:statements/no-function-static-and-no-global`). Interacts with
-//!   [ADR 0036](/docs/adr/0036-anonymous-object-shapes.md) § 2's own block/object-literal
+//!   `rule:types/object-literal`'s own block/object-literal
 //!   disambiguation: a block whose first statement would have been a label (`{ done: ... }`) matches
 //!   the same one-token-past-`{` lookahead an attempted object literal does, so it is now diagnosed
 //!   as "needs parentheses" instead of whatever the (already broken, since labels don't parse) prior
 //!   behavior was — not a regression on real code, since no Novis/PHP program relies on an unparsed
 //!   construct, but worth knowing if label support is ever added.
 //! - **A local variable declaration typed with a bare inline shape type** (`{x: int} $point;`) is not
-//!   parsed — statement-initial `{` already commits to a block ([ADR 0036](/docs/adr/0036-anonymous-object-shapes.md)
-//!   § 3), and unlike the object-literal collision that ADR names and this parser resolves, teaching
+//!   parsed — statement-initial `{` already commits to a block (`rule:types/shape-type`), and unlike the object-literal collision that ADR names and this parser resolves, teaching
 //!   a *type*-prefix apart from a block would need lookahead past a matched, possibly-nested `{...}`
 //!   all the way to a following `$name` — not attempted this session. Every other declaration slot
 //!   (parameter, return type, property, class constant, `foreach` binding) supports a bare shape type
@@ -79,7 +78,7 @@
 //!   exist yet, so this isn't a regression, just not built. Only single `use Path\To\Name;` per
 //!   statement is supported.
 //! - **`var` inside a class body** (PHP 4's property declarator) is not handled — only the statement
-//!   position now recognizes `Keyword::Var`, as [ADR 0037](/docs/adr/0037-var-local-type-inference.md)'s
+//!   position now recognizes `Keyword::Var`, as `rule:types/var-inference`'s
 //!   inferred local declaration; the property-declarator spelling still falls through to a generic
 //!   parse error. Vanishingly rare in modern code.
 //! - **A method/const/case name that is itself a reserved keyword spelling** works for methods and

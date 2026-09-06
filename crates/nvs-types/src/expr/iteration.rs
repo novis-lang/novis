@@ -57,7 +57,7 @@ pub(crate) fn infer_yield(
             check_expr(v, Some(elem), live, scope, ctx, env);
         }
         (Some(_), None) => {
-            // ADR 0007 leaves no position untyped, and a bare `yield` would
+            // `rule:types/declaration` leaves no position untyped, and a bare `yield` would
             // have to produce a `T` out of nothing.
             env.diags.report(
                 Diagnostic::error(code::E_YIELD_FORM_UNSUPPORTED, "a `yield` needs a value")
@@ -166,7 +166,7 @@ pub(crate) fn classify_foreach_source(
 ) -> ForeachSource {
     match env.interner.get(subject_ty).clone() {
         Ty::Array(elem) => ForeachSource::Array { value: elem },
-        // `mixed` is the one unchecked position (ADR 0007 § 1) and `iterable`
+        // `mixed` is the one unchecked position (`rule:types/declaration`) and `iterable`
         // is a keyword `rule:iteration/two-interfaces` leaves untouched — neither is a mistake, and
         // neither carries an element type to check a binding against.
         Ty::Mixed | Ty::Iterable => ForeachSource::Unchecked,
@@ -252,8 +252,7 @@ pub(crate) fn check_foreach_value(
 /// 2. **The binding's type must be the element type exactly.** A by-value
 ///    binding may widen — reading an `array<Dog>` as an `Animal` is the same
 ///    element covariance any array read has — but a by-reference one writes
-///    too, and writing an `Animal` into an `array<Dog>` is unsound. ADR 0007
-///    § 1's "no type ever changes by itself" leaves the two directions
+///    too, and writing an `Animal` into an `array<Dog>` is unsound. `rule:types/declaration`'s "no type ever changes by itself" leaves the two directions
 ///    meeting only at `T` itself.
 ///
 /// Obligation 2 is only reported when the binding would otherwise have been
@@ -328,13 +327,13 @@ pub(crate) fn check_foreach_inout(
 ///
 /// # Why an array's key binding is exact
 ///
-/// ADR 0007 § 5 gives the container **one** stored key type — "every key is a
+/// `rule:types/arrays` gives the container **one** stored key type — "every key is a
 /// `string`. There is no integer key" — so the type parameter is the value's
 /// and the key needs none. That makes `foreach ($a as int $k => …)` neither a
 /// narrowing nor a widening but simply wrong: no array can produce an `int`
 /// key for the binding to hold. The same goes for a `mixed $k`, which would
 /// be a widening if there were a second key type to widen over and is instead
-/// a binding at a representation the loop never produces — ADR 0007 § 5
+/// a binding at a representation the loop never produces — `rule:types/arrays`
 /// normalises `$a[8]` to `$a["8"]` at the *subscript*, and there is no
 /// conversion on the way back out.
 ///
@@ -380,7 +379,7 @@ pub(crate) fn check_foreach_key(
                     )
                     .with_primary(binding.span, format!("this binds as `{got}`"))
                     .with_help(
-                        "ADR 0007 § 5 gives an `array<T>` one stored key type — every key is a \
+                        "`rule:types/arrays` gives an `array<T>` one stored key type — every key is a \
                          `string`, and `$a[8]` is normalised to `$a[\"8\"]` at the subscript \
                          rather than converted — so write `string $k`, and convert inside the \
                          body if the loop wants another type",
@@ -394,7 +393,7 @@ pub(crate) fn check_foreach_key(
     }
 }
 
-/// ADR 0027 § 1/§ 3: a bare string or `[$obj, 'method']`-shaped array
+/// `rule:types/callable-is-a-closure`/§ 3: a bare string or `[$obj, 'method']`-shaped array
 /// literal reaching a `callable`-typed position gets a targeted diagnostic
 /// naming the first-class-callable-syntax replacement, rather than the
 /// generic `E_TYPE_MISMATCH` [`is_assignable`] would otherwise report for

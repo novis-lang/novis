@@ -1,11 +1,11 @@
 --TEST--
-A property access through a `mixed` receiver is ADR 0036 § 4's name-keyed fetch, with the receiver's own tag checked at the same place — ADR 0007 § 2, § 7 row 13
+A property access through a `mixed` receiver is `rule:types/erased-member-access`'s name-keyed fetch, with the receiver's own tag checked at the same place — `rule:types/conversion`, § 7 row 13
 --FILE--
 <?nvs
-// `mixed` is ADR 0007 § 2's one unchecked position, so `$m->name` defers
+// `mixed` is `rule:types/conversion`'s one unchecked position, so `$m->name` defers
 // every question it raises — is this an object, and does that object carry
 // this name — to run time, exactly where PHP answers them. It is the fourth
-// receiver shape ADR 0036 § 4's erased half covers, and the only one whose
+// receiver shape `rule:types/erased-member-access`'s erased half covers, and the only one whose
 // *tag* nothing proved before the fetch.
 final class Box {
     public string $name = "boxed";

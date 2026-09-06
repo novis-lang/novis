@@ -1,5 +1,5 @@
 --TEST--
-`new $cls(...)` over a `class<T>` allocates whichever implementor the reference holds, through either of `as`'s two doors (ADR 0125 §§ 2, 4)
+`new $cls(...)` over a `class<T>` allocates whichever implementor the reference holds, through either of `as`'s two doors (`rule:types/class-reference` and `rule:types/class-reference-sites`)
 --FILE--
 <?nvs
 // A class reference has exactly one source, `as`, and it has two doors: a

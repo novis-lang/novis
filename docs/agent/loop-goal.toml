@@ -673,7 +673,7 @@ stage = "1 floor"
 name = "nvs-types (the promotion table)"
 args = ["test", "-p", "nvs-types"]
 tests = [
-  # Item 1 -- ADR 0007 § 4: a mixed-representation arithmetic or ordering pair has a result type AND
+  # Item 1 -- `rule:types/arithmetic`: a mixed-representation arithmetic or ordering pair has a result type AND
   # a stated widening, which is the half `arithmetic_result` records nothing for today.
   "a_mixed_numeric_pair_widens_the_narrower_operand",
   "a_mixed_numeric_comparison_widens_the_same_way",
@@ -710,7 +710,7 @@ args = ["test", "-p", "nvs-codegen"]
 tests = [
   # Item 2 -- the union result picks its instruction at runtime.
   "an_integer_division_emits_both_of_its_representations",
-  # Item 3 -- ADR 0007 § 4's overflow throw, at the three arithmetic sites, over `Inst::on_error`.
+  # Item 3 -- `rule:types/arithmetic`'s overflow throw, at the three arithmetic sites, over `Inst::on_error`.
   "an_integer_addition_traps_on_overflow",
   "an_integer_subtraction_and_multiplication_trap_on_overflow",
   # Item 8 -- `Enum(Int)` reaches the integral compare rows.
@@ -1023,7 +1023,7 @@ tests = [
 # Stage 2 -- Stage 0's item list as one program. Separate from Stage 0 so the ledger tells "the unit
 # guards are green" apart from "the program runs".
 #
-# `mixed=2.5`: ADR 0007 § 4's promotion, item 1. `avg=3.5` and `whole=two`: integer division as a union,
+# `mixed=2.5`: `rule:types/arithmetic`'s promotion, item 1. `avg=3.5` and `whole=two`: integer division as a union,
 # item 2. `guarded=overflow`: item 3, over i64::MAX. `counted=5`: item 7, both positions. `bits=22` and
 # `not=-1`: item 4, five binary rows plus the unary one, four of them reached through their compound
 # spelling. `pow=1048576`: item 5. `cmp=-1,0,1`: item 6.
@@ -1118,13 +1118,13 @@ tests = [
   # tail's element type -- the test the crate has, under the name the rule gave it.
   "a_spread_argument_is_checked_against_the_tail_element_type",
   # The same two spellings through a `callable`, which has no signature to map them against at all:
-  # ADR 0031 § 1 refuses the name and admits the spread.
+  # `rule:types/closure-literal` refuses the name and admits the spread.
   "a_named_argument_through_a_callable_is_refused",
   "a_spread_argument_through_a_callable_is_accepted",
   # Item 10's diagnostic half landed as `nvs_types::locals::check_exit_level` (`E0475`), and no Rust
   # test names it -- `a-break-level-that-names-no-target-is-a-diagnostic.nvst` in the `nvs-suite`
   # check below owns it instead, over all five spellings the diagnostic refuses.
-  # Item 17's other half, refused by decision rather than built (ADR 0031 § 2).
+  # Item 17's other half, refused by decision rather than built (`rule:types/implicit-capture`).
   "an_array_element_passed_by_reference_is_diagnosed",
 ]
 
@@ -1134,7 +1134,7 @@ tests = [
 # `hits=2,5` is item 21, `grid=93` item 22, `mixedSum`/`elem`/`flag` the three shapes of item 24 (arith-
 # metic on a tag, a subscript through one, and `rule:expressions/truthy-positions`'s truthy table over a `?bool`), `top=point` item
 # 25, `asInt`/`asString` and `converted=3` item 26's three rows -- of which `asInt` is a *branch*,
-# ADR 0007 § 2's grid giving a `bool` source the "anything -> `string`" row and no numeric one, so
+# `rule:types/conversion`'s grid giving a `bool` source the "anything -> `string`" row and no numeric one, so
 # `$yes as int` is `E0708` where it is written and the fixture spells the predicate out loud.
 # `converted=3` is the `array<T>` -> `array<U>` row, which that same grid makes a per-element *check*
 # rather than a conversion -- so the fixture converts to `array<mixed>`, the one target every tag
@@ -1162,7 +1162,7 @@ tests = [
   "a_mixed_condition_dispatches_the_truthy_table_on_the_tag",
   "a_subscript_through_a_tagged_base_lowers",
   "the_object_top_type_erases_to_the_pointer_a_class_does",
-  # ADR 0007 § 2's `array<T> as array<U>` row -- an agreement over its four spellings, the free
+  # `rule:types/conversion`'s `array<T> as array<U>` row -- an agreement over its four spellings, the free
   # `array<mixed>` target included, since that one is asserted by a count and not by a line.
   "an_array_conversion_walks_its_elements",
 ]
@@ -1173,7 +1173,7 @@ stage = "1 floor"
 name = "nvs-types (targets and refusals)"
 args = ["test", "-p", "nvs-types"]
 tests = [
-  # Item 24 -- a `mixed` base defers the subscript to its tag (ADR 0036 § 4), and every base whose
+  # Item 24 -- a `mixed` base defers the subscript to its tag (`rule:types/erased-member-access`), and every base whose
   # declared type has already answered keeps `E0482` where it is written.
   "an_array_index_through_a_mixed_base_defers_to_the_tag",
   "an_array_index_through_a_scalar_base_is_still_refused",
@@ -1184,11 +1184,11 @@ tests = [
   # Item 28 -- a `Core` class stringifies where the spec gives it a `toString`, and is diagnosed at
   # the `echo` where it does not. Never a panic below.
   "a_core_class_stringifies_exactly_where_the_registry_says_so",
-  # Item 26 -- both halves of ADR 0007 § 2's `bool` source at once, since either alone reads as an
+  # Item 26 -- both halves of `rule:types/conversion`'s `bool` source at once, since either alone reads as an
   # accident. `nvs-ir` has nothing to test: the row that runs is `Helper::BoolToString`, already
   # pinned by `conversions-that-succeed.nvst`, and the refused one never reaches that crate.
   "a_bool_converts_to_a_string_and_not_to_an_int",
-  # ADR 0007 § 4's arithmetic table closed at the operand end (`E0716`) and `%`'s missing `float`
+  # `rule:types/arithmetic`'s arithmetic table closed at the operand end (`E0716`) and `%`'s missing `float`
   # row (`E0717`) -- together, what `emit_binop`'s operator catch-all used to be reachable through.
   "an_arithmetic_operand_with_no_row_is_a_compile_error",
   "a_float_modulo_is_a_compile_error",
@@ -1237,7 +1237,7 @@ stage = "1 floor"
 name = "nvs-types (narrowing and reachability)"
 args = ["test", "-p", "nvs-types"]
 tests = [
-  # Item 37 -- three of ADR 0007 § 6's four spellings, and the residue no longer restricted to a class.
+  # Item 37 -- three of `rule:types/unions-and-mixed`'s four spellings, and the residue no longer restricted to a class.
   "an_instanceof_test_narrows_its_subject",
   "a_comparison_against_a_literal_narrows_its_subject",
   # Item 38. The `match (true)` arm is a case rather than a cargo test, and so is the reachability
@@ -1347,12 +1347,12 @@ cases = [
   "tests/conformance/lang/a-required-file-hands-a-value-back.nvst",
   # Stage 6. Four rules whose assertion is a program rather than a checker unit test, so the
   # `cargo-named` entries that used to name them are gone -- see guard-name-debt.md's cause 2.
-  # ADR 0007 § 6's fourth narrowing spelling, and the reachability half that a body can satisfy:
+  # `rule:types/unions-and-mixed`'s fourth narrowing spelling, and the reachability half that a body can satisfy:
   "tests/conformance/lang/a-match-and-a-switch-over-true-narrow-per-arm.nvst",
   "tests/conformance/lang/a-for-body-that-always-returns.nvst",
   "tests/conformance/lang/a-method-returns-early-from-inside-a-loop.nvst",
   "tests/conformance/class/a-promoted-constructor-parameter-is-a-property.nvst",
-  # ADR 0007 § 3: a key is a `string` and nothing else, and a `&` binding agrees on the element type.
+  # `rule:types/grammar`: a key is a `string` and nothing else, and a `&` binding agrees on the element type.
   "tests/conformance/lang/a-foreach-key-binding-is-a-string-and-nothing-else.nvst",
   "tests/conformance/array/a-by-reference-binding-needs-a-variable-and-the-element-type.nvst",
   # Stage 7. `rule:testing/test-attribute`'s surface landed -- `#[Test]`, `#[Fixture]` and `#[TestWith]` are on
@@ -1418,7 +1418,7 @@ tests = [
 # The second exists because the first counts *arms* rather than *shapes*, and one catch-all arm is one
 # site however many shapes fall into it. `lower_checked_ty` was exactly that: one site, claimed by item
 # 25 because item 25 anchors that file, while three shapes item 25 is not about were reaching it and
-# panicking a compiler that had type-checked them. `type_atoms.rs` walks every atom ADR 0007 § 3 spells
+# panicking a compiler that had type-checked them. `type_atoms.rs` walks every atom `rule:types/grammar` spells
 # through both declaration positions and names the shapes, so a hidden one is a row rather than a number.
 [[check]]
 kind = "cargo-named"
@@ -1687,7 +1687,7 @@ cases = [
 ]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 6 -- the string header. ADR 0009 § 2's cached grapheme count, and the O(1) boundary correction a
+# Stage 6 -- the string header. `rule:types/string-is-utf8`'s cached grapheme count, and the O(1) boundary correction a
 # concatenation needs at the seam.
 # ---------------------------------------------------------------------------------------------------
 [[check]]
@@ -2591,7 +2591,7 @@ tests = [
   "a_reflective_property_write_runs_the_hook_an_ordinary_write_runs",
   "a_parsed_ast_is_inert_data_with_no_path_back_into_execution",
   "type_of_is_the_single_replacement_for_the_is_predicates",
-  # ADR 0054 -- division is the one place a decimal result may be inexact.
+  # `rule:types/decimal` -- division is the one place a decimal result may be inexact.
   "div_exact_throws_where_div_round_rounds",
 ]
 

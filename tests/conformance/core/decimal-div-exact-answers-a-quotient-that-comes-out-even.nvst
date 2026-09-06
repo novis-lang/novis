@@ -1,5 +1,5 @@
 --TEST--
-ADR 0054 § 3: `Core\Decimal::divExact` answers where the quotient is exact, at the scale that quotient needs
+`rule:types/arithmetic`: `Core\Decimal::divExact` answers where the quotient is exact, at the scale that quotient needs
 --FILE--
 <?nvs
 // § 3's "throws unless the quotient is exact" -- the half that answers. The

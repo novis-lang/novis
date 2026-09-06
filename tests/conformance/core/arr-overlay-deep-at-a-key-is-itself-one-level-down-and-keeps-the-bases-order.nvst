@@ -1,5 +1,5 @@
 --TEST--
-`Core\Arr::overlayDeep` at a key holding maps on both sides is itself applied to those two maps, bottoming out in `::overlay`, and the merged map keeps the base's key order with the layer's new keys appended — ADR 0069 § 1
+`Core\Arr::overlayDeep` at a key holding maps on both sides is itself applied to those two maps, bottoming out in `::overlay`, and the merged map keeps the base's key order with the layer's new keys appended — `rule:types/array-combination`
 --FILE--
 <?nvs
 // `crates/nvs-stdlib/src/arr.rs:3836`'s doc gives the rule as a condition —

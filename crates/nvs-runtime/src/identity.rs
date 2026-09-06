@@ -39,7 +39,7 @@
 //!   one row:
 //!     * `int` against `uint` goes through `i128`, so no large `uint` is ever
 //!       reinterpreted as a negative `int`.
-//!       [ADR 0007](/docs/adr/0007-explicit-type-system.md) § 4 makes
+//!       `rule:types/arithmetic` makes
 //!       `uint` a *range* restriction over the same integers rather than a
 //!       different value space, so there was never a second value here.
 //!     * Two floats compare with `==`, not by bits: `0.0` and `-0.0` are
@@ -47,19 +47,19 @@
 //!       both the opposite of what `total_cmp` (which `Core\Arr::sort` needs,
 //!       and which is a different question) would say.
 //!     * Two decimals compare by value and never by scale.
-//!       [ADR 0054](/docs/adr/0054-decimal-scalar-type.md) § 4 puts it
+//!       `rule:types/conversion` puts it
 //!       outright — "scale is carried for rendering, and does not affect
 //!       equality or hashing" — so `1.10` and `1.1000` are one value even
 //!       though they hold different bits.
 //!     * A `float` against an integer is read at the float's **exact** binary
 //!       value; a `float` against a `decimal` is read at the decimal it
-//!       **prints** as, which is ADR 0054 § 4's conversion row and is what
+//!       **prints** as, which is `rule:types/conversion`'s conversion row and is what
 //!       makes `(0.1 as decimal) == 0.1` true. The two readings differ only
 //!       for an integral float past 2^53, where they disagree about a third
 //!       value rather than about each other — [`hash_numeric`] carries the
 //!       consequence.
 //! * **`string`/`bytes`** — by content, never by pointer, so a computed
-//!   string matches a literal. [ADR 0009](/docs/adr/0009-string-and-bytes.md)
+//!   string matches a literal. `rule:types/bytes`
 //!   makes a `string` valid UTF-8 but does *not* normalize it, so this is a
 //!   byte comparison and `"é"` written two ways is two values.
 //! * **An `array` is compared entry by entry, in order** — the same count,
@@ -455,7 +455,7 @@ fn decimal_eq_integer(decimal: Value, integer: i128) -> bool {
 /// read at the decimal it **prints** as.
 ///
 /// That is `crate::Decimal::compare_f64`'s reading and
-/// [ADR 0054](/docs/adr/0054-decimal-scalar-type.md) § 4's `float →
+/// `rule:types/conversion`'s `float →
 /// decimal` row, so `(0.1 as decimal) == 0.1` holds — the answer this pairing
 /// exists to give, and the one the statically typed `nvs_ir::Helper::DecimalEq`
 /// already gave. It differs from [`integer_eq_float`]'s exact reading only for

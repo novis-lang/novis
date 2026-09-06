@@ -1,5 +1,5 @@
 --TEST--
-no type ever changes by itself — assigning a `string` to an `int` local is refused where the assignment is written, ADR 0007 § 1
+no type ever changes by itself — assigning a `string` to an `int` local is refused where the assignment is written, `rule:types/declaration`
 --FILE--
 <?nvs
 int $count = 1;

@@ -1,5 +1,5 @@
 --TEST--
-A `mixed` or `?T` closure parameter admits every argument, so a Core\Arr callback declaring one is never refused while its non-nullable twin always is — ADR 0007 § 2, ADR 0069 § 5
+A `mixed` or `?T` closure parameter admits every argument, so a Core\Arr callback declaring one is never refused while its non-nullable twin always is — `rule:types/conversion`, `rule:types/arrays`
 --FILE--
 <?nvs
 // The depth claim is *a bound asserted on both sides*. `nvs_runtime` checks a
@@ -14,7 +14,7 @@ A `mixed` or `?T` closure parameter admits every argument, so a Core\Arr callbac
 // would refuse both halves of a pair; a check that had been dropped would
 // accept both. Only "the representation is the check" prints this line.
 //
-// The keys are ADR 0069 § 5's `string`, over the packed list the neighbouring
+// The keys are `rule:types/arrays`'s `string`, over the packed list the neighbouring
 // `arr-a-callback-key-is-a-string-on-a-list-too` pins, so every refusal below
 // is a `string` argument meeting a parameter of some other representation.
 
@@ -42,7 +42,7 @@ try { Core\Arr::filter($list, fn(int $v, string $k) => true); $marks = $marks . 
 catch (LogicError $e) { $marks = $marks . "n"; }
 try { Core\Arr::filter($list, fn(int $v, ?string $k) => true); $marks = $marks . "y"; }
 catch (LogicError $e) { $marks = $marks . "n"; }
-// `mixed` is ADR 0007 § 2's one unchecked position and has no bare twin.
+// `mixed` is `rule:types/conversion`'s one unchecked position and has no bare twin.
 try { Core\Arr::filter($list, fn(int $v, mixed $k) => true); $marks = $marks . "y"; }
 catch (LogicError $e) { $marks = $marks . "n"; }
 echo $marks, "\n";

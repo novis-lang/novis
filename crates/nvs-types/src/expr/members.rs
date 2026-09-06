@@ -19,7 +19,7 @@
 //! access lands there, whatever its receiver's spelling, and a method call
 //! does not yet.
 //!
-//! [`check_property_access`]'s shape/`object`/`mixed` arms are ADR 0036 § 4
+//! [`check_property_access`]'s shape/`object`/`mixed` arms are `rule:types/erased-member-access`
 //! whole: a field a shape names types cleanly with no diagnostic either way,
 //! and records the slot `nvs-ir` reads it at
 //! ([`crate::expr_table::ExprInfo::ShapeProperty`]); a name it doesn't list,
@@ -27,7 +27,7 @@
 //! than `E_UNKNOWN_MEMBER`, and record the same entry carrying the written
 //! name alone — which is what ADR 0014 § 5's runtime-checked fallback is
 //! keyed on, and it throws now rather than being deferred. A `mixed` is there
-//! for ADR 0007 § 2's reason rather than § 4's: it is the one unchecked
+//! for `rule:types/conversion`'s reason rather than § 4's: it is the one unchecked
 //! position, so even "is this an object at all" is deferred to that throw.
 //! Every *other* receiver — a scalar, an `array<T>`, a union naming no single
 //! class — is `E_RECEIVER_HAS_NO_PROPERTIES` where it is written (ADR 0007
@@ -42,7 +42,7 @@
 //! object already answered the question, so the test is `E0497` where it is
 //! written (ADR 0007 § 7 row 14) while `mixed`, `object`, a shape and any
 //! union holding a class keep the run-time test. A **right-hand side** must be
-//! a written name the program declares: the dynamic form is ADR 0007 § 2's
+//! a written name the program declares: the dynamic form is `rule:types/conversion`'s
 //! no-computed-names rule, an enum is a value type (`rule:enums/closed-integer-type`) and a `Core`
 //! class has no descriptor laid out for the test to walk, so all three are
 //! `E0496` — while a name resolving to nothing is the ordinary `E0303`,
@@ -66,7 +66,7 @@ use crate::expr_table::ObserverCalls;
 ///
 /// Three shapes are typed precisely, and they split by what the left-hand side
 /// names. `EnumName::CaseName` is `rule:statements/an-enum-name-is-a-type-everywhere`'s case, recovered as `Ty::Enum`
-/// — or, where the position names that one case, as ADR 0047 § 3's narrower
+/// — or, where the position names that one case, as `rule:types/enum-case-type`'s narrower
 /// `Ty::EnumCase`, the same take-your-type-from-the-position rule
 /// `crate::expr::literals` states in full;
 /// `Core\Math::PI` is ADR 0011's class constant, recovered as the declared type
@@ -80,7 +80,7 @@ use crate::expr_table::ObserverCalls;
     clippy::too_many_arguments,
     reason = "the five-parameter checking context every expression walker in 
               this module carries, plus the constant reference's own two 
-              spans and the expectation ADR 0047 § 3 places its case against"
+              spans and the expectation `rule:types/enum-case-type` places its case against"
 )]
 pub(crate) fn infer_class_const(
     expr: &Expr,
@@ -131,7 +131,7 @@ pub(crate) fn infer_class_const(
                 report_unknown_member(class.span, &qname, &case, "case", env);
             }
             let backing = env.enums.backing_of(&qname);
-            // ADR 0047 § 3: the case's own narrowed type where the position
+            // `rule:types/enum-case-type`: the case's own narrowed type where the position
             // names it, the whole enum everywhere else — the placement rule
             // `crate::expr::literals` applies to a `string`/`int` literal,
             // reached here because § 3's atom is a *case*, not a literal of
@@ -229,8 +229,7 @@ fn report_unfoldable_const(
     // one is a second diagnostic about it rather than a mistake of its own —
     // "one mistake, one diagnostic", the rule the whole `expr` module reports
     // under. `mixed` is a constant with no written annotation, already `E0246`
-    // where it is declared; `bytes` has no literal to write at all (ADR 0009
-    // § 1, and `ConstArg::Bytes`'s own doc), so no value could have folded and
+    // where it is declared; `bytes` has no literal to write at all (`rule:types/bytes`, and `ConstArg::Bytes`'s own doc), so no value could have folded and
     // the read is not where that is worth saying.
     if declared == env.interner.mixed()
         || matches!(
@@ -304,7 +303,7 @@ pub(crate) fn infer_instanceof(
         );
     }
     let ExprKind::ConstFetch(name) = &class.kind else {
-        // ADR 0125 § 4's third site. A `class<T>` operand carries the
+        // `rule:types/class-reference-sites`'s third site. A `class<T>` operand carries the
         // descriptor the test walks, so this is the one of the three that
         // consults nothing about `T`: a class reference over any base answers
         // the same question, and the answer is `bool` either way.
@@ -488,8 +487,7 @@ pub(crate) fn class_qname_of(ty: TypeId, interner: &TypeInterner) -> Option<QNam
 }
 
 /// The class a `class<T>` value names, or `None` for every other type — the
-/// question [ADR 0125](/docs/adr/0125-a-class-reference-is-a-type-and-as-is-its-only-source.md)
-/// § 4's three sites ask before they fall through to
+/// question `rule:types/class-reference-sites`'s three sites ask before they fall through to
 /// [`reject_dynamic_class_name`].
 ///
 /// The answer is the argument's own [`TypeId`] rather than a [`QName`] because
@@ -507,8 +505,7 @@ pub(crate) fn class_ref_argument(ty: TypeId, interner: &TypeInterner) -> Option<
 
 /// The class a `property<T>` value's names belong to, or `None` for every
 /// other type — [`class_ref_argument`]'s question asked of
-/// [ADR 0126](/docs/adr/0126-a-property-key-is-a-checked-name-and-as-is-its-only-source.md)
-/// § 1's key, answered the same way and for the same reason: the argument's own
+/// `rule:types/property-key`'s key, answered the same way and for the same reason: the argument's own
 /// [`TypeId`], since the one caller that wants a name asks [`class_qname_of`]
 /// for it. `T` is a class by construction, `crate::lower`'s
 /// `lower_property_key` having refused everything else as `E0799`.
@@ -519,7 +516,7 @@ pub(crate) fn property_key_argument(ty: TypeId, interner: &TypeInterner) -> Opti
     }
 }
 
-/// ADR 0126 § 1's roster — every property name a `property<T>` value may hold:
+/// `rule:types/property-key`'s roster — every property name a `property<T>` value may hold:
 /// `T`'s own public declarations and its ancestors', deduplicated and sorted so
 /// a diagnostic listing them reads the same way twice.
 ///
@@ -570,7 +567,7 @@ fn collect_public_properties(
     }
 }
 
-/// ADR 0126 § 4: `$obj->$key` and `$obj->{$expr}`, the one computed member
+/// `rule:types/property-key-access`: `$obj->$key` and `$obj->{$expr}`, the one computed member
 /// name the language admits, and `E0235` for every operand that is not one.
 ///
 /// Two things have to hold, and neither is a spelling. The operand's type must
@@ -644,7 +641,7 @@ fn check_keyed_property(
                 .map(|(_, ty)| ty)
         })
         .collect();
-    // A class with no public property at all, which ADR 0126 § 1 refuses at the
+    // A class with no public property at all, which `rule:types/property-key` refuses at the
     // written `property<T>` itself — an empty union is not a type this interner
     // has, and § 2's every conversion into such a key throws, so no value of it
     // can reach an access. The entry is recorded all the same: `nvs-ir` has no
@@ -665,7 +662,7 @@ fn check_keyed_property(
     ty
 }
 
-/// `E0235`, ADR 0126 § 4's refusal, reported where the operand is written.
+/// `E0235`, `rule:types/property-key-access`'s refusal, reported where the operand is written.
 ///
 /// The code and the headline are ADR 0014 § 5's — what a computed name cannot
 /// do is unchanged — and only the *place* moved, from `nvs_syntax`'s parser to
@@ -683,15 +680,14 @@ pub(crate) fn report_computed_member_name(span: Span, help: &str, env: &mut Env<
     );
 }
 
-/// [`report_computed_member_name`]'s help at a property access, where ADR 0126
-/// § 4 leaves one way to write the same thing.
-pub(crate) const COMPUTED_PROPERTY_HELP: &str = "ADR 0126 § 4 admits `$obj->$key` only where `$key` is a `property<T>` the receiver \
+/// [`report_computed_member_name`]'s help at a property access, where `rule:types/property-key-access` leaves one way to write the same thing.
+pub(crate) const COMPUTED_PROPERTY_HELP: &str = "`rule:types/property-key-access` admits `$obj->$key` only where `$key` is a `property<T>` the receiver \
      satisfies — convert the name with `as property<ClassName>`, where the set it may hold is \
      checked, or write the member out; data whose keys are only known at run time belongs in an \
      `array<string, T>`";
 
 /// [`report_computed_member_name`]'s help at a call, where it does not.
-pub(crate) const COMPUTED_METHOD_HELP: &str = "ADR 0014 § 6 refuses a computed *dispatch* itself rather than its spelling, and ADR 0126's \
+pub(crate) const COMPUTED_METHOD_HELP: &str = "ADR 0014 § 6 refuses a computed *dispatch* itself rather than its spelling, and `rule:types/property-key`'s \
      `property<T>` names a property rather than a method — write the call out, or `match` on the \
      name and call each arm";
 
@@ -740,12 +736,12 @@ pub(crate) fn is_written_class_side(class_expr: &Expr) -> bool {
     )
 }
 
-/// ADR 0007 § 2's no-computed-names rule, at the three spellings that reach a
+/// `rule:types/conversion`'s no-computed-names rule, at the three spellings that reach a
 /// class through a *value*: `$x instanceof $c` ([`infer_instanceof`]),
 /// `new $c()` and `$c::f()` ([`super::calls`]). The headline names the
 /// spelling; the label and the help are the rule, which does not vary by site.
 ///
-/// **A `class<T>` operand is not this mistake.** ADR 0125 § 4 gives all three
+/// **A `class<T>` operand is not this mistake.** `rule:types/class-reference-sites` gives all three
 /// sites a checked dynamic form, and each asks [`class_ref_argument`] before
 /// reaching here. What is left is a value the checker can resolve to no class
 /// at all, so the help names the conversion that turns one into a value it
@@ -762,10 +758,10 @@ pub(crate) fn reject_dynamic_class_name(headline: &str, span: Span, env: &mut En
         Diagnostic::error(code::E_INSTANCEOF_NOT_A_CLASS, headline)
             .with_primary(span, "not a class name")
             .with_help(
-                "Novis has no dynamic class names (ADR 0007 § 2, the rule that rejects `$$var` \
+                "Novis has no dynamic class names (`rule:types/conversion`, the rule that rejects `$$var` \
                  and `eval`) — write the class, or convert the name once and carry the result: \
                  `$name as class<Base>` yields a class reference this site accepts, checked \
-                 against `Base`'s hierarchy where the conversion stands (ADR 0125 § 4)",
+                 against `Base`'s hierarchy where the conversion stands (`rule:types/class-reference-sites`)",
             ),
     );
 }
@@ -897,7 +893,7 @@ pub(crate) fn check_class_name_const(
 /// refusals differ only in what the help points at:
 ///
 /// * a `class<T>` **is** a class reference already, so the name is a
-///   conversion rather than a member read — ADR 0125 § 2's `class<T>` →
+///   conversion rather than a member read — `rule:types/class-reference`'s `class<T>` →
 ///   `string` row, `$c as string`.
 /// * a `mixed` or a union might hold an object and might not. Accepting it
 ///   would put a tag test and a throw behind a spelling that reads like a
@@ -1106,7 +1102,7 @@ fn observer_calls(qname: &QName, env: &Env<'_>) -> Option<ObserverCalls> {
 /// else. The split is exhaustive over the two questions an access asks:
 ///
 /// - **The member name.** A computed one (`->$name`, `->{expr}`) is decided by
-///   a *type* rather than by a spelling since ADR 0126 § 4, and it is
+///   a *type* rather than by a spelling since `rule:types/property-key-access`, and it is
 ///   [`check_keyed_property`] that decides: an operand that is not a
 ///   `property<T>` the receiver satisfies is `E0235` here, and one that is
 ///   records [`ExprInfo::KeyedProperty`] carrying § 5's union. That arm is
@@ -1116,7 +1112,7 @@ fn observer_calls(qname: &QName, env: &Env<'_>) -> Option<ObserverCalls> {
 ///   the second. ADR 0014 § 5 owns why every other operand is refused at all.
 /// - **The receiver's type.** A [`Ty::Shape`] records [`ExprInfo::ShapeProperty`]
 ///   with the field's slot; [`Ty::Object`] and [`Ty::Mixed`] record the same
-///   variant erased, ADR 0036 § 4's name-keyed half. A type naming a class
+///   variant erased, `rule:types/erased-member-access`'s name-keyed half. A type naming a class
 ///   records [`ExprInfo::Property`] or [`ExprInfo::HookedProperty`] when the
 ///   name resolves, and is `E_UNKNOWN_MEMBER` when it does not — on **every**
 ///   class kind, the `Core` namespace and the reserved exception tree
@@ -1155,7 +1151,7 @@ pub(crate) fn check_property_member(
     };
     let name = span_text(env.src, *name_span).to_owned();
 
-    // ADR 0036 § 4, extending ADR 0014 § 5's "a dynamically computed property
+    // `rule:types/erased-member-access`, extending ADR 0014 § 5's "a dynamically computed property
     // name is a checked runtime throw, never a fallback" rule to a second
     // trigger: an *erased receiver type*. A field a shape type names is
     // proven present at compile time — reading it never throws, so this just
@@ -1175,7 +1171,7 @@ pub(crate) fn check_property_member(
     // field_slot`'s by-name search — and § 4's catchable missing-name throw —
     // as the whole of the resolution.
     //
-    // A `mixed` receiver is the fourth, and it is ADR 0007 § 2's one
+    // A `mixed` receiver is the fourth, and it is `rule:types/conversion`'s one
     // unchecked position rather than a fourth kind of erasure: PHP accepts
     // `$m->name` and so does this, deferring the whole question — is it even
     // an object, and does that object carry this name — to the same run-time,
@@ -1186,7 +1182,7 @@ pub(crate) fn check_property_member(
     match env.interner.get(object_ty).clone() {
         Ty::Shape(fields) => {
             // A field the shape names is proven present, so reading it never
-            // throws (ADR 0036 § 4) — but it is *not* proven to be at one
+            // throws (`rule:types/erased-member-access`) — but it is *not* proven to be at one
             // slot. The interner sorted this list by name and every producer
             // of a shape value lays its slots out in that same order, so the
             // position resolved here is right exactly where this shape is the
@@ -1338,7 +1334,7 @@ pub(crate) fn check_property_member(
         // which is row 8's rule ("nothing makes an absent thing read as a
         // zero value") at the one storage kind a *declared* type already
         // answers before the program runs. `mixed` is not here: it took the
-        // erased arm above, because deferring is what ADR 0007 § 2 makes it
+        // erased arm above, because deferring is what `rule:types/conversion` makes it
         // for.
         None => {
             // A nullable receiver whose non-`null` half *is* a class already
@@ -1359,7 +1355,7 @@ pub(crate) fn check_property_member(
                     .with_help(
                         "only an object has properties — convert the receiver to the class you \
                          expect (`$x as Box`), or declare it `mixed`, which is the one unchecked \
-                         position (ADR 0007 § 2) and defers the whole question to a catchable \
+                         position (`rule:types/conversion`) and defers the whole question to a catchable \
                          throw at run time",
                     ),
                 );
@@ -1451,7 +1447,7 @@ pub(crate) fn check_unset_target(
 
 /// The three roots `nvs_ir::lower::Lowering::write_back_array` can re-point,
 /// which is what makes them the three holders an `unset()` may reach through:
-/// ADR 0007 § 5 separates the array before the entry is removed, and the
+/// `rule:types/arrays` separates the array before the entry is removed, and the
 /// separated copy has to land back in a slot that outlives the statement.
 ///
 /// [`check_write_target`] asks a *different* question of the same root — which
@@ -1474,7 +1470,7 @@ fn report_unset_not_an_element(operand: &Expr, subscripted: bool, env: &mut Env<
     let (label, help) = if subscripted {
         (
             "nothing holds the array this subscripts",
-            "ADR 0007 § 5 separates the array before the entry is removed, so the separated copy \
+            "`rule:types/arrays` separates the array before the entry is removed, so the separated copy \
              needs a local, a property or a static property to be written back into — bind the \
              value first, `unset()` the element there, and use the binding",
         )
@@ -1482,7 +1478,7 @@ fn report_unset_not_an_element(operand: &Expr, subscripted: bool, env: &mut Env<
         (
             "this is not an array element",
             "`unset()` removes an array entry and nothing else — every Novis binding is declared \
-             with a type and definitely assigned (ADR 0007 § 1), so there is no way to make one \
+             with a type and definitely assigned (`rule:types/declaration`), so there is no way to make one \
              undefined again; assign `null` where the declared type is nullable, or let the \
              binding go out of scope",
         )
@@ -1627,7 +1623,7 @@ pub(crate) fn report_core_instance_member(
 /// enclosing frame's `$this` for a non-static target and panics when there is
 /// none, naming this function's absence as the cause.
 ///
-/// ADR 0027's first-class callable `C::m(...)` is not one of those frames —
+/// `rule:types/callable-is-a-closure`'s first-class callable `C::m(...)` is not one of those frames —
 /// it records a `CallableRef` and, as `Core\Attributes::get<T>`'s argument, is
 /// folded while checking — so the call site excludes it rather than this
 /// function testing for it.

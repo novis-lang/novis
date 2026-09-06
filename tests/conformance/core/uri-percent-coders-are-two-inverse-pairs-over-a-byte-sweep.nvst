@@ -76,7 +76,7 @@ echo "[", (Core\Uri::decodeComponent(Core\Uri::encodeFormValue(" ")) as string),
 // The sweep stops at `U+007F` because past it a *lone* octet is not text: the
 // decoders answer `string`, so `%FF` throws rather than answering (the
 // module's gap 2 — the honest signature is `: bytes`, and the throw is what
-// ADR 0009 § 3's checked `bytes as string` row would do one line later). An
+// `rule:types/conversion`'s checked `bytes as string` row would do one line later). An
 // octet sequence that *is* UTF-8 decodes, which is the other side of the same
 // bound.
 try {

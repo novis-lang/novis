@@ -54,7 +54,7 @@
   (`rule:statements/static-is-a-member-modifier`): any function at any depth can read or overwrite any top-level
   variable by name, with no keyword and no declaration at all.
 - **The request-input superglobals deliver untrusted data with no declared boundary.**
-  [ADR 0007](0007-explicit-type-system.md) § 6 already treats `$_GET`/`$_POST`/`$_SERVER` as untyped
+  `rule:types/unions-and-mixed` already treats `$_GET`/`$_POST`/`$_SERVER` as untyped
   input, but it still arrives as a bare, ambiently-populated variable rather than a declared, traceable
   entry point (contrast a grep-able `Core\Str::` call, [ADR 0011](0011-functions-and-constants-are-class-members.md)).
 - **`$_SESSION`/`$_ENV` add ambient mutable/host-configuration state**, and `$_REQUEST` adds a third
@@ -91,15 +91,15 @@ between "facts about the server and the request" and "input the client sent": ex
 concern, not one class holding everything. The exact method signatures on each class — a single-key lookup,
 a whole-array accessor, or both — are stdlib design due at the milestone that implements them ([ADR 0011](0011-functions-and-constants-are-class-members.md)'s *Revisiting* already flags the roster as
 illustrative), not fixed by this ADR. What is fixed: each is a `Core` class, each method is `static`, and
-the value handed to user code keeps the shape [ADR 0007](0007-explicit-type-system.md) § 6 and
-[ADR 0009](0009-string-and-bytes.md) § 4 already decided — structured input as `array<mixed>`, a scalar
+the value handed to user code keeps the shape `rule:types/unions-and-mixed` and
+`rule:types/bytes` already decided — structured input as `array<mixed>`, a scalar
 payload not yet asserted to be text as `bytes`.
 
 ```php
 use Core\Request;
 
 uint $id = Request::query('id') as uint;   // throws on "abc", "-1", "" — never quietly 0, exactly as
-                                            // ADR 0007 § 6 already specifies for the old $_GET
+                                            // `rule:types/unions-and-mixed` already specifies for the old $_GET
 ```
 
 ### 2. Why `$GLOBALS` has no replacement at all
@@ -121,7 +121,7 @@ with the one `rule:statements/static-is-a-member-modifier` already settled on. B
 have to either pick one fixed order (and quietly re-derive the `request_order` footgun the day someone
 expects PHP's configurable one) or take an order as an argument (at which point it is no shorter than calling
 the specific method). Every real use of `$_REQUEST` is "I don't care which source, give me anything named
-`id`" — the one habit [ADR 0007](0007-explicit-type-system.md) already treats as the failure mode, applied to
+`id`" — the one habit `rule:types/declaration` already treats as the failure mode, applied to
 provenance instead of to type.
 
 ### 4. `Core\Session` — what this ADR fixes, and what it defers
@@ -231,7 +231,7 @@ own; [divergences.md](divergences.md) is the register that indexes it beside eve
 **Negative**
 
 - Every PHP file with a bare `$_GET`/`$_POST`/`$_SERVER`/`$_SESSION`/`$_COOKIE`/`$_FILES`/`$_ENV` reference
-  needs a rewrite at `nvs convert` (M11), on top of every other rewrite [ADR 0007](0007-explicit-type-system.md)
+  needs a rewrite at `nvs convert` (M11), on top of every other rewrite `rule:types/declaration`
   and [ADR 0011](0011-functions-and-constants-are-class-members.md) already require. Unlike a built-in
   function rename, a `$_REQUEST` or `$GLOBALS` use has no mechanical one-line replacement — a human has to
   decide which specific source was meant, or how to re-home the global state.
@@ -255,7 +255,7 @@ own; [divergences.md](divergences.md) is the register that indexes it beside eve
   implicit side effect triggered by a read is exactly the action-at-a-distance this ADR removes elsewhere.
 - **Let `Core\Request`/`Core\Server` return empty values inside a spawned isolate**, matching PHP's CLI
   behaviour. Rejected in *7*: "empty" and "you cannot see this" are different facts, and collapsing them
-  is the silent-wrong-answer failure mode [ADR 0007](0007-explicit-type-system.md) exists to close.
+  is the silent-wrong-answer failure mode `rule:types/declaration` exists to close.
 
 ## Revisiting
 

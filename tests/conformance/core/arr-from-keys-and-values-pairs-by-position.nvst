@@ -16,7 +16,7 @@ array<int> $counted = ["x" => 1, "y" => 2];
 echo Core\Str::join(Core\Arr::keys(Core\Arr::fromKeysAndValues($keyed, $counted)), ","), "\n";
 
 // An `int` key arrives under its decimal spelling, the normalization every
-// other key position already does (ADR 0007 § 5 stores every key as a string).
+// other key position already does (`rule:types/arrays` stores every key as a string).
 array<string|int> $numbers = [10, 20];
 var $byNumber = Core\Arr::fromKeysAndValues($numbers, $values);
 echo Core\Str::join(Core\Arr::keys($byNumber), ","), "\n";

@@ -1,5 +1,5 @@
 --TEST--
-Core\Random::int's closed bound is drawn at the ends of `int` itself — a singleton at each extreme, the whole 2^64-value range, and the two-value ranges pinned against each end — spec § 11, ADR 0007 § 4
+Core\Random::int's closed bound is drawn at the ends of `int` itself — a singleton at each extreme, the whole 2^64-value range, and the two-value ranges pinned against each end — spec § 11, `rule:types/arithmetic`
 --FILE--
 <?nvs
 // The standing sweep asks for `int(1, 6)` and for a range of 2^62 either side
@@ -9,7 +9,7 @@ Core\Random::int's closed bound is drawn at the ends of `int` itself — a singl
 // `int` at all. An implementation computing `$max - $min + 1` is fine at 2^63
 // and overflows here.
 
-// ADR 0007 § 4: an integer literal past `int` is a diagnostic, so the lower
+// `rule:types/arithmetic`: an integer literal past `int` is a diagnostic, so the lower
 // end is written as the negation of the largest one plus a step.
 int $lo = -9223372036854775807 - 1;
 int $hi = 9223372036854775807;

@@ -1,5 +1,5 @@
 --TEST--
-`$m as Plain` tests the runtime class and throws where `instanceof` answers false, ADR 0007 §§ 2 and 6
+`$m as Plain` tests the runtime class and throws where `instanceof` answers false, `rule:types/conversion` and `rule:types/unions-and-mixed`
 --FILE--
 <?nvs
 class Plain { public int $n = 7; }
@@ -18,7 +18,7 @@ class Probe {
     }
 }
 
-// Agreement, not a row each: ADR 0007 § 6's checked way out of `mixed` is the
+// Agreement, not a row each: `rule:types/unions-and-mixed`'s checked way out of `mixed` is the
 // `instanceof` test said as an expression, so the two must answer the same
 // thing for every tag. A conversion that grew its own opinion fails the count
 // while still printing plausibly line by line.

@@ -1,8 +1,8 @@
 --TEST--
-A `callable` naming a `void` member runs it and answers `null`, over a static target, an instance one and a `Core` member alike — ADR 0027 § 1, ADR 0031 §§ 1-2
+A `callable` naming a `void` member runs it and answers `null`, over a static target, an instance one and a `Core` member alike — `rule:types/callable-is-a-closure`, `rule:types/closure-literal` and `rule:types/implicit-capture`
 --FILE--
 <?nvs
-// ADR 0031 § 1 makes `callable` the only closure type, so a `void` member's
+// `rule:types/closure-literal` makes `callable` the only closure type, so a `void` member's
 // `(...)` produces the same object every other one produces and is called the
 // same way. What it hands *back* is the question this case asks. A `void`
 // frame returns nothing at all, so the caller reads the null its own out slot
@@ -30,7 +30,7 @@ callable $announce = Counter::announce(...);
 mixed $said = $announce("open");
 echo $said == null ? "null\n" : "not null\n";
 
-// An instance `void` target captures its receiver by value (ADR 0031 § 2), so
+// An instance `void` target captures its receiver by value (`rule:types/implicit-capture`), so
 // what the call mutates is the object the `(...)` saw — a `void` member is
 // called for exactly that, and losing it would be invisible in the answer.
 Counter $c = new Counter();

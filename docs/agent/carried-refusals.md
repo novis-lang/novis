@@ -31,7 +31,7 @@ and adding to it is the move that gate forbids outright.
       not plain positional, and a by-reference argument from something other than a bare local or a
       compile-time-known property.
     - `crates/nvs-ir/src/lower/control.rs:744`, `:978` and `:989` — a `switch` label at a representation
-      other than the subject's own, a `foreach` key binding outside ADR 0007 § 5's one stored key type,
+      other than the subject's own, a `foreach` key binding outside `rule:types/arrays`'s one stored key type,
       and a `foreach` over a subject that is not an `array<T>`.
     - `crates/nvs-ir/src/lower/convert.rs:595` — a truthy condition over a representation the conversion
       slice does not carry.
@@ -40,7 +40,7 @@ and adding to it is the move that gate forbids outright.
       representation, `instanceof` against a subject that cannot hold an object, and `clone` on one.
     - `crates/nvs-ir/src/lower/mod.rs:2435`, `:2886` and `:2985` — an array-element write through a shape
       that is not a bare local, a compile-time-known property or a static property, and the two declared
-      type lists that do not yet spell every atom ADR 0007 § 3 allows.
+      type lists that do not yet spell every atom `rule:types/grammar` allows.
     - `crates/nvs-ir/src/lower/stmt.rs:269` and `:1484` — a local declaration shape the control-flow
       slice does not lower, and `unset` on anything but an array element with an explicit subscript.
 

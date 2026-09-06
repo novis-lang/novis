@@ -268,7 +268,7 @@ fn straight_line_arithmetic_and_return() {
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
-/// ADR 0007 § 4's "either operand a `float`" row is settled *here*, by a
+/// `rule:types/arithmetic`'s "either operand a `float`" row is settled *here*, by a
 /// conversion emitted ahead of the operator, and not by `nvs-codegen`
 /// repairing a `BinOp` whose two operands disagree — that crate's "a
 /// `BinOp` has one representation" invariant stays intact, and its
@@ -276,7 +276,7 @@ fn straight_line_arithmetic_and_return() {
 ///
 /// The conversion is the checked one `$n as float` writes
 /// (`Helper::IntToFloat`/`UintToFloat`), so it carries `rule:errors/propagation`'s error
-/// edge — ADR 0007 § 2 names this as the language's one implicit
+/// edge — `rule:types/conversion` names this as the language's one implicit
 /// conversion and says it throws above 2^53 rather than rounding.
 ///
 /// Read off the rendering rather than snapshotted: what is pinned is the
@@ -316,7 +316,7 @@ fn a_mixed_numeric_pair_converts_before_the_operator() {
     }
 }
 
-/// The other side of that bound: ADR 0007 § 4's *ordering* rows are
+/// The other side of that bound: `rule:types/arithmetic`'s *ordering* rows are
 /// exact in the mathematical integers, so a mixed numeric pair under
 /// `<` is answered by `Helper::NumericLt` and pays no conversion at
 /// all — a widening there would raise `ArithmeticError` past 2^53 for
@@ -337,7 +337,7 @@ fn a_mixed_numeric_comparison_pays_no_widening() {
     );
 }
 
-/// ADR 0007 § 4's six bitwise rows all reach an instruction, and only the
+/// `rule:types/arithmetic`'s six bitwise rows all reach an instruction, and only the
 /// two that PHP can refuse carry an error edge.
 ///
 /// Read off the rendering rather than snapshotted, because what is being
@@ -445,9 +445,8 @@ fn a_compound_assignment_evaluates_its_target_once() {
     assert_eq!(text.matches("field.set").count(), 1, "{text}");
 }
 
-/// ADR 0007 § 4 gives `**` a row for every numeric representation but the
-/// `decimal` [ADR 0054](/docs/adr/0054-decimal-scalar-type.md)
-/// § 3 refuses, and lists it beside `+`, `-` and `*` — so the two integer
+/// `rule:types/arithmetic` gives `**` a row for every numeric representation but the
+/// `decimal` `rule:types/arithmetic` refuses, and lists it beside `+`, `-` and `*` — so the two integer
 /// rows throw and the `float` one, being `f64::powf`, cannot.
 ///
 /// Counted rather than snapshotted, and for the reason
@@ -497,7 +496,7 @@ fn reassignment_produces_a_fresh_ssa_value() {
 }
 
 /// Unary negation/not and a comparison operator, over a `uint`-defaulted
-/// bare literal (ADR 0007 § 4) — exercises the operators the arithmetic
+/// bare literal (`rule:types/arithmetic`) — exercises the operators the arithmetic
 /// test above doesn't.
 #[test]
 fn unary_and_comparison_operators() {
@@ -508,7 +507,7 @@ fn unary_and_comparison_operators() {
 }
 
 /// A `uint` local initialized from a bare integer literal takes the
-/// literal as `uint`, not `int` — ADR 0007 § 4's target-directed rule,
+/// literal as `uint`, not `int` — `rule:types/arithmetic`'s target-directed rule,
 /// mirrored from `nvs_types::expr::infer`.
 #[test]
 fn a_bare_literal_targeting_uint_is_lowered_as_uint() {
@@ -647,7 +646,7 @@ fn a_typed_mixed_local_round_trips() {
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
-/// `var $y = $x;` (ADR 0037) with a `mixed`-typed initializer — `var`'s
+/// `var $y = $x;` (`rule:types/var-inference`) with a `mixed`-typed initializer — `var`'s
 /// own inference path (`lower_expr` with `expected: None`) picks up
 /// `Ty::Tagged` from the initializer exactly the way it already does for
 /// any other representation, needing no `var`-specific handling.
@@ -945,7 +944,7 @@ fn a_nullsafe_property_access_on_a_nullable_receiver() {
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
-/// `$i->path` on an ADR 0036 § 4 shape receiver — no class, no label and
+/// `$i->path` on an `rule:types/erased-member-access` shape receiver — no class, no label and
 /// no layout table: one `slot.get` keyed on the field's *name*, carrying
 /// its position in the shape's sorted field list (which puts `path` after
 /// `message`) as the runtime's hint. Fallible, so it has a landing block
@@ -961,7 +960,7 @@ fn a_shape_property_access_reads_its_slot_by_name() {
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
-/// A property access through a plain-`object` receiver is ADR 0036 § 4's
+/// A property access through a plain-`object` receiver is `rule:types/erased-member-access`'s
 /// *fully* erased half: there is no declaring class and no layout either,
 /// so what the checker records is the written name alone and the read
 /// lowers to the same name-keyed `SlotGet` a shape's does — with a hint
@@ -975,11 +974,11 @@ fn a_property_access_through_a_plain_object_receiver_reads_by_name() {
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
-/// `var $n = 1;` (ADR 0037) — no declared type at all, so the local's
+/// `var $n = 1;` (`rule:types/var-inference`) — no declared type at all, so the local's
 /// type is whatever `lower_expr` synthesizes from the initializer alone,
 /// exactly as `nvs_types::locals::check_stmt`'s own `var` arm fixes it.
 /// A bare integer literal with no `expected` type defaults to `int`
-/// (ADR 0007 § 4), so `$n` ends up `int` here even though nothing in the
+/// (`rule:types/arithmetic`), so `$n` ends up `int` here even though nothing in the
 /// source spells that out.
 #[test]
 fn a_var_local_infers_its_type_from_the_initializer() {
@@ -1350,7 +1349,7 @@ fn writing_through_this_lowers_too() {
 
 /// A property write through a plain-`object` receiver takes the same
 /// name-keyed `SlotSet` the read side's `SlotGet` mirrors — the whole of
-/// ADR 0036 § 4's erased write. The value is widened to `Ty::Tagged`
+/// `rule:types/erased-member-access`'s erased write. The value is widened to `Ty::Tagged`
 /// first: the field's real type is the receiving class's to state, and
 /// `nvs_runtime::nvs_object_slot_set` is where it is checked.
 #[test]
@@ -1361,7 +1360,7 @@ fn writing_through_a_plain_object_receiver_writes_by_name() {
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
-/// `object` is the opaque top of every class type (ADR 0007 § 3) and it
+/// `object` is the opaque top of every class type (`rule:types/grammar`) and it
 /// costs **no** representation of its own: [`erase_checked_ty`] answers
 /// [`Ty::Object`] for a named class, for a shape and for the top type
 /// alike, so nothing below this boundary can read a class label off a
@@ -1475,7 +1474,7 @@ fn concatenating_a_stringable_object_operand_calls_its_to_string() {
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
-/// `$obj as string` — ADR 0007 § 2's explicit spelling of the very same
+/// `$obj as string` — `rule:types/conversion`'s explicit spelling of the very same
 /// conversion, reaching the very same `Self::lower_to_string_call` rather than
 /// getting a second answer of its own, exactly as `as bool` reuses
 /// `rule:expressions/truthy-positions`'s truthy table.
@@ -1745,7 +1744,7 @@ fn writing_an_array_local_to_a_property_retains_it_before_releasing_the_old_valu
 /// read: a fresh, non-refcounted `int` element, and a literal `int` key
 /// that reaches `InstKind::ArrayGet` as the `int` it already was, with no
 /// `helper.int_to_string` and therefore no key allocation and no release
-/// of one either. ADR 0007 § 5 still says the key *is* `"0"`; `nvs-ir`'s
+/// of one either. `rule:types/arrays` still says the key *is* `"0"`; `nvs-ir`'s
 /// module doc § *an array key is a `string`, and an `int` subscript no
 /// longer spells it* is why the decimal is no longer rendered to reach
 /// it, and codegen picks `nvs_array_get_index` off this operand's `Ty`.
@@ -1897,7 +1896,7 @@ fn appending_an_aliasing_string_value_retains_it() {
 
 /// Two writes into one local: the second reads the array the *first*
 /// yielded, not the one the parameter arrived as, and the exit sweep
-/// releases the last one only. That chain is ADR 0007 § 5's copy-on-write
+/// releases the last one only. That chain is `rule:types/arrays`'s copy-on-write
 /// separation being written back — see `Lowering::write_back_array` — and
 /// it is the whole reason `InstKind::ArraySet` defines a value.
 #[test]
@@ -1934,7 +1933,7 @@ fn writing_through_a_nested_subscript_separates_every_level() {
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
-/// A `bool` subscript isn't one of ADR 0007 § 5's three legal key source
+/// A `bool` subscript isn't one of `rule:types/arrays`'s three legal key source
 /// types (`int`/`uint`/`string`) — `nvs_types::expr::check_array_key_type`
 /// now rejects it at check time (see `nvs_types::check`'s own
 /// `a_bool_key_array_literal_is_diagnosed`-style fixtures for the
@@ -2415,7 +2414,7 @@ fn a_hook_body_reaching_its_own_property_touches_the_slot_directly() {
         // Read for a `call` naming it rather than for the name anywhere:
         // the signature line names the function, and so does the frame
         // label in an `rule:errors/propagation` landing block's `propagate` — which the
-        // getter's `+ 1` now has, since ADR 0007 § 4 gives integer
+        // getter's `+ 1` now has, since `rule:types/arithmetic` gives integer
         // arithmetic an overflow edge.
         let recursed = text
             .lines()
@@ -2554,7 +2553,7 @@ class G {
     assert_snapshot!(print_program(&p, map.file(file)));
 }
 
-/// ADR 0031's `fn` literal, lowered: the literal site allocates the
+/// `rule:types/closure-literal`'s `fn` literal, lowered: the literal site allocates the
 /// captured-environment object and stores a *retained* snapshot of each
 /// capture into it, and the body becomes that class's one `invoke`, which
 /// reads every capture back out of parameter 0. See `lower_closure`,
@@ -2573,8 +2572,7 @@ echo $bump;
 }
 
 /// A closure capturing an enclosing `inout $x` parameter, which is the one
-/// capture whose `Env` entry is an address rather than a value: ADR 0031
-/// § 2 captures by value, so the field takes a `ref.load` snapshot of the
+/// capture whose `Env` entry is an address rather than a value: `rule:types/implicit-capture` captures by value, so the field takes a `ref.load` snapshot of the
 /// cell at the literal, at the declared pointee type, and then the same
 /// retain every refcounted capture already takes. Both halves are visible
 /// here on purpose — the load alone would leave the environment object
@@ -2806,7 +2804,7 @@ fn a_spread_argument_through_a_callable_becomes_one_array() {
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
-/// The whole path in one fixture: an ADR 0031 `fn` literal bound to a
+/// The whole path in one fixture: an `rule:types/closure-literal` `fn` literal bound to a
 /// local, then *called* through the variable holding it — which is what
 /// `examples/callable.nvs`'s `direct` line runs and what used to panic.
 ///
@@ -2903,7 +2901,7 @@ class T {
     );
 }
 
-/// A zero divisor throws whatever the operand types are (ADR 0007 § 4), and
+/// A zero divisor throws whatever the operand types are (`rule:types/arithmetic`), and
 /// `nvs-codegen` raises that inline rather than through a helper, so the
 /// frame's cleanup path has to exist at the operator itself: integer `%` and
 /// **float** `/` both carry an
@@ -2957,7 +2955,7 @@ fn a_zero_divisor_carries_an_error_edge_on_the_float_row_too() {
 /// `catch` can act on — a conversion helper, the truthy table, a `??` read.
 /// A case naming one of them would go green while the rest slipped back, and
 /// what the exemption cost was a leak of every local the frame held.
-/// `BinOp`/`UnOp` are left out here on purpose: only ADR 0007 § 4's checked
+/// `BinOp`/`UnOp` are left out here on purpose: only `rule:types/arithmetic`'s checked
 /// integer rows return a status at all, and the neighbouring
 /// `an_integer_modulo_carries_an_error_edge_and_a_float_division_does_not`
 /// pins both halves of that split.
@@ -3126,7 +3124,7 @@ fn every_exception_class_carries_the_root_s_four_slots_at_the_same_indices() {
 
 /// `rule:enums/no-class-machinery`: a case is an integer constant inlined at its use site —
 /// `Rank::Gold` is a `ConstInt 2` and nothing else, with no storage, no
-/// descriptor and no allocation. ADR 0010 § 5's first row then makes
+/// descriptor and no allocation. `rule:types/conversion`'s first row then makes
 /// `as int` a free `Reinterpret`.
 #[test]
 fn an_enum_case_lowers_to_a_constant_and_as_int_is_free() {
@@ -3185,7 +3183,7 @@ if (Rank::Bronze) { echo \"y\"; }
     assert!(!text.contains("helper.int_truthy"), "{text}");
 }
 
-/// ADR 0007 § 2's total rows, reached through `as` rather than through
+/// `rule:types/conversion`'s total rows, reached through `as` rather than through
 /// `.`: a scalar to `string` reuses the same `Helper` conversion, and a
 /// value to `bool` reuses `rule:expressions/truthy-positions`'s truthy table.
 #[test]
@@ -3201,7 +3199,7 @@ bool $b = 0 as bool;
     assert!(text.contains("helper.int_truthy"), "{text}");
 }
 
-/// ADR 0007 § 2's checked rows go through a fallible helper — the same
+/// `rule:types/conversion`'s checked rows go through a fallible helper — the same
 /// call shape a method call has, error edge included, because either one
 /// can throw. The error edge is what this asserts: a checked conversion
 /// that skipped it would drop the throw on the floor.
@@ -3414,7 +3412,7 @@ echo \"ok\";
     );
 }
 
-/// ADR 0007 § 2's `array<T> as array<U>` row, which is the one row of that
+/// `rule:types/conversion`'s `array<T> as array<U>` row, which is the one row of that
 /// grid whose decision the pair of representations cannot carry: both sides
 /// erase to `Ty::Array`, so what the walk checks travels beside the value as
 /// [`array_element_tags`]' word instead — one [`param_tag_nibble`] per level
@@ -3532,11 +3530,11 @@ var $b = clone $a;
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
-/// ADR 0010 § 5's integer *into* an enum: the conversion is free, and
+/// `rule:types/conversion`'s integer *into* an enum: the conversion is free, and
 /// what it costs is the check in front of it — one comparison per case of
 /// the declaration, throwing with every case named. The accepted set is
 /// built from the declaration rather than from the site, which is the
-/// whole difference between this and ADR 0047 § 3's named subset.
+/// whole difference between this and `rule:types/enum-case-type`'s named subset.
 #[test]
 fn converting_into_an_enum_tests_every_case_of_the_declaration() {
     let (f, map, file) = lower_script_src(
@@ -3738,7 +3736,7 @@ bool $differ = $mac != $sent;
     assert!(text.contains("not "), "{text}");
 }
 
-/// ADR 0036 § 4's deferral, one storage kind along from a member access: a
+/// `rule:types/erased-member-access`'s deferral, one storage kind along from a member access: a
 /// `mixed` base defers *whether there is an array here* as well as which
 /// one, so a subscript through it reaches the helper pair that asks the
 /// operand's tag rather than `InstKind::ArrayGet`, whose own base is an

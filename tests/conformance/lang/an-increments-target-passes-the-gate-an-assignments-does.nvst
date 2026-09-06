@@ -1,5 +1,5 @@
 --TEST--
-An increment is a write, so its target passes the same syntactic gate an assignment's does and a call result is refused where it is written — ADR 0007 § 3
+An increment is a write, so its target passes the same syntactic gate an assignment's does and a call result is refused where it is written — `rule:types/grammar`
 --FILE--
 <?nvs
 // `nvs_ir::lower` desugars `$x++` into the `$x = $x + 1` a compound

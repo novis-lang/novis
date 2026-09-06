@@ -59,7 +59,7 @@ A standard `vscode-languageclient` extension:
 
 - Registers the `nvs` language ID, `.nvs` file association, and a `language-configuration.json` (bracket
   matching, comment toggles, auto-closing pairs, indentation rules) — largely PHP's, adjusted for
-  `spawn script`, `type` aliases, and the type-annotation syntax [ADR 0007](0007-explicit-type-system.md)
+  `spawn script`, `type` aliases, and the type-annotation syntax `rule:types/declaration`
   adds that PHP has no syntax for.
 - Ships a **TextMate grammar** for the dual-mode `<?nvs ?>` / `<?php ?>` / `<?= ?>` + inline-HTML lexer mode
   M1 builds, giving instant, correct-enough syntax colour the moment a file opens — before the language

@@ -52,7 +52,7 @@ foreach ($db->query("select born, opens, ref, owed, live, photo from t", [])->al
     var $owed = $row->decimal("owed");
     var $live = $row->bool("live");
     // `BLOB`/`bytes` is the one row of the map with no text form at all
-    // (ADR 0009), so it is compared as octets rather than printed.
+    // (`rule:types/bytes`), so it is compared as octets rather than printed.
     var $photo = $row->bytes("photo");
     var $stored = "PNG" as bytes;
     if ($born != null) {

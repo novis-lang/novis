@@ -1,5 +1,5 @@
 --TEST--
-Core\Arr::flattenDeep is Core\Arr::flatten iterated to a fixed point — invariant under one further flatten step, idempotent, and reaching the leaves on every nesting, per spec § 2 and ADR 0069 § 3
+Core\Arr::flattenDeep is Core\Arr::flatten iterated to a fixed point — invariant under one further flatten step, idempotent, and reaching the leaves on every nesting, per spec § 2 and `rule:types/preserve-keys`
 --FILE--
 <?nvs
 // `crates/nvs-stdlib/src/arr.rs:2161`'s doc says `flattenDeep` walks every

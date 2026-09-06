@@ -1,5 +1,5 @@
 --TEST--
-`foreach` refuses every subject `rule:iteration/foreach-subjects`'s closed list does not name, a `void` call among them, and defers only a `mixed` — `rule:iteration/foreach-subjects`, ADR 0007 § 2
+`foreach` refuses every subject `rule:iteration/foreach-subjects`'s closed list does not name, a `void` call among them, and defers only a `mixed` — `rule:iteration/foreach-subjects`, `rule:types/conversion`
 --FILE--
 <?nvs
 // `rule:iteration/foreach-subjects`'s list is closed — an `array<T>`, an `Iterable<T>` or an
@@ -39,7 +39,7 @@ foreach ($optional as string $f) { echo $f; }
 foreach ($o as int $g) { echo $g; }
 
 // The one subject that is *not* refused, and is deliberately last: `mixed` is
-// ADR 0007 § 2's one unchecked position, so it defers whether there is an
+// `rule:types/conversion`'s one unchecked position, so it defers whether there is an
 // array behind the handle at all rather than answering now. A line that
 // started refusing it would add a seventh error below.
 mixed $m = [1, 2];

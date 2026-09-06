@@ -96,7 +96,7 @@ echo Ask::counted($map, 2), "\n";
 // 5. `uint`'s far end. An expectation no array can ever reach is an ordinary
 // failure with both sides named -- not a refusal, and not a wrap back into
 // range. The literal is past `int` and is legal only because the parameter is a
-// `uint` (ADR 0007 § 4).
+// `uint` (`rule:types/arithmetic`).
 echo Ask::reported($dupes, 18446744073709551615), "\n";
 echo Ask::reported($empty, 1), "\n";
 echo Ask::reported($dupes, 2), "\n";

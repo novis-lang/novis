@@ -1,5 +1,5 @@
 --TEST--
-`Core\Encoding::encodeText` and `::decodeText` agree, over every charset the registry names crossed with a table of texts: a text a charset can spell comes back as itself — spec § 7, ADR 0009 § 3
+`Core\Encoding::encodeText` and `::decodeText` agree, over every charset the registry names crossed with a table of texts: a text a charset can spell comes back as itself — spec § 7, `rule:types/conversion`
 --FILE--
 <?nvs
 // `encoding-text-trio-converts-through-a-charset.nvst` pins what the trio
@@ -12,7 +12,7 @@
 // charset can spell decodes back to the text that was spelled. Asserted by
 // counting rather than row by row — a charset table that quietly grew a
 // transliterating or ignoring mode still encodes every row plausibly, and
-// fails the identical count here (ADR 0009 § 3: exact or a throw, no
+// fails the identical count here (`rule:types/conversion`: exact or a throw, no
 // `//TRANSLIT`, no `//IGNORE`, no U+FFFD).
 //
 // The charset is fetched through a `match` on the index rather than held in an
@@ -113,7 +113,7 @@ echo "not identical:", $odd, "\n";
 // index's own many-to-one encoders, not a mode Novis added: `euc-jp` and
 // `shift_jis` both spell U+00A5 as `0x5c`, which their decoders read back as
 // U+005C. Novis reports what the table says rather than refusing the character
-// to keep a round trip it was never promised — the exactness ADR 0009 § 3 buys
+// to keep a round trip it was never promised — the exactness `rule:types/conversion` buys
 // is that nothing is *substituted* on the way through, which is why the
 // refusal count above and this line are two different claims.
 bytes $sjis = Core\Encoding::encodeText("¥100", Core\Charset::ShiftJis);

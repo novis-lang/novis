@@ -1,5 +1,5 @@
 --TEST--
-`Core\Digest::Blake3` hashes but does not authenticate: `Core\Hash::hmac` refuses it, and the diagnostic's accepted set is exactly spec § 11's ten `StrongDigest` cases — spec § 11, ADR 0047 § 3
+`Core\Digest::Blake3` hashes but does not authenticate: `Core\Hash::hmac` refuses it, and the diagnostic's accepted set is exactly spec § 11's ten `StrongDigest` cases — spec § 11, `rule:types/enum-case-type`
 --FILE--
 <?nvs
 // Every other case outside `StrongDigest` is outside it because it is broken

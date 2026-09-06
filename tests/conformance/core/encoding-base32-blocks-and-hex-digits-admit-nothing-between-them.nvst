@@ -1,5 +1,5 @@
 --TEST--
-`Core\Encoding`'s base32 pair spells every block length and reads its own padding back, and its hex pair admits no separator, prefix or newline — spec § 7, ADR 0009 §§ 1 and 3
+`Core\Encoding`'s base32 pair spells every block length and reads its own padding back, and its hex pair admits no separator, prefix or newline — spec § 7, `rule:types/bytes` and `rule:types/conversion`
 --FILE--
 <?nvs
 class B32 {
@@ -53,7 +53,7 @@ echo B32::dec("NU======="), "\n";
 echo B32::dec("NV3WYIJB="), "\n";
 echo B32::dec("NV3WY=NV"), "\n";
 
-// Octets no `"…" as bytes` could produce (ADR 0009 § 1) round-trip like any
+// Octets no `"…" as bytes` could produce (`rule:types/bytes`) round-trip like any
 // other, and the written spelling is the one that reads back.
 echo B32::enc("00ff80fe"), "\n";
 echo B32::dec("AD7YB7Q"), "\n";

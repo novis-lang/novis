@@ -41,7 +41,7 @@ try {
 
 // "Unchanged" is also a claim about the caller's value, not just the answer's
 // bytes: the seed is passed by value, so a fold whose carry is an array leaves
-// the variable that seeded it reading what it always read — ADR 0007 § 5's
+// the variable that seeded it reading what it always read — `rule:types/arrays`'s
 // copy-on-write semantics, asked of the one argument a fold holds on to.
 array<int> $grown = Core\Arr::reduce($nums, fn(array<int> $carry, int $v): array<int> => Core\Arr::append($carry, $v), $arraySeed);
 echo Core\Json::encode($grown), " ", Core\Json::encode($arraySeed), "\n";

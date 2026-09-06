@@ -1,7 +1,7 @@
 //! [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
 //! § 4 — `Core\Time` and the types it answers with, one module because they
 //! are one domain: `Duration` (the type
-//! [ADR 0070](/docs/adr/0070-duration-literals.md)'s `30s`/`1h30m`
+//! `rule:types/duration-literal`'s `30s`/`1h30m`
 //! literal is), `Instant`, `Zone` and `DateTime`. The pattern grammar
 //! `DateTime::format` and `Time::parse` share is [`crate::cldr`], which is a
 //! grammar of its own and so a module of its own.
@@ -37,7 +37,7 @@
 //!
 //! The grammar `Duration::parse` accepts and `toString` emits is
 //! [`nvs_syntax::duration`], which the lexer calls for the source literal and
-//! `nvs.toml` will call for a duration-valued directive. ADR 0070 § 5 requires
+//! `nvs.toml` will call for a duration-valued directive. `rule:types/duration-literal` requires
 //! the three to share one implementation, and that module's own docs own why
 //! it sits in the syntax crate rather than this one.
 //!
@@ -50,8 +50,7 @@
 //! full ±9999-year range rather than the ~1677-2262 one a single `i64` of
 //! nanoseconds would; a `DateTime` holds three, an `Instant`'s two plus a
 //! `Zone`'s one, and [`DATETIME`] owns why that rather than seven civil
-//! fields. A duration *literal* spends an allocation too: ADR 0070
-//! § 3's constant-pool folding wants an *immortal* value with no allocation at
+//! fields. A duration *literal* spends an allocation too: `rule:types/duration-literal`'s constant-pool folding wants an *immortal* value with no allocation at
 //! all, which is the same thing `nvs_runtime`'s own gap 3 owes a string
 //! literal, so both close together rather than one growing a mechanism the
 //! other does not use. Until then `30s` is one
@@ -169,7 +168,7 @@ pub const FROM_NANOS_SYMBOL: &str = "nvs_core_time_duration_nanoseconds";
 /// length of.
 ///
 /// The eight `Duration::seconds`-shaped constructors are for a **computed**
-/// count; a constant one is ADR 0070's literal, and the two produce the same
+/// count; a constant one is `rule:types/duration-literal`'s literal, and the two produce the same
 /// value through this class's one slot.
 pub const DURATION: CoreClass = CoreClass {
     name: DURATION_NAME,
@@ -761,7 +760,7 @@ fn scaled(args: &[Value], member: &str, length: i64) -> Result<Value, Fault> {
 nvs_runtime::nvs_helper! {
     /// `Core\Time\Duration::nanoseconds(int $n): Duration`.
     ///
-    /// Also where a **literal** lands: ADR 0070 § 3 folds `1h30m` to its
+    /// Also where a **literal** lands: `rule:types/duration-literal` folds `1h30m` to its
     /// nanosecond count while compiling, and `nvs-ir` emits one call to this
     /// with that constant — so the literal and the constructor cannot produce
     /// different values.
@@ -807,7 +806,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Time\Duration::days(int $n): Duration` — exactly 24 hours per
-    /// day, never a calendar day (ADR 0070 § 1). A calendar step is
+    /// day, never a calendar day (`rule:types/duration-literal`). A calendar step is
     /// `DateTime::plus($n, Unit::Day)`, which is a different type's member for
     /// exactly this reason.
     fn nvs_core_time_duration_days(_ctx, args: [1]) {
@@ -824,7 +823,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Time\Duration::parse(string $text): Duration` — ADR 0070 § 5's
+    /// `Core\Time\Duration::parse(string $text): Duration` — `rule:types/duration-literal`'s
     /// run-time entry point into the *same* grammar the lexer reads, so
     /// `Duration::parse("1h30m")` and the literal `1h30m` are one value.
     ///
@@ -892,7 +891,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$d->minus(Duration $other): Duration` — the spelling ADR 0070 § 4
+    /// `$d->minus(Duration $other): Duration` — the spelling `rule:types/duration-literal`
     /// gives a backwards step, since `-7d` does not parse.
     fn nvs_core_time_duration_minus(_ctx, args: [2]) {
         let left = nanos_of(args, 0, "minus")?;
@@ -947,11 +946,11 @@ nvs_runtime::nvs_helper! {
 nvs_runtime::nvs_helper! {
     /// `$d->toString(): string` — `Stringable`'s member
     /// ([ADR 0028](/docs/adr/0028-closing-the-remaining-magic-methods.md)),
-    /// emitting ADR 0070 § 1's grammar so that a value round-trips through
+    /// emitting `rule:types/duration-literal`'s grammar so that a value round-trips through
     /// `parse` — over the durations that grammar can spell, which is the
     /// non-negative ones. This member is total and a negative duration is
     /// reachable through `minus` and `negated`, so it renders one with a
-    /// leading `-` that ADR 0070 § 5 has `parse` refuse by name.
+    /// leading `-` that `rule:types/duration-literal` has `parse` refuse by name.
     fn nvs_core_time_duration_to_string(_ctx, args: [1]) {
         let nanos = nanos_of(args, 0, "toString")?;
         Ok(Value::str(NvsStr::new(duration::render(nanos).as_bytes())))
@@ -3215,7 +3214,7 @@ fn out_of_range(member: &str, why: &str) -> Fault {
 /// # Errors
 ///
 /// A [`Fault::fatal`] naming the member, for the reason [`count`] gives, and
-/// only that one: a `string` is guaranteed-valid UTF-8 (ADR 0009), and the tag
+/// only that one: a `string` is guaranteed-valid UTF-8 (`rule:types/bytes`), and the tag
 /// [`Value::as_text`] checks *is* that guarantee, so there is nothing to
 /// re-derive here — `crate::str`'s own `text` states what doing it anyway costs.
 fn text_of<'a>(args: &'a [Value], at: usize, member: &str) -> Result<&'a str, Fault> {
@@ -3265,7 +3264,7 @@ fn zone_built(id: &str) -> Value {
 fn zone_of(args: &[Value], at: usize, member: &str) -> Result<TimeZone, Fault> {
     let object = crate::instance::receiver(args[at], &ZONE, member)?;
     let held = crate::instance::slot(object, ZONE_ID_SLOT);
-    // A `string` is guaranteed-valid UTF-8 (ADR 0009) and the tag is what says
+    // A `string` is guaranteed-valid UTF-8 (`rule:types/bytes`) and the tag is what says
     // so, and this crate wrote this slot — so the tag check is the whole read.
     let id = held.as_text().ok_or_else(|| {
         Fault::fatal(format!(

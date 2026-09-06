@@ -13,7 +13,7 @@ echo Core\Str::join($f, ","), "\n";
 echo Core\Arr::count($f), "\n";
 
 // An `int` value flips to the key an `int` subscript would have found, since
-// ADR 0007 § 5 stores every key under its decimal spelling.
+// `rule:types/arrays` stores every key under its decimal spelling.
 echo Core\Arr::hasKey($f, 7) as string, "|", Core\Arr::hasKey($f, "7") as string, "|\n";
 
 // Flipping a list yields its values as keys and its indices as values.

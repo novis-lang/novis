@@ -82,7 +82,7 @@ fn a_cursor_class_is_refused_at_a_different_type_argument() {
     );
 }
 
-/// ADR 0125 § 3: `class<T>` is covariant in its argument and only upward, so
+/// `rule:types/class-reference-variance`: `class<T>` is covariant in its argument and only upward, so
 /// `class<Dog>` reaches a `class<Animal>` position and `class<Animal>` does not
 /// reach a `class<Dog>` one. Both halves are asserted together, because a rule
 /// that only accepts is satisfied by making the type `mixed`.
@@ -117,7 +117,7 @@ fn a_class_reference_widens_to_its_supertype_and_not_back() {
 }
 
 /// The argument names a class or an interface, and anything else is refused
-/// where it is written -- ADR 0125 § 1, and the half the parser deliberately
+/// where it is written -- `rule:types/class-reference`, and the half the parser deliberately
 /// left to the checker so the refusal can say what the name resolved *to*.
 #[test]
 fn a_class_reference_over_a_non_class_argument_is_refused() {
@@ -135,7 +135,7 @@ fn a_class_reference_over_a_non_class_argument_is_refused() {
     );
 }
 
-/// ADR 0126 § 1's argument rule, which is the sibling above's one row
+/// `rule:types/property-key`'s argument rule, which is the sibling above's one row
 /// narrower: a key's values are the names an implementor *declares*, so an
 /// interface is refused with the scalars while a class reference admits one.
 #[test]

@@ -129,7 +129,7 @@ re-join in the target convention) so the fix is always a one-line rename, never 
 ## Revisiting
 
 - **User-defined generic type parameters** have no naming convention here because they do not exist yet —
-  whoever decides [ADR 0007](0007-explicit-type-system.md)'s deferred generics also decides how a type
+  whoever decides `rule:types/declaration`'s deferred generics also decides how a type
   parameter is spelled.
 - **The zero-suppression stance** is the piece most likely to be revisited, and only under pressure from a
   concrete boundary this project does not have yet. The question would then be narrow ("does *this one*

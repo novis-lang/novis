@@ -1,4 +1,4 @@
-# ADR 0126 — A property key is a checked name, and `as` is its only source
+# `rule:types/property-key` — A property key is a checked name, and `as` is its only source
 
 - **Status:** Accepted
 - **Date:** 2026-09-01
@@ -8,7 +8,7 @@
   [ADR 0014](0014-property-observer.md) § 5's rule that every property is a declared name, which is what
   makes the set finite in the first place; it does not give `$obj->$m()` a spelling, which § 6 there
   rejects as a concept; and it adds nothing to `ClassDesc`, because the access it admits is the erased one
-  [ADR 0036](0036-anonymous-object-shapes.md) § 4 already lowers.
+  `rule:types/erased-member-access` already lowers.
 - **Depends on:** [0014](0014-property-observer.md), [0007](0007-explicit-type-system.md),
   [0036](0036-anonymous-object-shapes.md)
 - **Amends:** [0014](0014-property-observer.md) — § *Revisiting*'s deferred `property<T>` bullet is decided
@@ -24,7 +24,7 @@
 > `"email" as property<User>` is decided where it is written, and a plain `string` never becomes one by
 > accident. `$obj->$key` is then admitted where `E0235` refuses a computed name today, and that refusal
 > moves from the parser to the checker for everything else. A read through a key is typed as the **union**
-> of the set's declared types; a write is [ADR 0036](0036-anonymous-object-shapes.md) § 4's checked erased
+> of the set's declared types; a write is `rule:types/erased-member-access`'s checked erased
 > store — never a creation — and is refused outright where the set holds a `readonly` property, because a
 > key may name any of them. The set is the same roster `Core\Reflect\ClassInfo::properties` walks, hooked
 > properties and all, and nothing new is lowered: applying a key *is* the erased access.
@@ -44,9 +44,9 @@ answers `mixed` and moves every check to run time. Each of them re-derives, badl
 already holds — **the class's property roster is finite, declared and known**, which is exactly what
 [ADR 0014](0014-property-observer.md) § 5 bought by making an undeclared property a hard error.
 
-What is missing is not a permission but a **type**. [ADR 0007](0007-explicit-type-system.md) § 2 already
+What is missing is not a permission but a **type**. `rule:types/conversion` already
 owns the operator that turns an unchecked value into a checked one, and
-[ADR 0125](0125-a-class-reference-is-a-type-and-as-is-its-only-source.md) has already spent that operator
+`rule:types/class-reference` has already spent that operator
 on the sibling question — *which class* — leaving a shape to follow: one atom, one `as` row, and the
 refusal moved from the parser to the checker. A property key is that operator applied to a member name.
 
@@ -79,7 +79,7 @@ equal when they name the same property, and nothing else is ever equal to one. `
 exactly the string-as-a-member confusion this ADR exists to keep out; ordering one is refused with the
 other unordered types.
 
-The grammar is one line of [ADR 0007](0007-explicit-type-system.md) § 3's `atom` production, parsed only
+The grammar is one line of `rule:types/grammar`'s `atom` production, parsed only
 in type position, where a `<` is unambiguously a type-argument list. `property` is a new keyword only
 there — it is not one anywhere else, so `$property`, a method named `property` and a class named
 `Property` are all untouched.
@@ -92,7 +92,7 @@ mixed $value = $user->$field;
 ### 2. `as` is its only source
 
 **There is no other way to obtain a `property<T>`.** A string literal is a `string` and stays one, so no
-program acquires a key by accident. [ADR 0007](0007-explicit-type-system.md) § 2's grid holds three rows:
+program acquires a key by accident. `rule:types/conversion`'s grid holds three rows:
 
 | conversion | behaviour |
 |---|---|
@@ -124,7 +124,7 @@ reason intact, and is why this is a type rather than a permission.
 A subclass *adds* properties, so `property<Animal>`'s names are all valid on a `Dog` while
 `property<Dog>`'s are not all valid on an `Animal`. **`property<Animal>` therefore widens to
 `property<Dog>`, and never back** — the argument is contravariant, exactly opposite to
-[ADR 0125](0125-a-class-reference-is-a-type-and-as-is-its-only-source.md) § 3's `class<T>`, and for the
+`rule:types/class-reference-variance`'s `class<T>`, and for the
 reason that inverts it: a class reference is *produced* against its bound, while a key is *consumed* by a
 receiver. Narrowing is written, like every other narrowing, as `as property<Animal>`, and is the run-time
 check § 2's second row already describes.
@@ -156,11 +156,11 @@ a `User` declaring those three — which widens into `mixed` or any covering uni
 narrows the way every union narrows. That is the most a site can know, and it is strictly more than the
 `mixed` today's three workarounds hand back.
 
-A **write** is [ADR 0036](0036-anonymous-object-shapes.md) § 4's checked erased store: it writes an
+A **write** is `rule:types/erased-member-access`'s checked erased store: it writes an
 existing property, **never creates one**, and the incoming value is checked at run time against what the
 class declares that property to hold. Statically the value must satisfy at least one member of the union —
 a value no property of `T` could accept is refused where it is written, since the store could only ever
-throw. Both directions lower to the erased access `nvs_runtime` already performs for ADR 0036 § 4's
+throw. Both directions lower to the erased access `nvs_runtime` already performs for `rule:types/erased-member-access`'s
 receiver, so per-property hooks and a declared `PropertyObserver` behave exactly as they do there. That
 is one implementation and not a fourth: the erased store's known gap — it reaches storage past a
 per-property `set` hook, recorded on `nvs_runtime::write_erased_property` and in
@@ -201,7 +201,7 @@ write, refusing at build time is the direction priority 1 points in.
 
 The conversion is one `ClassDesc::field_slot` lookup plus one `field_is_public`, the pair
 `Core\Reflect\ClassInfo::get` already performs, once where the string arrives; the written-out form skips
-it entirely. Applying a key costs exactly what ADR 0036 § 4's erased access costs today and not one
+it entirely. Applying a key costs exactly what `rule:types/erased-member-access`'s erased access costs today and not one
 instruction more, because it *is* that access — no new IR, no new calling convention, no new descriptor
 field. A written-out `$user->email` is untouched and pays nothing.
 

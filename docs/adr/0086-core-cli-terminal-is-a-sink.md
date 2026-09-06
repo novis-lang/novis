@@ -209,9 +209,9 @@ the width of its *widest* one — the number a box is padded to, where a sum is 
 would draw.
 
 **`displayWidth` is sited here, not on `Core\Str`, deliberately.** A terminal column count is a third
-measure beside the two [ADR 0009](0009-string-and-bytes.md) already fixed — bytes for `bytes`, grapheme
+measure beside the two `rule:types/bytes` already fixed — bytes for `bytes`, grapheme
 clusters for `string` — and it is a property of the *renderer*, not of the string. Putting it on `Core\Str`
-would imply a string has an intrinsic width, which is the confusion ADR 0009 § 2 spent its length removing.
+would imply a string has an intrinsic width, which is the confusion `rule:types/string-is-utf8` spent its length removing.
 
 ### 4. Prompts are `Core` members, and they never block forever
 

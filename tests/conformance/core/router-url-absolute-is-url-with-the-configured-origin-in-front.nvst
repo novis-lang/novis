@@ -104,7 +104,7 @@ array<string> $absolute = [
     Core\Router::urlAbsolute("Posts::show", ["id" => 7, "tag" => ["a" => 1], "sort" => null]),
 ];
 
-// The count, which is the case. ADR 0007 § 5: an `array<T>`'s stored key type
+// The count, which is the case. `rule:types/arrays`: an `array<T>`'s stored key type
 // is `string`, so the index binds as one and subscripts the other half as
 // written.
 var $rows = 0;

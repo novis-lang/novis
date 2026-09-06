@@ -15,7 +15,7 @@ echo Core\Json::encode(Core\Arr::overlay($l, $r)), ";";
 
 // `appendAll` is `array_merge` only where the arguments are lists — over a map
 // PHP keeps the string keys and this discards them, which is the divergence
-// ADR 0069 § 1 exists for and `tests/conformance/core` pins instead.
+// `rule:types/array-combination` exists for and `tests/conformance/core` pins instead.
 array<int> $ones = [1, 2, 3];
 array<int> $twos = [4, 5];
 array<int> $none = [];

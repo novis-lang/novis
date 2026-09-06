@@ -1,8 +1,8 @@
 --TEST--
-An `int` or `uint` argument widens into a closure's `float` parameter, and is refused past 2^53 — ADR 0007 §§ 2, 4, ADR 0031 § 1
+An `int` or `uint` argument widens into a closure's `float` parameter, and is refused past 2^53 — `rule:types/conversion` and `rule:types/arithmetic`, `rule:types/closure-literal`
 --FILE--
 <?nvs
-// ADR 0007 § 2: an `int` or `uint` in a `float` position is the one implicit
+// `rule:types/conversion`: an `int` or `uint` in a `float` position is the one implicit
 // conversion the language has. A `callable` carries no parameter list (ADR
 // 0031 § 1), so no checker saw this call site to insert it — the comparison in
 // `nvs_runtime::call_closure` applies it where it would otherwise refuse.
@@ -21,7 +21,7 @@ echo "uint ", $half($nine) as string, "\n";
 
 // Both sides of the bound, named together: 2^53 is the last integer an `f64`
 // represents exactly, and the first one past it throws rather than rounding —
-// ADR 0007 § 2's rule, as ADR 0007 § 4's `ArithmeticError`.
+// `rule:types/conversion`'s rule, as `rule:types/arithmetic`'s `ArithmeticError`.
 echo "at 2^53 ", $half(9007199254740992) as string, "\n";
 try {
     float $past = $half(9007199254740993) as float;

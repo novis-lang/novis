@@ -110,7 +110,7 @@
 //! **The operands come from what the count shows, which is why `decimal` is
 //! the exact one.** CLDR's `v` and `f` are the *visible* fraction digits, so
 //! English puts `1` in `One` and `1.0` in `Other`. A `decimal` carries its
-//! scale ([ADR 0054](/docs/adr/0054-decimal-scalar-type.md)) and so
+//! scale (`rule:types/decimal`) and so
 //! answers that distinction exactly; an `int` has no fraction; a `float` has no
 //! scale, so its digits are read off the shortest representation that
 //! round-trips — which is what `echo` writes for the same value, and therefore

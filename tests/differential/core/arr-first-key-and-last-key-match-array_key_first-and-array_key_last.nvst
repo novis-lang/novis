@@ -1,13 +1,13 @@
 --TEST--
-Core\Arr::firstKey and lastKey name the keys array_key_first and array_key_last name, as strings (ADR 0007 § 5, ADR 0069)
+Core\Arr::firstKey and lastKey name the keys array_key_first and array_key_last name, as strings (`rule:types/arrays`, `rule:types/array-combination`)
 --FILE--
 <?nvs
-// ADR 0007 § 5 stores every key as a string, so these two answer `?string`
+// `rule:types/arrays` stores every key as a string, so these two answer `?string`
 // where PHP's `array_key_first`/`array_key_last` answer `int|string|null`
 // depending on how the key was written. `echo` cannot see that difference —
 // PHP renders the int key `0` as `0` too — which is exactly why the difference
 // is safe: a member that guessed a key's "original" type would be the
-// key-type-dependent behaviour ADR 0069 removes. What the rows below compare is
+// key-type-dependent behaviour `rule:types/array-combination` removes. What the rows below compare is
 // therefore *which* key, and `Core\Arr::keys`' `array<string>` is where the
 // type itself is pinned.
 class Show {

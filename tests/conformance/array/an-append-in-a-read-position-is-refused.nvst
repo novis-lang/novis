@@ -1,5 +1,5 @@
 --TEST--
-`$a[]` is refused everywhere but as an assignment target, PHP's "Cannot use [] for reading" taken at compile time — ADR 0007 § 7 row 10, ADR 0007 § 5
+`$a[]` is refused everywhere but as an assignment target, PHP's "Cannot use [] for reading" taken at compile time — ADR 0007 § 7 row 10, `rule:types/arrays`
 --FILE--
 <?nvs
 // `[]` names the key one past the highest integer key, which is an answer only

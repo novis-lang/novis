@@ -1,5 +1,5 @@
 --TEST--
-a `?T` property and a `?T` parameter each take a written `null` default — `null` is a constant of a type that admits one, and the decoder is the same for both positions — ADR 0007 § 2, ADR 0022 § 1
+a `?T` property and a `?T` parameter each take a written `null` default — `null` is a constant of a type that admits one, and the decoder is the same for both positions — `rule:types/conversion`, ADR 0022 § 1
 --FILE--
 <?nvs
 class Row {

@@ -607,7 +607,7 @@ impl<'a> Lowering<'a> {
 /// compile-time-known property read (`ExprKind::PropertyAccess`), and a
 /// compile-time-known array-element read (`ExprKind::Index`) all borrow
 /// storage that keeps its own reference after this read — a local's own slot,
-/// the object's field, or the array's own entry (ADR 0007 § 5's copy-on-write
+/// the object's field, or the array's own entry (`rule:types/arrays`'s copy-on-write
 /// value semantics) — so copying any of them into a new durable slot needs a
 /// retain. A fresh literal, `new`, or a call's own result already has exactly
 /// one natural owner and needs none.

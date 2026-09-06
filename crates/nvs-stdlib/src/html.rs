@@ -67,7 +67,7 @@
 //! makes the answer safe in an unquoted-attribute position as well as in text,
 //! and escaping one fewer character has never been the reason a page was fast.
 //! `$encoding` has no analogue because a `string` is UTF-8 by
-//! [ADR 0009](/docs/adr/0009-string-and-bytes.md), and `$double`
+//! `rule:types/bytes`, and `$double`
 //! has none because "do not escape what already looks escaped" is exactly the
 //! repair `rule:errors/ambiguous-input-refused`
 //! refuses: `&amp;` in the input is text that said `&amp;`, and it comes back
@@ -274,7 +274,7 @@ fn escaped(c: char) -> Option<&'static str> {
 /// A `string`, or the fault a non-`string` tag produces. `subject` names what
 /// was expected to be text and heads the message.
 ///
-/// The tag check is ADR 0009's UTF-8 guarantee itself: `bytes` is its own tag
+/// The tag check is `rule:types/bytes`'s UTF-8 guarantee itself: `bytes` is its own tag
 /// over the same allocation and reaches `None` here, which is what keeps a
 /// binary payload out of a text format.
 fn text<'a>(value: &'a Value, subject: &str) -> Result<&'a str, Fault> {

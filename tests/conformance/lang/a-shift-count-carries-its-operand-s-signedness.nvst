@@ -1,8 +1,8 @@
 --TEST--
-A shift's count is an operand of the operator rather than a bare width, so a mixed-signedness one is refused exactly as `&` refuses its own — ADR 0007 § 4
+A shift's count is an operand of the operator rather than a bare width, so a mixed-signedness one is refused exactly as `&` refuses its own — `rule:types/arithmetic`
 --FILE--
 <?nvs
-// ADR 0007 § 4's `& | ^ ~ << >>` row is "the operand type, preserved", and a
+// `rule:types/arithmetic`'s `& | ^ ~ << >>` row is "the operand type, preserved", and a
 // mixed-signedness pair has no preserved type to be — so `<<` and `>>` judge
 // their count by the row their left operand takes, in both directions. That
 // is not bookkeeping: `nvs-codegen`'s `emit_shift` reads *one* signedness for

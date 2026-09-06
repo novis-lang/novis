@@ -1,9 +1,9 @@
 --TEST--
-`Core\Str::chunk` divides by cluster and `Core\Str::lines` ends on any of the three terminators — spec § 1 *Extraction*, ADR 0009 § 2
+`Core\Str::chunk` divides by cluster and `Core\Str::lines` ends on any of the three terminators — spec § 1 *Extraction*, `rule:types/string-is-utf8`
 --FILE--
 <?nvs
 // `chunk` replaces `str_split`, `mb_str_split` and `chunk_split`: the last
-// chunk is the only short one, and the count is ADR 0009 § 2's unit rather
+// chunk is the only short one, and the count is `rule:types/string-is-utf8`'s unit rather
 // than bytes, so no chunk lands inside a cluster.
 echo Core\Str::join(Core\Str::chunk("abcdefg", 3), "|"), "\n";
 echo Core\Str::join(Core\Str::chunk("abc", 9), "|"), "\n";

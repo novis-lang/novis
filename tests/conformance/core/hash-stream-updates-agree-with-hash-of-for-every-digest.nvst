@@ -1,5 +1,5 @@
 --TEST--
-`Core\Hash\Stream::update`/`finish` agree with `Core\Hash::of` over every chunking of one input, for every `Core\Digest` — spec § 11, ADR 0009 §§ 1 and 3
+`Core\Hash\Stream::update`/`finish` agree with `Core\Hash::of` over every chunking of one input, for every `Core\Digest` — spec § 11, `rule:types/bytes` and `rule:types/conversion`
 --FILE--
 <?nvs
 // § 11: the streaming pair's whole contract is an *agreement* with the
@@ -96,7 +96,7 @@ class Chunkings
 
     // The degenerate chunking: one `update` with the whole subject, and the
     // one with none at all, which is the empty-input row that exercises the
-    // padding and nothing else. ADR 0009 § 3: `string as bytes` is total, so
+    // padding and nothing else. `rule:types/conversion`: `string as bytes` is total, so
     // the tag a chunk arrives under is not part of the digest either, and the
     // single-chunk row is spelled with the other one.
     public static function degenerate(string $message, Core\Digest $digest): int

@@ -582,7 +582,7 @@ fn dechunk(mut rest: &[u8], malformed: &dyn Fn(&str) -> Fault) -> Result<Vec<u8>
 }
 
 /// The body as a `string`, which is UTF-8 by
-/// [ADR 0009](/docs/adr/0009-string-and-bytes.md) § 1.
+/// `rule:types/bytes`.
 ///
 /// Bytes that are not text are **refused** rather than repaired: replacing them
 /// would hand a program a body that is not what the origin sent and give it no

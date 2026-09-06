@@ -49,7 +49,7 @@
 //!
 //! **Known gap: a write to a field of `all`'s result is checked against the
 //! wrong tag.** The result is built with the argument's own class descriptor,
-//! because ADR 0036's shape class is named for its field names alone
+//! because `rule:types/object-top`'s shape class is named for its field names alone
 //! (`nvs_ir::lower::shape_class_label`) and those are identical on both sides —
 //! but that descriptor's per-slot tags come from the *literal*, where every
 //! field is a closure. Reading is unaffected (`SlotGet` keys on the name);
@@ -433,7 +433,7 @@ nvs_runtime::nvs_helper! {
     /// `Core\Task::all({...}, {limit?, deadline?}): S` — ADR 0072 § 1's fixed,
     /// heterogeneous set.
     ///
-    /// The argument is an ADR 0036 shape value, which is an ordinary object
+    /// The argument is an `rule:types/object-top` shape value, which is an ordinary object
     /// whose slots are its fields in sorted name order, so a job per slot is a
     /// job per field and the *order* the host is given is the same order the
     /// answers come back in. The result reuses the argument's class descriptor:

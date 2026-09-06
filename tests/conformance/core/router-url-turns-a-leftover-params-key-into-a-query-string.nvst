@@ -51,7 +51,7 @@ echo "escaped=", Core\Router::url("Posts::show", ["id" => 7, "q" => "a/b&c=d", "
 // convention, so the agreement below is what pins it: the same leftover keys,
 // asked of both members, answer the same text. A link that grew its own
 // encoder would still look plausible on the line above and fail here. The
-// answer prints as `1` because that is what `true as string` is (ADR 0007 § 2).
+// answer prints as `1` because that is what `true as string` is (`rule:types/conversion`).
 string $query = Core\Uri::buildQuery(["q" => "a/b&c=d", "note" => "two words"]);
 echo "agrees=", Core\Router::url("Posts::show", ["id" => 7, "q" => "a/b&c=d", "note" => "two words"]) == "/posts/7?" . $query, "\n";
 

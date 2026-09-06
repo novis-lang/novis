@@ -51,7 +51,7 @@
 //!
 //! # A value that is not text throws, and `all` skips it instead
 //!
-//! [ADR 0009](/docs/adr/0009-string-and-bytes.md) makes a `string`
+//! `rule:types/bytes` makes a `string`
 //! UTF-8, and an environment variable is bytes on every platform this runs on,
 //! so the two do not always meet. The split:
 //!

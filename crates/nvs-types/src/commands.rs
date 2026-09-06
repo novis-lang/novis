@@ -168,7 +168,7 @@ pub enum ArgConv {
     Int,
     /// `uint`.
     Uint,
-    /// `decimal` — ADR 0054's exact number.
+    /// `decimal` — `rule:types/decimal`'s exact number.
     Decimal,
     /// `Core\Uuid` — RFC 9562 § 4's canonical form, the one class § 6 admits.
     Uuid,
@@ -408,7 +408,7 @@ pub(crate) fn check_class_commands(
 /// is a name `nvs_syntax` is already refusing. `m` supplies the span, since a
 /// `Modifier` records none of its own and neither refusal is about the body.
 ///
-/// A method that writes **no** return type is left alone here — ADR 0007 § 3
+/// A method that writes **no** return type is left alone here — `rule:types/grammar`
 /// requires one everywhere and its absence is already reported, so naming it
 /// again as a wrong one would tell the author about a `mixed` they never wrote.
 fn check_command_shape(m: &MethodMember, class: &QName, env: &mut Env<'_>) {
@@ -768,7 +768,7 @@ fn check_convertible(param: &Param, method: &str, ty: TypeId, env: &mut Env<'_>)
 ///
 /// A `float` is deliberately absent where `decimal` is not: § 3 names one and
 /// not the other, and an argument that quietly rounds is the class of bug
-/// ADR 0054 exists to make unwritable.
+/// `rule:types/decimal` exists to make unwritable.
 pub(crate) fn converts_from_string(ty: TypeId, env: &Env<'_>) -> bool {
     match env.interner.get(ty) {
         Ty::String

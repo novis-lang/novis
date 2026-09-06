@@ -35,8 +35,8 @@
 ## Context
 
 - **PHP has two operators because it has juggling.** `===` exists to escape `==`, and `==` exists because
-  PHP 4 had no types. Novis has neither problem: [ADR 0007](0007-explicit-type-system.md) makes every
-  binding declare a type, and [ADR 0034](0034-legacy-cast-syntax-rejected.md) makes `as` the only
+  PHP 4 had no types. Novis has neither problem: `rule:types/declaration` makes every
+  binding declare a type, and `rule:types/no-legacy-cast` makes `as` the only
   conversion spelling. Carrying both operators forward would carry the scar without the wound.
 - **This repository already refuses redundant spellings on exactly this reasoning.**
   `rule:expressions/no-keyword-logical-operators` deleted `and`/`or`/`xor` because `&&`/`||`
@@ -153,7 +153,7 @@ That reads worse than `==` by exactly one call, and it is visible at the call si
 
 ### 5. A `mixed` or union operand resolves at runtime, and a mismatch is `false`
 
-[ADR 0007](0007-explicit-type-system.md) § 6 makes `mixed` unchecked by design — every operation on it is
+`rule:types/unions-and-mixed` makes `mixed` unchecked by design — every operation on it is
 allowed and resolved dynamically. Equality is no exception: `$a == $b` where either side is `mixed` or a
 union compiles, dispatches on the runtime tags, and applies *3*'s table to the row they land in.
 
@@ -166,7 +166,7 @@ in *2* is a compile error rather than `false` for a different reason: there the 
 answer before the program runs, which makes it dead code rather than a question.
 
 The asymmetry is deliberate and worth stating plainly: **`mixed` is where you pay for not declaring a
-type**, here as everywhere else in ADR 0007. A comparison against `mixed` silently answers `false` where a
+type**, here as everywhere else in `rule:types/declaration`. A comparison against `mixed` silently answers `false` where a
 typed one would have refused to compile.
 
 ### 6. `switch` and `match` use this rule, and only this rule
@@ -219,7 +219,7 @@ and re-tiers against this table:
   here, and nothing in the compiled program flags it — only the converter does. It is named here so that
   the converter's rule table is the thing kept honest.
 - **A `mixed` comparison answers where a typed one refuses.** Someone will discover that widening a
-  parameter to `mixed` makes a diagnostic go away, and get `false` instead of a fix. This is ADR 0007's
+  parameter to `mixed` makes a diagnostic go away, and get `false` instead of a fix. This is `rule:types/declaration`'s
   standing trade rather than a new one, but equality is where it is easiest to reach for by accident.
 - **Object identity will surprise someone porting a value class.** PHP's `==` compared two `Money`
   objects by their properties; Novis's says they are different objects. § 4's answer costs one method call
@@ -282,4 +282,4 @@ and re-tiers against this table:
 - **The runtime path.** A `mixed`-against-`mixed` fixture per tag pairing, asserting `false` across rows
   and never a throw — the one place a wrong answer would be silent.
 - **Nothing to measure.** No number here needs a guard test in `benches/abi-probe`: the typed path is the
-  instruction it already was, and the `mixed` path is the tag dispatch ADR 0007 § 6 already priced.
+  instruction it already was, and the `mixed` path is the tag dispatch `rule:types/unions-and-mixed` already priced.

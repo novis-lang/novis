@@ -40,9 +40,9 @@
   [ADR 0011](0011-functions-and-constants-are-class-members.md) and [ADR 0014](0014-property-observer.md)
   already closed for calls and property access.
 - Not affected: an `inout` binding (`inout T $x`) binds two *variable names* to one storage slot —
-  function-scoped, per [ADR 0007](0007-explicit-type-system.md) § 1 — not a second global name for a
+  function-scoped, per `rule:types/declaration` — not a second global name for a
   declaration.
-- The one genuine need: [ADR 0007](0007-explicit-type-system.md)'s own *Negative* section flagged
+- The one genuine need: `rule:types/declaration`'s own *Negative* section flagged
   `array<array<int|string>> $rows`-style verbosity and named a `type` alias as unresolved relief — answered
   here, kept narrow (a synonym for a *type expression*, erased before codegen) so it cannot smuggle the
   rejected kind of aliasing back in.
@@ -115,7 +115,7 @@ type Matrix  = array<array<float>>;
   `type` alias has no runtime existence at all — like a `use` import or a `namespace` statement, it is fully
   resolved and discarded by the type checker before codegen ever runs, so it is not the kind of name that
   rule was written to govern.
-- **`TypeExpr` is any production of [ADR 0007](0007-explicit-type-system.md) § 3's grammar**, with one
+- **`TypeExpr` is any production of `rule:types/grammar`'s grammar**, with one
   exception (below). The alias name becomes lexically valid anywhere `ClassName` is — `atom := … | ClassName
   | TypeAliasName | '?' atom` — resolved by the same contextual lookup that already tells `self`/`static`/
   `parent`/an enum's name apart from a class's.
@@ -133,7 +133,7 @@ type Matrix  = array<array<float>>;
 - **Resolved eagerly, and a cycle is a diagnostic.** `type A = B; type B = A;` is rejected at check time
   (unresolvable alias cycle), not left to loop or to silently bottom out at `mixed`.
 - **Non-parametric for now.** `type Rows<T> = array<array<T>>;` is out of scope until user-defined generics
-  are designed — the same deferral [ADR 0007](0007-explicit-type-system.md) *Revisiting* already carries for
+  are designed — the same deferral `rule:types/declaration` *Revisiting* already carries for
   generics generally; a `type` alias is not the vehicle for smuggling that decision in early.
 - **Reached through ordinary `use`/FQN resolution, nothing auto-imported** — the same "nothing is global by
   default" reading every prior ADR in this project gives every other kind of name.
@@ -176,7 +176,7 @@ Each rejection names its replacement, in the style [ADR 0011](0011-functions-and
 - `class_alias`'s specific footgun — code written against one name that a *different* request or a later
   call can silently repoint to a different class — cannot exist in Novis at all, structurally rather than by
   convention.
-- The genuine verbosity cost [ADR 0007](0007-explicit-type-system.md) flagged in its own *Negative* section
+- The genuine verbosity cost `rule:types/declaration` flagged in its own *Negative* section
   gets a real answer, on a mechanism narrow enough that it cannot be turned into the aliasing this ADR
   otherwise removes.
 - `nvs check`'s symbol table keeps exactly one entry per declared class/interface/enum/method/constant name,
@@ -187,7 +187,7 @@ Each rejection names its replacement, in the style [ADR 0011](0011-functions-and
 
 - **A structural break from PHP**, one of the divergences [divergences.md](divergences.md) registers, alongside `rule:enums/closed-integer-type`,
   [ADR 0011](0011-functions-and-constants-are-class-members.md) and
-  `rule:statements/no-host-populated-variables`(0012-no-superglobals.md): PHP source calling `class_alias()` or importing with `as` does not
+  `rule:statements/no-host-populated-variables`: PHP source calling `class_alias()` or importing with `as` does not
   convert unconverted. (Trait composition's own divergence and migration path now live entirely in
   [ADR 0043](0043-interface-default-methods-and-delegation-replace-traits.md) § 6.) `nvs convert`
   ([M11](../implementation-plan.md)) can mechanically rewrite an import alias (replace every use of the local
@@ -223,7 +223,7 @@ Each rejection names its replacement, in the style [ADR 0011](0011-functions-and
 ## Revisiting
 
 - **Parametric `type` aliases** (`type Rows<T> = array<array<T>>;`), once user-defined generics are designed
-  — [ADR 0007](0007-explicit-type-system.md) *Revisiting* already defers the prerequisite.
+  — `rule:types/declaration` *Revisiting* already defers the prerequisite.
   - **Whether `nvs convert`'s automatic rewrite for import `as` (*Consequences, Negative*) is good enough**,
   or needs a `--check`-only mode that just flags the site instead of rewriting it, is an M11 UX question this
   ADR does not resolve — following the precedent
@@ -238,7 +238,7 @@ Verification, in the order it becomes possible:
 
 - **M1**: the parser rejects `use Path\To\Name as Other;` with a diagnostic naming the replacement in *7*;
   `type Name = TypeExpr;` parses at file/namespace scope using the full grammar of
-  [ADR 0007](0007-explicit-type-system.md) § 3. (Trait-composition `as`/`insteadof` verification now lives in
+  `rule:types/grammar`. (Trait-composition `as`/`insteadof` verification now lives in
   [ADR 0043](0043-interface-default-methods-and-delegation-replace-traits.md).)
 - **M2**: name resolution has no alias table for classes/interfaces/enums/methods/constants — a name resolves
   to exactly the declaration it names, or fails; a `type` alias resolves and is substituted away before the

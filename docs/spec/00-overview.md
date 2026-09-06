@@ -6,10 +6,10 @@
   has exactly one home").
 - **Scope:** file modes and inline HTML; `require` next to `eval` and `spawn script`, since the
   plan names confusing the last two as the predictable mistake; the concrete grammar for every declaration
-  slot [ADR 0007](../adr/0007-explicit-type-system.md) requires (typed locals, `foreach` bindings,
+  slot `rule:types/declaration` requires (typed locals, `foreach` bindings,
   destructuring, `type` aliases) and the final spelling of the conversion operator; the closed list of
   storage classes `rule:statements/static-is-a-member-modifier` decided, restated here only as a syntax
-  table; the `bytes` literal question [ADR 0009](../adr/0009-string-and-bytes.md) deferred here.
+  table; the `bytes` literal question `rule:types/bytes` deferred here.
 - **Out of scope, deliberately:** full expression/operator-precedence tables, the concurrency surface
   (`spawn`/`await`/`Channel`, M5), the HTTP/`Core` accessor surface (M7), and anything not named above. This
   file grows, and later spec files (`01-…`, `02-…`) are expected — it is not meant to be read as the whole
@@ -19,11 +19,11 @@
 > inline HTML emitted verbatim, exactly like PHP. `require` shares
 > everything with the calling frame and `spawn script` shares nothing but compiled code — the two are
 > defined next to each other below so the difference cannot be missed the way
-> [ADR 0006](../adr/0006-isolated-script-execution.md) predicts it will be. Every declaration slot ADR 0007
+> [ADR 0006](../adr/0006-isolated-script-execution.md) predicts it will be. Every declaration slot `rule:types/declaration`
 > requires gets exactly one syntax: the type comes first, the same position PHP already uses for a parameter
 > — `int $n = 0;`, `foreach ($rows as string $k => array<int> $row)`,
 > `[int $a, string $b] = $pair;`, `type Row = array<string, int|string>;`. The conversion operator's
-> provisional spelling in ADR 0007 is hereby finalised: `expr as Type`, no other spelling, none planned.
+> provisional spelling in `rule:types/declaration` is hereby finalised: `expr as Type`, no other spelling, none planned.
 > There is no `bytes` literal token: `"…" as bytes` covers valid-UTF-8 payloads for free, and
 > `Core\Encoding::fromHex()`/`::fromBase64()` cover binary constants that are not valid UTF-8 — a lexer with
 > one fewer token shape than a dedicated `b"…"` prefix would have needed.
@@ -143,11 +143,11 @@ needs — `script` after `spawn`, an operand after `await` — so a program that
 as a constant, a function or a method name still parses. The one reading this claims from such a program is
 `await($x)`, which is the operator over a parenthesised operand and not a call to a function named `await`.
 
-## 3. The declaration-slot grammar (ADR 0007's spelling)
+## 3. The declaration-slot grammar (`rule:types/declaration`'s spelling)
 
 [ADR 0007 § 3](../adr/0007-explicit-type-system.md) already normatively fixes the *type expression* grammar
 (`type := union := …`, `array<T>`, unions, intersections, `mixed`, and so on) — this document does not
-repeat it and adds no new production to it. What ADR 0007 left to the spec is the *statement*-level grammar
+repeat it and adds no new production to it. What `rule:types/declaration` left to the spec is the *statement*-level grammar
 around each new declaration slot: where exactly a `type` sits relative to the `$` sigil, and how a
 destructuring target is written. One rule threads all of them: **the type comes first, in the same position
 PHP already uses for a parameter** — there is exactly one type-then-sigil shape in the whole language,
@@ -185,10 +185,10 @@ foreach ($items as string $k => inout int $v) { $v += 1; }   // inout binds the 
 ```
 
 Both the key and the value binding are typed — there is no untyped `foreach ($rows as $row)` left, the same
-mandatory-declaration rule as everywhere else in ADR 0007. A reference marker (`&`) may only appear on the
+mandatory-declaration rule as everywhere else in `rule:types/declaration`. A reference marker (`&`) may only appear on the
 value binding, never the key, matching PHP's own restriction.
 
-**The grammar wrinkle ADR 0007 § 2 calls out by name:** inside a `foreach` header, `as` is `foreach`'s own
+**The grammar wrinkle `rule:types/conversion` calls out by name:** inside a `foreach` header, `as` is `foreach`'s own
 keyword, not the conversion operator, so converting the *subject* — not a binding — needs parentheses:
 
 ```php
@@ -223,7 +223,7 @@ type grammar itself; there is no untyped form.
 
 [ADR 0007 § 2](../adr/0007-explicit-type-system.md) opens with "provisional spelling `expr as T`." This
 document fixes that spelling as **final**: `as` is the conversion operator, with no alternate spelling, and
-none is planned. Its precedence and throwing behaviour are exactly as ADR 0007 § 2 already states and are
+none is planned. Its precedence and throwing behaviour are exactly as `rule:types/conversion` already states and are
 not repeated here.
 
 The target may be nullable, and `expr as ?T` is **not** a second spelling — it is the same operator over a
@@ -247,7 +247,7 @@ like any other alias declaration, and M2's resolver is where it becomes a diagno
 
 [ADR 0008 § 2](../adr/0008-static-and-global.md) is the closed, exhaustive list of where state may outlive a
 call, and this document adds no storage class to it and repeats none of its reasoning. What belongs here is
-only the syntax for each row, gathered in one place since it is otherwise scattered across ADR 0007 and `rule:statements/static-is-a-member-modifier`'s own examples:
+only the syntax for each row, gathered in one place since it is otherwise scattered across `rule:types/declaration` and `rule:statements/static-is-a-member-modifier`'s own examples:
 
 | storage | syntax |
 |---|---|
@@ -264,7 +264,7 @@ fix: each rejection's replacement is one of the five rows above, already covered
 
 ## 5. `bytes`: no dedicated literal
 
-[ADR 0009](../adr/0009-string-and-bytes.md) leaves `bytes` literal syntax to this document. Decision: **there
+`rule:types/bytes` leaves `bytes` literal syntax to this document. Decision: **there
 is no `bytes` literal token.** The lexer needs no `b"…"`-shaped production, and M1's scope is smaller for it.
 
 - For the common case — a byte sequence that happens to be valid UTF-8, which is most binary-ish constants a
@@ -286,7 +286,7 @@ ADR owns.
 
 ## Revisiting
 
-- This document does not yet fix operator precedence beyond the two points ADR 0007 already pins (`as`
+- This document does not yet fix operator precedence beyond the two points `rule:types/declaration` already pins (`as`
   binds tighter than any binary operator; `foreach`'s `as` versus the conversion operator). A full
   precedence table belongs in a later spec file once the parser needs one written down rather than inferred
   from the grammar productions above.

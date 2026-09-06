@@ -1,5 +1,5 @@
 --TEST--
-An `int` converts into an enum only where a case names that value, and throws naming every case otherwise — ADR 0010 § 5
+An `int` converts into an enum only where a case names that value, and throws naming every case otherwise — `rule:types/conversion`
 --FILE--
 <?nvs
 enum Mode {
@@ -9,7 +9,7 @@ enum Mode {
 }
 
 class Gate {
-    // ADR 0010 § 5's second row. The conversion itself is free — an enum is
+    // `rule:types/conversion`'s second row. The conversion itself is free — an enum is
     // a tag over its backing integer — so what the row costs is the check in
     // front of it, and that check is against every case of the *declaration*
     // rather than a subset named at the site. That is what keeps the enum a

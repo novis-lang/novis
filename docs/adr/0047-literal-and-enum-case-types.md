@@ -1,4 +1,4 @@
-# ADR 0047 — A scalar literal or a named enum case is itself a type; unioning them declares a closed set
+# `rule:types/literal-types` — A scalar literal or a named enum case is itself a type; unioning them declares a closed set
 
 - **Status:** Accepted
 - **Date:** 2026-08-22
@@ -13,8 +13,7 @@
   existing `true`/`false` literal atoms this ADR generalises.
 - **Amended by:** 0066, 0090
 
-> **In short:** `"a"|"b"|"c"` and `1|2` are now legal types, usable everywhere [ADR 0007](0007-explicit-type-system.md)
-> § 1 requires one — the same generalisation that ADR already made for `true`/`false`, extended to `string`
+> **In short:** `"a"|"b"|"c"` and `1|2` are now legal types, usable everywhere `rule:types/declaration` requires one — the same generalisation that ADR already made for `true`/`false`, extended to `string`
 > and `int` literals. `ClassName::CONST_NAME` is legal in the same position as sugar: if the constant is a
 > scalar (`string`/`int`) compile-time constant, the reference resolves to *that value's own literal type* —
 > `Foo::TYPE_A|Foo::TYPE_B` type-checks exactly like writing out the two literals it names, so a parameter's
@@ -23,9 +22,8 @@
 > the enum**, not a folded integer — `Mode::A|Mode::B` accepts only those two cases of `Mode`, never a raw
 > `int` equal to either one's backing value, because folding it that way would reopen exactly the
 > "raw-int-accepted-where-enum-required" hole `rule:enums/closed-integer-type` closed. Converting
-> untrusted input into any of these types is one checked `as`, exactly [ADR 0007](0007-explicit-type-system.md)
-> § 2's existing shape; widening a literal or case-subset type into its base type is free; narrowing the
-> other way needs a guard or an `as`, exactly [ADR 0007](0007-explicit-type-system.md) § 6's existing shape
+> untrusted input into any of these types is one checked `as`, exactly `rule:types/conversion`'s existing shape; widening a literal or case-subset type into its base type is free; narrowing the
+> other way needs a guard or an `as`, exactly `rule:types/unions-and-mixed`'s existing shape
 > for any union. None of this costs a byte at runtime beyond what the base type already costs — a literal
 > type is checked entirely at compile time wherever the static type is known, and an enum-case type reuses
 > the enum's own zero-byte tag; the only runtime cost is the same small membership check `uint`/`enum`
@@ -46,7 +44,7 @@
   once, visibly" principle already argues against elsewhere (e.g. `rule:statements/require-is-the-only-inclusion-construct`,
   `rule:expressions/no-keyword-logical-operators`).
 - Novis already has two pieces of the real answer, both previously scoped narrower than they needed to be:
-  - [ADR 0007](0007-explicit-type-system.md) § 3 already has `true`/`false` as literal atoms sitting inside
+  - `rule:types/grammar` already has `true`/`false` as literal atoms sitting inside
     ordinary unions — `bool` was always, quietly, "the union of its two literal values." Nothing before this
     ADR generalised that to `string`/`int`.
   - `rule:enums/closed-integer-type` already gives a closed, named, checked set of values for a
@@ -55,7 +53,7 @@
 - **Priorities 1/2/4:** priority 1 (security) wants untrusted input validated against an explicit, narrow
   set as loudly and mechanically as any other conversion; priority 2 (semantics) is unaffected — PHP has no
   construct this replaces, so there is nothing to diverge from; priority 4 (simplicity) is why this reuses
-  the union/conversion machinery [ADR 0007](0007-explicit-type-system.md) already built rather than adding
+  the union/conversion machinery `rule:types/declaration` already built rather than adding
   a fourth mechanism, the same restraint `rule:attributes/inert-metadata` exercised.
 - **Priority 5 (memory):** the whole point of *Decision § 5* is that this spends nothing beyond what the
   base type already spends — a literal or case-subset type is a compile-time refinement, not a new runtime
@@ -70,15 +68,15 @@ case used in type position stays a narrowed view of its enum — it is never fol
 ### 1. String and int literal types
 
 ```
-atom := ... (as ADR 0007 § 3) ...
+atom := ... (as `rule:types/grammar`) ...
       | StringLiteral                    // e.g. "a" — the singleton type inhabited by that exact string
       | IntLiteral                       // e.g. 1, -1 — the singleton type inhabited by that exact int
 ```
 
 Parsed only in type position, the same way `array<T>` already is. `"a"|"b"|"c"` and `1|2|3` are ordinary
-unions of these atoms, canonicalised exactly as [ADR 0007](0007-explicit-type-system.md) § 3 already
+unions of these atoms, canonicalised exactly as `rule:types/grammar` already
 specifies (flattened, de-duplicated, order-insensitive). `?"a"` is sugar for `"a"|null`, following the
-existing `?atom` rule. This is usable at every binding site ADR 0007 § 1 lists — parameter, property,
+existing `?atom` rule. This is usable at every binding site `rule:types/declaration` lists — parameter, property,
 constant, local, return, `foreach` binding — with no special case, the same generality
 `rule:statements/an-enum-name-is-a-type-everywhere` already established for an enum's own name.
 
@@ -125,19 +123,18 @@ function grant(Mode::Read|Mode::Write $m) { ... }    // accepts only those two c
 This has to work differently from *2* because an enum case is not just its backing value — it carries its
 enum's own nominal type (`rule:enums/representation`). If `Mode::Read|Mode::Write` folded
 to its cases' backing integers (say `0|1`), a caller could satisfy that parameter with the bare `int` `0`,
-which is exactly the hole [ADR 0010](0010-enums-are-a-value-type.md) § 5 closed by making `int → Mode`
+which is exactly the hole `rule:types/conversion` closed by making `int → Mode`
 always a checked conversion. An enum-case type is therefore its own atom kind, distinct from an int literal
 type that happens to share a case's backing value — the two are never unified by canonicalisation, because
 they carry different runtime tags (§5).
 
 A case-subset union may name cases of more than one enum, or mix case atoms with unrelated atoms, exactly as
 any other heterogeneous union already may (`Mode::Read|Status::Active|int` is unusual but not disallowed —
-nothing about this ADR restricts what a union may contain beyond what [ADR 0007](0007-explicit-type-system.md)
-§ 3 already allows).
+nothing about this ADR restricts what a union may contain beyond what `rule:types/grammar` already allows).
 
 A binding is narrowed to a case-subset type through `as` and nowhere else: `$m as Mode::Read|Mode::Write` is
 the spelling, and a comparison `$m == Mode::Read` does not narrow `$m` in the branch it guards. Equality
-against a case is not on [ADR 0007](0007-explicit-type-system.md) § 6's narrowing list and this ADR does not
+against a case is not on `rule:types/unions-and-mixed`'s narrowing list and this ADR does not
 add it — an equality-driven narrowing would have to be stated again for `!=`, `&&`, `||` and negation, and
 `as` already says the same thing in one place.
 
@@ -150,8 +147,8 @@ add it — an equality-driven narrowing would have to be stated again for `!=`, 
 | a literal union → its base type (`"a"\|"b"` → `string`) | **total, free** — a strict widening |
 | a case-subset union → its enum (`Mode::Read\|Mode::Write` → `Mode`) | **total, free** — a strict widening |
 | base type / `mixed` → a literal or literal-union type | **checked.** Throws unless the value equals one of the named literals — the same shape `as uint` already has |
-| an enum / `mixed` → a case-subset type | **checked.** Throws unless the value's case is one of the named cases — a further-restricted version of [ADR 0010](0010-enums-are-a-value-type.md) § 5's existing `EnumName` conversion, not a new conversion kind |
-| a wider literal/case-subset union → a narrower one | needs a guard (`match`, `==`) or a checked `as` — [ADR 0007](0007-explicit-type-system.md) § 6's existing narrowing rule, unchanged |
+| an enum / `mixed` → a case-subset type | **checked.** Throws unless the value's case is one of the named cases — a further-restricted version of `rule:types/conversion`'s existing `EnumName` conversion, not a new conversion kind |
+| a wider literal/case-subset union → a narrower one | needs a guard (`match`, `==`) or a checked `as` — `rule:types/unions-and-mixed`'s existing narrowing rule, unchanged |
 
 ```php
 "a"|"b"|"c" $mode = Core\Request::query('mode') as "a"|"b"|"c";   // throws on anything else — never a silent default
@@ -211,11 +208,11 @@ at run time.
 
 - Solves the motivating request as a real, compiler-enforced, priority-1-respecting feature: untrusted input
   validated against an explicit set is exactly the same reviewable, throwing `as` every other conversion in
-  [ADR 0007](0007-explicit-type-system.md) already gets — no third-party IDE annotation, no convention.
+  `rule:types/declaration` already gets — no third-party IDE annotation, no convention.
 - Costs nothing beyond the base type at runtime (*5*) — a rare case of buying priority 1 (a narrower,
   checked type) without spending priority 5 (memory) at all, let alone trading it against priority 3
   (latency): the compile-time-known case is exactly as fast as the base type already was.
-- Reuses three already-accepted mechanisms — [ADR 0007](0007-explicit-type-system.md)'s union/conversion
+- Reuses three already-accepted mechanisms — `rule:types/declaration`'s union/conversion
   machinery, `rule:enums/closed-integer-type`'s constant-folding pass, and the generalisation of
   `true`/`false` that was already sitting in the grammar unadvertised — rather than adding a fourth kind of
   thing to the language, the same restraint `rule:attributes/inert-metadata` exercised
@@ -259,14 +256,14 @@ at run time.
   own stated use cases.
 - **Folding an enum case to its backing value for union purposes, matching § 2's constant handling exactly.**
   Rejected in *Decision § 3*: reopens the raw-int-accepted-where-enum-required hole
-  [ADR 0010](0010-enums-are-a-value-type.md) § 5 closed.
+  `rule:types/conversion` closed.
 - **A dedicated `oneof(...)` or `literal(...)` type-constructor keyword**, instead of reusing `|` union
   syntax for literal atoms. Rejected: the union syntax and its canonicalisation already exist, and literal
   atoms compose with it for free; a separate keyword would be a second spelling for "this is a closed set of
   values," the exact shape `rule:statements/nothing-gets-a-second-name`/`rule:statements/require-is-the-only-inclusion-construct`/
   `rule:expressions/no-keyword-logical-operators` already argue against elsewhere.
 - **A runtime-only validator call instead of a type** (`Arr::contains(["a","b","c"], $x)`).
-  Rejected: it would not be visible in a parameter's declared type the way [ADR 0007](0007-explicit-type-system.md)
+  Rejected: it would not be visible in a parameter's declared type the way `rule:types/declaration`
   already requires everything to be, and would sit alongside the real type system as a second, weaker
   mechanism rather than extending it.
 

@@ -328,7 +328,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 /// One failure, and it is a [`Fault::fatal`]: a value that is not a `string`
 /// at all, which the checker has already refused — this is the ABI's own
 /// assertion, not a program-visible outcome. There is no *encoding* failure to
-/// report, because the tag [`Value::as_text`] checks is itself ADR 0009's
+/// report, because the tag [`Value::as_text`] checks is itself `rule:types/bytes`'s
 /// UTF-8 guarantee; `crate::str`'s own `text` states why re-deriving it here
 /// would be an O(n) pass over a buffer the runtime already knows the answer
 /// for.
@@ -576,7 +576,7 @@ nvs_runtime::nvs_helper! {
         }
 
         // Every byte written is either one of the argument's — which are UTF-8
-        // by ADR 0009 — or the separator, the quote or an `LF`, each of which
+        // by `rule:types/bytes` — or the separator, the quote or an `LF`, each of which
         // `dialect_byte` has already held to ASCII.
         Ok(Value::str(NvsStr::new(&out)))
     }

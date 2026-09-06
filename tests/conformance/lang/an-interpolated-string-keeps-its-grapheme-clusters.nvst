@@ -1,5 +1,5 @@
 --TEST--
-Interpolation and concatenation move a `string` whole; `Core\Str::length` and `::at` count the clusters ADR 0009 § 2 fixes
+Interpolation and concatenation move a `string` whole; `Core\Str::length` and `::at` count the clusters `rule:types/string-is-utf8` fixes
 --FILE--
 <?nvs
 var $s = "héllo👍";

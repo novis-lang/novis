@@ -517,7 +517,7 @@ pub(super) const TRANSACTION_OPTIONS: &[CoreOption] = &[
 pub(super) const TRANSACTION_ROW: CoreMethod = CoreMethod {
     name: "transaction",
     names: &["fn"],
-    // Opaque, as ADR 0031 § 4 keeps every `callable`: what this one is handed
+    // Opaque, as `rule:types/callable-absorbs-closure` keeps every `callable`: what this one is handed
     // is a [`TRANSACTION`] and what it may declare is zero parameters or one,
     // and neither is sayable here — `nvs_runtime::call_closure` trims to the
     // arity the closure recorded, which is § 7's R9 allowance.
@@ -684,7 +684,7 @@ pub(crate) const DRIVER_NAME: &str = r"Core\Db\Driver";
 ///
 /// **The cases are what make `Db\Settings` a discriminated union**, and they
 /// are the whole of the mechanism: ADR 0135 § 2 selects an arm by asking which
-/// one accepts the literal, and ADR 0047's enum-case types make
+/// one accepts the literal, and `rule:types/literal-types`'s enum-case types make
 /// `Driver::Sqlite` and the other four disjoint sets. No field is declared to
 /// be a discriminant, here or anywhere.
 ///
@@ -1226,12 +1226,12 @@ pub(crate) const ROWS: CoreClass = CoreClass {
 ///
 /// **The eleven typed readers convert losslessly or throw, and the rule is one
 /// sentence: a reader answers its own tag, and `int`/`uint` are the single
-/// crossing** — [ADR 0007](/docs/adr/0007-explicit-type-system.md) § 4
+/// crossing** — `rule:types/arithmetic`
 /// makes those two views of one integer, so a `BIGINT` read as `uint` is the
 /// same value and a negative one throws rather than wrapping. Everything else
 /// refuses: `->float` on a `NUMERIC` is not the rounding PHP does silently, and
 /// `->string` on a `BYTEA` is not the re-interpretation
-/// [ADR 0009](/docs/adr/0009-string-and-bytes.md) keeps apart. The
+/// `rule:types/bytes` keeps apart. The
 /// universal path § 18 names — `->get()` plus `as` — is what a program that
 /// means a conversion writes.
 ///

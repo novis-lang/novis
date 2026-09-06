@@ -71,7 +71,7 @@ question this ADR does not open, and keeping it reserved is what lets the diagno
 
 - **One more line item for `nvs convert`'s (M11) rewrite pass**: `list(a, b) = c;` → `[a, b] = c;`. It is a
   bracket-for-parenthesis substitution over a construct whose element grammar is already identical, so it is
-  the cheapest rewrite the converter has been given yet — cheaper than ADR 0034's `(int)$x` → `$x as int`,
+  the cheapest rewrite the converter has been given yet — cheaper than `rule:types/no-legacy-cast`'s `(int)$x` → `$x as int`,
   which at least has to identify an operand.
 - **A further, small subtraction from the "pragmatic superset" promise**, in the same vein as ADRs 0034,
   0045 and 0049. A PHP file using `list()` anywhere no longer parses unconverted. Mitigated by the fact

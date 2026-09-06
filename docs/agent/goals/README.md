@@ -9,7 +9,7 @@ the `nvs-server` goal 6 creates. An eighth, [`Core\Program::id()`](8-program-id.
 member exposing the program fingerprint over hashes the artifact cache already computes. A ninth,
 [`Core\Db\Schema`](9-schema.md), closes [ADR 0067](../../adr/0067-core-db.md)'s own *Revisiting* item and
 sits there because its acceptance property needs every driver goal 5 builds to be finished. A tenth,
-[a typed `callable`](10-typed-callable.md), follows it: [ADR 0136](../../adr/0136-a-callable-carries-its-signature.md)
+[a typed `callable`](10-typed-callable.md), follows it: `rule:types/callable-signature`
 gives the type a function value's parameters and return, and it goes after every goal that *writes*
 callbacks so their registry rows are converted once rather than twice. An eleventh,
 [doc comments](11-doc-comments.md), is last —
@@ -38,7 +38,7 @@ against the rule it replaces.
 request reader's answer being `mixed`. ADR 0140 gives `Core\Arr` one converter from `array<mixed>` to a
 declared shape and `Core\Request` the two members over it, so untrusted data is checked once, where it
 arrives and where a `400` is still the right answer. Its stage 2 is type-surface work the other two need
-nothing of and everything before it would have had to write twice — ADR 0036 § 3's shape gains an
+nothing of and everything before it would have had to write twice — `rule:types/shape-type`'s shape gains an
 optional field, and ADR 0024 § 1's qualifier learns to sit in front of one — which is why it comes after
 the other two.
 
@@ -147,7 +147,7 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [7 temp-sweep](7-temp-sweep.md) | post-parity, ADR 0131 | `nvs-runtime`, `nvs-host`, `nvs-stdlib`, `nvs-config`, `nvs-server`, `nvs-cli` |
 | [8 program-id](8-program-id.md) | post-parity, `rule:programs/no-runtime-autoload` amendment | `nvs-config`, `nvs-hir`, `nvs-runtime`, `nvs-stdlib` |
 | [9 schema](9-schema.md) | post-parity, one ADR slot | `nvs-db`, `nvs-stdlib`, `nvs-cli` |
-| [10 typed-callable](10-typed-callable.md) | post-parity, ADR 0136 | `nvs-syntax`, `nvs-types`, `nvs-stdlib`, `nvs-ir`, `nvs-codegen`, `nvs-runtime` |
+| [10 typed-callable](10-typed-callable.md) | post-parity, `rule:types/callable-signature` | `nvs-syntax`, `nvs-types`, `nvs-stdlib`, `nvs-ir`, `nvs-codegen`, `nvs-runtime` |
 | [11 doc-comments](11-doc-comments.md) | post-parity, ADR 0137 + M4B's tree half | `nvs-syntax`, `nvs-diagnostics`, `nvs-hir`, `nvs-cli` |
 | [12 resilient-tree](12-resilient-tree.md) | M4B, ADR 0099 § 1's other half | `nvs-syntax`, `nvs-diagnostics`, `nvs-test`, `nvs-cli` |
 | [13 surface](13-surface.md) | M1 items 5-6, `rule:expressions/pipeline-substitution` + ADR 0124 | `nvs-syntax`, `nvs-diagnostics` |
@@ -155,7 +155,7 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [15 editor](15-editor.md) | M4B, ADR 0099 §§ 4+6 | **`editors/vscode`** (new, TypeScript) |
 | [16 request-json](16-request-json.md) | M7, ADR 0139 + spec § 15 | `nvs-stdlib`, `nvs-runtime`, `nvs-test`, `nvs-cli` |
 | [17 test-request](17-test-request.md) | M8, `rule:testing/in-process-request` | `nvs-runtime`, `nvs-stdlib`, `nvs-server`, `nvs-test`, `nvs-cli` |
-| [18 input-shapes](18-input-shapes.md) | M7, ADR 0140 + ADR 0036/0024 amendments | `nvs-syntax`, `nvs-types`, `nvs-stdlib` |
+| [18 input-shapes](18-input-shapes.md) | M7, ADR 0140 + `rule:types/object-top`/0024 amendments | `nvs-syntax`, `nvs-types`, `nvs-stdlib` |
 | [19 parses](19-parses.md) | M7, ADR 0141 + ADR 0013/0066/0077/0102 amendments | `nvs-hir`, `nvs-types`, `nvs-stdlib`, `nvs-runtime`, `nvs-cli` |
 | [20 unix-sockets](20-unix-sockets.md) | M8, ADR 0142 + ADR 0058/0059 amendments | `nvs-config`, `nvs-stdlib`, `nvs-db`, `nvs-host`, `nvs-diagnostics` |
 | [21 carried-gaps](21-carried-gaps.md) | post-parity, ADR 0067/0073/0076/0116/0133 amendments | `nvs-config`, `nvs-cli`, `nvs-types`, `nvs-runtime`, `nvs-stdlib`, `nvs-server`, `nvs-db`, `nvs-diagnostics` |

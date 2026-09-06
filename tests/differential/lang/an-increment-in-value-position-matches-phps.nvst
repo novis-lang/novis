@@ -1,5 +1,5 @@
 --TEST--
-`$x++` and `--$x` used as a value agree with PHP on which of the two numbers they answer, and on where the write lands — ADR 0007 §§ 4 and 5
+`$x++` and `--$x` used as a value agree with PHP on which of the two numbers they answer, and on where the write lands — `rule:types/arithmetic` and `rule:types/arrays`
 --FILE--
 <?nvs
 final class Box { public int $n = 0; }
@@ -9,7 +9,7 @@ final class Twice {
     }
 }
 
-// ADR 0007 § 4's `± 1`: the postfix form answers what was there, the prefix
+// `rule:types/arithmetic`'s `± 1`: the postfix form answers what was there, the prefix
 // form what was written.
 int $a = 5;
 echo $a++, " ", $a, " ", ++$a, " ", $a--, " ", --$a, "\n";
