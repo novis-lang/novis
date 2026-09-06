@@ -73,11 +73,26 @@ const isCurrent = (href: string) =>
     height: 100%;
   }
 
+  /* The wordmark and the nav links share a baseline: this row aligns its two
+     items on it, and each item's baseline is its text's — a flex container
+     whose items are not themselves baseline-aligned takes its first item's,
+     and the mark, positioned out of flow below, is no longer that item. The
+     header then centers the row as one box in the bar, and the mark is
+     centered on the row, so it sits on the bar's midline whatever the two
+     text sizes do. */
   .start-group {
+    --mark-size: 2.25rem;
+    --mark-gap: 0.55rem;
+    position: relative;
     display: flex;
-    align-items: center;
+    align-items: baseline;
     gap: calc(var(--sl-nav-gap) + 0.5rem);
     min-width: 0;
+  }
+  @media (max-width: 50rem) {
+    .start-group {
+      --mark-size: 1.9rem;
+    }
   }
 
   .title-wrapper {
@@ -89,20 +104,31 @@ const isCurrent = (href: string) =>
 
   /* Starlight sizes a logo to the nav height less its padding, which suits a
      wide wordmark. Ours is a square mark inside a 512px export that carries
-     ~7% transparent margin of its own, so at the default it draws about a
-     fifth smaller than the box says. Set the box a little larger to land the
-     mark itself at the wordmark's height, and close the gap the `.site-title`
-     flex row leaves between the two. */
+     ~7% transparent margin of its own, so the box is set larger than the
+     wordmark to land the mark itself at its height. The wordmark reserves the
+     mark's column with padding, since the mark is out of flow (see
+     `.start-group`); the clip on `.title-wrapper` does not reach it, because
+     its containing block is the row above the wrapper. */
   .title-wrapper :global(.site-title) {
-    gap: 0.55rem;
+    padding-inline-start: calc(var(--mark-size) + var(--mark-gap));
   }
   .title-wrapper :global(.site-title img) {
-    height: 2.1rem;
+    position: absolute;
+    inset-inline-start: 0;
+    top: 50%;
+    translate: 0 -50%;
+    box-sizing: border-box;
+    height: var(--mark-size);
+    width: var(--mark-size);
+    padding: 0.125rem;
+    border-radius: 0.5rem;
   }
-  @media (max-width: 50rem) {
-    .title-wrapper :global(.site-title img) {
-      height: 1.8rem;
-    }
+  /* In the dark theme the mark stands on a white rounded tile, as it does on
+     the home-screen icon; the padding above is what keeps the crimson off the
+     tile's edge, and it stays in the light theme so the mark is the same size
+     in both. The light theme is the opted-in one, so "dark" is its absence. */
+  :global(:root:not([data-theme='light'])) .title-wrapper :global(.site-title img) {
+    background: white;
   }
 
   .site-nav {
