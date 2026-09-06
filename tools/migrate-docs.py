@@ -219,11 +219,22 @@ def carried_items(pack: str) -> set[str]:
     A pack is prose and its bytes move for a hundred innocent reasons, so byte-diffing it would
     report noise forever. What matters is whether the pack still names each thing it named: an ADR
     section, a module path, a `file:line` anchor, a rule id, a playbook bullet's lead-in.
+
+    An ADR citation is scanned against the **whole pack**, never line by line, because a pack is
+    re-wrapped prose and a citation's one space is a legal wrap point. `orient.py` fills a plan
+    field at width 100, so a rewrite anywhere in that field reflows every line after it: B13's
+    single `ADR 0006` -> rule token in `Open now` grew the field by 31 characters, the reflow left
+    `**ADR` ending one line and `0078's endpoint lands**` opening the next, and all twenty goals
+    reported `lost adr:0078` -- for a record no topic had remapped, whose text was still there in
+    full. `ADR_CARRIED`'s `\\s+` already spans the break; only the per-line loop stopped it. This
+    also makes the *section* half wrap-independent, so `ADR 0074 § 1` reads as one item whichever
+    side of the wrap the `§` falls on. Headings stay per-line, because a heading is a line; rule
+    ids and paths hold no space, so wrapping cannot split one.
     """
     items: set[str] = set()
+    for match in ADR_CARRIED.finditer(pack):
+        items.add(f"adr:{match.group(1)} §{match.group(2)}" if match.group(2) else f"adr:{match.group(1)}")
     for line in pack.splitlines():
-        for match in ADR_CARRIED.finditer(line):
-            items.add(f"adr:{match.group(1)} §{match.group(2)}" if match.group(2) else f"adr:{match.group(1)}")
         for match in rulebook.CITATION.finditer(line):
             items.add(f"rule:{match.group(1)}")
         for match in re.finditer(r"\b((?:crates|docs|tools|tests|benches)/[\w./-]+\.\w+)", line):
