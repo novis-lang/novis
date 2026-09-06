@@ -86,13 +86,18 @@
 //! What it means in this module is that [`Cache::load`]'s mapping is read-only for its whole life
 //! and exists only to be hashed.
 //!
-//! **A landing area is the answer to the >2 GB relocation.** Every undefined symbol a PC-relative
-//! field names gets [`LANDING_LEN`] bytes inside that same mapping: eight holding the symbol's full
+//! **A landing area is the answer to the >2 GB relocation, and to the GOT.** A symbol reached
+//! through one gets [`LANDING_LEN`] bytes inside that same mapping: eight holding the symbol's full
 //! address and, for a call, [`JUMP_THROUGH_NEXT_EIGHT`] in front of them. So every displacement
 //! this loader writes names a target inside its own mapping, whatever distance the host image sits
-//! at. On Windows the area stays empty in practice — a COFF object reaches an import through a
-//! `.rdata$.refptr` cell of its own, which is the same indirection one layer up — and it is ELF's
-//! `PltRelative`/`GotRelative` pair the area exists for.
+//! at. [`landing_for`] decides who gets one, and the distinction it draws is not
+//! defined-versus-undefined: a *call* needs a landing only when the symbol is undefined, because
+//! everything the payload defines is already inside the mapping, but a **GOT-relative** field needs
+//! one either way — the instruction loads through the address the field computes, so a payload's
+//! own literal reached that way needs a slot as much as an imported helper does. On Windows the
+//! area stays nearly empty — a COFF object reaches an import through a `.rdata$.refptr` cell of its
+//! own, which is the same indirection one layer up — and it is ELF's `PltRelative`/`GotRelative`
+//! pair the area exists for.
 //!
 //! Every failure is an [`Unloadable`], and every variant of that is a cache miss on § 3's terms: an
 //! unresolvable name says the artifact was written against a runtime this process no longer
@@ -159,6 +164,13 @@
 //! instruction-cache maintenance that `mprotect` does not imply, and this module has no home for
 //! it; [`HOST_ARCH`] is [`Architecture::Unknown`] off x86-64, so every artifact is a miss there and
 //! every run compiles.
+//!
+//! **Mach-O's leading underscore is not accounted for**, which is latent rather than live: the one
+//! Mach-O host in CI is `aarch64`, where the paragraph above refuses the payload before a symbol is
+//! read. On an x86-64 Mac every undefined name would arrive here as `_nvs_echo_str`, `resolve`
+//! would answer [`None`] for it, and the artifact would be a miss on every run — slow, never wrong.
+//! Stripping the prefix belongs with whatever makes `aarch64` load, since neither is worth a format
+//! branch on its own.
 //!
 //! [ADR 0048](/docs/adr/0048-portable-single-file-executables.md) is not the other half of
 //! this. Its § 2 decides a bundle carries *source*, not precompiled artifacts, and feeds into this
@@ -357,7 +369,7 @@ impl Verified {
         // `addr`, for the same reason `nvs-codegen` uses it when it publishes a descriptor: these
         // bytes are about to be executed, and what they reach through has to stay reachable.
         let base = pages.as_ptr().expose_provenance();
-        layout.fill_landings(&object, &mut pages, resolve)?;
+        layout.fill_landings(&object, &mut pages, base, resolve)?;
         for section in object.sections() {
             let Some(&start) = layout.sections.get(&section.index().0) else {
                 continue;
@@ -453,14 +465,18 @@ pub(crate) enum Unloadable {
     Mapping(String),
 }
 
-/// What a relocation against an *undefined* symbol needs placed beside the code.
+/// What a relocation needs placed beside the code, when the field cannot hold the target itself.
 ///
-/// This is the answer to the one relocation that can be unrepresentable: a PC-relative call from
-/// mapped pages to a helper in this process's image, where the two can be more than 2 GB apart.
-/// Both kinds hold the target as a full 64-bit address and live inside the loader's own mapping,
-/// so the displacement a relocation actually encodes is always one within that mapping — a
-/// linker's veneer and GOT slot, for the same reason a linker has them.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+/// Two different reasons put something here, and only one of them is about distance. A
+/// PC-relative *call* from mapped pages to a helper in this process's image can be more than 2 GB
+/// away, so it goes through a [`Stub`](Self::Stub) — a linker's veneer, for a linker's reason, and
+/// only an undefined symbol needs one because everything the payload defines is inside this same
+/// mapping. A **GOT-relative** field is not about distance at all: the instruction the compiler
+/// emitted *loads through* the address the field computes, so it needs a [`Slot`](Self::Slot)
+/// holding the target whether or not the payload defines the symbol. Substituting the target's own
+/// address there does not shorten the indirection, it reads the target's first eight bytes as a
+/// pointer.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 enum Landing {
     /// Eight bytes holding the symbol's address, for a GOT-relative reference to it.
     Slot,
@@ -474,9 +490,11 @@ struct Layout {
     /// Where each allocatable section starts, by the payload's own section index. Keyed by the
     /// index's number rather than by [`object::SectionIndex`], which `object` does not order.
     sections: BTreeMap<usize, usize>,
-    /// Where each undefined symbol's landing starts, and which kind it is — keyed by
-    /// [`SymbolIndex`]'s number, for the same reason.
-    landings: BTreeMap<usize, (Landing, usize)>,
+    /// Where each landing starts, keyed by the symbol it stands for — [`SymbolIndex`]'s number,
+    /// for the same reason — **and by its kind**, because one symbol can be reached both ways: a
+    /// helper that is called and also has its address taken needs a stub and a slot, and a field
+    /// handed the wrong one of those is off by an indirection rather than off by an address.
+    landings: BTreeMap<(usize, Landing), usize>,
     /// Total bytes to map.
     len: usize,
 }
@@ -510,14 +528,21 @@ impl Layout {
                 let symbol = object
                     .symbol_by_index(index)
                     .map_err(|_| Unloadable::Unreadable)?;
-                if !symbol.is_undefined() || layout.landings.contains_key(&index.0) {
+                let name = symbol.name().map_err(|_| Unloadable::Unreadable)?;
+                let Some(landing) = landing_for(
+                    relocation.kind(),
+                    symbol.kind(),
+                    !symbol.is_undefined(),
+                    name,
+                )?
+                else {
+                    continue;
+                };
+                if layout.landings.contains_key(&(index.0, landing)) {
                     continue;
                 }
-                let name = symbol.name().map_err(|_| Unloadable::Unreadable)?;
-                if let Some(landing) = landing_for(relocation.kind(), symbol.kind(), name)? {
-                    let start = layout.reserve(LANDING_LEN, LANDING_LEN);
-                    layout.landings.insert(index.0, (landing, start));
-                }
+                let start = layout.reserve(LANDING_LEN, LANDING_LEN);
+                layout.landings.insert((index.0, landing), start);
             }
         }
         if layout.len == 0 {
@@ -535,20 +560,31 @@ impl Layout {
 
     /// Writes every landing's target address, which is the only place `resolve` is asked for a
     /// *function*'s address — after this, a call relocation names a stub and nothing else.
+    ///
+    /// A landing for a symbol the payload **defines** — which only a GOT-relative field asks for —
+    /// holds an address inside this same mapping, so it is filled from `base` and never from
+    /// `resolve`: this process has no name for a literal the compiling process minted.
     fn fill_landings(
         &self,
         object: &object::File<'_>,
         pages: &mut [u8],
+        base: usize,
         resolve: &dyn Fn(&str) -> Option<*const u8>,
     ) -> Result<(), Unloadable> {
-        for (index, (landing, start)) in &self.landings {
+        for ((index, landing), start) in &self.landings {
             let symbol = object
                 .symbol_by_index(SymbolIndex(*index))
                 .map_err(|_| Unloadable::Unreadable)?;
-            let name = symbol.name().map_err(|_| Unloadable::Unreadable)?;
-            let address = resolve(name)
-                .ok_or_else(|| Unloadable::Unresolved(name.to_owned()))?
-                .expose_provenance();
+            let address = if symbol.is_undefined() {
+                let name = symbol.name().map_err(|_| Unloadable::Unreadable)?;
+                resolve(name)
+                    .ok_or_else(|| Unloadable::Unresolved(name.to_owned()))?
+                    .expose_provenance()
+            } else {
+                base + self
+                    .symbol_offset(object, &symbol)
+                    .ok_or(Unloadable::Unreadable)?
+            };
             let at = match landing {
                 Landing::Slot => *start,
                 Landing::Stub => {
@@ -593,23 +629,29 @@ impl Layout {
                 let symbol = object
                     .symbol_by_index(index)
                     .map_err(|_| Unloadable::Unreadable)?;
-                if symbol.is_undefined() {
-                    match self.landings.get(&index.0) {
-                        // A landing is the target now: the stub jumps to the symbol, the slot
-                        // holds it, and either way what this field encodes is a displacement
-                        // inside the loader's own mapping.
-                        Some((_, start)) => base + start,
-                        None => {
-                            let name = symbol.name().map_err(|_| Unloadable::Unreadable)?;
-                            resolve(name)
-                                .ok_or_else(|| Unloadable::Unresolved(name.to_owned()))?
-                                .expose_provenance()
-                        }
+                let defined = !symbol.is_undefined();
+                let name = symbol.name().map_err(|_| Unloadable::Unreadable)?;
+                // The same question [`Layout::of`] asked, asked again rather than remembered: the
+                // landing a *field* wants is decided by that field's own kind, so a symbol reached
+                // both ways cannot be handed the other one's.
+                match landing_for(relocation.kind(), symbol.kind(), defined, name)? {
+                    // A landing is the target now: the stub jumps to the symbol, the slot holds
+                    // it, and either way what this field encodes is a displacement inside the
+                    // loader's own mapping.
+                    Some(landing) => {
+                        base + *self
+                            .landings
+                            .get(&(index.0, landing))
+                            .ok_or(Unloadable::Unreadable)?
                     }
-                } else {
-                    base + self
-                        .symbol_offset(object, &symbol)
-                        .ok_or(Unloadable::Unreadable)?
+                    None if defined => {
+                        base + self
+                            .symbol_offset(object, &symbol)
+                            .ok_or(Unloadable::Unreadable)?
+                    }
+                    None => resolve(name)
+                        .ok_or_else(|| Unloadable::Unresolved(name.to_owned()))?
+                        .expose_provenance(),
                 }
             }
             RelocationTarget::Section(index) => {
@@ -667,19 +709,35 @@ fn allocatable(kind: SectionKind) -> bool {
     )
 }
 
-/// What an undefined symbol needs placed for a relocation of this kind, if anything.
+/// What a symbol needs placed for a relocation of this kind, if anything — `defined` says whether
+/// the payload defines it or leaves it to `resolve`.
 ///
-/// An [`Landing::Slot`] and a [`Landing::Stub`] are the two shapes a 64-bit address can be reached
+/// A [`Landing::Slot`] and a [`Landing::Stub`] are the two shapes a 64-bit address can be reached
 /// through from a 32-bit field. An absolute field is already wide enough to hold the address
-/// itself, so it needs neither.
+/// itself, so it needs neither, and neither does any field naming a symbol this payload defines —
+/// with **one** exception, which is the whole reason `defined` is not simply a filter on the
+/// caller's side.
+///
+/// That exception is [`RelocationKind::GotRelative`]. Its slot is an *indirection the instruction
+/// performs*, not a way of reaching something far away: `movq sym@GOTPCREL(%rip), %r` loads eight
+/// bytes from wherever the field points. Cranelift emits it for every non-`colocated` global, which
+/// is every literal `nvs-codegen` puts in a data section (see that crate's `clear_colocated`), so
+/// the payload's own `nvs_bytes_*` come through here defined and still needing a slot. Pointing
+/// such a field at the literal instead loads the literal's first eight bytes as an address — for an
+/// immortal `StrHeader` that is `nvs_runtime::IMMORTAL_REFCOUNT`, and `echo` of it dereferences
+/// `usize::MAX`.
 fn landing_for(
     kind: RelocationKind,
     symbol: SymbolKind,
+    defined: bool,
     name: &str,
 ) -> Result<Option<Landing>, Unloadable> {
     match kind {
         RelocationKind::Absolute => Ok(None),
         RelocationKind::GotRelative => Ok(Some(Landing::Slot)),
+        // Everything the payload defines is inside this one mapping, so a displacement to it is
+        // always representable and a veneer would only be a hop.
+        _ if defined => Ok(None),
         RelocationKind::PltRelative => Ok(Some(Landing::Stub)),
         // A PC-relative field naming code is a call, and a stub answers it whatever the distance.
         // One naming *data* has nowhere to put an indirection the compiler did not emit, so it is
@@ -1874,7 +1932,15 @@ mod tests {
         );
 
         let artifact = object::File::parse(hit.payload()).expect("a relocatable object");
-        let wanted = nvs_codegen::class_desc_symbol("Widget");
+        // Mach-O prefixes every linker-visible name with `_` and ELF and COFF do not, so what the
+        // symbol table holds is the object format's spelling of the name
+        // `nvs_codegen::class_desc_symbol` mints rather than that name itself. Deriving it from
+        // the artifact's own format is what keeps this a claim about the *symbol* on every host.
+        let minted = nvs_codegen::class_desc_symbol("Widget");
+        let wanted = match artifact.format() {
+            object::BinaryFormat::MachO => format!("_{minted}"),
+            _ => minted,
+        };
         let descriptor = artifact
             .symbols()
             .find(|symbol| symbol.name() == Ok(wanted.as_str()))
@@ -1972,6 +2038,42 @@ mod tests {
         .expect("the script echoed UTF-8")
     }
 
+    /// The other side of every `#[cfg(target_arch = "x86_64")]` below: off x86-64 a verified
+    /// payload is a **miss**, and that is a decision rather than a shortfall.
+    ///
+    /// The module doc's *Known gaps* owns why — making freshly written bytes executable on
+    /// `aarch64` needs instruction-cache maintenance `mprotect` does not imply — and [`HOST_ARCH`]
+    /// is where it is spelled. What that costs is one compile per run and nothing a script can
+    /// observe, which is exactly what every other miss in this file costs, so the cases that
+    /// assert a *warm hit* are the ones that carry the gate and this one carries the claim.
+    #[test]
+    #[cfg(not(target_arch = "x86_64"))]
+    fn a_payload_is_a_miss_elsewhere() {
+        let dir = scratch("foreign-arch");
+        let source = dir.join("program.nvs");
+        fs::write(&source, "<?nvs\necho 42;\n")
+            .expect("a scratch directory of this test's own is writable");
+
+        let (payload, descriptors) = unit_of(&source);
+        let cache = Cache::new(dir.join("cache"), env()).expect("a directory of this test's own");
+        let key = artifact_key(content_hash(&payload), cache.env());
+        cache.store(key, &payload).expect("writable");
+
+        // The artifact itself is sound — it verified — so nothing before `relocate` objects. The
+        // refusal is the loader saying it has no answer for this host, which `Cache::load`'s
+        // caller reads as "compile it", never as an error.
+        let hit = cache.load(key).expect("a published artifact verifies");
+        assert!(
+            matches!(
+                hit.relocate(&this_process(&descriptors)),
+                Err(Unloadable::ForeignArchitecture)
+            ),
+            "a host this loader does not relocate for is a miss, not a failure"
+        );
+
+        drop(fs::remove_dir_all(&dir));
+    }
+
     /// § 3 end to end: a payload this process verified becomes pages it can run.
     ///
     /// The assertion is the program's own output, and it is the strongest one available: reaching
@@ -1981,6 +2083,7 @@ mod tests {
     /// time the entry frame was entered. A loader that mapped without relocating, or that
     /// relocated against the compiling process's addresses, cannot get here.
     #[test]
+    #[cfg(target_arch = "x86_64")] // A warm hit is x86-64's; see `a_payload_is_a_miss_elsewhere`.
     fn a_warm_hit_maps_private_writable_relocates_then_makes_the_pages_executable() {
         let dir = scratch("warm-hit");
         let source = dir.join("program.nvs");
@@ -2020,6 +2123,7 @@ mod tests {
     /// process out of the IR its own front end just lowered, and never carried in the file. That is
     /// § 2's decision stated as an observation rather than as prose.
     #[test]
+    #[cfg(target_arch = "x86_64")] // A warm hit is x86-64's; see `a_payload_is_a_miss_elsewhere`.
     fn a_class_in_a_payload_reaches_the_descriptor_this_process_built() {
         let dir = scratch("descriptors");
         let source = dir.join("program.nvs");
@@ -2062,6 +2166,7 @@ mod tests {
     /// `relocate` returned executable pages because a row is written into this process's
     /// descriptor and never back into the mapping.
     #[test]
+    #[cfg(target_arch = "x86_64")] // A warm hit is x86-64's; see `a_payload_is_a_miss_elsewhere`.
     fn a_virtual_call_in_a_payload_reaches_the_method_row_the_loader_bound() {
         let dir = scratch("bind-methods");
         let source = dir.join("program.nvs");
@@ -2106,6 +2211,7 @@ mod tests {
     /// armed by `Unit::install_in` — because that is what lets the compile site hold one variable
     /// whichever path produced it, which is the whole point of § 3 ending in a `Unit`.
     #[test]
+    #[cfg(target_arch = "x86_64")] // A warm hit is x86-64's; see `a_payload_is_a_miss_elsewhere`.
     fn a_warm_hit_assembles_the_unit_a_cold_compile_would_have() {
         let dir = scratch("loaded-unit");
         let source = dir.join("program.nvs");
@@ -2300,6 +2406,7 @@ mod tests {
     /// only the ordering stops it. The recompile afterwards is the "not an error" half — a corrupt
     /// entry costs one compile and nothing a script can observe.
     #[test]
+    #[cfg(target_arch = "x86_64")] // A warm hit is x86-64's; see `a_payload_is_a_miss_elsewhere`.
     fn a_payload_whose_checksum_fails_is_a_miss_and_not_an_error() {
         let dir = scratch("checksum");
         let source = dir.join("program.nvs");
@@ -2352,6 +2459,7 @@ mod tests {
     /// in depth for a file that reached this key's path some other way, and being foreign rather
     /// than broken it survives being read.
     #[test]
+    #[cfg(target_arch = "x86_64")] // A warm hit is x86-64's; see `a_payload_is_a_miss_elsewhere`.
     fn a_payload_written_by_a_different_toolchain_is_a_miss() {
         let dir = scratch("toolchain");
         let source = dir.join("program.nvs");
