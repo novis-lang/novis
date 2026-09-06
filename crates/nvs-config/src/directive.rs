@@ -158,6 +158,11 @@ pub const DIRECTIVES: &[Directive] = &[
     // because § 4's orphan sweep runs once at `nvs serve` boot over the root it started with, so a
     // root swapped under a running server would leave the old one holding entries nothing sweeps.
     Directive { key: "io.temp_root", class: Class::System, apply: Apply::Boot },
+    // ADR 0131 § 5. `System` because § 5 gives the key to the operator alone — a request that could
+    // set it would be exempting its own files from cleanup, which is the hoarding that section
+    // refuses — and `Reload` because it is read by the next script that ends and applying it
+    // re-creates nothing, which is what lets it be flipped on around one problematic request.
+    Directive { key: "debug.keep_temporary", class: Class::System, apply: Apply::Reload },
     Directive { key: "server", class: Class::System, apply: Apply::Boot },
     // `System` and `Reload` together: the pairing ADR 0078 § 2 exists to make expressible.
     Directive { key: "opcache", class: Class::System, apply: Apply::Reload },

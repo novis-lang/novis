@@ -341,6 +341,13 @@ pub struct Debug {
     /// `[]` is off; any subset of `coverage`, `branch`, `trace`, `profile`. `RuntimeTighten`, so a
     /// request may narrow this and can never turn a bit on.
     pub mode: Option<Vec<String>>,
+    /// ADR 0131 § 5 — `true` and the end-of-script sweep logs each path it would have deleted
+    /// instead of deleting it, so the absence of cleanup is deliberate and visible rather than a
+    /// silent leak. `System` and reloadable per `crate::directive`, which is what lets an operator
+    /// flip it on around one problematic request and off again; there is deliberately no
+    /// in-language setter and no per-call persist, because a program that could exempt its own
+    /// files from cleanup is a program that can be made to hoard them.
+    pub keep_temporary: Option<bool>,
 }
 
 /// `[io]` — ADR 0131 § 2's owned root: the one directory `Core\IO::temporaryDir` creates under.
