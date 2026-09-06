@@ -52,11 +52,13 @@ import json
 import re
 import subprocess
 import sys
+import textwrap
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import brief  # noqa: E402  -- same directory, reused rather than reimplemented
 import playbook  # noqa: E402  -- its `score`/`expand` decide which traps this item earns
+import rules as rulebook  # noqa: E402  -- the rulebook library; `[context] rules` selects from it
 
 try:
     import tomllib
@@ -81,7 +83,6 @@ GOAL_MD = AGENT / "loop-goal.md"
 HANDOFF = AGENT / "handoff.md"
 PLAYBOOK = AGENT / "playbook.md"
 CONVENTIONS = AGENT / "conventions.md"
-GROUND_RULES = ADR_DIR / "ground-rules.md"
 RUNNING = ROOT / ".loop" / "running"
 INTERRUPTED = ROOT / ".loop" / "interrupted.json"
 LEDGER = ROOT / ".loop" / "log.md"
@@ -803,51 +804,53 @@ def run_standing_decisions() -> None:
 
 
 def run_rules(m: Manifest) -> None:
-    text = read(GROUND_RULES)
-    if not text:
-        warn(f"{rel(GROUND_RULES)} is missing -- no rule bullets can be selected")
-        return
+    """The rules the goal's `[context] rules` records created or changed, one line each.
+
+    `rules` names decision records by number, as it always has. Until migration unit C2 the
+    bullets came from the authored `docs/ground-rules.md`, selected by the numbers a bullet
+    cited; that file is retired, and the relation it encoded by hand is now the rulebook's
+    `because` -- the same table a frozen record's `changes:` block is derived from. So the pack
+    prints, per record, the rules whose `because` names it, `rule:` token first so the id is
+    what a session copies, and the chapter's body is the rule.
+    """
     section(
         "THE RULES THIS GOAL LIVES INSIDE",
-        f"{rel(GROUND_RULES)}, filtered to [context] rules = {m.rules or '[]'}",
+        f"docs/rules/*.json, the rules created or changed by [context] rules = {m.rules or '[]'}",
     )
     emit("AGENTS.md's priority ordering and its four rules are already in your context. These are")
-    emit("the decisions this goal's own work sits inside; the linked ADR's body is the rule.")
+    emit("the decisions this goal's own work sits inside; the rule's chapter body is the rule.")
     emit()
     if not m.rules:
         warn("[context] rules is empty, so no decision is named as binding this goal")
         return
-
-    # A bullet is one `- ` item and its continuation lines; it is selected when it cites one of
-    # the named ADRs, whether as `(0090)` or as `[0090](0090-...)`.
-    bullets, current = [], []
-    for ln in text.split("\n"):
-        if ln.startswith("- "):
-            if current:
-                bullets.append(current)
-            current = [ln]
-        elif current and (ln.startswith("  ") or not ln.strip()):
-            current.append(ln)
-        elif current:
-            bullets.append(current)
-            current = []
-    if current:
-        bullets.append(current)
-
-    # One bullet may cite several of the goal's ADRs -- ground-rules.md is one sentence per decision
-    # and a decision that amends another names both. It is printed once and credits *every* number it
-    # cites: crediting only the first made the rest look uncited, and the warning then said a rule was
-    # missing from a file that was printing it two lines above.
-    hit = set()
-    for blk in bullets:
-        body = "\n".join(blk)
-        cited = [num for num in m.rules if re.search(rf"\b{re.escape(num)}\b", body)]
-        if cited:
-            emit(body.rstrip())
-            hit.update(cited)
+    try:
+        book = rulebook.Rulebook()
+    except Exception as exc:  # noqa: BLE001 -- a broken rulebook is a loud warning, not a crash
+        warn(f"the rulebook did not load ({exc}); no rule can be selected")
+        return
     for num in m.rules:
-        if num not in hit:
-            warn(f"[context] rules names {num}, but no bullet in {rel(GROUND_RULES)} cites it")
+        created = [r for r in book.by_id.values() if r.because and r.because[0] == num]
+        changed = [r for r in book.by_id.values() if num in r.because[1:]]
+        if not created and not changed:
+            warn(f"[context] rules names {num}, but no rule's `because` names that record")
+            continue
+        emit(f"ADR {num} -- {len(created)} rule(s) created, {len(changed)} changed:")
+        for r in sorted(created, key=lambda r: (r.topic, r.order)):
+            mark = "" if r.status == "shipped" else "  (designed)"
+            emit(f"- `rule:{r.id}` -- {r.title}{mark}")
+        guards = sorted({g for r in created for g in r.guarded_by})
+        if guards:
+            # The authored bullets named the mechanism behind a rule in prose ("`tools/dossier.py`
+            # is the whole mechanism"); the rulebook names it as the rule's guard.
+            emit(textwrap.fill("guarded by: " + ", ".join(guards), width=100, initial_indent="  ",
+                               subsequent_indent="  ", break_on_hyphens=False, break_long_words=False))
+        if changed:
+            # A foundational record sits in the `because` of sixty rules; ids alone keep the
+            # pack readable, and the chapter is one `--where` away.
+            ids = ", ".join(f"rule:{r.id}" for r in sorted(changed, key=lambda r: (r.topic, r.order)))
+            emit(textwrap.fill(f"changed: {ids}", width=100, initial_indent="  ", subsequent_indent="  ",
+                               break_on_hyphens=False, break_long_words=False))
+        emit()
 
 
 def adr_path(number: str) -> Path | None:

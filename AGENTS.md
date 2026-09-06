@@ -26,7 +26,7 @@ overturn a decision. **One call orients you**, and which one depends on why you 
 
 Those three route to everything else. The four files behind them, none of which is read in full by default:
 
-- **[docs/adr/ground-rules.md](docs/adr/ground-rules.md)** — one sentence per settled decision, with its
+- **[docs/ground-rules.md](docs/ground-rules.md)** — one sentence per settled decision, with its
   ADR. The index of what has already been decided; the linked ADR's body is the rule.
 - **[docs/agent/commands.md](docs/agent/commands.md)** — how this repo is driven: `peek.py`, `verify.py`,
   `session.py`, `splice.py`, `plan.py`, `disk.py`, WSL, valgrind, and the two shell rules below in full.

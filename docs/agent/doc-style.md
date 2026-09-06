@@ -15,7 +15,7 @@ The docs are optimised for an agent that reads one file and starts working. Keep
 - A choice that would be expensive to reverse gets its own numbered ADR if the reasoning is subtle or
   contested; otherwise a paragraph in *Decisions taken at project start* in
   [docs/adr/README.md](../adr/README.md). Either way it earns one bullet in
-  [docs/adr/ground-rules.md](../adr/ground-rules.md) and one row in the routing table.
+  [docs/ground-rules.md](../ground-rules.md) and one row in the routing table.
 - Crates for later milestones are created when their milestone starts, not left sitting empty.
 
 ## Length targets, and why nothing enforces them

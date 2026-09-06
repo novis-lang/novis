@@ -19,11 +19,12 @@ a page. Where a legitimately-long *prose* paragraph is only wanted at the head, 
 [`excerpt`] and marked inline with the file and line to open: that is the current/next
 milestone's lead, and every status field but the two that steer a session.
 
-The ADR index is a *count* by default rather than a line per ADR. docs/adr/ground-rules.md
-already carries one bullet per decision with its link, and the routing
-table answers "which file owns this topic" far better than 78 title lines -- so printing the
-table too was a second copy of both. `--adrs` still prints it in full, and any ADR whose status
-is not Accepted is always printed, because that is the part no other file states.
+The decision index is a *count* by default rather than a line per record. docs/ground-rules.md,
+generated from the rulebook, already carries one line per rule with its link, and `--where`
+answers "which file owns this topic" far better than 143 title lines -- so printing them all was
+a second copy of both. `--adrs` still prints one line per record, read off docs/decisions/, and
+any record whose status is not accepted is always printed, because that is the part no other
+file states.
 
 **This script measures nothing and enforces nothing.** The length guidance for a status field,
 a milestone heading or an ADR decision cell is in AGENTS.md, addressed to the author, and is
@@ -388,54 +389,54 @@ def compress_adr_rows(rows, linenos):
     return compressed
 
 
+def decision_records():
+    """(number, title, status) for every frozen record in docs/decisions/, off its YAML block
+    and H1. The index table that used to carry this in docs/adr/README.md was retired by the
+    docs migration's unit C2; the files are the only home now."""
+    out = []
+    for path in sorted(ADR_DIR.glob("[0-9][0-9][0-9][0-9].md")):
+        text = read(path) or ""
+        status, title = "?", ""
+        for line in text.split("\n")[:60]:
+            if line.startswith("status:"):
+                status = line[len("status:"):].strip()
+            elif line.startswith("# "):
+                title = line[2:].split("—", 1)[-1].strip()
+                break
+        out.append((path.name[:4], title, status))
+    return out
+
+
 def run_adr_index(full):
     section(
-        "DECISIONS WITH AN ADR (number, decision, status)",
-        f"{rel(ADR_README)} (the index table)",
+        "DECISIONS WITH A RECORD (number, decision, status)",
+        f"{rel(ADR_DIR)}/NNNN.md (the YAML block and the title)",
     )
-    text = read(ADR_README)
-    if text is None:
-        warn(f"could not read {rel(ADR_README)} at all")
+    records = decision_records()
+    if not records:
+        warn(f"no records under {rel(ADR_DIR)}/")
         return
-    rows, linenos = [], []
-    for lineno, line in enumerate(text.split("\n"), start=1):
-        if line.startswith("| ["):
-            rows.append(line)
-            linenos.append(lineno)
-    if not rows:
-        warn(f"could not slice the ADR index table out of {rel(ADR_README)}")
-        return
-
-    compressed = compress_adr_rows(rows, linenos)
-    malformed = [f"{rel(ADR_README)}:{ln}" for _, ln, dec in compressed if dec is None]
-
     if full:
-        for line, _lineno, _decision in compressed:
-            emit(line)
+        for num, title, status in records:
+            suffix = "" if status == "accepted" else f"   [{status}]"
+            emit(f"{num}  {title}{suffix}")
         emit()
-        emit("Every ADR not marked otherwise is Accepted -- the status column is printed only")
-        emit("for the exceptions.")
+        emit("Every record not marked otherwise is accepted -- the status is printed only for")
+        emit("the exceptions.")
     else:
-        # A status suffix is the `   [Something]` compress_adr_rows appends when the cell is
-        # not "Accepted". Those are the rows no other file in the tree states, so they print
-        # whatever the flag says; the Accepted majority is one bullet each in AGENTS.md.
-        exceptions = [line for line, _ln, dec in compressed if dec is not None and "   [" in line]
-        emit(f"{len(compressed)} ADRs, all Accepted except the {len(exceptions)} listed here.")
-        for line in exceptions:
-            emit(f"  {line}")
+        # The exceptions are the rows no other file in the tree states, so they print whatever
+        # the flag says; the accepted majority is one line each in docs/ground-rules.md.
+        exceptions = [(n, t, s) for n, t, s in records if s != "accepted"]
+        emit(f"{len(records)} records, all accepted except the {len(exceptions)} listed here.")
+        for num, title, status in exceptions:
+            emit(f"  {num}  {title}   [{status}]")
         emit()
-        emit("One bullet per decision, with its link, is in docs/adr/ground-rules.md -- printing")
-        emit("the table here too was a second copy of it. For the whole table as it used to")
-        emit("print: python tools/brief.py --adrs")
+        emit("One line per rule, with its link, is in docs/ground-rules.md -- printing every")
+        emit("record here too was a second copy of it. For one line per record:")
+        emit("python tools/brief.py --adrs")
     emit()
-    emit("The index never holds the full rule or its reasoning -- open the file it names, or")
-    emit("run `python tools/brief.py --where <keyword>` to route a topic to its owner.")
-    if malformed:
-        warn(
-            "these index rows do not split into link/decision/status cells, so they render "
-            "broken on GitHub too -- an unescaped `|` inside a cell is the usual cause, write "
-            "it as `\\|`: " + ", ".join(malformed)
-        )
+    emit("A record never holds the current rule -- docs/rules/ does. Open the chapter a rule id")
+    emit("names, or run `python tools/brief.py --where <keyword>` to route a topic to its owner.")
 
 
 def run_no_adr_decisions():
@@ -514,18 +515,51 @@ def parse_routing_table():
     return rows
 
 
+def run_where_rulebook(terms):
+    """`--where` over the rulebook: the topic list, or every rule whose id or title matches.
+
+    The routing table in docs/adr/README.md was retired by the docs migration's unit C2 -- one
+    row per topic, hand-maintained, was the second copy of what `docs/rules/_index.json` and the
+    chapters' own titles already state. A keyword now routes to a rule, and the rule's chapter is
+    the file that owns the topic. C6 folds the non-rule rows (the plan, the tools) back in.
+    """
+    import rules as rulebook  # noqa: PLC0415 -- same directory; loaded only for --where
+
+    try:
+        book = rulebook.Rulebook()
+    except Exception as exc:  # noqa: BLE001
+        sys.stdout.write(f"brief.py: the rulebook did not load: {exc}\n")
+        return 1
+    if not terms:
+        sys.stdout.write(
+            f"Routing: {len(book.topics)} chapters under docs/rules/, {len(book.by_id)} rules.\n"
+            "Re-run with a keyword for the rules that match: python tools/brief.py --where <keyword>\n\n"
+        )
+        for t in book.topics:
+            sys.stdout.write(f"  docs/rules/{t.topic}.md  {t.title} ({len(t.rules)} rules)\n")
+        return 0
+    needles = [t.lower() for t in terms]
+    hits = [r for r in book.by_id.values()
+            if all(n in (r.id + " " + r.title).lower() for n in needles)]
+    if not hits:
+        sys.stdout.write(
+            f"brief.py --where: no rule id or title matches {' '.join(terms)!r}. Run `--where` "
+            "with no keyword for the chapter list, or grep docs/rules/ for the words.\n"
+        )
+        return 0
+    for r in hits[:40]:
+        mark = "" if r.status == "shipped" else "  (designed)"
+        sys.stdout.write(f"  docs/rules/{r.topic}.md#{r.anchor}  rule:{r.id}{mark}\n     {r.title}\n")
+    if len(hits) > 40:
+        sys.stdout.write(f"  ... and {len(hits) - 40} more; narrow the keyword\n")
+    return 0
+
+
 def run_where(terms):
     """`--where` with no term prints the topic index; with terms, the matching rows in full."""
     rows = parse_routing_table()
-    if rows is None:
-        sys.stdout.write(f"brief.py: could not read {rel(ADR_README)}\n")
-        return 1
     if not rows:
-        sys.stdout.write(
-            f"brief.py: no `| Doing this | Open this |` table in {rel(ADR_README)} -- "
-            "read that file directly.\n"
-        )
-        return 1
+        return run_where_rulebook(terms)
 
     if not terms:
         sys.stdout.write(

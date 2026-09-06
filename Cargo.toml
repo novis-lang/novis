@@ -336,7 +336,7 @@ jiff = "0.2"
 
 # --- JSON (spec § 6) ---
 # RFC 8259 is an external specification, so it is a dependency rather than a
-# hand-written parser (docs/adr/ground-rules.md § *Implementation invariants*). `serde_json`
+# hand-written parser (docs/ground-rules.md § *Implementation invariants*). `serde_json`
 # is the only Rust JSON crate that is simultaneously the ecosystem default,
 # pure Rust with no build script, and driveable *without* its own `Value` tree
 # — `Core\Json::decode` builds an `NvsArray` straight from a visitor, so no
@@ -379,7 +379,7 @@ rand = { version = "0.10", features = ["unbiased"] }
 # --- UUIDs (spec § 11's second table) ---
 # RFC 9562's version and variant nibbles are an external specification, and
 # `Uuid::parse` is a member attacker-controlled text reaches, so neither the
-# layout nor the reader is hand-written (docs/adr/ground-rules.md
+# layout nor the reader is hand-written (docs/ground-rules.md
 # § *Implementation invariants*). `uuid` is the crate the Rust ecosystem
 # already reads for both, it is pure Rust with no build script and no C, and it
 # adds no crate to this tree at all — it is already in Cargo.lock under
@@ -394,7 +394,7 @@ uuid = { version = "1", default-features = false, features = ["std"] }
 
 # --- digests and MACs (spec § 11's `Core\Hash` and `Core\Digest`) ---
 # Every one of these is an external specification with published test vectors
-# and a decade of cryptanalysis attached (docs/adr/ground-rules.md
+# and a decade of cryptanalysis attached (docs/ground-rules.md
 # § *Implementation invariants*), and `Core\Hash::of` is a member request bodies
 # reach — so ADR 0051 § 4's first question is "yes" here and its second one is
 # what picks the crates. The RustCrypto family is pure Rust with no build

@@ -171,7 +171,7 @@
 //! # What is not here: no dependency
 //!
 //! This half binds no outside crate, which is a deliberate exception to
-//! [ground-rules.md](/docs/adr/ground-rules.md)'s "an external
+//! [ground-rules.md](/docs/ground-rules.md)'s "an external
 //! specification is a dependency rather than a hand-written parser". The rule
 //! is about *grammars* — RFC 8259's, RFC 3986's — where a hand-written reader
 //! accumulates divergences no test finds. There is no grammar here: the whole
@@ -184,7 +184,7 @@
 //!
 //! The percent-encoding half above is the exception; the grammar half is the
 //! rule. RFC 3986 is a grammar with an external specification, so
-//! [ground-rules.md](/docs/adr/ground-rules.md) decides that `parse`
+//! [ground-rules.md](/docs/ground-rules.md) decides that `parse`
 //! binds a crate rather than growing a hand-written scanner. What that rule
 //! does *not* decide is **which** specification, because there are two and
 //! they are not a strict and a lax reading of one thing.

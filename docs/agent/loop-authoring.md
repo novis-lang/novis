@@ -75,7 +75,7 @@ unscoped one, which is about 30k of context before a session has read a line of 
 | Field | Selects | Get it wrong by |
 |---|---|---|
 | `modules` | globs under `crates/`; the map line for each | naming a crate when you meant a module, so the whole crate's map prints |
-| `rules` | ADR numbers; their one-sentence bullet from [ground-rules.md](../adr/ground-rules.md) | listing every ADR the topic touches rather than the ones that *bind the work* |
+| `rules` | ADR numbers; their one-sentence bullet from [ground-rules.md](../ground-rules.md) | listing every ADR the topic touches rather than the ones that *bind the work* |
 | `adrs` | `"NNNN"` for the *In short* block, `"NNNN §N"` for one section | naming a whole ADR — that is 7k of context where a section is 1k |
 | `spec` | `"01 §15"` for one section of [docs/spec/](../spec/) — the file's number, then the section. The rosters and their *Replaces* column live here | naming a whole file: `01-core-library.md` is 1,200 lines, and one of its `##` sections is what the question was |
 | `shapes` | headings of [conventions.md](conventions.md) the goal will write | listing all of them; a goal writing no `Core` member does not need that shape |

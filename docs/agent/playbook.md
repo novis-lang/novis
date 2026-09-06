@@ -9162,7 +9162,7 @@ every session. Nothing below was reworded on the way.
 - **A refusal of a shape the language used to accept has five homes, and two of them are tables.**
   The code in `crates/nvs-diagnostics/src/lib.rs`, the report site, a `tests/conformance/reject/`
   case, a row in `docs/reference/tools/30-php-differences.md` **and** a row in
-  `docs/adr/divergences.md` — then `python tools/reference.py`, which regenerates `docs/novis.md`
+  `docs/divergences.md` — then `python tools/reference.py`, which regenerates `docs/novis.md`
   (it carries both tables) and proves its 265 examples, so a chapter example written in the old
   spelling fails there rather than in `verify.py`. And a shape that *worked* has a test pinning the
   old rule: `parser::tests::stmt::try_multi_catch_and_finally` and

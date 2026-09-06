@@ -39,7 +39,7 @@ and do not pivot beyond what is needed to demonstrate the issue.
 
 ## What counts as a vulnerability
 
-The security model is one page: [docs/adr/ground-rules.md](docs/adr/ground-rules.md) § *Security and
+The security model is one page: [docs/ground-rules.md](docs/ground-rules.md) § *Security and
 isolation*, with each rule's ADR behind it. Anything that defeats one of these is in scope:
 
 - **Qualifier bypass** — a `tainted` value reaching a sink unlaundered, a `secret` reaching output, a log,

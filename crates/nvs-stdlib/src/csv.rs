@@ -8,7 +8,7 @@
 //!
 //! `csv-core` is bound for [`nvs_core_csv_parse`] and nothing is bound for
 //! [`nvs_core_csv_format`]. That asymmetry is
-//! [ground-rules.md](/docs/adr/ground-rules.md)'s "an external
+//! [ground-rules.md](/docs/ground-rules.md)'s "an external
 //! specification is a dependency rather than a hand-written parser" applied
 //! where it actually bites: reading. RFC 4180's corners — a quoted field
 //! holding the separator, a quoted field holding a bare `CRLF`, a doubled

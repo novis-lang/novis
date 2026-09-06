@@ -77,10 +77,10 @@ WHAT IT CHECKS, AND WHY EACH ONE IS HERE RATHER THAN IN A REVIEWER'S HEAD
   symmetry   `Amends: A` in B obliges `Amended by: B` in A. One-directional folds are how an ADR
              ends up describing a rule that a later one already replaced.
 
-  indexes    Every ADR owes one routing row in README.md and one bullet in ground-rules.md. An ADR
-             in neither is unreachable by `brief.py --where`, which is the only way anyone finds it.
-             README's index table is *derived* from the titles -- `--index` prints it -- because a
-             hand-written Decision cell is a second copy of a sentence the ADR already opens with.
+  indexes    Retired by the docs migration's unit C2, and quiet since: the routing table, the
+             index table and the authored ground-rules.md are gone, and a record is reached
+             through the rules whose `because` names it (docs/ground-rules.md is generated from
+             them). The check and `--index`/`--sync` stay only until C5 removes them.
 
   residue    An ADR body states the *current* rule and nothing else -- git holds the history. Prose
              like "previously said", "is withdrawn", "used to" is an overlay a reader must apply in
@@ -381,10 +381,15 @@ def check_symmetry(adrs):
     return out
 
 
+def _read_index_doc(name: str) -> str:
+    """An index document's text, or "" once the docs migration has retired it (unit C2 removed
+    the authored ground-rules.md and README.md's two tables; the rulebook renders both now)."""
+    path = os.path.join(INDEX_DIR, name)
+    return open(path, encoding="utf-8").read() if os.path.exists(path) else ""
+
+
 def _index_text():
-    readme = open(os.path.join(INDEX_DIR, "README.md"), encoding="utf-8").read()
-    rules = open(os.path.join(INDEX_DIR, "ground-rules.md"), encoding="utf-8").read()
-    return readme, rules
+    return _read_index_doc("README.md"), _read_index_doc("ground-rules.md")
 
 
 def index_rows(adrs):
@@ -404,11 +409,11 @@ INDEX_TABLE_RE = re.compile(r"^\| # \| Decision \| Status \|\n(?:\|.*\n)+", re.M
 
 
 def check_index_table(adrs):
-    readme = open(os.path.join(INDEX_DIR, "README.md"), encoding="utf-8").read()
+    readme = _read_index_doc("README.md")
     want = "\n".join(index_rows(adrs))
     m = INDEX_TABLE_RE.search(readme)
     if not m:
-        return [("README.md", 1, "no index table -- `python tools/adr.py --index` prints one")]
+        return []  # retired at C2: docs/ground-rules.md is the generated index now
     if m.group(0).strip() != want.strip():
         return [("README.md", readme[: m.start()].count("\n") + 1,
                  "index table is stale -- write it with `python tools/adr.py --sync`")]
@@ -445,6 +450,8 @@ def sync_index_table(adrs):
 def check_indexes(adrs):
     out = []
     readme, rules = _index_text()
+    if not rules and "| Doing this | Open this |" not in readme:
+        return []  # both indexes retired at C2; a record is reachable through its rules' `because`
     routed = set(RECORD_LINK_RE.findall(readme))
     ruled = set(RECORD_LINK_RE.findall(rules))
     for num, a in adrs.items():

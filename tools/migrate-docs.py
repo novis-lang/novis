@@ -459,8 +459,14 @@ class GateResult:
                     print(f"         {line}")
 
 
-def gate(quick: bool = False) -> GateResult:
-    """The six checks. All pass, or the transaction that called this is rolled back."""
+def gate(quick: bool = False, deleted: frozenset[str] = frozenset()) -> GateResult:
+    """The six checks. All pass, or the transaction that called this is rolled back.
+
+    `deleted` is the set of repository-relative paths the calling transaction removes. A pack
+    names the file a section was sliced from (`-- source: docs/ground-rules.md, ...`), and
+    that name cannot survive the file's retirement; the content the file carried is measured by
+    its own items, so only the `path:` item spelling the retired file is let through.
+    """
     result = GateResult()
 
     # 1 -- no citation anywhere resolves to nothing, EXCEPT the debt that predates the migration.
@@ -501,6 +507,8 @@ def gate(quick: bool = False) -> GateResult:
             _, now = run([sys.executable, "tools/orient.py", "--goal", str(toml.relative_to(ROOT))])
             after = carried_items(now)
             for item in sorted(before - after):
+                if item.startswith("path:") and item[5:] in deleted:
+                    continue
                 anchor = None
                 if item.startswith("adr:"):
                     anchor = item[4:]
@@ -886,7 +894,7 @@ def cmd_apply(state: dict, path: Path, dry_run: bool) -> int:
             raise RuntimeError(f"reference.py could not regenerate docs/novis.md:\n{out[-2000:]}")
 
         print("\nrunning the gate...\n")
-        result = gate()
+        result = gate(deleted=frozenset(p.relative_to(ROOT).as_posix() for p in deletes))
         result.report()
         if not result.ok:
             raise RuntimeError("gate failed")

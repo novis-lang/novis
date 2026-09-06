@@ -72,7 +72,7 @@ An ADR body states the current rule and nothing else; git holds the history. The
 **2. A count kept in more than one file.** Always wrong somewhere. The 2026-08-27 pass found two: the
 PHP-divergence count, which stopped at "the twelfth" while sixteen more ADRs added rows, and the
 compiler-recognized-attribute count, which 0102 § 9 had already found wrong in seven places. The fix
-is a register with one home — [divergences.md](../adr/divergences.md) is now that home for the first —
+is a register with one home — [divergences.md](../divergences.md) is now that home for the first —
 and prose that says "joins the closed list" without a number. `--only "stale counters"` looks for the
 spellings; a new kind of count needs a new pattern in `COUNTERS`.
 
@@ -96,7 +96,7 @@ The trim depth, when a pass takes this on:
 - Delete extended comparison tables, prior-art surveys ("how Go/Rust/Java handle this") and
   multi-paragraph reasoning chains down to a one-line callout, or cut them entirely.
 - Where a choice diverges from PHP, state that it was decided and move on. The reasoning belongs in
-  one place, and [divergences.md](../adr/divergences.md) is where the *fact* is indexed.
+  one place, and [divergences.md](../divergences.md) is where the *fact* is indexed.
 - If a section has nothing left worth a bullet, delete the heading too — but see constraint 2 if it
   is numbered.
 
