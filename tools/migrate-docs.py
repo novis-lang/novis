@@ -165,6 +165,21 @@ def unit_status(state: dict, uid: str) -> str:
     return state["units"].get(uid, {}).get("status", "pending")
 
 
+def retired_paths(state: dict) -> frozenset[str]:
+    """Every path a landed unit deleted, so a later transaction is not charged for its absence.
+
+    Gate check 3 lets a `path:` item through when the file it names is one this transaction
+    removes -- and only this transaction's, which meant C2's retirement of `docs/adr/ground-rules.md`
+    was exempt for C2 and counted as a loss in twenty goal packs for C3, whose apply-file deleted
+    nothing. A deletion is banked with the unit that made it, exactly as a remap table is, and the
+    exemption is the union.
+    """
+    out: set[str] = set()
+    for unit in state["units"].values():
+        out.update(unit.get("deleted", ()))
+    return frozenset(out)
+
+
 # --------------------------------------------------------------------------- shell
 
 
@@ -462,11 +477,13 @@ class GateResult:
 def gate(quick: bool = False, deleted: frozenset[str] = frozenset()) -> GateResult:
     """The six checks. All pass, or the transaction that called this is rolled back.
 
-    `deleted` is the set of repository-relative paths the calling transaction removes. A pack
-    names the file a section was sliced from (`-- source: docs/ground-rules.md, ...`), and
-    that name cannot survive the file's retirement; the content the file carried is measured by
-    its own items, so only the `path:` item spelling the retired file is let through.
+    `deleted` is the set of repository-relative paths the calling transaction removes, joined
+    with those every landed unit removed (`retired_paths`). A pack names the file a section was
+    sliced from (`-- source: docs/ground-rules.md, ...`), and that name cannot survive the file's
+    retirement; the content the file carried is measured by its own items, so only the `path:`
+    item spelling the retired file is let through.
     """
+    deleted = deleted | retired_paths(load_state())
     result = GateResult()
 
     # 1 -- no citation anywhere resolves to nothing, EXCEPT the debt that predates the migration.
@@ -910,6 +927,8 @@ def cmd_apply(state: dict, path: Path, dry_run: bool) -> int:
 
     state["units"].setdefault(doc["unit"], {})["status"] = "done"
     state["units"][doc["unit"]]["applied"] = date.today().isoformat()
+    if deletes:
+        state["units"][doc["unit"]]["deleted"] = sorted(p.relative_to(ROOT).as_posix() for p in deletes)
     # The remap table is banked with the unit, because nothing else keeps it. The apply-file lives
     # in a session's scratchpad and the rewrite leaves no trace of which anchor became which rule;
     # C8's sweep, which has to finish the ~70 citations whose sections split across two topics,

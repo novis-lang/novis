@@ -1283,7 +1283,14 @@
     },
     "C2": {
       "status": "done",
-      "applied": "2026-09-06"
+      "applied": "2026-09-06",
+      "deleted": [
+        "docs/adr/divergences.md",
+        "docs/adr/ground-rules.md"
+      ]
+    },
+    "C3": {
+      "status": "in-flight"
     }
   },
   "snapshot": "2026-09-06"
