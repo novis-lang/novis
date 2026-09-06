@@ -26,6 +26,56 @@
  * long (containment, the scheduler) a longer section beats an arbitrary cut.
  */
 
+/**
+ * The sentence a chapter page opens with, above its section cards.
+ *
+ * The repository has no such sentence and should not grow one: a chapter there is read
+ * from the top, and its first rule is its introduction. A chapter here is a landing
+ * page somebody arrives at from a search result, and it has to say what it is about
+ * before it lists 89 links.
+ *
+ * A chapter cut into one section leads with that section's blurb instead, so nothing
+ * here would be read — those three are absent on purpose.
+ */
+export const chapterLeads = {
+  programs:
+    'Who the language is for, how a name reaches the file that declares it, and what ships in the box.',
+  types:
+    'Every binding declares its type and keeps it. This is the closed grammar those types are written in — and the one place a value converts without being asked.',
+  expressions:
+    'What counts as true, what counts as equal, and the two constructs PHP has no spelling for.',
+  statements:
+    'How a name resolves, where a program is allowed to keep state, and which PHP spellings do not parse at all.',
+  classes:
+    'Everything a program declares lives in a class body — and nothing about a class is decided by a method happening to have a particular name.',
+  errors:
+    'A throw is a checked return, not an unwind. What that costs, what happens when nothing catches it, and what a developer-facing message is made of.',
+  tooling:
+    'The commands around the compiler: the terminal, the formatter, doc comments, the PHP converter, and two telemetry opt-ins that are off until you say otherwise.',
+  ide: 'One resilient parse, one language server, and editor clients thin enough that neither of them holds any language logic.',
+  testing:
+    'Testing is part of the language rather than a package you choose — and a feature is not finished until it has four separate proofs.',
+  security:
+    'The reason Novis exists. Isolation, capabilities, and two compile-time qualifiers that keep untrusted data and secrets out of the places where they do damage.',
+  concurrency:
+    'Structured tasks, durable jobs and persistent connections, over one scheduler that never moves a running task between cores.',
+  'core-api': 'What may live in `Core`, and the twenty shape rules every member of it obeys.',
+  'core-classes':
+    "The standard library's own contracts, class by class — running a program, escaping HTML, talking to a database, decoding an image.",
+  observability:
+    'Metrics, traces and exit hooks, read off instrumentation the runtime already carries rather than probes added for the purpose.',
+  'http-server':
+    'What the server does before your code runs, and what it still guarantees when your code goes wrong.',
+  routing:
+    'A route is compiled into a table, matched once before any application code runs, and dispatched by nothing.',
+  config:
+    'One TOML file, an ordered tree of includes over it, and three classes deciding what a running request is allowed to change.',
+  packaging:
+    'How compiled code is cached, how a program becomes a single file, and what a package or an extension is allowed to do once it is there.',
+  'php-migration':
+    "Every departure from PHP's observable behaviour, listed — and what the converter does with the code you already have.",
+}
+
 /** @typedef {{ slug: string, title: string, blurb: string, from: string }} RuleSection */
 
 /** @type {Record<string, RuleSection[]>} */

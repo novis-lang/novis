@@ -1,0 +1,342 @@
+---
+# GENERATED FILE — written by website/scripts/sync-rules.mjs from docs/rules/. Do not edit.
+title: "Diagnostics and logging"
+description: "Every developer-facing output is one closed record. Five producers build it, and the sink in force picks the rendering."
+editUrl: false
+lastUpdated: false
+tableOfContents: false
+prev:
+  link: /docs/rules/errors/the-escalation-ladder/
+  label: "The escalation ladder"
+next:
+  link: /docs/rules/errors/ambiguous-input/
+  label: "Ambiguous input is refused"
+---
+
+<p class="nv-section-lead">Every developer-facing output is one closed record. Five producers build it, and the sink in force picks the rendering.</p>
+
+<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">9</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">7</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">2</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">6</span><span class="nv-count-label">differ from PHP</span></div></div>
+
+<ol class="nv-rule-list"><li><a href="#diagnostic-record">Every developer-facing output is one closed record</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#record-producers">Five producers build the one record</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#record-transformations">Redaction, control bytes, bidi and elision are decided in the record</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#renderings">The sink in force picks the rendering, and no call site may name one</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#no-render-hook">A class cannot change how it is dumped</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#debug-dump">A dump goes to the log, and reaches a response body only in development</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#log-write">One write path, and the engine floor is its other caller</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#log-level">Five levels, and the mapping to syslog is fixed</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#log-fields">A record's fields are named and typed, not a stringly bag</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li></ol>
+
+<div class="nv-rule" id="diagnostic-record">
+
+## Every developer-facing output is one closed record
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#diagnostic-record"><code>errors/diagnostic-record</code></a>
+</div>
+
+Every developer-facing output in Novis is a **record**: an envelope plus a tree of **nodes**. The
+model is closed — a node is one of a fixed set of kinds, and there is no extension point.
+
+The envelope carries `ts`, `level`, `message`, `request_id`, `trace_id`/`span_id` when a trace is
+active, `source`, `count`, and `fields` ([`errors/log-fields`](/docs/rules/errors/diagnostics-and-logging/#log-fields "A record's fields are named and typed, not a stringly bag")). A node is a Scalar tagged with
+its Novis type — so `"1"` and `1` are never confusable, which is the one thing `print_r` cannot do —
+or a Sequence, a Map, an Object with its *declared* properties, an Enum case named rather than
+numbered, a Closure's signature without its body or captures, a Redacted, an Elided, a Cycle
+carrying the identity of the node it repeats, or a Span over a source range.
+
+**The model is content, not presentation.** It carries no colour, no indentation, no width and no
+ordering-for-display; a rendering supplies all four. That separation is what makes
+[`errors/record-transformations`](/docs/rules/errors/diagnostics-and-logging/#record-transformations "Redaction, control bytes, bidi and elision are decided in the record") decidable once, and it is why a fourth rendering would cost one
+implementation rather than five.
+
+One crate — `nvs-render` — owns the model and every rendering of it, and both the runtime and the
+compiler front end depend on it.
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p>There is one model behind every diagnostic, so a value's type is never lost the way <code>print_r</code> loses it</p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/errors/diagnostics-and-logging/#renderings" title="The sink in force picks the rendering, and no call site may name one"><code>errors/renderings</code></a> <a href="/docs/rules/errors/diagnostics-and-logging/#record-transformations" title="Redaction, control bytes, bidi and elision are decided in the record"><code>errors/record-transformations</code></a> <a href="/docs/rules/errors/diagnostics-and-logging/#record-producers" title="Five producers build the one record"><code>errors/record-producers</code></a> <a href="/docs/rules/errors/diagnostics-and-logging/#log-fields" title="A record's fields are named and typed, not a stringly bag"><code>errors/log-fields</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0092.md">record 0092</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0106.md">record 0106</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/a-dump-renders-one-record-through-one-plaintext-view.nvst"><code>tests/conformance/core/a-dump-renders-one-record-through-one-plaintext-view.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/a-dump-and-an-encode-agree-on-what-an-array-is.nvst"><code>tests/conformance/core/a-dump-and-an-encode-agree-on-what-an-array-is.nvst</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="record-producers">
+
+## Five producers build the one record
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="designed">Designed</span>
+<a class="nv-rule-id" href="#record-producers"><code>errors/record-producers</code></a>
+</div>
+
+Five producers build [`errors/diagnostic-record`](/docs/rules/errors/diagnostics-and-logging/#diagnostic-record "Every developer-facing output is one closed record"), and none of them implements a format:
+
+| Producer | What it builds |
+|---|---|
+| `Core\Log::write` | a record with the caller's fields |
+| `Core\Debug::dump` | a record at `Debug`, one node per argument |
+| a `Throwable` and its trace | a record at `Error`, frames as Sequence-of-Object nodes |
+| a test result | a record per assertion, expected and actual as sibling nodes |
+| a compiler diagnostic | Span nodes over a source map |
+
+Two of them buy something concrete beyond consistency, and they are why the scope is five rather
+than two. A test failure renders as a coloured diff locally, as JSON in CI and as HTML in a web
+runner with no reporter written for any of them; and `nvs check` gains a JSON rendering the language
+server consumes.
+
+The `Throwable` case is the one that would have leaked had the scope been narrower. It is the
+most-read diagnostic output in any language, and leaving it outside would have meant a second
+implementation of [`errors/record-transformations`](/docs/rules/errors/diagnostics-and-logging/#record-transformations "Redaction, control bytes, bidi and elision are decided in the record").
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/errors/diagnostics-and-logging/#diagnostic-record" title="Every developer-facing output is one closed record"><code>errors/diagnostic-record</code></a> <a href="/docs/rules/errors/diagnostics-and-logging/#log-write" title="One write path, and the engine floor is its other caller"><code>errors/log-write</code></a> <a href="/docs/rules/errors/diagnostics-and-logging/#debug-dump" title="A dump goes to the log, and reaches a response body only in development"><code>errors/debug-dump</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0092.md">record 0092</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0079.md">record 0079</a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="record-transformations">
+
+## Redaction, control bytes, bidi and elision are decided in the record
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#record-transformations"><code>errors/record-transformations</code></a>
+</div>
+
+Four transformations are properties of the **record**, applied when it is built, before any
+rendering sees it. Every rendering therefore inherits identical answers and none may weaken one.
+
+| Transformation | Rule |
+|---|---|
+| Redaction | a property whose *declared* type carries `secret` becomes a Redacted node |
+| Control bytes | C0 except `LF`/`TAB` becomes its U+2400 Control Picture, `DEL` becomes `␡`, a C1 code point becomes `�` |
+| Bidi | an unterminated directional control becomes `�`; a balanced one passes through |
+| Elision | depth and per-node length caps, replacing what is cut with an Elided node naming how much |
+
+Substitution applies to the JSON rendering too, where framing already makes it unnecessary for
+safety. Uniformity is the point: a value must not read differently depending on which rendering
+someone is looking at, or the renderings stop being views of one record.
+
+**This is what closes log forging for the plaintext rendering.** A human-readable line is not
+`"$k=$v"` concatenation — it renders nodes whose control bytes are already substituted, so a
+newline inside a tainted value cannot forge an entry. That property is the condition on a
+human-readable target existing at all.
+
+Elision belongs to the model precisely so the renderings agree on what was cut, and a cycle is an
+identity rather than a `*RECURSION*` marker, so the HTML rendering can link the repeat and the JSON
+rendering can emit a reference.
+
+Tainted data flows into a record freely, because the record frames it and **the rendering is what
+makes it safe**. There is no raw escape hatch, and no rendering may be selected by an argument.
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p>A cut, a cycle and a redaction are nodes in the record, so every rendering agrees on them instead of truncating per formatter</p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/errors/diagnostics-and-logging/#diagnostic-record" title="Every developer-facing output is one closed record"><code>errors/diagnostic-record</code></a> <a href="/docs/rules/errors/diagnostics-and-logging/#renderings" title="The sink in force picks the rendering, and no call site may name one"><code>errors/renderings</code></a> <a href="/docs/rules/errors/diagnostics-and-logging/#log-write" title="One write path, and the engine floor is its other caller"><code>errors/log-write</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0092.md">record 0092</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0033.md">record 0033</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0086.md">record 0086</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0087.md">record 0087</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/a-secret-typed-property-is-redacted-wherever-it-is-dumped.nvst"><code>tests/conformance/core/a-secret-typed-property-is-redacted-wherever-it-is-dumped.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/a-repeat-is-a-cycle-only-when-it-is-an-ancestor.nvst"><code>tests/conformance/core/a-repeat-is-a-cycle-only-when-it-is-an-ancestor.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/a-dump-cuts-at-its-caps-and-not-one-entry-early.nvst"><code>tests/conformance/core/a-dump-cuts-at-its-caps-and-not-one-entry-early.nvst</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="renderings">
+
+## The sink in force picks the rendering, and no call site may name one
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="designed">Designed</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#renderings"><code>errors/renderings</code></a>
+</div>
+
+A record is rendered as **plaintext**, **HTML** or **JSON**, and the sink already in force picks
+which. **There is no format argument on any producer** — not on `dump`, not on `write`, not on
+`render` — which is what keeps five producers from each growing a `$format` parameter and three
+renderings from becoming fifteen.
+
+| Sink in force | Rendering | Carrier |
+|---|---|---|
+| the terminal | plaintext, indented, coloured iff the terminal has colour | `Cli\Text` |
+| an HTTP request writing an HTML body | a collapsible, typed, class-aware block | `Core\Html\Markup` |
+| an HTTP request writing a JSON body | JSON | `mixed` |
+| the log target | `[log] format`: `"json"` or `"text"` | bytes |
+
+**Zero new carrier types.** Every one already existed, which is what lets a capture around a dump
+return something that re-emits correctly instead of being escaped twice.
+
+Colour is the only thing that varies with a tty; structure, substitution and redaction never do.
+`[log] format` has two values rather than three because HTML is not a log *target* rendering — a
+web-facing log viewer is an HTTP response, and reaches the HTML rendering through the response sink
+like everything else.
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p>One member replaces <code>var_dump</code>, <code>print_r</code>, <code>var_export</code> and <code>json_encode</code>, and reads correctly in every medium</p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/errors/diagnostics-and-logging/#diagnostic-record" title="Every developer-facing output is one closed record"><code>errors/diagnostic-record</code></a> <a href="/docs/rules/errors/diagnostics-and-logging/#debug-dump" title="A dump goes to the log, and reaches a response body only in development"><code>errors/debug-dump</code></a> <a href="/docs/rules/errors/diagnostics-and-logging/#no-render-hook" title="A class cannot change how it is dumped"><code>errors/no-render-hook</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0092.md">record 0092</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0088.md">record 0088</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/log-format-text-selects-the-plaintext-rendering.nvst"><code>tests/conformance/core/log-format-text-selects-the-plaintext-rendering.nvst</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="no-render-hook">
+
+## A class cannot change how it is dumped
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#no-render-hook"><code>errors/no-render-hook</code></a>
+</div>
+
+There is **no customization hook**: no `DebugRepresentable`, no `__debugInfo`, no per-class
+renderer. [`errors/diagnostic-record`](/docs/rules/errors/diagnostics-and-logging/#diagnostic-record "Every developer-facing output is one closed record") being a closed model is that refusal expressed as a data
+type. A dump shows a class's real declared properties and their real current values, with
+[`errors/record-transformations`](/docs/rules/errors/diagnostics-and-logging/#record-transformations "Redaction, control bytes, bidi and elision are decided in the record") and nothing else.
+
+**A dump does not call `Stringable`.** A `toString` result would be a second, prettier, possibly
+lying view of the state a dump exists to show.
+
+Adding a fourth rendering later is a change to one crate, not to any call site — which is the
+property that makes refusing one now cheap to revisit.
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p>No <code>__debugInfo</code> and no <code>__toString</code> in a dump — a dump shows declared state and never a prettier view of it</p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/errors/diagnostics-and-logging/#diagnostic-record" title="Every developer-facing output is one closed record"><code>errors/diagnostic-record</code></a> <a href="/docs/rules/errors/diagnostics-and-logging/#debug-dump" title="A dump goes to the log, and reaches a response body only in development"><code>errors/debug-dump</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0092.md">record 0092</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0028.md">record 0028</a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="debug-dump">
+
+## A dump goes to the log, and reaches a response body only in development
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#debug-dump"><code>errors/debug-dump</code></a>
+</div>
+
+```
+Core\Debug::dump(mixed ...$values): void
+Core\Debug::render(mixed $value): <the carrier of the sink in force>
+```
+
+| Context | Where a dump lands |
+|---|---|
+| a CLI program, a scheduled script, a job worker, a test | **stderr**, plaintext |
+| an HTTP request writing HTML, `[debug] inline` false | one record at `Log\Level::Debug` |
+| an HTTP request writing HTML, `[debug] inline` true | a collapsible block appended to the body, **and** the log record |
+| an HTTP request writing **JSON** | the log record only — **never inline** |
+
+CLI dumps go to stderr, not stdout, so piping and redirection keep working while debugging.
+
+**A JSON body is never modified, in either mode.** Injecting a `debug` key would make the served
+shape disagree with the published contract in exactly the environment where clients are written
+against it — a strict validator would then pass in production and fail in development, the worst
+direction for a bug to point. So a development-mode API response is byte-identical in shape to its
+production counterpart.
+
+`[debug] inline` can only be tightened at run time: a request may turn its own inline output off and
+can never turn it on, so the run mode's default is the only thing that can enable it.
+
+**This is the security half of the rule.** The most-exploited information disclosure in PHP is not a
+bug in `var_dump`; it is that `var_dump` writes to output, so a forgotten call and a production
+deployment are enough. Here the forgotten call writes a log line, and the spelling that would put it
+in a response does not exist outside a mode whose ceiling is closed by default.
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p>A forgotten dump writes a log line; the spelling that puts it in a production response does not exist</p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/errors/diagnostics-and-logging/#renderings" title="The sink in force picks the rendering, and no call site may name one"><code>errors/renderings</code></a> <a href="/docs/rules/errors/diagnostics-and-logging/#record-transformations" title="Redaction, control bytes, bidi and elision are decided in the record"><code>errors/record-transformations</code></a> <a href="/docs/rules/errors/diagnostics-and-logging/#no-render-hook" title="A class cannot change how it is dumped"><code>errors/no-render-hook</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0092.md">record 0092</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0091.md">record 0091</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0085.md">record 0085</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/a-dump-writes-one-record-per-argument-and-none-at-all-for-none.nvst"><code>tests/conformance/core/a-dump-writes-one-record-per-argument-and-none-at-all-for-none.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/a-dump-is-its-arguments-rendered-and-a-capture-never-swallows-one.nvst"><code>tests/conformance/core/a-dump-is-its-arguments-rendered-and-a-capture-never-swallows-one.nvst</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="log-write">
+
+## One write path, and the engine floor is its other caller
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<a class="nv-rule-id" href="#log-write"><code>errors/log-write</code></a>
+</div>
+
+```
+Core\Log::write(Log\Level $level, string $message, array<string, mixed> $fields = []): void
+```
+
+Application code and [`errors/handler-script`](/docs/rules/errors/the-escalation-ladder/#handler-script "Tier 3 — the configured handler is an ordinary isolate on the engine's own budget") call this; it is a thin binding over the **same
+native record-and-write helper** [`errors/engine-floor`](/docs/rules/errors/the-escalation-ladder/#engine-floor "Tier 4 — the floor is native, bounded, and gives up rather than escalating") calls directly when it has no script to
+run at all. One implementation, two callers.
+
+What the two share is the **record** ([`errors/diagnostic-record`](/docs/rules/errors/diagnostics-and-logging/#diagnostic-record "Every developer-facing output is one closed record")), not the bytes. JSON Lines is
+the log target's default rendering of it — one JSON object per line carrying `ts`, `level`,
+`message`, `request_id`, `trace_id` and `span_id` when a trace is active, and `fields`. `[log]
+format = "text"` renders the same record for a human, and keeps that target unforgeable through
+[`errors/record-transformations`](/docs/rules/errors/diagnostics-and-logging/#record-transformations "Redaction, control bytes, bidi and elision are decided in the record") rather than through concatenation.
+
+JSON was chosen over `logfmt` because an arbitrary error message or a multi-line stack trace needs
+escaping that is correct on the first and only attempt at the floor, and JSON's escaping is a
+solved, mechanical problem where `logfmt`'s quoting of embedded quotes, newlines and spaces is not.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/errors/diagnostics-and-logging/#log-level" title="Five levels, and the mapping to syslog is fixed"><code>errors/log-level</code></a> <a href="/docs/rules/errors/diagnostics-and-logging/#log-fields" title="A record's fields are named and typed, not a stringly bag"><code>errors/log-fields</code></a> <a href="/docs/rules/errors/the-escalation-ladder/#engine-floor" title="Tier 4 — the floor is native, bounded, and gives up rather than escalating"><code>errors/engine-floor</code></a> <a href="/docs/rules/errors/diagnostics-and-logging/#diagnostic-record" title="Every developer-facing output is one closed record"><code>errors/diagnostic-record</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0020.md">record 0020</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0092.md">record 0092</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/log-write-renders-one-json-line-per-record.nvst"><code>tests/conformance/core/log-write-renders-one-json-line-per-record.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/error/the-floor-and-core-log-write-record-the-same-error-the-same-way.nvst"><code>tests/conformance/error/the-floor-and-core-log-write-record-the-same-error-the-same-way.nvst</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="log-level">
+
+## Five levels, and the mapping to syslog is fixed
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#log-level"><code>errors/log-level</code></a>
+</div>
+
+```
+Log\Level::Debug   Log\Level::Info   Log\Level::Warn   Log\Level::Error   Log\Level::Critical
+```
+
+An ordinary enum, and the syslog mapping is fixed — 7, 6, 4, 3, 2 — because `syslog` is a
+[`errors/engine-floor`](/docs/rules/errors/the-escalation-ladder/#engine-floor "Tier 4 — the floor is native, bounded, and gives up rather than escalating") target and a severity is not optional there.
+
+`Critical` exists so [`errors/escalation-ladder`](/docs/rules/errors/the-escalation-ladder/#escalation-ladder "A failure escalates through four tiers, and no tier is retried") has a level of its own rather than a parallel
+channel: a resource-limit fatal and a failed third-party call are not the same alerting decision,
+and a level is where an alerting rule can read that difference. There is no `Trace` case, because
+spans and sampling belong to tracing and a trace *level* would be a second home for that fact.
+
+`[log] level` sets the minimum level written.
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p>Five levels rather than PSR-3's eight, because nobody has a rule for choosing <code>notice</code> over <code>info</code></p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/errors/diagnostics-and-logging/#log-write" title="One write path, and the engine floor is its other caller"><code>errors/log-write</code></a> <a href="/docs/rules/errors/diagnostics-and-logging/#diagnostic-record" title="Every developer-facing output is one closed record"><code>errors/diagnostic-record</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0092.md">record 0092</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/log-level-is-the-minimum-level-written.nvst"><code>tests/conformance/core/log-level-is-the-minimum-level-written.nvst</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="log-fields">
+
+## A record's fields are named and typed, not a stringly bag
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<a class="nv-rule-id" href="#log-fields"><code>errors/log-fields</code></a>
+</div>
+
+`fields` is a **named, typed** structure inside [`errors/diagnostic-record`](/docs/rules/errors/diagnostics-and-logging/#diagnostic-record "Every developer-facing output is one closed record"), never
+`array<string, mixed>` at the core. The open type on `Core\Log::write`'s parameter is a call-site
+convenience over it.
+
+That matters for what it keeps possible. Because the names and their types exist in the model, a
+later decision can have `nvs check` collect every call site, build the program's whole log schema at
+compile time, and refuse two call sites that use one field name with two types. No mainstream logger
+can do this, and the shape of the model is what leaves the door open.
+
+Scoped context fields — a record inheriting an enclosing scope's fields — fit the same envelope
+without changing it.
+
+A record is charged to the request's budget, and a record shed under burst pressure **increments a
+counter that is exported**, because a silently dropped log line is worse than a counted one.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/errors/diagnostics-and-logging/#log-write" title="One write path, and the engine floor is its other caller"><code>errors/log-write</code></a> <a href="/docs/rules/errors/diagnostics-and-logging/#diagnostic-record" title="Every developer-facing output is one closed record"><code>errors/diagnostic-record</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0092.md">record 0092</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0076.md">record 0076</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/log-write-omits-an-empty-fields-object.nvst"><code>tests/conformance/core/log-write-omits-an-empty-fields-object.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/log-write-renders-a-field-json-has-no-value-for.nvst"><code>tests/conformance/core/log-write-renders-a-field-json-has-no-value-for.nvst</code></a></dd></div></dl>
+
+</div>

@@ -7,7 +7,7 @@ any other generated input. Updating the site from the repository is **one comman
 by a human (or an agent that was asked to)**:
 
 ```sh
-npm run sync     # pull ADRs + the Core reference from the repository
+npm run sync     # pull the rulebook + the Core reference from the repository
 npm run build    # build the static site into dist/ 
 npx astro build --base /novis/ # build with a custom base
 ```
@@ -19,8 +19,9 @@ npx astro build --base /novis/ # build with a custom base
 | `npm run dev` | dev server with live reload |
 | `npm run build` | production build into `dist/` |
 | `npm run preview` | serve the built site locally |
-| `npm run sync` | all three sync scripts, in order |
-| `npm run sync:adrs` | republish `../docs/decisions/NNNN.md` → `src/content/docs/docs/adr/` + `src/data/adrs.json` |
+| `npm run sync` | all four sync scripts, in order |
+| `npm run sync:rules` | publish `../docs/rules/` → `src/content/docs/docs/rules/**` + `src/data/rules.json` |
+| `npm run sync:decisions` | re-render `../docs/decisions.toml` → `src/data/decisions.json` (the plain-language summary) |
 | `npm run sync:core` | reparse the spec + registry → `src/data/core.json`, create missing member pages |
 | `npm run sync:examples` | mirror `../docs/examples/` → `examples/` |
 | `npm run examples:check` | run every example in `examples/` through the real `nvs` binary and diff against its `.out` file |
@@ -38,12 +39,13 @@ wherever it kept a component.
 
 | Path | Owner | Notes |
 | --- | --- | --- |
-| `src/content/docs/docs/adr/**` | tool | regenerated on every `sync:adrs` — the records in `../docs/decisions/` are frozen; the rule they changed lives in `../docs/rules/` |
-| `src/data/core.json`, `src/data/adrs.json` | tool | regenerated on every sync |
+| `src/content/docs/docs/rules/**` | tool | regenerated on every `sync:rules`, except the handwritten hub at `index.mdx` — a rule's prose lives in `../docs/rules/`, where the rule is |
+| `config/rule-sections.mjs` | human | where each chapter is cut into pages — the one thing about the rulebook the repository does not own |
+| `src/data/core.json`, `src/data/rules.json` | tool | regenerated on every sync |
 | `src/data/core-changelog.json` | human | per-member changelog entries; the tool only creates the empty file |
 | `src/content/docs/docs/core/**.mdx` | **per page** | tool-owned (regenerated every `sync:core`) while `novis.draft: true`; remove the flag to take ownership — then yours: lead text, description, parameter docs, errors, tips, `<SeeAlso ids={…}>` |
 | `src/content/claims/*.md` | human | one file per "Why Novis?" claim; add a file, the page updates |
-| `examples/**` | tool | a mirror of `../docs/examples/`, emptied and rewritten on every `sync:examples` — edit the repository's copy, which is where the sweep that writes them lives ([ADR 0134](../docs/decisions/0134.md)). **Gitignored**, unlike the ADR mirror: that one is transformed on the way in, this one is the same bytes twice. `examples:check` runs it, so a stale mirror fails here rather than shipping |
+| `examples/**` | tool | a mirror of `../docs/examples/`, emptied and rewritten on every `sync:examples` — edit the repository's copy, which is where the sweep that writes them lives ([ADR 0134](../docs/decisions/0134.md)). **Gitignored**, unlike the rulebook pages: those are transformed on the way in, this is the same bytes twice. `examples:check` runs it, so a stale mirror fails here rather than shipping |
 | `scripts/spec-overrides.mjs` | human | corrections for spec table rows the parser cannot read — every fix goes here, never into the parser |
 | `config/site.mjs` | human | **all placeholder URLs live here** — swap them once to go live |
 | `config/external-links.mjs` | human | the rule that a link off the site opens in a new tab with `rel="noopener noreferrer nofollow"` — except the project's own repository and Discord links, which open in a new tab with no `rel`: an integration decorates content links at build time, and a component spreads `externalLinkAttrs(href)` onto any anchor it writes itself |
@@ -78,14 +80,31 @@ orphans at the end of its run for a human to review and delete.
 Novis code blocks get syntax highlighting from `config/novis.tmLanguage.json`
 (languages `novis` / `nvs` in fenced code blocks).
 
-## How the ADR pages work
+## How the rulebook works
 
-`sync:adrs` republishes every `../docs/decisions/NNNN.md` verbatim, with three additions:
-a styled metadata panel (status, scope, depends-on, validated-by, and the rules the record created or changed),
-rewritten links (ADR→ADR links stay on the site; links into the repo go to GitHub), and
-the site-wide **hover tooltips**: any link to `/docs/adr/NNNN/` anywhere on the site
-shows the target ADR's title, status and "In short" summary instantly on hover or
-keyboard focus (`src/scripts/adr-tooltips.ts`).
+The repository owns the rules: `../docs/rules/_index.json` names the chapters,
+`../docs/rules/<topic>.json` holds each chapter's rules in reading order, and
+`../docs/rules/<topic>/<slug>.md` is the prose. `sync:rules` publishes all of it as three
+levels — a hub, 22 chapter pages, and one page per **section**.
+
+A section is a contiguous run of a chapter's rules, and it is the one thing about the
+rulebook the repository does not own, because a chapter there is one document a person
+scrolls and a chapter here cannot be: Security alone is 89 rules. The cut lives in
+`config/rule-sections.mjs`, named by first-rule slug rather than by index, so a rule
+added mid-chapter joins the section it was written into and a stale cut fails the sync
+loudly. A chapter cut into one section has no section pages at all — its rules render on
+the chapter page, so a short chapter costs one click rather than two.
+
+Pages are plain `.md`, never `.mdx`: rule prose is full of `#[Attribute(…)]`, `{field: T}`
+and `<T>`, all of which MDX would read as JSX. The per-rule chrome is raw HTML around the
+prose, which Markdown parses normally either side of a blank line. Every rule gets an
+anchor of its own slug, and every `rule:<topic>/<slug>` citation in the prose is rewritten
+to point at it — so a cross-reference survives any later edit to a heading.
+
+The site publishes what is **true now**. The frozen rationale behind a rule stays in the
+repository at `../docs/decisions/NNNN.md`, and a rule's "Decided in" row links out to it
+(`config/site.mjs` § `decisionRecord`). `/docs/decisions/` is the plain-language summary of
+that same set, rendered from `src/data/decisions.json`.
 
 ## Machine-facing surface
 

@@ -1,0 +1,322 @@
+---
+# GENERATED FILE — written by website/scripts/sync-rules.mjs from docs/rules/. Do not edit.
+title: "Names, files and programs"
+description: "How a name reaches the file that declares it — while compiling, with no loader running anywhere."
+editUrl: false
+lastUpdated: false
+tableOfContents: false
+prev:
+  link: /docs/rules/programs/claims-and-priorities/
+  label: "What Novis claims"
+next:
+  link: /docs/rules/programs/the-framework/
+  label: "The first-party framework"
+---
+
+<p class="nv-section-lead">How a name reaches the file that declares it — while compiling, with no loader running anywhere.</p>
+
+<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">8</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">7</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">1</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">5</span><span class="nv-count-label">differ from PHP</span></div></div>
+
+<ol class="nv-rule-list"><li><a href="#implementing"><code>Core\Program::implementing&lt;T&gt;()</code> is the one enumeration, and it expands while compiling</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#compile-target">A compile target changes the host context, never the language</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#no-runtime-autoload">A name reaches its file while compiling; there is no runtime loader of any kind</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#autoload"><code>autoload</code> maps a prefix to roots, resolved relative to the file that declares it</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#one-declaration-per-autoloaded-file">A file reached by autoload declares exactly one thing, named for the file</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#path-case">A <code>require</code> path is compared against the on-disk entry exactly, on every OS</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#program-id"><code>Core\Program::id()</code> is 64 hex characters naming this program's code and environment</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#bundle-trust-domain">A bundled executable is one trust domain: a program, never a service</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li></ol>
+
+<div class="nv-rule" id="implementing">
+
+## `Core\Program::implementing<T>()` is the one enumeration, and it expands while compiling
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#implementing"><code>programs/implementing</code></a>
+</div>
+
+```php
+function Core\Program::implementing<T>(): array<T>;   // T must be an interface type
+```
+
+It expands, while compiling, to an array literal of `new` expressions — one per non-abstract class in
+the program implementing `T`, **sorted by fully-qualified name**, so the order never depends on
+filesystem enumeration. Each such class needs a no-argument constructor; a diagnostic names any that
+does not, and dependencies arrive through the interface's own methods instead. Because the expansion is
+ordinary `new` evaluated at the call site, the instances are per-request like every other object and
+nothing crosses an isolate boundary.
+
+The selector is an interface rather than an attribute because the interface is what gives the loop body
+a static type to call through: `object` is opaque, shape types describe data rather than methods, and
+`callable` carries no signature.
+
+Answering the query means parsing and collecting declarations from every file under every autoload root
+— the one place resolution is not lazy, and the only thing in Novis that makes a compiled unit depend
+on a *directory's contents* rather than a file's bytes. It is therefore opt-in: **a program that calls
+neither this member nor the compile-time route table performs no scan at all**, and a program calling
+either pays the directory-listing dependency once rather than twice. Type checking and lowering stay
+lazy regardless — a discovered class nobody calls is never checked past its declaration and never
+reaches codegen.
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p>A plugin roster is a compile-time array literal, not a <code>foreach</code> over <code>new $className</code></p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/programs/names-and-files/#no-runtime-autoload" title="A name reaches its file while compiling; there is no runtime loader of any kind"><code>programs/no-runtime-autoload</code></a> <a href="/docs/rules/programs/names-and-files/#autoload" title="autoload maps a prefix to roots, resolved relative to the file that declares it"><code>programs/autoload</code></a> <a href="/docs/rules/programs/the-framework/#framework-refusals" title="The framework has no ORM, no runtime container, and no second way to do anything"><code>programs/framework-refusals</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0061.md">record 0061</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/program-implementing-enumerates-every-implementor.nvst"><code>tests/conformance/core/program-implementing-enumerates-every-implementor.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/program-implementing-expands-to-new-expressions-at-the-call-site.nvst"><code>tests/conformance/core/program-implementing-expands-to-new-expressions-at-the-call-site.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/a-class-named-only-by-an-attribute-is-autoloaded.nvst"><code>tests/conformance/lang/a-class-named-only-by-an-attribute-is-autoloaded.nvst</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="compile-target">
+
+## A compile target changes the host context, never the language
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="designed">Designed</span>
+<a class="nv-rule-id" href="#compile-target"><code>programs/compile-target</code></a>
+</div>
+
+Every compile target shares one front end, one resolver, one type checker and one IR. A target is a
+*host context* plus a codegen backend, never a dialect: the type system, taint tracking, PHP-compat
+semantics, name resolution, definite initialization and the checked-return ABI are identical wherever
+a program is compiled.
+
+Host state reaches a program through `Core` accessor classes rather than through language syntax, so a
+target that has no inbound HTTP request simply does not offer `Core\Request`, and a call to an
+accessor its context does not model is refused at exactly the point a spawned isolate's call to the
+same accessor is. Where a target cannot provide a capability, using it is **a compile-time diagnostic
+naming the target, never a silent no-op and never a weaker substitute** — a construct whose guarantee
+quietly disappears on one target is worse than one plainly refused there.
+
+The browser is not a target Novis builds. A `wasm32` backend for a browser tab is off the roadmap: its
+standing cost is instruction selection and calling-convention lowering happening twice for every
+codegen feature thereafter, and nothing is asking for it. The rule above governs the targets that
+exist and any that is added later.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/programs/names-and-files/#bundle-trust-domain" title="A bundled executable is one trust domain: a program, never a service"><code>programs/bundle-trust-domain</code></a> <a href="/docs/rules/programs/names-and-files/#no-runtime-autoload" title="A name reaches its file while compiling; there is no runtime loader of any kind"><code>programs/no-runtime-autoload</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0025.md">record 0025</a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="no-runtime-autoload">
+
+## A name reaches its file while compiling; there is no runtime loader of any kind
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#no-runtime-autoload"><code>programs/no-runtime-autoload</code></a>
+</div>
+
+Nothing in Novis loads code in response to a name being referenced at run time. A reference to a class,
+interface, enum or `type` alias is resolved to the file declaring it while checking, through
+[`programs/autoload`](/docs/rules/programs/names-and-files/#autoload "autoload maps a prefix to roots, resolved relative to the file that declares it")'s map, and the program's file graph is closed before any user code runs.
+
+There is no loader stack to register with, no registration call, no manifest file, no configuration
+home, no walk-up root search, no classmap, no PSR-0 underscore rule, and no "load these files
+unconditionally" list. A registered loader would be process-global mutable state driving a load of
+arbitrary code, it would have to run during name resolution — which has already finished by the time
+any user code exists — and it would reopen the closed `require` graph a bundled executable depends on.
+
+There is likewise no allow/deny list over what may be loaded. A check on class loading is not a
+security boundary: nothing stops code *referencing* a denied class, so the check only moves the failure
+later. A deployment that must exclude a module does not ship its directory.
+
+Classes cannot be loaded from a database, a generated file, or anywhere but the filesystem at compile
+time, and a name held in a string can never pull in a new file — `Core\Reflect`'s lookup by name
+reaches only the compiled program.
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p>There is no <code>spl_autoload_register</code>, no <code>__autoload</code> and no <code>new $name</code> — a name held in a string can never reach a file</p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/programs/names-and-files/#autoload" title="autoload maps a prefix to roots, resolved relative to the file that declares it"><code>programs/autoload</code></a> <a href="/docs/rules/programs/names-and-files/#implementing" title="Core\Program::implementing&lt;T&gt;() is the one enumeration, and it expands while compiling"><code>programs/implementing</code></a> <a href="/docs/rules/programs/names-and-files/#one-declaration-per-autoloaded-file" title="A file reached by autoload declares exactly one thing, named for the file"><code>programs/one-declaration-per-autoloaded-file</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0061.md">record 0061</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0028.md">record 0028</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0052.md">record 0052</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/a-class-reached-only-through-autoload-runs.nvst"><code>tests/conformance/lang/a-class-reached-only-through-autoload-runs.nvst</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="autoload">
+
+## `autoload` maps a prefix to roots, resolved relative to the file that declares it
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#autoload"><code>programs/autoload</code></a>
+</div>
+
+`autoload` is a top-level declaration in two forms, both taking **literal strings only**:
+
+```php
+autoload 'Framework' from './';                        // one prefix, one root
+autoload 'Acme\Legacy' from '../vendor/acme/lib',
+                            '../vendor/acme/compat';   // one prefix, several roots
+autoload discover '../../*/src';                       // each directory names its own prefix
+```
+
+Paths resolve **relative to the file that declares them**, never to the entry point, which is what lets
+one framework directory serve many unrelated project trees. A concatenated or interpolated path is
+`E_AUTOLOAD_PATH_NOT_LITERAL`. A prefix carries no trailing separator; matching appends one.
+
+`discover` takes a glob containing exactly one `*` occupying a whole path segment. Every directory it
+matches becomes a root and the matched segment becomes that root's prefix. A matched directory whose
+name is not a legal `PascalCase` namespace segment is **skipped, not diagnosed** — a glob over a
+filesystem inevitably sweeps `.git` and `vendor`. The glob itself is held stricter: one that is not a
+single whole-segment `*`, and one whose base directory does not exist, are both
+`E_AUTOLOAD_GLOB_SHAPE`, because a typo that silently discovers nothing is the worst outcome on offer.
+
+Longest matching prefix wins; within a prefix, roots are probed in declaration order and the first hit
+wins, which is what makes a vendor override work. Remaining segments are directories, the last is the
+file name plus `.nvs`, and the on-disk entry is compared exactly ([`programs/path-case`](/docs/rules/programs/names-and-files/#path-case "A require path is compared against the on-disk entry exactly, on every OS")). An
+explicit prefix beats a `discover` glob producing the same prefix and the glob skips that name; any
+other duplicate is `E_DUPLICATE_AUTOLOAD_PREFIX`, naming both sites.
+
+Declarations are honoured only in a file reachable through `require` from the entry point. One inside
+an autoloaded file is `E_AUTOLOAD_IN_AUTOLOADED_FILE`, because the map would otherwise depend on
+itself; operationally the map is fixed the moment it is first consulted, so the rule reaches the whole
+autoloaded sub-graph. Within the bootstrap chain the effective map is the **union** of every
+declaration, which with the duplicate rule makes it order-independent.
+
+Path traversal is structurally impossible, with no sanitizer: a resolved suffix is built only from
+namespace segments, which are `PascalCase` identifiers that may not begin with `_`, so `.`, `..` and a
+path separator cannot occur in one.
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p>The map is a declaration in source rather than a registered loader or a <code>psr-4</code> manifest, and it travels with the code instead of with the deployment</p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/programs/names-and-files/#no-runtime-autoload" title="A name reaches its file while compiling; there is no runtime loader of any kind"><code>programs/no-runtime-autoload</code></a> <a href="/docs/rules/programs/names-and-files/#one-declaration-per-autoloaded-file" title="A file reached by autoload declares exactly one thing, named for the file"><code>programs/one-declaration-per-autoloaded-file</code></a> <a href="/docs/rules/programs/names-and-files/#path-case" title="A require path is compared against the on-disk entry exactly, on every OS"><code>programs/path-case</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0061.md">record 0061</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0021.md">record 0021</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0029.md">record 0029</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/an-autoload-in-the-entry-point-resolves-a-class.nvst"><code>tests/conformance/lang/an-autoload-in-the-entry-point-resolves-a-class.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/an-autoload-prefix-probes-its-second-root-only-after-the-first-misses.nvst"><code>tests/conformance/lang/an-autoload-prefix-probes-its-second-root-only-after-the-first-misses.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/an-autoload-probe-compares-the-on-disk-spelling-exactly.nvst"><code>tests/conformance/lang/an-autoload-probe-compares-the-on-disk-spelling-exactly.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/an-explicit-autoload-prefix-shadows-a-discover-glob.nvst"><code>tests/conformance/lang/an-explicit-autoload-prefix-shadows-a-discover-glob.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/a-duplicate-autoload-prefix-is-a-compile-error.nvst"><code>tests/conformance/lang/a-duplicate-autoload-prefix-is-a-compile-error.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/an-autoload-inside-an-autoloaded-file-is-a-compile-error.nvst"><code>tests/conformance/lang/an-autoload-inside-an-autoloaded-file-is-a-compile-error.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-hir/src/autoload.rs"><code>crates/nvs-hir/src/autoload.rs</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="one-declaration-per-autoloaded-file">
+
+## A file reached by autoload declares exactly one thing, named for the file
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#one-declaration-per-autoloaded-file"><code>programs/one-declaration-per-autoloaded-file</code></a>
+</div>
+
+A file loaded through an autoload root contains exactly one top-level declaration — class, interface,
+enum or `type` alias — whose name matches the file's base name. Anything else is
+`E_AUTOLOAD_FILE_SHAPE`.
+
+This is not tidiness. Without it, whether `App\Helper` exists in the program depends on whether
+something else happened to reference `App\Thing` declared in the same file first, which makes the
+program's contents depend on resolution order: a non-reproducible build and an unkeyable cache.
+
+Files reached by `require` are unaffected and may declare anything. The cost is that a helper enum or
+`type` alias used by one class needs its own file.
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p>PSR-4 imposes this by convention; here it is a diagnostic</p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/programs/names-and-files/#autoload" title="autoload maps a prefix to roots, resolved relative to the file that declares it"><code>programs/autoload</code></a> <a href="/docs/rules/programs/names-and-files/#no-runtime-autoload" title="A name reaches its file while compiling; there is no runtime loader of any kind"><code>programs/no-runtime-autoload</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0061.md">record 0061</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/an-autoloaded-file-declares-exactly-one-thing.nvst"><code>tests/conformance/lang/an-autoloaded-file-declares-exactly-one-thing.nvst</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="path-case">
+
+## A `require` path is compared against the on-disk entry exactly, on every OS
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#path-case"><code>programs/path-case</code></a>
+</div>
+
+A `require` with a literal path resolves, and the resolved real path is then compared component-wise
+against the path as written. A component that differs **only** in case is
+`E_REQUIRE_PATH_CASE_MISMATCH`. So `require 'mailer.nvs';` against a file named `Mailer.nvs` is an
+error on Windows and macOS, where it would otherwise have compiled, and it was already
+`E_REQUIRE_TARGET_NOT_FOUND` on Linux. The invariant is what matters: **a mis-cased path never compiles
+clean on any OS.** Autoload roots are held to the same comparison.
+
+Three properties keep the check honest:
+
+- **It costs no syscalls.** `canonicalize` on Windows and macOS already returns the entry's true
+  on-disk spelling, so this is a string compare of two paths the resolver is already holding. On a
+  case-sensitive filesystem the comparison can only pass, because a mis-cased path never resolved.
+- **It reports only a pure case difference.** The literal's components are replayed onto the requiring
+  file's canonical directory — `.` skipped, `..` popped — to line up positionally with the resolved
+  path. If a symlink was crossed or the path was absolute, that alignment is gone and the check is
+  skipped rather than guessed at.
+- **It never reports the entry file's own spelling.** Only components the `require` literal itself
+  wrote are compared; how the entry file was named on the command line is not this diagnostic's
+  business.
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p><code>require</code> does not inherit the filesystem's case behaviour, so a path that resolves on Windows or macOS resolves on Linux or fails on all three</p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/programs/names-and-files/#autoload" title="autoload maps a prefix to roots, resolved relative to the file that declares it"><code>programs/autoload</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0062.md">record 0062</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0021.md">record 0021</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-hir/src/requires.rs"><code>crates/nvs-hir/src/requires.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/an-autoload-probe-compares-the-on-disk-spelling-exactly.nvst"><code>tests/conformance/lang/an-autoload-probe-compares-the-on-disk-spelling-exactly.nvst</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="program-id">
+
+## `Core\Program::id()` is 64 hex characters naming this program's code and environment
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<a class="nv-rule-id" href="#program-id"><code>programs/program-id</code></a>
+</div>
+
+```php
+function Core\Program::id(): string;
+```
+
+`BLAKE3(unit content hashes in program order ‖ env_hash)`, rendered as all 32 bytes in lowercase hex —
+64 characters, never truncated by the runtime, because a caller that wants eight of them can take eight
+and one that wants all 32 cannot get them back. Program order rather than sorted order: a graph whose
+units resolve in a different order is a different program, and an identity that cannot see that is not
+one.
+
+It is the one member of its class with a body, and that is circularity rather than preference. Folding
+it into a constant would write the id into a unit as a literal, which changes that unit's bytes, hence
+its content hash, hence the id just folded. The host computes it once, where the resolved graph and the
+environment digest are both in hand, writes it onto the context before any Novis code runs, and the
+member reads that string back.
+
+**Computed at program resolution and at the hot-reload pointer swap, never per call and never lazily.**
+Those are the only two moments a running host's set of units changes; a lazy first-call compute would
+put a hash of every unit digest on one unlucky request's path. It holds 32 bytes per program and one
+BLAKE3 combine per resolution ([`programs/memory-priority`](/docs/rules/programs/claims-and-priorities/#memory-priority "Memory buys security, correctness, latency and simplicity — bounded, attributable and stated")).
+
+Plain `string`, never `secret`: every use of the id is an echo — a cache-busting URL segment, a
+response header, the field that tells one deployment's log lines from another's — and `secret` refuses
+an echo by design. A context nobody wrote an id onto makes the member **throw**, rather than answer an
+empty string or invent one, because callers key caches and invalidate CDNs on this value and a wrong
+identity is worse than no answer.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/programs/claims-and-priorities/#memory-priority" title="Memory buys security, correctness, latency and simplicity — bounded, attributable and stated"><code>programs/memory-priority</code></a> <a href="/docs/rules/programs/names-and-files/#no-runtime-autoload" title="A name reaches its file while compiling; there is no runtime loader of any kind"><code>programs/no-runtime-autoload</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0061.md">record 0061</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0042.md">record 0042</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/a-program-id-is-64-lowercase-hex-characters.nvst"><code>tests/conformance/core/a-program-id-is-64-lowercase-hex-characters.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/a-program-id-is-the-programs-and-not-the-asking-files.nvst"><code>tests/conformance/core/a-program-id-is-the-programs-and-not-the-asking-files.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/two-reads-of-the-program-id-in-one-run-agree.nvst"><code>tests/conformance/core/two-reads-of-the-program-id-in-one-run-agree.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-config/src/cache.rs"><code>crates/nvs-config/src/cache.rs</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="bundle-trust-domain">
+
+## A bundled executable is one trust domain: a program, never a service
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<a class="nv-rule-id" href="#bundle-trust-domain"><code>programs/bundle-trust-domain</code></a>
+</div>
+
+`nvs build --compile` ships a runnable *program*, not a deployable *service*. The person who downloads
+and runs the resulting executable is the only principal involved, exactly as for any other native
+binary, so the root-owned-configuration-versus-app-capability separation is not engaged at all: there
+is no operator-versus-author boundary inside a bundle to protect, and this feature introduces no
+capability model of its own.
+
+**`nvs serve` is not bundled.** Packaging a web-serving deployment this way would put the app's own
+build step in control of what ships as the equivalent of a root-owned configuration, which is precisely
+the property that an application can never grant itself rights. That is a different feature needing its
+own argument, not a generalisation of this one.
+
+The same boundary holds from the other side: **a bundled executable may not install itself as a
+service.** A privileged account executing that payload at every boot is exactly the second principal
+the single-trust-domain argument depends on there not being, so the installer refuses a host that is
+itself a bundle.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/programs/names-and-files/#compile-target" title="A compile target changes the host context, never the language"><code>programs/compile-target</code></a> <a href="/docs/rules/programs/claims-and-priorities/#audience" title="Novis is built for web applications of every kind, with command-line tooling second"><code>programs/audience</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0048.md">record 0048</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0093.md">record 0093</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-cli/src/service.rs"><code>crates/nvs-cli/src/service.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-cli/tests/bundle.rs"><code>crates/nvs-cli/tests/bundle.rs</code></a></dd></div></dl>
+
+</div>

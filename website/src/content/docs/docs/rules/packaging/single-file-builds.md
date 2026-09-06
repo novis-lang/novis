@@ -1,0 +1,366 @@
+---
+# GENERATED FILE — written by website/scripts/sync-rules.mjs from docs/rules/. Do not edit.
+title: "Single-file builds"
+description: "A bundle is source appended to a copy of the host binary, found by a footer, carrying a notice generated from the dependency graph."
+editUrl: false
+lastUpdated: false
+tableOfContents: false
+prev:
+  link: /docs/rules/packaging/the-artifact-cache/
+  label: "The compiled-unit cache"
+next:
+  link: /docs/rules/packaging/packages/
+  label: "Packages"
+---
+
+<p class="nv-section-lead">A bundle is source appended to a copy of the host binary, found by a footer, carrying a notice generated from the dependency graph.</p>
+
+<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">11</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">10</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">1</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">5</span><span class="nv-count-label">differ from PHP</span></div></div>
+
+<ol class="nv-rule-list"><li><a href="#nvs-build-compile-appends-the-program-to-a-copy-of-the-host"><code>nvs build --compile</code> appends a program to a copy of the <code>nvs</code> binary, and rebundling is running it again</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-bundle-carries-source-not-artifacts">A bundle's payload is source, as a flat file list with no archive and no compression</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-bundled-require-resolves-at-build-time">Inside a closed-world target every <code>require</code> resolves at build time, and one that cannot fails the build</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-bundle-is-found-by-its-footer-before-argv-is-read">A bundle is recognised by a footer the host reads before it parses one argument</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#build-compile-packages-what-is-on-disk-and-resolves-nothing"><code>nvs build --compile</code> packages what is already resolved on disk and fetches no dependency</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-nvsx-dependency-embeds-in-the-same-payload">A <code>.nvsx</code> the program depends on is embedded as one opaque entry of the same flat list</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#a-macos-bundle-is-ad-hoc-signed-at-build">A macOS bundle is ad-hoc signed by the build command; PE and ELF need no step</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#a-build-records-no-timestamp">A build records its target, host, profile, compiler and commit, and never a date</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#the-third-party-notice-is-generated-never-written-by-hand">The third-party notice is generated from the dependency graph, fails closed, and is never written by hand</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#the-notice-is-embedded-in-the-binary">The notice and Novis's own license are compiled into the binary from the same tree</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#nvs-info-is-the-one-call-and-nvs-i-its-php-spelling"><code>nvs info</code> is the one call for build, host and licensing facts, and <code>nvs -i</code> is the same command</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li></ol>
+
+<div class="nv-rule" id="nvs-build-compile-appends-the-program-to-a-copy-of-the-host">
+
+## `nvs build --compile` appends a program to a copy of the `nvs` binary, and rebundling is running it again
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#nvs-build-compile-appends-the-program-to-a-copy-of-the-host"><code>packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host</code></a>
+</div>
+
+`nvs build --compile entry.nvs -o app[.exe]` produces a portable single-file executable. It resolves the
+entry file's `require` graph ([`packaging/a-bundled-require-resolves-at-build-time`](/docs/rules/packaging/single-file-builds/#a-bundled-require-resolves-at-build-time "Inside a closed-world target every require resolves at build time, and one that cannot fails the build")), appends the
+resulting source list and a footer to a **copy of the current `nvs` host binary**, and writes the result.
+The output runs on any machine matching the host binary's own target, and it is one file: no sidecar
+archive, no interpreter to install.
+
+**The shipped executable never mutates itself.** "End users can rebundle it easily" means the app author
+reruns this one command over their own source, the way `bun build --compile` or `cargo build` is rerun —
+never that a running end-user copy accepts new code and re-emits itself. That is what makes a bundle a
+single trust domain ([`programs/bundle-trust-domain`](/docs/rules/programs/names-and-files/#bundle-trust-domain "A bundled executable is one trust domain: a program, never a service")): the only principal who ever produces the
+artifact is the one who already has the source, and a bundle may not install itself as a service for
+the same reason.
+
+The feature ships a runnable *program*; `nvs serve` is not bundled, and the bundler is not a package
+manager ([`packaging/build-compile-packages-what-is-on-disk-and-resolves-nothing`](/docs/rules/packaging/single-file-builds/#build-compile-packages-what-is-on-disk-and-resolves-nothing "nvs build --compile packages what is already resolved on disk and fetches no dependency")). The only
+genuinely new code is the footer writer and the footer reader
+([`packaging/a-bundle-is-found-by-its-footer-before-argv-is-read`](/docs/rules/packaging/single-file-builds/#a-bundle-is-found-by-its-footer-before-argv-is-read "A bundle is recognised by a footer the host reads before it parses one argument")); everything after that is the
+ordinary `nvs run` pipeline.
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p>There is no <code>.phar</code> and no archive format: the shipped file is the runtime itself with the source appended, and it is remade by its author rather than updated in place</p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/programs/names-and-files/#bundle-trust-domain" title="A bundled executable is one trust domain: a program, never a service"><code>programs/bundle-trust-domain</code></a> <a href="/docs/rules/packaging/single-file-builds/#a-bundle-carries-source-not-artifacts" title="A bundle's payload is source, as a flat file list with no archive and no compression"><code>packaging/a-bundle-carries-source-not-artifacts</code></a> <a href="/docs/rules/packaging/single-file-builds/#a-bundle-is-found-by-its-footer-before-argv-is-read" title="A bundle is recognised by a footer the host reads before it parses one argument"><code>packaging/a-bundle-is-found-by-its-footer-before-argv-is-read</code></a> <a href="/docs/rules/packaging/single-file-builds/#a-macos-bundle-is-ad-hoc-signed-at-build" title="A macOS bundle is ad-hoc signed by the build command; PE and ELF need no step"><code>packaging/a-macos-bundle-is-ad-hoc-signed-at-build</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0048.md">record 0048</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0093.md">record 0093</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-cli/tests/bundle.rs"><code>crates/nvs-cli/tests/bundle.rs</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="a-bundle-carries-source-not-artifacts">
+
+## A bundle's payload is source, as a flat file list with no archive and no compression
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#a-bundle-carries-source-not-artifacts"><code>packaging/a-bundle-carries-source-not-artifacts</code></a>
+</div>
+
+The embedded payload is the entry file's `.nvs` source plus every file its `require` graph statically
+resolves to, laid out as a flat list of `(relative_path, length, bytes)` entries, entry first — no
+archive format and no compression. Paths are written with `/` separators whatever platform built the
+bundle, relative to the deepest directory every bundled file sits under, so a `require` inside the
+bundle resolves to the file the build resolved it to.
+
+**Source, not precompiled artifacts, deliberately.** An artifact's key folds the whole environment into
+its address ([`packaging/an-artifact-is-one-immutable-content-addressed-file`](/docs/rules/packaging/the-artifact-cache/#an-artifact-is-one-immutable-content-addressed-file "A compiled unit is one immutable file whose address is its content and its environment")), which is the right
+design for a shared, revalidated disk cache and the opposite of what one portable file wants: a single
+executable would need one artifact per target, CPU-feature set and compiler build it meant to support,
+and every one of them would go stale against the next compiler bug fix until the author rebuilt and
+redistributed. Source works on any target, duplicates nothing, and feeds the ordinary cache on the
+user's machine.
+
+The costs are accepted and named. A fresh machine's first run pays exactly the cold JIT compile any
+first `nvs run` of an uncached file pays, and a second run is a plain cache hit. The app's source is
+recoverable from the executable by anyone who looks, the same posture as every comparable ecosystem's
+CLI bundling; hiding it is not a requirement, and neither encryption nor obfuscation is applied.
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p>A <code>.phar</code> can be stripped or compressed; a bundle's source is embedded byte for byte and is recoverable by anyone who looks</p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/packaging/the-artifact-cache/#an-artifact-is-one-immutable-content-addressed-file" title="A compiled unit is one immutable file whose address is its content and its environment"><code>packaging/an-artifact-is-one-immutable-content-addressed-file</code></a> <a href="/docs/rules/packaging/single-file-builds/#a-bundled-require-resolves-at-build-time" title="Inside a closed-world target every require resolves at build time, and one that cannot fails the build"><code>packaging/a-bundled-require-resolves-at-build-time</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0048.md">record 0048</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0042.md">record 0042</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-cli/tests/bundle.rs"><code>crates/nvs-cli/tests/bundle.rs</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="a-bundled-require-resolves-at-build-time">
+
+## Inside a closed-world target every `require` resolves at build time, and one that cannot fails the build
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#a-bundled-require-resolves-at-build-time"><code>packaging/a-bundled-require-resolves-at-build-time</code></a>
+</div>
+
+A closed-world target has no filesystem to fall back on at run time: a bundled executable's payload is
+exactly what got embedded and nothing more. `require` therefore resolves **entirely at build time**
+inside `nvs build --compile`, and a `require` the build cannot resolve — a target that is not there, or
+a path that cannot be known until the program runs — fails the build with a diagnostic naming it.
+Never a runtime fallback, never a silent omission, never a failure that first appears on the user's
+machine.
+
+`require`'s semantics do not change ([`statements/require-is-the-only-inclusion-construct`](/docs/rules/statements/names-and-require/#require-is-the-only-inclusion-construct "require is the only file-inclusion construct, and it runs every time it is reached")); only
+which paths are legal narrows. At run time the bundle answers every `require` from its embedded table,
+and a path the table does not carry is exactly as unloadable as a missing file, reported as the same
+diagnostic an ordinary run would give.
+
+This rule is the home for every closed-world target, and any other inherits it rather than restating
+it.
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p>An <code>include</code> whose path is computed at run time has no filesystem to fall back on inside a bundle, so the build refuses it instead of the run failing on the user's machine</p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/statements/names-and-require/#require-is-the-only-inclusion-construct" title="require is the only file-inclusion construct, and it runs every time it is reached"><code>statements/require-is-the-only-inclusion-construct</code></a> <a href="/docs/rules/packaging/single-file-builds/#a-bundle-carries-source-not-artifacts" title="A bundle's payload is source, as a flat file list with no archive and no compression"><code>packaging/a-bundle-carries-source-not-artifacts</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0048.md">record 0048</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0021.md">record 0021</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0025.md">record 0025</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-cli/tests/bundle.rs"><code>crates/nvs-cli/tests/bundle.rs</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="a-bundle-is-found-by-its-footer-before-argv-is-read">
+
+## A bundle is recognised by a footer the host reads before it parses one argument
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<a class="nv-rule-id" href="#a-bundle-is-found-by-its-footer-before-argv-is-read"><code>packaging/a-bundle-is-found-by-its-footer-before-argv-is-read</code></a>
+</div>
+
+The build command appends, after the host binary's own last section, the flat file list followed by a
+fixed-size footer:
+
+```
+magic ("NVSB") | format_version: u16 | manifest_offset: u64 | manifest_len: u64
+```
+
+Appended bytes are invisible to the PE and ELF loaders, which read no further than the sections their
+own headers describe, so an `nvs` that finds no footer is the `nvs` it always was.
+
+**The check runs at process start, before a single argument is parsed**, because a bundle's `argv`
+belongs to the program it carries: an app whose first argument happens to be `run` or `--help` must not
+have it eaten as one of `nvs`'s own. The binary reads its own executable's last footer-sized bytes; on a
+magic match it resolves the entry point — entry zero of the list — and every `require` against the
+embedded table instead of the real filesystem, and hands each file's bytes to the ordinary
+content-hash-then-cache-lookup path exactly as it would for a file read from disk.
+
+No new cache mechanism, no new isolation boundary, no new capability: it is the same `nvs run <entry>`
+code path with one different byte source for reads, so there is no second interpreter to drift from
+the first. A footer whose `format_version` this host does not understand is treated as no bundle at
+all, which is the one behaviour that cannot corrupt anything.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/packaging/single-file-builds/#nvs-build-compile-appends-the-program-to-a-copy-of-the-host" title="nvs build --compile appends a program to a copy of the nvs binary, and rebundling is running it again"><code>packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host</code></a> <a href="/docs/rules/packaging/single-file-builds/#a-bundle-carries-source-not-artifacts" title="A bundle's payload is source, as a flat file list with no archive and no compression"><code>packaging/a-bundle-carries-source-not-artifacts</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0048.md">record 0048</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-cli/tests/bundle.rs"><code>crates/nvs-cli/tests/bundle.rs</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="build-compile-packages-what-is-on-disk-and-resolves-nothing">
+
+## `nvs build --compile` packages what is already resolved on disk and fetches no dependency
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#build-compile-packages-what-is-on-disk-and-resolves-nothing"><code>packaging/build-compile-packages-what-is-on-disk-and-resolves-nothing</code></a>
+</div>
+
+`nvs build --compile` packages what is already resolved and present on disk, and nothing else. It
+fetches no dependency, reads no lockfile and contacts no registry; a `require` target that is not on
+disk fails the build ([`packaging/a-bundled-require-resolves-at-build-time`](/docs/rules/packaging/single-file-builds/#a-bundled-require-resolves-at-build-time "Inside a closed-world target every require resolves at build time, and one that cannot fails the build")) rather than being
+looked for anywhere.
+
+Resolving dependencies into source on disk is a separate command's job — `nvs pkg` — and the two
+compose rather than overlap: `nvs pkg install && nvs build --compile`. Keeping them apart is what keeps
+the bundler's own surface at one input, one output and one footer.
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p>There is no <code>composer install</code> step inside the bundler: resolving dependencies and packaging them are two commands that compose, not one</p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/packaging/single-file-builds/#nvs-build-compile-appends-the-program-to-a-copy-of-the-host" title="nvs build --compile appends a program to a copy of the nvs binary, and rebundling is running it again"><code>packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0048.md">record 0048</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-cli/tests/bundle.rs"><code>crates/nvs-cli/tests/bundle.rs</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="a-nvsx-dependency-embeds-in-the-same-payload">
+
+## A `.nvsx` the program depends on is embedded as one opaque entry of the same flat list
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="designed">Designed</span>
+<a class="nv-rule-id" href="#a-nvsx-dependency-embeds-in-the-same-payload"><code>packaging/a-nvsx-dependency-embeds-in-the-same-payload</code></a>
+</div>
+
+A Tier 1 extension is one wasm component, portable across every target Novis ships for. If the
+program's `require` graph depends on one, `nvs build --compile` embeds the `.nvsx` file itself as an
+opaque entry in the same flat list as the source
+([`packaging/a-bundle-carries-source-not-artifacts`](/docs/rules/packaging/single-file-builds/#a-bundle-carries-source-not-artifacts "A bundle's payload is source, as a flat file list with no archive and no compression")). There is no target-matrix problem, because a
+`.nvsx` never had one.
+
+An extension embedded in a bundle behaves identically to the same extension loaded from an
+`[[extension]]` entry for a plain `nvs run`: it is the same component, the same manifest and the same
+pin, read from a different byte source.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/packaging/single-file-builds/#a-bundle-carries-source-not-artifacts" title="A bundle's payload is source, as a flat file list with no archive and no compression"><code>packaging/a-bundle-carries-source-not-artifacts</code></a> <a href="/docs/rules/packaging/extensions/#an-extension-is-a-sandboxed-wasm-component" title="A third-party extension is a sandboxed WebAssembly component, never a shared library loaded with dlopen"><code>packaging/an-extension-is-a-sandboxed-wasm-component</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0048.md">record 0048</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0003.md">record 0003</a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="a-macos-bundle-is-ad-hoc-signed-at-build">
+
+## A macOS bundle is ad-hoc signed by the build command; PE and ELF need no step
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<a class="nv-rule-id" href="#a-macos-bundle-is-ad-hoc-signed-at-build"><code>packaging/a-macos-bundle-is-ad-hoc-signed-at-build</code></a>
+</div>
+
+Appending bytes after an already-signed Mach-O invalidates its signature. `nvs build --compile`
+therefore appends the payload *before* signing and ad-hoc-signs the result by default
+(`codesign --sign -`), with a flag reserved for a user-supplied identity later. A macOS bundle passes
+Gatekeeper's ad-hoc-signature check out of the box.
+
+Windows (PE) and Linux (ELF) have no equivalent step: the append is the entire build. The signing is a
+one-time cost inside the build command, paid by the author at build time and never by the end user —
+which is also why a bundle never re-signs itself
+([`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](/docs/rules/packaging/single-file-builds/#nvs-build-compile-appends-the-program-to-a-copy-of-the-host "nvs build --compile appends a program to a copy of the nvs binary, and rebundling is running it again")).
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/packaging/single-file-builds/#nvs-build-compile-appends-the-program-to-a-copy-of-the-host" title="nvs build --compile appends a program to a copy of the nvs binary, and rebundling is running it again"><code>packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0048.md">record 0048</a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="a-build-records-no-timestamp">
+
+## A build records its target, host, profile, compiler and commit, and never a date
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<a class="nv-rule-id" href="#a-build-records-no-timestamp"><code>packaging/a-build-records-no-timestamp</code></a>
+</div>
+
+`build.rs` records the target, the host, the profile, `rustc --version`, the Cranelift version from
+`Cargo.lock` and the commit — and no date. A build date makes two builds of the same commit differ for
+no gain: the commit already answers "which source is this?" exactly, and a byte-identical rebuild is
+worth more than knowing when it happened.
+
+`NVS_BUILD_COMMIT` lets a distribution packaging Novis from a tarball supply the revision when no `.git`
+is present, and every fact that cannot be determined becomes `unknown` rather than failing the build.
+All of it reaches [`packaging/nvs-info-is-the-one-call-and-nvs-i-its-php-spelling`](/docs/rules/packaging/single-file-builds/#nvs-info-is-the-one-call-and-nvs-i-its-php-spelling "nvs info is the one call for build, host and licensing facts, and nvs -i is the same command")'s report.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/packaging/single-file-builds/#nvs-info-is-the-one-call-and-nvs-i-its-php-spelling" title="nvs info is the one call for build, host and licensing facts, and nvs -i is the same command"><code>packaging/nvs-info-is-the-one-call-and-nvs-i-its-php-spelling</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0065.md">record 0065</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-cli/src/info.rs"><code>crates/nvs-cli/src/info.rs</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="the-third-party-notice-is-generated-never-written-by-hand">
+
+## The third-party notice is generated from the dependency graph, fails closed, and is never written by hand
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<a class="nv-rule-id" href="#the-third-party-notice-is-generated-never-written-by-hand"><code>packaging/the-third-party-notice-is-generated-never-written-by-hand</code></a>
+</div>
+
+Novis is MIT and links some eighty permissive components, every one of which conditions redistribution
+on reproducing something — MIT and BSD the copyright line and the license text, Apache-2.0 additionally
+its `NOTICE`, Unicode-3.0 its own notice. None is satisfied by an SPDX identifier alone; a list of
+names is not attribution.
+
+The notice, `THIRD-PARTY-LICENSES.txt` at the repository root, is **generated** by
+`tools/gen-attribution.py` from the resolved dependency graph reachable from the package that ships,
+normal and build dependencies alike, reading each component's own license file from its source. Four
+properties are load-bearing:
+
+- **It fails closed.** An SPDX identifier with no policy, a component whose source is not fetched, a
+  chosen license with no text anywhere in the tree, or an identifier missing from `deny.toml`'s allow
+  list is an error, never a silently omitted notice. A new license entering the tree is a decision made
+  in `PREFERENCE` and in `deny.toml`, and the two must agree exactly.
+- **It is host-independent.** The list is not filtered by target, so a Windows and a Linux checkout
+  produce identical bytes; over-including is the right direction to err.
+- **Texts are deduplicated by content, not by identifier**, because MIT obliges reproducing each
+  component's *own* copyright line.
+- **A dual license is resolved to one, and the choice is shown.** `PREFERENCE` orders MIT first; an
+  `AND` keeps every conjunct.
+
+Dev-dependencies are excluded — they are linked into nothing a user receives. The file is committed and
+CI diffs it ([`testing/attribution-is-diffed-in-ci`](/docs/rules/testing/coverage-and-probes/#attribution-is-diffed-in-ci "The third-party notice is committed, and a check fails when the lockfile moved without it")), and the binary carries it
+([`packaging/the-notice-is-embedded-in-the-binary`](/docs/rules/packaging/single-file-builds/#the-notice-is-embedded-in-the-binary "The notice and Novis's own license are compiled into the binary from the same tree")).
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/testing/coverage-and-probes/#attribution-is-diffed-in-ci" title="The third-party notice is committed, and a check fails when the lockfile moved without it"><code>testing/attribution-is-diffed-in-ci</code></a> <a href="/docs/rules/packaging/single-file-builds/#the-notice-is-embedded-in-the-binary" title="The notice and Novis's own license are compiled into the binary from the same tree"><code>packaging/the-notice-is-embedded-in-the-binary</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0065.md">record 0065</a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="the-notice-is-embedded-in-the-binary">
+
+## The notice and Novis's own license are compiled into the binary from the same tree
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<a class="nv-rule-id" href="#the-notice-is-embedded-in-the-binary"><code>packaging/the-notice-is-embedded-in-the-binary</code></a>
+</div>
+
+`crates/nvs-cli/src/info.rs` embeds `THIRD-PARTY-LICENSES.txt` and `LICENSE` with `include_str!`, so the
+notice and the binary it describes are produced from one tree in one compile and cannot drift. Novis's
+own MIT text is embedded for the same reason the third-party texts are: a binary handed to someone
+without the repository — an `nvs` installed on a host, or a bundle an author appended their program to
+— is still a copy of the software, and MIT asks that its text accompany it.
+
+`nvs info` slices that one embedded file at its two section headings rather than re-formatting it, so
+there is exactly one rendering of the component table and it is the one a reader can also open in the
+repository. The generator and the reader each carry half of that agreement, and a test fails if either
+is changed alone.
+
+The cost is roughly 55 KB of read-only data in a binary measured in tens of megabytes: priority 5 spent
+on a legal obligation, never touching a request path.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/packaging/single-file-builds/#the-third-party-notice-is-generated-never-written-by-hand" title="The third-party notice is generated from the dependency graph, fails closed, and is never written by hand"><code>packaging/the-third-party-notice-is-generated-never-written-by-hand</code></a> <a href="/docs/rules/packaging/single-file-builds/#nvs-info-is-the-one-call-and-nvs-i-its-php-spelling" title="nvs info is the one call for build, host and licensing facts, and nvs -i is the same command"><code>packaging/nvs-info-is-the-one-call-and-nvs-i-its-php-spelling</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0065.md">record 0065</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-cli/src/info.rs"><code>crates/nvs-cli/src/info.rs</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="nvs-info-is-the-one-call-and-nvs-i-its-php-spelling">
+
+## `nvs info` is the one call for build, host and licensing facts, and `nvs -i` is the same command
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#nvs-info-is-the-one-call-and-nvs-i-its-php-spelling"><code>packaging/nvs-info-is-the-one-call-and-nvs-i-its-php-spelling</code></a>
+</div>
+
+```
+nvs info                # build, host and licensing facts, plus the component table
+nvs info --licenses     # the same, plus every license text in full
+nvs -i / nvs -i --licenses
+```
+
+"What is this binary, what is in it, and what may I do with it?" is one question asked by one person at
+one moment, so it is one call, the shape `php -i` already has. The default is the summary because the
+full texts are some 55 KB and a terminal is the wrong place to put them unasked; `--licenses` is the
+complete legal record. The report is plain two-column text with no colour and no paging, so it pipes.
+
+**This is the one place in Novis where an operation is deliberately reachable two ways.**
+[`core-api/shape-rules`](/docs/rules/core-api/naming-and-shape/#shape-rules "Every Core member obeys the same twenty shape rules, R1–R20")'s "no operation reachable two ways" governs the `Core` library, not the
+CLI, and the reason is specific: `-i` is the spelling a PHP developer tries first, and the point of the
+command is that nobody should have to hunt for it. Combining `-i` with a subcommand is refused rather
+than guessed at.
+
+Fields that do not exist yet are not printed; the report grows a section as each thing it describes
+lands. **It reports no per-request state, ever** — that is [`testing/debug-probes`](/docs/rules/testing/coverage-and-probes/#debug-probes "Coverage, tracing and profiling are one per-request flag word checked at fixed probe sites, never a second compiled tier")' territory and is
+flag-gated for reasons this command does not share.
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p><code>php -i</code> prints ini settings and the request's own server variables; <code>nvs info</code> reports the build, the host and the licences, never per-request state, and it is the one CLI operation reachable two ways</p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/packaging/single-file-builds/#the-notice-is-embedded-in-the-binary" title="The notice and Novis's own license are compiled into the binary from the same tree"><code>packaging/the-notice-is-embedded-in-the-binary</code></a> <a href="/docs/rules/packaging/single-file-builds/#a-build-records-no-timestamp" title="A build records its target, host, profile, compiler and commit, and never a date"><code>packaging/a-build-records-no-timestamp</code></a> <a href="/docs/rules/core-api/naming-and-shape/#shape-rules" title="Every Core member obeys the same twenty shape rules, R1–R20"><code>core-api/shape-rules</code></a> <a href="/docs/rules/testing/coverage-and-probes/#debug-probes" title="Coverage, tracing and profiling are one per-request flag word checked at fixed probe sites, never a second compiled tier"><code>testing/debug-probes</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0065.md">record 0065</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-cli/src/info.rs"><code>crates/nvs-cli/src/info.rs</code></a></dd></div></dl>
+
+</div>

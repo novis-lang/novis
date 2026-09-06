@@ -1,0 +1,343 @@
+---
+# GENERATED FILE — written by website/scripts/sync-rules.mjs from docs/rules/. Do not edit.
+title: "Doubles, determinism and the runner"
+description: "Structural doubles, a fixed clock and seed, property tests, inline snapshots — and a runner that refuses to call nothing green."
+editUrl: false
+lastUpdated: false
+tableOfContents: false
+prev:
+  link: /docs/rules/testing/writing-a-test/
+  label: "Writing a test"
+next:
+  link: /docs/rules/testing/the-four-proofs/
+  label: "The four proofs"
+---
+
+<p class="nv-section-lead">Structural doubles, a fixed clock and seed, property tests, inline snapshots — and a runner that refuses to call nothing green.</p>
+
+<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">11</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">7</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">4</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">5</span><span class="nv-count-label">differ from PHP</span></div></div>
+
+<ol class="nv-rule-list"><li><a href="#doubles">A double is a shape of closures, structurally checked against an interface</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#interaction-after-the-fact">A call to a double is asserted after the exercise, never expected before it</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#determinism-declared-on-the-test"><code>at:</code> and <code>seed:</code> fix the clock and the generator of the test's own isolate</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#task-tree-and-virtual-clock">A task still running when a test returns fails that test</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#db-transaction"><code>#[Test(db:)]</code> opens a transaction on the test's own context and rolls it back</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#in-process-request">A test request is dispatched in-process through the compiled route table, and its input arrives <code>tainted</code></a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#property-testing"><code>#[Property]</code> derives its generators from the parameters' declared types</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#inline-snapshots">A snapshot is a literal in the test body, and the updater rewrites that literal and nothing else</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#mutation-testing">A mutation run asks whether any test would have noticed the code being wrong</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#runner-is-strict">A test that asserts nothing fails, a skip states a reason, and a retry is reported flaky rather than green</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#report-formats">One verdict, three renderings, and a machine format owns stdout alone</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li></ol>
+
+<div class="nv-rule" id="doubles">
+
+## A double is a shape of closures, structurally checked against an interface
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="designed">Designed</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#doubles"><code>testing/doubles</code></a>
+</div>
+
+A double is a shape of closures, structurally checked against an interface:
+`Core\Test::double<Clock>({now: fn(): Instant => ...})` **is** a `Clock` and may be passed wherever
+one is taken. A method the interface does not declare and a method of it the double leaves
+unimplemented are each a compile error. `Core\Test::partial<T>($real, {...})` overrides named
+methods and delegates the rest to a real implementation.
+
+No class is generated, no source is evaluated, and nothing the author never wrote appears in a
+backtrace. There is no builder, no matcher mini-language and no notion of a "nice" or "loose"
+double — that last one is not a choice, since a double of `now(): Instant` has nothing legal to
+return by default. Every double is strict because nothing else is expressible.
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p>No class is generated and no source is evaluated; a double is a value the checker compares against the interface, and a loose or nice double is not expressible</p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/testing/doubles-and-the-runner/#interaction-after-the-fact" title="A call to a double is asserted after the exercise, never expected before it"><code>testing/interaction-after-the-fact</code></a> <a href="/docs/rules/testing/writing-a-test/#assertions-are-typed" title="An assertion names its subject first and compares two values of one type"><code>testing/assertions-are-typed</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0079.md">record 0079</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0036.md">record 0036</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0031.md">record 0031</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0052.md">record 0052</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0043.md">record 0043</a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="interaction-after-the-fact">
+
+## A call to a double is asserted after the exercise, never expected before it
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="designed">Designed</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#interaction-after-the-fact"><code>testing/interaction-after-the-fact</code></a>
+</div>
+
+A double records the calls made to it, and the test asserts on that record afterwards with ordinary
+assertions, in the order the test reads: `Core\Test::assertCalled($mailer, Mailer::send, {times: 1,
+with: [...]})` and `assertNeverCalled`.
+
+The method named is a compile-checked reference, so renaming it updates or breaks the test and can
+never leave one silently passing against a method that no longer exists.
+
+There is no `expects()`. An expectation declared before the exercise reads backwards and reports its
+failure from a line that is no longer where the problem is.
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p>There is no <code>expects()</code>; the method being asserted on is a compile-checked reference, so renaming it breaks the test rather than leaving it passing</p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/testing/doubles-and-the-runner/#doubles" title="A double is a shape of closures, structurally checked against an interface"><code>testing/doubles</code></a> <a href="/docs/rules/testing/writing-a-test/#assertions-are-typed" title="An assertion names its subject first and compares two values of one type"><code>testing/assertions-are-typed</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0079.md">record 0079</a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="determinism-declared-on-the-test">
+
+## `at:` and `seed:` fix the clock and the generator of the test's own isolate
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#determinism-declared-on-the-test"><code>testing/determinism-declared-on-the-test</code></a>
+</div>
+
+`#[Test(at: "2026-01-01T00:00:00Z", seed: 42)]` fixes the clock and the random generator of that
+test's own isolate: `Core\Time::now()` answers exactly that instant, and the seeded generator and
+the identifier members draw the same sequence on every run, every OS and every architecture.
+`Core\Test::advance(Duration)` moves the fixed clock forward, and refuses when no clock was fixed —
+advancing a real clock is not something a test can ask for. An `at:` that is not an RFC 3339
+timestamp fails that test where it is declared.
+
+Nothing holds state behind a function's back here. The clock is *isolate configuration*, declared at
+the test where it is visible and inert everywhere else, in the same category as a time zone set in
+`nvs.toml` — and a test declaration reaches no built artifact, so none of this exists in production
+even in principle.
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p>Time and randomness are controlled by a declaration on the test rather than by a clock parameter threaded through every time-aware class</p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/testing/doubles-and-the-runner/#task-tree-and-virtual-clock" title="A task still running when a test returns fails that test"><code>testing/task-tree-and-virtual-clock</code></a> <a href="/docs/rules/testing/writing-a-test/#isolate-per-test" title="Every test runs in its own isolate and shares nothing but compiled code with its siblings"><code>testing/isolate-per-test</code></a> <a href="/docs/rules/testing/writing-a-test/#tests-never-reach-a-build" title="nvs run and nvs build lower no test, and nvs check type-checks every one"><code>testing/tests-never-reach-a-build</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0079.md">record 0079</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0008.md">record 0008</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/test-advance-refuses-without-a-fixed-clock.nvst"><code>tests/conformance/core/test-advance-refuses-without-a-fixed-clock.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/test-advance-refuses-the-same-way-for-every-duration.nvst"><code>tests/conformance/core/test-advance-refuses-the-same-way-for-every-duration.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/the-members-a-test-makes-deterministic-agree-on-which-one-is-the-mutator.nvst"><code>tests/conformance/core/the-members-a-test-makes-deterministic-agree-on-which-one-is-the-mutator.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-cli/src/runner.rs"><code>crates/nvs-cli/src/runner.rs</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="task-tree-and-virtual-clock">
+
+## A task still running when a test returns fails that test
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<a class="nv-rule-id" href="#task-tree-and-virtual-clock"><code>testing/task-tree-and-virtual-clock</code></a>
+</div>
+
+The whole suite runs inside one task, so a test's isolate is a child of it and a `Core\Task::all`
+written in a test has a calling task to put its own children under. The runner reads that tree at
+the one moment it means anything — when the test's body returns, on the test's own stack — and **a
+task still running then fails the test, named as such**. The alternative is what a scheduler does on
+its own: cancel the leftovers as the task retires and report a green test that never waited for its
+work.
+
+Because the clock is under the test's control, a `Duration` sleep inside a task elapses instantly.
+That makes retry, backoff and timeout logic — some of the most error-prone code anyone writes, and
+the least tested — testable in microseconds rather than in the seconds it describes.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/testing/doubles-and-the-runner/#determinism-declared-on-the-test" title="at: and seed: fix the clock and the generator of the test's own isolate"><code>testing/determinism-declared-on-the-test</code></a> <a href="/docs/rules/testing/doubles-and-the-runner/#runner-is-strict" title="A test that asserts nothing fails, a skip states a reason, and a retry is reported flaky rather than green"><code>testing/runner-is-strict</code></a> <a href="/docs/rules/testing/writing-a-test/#isolate-per-test" title="Every test runs in its own isolate and shares nothing but compiled code with its siblings"><code>testing/isolate-per-test</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0079.md">record 0079</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0072.md">record 0072</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-cli/src/runner.rs"><code>crates/nvs-cli/src/runner.rs</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="db-transaction">
+
+## `#[Test(db:)]` opens a transaction on the test's own context and rolls it back
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<a class="nv-rule-id" href="#db-transaction"><code>testing/db-transaction</code></a>
+</div>
+
+`#[Test(db: "test")]` opens a transaction against the named connection before the test and rolls it
+back after. The test sees a pristine database and writes no cleanup code, and a transaction opened
+*inside* the test becomes a savepoint, so code under test that manages its own transaction behaves
+normally.
+
+The transaction is opened **on the test's own context, from inside its isolate**, and that is what
+makes the savepoint sentence true with no special case anywhere: a connection is memoized on the
+context it was opened on, so the test's own `connect("test")` reaches *this* connection and its own
+`transaction()` sees a non-zero nesting depth. Opened on the suite's context instead, the two would
+contend rather than nest.
+
+The rollback is armed around the whole retry allowance rather than around one attempt, because a
+retry calls the method again.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/testing/writing-a-test/#isolate-per-test" title="Every test runs in its own isolate and shares nothing but compiled code with its siblings"><code>testing/isolate-per-test</code></a> <a href="/docs/rules/testing/doubles-and-the-runner/#runner-is-strict" title="A test that asserts nothing fails, a skip states a reason, and a retry is reported flaky rather than green"><code>testing/runner-is-strict</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0079.md">record 0079</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0067.md">record 0067</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-cli/src/runner.rs"><code>crates/nvs-cli/src/runner.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-stdlib/src/db/transaction.rs"><code>crates/nvs-stdlib/src/db/transaction.rs</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="in-process-request">
+
+## A test request is dispatched in-process through the compiled route table, and its input arrives `tainted`
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#in-process-request"><code>testing/in-process-request</code></a>
+</div>
+
+`Core\Test::request(...)` builds a request and runs it through the compiled route table and the real
+middleware chain — no socket, no port, microseconds per test. What answers it is the program's own
+entry, run as an isolate with the match already on its carrier, never the matched handler, which
+nothing may invoke directly. **An in-process request may not be made from inside one**: the entry
+answering it is the entry that asked, so a second would answer itself forever, and the refusal is at
+the door rather than at a depth ceiling that would report an engine limit instead of the mistake.
+
+The response is a `Core`-owned instance whose two readings are members, so a status is `status()`
+and never a property. The synthetic request's parameters arrive **`tainted`**, exactly as a real
+request's would, so a handler that forgets to launder fails its test rather than production.
+
+`#[Test(server: true)]` binds a real listener for the cases that genuinely need the wire. The port
+is the operating system's and the address is loopback, so two suites on one machine never collide
+and no suite serves the program under test to a network. The listener is a **sibling** of the test's
+isolate rather than a child — leftover work is read off the test's own task — and it is retired when
+the test that asked for it has joined. It serves under the **default** policy rather than the tree's:
+reading a deployment's configuration would make the test's subject the deployment.
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p>An HTTP test needs no socket, no port and no web server; the real route table and the real middleware chain answer it in microseconds</p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/testing/writing-a-test/#isolate-per-test" title="Every test runs in its own isolate and shares nothing but compiled code with its siblings"><code>testing/isolate-per-test</code></a> <a href="/docs/rules/testing/doubles-and-the-runner/#task-tree-and-virtual-clock" title="A task still running when a test returns fails that test"><code>testing/task-tree-and-virtual-clock</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0079.md">record 0079</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0077.md">record 0077</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0102.md">record 0102</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0024.md">record 0024</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0074.md">record 0074</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0058.md">record 0058</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0051.md">record 0051</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/an-in-process-request-carries-the-compiled-route-tables-own-match.nvst"><code>tests/conformance/core/an-in-process-request-carries-the-compiled-route-tables-own-match.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/an-in-process-request-may-not-be-made-from-inside-one.nvst"><code>tests/conformance/core/an-in-process-request-may-not-be-made-from-inside-one.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/an-in-process-request-to-an-unclaimed-path-is-answered-by-the-program.nvst"><code>tests/conformance/core/an-in-process-request-to-an-unclaimed-path-is-answered-by-the-program.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/an-in-process-responses-status-is-the-programs-own-or-200.nvst"><code>tests/conformance/core/an-in-process-responses-status-is-the-programs-own-or-200.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/a-program-with-no-ephemeral-listener-reads-no-address.nvst"><code>tests/conformance/core/a-program-with-no-ephemeral-listener-reads-no-address.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-cli/src/runner.rs"><code>crates/nvs-cli/src/runner.rs</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="property-testing">
+
+## `#[Property]` derives its generators from the parameters' declared types
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="designed">Designed</span>
+<a class="nv-rule-id" href="#property-testing"><code>testing/property-testing</code></a>
+</div>
+
+`#[Property]` runs a method against generated inputs, and the generators are **derived from the
+parameters' declared types** by the same declaration walk a codec is derived from, user classes
+included. That is why this belongs to the compiler rather than to a package: only a compiler can
+walk a declared type, and a userland version needs a hand-written generator per type, which is the
+boilerplate that keeps property testing rare.
+
+A failure shrinks to a minimal counterexample and reports the seed that reproduces it exactly. A
+`gen:` option narrows one parameter where its declared type is wider than the domain. A generated
+`string` is valid UTF-8 including combining marks and grapheme clusters, because that is what a
+`string` is — a property that only holds for ASCII is a property that is not true.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/testing/writing-a-test/#data-rows" title="#[TestWith] is matched against the parameters by name and by type, and each row is its own case"><code>testing/data-rows</code></a> <a href="/docs/rules/testing/writing-a-test/#assertions-are-typed" title="An assertion names its subject first and compares two values of one type"><code>testing/assertions-are-typed</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0079.md">record 0079</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0071.md">record 0071</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0009.md">record 0009</a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="inline-snapshots">
+
+## A snapshot is a literal in the test body, and the updater rewrites that literal and nothing else
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<a class="nv-rule-id" href="#inline-snapshots"><code>testing/inline-snapshots</code></a>
+</div>
+
+`Core\Test::assertMatchesInline($value, "...")` holds the expectation in the source file, and
+`nvs test --update` splices the produced value into that literal. Inline rather than a separate
+snapshot file, because the failure mode of snapshot testing is a reviewer approving a diff they did
+not read, and a diff inside the test body is one they will.
+
+The updater is the one thing in `nvs test` that writes to a source file, and what it writes is the
+expected literal and nothing else. The literal's span comes from a compile-time row per **written**
+call, joined to the run by the test the mismatch happened in — the method is load-bearing, because
+this workflow starts every snapshot empty and two of them would otherwise share one key. Where that
+join is not a single site, nothing is written and the run names it: a rendering placed under a
+snapshot nobody asserted is worse than the failing test it replaced.
+
+What is written is a single-quoted literal, so a multi-line rendering stays multi-line and reads as
+a diff. A run that rewrote a snapshot still reports the test as failed; the re-run is what says the
+new text is the one the author meant. The rendering is canonical, ordered, and redacts a `secret`,
+so a snapshot cannot become the place secrets get committed.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/testing/writing-a-test/#assertions-are-typed" title="An assertion names its subject first and compares two values of one type"><code>testing/assertions-are-typed</code></a> <a href="/docs/rules/testing/doubles-and-the-runner/#report-formats" title="One verdict, three renderings, and a machine format owns stdout alone"><code>testing/report-formats</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0079.md">record 0079</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0033.md">record 0033</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/test-assert-matches-inline-agrees-with-debug-render-over-every-value-kind.nvst"><code>tests/conformance/core/test-assert-matches-inline-agrees-with-debug-render-over-every-value-kind.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/test-assert-matches-inline-quotes-both-sides-of-a-mismatch.nvst"><code>tests/conformance/core/test-assert-matches-inline-quotes-both-sides-of-a-mismatch.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/test-assert-matches-inline-never-holds-a-secret-property.nvst"><code>tests/conformance/core/test-assert-matches-inline-never-holds-a-secret-property.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-cli/src/runner.rs"><code>crates/nvs-cli/src/runner.rs</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="mutation-testing">
+
+## A mutation run asks whether any test would have noticed the code being wrong
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="designed">Designed</span>
+<a class="nv-rule-id" href="#mutation-testing"><code>testing/mutation-testing</code></a>
+</div>
+
+A mutation run makes a small, deliberate change to the code, re-runs the tests, and records whether
+anything failed. It is the measurement that closes the gap coverage leaves: a line having run says
+nothing about whether an assertion would have objected had it been wrong, and a suite at full line
+coverage routinely misses most introduced defects.
+
+Two things make the built-in version categorically better than an external one, and neither is
+available outside the compiler. Mutants are generated from typed IR, so every one is type-valid and
+compiles, where a tool mutating a syntax tree pays a compile to discover that many do not. And
+mutant runs are **coverage-directed**: the probe data says which tests touch the mutated line, so a
+mutant runs against those rather than against the whole suite. On two thousand tests and five
+hundred mutants that is the difference between minutes and most of a day.
+
+The operator set is enumerated where it is implemented, so adding an operator changes no rule.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/testing/coverage-and-probes/#debug-probes" title="Coverage, tracing and profiling are one per-request flag word checked at fixed probe sites, never a second compiled tier"><code>testing/debug-probes</code></a> <a href="/docs/rules/testing/writing-a-test/#isolate-per-test" title="Every test runs in its own isolate and shares nothing but compiled code with its siblings"><code>testing/isolate-per-test</code></a> <a href="/docs/rules/testing/the-four-proofs/#four-proofs" title="A feature is finished when it has a test from both sides, three examples, a measured figure and an attack"><code>testing/four-proofs</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0079.md">record 0079</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0018.md">record 0018</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0042.md">record 0042</a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="runner-is-strict">
+
+## A test that asserts nothing fails, a skip states a reason, and a retry is reported flaky rather than green
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#runner-is-strict"><code>testing/runner-is-strict</code></a>
+</div>
+
+A test that asserts nothing fails — the ledger already knows the count, and
+`Core\Test::assertDoesNotThrow(callable)` is how a test states "this must merely not throw",
+explicitly.
+
+A skip states a reason: `skip: true` is a compile error and a written sentence is not. A retry
+states one too — `retries:` with no `because:` beside it is refused where it is written — and a test
+that passed on a later attempt is its own verdict, `flaky`, never green: its own mark, its own count
+in every summary, and the element CI systems already read as "passed, but it flaked". It carries the
+**last failed** attempt's message, the attempt that passed having produced nothing to report. Only a
+failure is retried: a skip never ran, and an `exit(n)` ended the program rather than the test. A
+flaky test does not fail the run — what this takes away is the silence, not the green build.
+
+Report order is **declaration order**, even though execution is unordered. Total isolation makes
+execution order semantically irrelevant, so nothing is bought by randomizing it and stable output is
+worth a great deal.
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p>A test with no assertion is a failure rather than a risky-marked pass, and a case that only passed on a retry never counts as green</p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/testing/writing-a-test/#failure-ledger" title="A failed assertion is a catchable Throwable and a ledger entry the test cannot erase"><code>testing/failure-ledger</code></a> <a href="/docs/rules/testing/doubles-and-the-runner/#report-formats" title="One verdict, three renderings, and a machine format owns stdout alone"><code>testing/report-formats</code></a> <a href="/docs/rules/testing/doubles-and-the-runner/#task-tree-and-virtual-clock" title="A task still running when a test returns fails that test"><code>testing/task-tree-and-virtual-clock</code></a> <a href="/docs/rules/testing/doubles-and-the-runner/#db-transaction" title="#[Test(db:)] opens a transaction on the test's own context and rolls it back"><code>testing/db-transaction</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0079.md">record 0079</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0020.md">record 0020</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/a-retried-test-that-passes-is-reported-as-flaky.nvst"><code>tests/conformance/lang/a-retried-test-that-passes-is-reported-as-flaky.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/reject/a-retry-states-the-reason-it-is-retried.nvst"><code>tests/conformance/reject/a-retry-states-the-reason-it-is-retried.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/a-test-attribute-builds-a-table-the-runner-reports.nvst"><code>tests/conformance/lang/a-test-attribute-builds-a-table-the-runner-reports.nvst</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="report-formats">
+
+## One verdict, three renderings, and a machine format owns stdout alone
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<a class="nv-rule-id" href="#report-formats"><code>testing/report-formats</code></a>
+</div>
+
+Human output is the default and is written as the run goes, which is what keeps a long suite
+legible. A JUnit XML document and a versioned JSON one are each written whole at the end, because
+neither has a prefix worth streaming. All three render the same case list and a verdict is decided
+**once**, so the plaintext mark, the JSON string and the XML element cannot disagree about how a
+test came out.
+
+Under a machine format the program's own output goes to **stderr**: the redirect that produces the
+document makes stdout the document, and a test's `echo` interleaved into it would produce something
+no parser accepts. It is not quoted back into the document either — a whole suite's output is a cost
+every run would pay for the few being debugged. A machine format also names a `#[Test]` run, so
+asking for one over a `.nvst` tree is refused rather than silently ignored: the two share no summary,
+so there is no document for it to be about.
+
+The JSON schema is versioned and carries what XML has nowhere to put: a structured diff, per-row
+results, a shrunk counterexample and per-test coverage.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/testing/doubles-and-the-runner/#runner-is-strict" title="A test that asserts nothing fails, a skip states a reason, and a retry is reported flaky rather than green"><code>testing/runner-is-strict</code></a> <a href="/docs/rules/testing/writing-a-test/#data-rows" title="#[TestWith] is matched against the parameters by name and by type, and each row is its own case"><code>testing/data-rows</code></a> <a href="/docs/rules/testing/the-four-proofs/#nvst-is-separate" title=".nvst proves the language; #[Test] is how a program written in Novis tests itself"><code>testing/nvst-is-separate</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0079.md">record 0079</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0018.md">record 0018</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0040.md">record 0040</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/a-test-run-reports-a-versioned-json-document.nvst"><code>tests/conformance/lang/a-test-run-reports-a-versioned-json-document.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/a-test-run-reports-the-junit-xml-ci-ingests.nvst"><code>tests/conformance/lang/a-test-run-reports-the-junit-xml-ci-ingests.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-cli/src/runner.rs"><code>crates/nvs-cli/src/runner.rs</code></a></dd></div></dl>
+
+</div>

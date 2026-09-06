@@ -1,0 +1,304 @@
+---
+# GENERATED FILE — written by website/scripts/sync-rules.mjs from docs/rules/. Do not edit.
+title: "The language server"
+description: "Synchronous, one analysis thread, a closed request set, and diagnostics that stop at the first phase that failed."
+editUrl: false
+lastUpdated: false
+tableOfContents: false
+prev:
+  link: /docs/rules/ide/the-resilient-parse/
+  label: "The resilient parse"
+next:
+  link: /docs/rules/ide/code-actions/
+  label: "Code actions and quick fixes"
+---
+
+<p class="nv-section-lead">Synchronous, one analysis thread, a closed request set, and diagnostics that stop at the first phase that failed.</p>
+
+<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">10</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">0</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">10</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">1</span><span class="nv-count-label">differs from PHP</span></div></div>
+
+<ol class="nv-rule-list"><li><a href="#one-crate-and-one-extension-grow-in-place"><code>nvs-lsp</code> and <code>editors/vscode</code> are one crate and one package that grow in place; no prototype is built to be discarded</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#the-server-is-synchronous"><code>nvs-lsp</code> is synchronous on <code>lsp-server</code> and <code>lsp-types</code> — a reader thread, a writer thread, one analysis thread, and no async runtime</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#an-open-document-is-its-own-entry-point">Each open document is analysed as its own entry point, with open buffers overlaid on disk, and diagnostics are published only for open documents</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#stdout-belongs-to-the-protocol">Nothing but the protocol writes to the server's stdout; logging goes to stderr and <code>window/logMessage</code></a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#the-request-set-is-closed">M4B answers nine standard requests and exactly one of Novis's own, and a test keeps the list from growing</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#the-first-server-answers-a-closed-list">The first <code>nvs lsp</code> answers six requests and two code actions, and nothing else until the workspace index exists</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#every-feature-is-staged-behind-its-dependency">The VS Code client goes as deep as the editor allows, and each feature waits for the language or runtime piece it needs rather than shipping as a stub</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#diagnostics-are-phase-gated">A file with a lexer or parser diagnostic publishes those and its declaration diagnostics, and suppresses its own resolution and type diagnostics</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#check-json-is-the-diagnostic-record-as-a-document"><code>nvs check --json</code> writes the same diagnostic records the terminal renderer prints, as one document with a frozen schema</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#check-scope-defaults-to-open-documents">Diagnostics are published for open documents and their require graph by default, and a workspace pass is one setting or one command</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li></ol>
+
+<div class="nv-rule" id="one-crate-and-one-extension-grow-in-place">
+
+## `nvs-lsp` and `editors/vscode` are one crate and one package that grow in place; no prototype is built to be discarded
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="designed">Designed</span>
+<a class="nv-rule-id" href="#one-crate-and-one-extension-grow-in-place"><code>ide/one-crate-and-one-extension-grow-in-place</code></a>
+</div>
+
+`crates/nvs-lsp` and `editors/vscode` are one crate and one package across every milestone that touches
+them. The first, minimal server and extension are the same files the deep half later extends in place;
+nothing stands up a second "real" implementation next to a throwaway first one, and nothing is built
+to be discarded.
+
+Two implementations of the same client-server pair drift and duplicate work — the identical reasoning
+[`ide/one-server-two-thin-clients`](/docs/rules/ide/one-server-thin-clients/#one-server-two-thin-clients "Language smarts and formatting have one implementation each, nvs-lsp and nvs-fmt, and an editor client holds none of either") applies to formatting and language smarts, applied to the editor
+packages themselves. The cost is the ordinary one of any early-shipped surface: the minimal server and
+extension have to be kept building and passing through the milestones between, even while nothing in
+those milestones depends on them.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/one-server-thin-clients/#one-server-two-thin-clients" title="Language smarts and formatting have one implementation each, nvs-lsp and nvs-fmt, and an editor client holds none of either"><code>ide/one-server-two-thin-clients</code></a> <a href="/docs/rules/ide/the-language-server/#the-first-server-answers-a-closed-list" title="The first nvs lsp answers six requests and two code actions, and nothing else until the workspace index exists"><code>ide/the-first-server-answers-a-closed-list</code></a> <a href="/docs/rules/ide/one-server-thin-clients/#editor-clients-live-under-editors" title="An editor client lives under editors/&lt;editor&gt;, outside the Cargo workspace, and is created when its milestone starts rather than scaffolded ahead of it"><code>ide/editor-clients-live-under-editors</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0040.md">record 0040</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0016.md">record 0016</a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="the-server-is-synchronous">
+
+## `nvs-lsp` is synchronous on `lsp-server` and `lsp-types` — a reader thread, a writer thread, one analysis thread, and no async runtime
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="designed">Designed</span>
+<a class="nv-rule-id" href="#the-server-is-synchronous"><code>ide/the-server-is-synchronous</code></a>
+</div>
+
+`crates/nvs-lsp` is a library plus a thin `nvs lsp` subcommand speaking LSP over stdio, built on
+rust-analyzer's `lsp-server` and `lsp-types` — pure Rust, no build script — with `serde` and `serde_json`
+from the workspace. No tokio, no tower, no `async-trait`: [`concurrency/one-scheduler`](/docs/rules/concurrency/tasks/#one-scheduler "Concurrency is the Core\Task roster over the runtime's own single scheduler") is why, and the
+manifest-policy test is what pins it.
+
+Concurrency is a thread and a channel, which is the shape `lsp-server` hands over and the shape the rest
+of the project already uses: a reader thread, a writer thread, and one analysis thread that owns the
+document store. A request that arrives while an older analysis is in flight cancels it, because its result
+is about a document version nobody is looking at any more; `$/cancelRequest` cancels an in-flight request
+the same way.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/concurrency/tasks/#one-scheduler" title="Concurrency is the Core\Task roster over the runtime's own single scheduler"><code>concurrency/one-scheduler</code></a> <a href="/docs/rules/ide/the-language-server/#an-open-document-is-its-own-entry-point" title="Each open document is analysed as its own entry point, with open buffers overlaid on disk, and diagnostics are published only for open documents"><code>ide/an-open-document-is-its-own-entry-point</code></a> <a href="/docs/rules/ide/the-language-server/#stdout-belongs-to-the-protocol" title="Nothing but the protocol writes to the server's stdout; logging goes to stderr and window/logMessage"><code>ide/stdout-belongs-to-the-protocol</code></a> <a href="/docs/rules/ide/one-server-thin-clients/#one-server-two-thin-clients" title="Language smarts and formatting have one implementation each, nvs-lsp and nvs-fmt, and an editor client holds none of either"><code>ide/one-server-two-thin-clients</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0099.md">record 0099</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0040.md">record 0040</a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="an-open-document-is-its-own-entry-point">
+
+## Each open document is analysed as its own entry point, with open buffers overlaid on disk, and diagnostics are published only for open documents
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="designed">Designed</span>
+<a class="nv-rule-id" href="#an-open-document-is-its-own-entry-point"><code>ide/an-open-document-is-its-own-entry-point</code></a>
+</div>
+
+Document sync is `Full` at M4B: a whole-document push per keystroke over a pipe is not the cost that
+matters when the analysis behind it is a full reparse anyway. Analysis is debounced (150 ms,
+`nvs.lsp.debounce`) and cancelled by the next keystroke.
+
+The unit of analysis is one open document as its own entry point. Its `require`/`autoload` graph is
+resolved exactly as `nvs check` resolves it, with open buffers overlaid on what is on disk, so a class
+edited in one tab and used in another resolves to the unsaved text. Diagnostics are published only for
+**open** documents — publishing for a file nobody opened is workspace-wide analysis, which is M10's.
+Go-to-definition may still land in a closed file; the editor opens it.
+
+Editing one document re-analyses every open document whose graph contains it. Otherwise an open `A.nvs`
+that requires an edited `B.nvs` is stale until touched, which reads as the server being wrong. The resolved
+graph is already in hand from the analysis that produced `A`'s diagnostics, so this is a reverse index
+rather than new work.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/the-language-server/#the-server-is-synchronous" title="nvs-lsp is synchronous on lsp-server and lsp-types — a reader thread, a writer thread, one analysis thread, and no async runtime"><code>ide/the-server-is-synchronous</code></a> <a href="/docs/rules/programs/names-and-files/#autoload" title="autoload maps a prefix to roots, resolved relative to the file that declares it"><code>programs/autoload</code></a> <a href="/docs/rules/ide/the-resilient-parse/#a-full-reanalysis-stays-under-a-bound" title="A full re-analysis of a ~1,000-line document stays under a named bound, and the guard is a test rather than an assumption"><code>ide/a-full-reanalysis-stays-under-a-bound</code></a> <a href="/docs/rules/ide/highlighting-and-completion/#five-features-are-one-reference-index" title="Find-references, occurrence highlight, CodeLens, type hierarchy and unused-member dimming are five queries against one workspace index"><code>ide/five-features-are-one-reference-index</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0099.md">record 0099</a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="stdout-belongs-to-the-protocol">
+
+## Nothing but the protocol writes to the server's stdout; logging goes to stderr and `window/logMessage`
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="designed">Designed</span>
+<a class="nv-rule-id" href="#stdout-belongs-to-the-protocol"><code>ide/stdout-belongs-to-the-protocol</code></a>
+</div>
+
+stdio *is* the wire. One stray `println!` anywhere under the analysis corrupts the framing, which presents
+as the server dying for no reason. So nothing but the protocol may write to stdout: the server logs to
+stderr and, for anything a user should see, `window/logMessage`, and `nvs-lsp` does not carry `nvs-cli`'s
+`clippy::print_stdout` allowance.
+
+Today no library crate writes to stdout — `println!`/`print!` appears nowhere in `crates/` outside
+`nvs-cli`, whose whole job is terminal output — so this is an invariant to keep rather than one to
+establish, and it is kept by a test over every crate the server links rather than by care.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/the-language-server/#the-server-is-synchronous" title="nvs-lsp is synchronous on lsp-server and lsp-types — a reader thread, a writer thread, one analysis thread, and no async runtime"><code>ide/the-server-is-synchronous</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0099.md">record 0099</a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="the-request-set-is-closed">
+
+## M4B answers nine standard requests and exactly one of Novis's own, and a test keeps the list from growing
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="designed">Designed</span>
+<a class="nv-rule-id" href="#the-request-set-is-closed"><code>ide/the-request-set-is-closed</code></a>
+</div>
+
+M4B answers nine standard requests and no more, plus exactly one of Novis's own. Each is named because
+"minimal" without a list is how scope grows: `publishDiagnostics` (the existing `nvs check` pipeline, at
+the negotiated encoding, `code` set, phase-gated per [`ide/diagnostics-are-phase-gated`](/docs/rules/ide/the-language-server/#diagnostics-are-phase-gated "A file with a lexer or parser diagnostic publishes those and its declaration diagnostics, and suppresses its own resolution and type diagnostics")); `hover`
+(the declared type, a `Core` member's registry signature row, a declaration's doc-comment run as
+Markdown); `definition` (the declaring span anywhere in the resolved `require`/`autoload` graph);
+`completion` (keywords by position, members off a resolved receiver including `Core` classes, enum cases
+after `Type::`, in-scope variables — no workspace symbol search); `semanticTokens/full`; `documentSymbol`;
+and three that are projections of data the tree already holds rather than features built on it —
+`selectionRange` (the index's ancestor list is the response), `foldingRange` (the same walk plus comment
+blocks out of the trivia layer) and `documentLink` (the resolved path literal of a `require` or `autoload`).
+The one non-standard request is `nvs/redactions`
+([`security/redaction-ranges-come-from-the-server`](/docs/rules/security/redaction/#redaction-ranges-come-from-the-server "The editor conceals a secret value by default, and the ranges come from the language server rather than a client guess")), non-standard because LSP has no shape for "do not
+show this to the room".
+
+The last three standard ones are admitted on one test — the data structure M4B already builds *is* the
+answer — and that test is what keeps the list from drifting toward M10's catalog, where `documentHighlight`,
+inlay hints and everything else stay. `codeDescription` is not set: it takes a URL per code and there is
+no site to point one at.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/security/redaction/#redaction-ranges-come-from-the-server" title="The editor conceals a secret value by default, and the ranges come from the language server rather than a client guess"><code>security/redaction-ranges-come-from-the-server</code></a> <a href="/docs/rules/ide/code-actions/#a-code-action-ships-only-a-fix-a-diagnostic-already-knows" title="A code action ships only where its replacement text is already in a diagnostic's suggestions — two at M4B, and no other"><code>ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows</code></a> <a href="/docs/rules/ide/the-language-server/#diagnostics-are-phase-gated" title="A file with a lexer or parser diagnostic publishes those and its declaration diagnostics, and suppresses its own resolution and type diagnostics"><code>ide/diagnostics-are-phase-gated</code></a> <a href="/docs/rules/ide/the-resilient-parse/#the-index-answers-the-cursor" title="SyntaxIndex.at(offset) answers the innermost node and its ancestors, and is rebuilt per analysis"><code>ide/the-index-answers-the-cursor</code></a> <a href="/docs/rules/tooling/doc-comments-and-metadata/#doc-comment-tags-are-see-and-example" title="A doc comment is Markdown plus @see and @example, each of which must resolve, and any other @tag is a diagnostic"><code>tooling/doc-comment-tags-are-see-and-example</code></a> <a href="/docs/rules/ide/the-language-server/#every-feature-is-staged-behind-its-dependency" title="The VS Code client goes as deep as the editor allows, and each feature waits for the language or runtime piece it needs rather than shipping as a stub"><code>ide/every-feature-is-staged-behind-its-dependency</code></a> <a href="/docs/rules/ide/highlighting-and-completion/#five-features-are-one-reference-index" title="Find-references, occurrence highlight, CodeLens, type hierarchy and unused-member dimming are five queries against one workspace index"><code>ide/five-features-are-one-reference-index</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0099.md">record 0099</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0101.md">record 0101</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0040.md">record 0040</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0137.md">record 0137</a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="the-first-server-answers-a-closed-list">
+
+## The first `nvs lsp` answers six requests and two code actions, and nothing else until the workspace index exists
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="designed">Designed</span>
+<a class="nv-rule-id" href="#the-first-server-answers-a-closed-list"><code>ide/the-first-server-answers-a-closed-list</code></a>
+</div>
+
+The first `nvs lsp` is built on `lsp-server` and `lsp-types`, synchronously, with no async runtime in
+the workspace. It answers six requests, and the list is closed: `textDocument/publishDiagnostics` by
+running the `nvs check` pipeline over the resilient tree ([`ide/the-tree-survives-a-syntax-error`](/docs/rules/ide/the-resilient-parse/#the-tree-survives-a-syntax-error "The parser always returns a tree, a node it invented says so, and an offset maps to the innermost node even inside a malformed region"));
+`hover` from declared types, a `Core` member's registry signature and a declaration's own doc comment
+out of the trivia layer; `definition`; `completion` restricted to keywords, members off a resolved
+receiver type and enum cases — no cross-file symbol search, which needs the workspace index;
+`semanticTokens/full`; and `documentSymbol`. A `LanguageStatusItem` reports the server's health and
+version.
+
+Plus exactly two code actions: the casing fix ([`core-api/identifier-casing`](/docs/rules/core-api/naming-and-shape/#identifier-casing "An identifier's casing is fixed by its category and a mismatch is a hard compile error")) and `(int)$x` →
+`$x as int` ([`types/no-legacy-cast`](/docs/rules/types/unions-and-conversion/#no-legacy-cast "PHP's (T)expr cast does not parse, and the diagnostic names the as that replaces it")). They are admitted because their replacement text already sits
+in the diagnostic, and that fact — not a judgement about cost — is the boundary that keeps the list from
+creeping toward the full catalog ([`ide/a-quick-fix-is-a-diagnostics-own-suggestion`](/docs/rules/ide/code-actions/#a-quick-fix-is-a-diagnostics-own-suggestion "An inspection is a code action backed by a diagnostic the checker emits, runs on the resilient tree, and is off by default under source.fixAll.nvs so it composes with format-on-save while nvs fmt stays layout-only")).
+
+Not in the first server: format-on-save, because `nvs fmt` does not exist yet; rename; and any code
+action beyond the two. Everything else waits for its dependency
+([`ide/every-feature-is-staged-behind-its-dependency`](/docs/rules/ide/the-language-server/#every-feature-is-staged-behind-its-dependency "The VS Code client goes as deep as the editor allows, and each feature waits for the language or runtime piece it needs rather than shipping as a stub")).
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/the-language-server/#one-crate-and-one-extension-grow-in-place" title="nvs-lsp and editors/vscode are one crate and one package that grow in place; no prototype is built to be discarded"><code>ide/one-crate-and-one-extension-grow-in-place</code></a> <a href="/docs/rules/ide/the-resilient-parse/#the-tree-survives-a-syntax-error" title="The parser always returns a tree, a node it invented says so, and an offset maps to the innermost node even inside a malformed region"><code>ide/the-tree-survives-a-syntax-error</code></a> <a href="/docs/rules/ide/code-actions/#a-quick-fix-is-a-diagnostics-own-suggestion" title="An inspection is a code action backed by a diagnostic the checker emits, runs on the resilient tree, and is off by default under source.fixAll.nvs so it composes with format-on-save while nvs fmt stays layout-only"><code>ide/a-quick-fix-is-a-diagnostics-own-suggestion</code></a> <a href="/docs/rules/core-api/naming-and-shape/#identifier-casing" title="An identifier's casing is fixed by its category and a mismatch is a hard compile error"><code>core-api/identifier-casing</code></a> <a href="/docs/rules/types/unions-and-conversion/#no-legacy-cast" title="PHP's (T)expr cast does not parse, and the diagnostic names the as that replaces it"><code>types/no-legacy-cast</code></a> <a href="/docs/rules/ide/the-language-server/#the-server-is-synchronous" title="nvs-lsp is synchronous on lsp-server and lsp-types — a reader thread, a writer thread, one analysis thread, and no async runtime"><code>ide/the-server-is-synchronous</code></a> <a href="/docs/rules/ide/the-language-server/#the-request-set-is-closed" title="M4B answers nine standard requests and exactly one of Novis's own, and a test keeps the list from growing"><code>ide/the-request-set-is-closed</code></a> <a href="/docs/rules/ide/highlighting-and-completion/#five-features-are-one-reference-index" title="Find-references, occurrence highlight, CodeLens, type hierarchy and unused-member dimming are five queries against one workspace index"><code>ide/five-features-are-one-reference-index</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0040.md">record 0040</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0099.md">record 0099</a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="every-feature-is-staged-behind-its-dependency">
+
+## The VS Code client goes as deep as the editor allows, and each feature waits for the language or runtime piece it needs rather than shipping as a stub
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="designed">Designed</span>
+<a class="nv-rule-id" href="#every-feature-is-staged-behind-its-dependency"><code>ide/every-feature-is-staged-behind-its-dependency</code></a>
+</div>
+
+VS Code is the reference client and gets real depth, not an LSP passthrough with a grammar file:
+inspections and quick fixes, refactorings, signature help and workspace symbol search, inlay hints, a
+native Test Explorer with coverage, an AST panel, a profiler view, debugger wiring, HTML/CSS/JS services
+inside an inline-HTML region (the template, given [`programs/first-party-framework`](/docs/rules/programs/the-framework/#first-party-framework "Novis ships the framework, split by the standard-library placement tests")), and the four
+"write" actions that implement a member, override a method, declare the function just called, or narrow
+an `array<mixed>` annotation to its literal.
+
+Each is a commitment tagged with the language or runtime piece it needs, and lands with that piece
+rather than ahead of it as a stub. The first server carries what needs nothing further
+([`ide/the-first-server-answers-a-closed-list`](/docs/rules/ide/the-language-server/#the-first-server-answers-a-closed-list "The first nvs lsp answers six requests and two code actions, and nothing else until the workspace index exists")). The workspace index, `nvs fmt`, `nvs dap` and the
+profiler gate the rest: format-on-save waits for the formatter, the debugger UI for the adapter
+([`ide/the-debug-adapter-does-not-wait-for-an-editor`](/docs/rules/ide/phpstorm-and-the-debugger/#the-debug-adapter-does-not-wait-for-an-editor "nvs dap is complete without any editor's debugger UI; VS Code's wiring is a descriptor factory and a launch.json schema, and PhpStorm's stays deferred")), references, CodeLens, type hierarchy and
+unused-member dimming for the one index that answers all of them, `nvs ext` commands for `.nvsx`
+extensions existing. Two are committed to no milestone at all: a `Core\Reflect`-backed live object
+inspector, and a request-tree view of `spawn` during a debug session, which needs a DAP protocol
+extension nobody has designed.
+
+Completion from the compiler's own tables — route names, `nvs.toml` directives, `#[Api]` fields — is
+offered only where the compiler already derives the value for another reason, never from a convention
+scan or an annotation dialect. That closed rule is the whole answer to "framework support", and why no
+per-framework module enters `nvs-lsp`.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/the-language-server/#the-first-server-answers-a-closed-list" title="The first nvs lsp answers six requests and two code actions, and nothing else until the workspace index exists"><code>ide/the-first-server-answers-a-closed-list</code></a> <a href="/docs/rules/ide/code-actions/#a-quick-fix-is-a-diagnostics-own-suggestion" title="An inspection is a code action backed by a diagnostic the checker emits, runs on the resilient tree, and is off by default under source.fixAll.nvs so it composes with format-on-save while nvs fmt stays layout-only"><code>ide/a-quick-fix-is-a-diagnostics-own-suggestion</code></a> <a href="/docs/rules/ide/code-actions/#no-refactoring-introduces-an-alias" title="Rename, organize-imports and auto-import never write a use alias: an import inserts the fully-qualified name, and organize-imports only reorders and removes"><code>ide/no-refactoring-introduces-an-alias</code></a> <a href="/docs/rules/ide/the-vs-code-extension/#the-ast-panel-shells-out-to-the-cli" title="The AST panel renders nvs ast --json for the active file, on the resilient tree by default, and never runs Core\Ast"><code>ide/the-ast-panel-shells-out-to-the-cli</code></a> <a href="/docs/rules/ide/the-vs-code-extension/#the-extension-builds-no-ui-the-editor-already-has" title="Coverage, server health, profiles and the debugger reach the editor through its own APIs and open formats — FileCoverage, LanguageStatusItem, DAP's UI, speedscope — and the extension builds none of them"><code>ide/the-extension-builds-no-ui-the-editor-already-has</code></a> <a href="/docs/rules/ide/phpstorm-and-the-debugger/#the-debug-adapter-does-not-wait-for-an-editor" title="nvs dap is complete without any editor's debugger UI; VS Code's wiring is a descriptor factory and a launch.json schema, and PhpStorm's stays deferred"><code>ide/the-debug-adapter-does-not-wait-for-an-editor</code></a> <a href="/docs/rules/programs/the-framework/#first-party-framework" title="Novis ships the framework, split by the standard-library placement tests"><code>programs/first-party-framework</code></a> <a href="/docs/rules/tooling/the-formatter/#fmt-is-one-canonical-style" title="nvs fmt has one style, takes no configuration, and its output is a pure function of the file it is given"><code>tooling/fmt-is-one-canonical-style</code></a> <a href="/docs/rules/ide/highlighting-and-completion/#five-features-are-one-reference-index" title="Find-references, occurrence highlight, CodeLens, type hierarchy and unused-member dimming are five queries against one workspace index"><code>ide/five-features-are-one-reference-index</code></a> <a href="/docs/rules/ide/highlighting-and-completion/#completion-offers-only-what-the-compiler-derived" title="The editor completes a value only where the compiler already derives it for another reason, never from a convention scan, an annotation dialect or the network"><code>ide/completion-offers-only-what-the-compiler-derived</code></a> <a href="/docs/rules/ide/highlighting-and-completion/#a-template-region-gets-services-but-no-second-formatter" title="An inline-HTML region gets the editor's own HTML, CSS and JavaScript services on boundaries the server reports, and no formatter beside nvs fmt"><code>ide/a-template-region-gets-services-but-no-second-formatter</code></a> <a href="/docs/rules/ide/the-resilient-parse/#ast-json-schema-is-frozen" title="nvs ast --json has a frozen node schema, is resilient by default, and its only type-dependent field is a secret literal's placeholder"><code>ide/ast-json-schema-is-frozen</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0040.md">record 0040</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0016.md">record 0016</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0099.md">record 0099</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0108.md">record 0108</a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="diagnostics-are-phase-gated">
+
+## A file with a lexer or parser diagnostic publishes those and its declaration diagnostics, and suppresses its own resolution and type diagnostics
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="designed">Designed</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#diagnostics-are-phase-gated"><code>ide/diagnostics-are-phase-gated</code></a>
+</div>
+
+The front end runs parse → declarations → resolution → types with no gate between the phases, bailing
+only after the type check. In batch mode that is right: you read the first error and the process exits. In
+an editor it is not — resolution running over an `ExprKind::Error` node reports `E0301` ("assigned to but
+never declared") *above* the `E0102` that caused it, and on every keystroke mid-statement that is a wall of
+red whose topmost entry is wrong, which teaches a developer to stop reading the squiggles.
+
+So, expressible because the code bands are allocated by phase: **a file that has produced a lexer
+(`E00xx`) or parser (`E01xx`) diagnostic publishes those and its declaration diagnostics, and suppresses
+resolution (`E03xx`) and type (`E04xx`) diagnostics for that file only.** Not for the workspace, and not
+for the phases below the failure: the other files in the graph keep their own diagnostics, because a
+broken buffer in one tab is not a reason to go dark in another.
+
+This is presentation, not analysis. The checker still runs and `nvs check` is untouched, so no diagnostic
+is lost anywhere one was reaching a human before. The suppression is one-directional — a resolution error
+never suppresses a type error, because those two do not cascade the way a parse failure into everything
+below it does. A `.lspt` case pins it in both directions, with `phase=all` defeating the gate.
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p>A PHP editor's diagnostics come from one pass with no phase to gate, so a mid-statement typo shows every consequence it cascades into</p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/errors/diagnostics-and-logging/#diagnostic-record" title="Every developer-facing output is one closed record"><code>errors/diagnostic-record</code></a> <a href="/docs/rules/ide/the-language-server/#the-request-set-is-closed" title="M4B answers nine standard requests and exactly one of Novis's own, and a test keeps the list from growing"><code>ide/the-request-set-is-closed</code></a> <a href="/docs/rules/ide/testing-the-editor/#a-request-line-is-closed" title="--REQUEST-- is one line whose argument set is closed per request, and an unknown request or argument fails the case"><code>ide/a-request-line-is-closed</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0099.md">record 0099</a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="check-json-is-the-diagnostic-record-as-a-document">
+
+## `nvs check --json` writes the same diagnostic records the terminal renderer prints, as one document with a frozen schema
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="designed">Designed</span>
+<a class="nv-rule-id" href="#check-json-is-the-diagnostic-record-as-a-document"><code>ide/check-json-is-the-diagnostic-record-as-a-document</code></a>
+</div>
+
+`nvs check --json` writes the same `Diagnostic` records the terminal renderer prints — code, spans,
+severity, help and `suggestions` ([`errors/diagnostic-record`](/docs/rules/errors/diagnostics-and-logging/#diagnostic-record "Every developer-facing output is one closed record")) — as one machine-readable document. Its
+schema is frozen the way `nvs ast --json`'s is, and snapshot-tested the same way; it is part of the CLI
+surface the version contract covers.
+
+The text rendering stays the default and is what the Tasks `problemMatcher` reads; nothing about the
+terminal output changes. The document exists for CI and for the agents that increasingly drive this
+compiler, including the one that maintains this repository: over the corpus it emits one record per
+diagnostic the text renderer prints, with the same codes and spans.
+
+`nvs check` on the command line analyses what it is given, as it always has — the scope setting of
+[`ide/check-scope-defaults-to-open-documents`](/docs/rules/ide/the-language-server/#check-scope-defaults-to-open-documents "Diagnostics are published for open documents and their require graph by default, and a workspace pass is one setting or one command") is the editor's, not the CLI's.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/errors/diagnostics-and-logging/#diagnostic-record" title="Every developer-facing output is one closed record"><code>errors/diagnostic-record</code></a> <a href="/docs/rules/errors/diagnostics-and-logging/#renderings" title="The sink in force picks the rendering, and no call site may name one"><code>errors/renderings</code></a> <a href="/docs/rules/ide/the-language-server/#check-scope-defaults-to-open-documents" title="Diagnostics are published for open documents and their require graph by default, and a workspace pass is one setting or one command"><code>ide/check-scope-defaults-to-open-documents</code></a> <a href="/docs/rules/packaging/the-version-contract/#a-dependency-break-is-absorbed-never-forwarded" title="A dependency break that a program author could see goes down a seven-step ladder, and shipping it is the last step"><code>packaging/a-dependency-break-is-absorbed-never-forwarded</code></a> <a href="/docs/rules/ide/the-resilient-parse/#ast-json-schema-is-frozen" title="nvs ast --json has a frozen node schema, is resilient by default, and its only type-dependent field is a secret literal's placeholder"><code>ide/ast-json-schema-is-frozen</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0108.md">record 0108</a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="check-scope-defaults-to-open-documents">
+
+## Diagnostics are published for open documents and their require graph by default, and a workspace pass is one setting or one command
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="designed">Designed</span>
+<a class="nv-rule-id" href="#check-scope-defaults-to-open-documents"><code>ide/check-scope-defaults-to-open-documents</code></a>
+</div>
+
+`nvs.check.scope` is `"open"` or `"workspace"`, default `"open"`: diagnostics are published for open
+documents and their `require`/`autoload` graph, or for every file the index holds. The default does not
+change what the editor did before the setting existed. `nvs.checkWorkspace` runs one workspace pass on
+demand without changing the setting, which is the cheap version of the same thing.
+
+Workspace scope is the expensive setting, and the one whose cost is measured least, which is why it is
+off by default. The one feature that is only correct at workspace scope —
+[`ide/five-features-are-one-reference-index`](/docs/rules/ide/highlighting-and-completion/#five-features-are-one-reference-index "Find-references, occurrence highlight, CodeLens, type hierarchy and unused-member dimming are five queries against one workspace index")'s unused-member dimming — is silent under the default
+rather than wrong, and lands together with this setting.
+
+Both identifiers, with `nvs.codeLens.enable`, `nvs.template.services` and the `nvs/regions` request, are
+added to the extension's frozen roster under that roster's own rule: a name is added and never renamed.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/highlighting-and-completion/#five-features-are-one-reference-index" title="Find-references, occurrence highlight, CodeLens, type hierarchy and unused-member dimming are five queries against one workspace index"><code>ide/five-features-are-one-reference-index</code></a> <a href="/docs/rules/ide/the-language-server/#check-json-is-the-diagnostic-record-as-a-document" title="nvs check --json writes the same diagnostic records the terminal renderer prints, as one document with a frozen schema"><code>ide/check-json-is-the-diagnostic-record-as-a-document</code></a> <a href="/docs/rules/ide/one-server-thin-clients/#contributions-are-frozen-and-only-ever-added" title="A setting name and a command id are public API: the roster is frozen, and anything later is added, never renamed"><code>ide/contributions-are-frozen-and-only-ever-added</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0108.md">record 0108</a></dd></div></dl>
+
+</div>

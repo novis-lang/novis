@@ -1,0 +1,182 @@
+---
+# GENERATED FILE — written by website/scripts/sync-rules.mjs from docs/rules/. Do not edit.
+title: "Testing the editor"
+description: "An LSP answer is frozen as a case file with a cursor, a request and its exact rendering — and coverage is inferred, not declared."
+editUrl: false
+lastUpdated: false
+tableOfContents: false
+prev:
+  link: /docs/rules/ide/highlighting-and-completion/
+  label: "Highlighting, completion and references"
+next:
+  link: /docs/rules/ide/one-server-thin-clients/
+  label: "One server, thin clients"
+---
+
+<p class="nv-section-lead">An LSP answer is frozen as a case file with a cursor, a request and its exact rendering — and coverage is inferred, not declared.</p>
+
+<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">6</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">0</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">6</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">0</span><span class="nv-count-label">differ from PHP</span></div></div>
+
+<ol class="nv-rule-list"><li><a href="#case-files-have-their-own-grammar"><code>.nvst</code> and <code>.lspt</code> get a grammar of their own, with Novis embedded in <code>--FILE--</code> and PHP in <code>--ORACLE--</code></a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#an-lsp-answer-is-frozen-as-an-lspt-case">An LSP answer is frozen as a <code>.lspt</code> case — a document, a <code>&lt;|&gt;</code> cursor, a request and its rendering — run by <code>nvs lsp-test</code> printing <code>N passed, M failed</code></a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#a-request-line-is-closed"><code>--REQUEST--</code> is one line whose argument set is closed per request, and an unknown request or argument fails the case</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#the-rendering-has-one-home"><code>--EXPECT--</code> is exact and frozen, and every response is rendered by <code>nvs_lsp::render</code> so no case invents a spelling</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#lspt-coverage-is-inferred"><code>.lspt</code> coverage is inferred from the node the cursor resolved to, never declared, and <code>every_request_answers_every_construct</code> names each empty cell</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#headless-gates-the-loop-the-host-run-gates-the-milestone">The headless suites run every iteration with no editor; the extension-host run is CI-only, under <code>xvfb-run</code>, with an isolated profile</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li></ol>
+
+<div class="nv-rule" id="case-files-have-their-own-grammar">
+
+## `.nvst` and `.lspt` get a grammar of their own, with Novis embedded in `--FILE--` and PHP in `--ORACLE--`
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="designed">Designed</span>
+<a class="nv-rule-id" href="#case-files-have-their-own-grammar"><code>ide/case-files-have-their-own-grammar</code></a>
+</div>
+
+`.nvst` and `.lspt` get a second grammar: the section headers, with the Novis grammar embedded inside
+`--FILE--` and PHP's inside `--ORACLE--`. It is a thin wrapper whose bodies `include` the grammar M4B
+builds anyway.
+
+It ranks above the "nice later" pile because of who reads those files. This repository's own loop writes
+hundreds of them and every session reads them as flat grey text, so the grammar that helps most per byte
+written is the one for the format the project authors most — the only grammar here whose audience is the
+people working on Novis rather than the people using it. A `.nvst` case opens with its sections coloured
+and Novis highlighted inside `--FILE--`.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/highlighting-and-completion/#highlighting-is-two-layers" title="Syntax highlighting is a TextMate grammar and a semantic-token provider, each with its own test, and each must cover what makes Novis not PHP"><code>ide/highlighting-is-two-layers</code></a> <a href="/docs/rules/ide/testing-the-editor/#an-lsp-answer-is-frozen-as-an-lspt-case" title="An LSP answer is frozen as a .lspt case — a document, a &lt;|&gt; cursor, a request and its rendering — run by nvs lsp-test printing N passed, M failed"><code>ide/an-lsp-answer-is-frozen-as-an-lspt-case</code></a> <a href="/docs/rules/testing/the-four-proofs/#nvst-is-separate" title=".nvst proves the language; #[Test] is how a program written in Novis tests itself"><code>testing/nvst-is-separate</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0099.md">record 0099</a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="an-lsp-answer-is-frozen-as-an-lspt-case">
+
+## An LSP answer is frozen as a `.lspt` case — a document, a `<|>` cursor, a request and its rendering — run by `nvs lsp-test` printing `N passed, M failed`
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="designed">Designed</span>
+<a class="nv-rule-id" href="#an-lsp-answer-is-frozen-as-an-lspt-case"><code>ide/an-lsp-answer-is-frozen-as-an-lspt-case</code></a>
+</div>
+
+A `.lspt` case is a document, a cursor, a request, and the response rendered canonically:
+
+```
+--TEST--
+member completion survives an unclosed brace
+--FILE--
+<?nvs
+class User { public string $name; public function greet(): string { return "hi"; } }
+$u = new User();
+$u-><|>
+if (true) {
+--REQUEST--
+completion
+--EXPECT--
+greet   method    (): string
+name    property  string
+```
+
+It is a sibling of `.nvst` and deliberately not an extension of it: `.nvst` runs a program and freezes
+stdout, `.lspt` asks a question of a document that is usually not even valid. Sharing the *format* is
+right; sharing the *suite* would make `nvs test`'s count mean two things and break the conformance
+coverage guard ([`testing/nvst-is-separate`](/docs/rules/testing/the-four-proofs/#nvst-is-separate ".nvst proves the language; #[Test] is how a program written in Novis tests itself")). The section lexer is `nvs_test`'s, extracted to a shared
+module, so `--TEST--`, `--FILE--`, `--FILE <relative/path>--` and `--EXPECT--` mean exactly what they mean
+in a `.nvst` case, multi-file cases included. `<|>` is the cursor, removed before analysis and reported as
+an offset — exactly one per case, and none for a request that needs none.
+
+The runner is `nvs lsp-test <paths>`, walking directories for `*.lspt` and printing `N passed, M failed`
+— the line the loop's `nvs-suite` check kind already parses, so editor behaviour is gated with no change
+to the driver at all.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/testing/the-four-proofs/#nvst-is-separate" title=".nvst proves the language; #[Test] is how a program written in Novis tests itself"><code>testing/nvst-is-separate</code></a> <a href="/docs/rules/ide/testing-the-editor/#a-request-line-is-closed" title="--REQUEST-- is one line whose argument set is closed per request, and an unknown request or argument fails the case"><code>ide/a-request-line-is-closed</code></a> <a href="/docs/rules/ide/testing-the-editor/#the-rendering-has-one-home" title="--EXPECT-- is exact and frozen, and every response is rendered by nvs_lsp::render so no case invents a spelling"><code>ide/the-rendering-has-one-home</code></a> <a href="/docs/rules/ide/testing-the-editor/#lspt-coverage-is-inferred" title=".lspt coverage is inferred from the node the cursor resolved to, never declared, and every_request_answers_every_construct names each empty cell"><code>ide/lspt-coverage-is-inferred</code></a> <a href="/docs/rules/ide/testing-the-editor/#case-files-have-their-own-grammar" title=".nvst and .lspt get a grammar of their own, with Novis embedded in --FILE-- and PHP in --ORACLE--"><code>ide/case-files-have-their-own-grammar</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0099.md">record 0099</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0040.md">record 0040</a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="a-request-line-is-closed">
+
+## `--REQUEST--` is one line whose argument set is closed per request, and an unknown request or argument fails the case
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="designed">Designed</span>
+<a class="nv-rule-id" href="#a-request-line-is-closed"><code>ide/a-request-line-is-closed</code></a>
+</div>
+
+`--REQUEST--` is one line: the request name, then optional `key=value` arguments. The argument set is
+closed per request and lives beside the renderer, so a case cannot ask for something no runner implements.
+`completion` takes `prefix=` (filter the labels, which is how a case about `->` avoids freezing the whole
+keyword list) and `limit=`; `diagnostics` takes `phase=all` to defeat [`ide/diagnostics-are-phase-gated`](/docs/rules/ide/the-language-server/#diagnostics-are-phase-gated "A file with a lexer or parser diagnostic publishes those and its declaration diagnostics, and suppresses its own resolution and type diagnostics"),
+which is how the gating itself gets a case; `semanticTokens` takes `types=` to restrict the rendering to
+the token types under test; the rest take none.
+
+An unknown request or argument fails the case loudly rather than being ignored. A silently-dropped argument
+is a case that passes while testing something else.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/testing-the-editor/#an-lsp-answer-is-frozen-as-an-lspt-case" title="An LSP answer is frozen as a .lspt case — a document, a &lt;|&gt; cursor, a request and its rendering — run by nvs lsp-test printing N passed, M failed"><code>ide/an-lsp-answer-is-frozen-as-an-lspt-case</code></a> <a href="/docs/rules/ide/the-language-server/#diagnostics-are-phase-gated" title="A file with a lexer or parser diagnostic publishes those and its declaration diagnostics, and suppresses its own resolution and type diagnostics"><code>ide/diagnostics-are-phase-gated</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0099.md">record 0099</a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="the-rendering-has-one-home">
+
+## `--EXPECT--` is exact and frozen, and every response is rendered by `nvs_lsp::render` so no case invents a spelling
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="designed">Designed</span>
+<a class="nv-rule-id" href="#the-rendering-has-one-home"><code>ide/the-rendering-has-one-home</code></a>
+</div>
+
+`--EXPECT--` is exact and frozen, on the same terms as `.nvst`'s: the case's *source* may be corrected
+freely, its expectation may not be edited to make it pass.
+
+The rendering is canonical and has one home, `nvs_lsp::render`, so no case invents its own spelling:
+diagnostics as `L:C-L:C severity CODE message` sorted by position; a hover as its markdown verbatim; a
+definition as `file:L:C` or `none`; completion as `label kind detail`, sorted by label; semantic tokens as
+`L:C+len type modifiers`; symbols as an indented outline.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/testing-the-editor/#an-lsp-answer-is-frozen-as-an-lspt-case" title="An LSP answer is frozen as a .lspt case — a document, a &lt;|&gt; cursor, a request and its rendering — run by nvs lsp-test printing N passed, M failed"><code>ide/an-lsp-answer-is-frozen-as-an-lspt-case</code></a> <a href="/docs/rules/testing/the-four-proofs/#nvst-is-separate" title=".nvst proves the language; #[Test] is how a program written in Novis tests itself"><code>testing/nvst-is-separate</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0099.md">record 0099</a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="lspt-coverage-is-inferred">
+
+## `.lspt` coverage is inferred from the node the cursor resolved to, never declared, and `every_request_answers_every_construct` names each empty cell
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="designed">Designed</span>
+<a class="nv-rule-id" href="#lspt-coverage-is-inferred"><code>ide/lspt-coverage-is-inferred</code></a>
+</div>
+
+Coverage is inferred, never declared. `nvs lsp-test --coverage` prints the matrix of request × syntactic
+construct, taking the construct from the node the cursor actually resolved to. A case cannot claim coverage
+it does not have, and nobody maintains a list by hand.
+
+The guard test `every_request_answers_every_construct` reads that matrix and fails naming each empty cell
+— a gate that enumerates its source of truth rather than counting. Rust integration tests are kept beside
+`.lspt` for what they are genuinely better at, the resilient parser's own invariants over a corpus, and
+never as the only mechanism, because that would make coverage invisible to the gate the loop stops on.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/testing-the-editor/#an-lsp-answer-is-frozen-as-an-lspt-case" title="An LSP answer is frozen as a .lspt case — a document, a &lt;|&gt; cursor, a request and its rendering — run by nvs lsp-test printing N passed, M failed"><code>ide/an-lsp-answer-is-frozen-as-an-lspt-case</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0099.md">record 0099</a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="headless-gates-the-loop-the-host-run-gates-the-milestone">
+
+## The headless suites run every iteration with no editor; the extension-host run is CI-only, under `xvfb-run`, with an isolated profile
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="designed">Designed</span>
+<a class="nv-rule-id" href="#headless-gates-the-loop-the-host-run-gates-the-milestone"><code>ide/headless-gates-the-loop-the-host-run-gates-the-milestone</code></a>
+</div>
+
+Two tiers, because they answer different questions and cost two orders of magnitude apart.
+
+**Headless, every iteration.** Plain Node, no editor, no display, no network: the grammar snapshot tests, a
+contributions test asserting `package.json` declares what the extension claims and depends only on the
+allowlist, and a protocol round-trip that spawns the real `nvs lsp` binary and drives it with
+`vscode-languageclient`. It is what the loop's acceptance test gates on, and it runs once rather than once
+per leg — a `command` check is not a program fixture, so it has no calling convention for the WSL leg to
+exercise. CI runs it on all three platforms, since a `.vsix` is cross-platform and a path bug is not.
+
+**The extension host, in CI only.** `@vscode/test-electron` runs Mocha inside the real extension host —
+the only thing that can prove activation on `.nvs`, the Tasks, the `LanguageStatusItem`, the AST panel and
+the semantic-token legend. It needs a display, and the only display on a developer's machine is one a
+person is using, so it runs on Linux under `xvfb-run` and is not on the loop's acceptance list at all.
+Wherever it runs it isolates its profile — `--user-data-dir` and `--extensions-dir` to a throwaway
+directory, a fixture folder rather than the repository — or a test that writes a setting writes it into
+the developer's own `settings.json`.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/highlighting-and-completion/#highlighting-is-two-layers" title="Syntax highlighting is a TextMate grammar and a semantic-token provider, each with its own test, and each must cover what makes Novis not PHP"><code>ide/highlighting-is-two-layers</code></a> <a href="/docs/rules/ide/the-vs-code-extension/#dependencies-are-allowlisted" title="The extension holds no language logic, and its package.json dependencies are checked against an allowlist by its own tests"><code>ide/dependencies-are-allowlisted</code></a> <a href="/docs/rules/ide/highlighting-and-completion/#semantic-tokens-carry-the-qualifiers" title="Semantic tokens use LSP's standard types plus two modifiers of Novis's own, tainted and secret, and the client's legend must equal the server's"><code>ide/semantic-tokens-carry-the-qualifiers</code></a> <a href="/docs/rules/ide/the-vs-code-extension/#the-lockfile-is-committed-and-build-output-is-not" title="package-lock.json is committed; node_modules/, out/, .vscode-test/ and .vsix are ignored"><code>ide/the-lockfile-is-committed-and-build-output-is-not</code></a> <a href="/docs/rules/testing/continuous-integration/#ci-lanes" title="One workflow holds every job, and three lanes decide which of them a run needs"><code>testing/ci-lanes</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0099.md">record 0099</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0101.md">record 0101</a></dd></div></dl>
+
+</div>

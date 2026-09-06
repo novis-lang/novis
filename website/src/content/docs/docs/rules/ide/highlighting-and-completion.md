@@ -1,0 +1,320 @@
+---
+# GENERATED FILE — written by website/scripts/sync-rules.mjs from docs/rules/. Do not edit.
+title: "Highlighting, completion and references"
+description: "Two highlighting layers that ship names and no colours, and completion that offers only what the compiler already derived."
+editUrl: false
+lastUpdated: false
+tableOfContents: false
+prev:
+  link: /docs/rules/ide/code-actions/
+  label: "Code actions and quick fixes"
+next:
+  link: /docs/rules/ide/testing-the-editor/
+  label: "Testing the editor"
+---
+
+<p class="nv-section-lead">Two highlighting layers that ship names and no colours, and completion that offers only what the compiler already derived.</p>
+
+<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">8</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">0</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">8</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">6</span><span class="nv-count-label">differ from PHP</span></div></div>
+
+<ol class="nv-rule-list"><li><a href="#highlighting-is-two-layers">Syntax highlighting is a TextMate grammar and a semantic-token provider, each with its own test, and each must cover what makes Novis not PHP</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#rejected-syntax-gets-no-colour">Nothing Novis rejects is coloured as though it were valid</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#semantic-tokens-carry-the-qualifiers">Semantic tokens use LSP's standard types plus two modifiers of Novis's own, <code>tainted</code> and <code>secret</code>, and the client's legend must equal the server's</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#novis-ships-names-not-colours">Both layers ship standard names and no colours: every scope is on the TextMate allowlist, every token type is in LSP's legend, and the extension overrides no theme</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#five-features-are-one-reference-index">Find-references, occurrence highlight, CodeLens, type hierarchy and unused-member dimming are five queries against one workspace index</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#completion-offers-only-what-the-compiler-derived">The editor completes a value only where the compiler already derives it for another reason, never from a convention scan, an annotation dialect or the network</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#three-of-four-item-shapes-insert-nothing">A PHP-name completion item takes one of four shapes, and three of them insert nothing</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-template-region-gets-services-but-no-second-formatter">An inline-HTML region gets the editor's own HTML, CSS and JavaScript services on boundaries the server reports, and no formatter beside <code>nvs fmt</code></a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li></ol>
+
+<div class="nv-rule" id="highlighting-is-two-layers">
+
+## Syntax highlighting is a TextMate grammar and a semantic-token provider, each with its own test, and each must cover what makes Novis not PHP
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="designed">Designed</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#highlighting-is-two-layers"><code>ide/highlighting-is-two-layers</code></a>
+</div>
+
+"Colour" is two deliverables because the two layers fail differently: the grammar has to be right before
+the server has started, and the server has to be right about things a regex cannot see.
+
+**Layer one, the TextMate grammar** (`editors/vscode/syntaxes/nvs.tmLanguage.json`), is what a file looks
+like the instant it opens. It must cover, because each is a way Novis is not PHP and a borrowed PHP grammar
+gets wrong: the dual-mode lexer's openers `<?nvs`, `<?php`, `<?=` and `?>`, with inline HTML outside them
+highlighted as HTML; heredoc and nowdoc, with interpolation only in the former; type annotations everywhere
+the grammar allows one, including the inline shape `{x: int}` ([`types/object-top`](/docs/rules/types/objects-and-shapes/#object-top "object is the opaque top of every class type")); the qualifiers
+`tainted` and `secret`, and `decimal` as a scalar keyword ([`types/decimal`](/docs/rules/types/declarations-and-numbers/#decimal "decimal is an exact scalar of 96 mantissa bits and a scale of 0 to 28")); `spawn`, `spawn script`,
+`autoload`, `type`, `by`-delegation, property hooks and their `get`/`set` bodies; duration literals
+([`types/duration-literal`](/docs/rules/types/text-and-literal-types/#duration-literal "1h30m is a Core\Time\Duration constant, in one grammar shared by source, parse and nvs.toml")); `#[...]` attributes distinguished from a `#` comment; and nothing Novis
+rejects ([`ide/rejected-syntax-gets-no-colour`](/docs/rules/ide/highlighting-and-completion/#rejected-syntax-gets-no-colour "Nothing Novis rejects is coloured as though it were valid")). Its test needs no editor: `vscode-textmate` plus
+`vscode-oniguruma` tokenize a fixture and a snapshot freezes the scope of every span.
+
+**Layer two, semantic tokens**, is where a compiler colours what a regex cannot know
+([`ide/semantic-tokens-carry-the-qualifiers`](/docs/rules/ide/highlighting-and-completion/#semantic-tokens-carry-the-qualifiers "Semantic tokens use LSP's standard types plus two modifiers of Novis's own, tainted and secret, and the client's legend must equal the server's")). Its test is a `.lspt` case per token type, plus the
+extension-host run confirming the client's legend matches the server's.
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p>Type annotations sit where PHP has none — parameters, returns, properties, <code>foreach</code> bindings, typed locals, inline shapes — so a borrowed PHP grammar mis-colours the largest part of a Novis file</p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/highlighting-and-completion/#rejected-syntax-gets-no-colour" title="Nothing Novis rejects is coloured as though it were valid"><code>ide/rejected-syntax-gets-no-colour</code></a> <a href="/docs/rules/ide/highlighting-and-completion/#semantic-tokens-carry-the-qualifiers" title="Semantic tokens use LSP's standard types plus two modifiers of Novis's own, tainted and secret, and the client's legend must equal the server's"><code>ide/semantic-tokens-carry-the-qualifiers</code></a> <a href="/docs/rules/ide/highlighting-and-completion/#novis-ships-names-not-colours" title="Both layers ship standard names and no colours: every scope is on the TextMate allowlist, every token type is in LSP's legend, and the extension overrides no theme"><code>ide/novis-ships-names-not-colours</code></a> <a href="/docs/rules/ide/testing-the-editor/#case-files-have-their-own-grammar" title=".nvst and .lspt get a grammar of their own, with Novis embedded in --FILE-- and PHP in --ORACLE--"><code>ide/case-files-have-their-own-grammar</code></a> <a href="/docs/rules/types/objects-and-shapes/#object-top" title="object is the opaque top of every class type"><code>types/object-top</code></a> <a href="/docs/rules/types/text-and-literal-types/#duration-literal" title="1h30m is a Core\Time\Duration constant, in one grammar shared by source, parse and nvs.toml"><code>types/duration-literal</code></a> <a href="/docs/rules/types/declarations-and-numbers/#decimal" title="decimal is an exact scalar of 96 mantissa bits and a scale of 0 to 28"><code>types/decimal</code></a> <a href="/docs/rules/tooling/doc-comments-and-metadata/#doc-comment-is-three-slashes" title="A doc comment is exactly ///; //// and longer runs are ordinary comments, and # never is one"><code>tooling/doc-comment-is-three-slashes</code></a> <a href="/docs/rules/ide/the-language-server/#the-first-server-answers-a-closed-list" title="The first nvs lsp answers six requests and two code actions, and nothing else until the workspace index exists"><code>ide/the-first-server-answers-a-closed-list</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0099.md">record 0099</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0040.md">record 0040</a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="rejected-syntax-gets-no-colour">
+
+## Nothing Novis rejects is coloured as though it were valid
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="designed">Designed</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#rejected-syntax-gets-no-colour"><code>ide/rejected-syntax-gets-no-colour</code></a>
+</div>
+
+Nothing Novis rejects may be coloured as though it were valid. `===` and `!==` are not operators
+([`expressions/one-equality-operator`](/docs/rules/expressions/truthiness-and-equality/#one-equality-operator "== and != are the whole of equality, and ===, !== and <> do not parse")), `(int)$x` is not a cast ([`types/no-legacy-cast`](/docs/rules/types/unions-and-conversion/#no-legacy-cast "PHP's (T)expr cast does not parse, and the diagnostic names the as that replaces it")), `|>` is
+not PHP 8.5's operator ([`expressions/pipeline-substitution`](/docs/rules/expressions/pipeline-and-catch/#pipeline-substitution "|> substitutes one hole at parse time, and has no run-time representation")), and the alternative colon syntax
+(`if (...): ... endif;`) is not syntax at all.
+
+A grammar that colours these confirms a mistake in the editor before the server contradicts it, which is
+worse than no colour. The grammar snapshot test asserts `===` receives no operator scope, alongside the
+positive cases — a `#[Route]` attribute that is not a comment, a nowdoc that does not interpolate, inline
+HTML outside `<?nvs`.
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p>A PHP grammar colours <code>===</code>, <code>(int)$x</code> and <code>if (...): endif;</code> as syntax; here they render as body text so the editor never confirms what the compiler refuses</p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/highlighting-and-completion/#highlighting-is-two-layers" title="Syntax highlighting is a TextMate grammar and a semantic-token provider, each with its own test, and each must cover what makes Novis not PHP"><code>ide/highlighting-is-two-layers</code></a> <a href="/docs/rules/expressions/truthiness-and-equality/#one-equality-operator" title="== and != are the whole of equality, and ===, !== and &lt;&gt; do not parse"><code>expressions/one-equality-operator</code></a> <a href="/docs/rules/types/unions-and-conversion/#no-legacy-cast" title="PHP's (T)expr cast does not parse, and the diagnostic names the as that replaces it"><code>types/no-legacy-cast</code></a> <a href="/docs/rules/expressions/pipeline-and-catch/#pipeline-substitution" title="|&gt; substitutes one hole at parse time, and has no run-time representation"><code>expressions/pipeline-substitution</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0099.md">record 0099</a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="semantic-tokens-carry-the-qualifiers">
+
+## Semantic tokens use LSP's standard types plus two modifiers of Novis's own, `tainted` and `secret`, and the client's legend must equal the server's
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="designed">Designed</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#semantic-tokens-carry-the-qualifiers"><code>ide/semantic-tokens-carry-the-qualifiers</code></a>
+</div>
+
+The token types M4B emits are each chosen because the grammar structurally cannot answer them:
+`namespace`, `class` (with `defaultLibrary` for a `Core` class, so the standard library is visibly not
+user code), `interface`, `enum`, `enumMember`, `type` (an alias), `method`, `property`, `parameter`,
+`variable`, `typeParameter` — and two modifiers of Novis's own, **`tainted` and `secret`**, so a qualified
+value is visibly qualified at every use site rather than only where it was declared.
+
+That pair is why this layer is built at M4B rather than M10: [`security/tainted-qualifier`](/docs/rules/security/tainted-data/#tainted-qualifier "tainted is a compile-time qualifier on string and bytes, spellable in any declaration and erased before codegen")'s and
+[`security/secret-qualifier`](/docs/rules/security/secrets/#secret-qualifier "secret is a second, independent compile-time qualifier, written before tainted and in that order alone")'s whole model is that a value carries a qualifier through the program, and
+an editor that shows it is the cheapest teaching surface the language has. "The qualifier is visible" is
+verified as "the token carries the modifier", never as a colour.
+
+The legend the client registers must equal the legend the server declares. A mismatch silently colours
+everything one token type off, which no unit test on either side alone can see, so the extension-host run
+proves it.
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p>No PHP tool shows a value's taint at its use sites; here <code>tainted</code> and <code>secret</code> travel as token modifiers to every use, not only the declaration</p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/highlighting-and-completion/#highlighting-is-two-layers" title="Syntax highlighting is a TextMate grammar and a semantic-token provider, each with its own test, and each must cover what makes Novis not PHP"><code>ide/highlighting-is-two-layers</code></a> <a href="/docs/rules/ide/highlighting-and-completion/#novis-ships-names-not-colours" title="Both layers ship standard names and no colours: every scope is on the TextMate allowlist, every token type is in LSP's legend, and the extension overrides no theme"><code>ide/novis-ships-names-not-colours</code></a> <a href="/docs/rules/security/tainted-data/#tainted-qualifier" title="tainted is a compile-time qualifier on string and bytes, spellable in any declaration and erased before codegen"><code>security/tainted-qualifier</code></a> <a href="/docs/rules/security/secrets/#secret-qualifier" title="secret is a second, independent compile-time qualifier, written before tainted and in that order alone"><code>security/secret-qualifier</code></a> <a href="/docs/rules/security/tainted-data/#tainted-has-no-default-decoration" title="tainted ships no default editor decoration, and the marker is opt-in"><code>security/tainted-has-no-default-decoration</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0099.md">record 0099</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0101.md">record 0101</a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="novis-ships-names-not-colours">
+
+## Both layers ship standard names and no colours: every scope is on the TextMate allowlist, every token type is in LSP's legend, and the extension overrides no theme
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="designed">Designed</span>
+<a class="nv-rule-id" href="#novis-ships-names-not-colours"><code>ide/novis-ships-names-not-colours</code></a>
+</div>
+
+Colour is the user's theme's to decide. Both layers ship *names*, and a theme styles only the names it
+already recognises, which makes naming the whole of the work and the whole of the risk.
+
+Every scope the TextMate grammar emits comes from the standard TextMate vocabulary, suffixed `.nvs` —
+`keyword.control.nvs`, `storage.type.nvs`, `entity.name.type.class.nvs`, `string.quoted.double.nvs`. An
+invented name like `keyword.nvs.spawn` is matched by no theme, so the construct renders as unstyled body
+text: technically correct and visibly broken. The grammar snapshot test asserts every scope it produces is
+on an allowlist of standard names, so a novel one fails in CI rather than in somebody's editor.
+
+Every semantic token type comes from LSP's standard legend. The two modifiers Novis adds are by definition
+not in it, so the extension declares `semanticTokenScopes`, mapping each to a standard TextMate scope a
+theme already styles — and a theme with no opinion falls back to the underlying token type rather than to
+nothing. The extension ships no `configurationDefaults` for `editor.tokenColorCustomizations` or
+`editor.semanticTokenColorCustomizations`: whatever a `tainted` value ought to look like is not Novis's
+call to make in someone else's editor, which is also what
+[`security/tainted-has-no-default-decoration`](/docs/rules/security/tainted-data/#tainted-has-no-default-decoration "tainted ships no default editor decoration, and the marker is opt-in") applies. A bundled theme is a legitimate future option a
+user may select; it is not a default.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/highlighting-and-completion/#highlighting-is-two-layers" title="Syntax highlighting is a TextMate grammar and a semantic-token provider, each with its own test, and each must cover what makes Novis not PHP"><code>ide/highlighting-is-two-layers</code></a> <a href="/docs/rules/ide/highlighting-and-completion/#semantic-tokens-carry-the-qualifiers" title="Semantic tokens use LSP's standard types plus two modifiers of Novis's own, tainted and secret, and the client's legend must equal the server's"><code>ide/semantic-tokens-carry-the-qualifiers</code></a> <a href="/docs/rules/security/tainted-data/#tainted-has-no-default-decoration" title="tainted ships no default editor decoration, and the marker is opt-in"><code>security/tainted-has-no-default-decoration</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0099.md">record 0099</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0101.md">record 0101</a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="five-features-are-one-reference-index">
+
+## Find-references, occurrence highlight, CodeLens, type hierarchy and unused-member dimming are five queries against one workspace index
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="designed">Designed</span>
+<a class="nv-rule-id" href="#five-features-are-one-reference-index"><code>ide/five-features-are-one-reference-index</code></a>
+</div>
+
+`nvs-lsp` builds one workspace symbol index, and five features are each one query against it — none
+gets a walk of its own. `textDocument/references` is the index's read side. `textDocument/documentHighlight`
+is the same query narrowed to the open file, which is why it waits for the index rather than shipping
+earlier: it needs resolution applied to every occurrence, not to one. CodeLens above a declaration shows
+the reference count, a type's implementors, and the methods a method overrides and is overridden by; it is
+gated on `nvs.codeLens.enable` (default `true`), because a lens is a request per visible declaration and a
+large file is where it is least welcome. `textDocument/typeHierarchy` shows supertypes and subtypes,
+including [`classes/interface-default-methods`](/docs/rules/classes/interfaces-and-delegation/#interface-default-methods "A public interface method with a body is a default method, and $this inside it is the interface") and [`classes/delegation-by-field`](/docs/rules/classes/interfaces-and-delegation/#delegation-by-field "implements I by $field forwards every member I requires to that property"), which is
+where a reader most needs to see the shape rather than reconstruct it.
+
+The fifth is **unused-member dimming**: a private member, constant or `use` with no reference anywhere in
+the index is a diagnostic carrying LSP's `Unnecessary` tag, rendered as dimming rather than a squiggle.
+It is only correct at workspace scope — a symbol unused in the open buffer is not unused — so it is
+silent under the default of [`ide/check-scope-defaults-to-open-documents`](/docs/rules/ide/the-language-server/#check-scope-defaults-to-open-documents "Diagnostics are published for open documents and their require graph by default, and a workspace pass is one setting or one command") rather than wrong.
+
+Call hierarchy is deliberately not in this list. `textDocument/callHierarchy` is a different index —
+call-site edges kept incrementally — and nothing else needs it, so it is not built.
+
+The structural check is that `nvs-lsp` has exactly one symbol-index construction site and all five
+readers read it.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/the-language-server/#check-scope-defaults-to-open-documents" title="Diagnostics are published for open documents and their require graph by default, and a workspace pass is one setting or one command"><code>ide/check-scope-defaults-to-open-documents</code></a> <a href="/docs/rules/classes/interfaces-and-delegation/#no-traits" title="There is no trait: shared behaviour is an interface method with a body, shared state is by delegation"><code>classes/no-traits</code></a> <a href="/docs/rules/classes/interfaces-and-delegation/#interface-default-methods" title="A public interface method with a body is a default method, and $this inside it is the interface"><code>classes/interface-default-methods</code></a> <a href="/docs/rules/classes/interfaces-and-delegation/#delegation-by-field" title="implements I by $field forwards every member I requires to that property"><code>classes/delegation-by-field</code></a> <a href="/docs/rules/ide/one-server-thin-clients/#contributions-are-frozen-and-only-ever-added" title="A setting name and a command id are public API: the roster is frozen, and anything later is added, never renamed"><code>ide/contributions-are-frozen-and-only-ever-added</code></a> <a href="/docs/rules/ide/the-language-server/#every-feature-is-staged-behind-its-dependency" title="The VS Code client goes as deep as the editor allows, and each feature waits for the language or runtime piece it needs rather than shipping as a stub"><code>ide/every-feature-is-staged-behind-its-dependency</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0108.md">record 0108</a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="completion-offers-only-what-the-compiler-derived">
+
+## The editor completes a value only where the compiler already derives it for another reason, never from a convention scan, an annotation dialect or the network
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="designed">Designed</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#completion-offers-only-what-the-compiler-derived"><code>ide/completion-offers-only-what-the-compiler-derived</code></a>
+</div>
+
+`nvs-lsp` contains no framework-specific module, no annotation dialect, no convention scan and no
+directory-layout knowledge. It offers a **value** in a completion list only where the compiler already
+derives that value for another reason, and it reaches it through the same table that other reason uses.
+This is the whole of Novis's answer to "framework support", and it is a closed rule, not a starting
+point.
+
+What that admits: route names and their parameters, from the route table
+[`routing/routes-are-compiled-not-registered`](/docs/rules/routing/declaring-a-route/#routes-are-compiled-not-registered "A route is a #[Route] compiled into the unit's table, and its three runtime bugs are compile errors") builds while compiling — the same table
+[`routing/link-name-and-params-are-checked`](/docs/rules/routing/links-and-the-api-document/#link-name-and-params-are-checked "Core\Router::url is a launderer whose literal name and $params are checked against the compiled table") checks a link against; configuration directives in
+`nvs.toml` and every file `[[include]]` pulls in, from the closed registry the runtime validates against
+([`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](/docs/rules/config/the-file-and-the-tree/#a-duplicate-key-is-an-error-and-so-is-an-unknown-one "A duplicate key is an error, and so is an unknown one — per file")), so completion, hover with type and
+default, and "no such directive" are three readings of one registry, and `[[include]]`'s `path` and `dir`
+complete as paths — scoped to the workspace's config tree, never to every TOML file; `#[Api]` fields and
+every attribute's shape literal, which is a declared type; and enum cases, members off a resolved receiver
+and in-scope variables, which are the same rule and not an exception to it.
+
+What it refuses has no subject rather than being declined: ORM columns (a codec's fields are declared
+properties, already reached as members), service-container and facade resolution (constructor injection
+is resolved while compiling, so go-to-definition already goes there), and view-name completion
+([`programs/first-party-framework`](/docs/rules/programs/the-framework/#first-party-framework "Novis ships the framework, split by the standard-library placement tests") makes the view layer the language). A vendor annotation dialect or
+an `ide.json`-style patch file is refused outright as a second, unchecked description of the program's
+shape — the failure [`routing/api-document-is-generated-from-the-route-table`](/docs/rules/routing/links-and-the-api-document/#api-document-is-generated-from-the-route-table "The API document is generated from the route table while compiling, so it cannot drift from the code") refuses for API
+documents. And **the language server makes no network request**: a lockfile on disk may be read, a
+remote index may not be consulted.
+
+One thing offered is not a *value*: a PHP built-in's name, admitted as a candidate from an audited table
+and bounded on the insert side by [`ide/three-of-four-item-shapes-insert-nothing`](/docs/rules/ide/highlighting-and-completion/#three-of-four-item-shapes-insert-nothing "A PHP-name completion item takes one of four shapes, and three of them insert nothing").
+
+A test, not review, enforces this: `nvs-lsp`'s completion sources are enumerated, and each must name a
+table the compiler builds for another reason.
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p>Framework-aware IntelliSense built from convention scans, annotation dialects and an <code>ide.json</code> patch file has no counterpart; a route name or a directive completes from the table the compiler built, and an ORM column or a view name has nothing to complete from because Novis has neither</p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/highlighting-and-completion/#three-of-four-item-shapes-insert-nothing" title="A PHP-name completion item takes one of four shapes, and three of them insert nothing"><code>ide/three-of-four-item-shapes-insert-nothing</code></a> <a href="/docs/rules/routing/declaring-a-route/#routes-are-compiled-not-registered" title="A route is a #[Route] compiled into the unit's table, and its three runtime bugs are compile errors"><code>routing/routes-are-compiled-not-registered</code></a> <a href="/docs/rules/routing/links-and-the-api-document/#link-name-and-params-are-checked" title="Core\Router::url is a launderer whose literal name and $params are checked against the compiled table"><code>routing/link-name-and-params-are-checked</code></a> <a href="/docs/rules/config/the-file-and-the-tree/#a-duplicate-key-is-an-error-and-so-is-an-unknown-one" title="A duplicate key is an error, and so is an unknown one — per file"><code>config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one</code></a> <a href="/docs/rules/routing/links-and-the-api-document/#api-document-is-generated-from-the-route-table" title="The API document is generated from the route table while compiling, so it cannot drift from the code"><code>routing/api-document-is-generated-from-the-route-table</code></a> <a href="/docs/rules/programs/the-framework/#first-party-framework" title="Novis ships the framework, split by the standard-library placement tests"><code>programs/first-party-framework</code></a> <a href="/docs/rules/php-migration/converting-and-completing/#every-php-builtin-is-a-completion-candidate" title="Every PHP built-in name is a completion candidate, and the migration table is what the item says"><code>php-migration/every-php-builtin-is-a-completion-candidate</code></a> <a href="/docs/rules/php-migration/converting-and-completing/#an-item-inserts-only-a-registered-member" title="A PHP-name completion item inserts only a Core member the registry already holds"><code>php-migration/an-item-inserts-only-a-registered-member</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0108.md">record 0108</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0111.md">record 0111</a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="three-of-four-item-shapes-insert-nothing">
+
+## A PHP-name completion item takes one of four shapes, and three of them insert nothing
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="designed">Designed</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#three-of-four-item-shapes-insert-nothing"><code>ide/three-of-four-item-shapes-insert-nothing</code></a>
+</div>
+
+A PHP built-in's name typed at a top-level identifier position completes to an item shaped by the
+migration table's outcome for that name and by whether its destination is registered in `Core`. Four
+shapes, and three insert nothing:
+
+| Row | Item |
+|---|---|
+| `member` or `language`, destination registered | inserts it, with the signature the registry holds |
+| `member` or `language`, destination not registered | appears, names the milestone, inserts nothing |
+| `dropped` | appears, gives the row's reason and rewrite, inserts nothing |
+| `open`, or no row at all | appears, says undecided, inserts nothing |
+
+A missing row and an `open` row are one case, exactly as `check-migration.py` treats them. "Inserts
+nothing" is asserted as the absence of an edit, not as an empty string.
+
+A row whose cell names more than one destination is prose the converter may not guess at, and is a
+genuine ambiguity there. It is not one here: completion has a person in the loop, so such a row becomes
+one item per destination and the developer picks. This is the single place the editor may offer more than
+the converter, and it follows from the human, not from a better table; the converter's own tier for that
+row is unchanged.
+
+The shape table is what keeps this layer inside [`ide/completion-offers-only-what-the-compiler-derived`](/docs/rules/ide/highlighting-and-completion/#completion-offers-only-what-the-compiler-derived "The editor completes a value only where the compiler already derives it for another reason, never from a convention scan, an annotation dialect or the network")
+rather than beside it: a *name* may come from an audited table, but the text an editor types on a
+developer's behalf still comes only from something the compiler can resolve. The PHP spelling never
+reaches a file, which is what [`statements/nothing-gets-a-second-name`](/docs/rules/statements/names-and-require/#nothing-gets-a-second-name "A declaration is reachable under exactly the name it was declared with") requires of it.
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p>Typing a PHP built-in's name offers an item that may say dropped, waiting on a milestone or undecided and type nothing, rather than inserting the PHP call</p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/highlighting-and-completion/#completion-offers-only-what-the-compiler-derived" title="The editor completes a value only where the compiler already derives it for another reason, never from a convention scan, an annotation dialect or the network"><code>ide/completion-offers-only-what-the-compiler-derived</code></a> <a href="/docs/rules/statements/names-and-require/#nothing-gets-a-second-name" title="A declaration is reachable under exactly the name it was declared with"><code>statements/nothing-gets-a-second-name</code></a> <a href="/docs/rules/tooling/nvs-convert/#convert-one-table-two-modes" title="nvs convert is one rule table read through two modes, and every branch carries a tier"><code>tooling/convert-one-table-two-modes</code></a> <a href="/docs/rules/php-migration/converting-and-completing/#every-php-builtin-is-a-completion-candidate" title="Every PHP built-in name is a completion candidate, and the migration table is what the item says"><code>php-migration/every-php-builtin-is-a-completion-candidate</code></a> <a href="/docs/rules/php-migration/converting-and-completing/#an-item-inserts-only-a-registered-member" title="A PHP-name completion item inserts only a Core member the registry already holds"><code>php-migration/an-item-inserts-only-a-registered-member</code></a> <a href="/docs/rules/php-migration/converting-and-completing/#completion-php-names-setting" title="nvs.completion.phpNames quiets or removes the PHP-name layer, and never touches Core completion"><code>php-migration/completion-php-names-setting</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0111.md">record 0111</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0108.md">record 0108</a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="a-template-region-gets-services-but-no-second-formatter">
+
+## An inline-HTML region gets the editor's own HTML, CSS and JavaScript services on boundaries the server reports, and no formatter beside `nvs fmt`
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="designed">Designed</span>
+<span class="nv-rule-flag">Differs from PHP</span>
+<a class="nv-rule-id" href="#a-template-region-gets-services-but-no-second-formatter"><code>ide/a-template-region-gets-services-but-no-second-formatter</code></a>
+</div>
+
+The extension forwards requests inside an inline-HTML region to VS Code's built-in HTML, CSS and
+JavaScript language services, so the half of a `.nvs` file that is markup gets Emmet expansion, tag
+closing and renaming, the colour picker, hover and validation. Since
+[`programs/first-party-framework`](/docs/rules/programs/the-framework/#first-party-framework "Novis ships the framework, split by the standard-library placement tests") makes inline HTML the template engine, that region is where a web
+application's markup is written, not an edge case.
+
+**The region list comes from the server**, as one request of Novis's own, `nvs/regions`, beside
+`nvs/redactions`. The lexer already knows where a mode ends; the client does not re-derive it from a
+grammar, for the reason [`security/redaction-ranges-come-from-the-server`](/docs/rules/security/redaction/#redaction-ranges-come-from-the-server "The editor conceals a secret value by default, and the ranges come from the language server rather than a client guess") gives for redaction
+ranges — a client that guesses is a second implementation of the lexer. Forwarding a request to a service
+the extension did not write is not language logic in the client.
+
+**Formatting is excluded, and this is the load-bearing half.** The embedded services are not registered as
+formatting providers, and `editor.formatOnSave` in a `.nvs` file runs `nvs fmt` over the whole file and
+nothing else. A second, configurable formatter inside a file whose formatter is unconfigurable by
+decision would make `nvs fmt --check` fail for a second reason. `nvs fmt` treats an inline-HTML region as
+any other span it does not reflow, so formatting a `.nvs` file with markup in it is byte-identical to
+`nvs fmt`.
+
+`nvs.template.services` (default `true`) disables the forwarding, because a user with their own HTML
+tooling has to be able to get out of the way of ours.
+
+<aside class="nv-rule-diverges">
+<p class="nv-rule-diverges-label">Where this differs from PHP</p>
+<p>The markup half of a file gets Emmet, tag closing and the colour picker as in a PHP editor, but never the editor's HTML formatter — format-on-save is <code>nvs fmt</code> over the whole file and nothing else</p>
+</aside>
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/security/redaction/#redaction-ranges-come-from-the-server" title="The editor conceals a secret value by default, and the ranges come from the language server rather than a client guess"><code>security/redaction-ranges-come-from-the-server</code></a> <a href="/docs/rules/programs/the-framework/#first-party-framework" title="Novis ships the framework, split by the standard-library placement tests"><code>programs/first-party-framework</code></a> <a href="/docs/rules/tooling/the-formatter/#fmt-is-never-a-diagnostic" title="nvs fmt is a separate opt-in tool: no compiler command runs it, an unformatted file is never a diagnostic, and an editor composes it with quick fixes in the client"><code>tooling/fmt-is-never-a-diagnostic</code></a> <a href="/docs/rules/ide/one-server-thin-clients/#one-server-two-thin-clients" title="Language smarts and formatting have one implementation each, nvs-lsp and nvs-fmt, and an editor client holds none of either"><code>ide/one-server-two-thin-clients</code></a> <a href="/docs/rules/ide/one-server-thin-clients/#contributions-are-frozen-and-only-ever-added" title="A setting name and a command id are public API: the roster is frozen, and anything later is added, never renamed"><code>ide/contributions-are-frozen-and-only-ever-added</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0108.md">record 0108</a></dd></div></dl>
+
+</div>
