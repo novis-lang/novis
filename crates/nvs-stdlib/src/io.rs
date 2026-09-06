@@ -1005,9 +1005,11 @@ const TEMPORARY_DIR_DOC: MethodDoc = MethodDoc {
             about second, so a configuration granting only the working directory does not reach \
             the temporary root.",
     params: &[],
-    ret: "The absolute path of a directory that exists, holds nothing, and belongs to this process. \
-          Removing it is the program's own job — `remove` each entry, then `removeDir` — because a \
-          runtime that swept it would be deciding the lifetime of data it knows nothing about.",
+    ret: "The absolute path of a directory that exists, holds nothing, and belongs to this script. \
+          The runtime deletes it, and everything in it, when the script ends — after the last user \
+          code and whatever the ending was — so a program never has to remember and can never leak \
+          one. Removing it early is allowed and is not an error; a file that must outlive its \
+          script is storage, not a temporary.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
@@ -3318,6 +3320,14 @@ nvs_runtime::nvs_helper! {
     /// A directory rather than a file, for the same reason: a program that
     /// needs one temporary file needs somewhere to put the second one, and a
     /// directory it owns is removable in one call once both are gone.
+    ///
+    /// Removable, and removed without being asked:
+    /// [`nvs_runtime::capability::temp_dir`] records what it created on the
+    /// context and [ADR 0131](/docs/adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md)
+    /// § 3's sweep deletes it when the script ends. So this member has no
+    /// counterpart to call, no persist option to pass and nothing for the
+    /// program to remember — which is why there is no `temporaryFile` either:
+    /// a file that must outlive its script is storage.
     fn nvs_core_io_temporary_dir(ctx, _args: [0]) {
         let made = nvs_runtime::capability::temp_dir(ctx, "Core\\IO::temporaryDir")?;
         // Lossy only where a path is not UTF-8, which a Novis `string` cannot
