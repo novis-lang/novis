@@ -82,10 +82,13 @@ milestone file's H1 is its one home — so **`python tools/plan.py --sync` write
 a reader picking whichever of the two copies looked right; it touches nothing else, since Order and
 Loop-days are the index's own data, and it refuses on a table it cannot read whole.
 
-The ADR index table is the same arrangement one file over: `python tools/adr.py --sync` writes
-`docs/adr/README.md`'s `| # | Decision | Status |` block from the ADR files, which own all three cells.
-This is the pattern `docs/novis.md` already established below — derive the machine-derivable half, and let
-a `--check` fail when the committed copy stops agreeing with it.
+The rulebook is the same arrangement one tree over: `python tools/rules.py --render` writes
+`docs/rules/<topic>.md`, `docs/ground-rules.md` and `docs/divergences.md` from the topic JSON and the
+fragments, which own every line, and `--check` reports a rendered copy that has drifted. The decision
+records under `docs/decisions/` are frozen and derive nothing by hand: `python tools/adr.py --check` is
+their audit, `--stats`, `--graph NNNN` and `--orphans` its readings. This is the pattern `docs/novis.md`
+already established below — derive the machine-derivable half, and let a `--check` fail when the
+committed copy stops agreeing with it.
 
 **The chain is edited with `python tools/chain.py`, never by hand.** `docs/agent/goals/chain.toml` is the
 order the driver walks, and adding one entry to it is three goal files nobody has a template for, a
@@ -388,7 +391,8 @@ refused by name, and the harness warns when the binary is older than the newest 
 timings and their baseline-subtracted halves are printed; wall clock is a **same-host, same-minute** ratio
 and is not comparable across machines, which is why the cross-machine history in
 `rule:testing/perf-two-mechanisms` is counted in instructions instead. This
-suite is that ADR's § 3 secondary figure, in runnable form.
+suite is the § 3 secondary figure of [0026](../decisions/0026.md), the record behind that rule, in
+runnable form.
 
 ## The server's throughput, in two legs that are not one series
 

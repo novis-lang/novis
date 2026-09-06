@@ -106,7 +106,7 @@ rules = ["0067", "0084", "0024", "0051", "0082", "0132", "0063", "0117", "0005"]
 # crates/nvs-db/src/plan.rs's module doc, which the map prints -- do not add them back.
 adrs = ["0067", "0084", "0082", "0145 §4", "0145 §5", "0145 §9"]
 
-shapes = ["A `Core` member — the five edits", "An ADR", "A `.nvst` test case", "A commit message"]
+shapes = ["A `Core` member — the five edits", "A decision record", "A `.nvst` test case", "A commit message"]
 
 playbook = [
   'Writing Novis itself > core is',

@@ -27,7 +27,7 @@ rules = ["0098", "0124", "0063", "0034", "0134"]
 # 0124's four refusals and the one it does not adopt.
 adrs = ["0098", "0124"]
 
-shapes = ["A diagnostic", "A `.nvst` test case", "An ADR", "A commit message"]
+shapes = ["A diagnostic", "A `.nvst` test case", "A decision record", "A commit message"]
 
 playbook = [
   'Writing Novis itself > core is',

@@ -10,10 +10,11 @@ check by itself. This file holds the one thing it cannot: how to write the prose
 
 ## What this artifact is for, and who reads it
 
-The decision records are written for the agent that has to *apply* one. There are 139 of them, most
-amend an earlier one, and most are amended by a later one. Following that interlock is the job, and
-it is the right shape for the corpus — but a person who wants to know what Novis decided cannot read
-it, and never will.
+The decision records are written for the agent that has to *change* a rule. There are 143 of them under
+`docs/decisions/`, frozen on acceptance, each reasoning at full length about the rules its `changes:`
+block names; what is currently true is the rulebook under `docs/rules/`, and a record is reached
+through a rule's `because`. That is the right shape for the corpus — but a person who wants to know
+what Novis decided cannot read it, and never will.
 
 The summary is the other half. Its reader is a developer sizing up the language, with no history
 here and no patience for ours. They get one paragraph per decision, grouped by what it is about, and
@@ -35,9 +36,18 @@ python tools/decisions.py --apply <file>   # merge, validate, render — all of 
 ```
 
 `--work` prints a fillable block per decision owed, carrying that decision's title, its `In short`
-summary and the parts it is made of. **That is the whole input.** Do not open the record itself
-unless the work order genuinely does not say what was decided — the material it prints is what a
-summary is written from, and opening 20 records instead is how this pass stops fitting in a session.
+summary and the rules its `changes:` block created and modified. **That is the whole input.** Do not
+open the record itself unless the work order genuinely does not say what was decided — the material it
+prints is what a summary is written from, and opening 20 records instead is how this pass stops fitting
+in a session.
+
+**Every digest changed when the records were frozen, and a re-pass is owed.** An entry stamps a digest
+of the material it was written from, and `tools/decisions.py`'s module doc is the home of exactly what
+that hashes: the record's frozen title — `# ADR NNNN — …`, restored at the docs migration's unit C1 —
+and its `changes:` block, the rule ids the decision created and modified. The title changed for all
+143 records at C1 and the `changes:` block is new, so `--check` reports every entry stale until it has
+been looked at once. That pass is a *re-check*, not a rewrite: an entry whose decision still means the
+same thing is re-stamped as it stands, under the rule at the end of this file.
 
 Write every entry into one file and apply it once. `--apply` refuses the whole file if any entry
 breaks a rule, so a refusal costs you nothing but the fix, and there is never a half-applied batch.

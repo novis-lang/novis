@@ -1292,6 +1292,10 @@
     "C3": {
       "status": "done",
       "applied": "2026-09-06"
+    },
+    "C4": {
+      "status": "done",
+      "applied": "2026-09-06"
     }
   },
   "snapshot": "2026-09-06"

@@ -75,9 +75,9 @@ unscoped one, which is about 30k of context before a session has read a line of 
 | Field | Selects | Get it wrong by |
 |---|---|---|
 | `modules` | globs under `crates/`; the map line for each | naming a crate when you meant a module, so the whole crate's map prints |
-| `rules` | ADR numbers; their one-sentence bullet from [ground-rules.md](../ground-rules.md) | listing every ADR the topic touches rather than the ones that *bind the work* |
-| `adrs` | `"NNNN"` for the *In short* block, `"NNNN §N"` for one section | naming a whole ADR — that is 7k of context where a section is 1k |
-| `spec` | `"01 §15"` for one section of [docs/spec/](../spec/) — the file's number, then the section. The rosters and their *Replaces* column live here | naming a whole file: `01-core-library.md` is 1,200 lines, and one of its `##` sections is what the question was |
+| `rules` | decision-record numbers; for each, the rules in [docs/rules/](../rules/) whose `because` names it — the rules the record **created** as `rule:` token plus title, with their guard tests on one line under them, and the rules it **modified** as ids alone. The record itself is not printed: the rule's chapter body is the rule | listing every record the topic touches rather than the ones that *bind the work*; a foundational record sits in the `because` of sixty rules |
+| `adrs` | `"NNNN"` for a record's *In short* block, `"NNNN §N"` for one section of `docs/decisions/NNNN.md` — frozen reasoning, for when the *why* is the question | naming a whole record — that is 7k of context where a section is 1k, and the current rule is in `rules`, not here |
+| `spec` | `"01 §15"` for one section of [docs/spec/](../spec/) — the file's number, then the section. The rosters and their *Replaces* column live here; the tree is live and deliberately kept, since `01-core-library.md` is read at test time by `crates/nvs-stdlib/tests/spec_registry_coverage.rs` and by `tools/check-migration.py`, and `02-php-migration.md` is the only home of the per-builtin migration table `tools/reference.py` renders into `docs/novis.md` | naming a whole file: `01-core-library.md` is 1,200 lines, and one of its `##` sections is what the question was |
 | `shapes` | headings of [conventions.md](conventions.md) the goal will write | listing all of them; a goal writing no `Core` member does not need that shape |
 | `playbook` | a heading of [playbook.md](playbook.md), **or one bullet** — `"Tooling > A whole ADR"`. Don't pick by hand: `python tools/playbook.py --goal` ranks every bullet against this goal's own `modules` and prints the list as TOML | naming the section when the goal needs three of its bullets: sections grow forever, and this one is usually the pack's largest. Naming four whole sections cost 42 KB of a 78 KB pack until it was measured. `orient.py` narrows this list a second time, to the paths the session's own item names, so a selector that no item touches costs one line rather than a bullet |
 | `plan` | status-block fields worth printing | more than `Open now` and `Blocking`, which is usually the answer |
@@ -97,7 +97,7 @@ Three rules make it work:
 
 **Write it from measurement, not from taste.** `python tools/loop-stats.py --attribute` charges the last
 run's context to whatever fetched it, and each bucket argues for a specific fix: a large `adr` share means
-whole ADRs are being read where a `§` slice would do; a large `discovery` share means the checklist items
+whole records are being read where a rule or a `§` slice would do; a large `discovery` share means the checklist items
 are missing their `file.rs:NN` anchors; a large `orientation` share means the manifest itself is too wide.
 
 **Then leave it maintained by the sessions.** A session that needed something the pack did not print says
@@ -118,7 +118,7 @@ and only one of them is work.
 
 | Per-goal, and owed before the run | Cost |
 |---|---|
-| The `[context]` manifest | The real work. It names the files, ADR sections, shapes and traps *this* goal's sessions read, and nothing else knows them. |
+| The `[context]` manifest | The real work. It names the files, rules, record sections, shapes and traps *this* goal's sessions read, and nothing else knows them. |
 | A fresh `python tools/loop-stats.py` | One call. § 1 above: the constants are measurements, and a number you did not just measure is probably stale. |
 
 So the answer to "do we have to re-do this every time" is **no for the tooling and yes for the manifest** —
@@ -209,12 +209,12 @@ items. The grouping is worth writing even while the cap is one: it is what lets 
 whose files are cheapest to load, and it is ready the moment sessions come in under the line.
 
 Group by **the files an item touches, not its topic.** Two items in the same function are one group; two
-items about the same ADR in different crates usually are not. The shared file set is the entire mechanism:
+items about the same rule in different crates usually are not. The shared file set is the entire mechanism:
 it is what makes the second and third slice cost a fraction of the first. Where two adjacent items do not
 share files, say so in the list — an item that gets its own session is a fine outcome, and pretending
 otherwise costs a session a second orientation.
 
-**Every item carries its anchors.** The ADR section that specifies it, and the `file.rs:NN` of the site it
+**Every item carries its anchors.** The rule that specifies it (`rule:<topic>/<rule>`), and the `file.rs:NN` of the site it
 changes. You are resolving them from context you already hold; a session without them spends ten `grep`s
 rediscovering what you knew for free, and `loop-stats.py --attribute` charges that to the `discovery`
 bucket where it shows up as a large share and an obvious fix. This is also how the `[context]` block gets
@@ -241,5 +241,5 @@ what to change in the next goal's `[context]` block. If the constants moved enou
 strategy, change them **and say so in the commit** — that is how the next goal starts from measurement rather than
 from whatever this file happened to say. Fold anything durable the run taught you into the file that owns
 it: a trap into [playbook.md](playbook.md), a shape into [conventions.md](conventions.md), a decision into
-its ADR. `loop-goal.md` and `loop-goal.toml` are then rewritten from scratch for the next target, not
-amended.
+the rule's fragment under [docs/rules/](../rules/) with a new record for its reasoning. `loop-goal.md` and
+`loop-goal.toml` are then rewritten from scratch for the next target, not amended.

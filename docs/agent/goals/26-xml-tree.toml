@@ -36,7 +36,7 @@ rules = ["0122", "0024", "0051", "0019", "0009", "0133", "0004"]
 # 0122 whole -- it is half this goal's design, and its § 4 is what this entry makes wrong.
 adrs = ["0122", "0024 §1", "0051 §3"]
 
-shapes = ["An ADR", "A core class", "A commit message", "A .nvst case", "A diagnostic"]
+shapes = ["A decision record", "A core class", "A commit message", "A .nvst case", "A diagnostic"]
 
 playbook = [
   'Writing Novis itself > core is',

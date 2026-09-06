@@ -8,9 +8,9 @@ CI already runs, because a worked example that is also a passing test cannot go 
 snippet can. Where a shape is short enough to write out, it is written out; where it is not, the pointer
 is the answer. If a skeleton here disagrees with the file it names, **the file is right** — fix this.
 
-The rules themselves live elsewhere: [AGENTS.md](../../AGENTS.md) for what binds every agent, the ADR for
-a decision and its reasoning, the crate's module doc for how a subsystem works,
-[playbook.md](playbook.md) for traps.
+The rules themselves live elsewhere: [AGENTS.md](../../AGENTS.md) for what binds every agent, the
+rulebook under [docs/rules/](../rules/) for a settled rule, the decision record a rule's `because` names
+for its reasoning, the crate's module doc for how a subsystem works, [playbook.md](playbook.md) for traps.
 
 ## A commit message
 
@@ -18,8 +18,9 @@ a decision and its reasoning, the crate's module doc for how a subsystem works,
 <type>(<scope>): <lowercase clause>, and <a second clause>
 
 Prose paragraphs. What changed and why this shape rather than the obvious
-alternative. Name the ADR section or the module doc that owns the rule, rather
-than restating it. No bullet lists unless the content is genuinely a list.
+alternative. Name the rule (`rule:types/conversion`) or the module doc that
+owns the rule, rather than restating it. No bullet lists unless the content
+is genuinely a list.
 ```
 
 `type` is `feat`, `fix`, `docs`, `refactor`, `perf` or `test`. `scope` is the subsystem, not the crate
@@ -47,10 +48,10 @@ The format itself is `crates/nvs-test`'s module doc.
 
 ```
 --TEST--
-One sentence saying what is being pinned, ending with the ADR §§ it comes from
+One sentence saying what is being pinned, ending with the `rule:` tokens it pins
 --FILE--
 <?nvs
-// Comments cite the ADR section each block exists for. A case is top-level
+// Comments cite the rule each block exists for. A case is top-level
 // statements: no Main::main.
 echo "…", "\n";
 --EXPECT--
@@ -96,8 +97,9 @@ nothing is copied out of an existing file to get the shape right. `python tools/
 
 ```nvs
 <?nvs
-// One or two plain sentences: what this shows, in a reader's words. No ADR
-// numbers, no internal vocabulary — the audience has never seen this repository.
+// One or two plain sentences: what this shows, in a reader's words. No rule
+// ids, no record numbers, no internal vocabulary — the audience has never
+// seen this repository.
 
 array<string> $labels = ["Order #1042", "Café Größenwahn"];
 foreach ($labels as string $label) {
@@ -164,7 +166,7 @@ M4B — `rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`.
 
 ```
 --TEST--
-One sentence saying what is being pinned, ending with the ADR §§ it comes from
+One sentence saying what is being pinned, ending with the `rule:` tokens it pins
 --FILE--
 <?nvs
 class User { public string $name; }
@@ -282,7 +284,22 @@ the arithmetic and what a mismatch looks like.
 
 ## Citing a document
 
-**The form depends on whether a renderer resolves the link, and there are exactly two.**
+**A rule is cited by its token, and the token is the whole citation.** `rule:types/conversion` is the
+canonical spelling everywhere — a Rust doc comment, a `.nvst` header, a goal manifest, a commit message,
+one rule citing another. It is flat text, not a link: `grep -rn 'rule:'` finds every citation in the
+repository, `python tools/rules.py --check` reports one that resolves to nothing, and the generated
+chapters linkify it on the way out. A rule id is its fragment's path — `types/conversion` is
+`docs/rules/types/conversion.md` — so the token also says where the prose is.
+
+**A decision record is linked, never cited as the rule.** `docs/decisions/NNNN.md` is frozen rationale:
+link to it when the *reasoning* is the point — why this shape, what it cost, what was rejected — and
+name the rule beside it when a reader needs what is currently true. A record's text was true on its
+date and is not maintained afterwards, so a citation that means "the current rule" and points at a
+record is stale from the first later decision that touches it. `python tools/brief.py --where
+<keyword>` routes a topic to the rule that owns it.
+
+**When a record is linked, the form depends on whether a renderer resolves it, and there are exactly
+two.**
 
 | Where you are writing | The form | Why |
 |---|---|---|
@@ -290,7 +307,7 @@ the arithmetic and what a mismatch looks like.
 | a `.rs`, `.nvs` or `.nvst` file | absolute from the repository root — `](/docs/decisions/0067.md)` | nothing renders it, so the readers are people, agents and `grep` |
 
 A source file's link had a `../` prefix until it was measured: 465 of 1,640 were dead — 442 with the
-wrong number of `../`, 23 naming a filename its ADR no longer had. A prefix encodes the **citing**
+wrong number of `../`, 23 naming a filename the record no longer had. A prefix encodes the **citing**
 file's depth, so every split, rename and new directory level silently invalidated every link in the
 half that moved, and nothing looked. The root-absolute form has one spelling per target and survives
 the move, which is the whole reason it is worth two rules instead of one.
@@ -304,46 +321,81 @@ so a link in a string literal there is relative to the *generated* file.
 Neither form is what rustdoc follows: a relative link in a doc comment resolves against the generated
 HTML page, where `../../../docs/` has never existed, so `cargo doc` was never a check on any of this.
 
-## An ADR
+## A decision record
 
-**Do not assemble one by hand.** `python tools/adr.py --draft > .agent-tmp/adr.md` prints the skeleton,
-and `python tools/adr.py --new .agent-tmp/adr.md` claims the next free number, derives the
-filename, dates it, folds the `Amended by:` back-link into every ADR you amend, adds the routing row and
-the ground-rules bullet, regenerates the index table and re-audits — restoring every byte if the tree
-gained a finding. Write the prose; the rest of README.md § *Adding a decision* is a form, and that is the
-call that fills it. Newest worked example: [0104](../decisions/0104.md).
+A record is the reasoning behind a rule, frozen on acceptance at `docs/decisions/NNNN.md`. **The rule
+is not in it** — the rule is a fragment under [docs/rules/](../rules/), and the record is what its
+`because` list names. There is no scaffolder: a new record is written by hand from the shape below and
+claims the next free number, which is one more than the highest file in `docs/decisions/`. Newest
+worked example: [0104](../decisions/0104.md).
 
-**The skeleton is not copied here.** Run `--draft` and read what it prints: the copy that used to sit
-here had drifted from the tool that generates and checks it, which is what a second home costs. Below
-is what a *finished* ADR carries — a different question, and the one that survives you.
+```markdown
+---
+date: 2026-08-27
+status: accepted            # accepted | retired
+changes:
+  creates:
+    - types/nullable-conversion
+  modifies:
+    - types/conversion
+    - core-api/no-try-prefix
+---
+# ADR NNNN — the decision, as a statement of what is now true
 
-**Six rules the tool enforces, so none of them is a matter of care:**
+- **Scope:** what this decides, and what it deliberately leaves to another record.
+- **Depends on:** the records this one builds on, as links.
+- **Validated by:** the guard test or the measurement that holds it.
 
-- **The field set is closed** — `Status:`, `Date:`, `Scope:`, `Depends on:`, `Amends:`, `Amended by:`,
-  `Validated by:`, and nothing else; `tools/adr.py:115` is that list. The draft offers you neither
-  `Date:` nor `Amended by:`, because both are the tool's to maintain. There is no `Relates to:`; the
-  citation graph is derived, and `python tools/adr.py --graph NNNN` prints it.
-- **`Status:` is a bare value**, one of `Accepted`/`Proposed`/`Rejected`/`Superseded`/`Retired`. What
-  has shipped of a decision belongs in its body or in the plan, never in the status field.
+> **In short:** the decision in one paragraph. A reader who only needs the rule
+> stops here.
+
+## Context
+## Investigation
+## Options considered
+## Decision
+## Diagnostics
+## Consequences
+## Alternatives rejected
+## Revisiting
+## Verification
+```
+
+**What the shape means, so none of it is a matter of care:**
+
+- **The YAML block is the record's only machine-read field set** — `date`, `status` and `changes`.
+  `changes.creates` is the rule ids this decision brings into the rulebook; `changes.modifies` is the
+  rule ids whose fragment it edits. Both name rules by id (`types/conversion`), never a record. A
+  record touching no rule is not a decision — put the paragraph in the module doc or the plan instead.
+- **The `changes:` block and the rules' `because` lists are one relation, written twice, in one
+  commit.** Every rule under `creates` gets a new topic-JSON entry whose `because` opens with this
+  record's number; every rule under `modifies` gets this number appended to its `because`. The freeze
+  derived `changes:` from `because` in exactly that way — first entry created, the rest amended — so a
+  record and the rulebook must keep agreeing. `python tools/rules.py --check` refuses a rule whose
+  `because` is empty or names something that is not a record id; `python tools/adr.py --check` audits
+  the record; `python tools/adr.py --graph NNNN` prints what the record created and modified and which
+  records share a rule with it, derived from every `changes:` block.
+- **The H1 is `# ADR NNNN — <the decision as a statement>`**, and it is the title every index derives
+  from. `Scope`, `Depends on` and `Validated by` are the three bullets that may follow it, each present
+  only when the record has one. Nothing else goes above *In short* — there is no `Status:` line, no
+  `Date:` line, no `Amends:`, no `Amended by:`, no `Relates to:`; all of that is either in the YAML
+  block or derived from it.
 - **The heading set is closed and ordered**: `Context`, `Investigation`, `Options considered`,
   `Decision`, `Diagnostics`, `Consequences`, `Alternatives rejected`, `Revisiting`, `Verification`.
-  Anything else is a `###` subsection under `Decision`.
+  `tools/adr.py`'s `CANONICAL` list is that set, `--check` refuses any other `##`, and anything else is
+  a `###` subsection under `Decision`. Use only the sections that have content; `Revisiting` is for a
+  decision with a real trigger to reconsider it.
 - **Sections are numbered `### N.` and never renumbered.** `0007 § 3` is cited from `crates/`, from
-  `docs/spec/` and from `docs/agent/loop-goal.toml`; a new section between two others is `§ 3a`.
-- **An `Amends:` is bidirectional** — the amended ADR gains your number in its `Amended by:` and its
-  body is edited to state the new rule, in the same commit.
-- **A body carries no history.** No "this previously said", no withdrawn-section tombstone, no running
-  total of anything. Git is the changelog, and a count kept in two files is wrong in one of them.
+  `docs/spec/` and from the goal manifests; a new section between two others is `§ 3a`.
+- **A record is frozen on acceptance.** Its body states what was decided *on its date* and is not edited
+  when a later decision moves the rule: that decision is a new record whose `changes.modifies` names
+  the rule, and **the rule's fragment is where the current text lives.** A body therefore carries no
+  history and no maintenance — no "this previously said", no withdrawn-section tombstone, no running
+  total of anything — and the reader who wants to know what is true now reads the rule, never the
+  record.
 
-`## Revisiting` is optional and only for a decision with a real trigger to reconsider it. **Fold, never
-overlay:** amending an ADR means editing that ADR's body so it reads as currently true, plus a one-line
-cross-link — never a new paragraph elsewhere describing the change. The cross-link's two halves and the
-three index rows are what `--new` writes for you; **the body edit is the half no tool can do**, and both
-`--new` and `--fold` end by naming the file that still owes it.
-
-For an ADR that already exists, `python tools/adr.py --fold 0110 --into "<a markdown link to 0033> § 4 —
-what changed there"` writes both halves of the amendment, `--set-status 0033 Superseded` moves the index cell
-with the status, and `--next-section 0007` says where a new `### N.` goes without renumbering one.
+Retiring a decision is `status: retired` in its own YAML block, in the same commit that edits or
+removes the rules it created; there is no `Superseded` status and nothing to move in an index, because
+every index is derived.
 
 ## A diagnostic
 
@@ -396,18 +448,3 @@ python tools/plan.py --set "Open now" --from <file>   # replace it
 
 The field set is fixed and `plan.py` refuses a name that is not already there. Write the new text with
 the Write tool; `--set` re-wraps that one field and leaves every other byte of the file alone.
-
-## A playbook bullet
-
-```
-- **<The trap, as the claim a reader can match against their own symptom.>** <Why it happens, one
-  or two sentences.> <What to do instead, naming the file, flag or command.>
-```
-
-Three sentences and about 400 bytes; the first is the whole bullet's selector, so it states the trap and
-not the story. Every bullet is charged to every session whose item names its file, and
-`python tools/playbook.py --check` prints what each section costs. What does **not** go in: the
-session's narrative (which stage, which check, what was tried first — `git log` holds it), a number the
-tool re-derives, or a rule that already has a home (an ADR, a module doc, `AGENTS.md`). A bullet whose
-trap is a stale comment in `loop-goal.toml` or a wrong claim in a handoff fixes the comment instead.
-`python tools/playbook.py --match <path>` before writing says whether the trap is already there.
