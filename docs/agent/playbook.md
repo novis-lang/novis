@@ -5986,6 +5986,17 @@ is why" — is this file.
   `nvs_types::check_program` rather than through the parser. Copy the shape from an existing
   fixture in the same crate (`crates/nvs-codegen/tests/objects.rs:127` is one line of both) rather
   than writing PHP from memory; the round trip is a full test-binary rebuild.
+- **A test that a method table was *bound* needs a call the compiler cannot devirtualize, and
+  `static::m()` is the reliable one.** An ordinary `$obj->m()` on a statically known class lowers to
+  a direct `InstKind::Call`, so it runs the right body whether or not any `ClassDesc` row was ever
+  filled in — a fixture built on one passes against an empty method table and pins nothing. What
+  lowers to `InstKind::CallVirtual` unconditionally is late static binding
+  (`crates/nvs-ir/src/lower/expr.rs:3512`: `static::` or a declaration with no body), so a `Base`
+  with a `shout()` calling `static::speak()`, a `Derived` overriding `speak`, and an assertion on
+  `Derived::shout()` discriminates: bound prints `derived`, unbound falls back to `Base::speak` and
+  prints `base`. **Check that it does** — delete the binding call, watch the assertion fail with the
+  fallback's answer, put it back. That one round trip is the difference between a test of the
+  feature and a test of the fixture, and it costs two `cargo test` runs.
 
 ## Splitting a file that got too big
 

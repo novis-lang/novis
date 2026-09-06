@@ -1125,23 +1125,6 @@ fn run_run(
             }
         };
     }
-    let unit = match nvs_codegen::compile(&program) {
-        Ok(unit) => unit,
-        Err(error) => {
-            eprintln!("error: {error}");
-            return ExitCode::FAILURE;
-        }
-    };
-    // Shared rather than owned outright, because ADR 0079 § 18's in-process
-    // request runs this same unit's script frame as a child isolate and the
-    // seam holding it outlives no part of this run — `runner::UnderTest` is the
-    // one holder, and an `Rc` is what lets the run and the seam both name it.
-    let unit = std::rc::Rc::new(unit);
-    let Some(entry) = unit.script() else {
-        eprintln!("internal error: the script frame was not compiled");
-        return ExitCode::FAILURE;
-    };
-
     // ADR 0078 § 1: the tree is resolved and folded into one snapshot **before**
     // the request exists, and the request then clones it once. A refusal here is
     // a refusal to start — ADR 0103 § 3's later-wins and § 6's boundary are only
@@ -1175,6 +1158,40 @@ fn run_run(
         }
         render_diagnostics(&mut diags, &config_sources);
     }
+
+    // ADR 0042 §§ 3 and 7: the unit comes off disk when this environment has an
+    // artifact for this program and out of Cranelift when it does not, and
+    // `cache::unit_for` is the whole of that decision — every way the cache can
+    // fail to answer is a compile, so nothing here reports one.
+    //
+    // **This is why the compile sits below the snapshot rather than above it**,
+    // which is where it stood while nothing but Cranelift could produce a unit.
+    // Both halves of the key are configuration: § 7's `[opcache]` block says
+    // where artifacts live and whether they are used at all, and ADR 0078 § 4's
+    // environment digest — which covers the loaded extension set — is the other
+    // half of every key. A pre-boot default for either would address an
+    // artifact by an environment this run is not in, which is the one thing the
+    // key exists to prevent.
+    let (unit, _) = match cache::unit_for(
+        &program,
+        cache::program_digest(&checked.program_files()),
+        cache::from_config(&snapshot.config).as_ref(),
+    ) {
+        Ok(unit) => unit,
+        Err(error) => {
+            eprintln!("error: {error}");
+            return ExitCode::FAILURE;
+        }
+    };
+    // Shared rather than owned outright, because ADR 0079 § 18's in-process
+    // request runs this same unit's script frame as a child isolate and the
+    // seam holding it outlives no part of this run — `runner::UnderTest` is the
+    // one holder, and an `Rc` is what lets the run and the seam both name it.
+    let unit = std::rc::Rc::new(unit);
+    let Some(entry) = unit.script() else {
+        eprintln!("internal error: the script frame was not compiled");
+        return ExitCode::FAILURE;
+    };
 
     // ADR 0084 § 2's `workers` is per *instance*, and a CLI run is one — so a
     // run of this tree claims jobs beside its script, including ones another
