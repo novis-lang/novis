@@ -170,7 +170,7 @@ handoff = "docs/agent/goals/12-resilient-tree.handoff.md"
 milestone = "M4B"
 preflight = "docker"
 
-# The two M1 items scheduled after M4 and never taken -- `rule:expressions/pipeline-substitution`'s pipeline operator and ADR 0124's PHP
+# The two M1 items scheduled after M4 and never taken -- `rule:expressions/pipeline-substitution`'s pipeline operator and `rule:php-migration/a-deprecation-is-a-refusal`'s PHP
 # 8.6 refusals. Here rather than anywhere else because goal 15's grammar must colour `|>` and `let`/`is`
 # as things Novis REJECTS, and `|>` stops being one the moment 0098 lands. A grammar written against a
 # surface that changes two goals later is written twice.

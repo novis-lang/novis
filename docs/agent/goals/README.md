@@ -19,7 +19,7 @@ own tree half already done**.
 
 **Then M4B itself, as four goals** — [12 resilient-tree](12-resilient-tree.md),
 [13 surface](13-surface.md), [14 lsp-server](14-lsp-server.md) and [15 editor](15-editor.md). Goal 13 is
-not editor work: it is `rule:expressions/pipeline-substitution`'s pipeline operator and ADR 0124's PHP 8.6 refusals, the two M1 items
+not editor work: it is `rule:expressions/pipeline-substitution`'s pipeline operator and `rule:php-migration/a-deprecation-is-a-refusal`'s PHP 8.6 refusals, the two M1 items
 scheduled after M4 and never taken, and it sits before the grammar because a grammar written against a
 surface about to change is written twice.
 
@@ -149,7 +149,7 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [10 typed-callable](10-typed-callable.md) | post-parity, `rule:types/callable-signature` | `nvs-syntax`, `nvs-types`, `nvs-stdlib`, `nvs-ir`, `nvs-codegen`, `nvs-runtime` |
 | [11 doc-comments](11-doc-comments.md) | post-parity, `rule:tooling/doc-comment-is-three-slashes` + M4B's tree half | `nvs-syntax`, `nvs-diagnostics`, `nvs-hir`, `nvs-cli` |
 | [12 resilient-tree](12-resilient-tree.md) | M4B, `rule:ide/one-grammar-one-tree`'s other half | `nvs-syntax`, `nvs-diagnostics`, `nvs-test`, `nvs-cli` |
-| [13 surface](13-surface.md) | M1 items 5-6, `rule:expressions/pipeline-substitution` + ADR 0124 | `nvs-syntax`, `nvs-diagnostics` |
+| [13 surface](13-surface.md) | M1 items 5-6, `rule:expressions/pipeline-substitution` + `rule:php-migration/a-deprecation-is-a-refusal` | `nvs-syntax`, `nvs-diagnostics` |
 | [14 lsp-server](14-lsp-server.md) | M4B, `rule:ide/the-request-set-is-closed`+5 + `rule:security/redaction-ranges-come-from-the-server` | **`nvs-lsp`** (new), `nvs-cli`, `nvs-types`, `nvs-stdlib` |
 | [15 editor](15-editor.md) | M4B, `rule:ide/highlighting-is-two-layers`+6 | **`editors/vscode`** (new, TypeScript) |
 | [16 request-json](16-request-json.md) | M7, `rule:http-server/a-session-store-answers-four-operations` + spec § 15 | `nvs-stdlib`, `nvs-runtime`, `nvs-test`, `nvs-cli` |

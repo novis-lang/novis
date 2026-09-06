@@ -143,7 +143,7 @@ Scale is carried for rendering, and does not affect equality or hashing: `1.10 =
 loses trailing-zero information at every step and every application re-derives it with `number_format`.
 
 `decimal` is not an enum backing type (`rule:enums/closed-integer-type` keeps `int`/`uint`), and
-array keys are unaffected — [ADR 0007](0007-explicit-type-system.md) § 7's first divergence already makes
+array keys are unaffected — `rule:php-migration/every-divergence-is-deliberate-and-listed`'s first divergence already makes
 every key a `string`.
 
 ### 5. `bcmath` is retired, not ported

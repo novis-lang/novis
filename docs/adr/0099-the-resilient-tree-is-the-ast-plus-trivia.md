@@ -421,7 +421,7 @@ showing server health and version; `nvs run`/`nvs test` as Tasks; and the AST pa
   `rule:ide/check-json-is-the-diagnostic-record-as-a-document`
   adds, at M10, the settings `nvs.check.scope`, `nvs.codeLens.enable` and `nvs.template.services`, the
   command `nvs.checkWorkspace`, and a second request of Novis's own, `nvs/regions` — and under which
-  [ADR 0111](0111-a-php-builtin-completes-to-its-novis-destination.md) § 5 adds, at the same milestone, the
+  `rule:php-migration/completion-php-names-setting` adds, at the same milestone, the
   setting `nvs.completion.phpNames` (`all`/`resolved`/`off`, default `all`).
 - **`language-configuration.json` is content, not a checkbox.** Comments (`//`, `#`, `/* */`), brackets,
   auto-closing and surrounding pairs, `indentationRules`, `onEnterRules` continuing a `/** */` block, and

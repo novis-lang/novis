@@ -1235,7 +1235,47 @@
       }
     },
     "B22": {
-      "status": "in-flight"
+      "status": "done",
+      "applied": "2026-09-06",
+      "remap": {
+        "0007": "types/declaration",
+        "0007 \u00a71": "types/declaration",
+        "0007 \u00a72": "types/conversion",
+        "0007 \u00a73": "types/grammar",
+        "0007 \u00a74": "types/arithmetic",
+        "0007 \u00a75": "types/arrays",
+        "0007 \u00a76": "types/unions-and-mixed",
+        "0007 \u00a77": "php-migration/every-divergence-is-deliberate-and-listed",
+        "0043": "classes/no-traits",
+        "0043 \u00a71": "classes/no-traits",
+        "0043 \u00a72": "classes/interface-default-methods",
+        "0043 \u00a73": "classes/interface-private-methods",
+        "0043 \u00a74": "classes/delegation-by-field",
+        "0043 \u00a75": "classes/member-conflict-is-an-error",
+        "0043 \u00a76": "php-migration/a-trait-converts-to-an-interface-or-a-delegate",
+        "0043 \u00a77": "classes/no-traits",
+        "0044": "core-classes/process-is-argv-only",
+        "0044 \u00a71": "core-classes/process-run",
+        "0044 \u00a72": "core-classes/process-spawn",
+        "0044 \u00a73": "core-classes/process-options",
+        "0044 \u00a74": "core-classes/process-refuses-a-shell-target",
+        "0044 \u00a75": "core-classes/process-run",
+        "0044 \u00a76": "security/process-exec-capability",
+        "0044 \u00a77": "php-migration/a-shell-call-converts-to-process-under-review",
+        "0111": "php-migration/every-php-builtin-is-a-completion-candidate",
+        "0111 \u00a71": "php-migration/every-php-builtin-is-a-completion-candidate",
+        "0111 \u00a72": "php-migration/an-item-inserts-only-a-registered-member",
+        "0111 \u00a73": "ide/three-of-four-item-shapes-insert-nothing",
+        "0111 \u00a74": "php-migration/the-php-name-layer-is-joined-at-build-time",
+        "0111 \u00a75": "php-migration/completion-php-names-setting",
+        "0124": "php-migration/a-deprecation-is-a-refusal",
+        "0124 \u00a71": "php-migration/no-return-leaves-a-finally",
+        "0124 \u00a72": "php-migration/a-constructor-return-carries-no-value",
+        "0124 \u00a73": "php-migration/let-and-is-are-reserved",
+        "0124 \u00a74": "php-migration/a-readonly-property-declares-no-default",
+        "0124 \u00a75": "php-migration/no-partial-application",
+        "0124 \u00a76": "php-migration/a-session-id-the-store-did-not-issue-is-rejected"
+      }
     }
   },
   "snapshot": "2026-09-06"

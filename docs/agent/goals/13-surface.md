@@ -2,7 +2,7 @@
 
 Land the two M1 items that were scheduled after M4 and never taken:
 `rule:expressions/pipeline-substitution`'s **pipeline
-operator** and [ADR 0124](../../adr/0124-php-86-lands-as-four-refusals-and-one-session-rule.md)'s **PHP
+operator** and `rule:php-migration/a-deprecation-is-a-refusal`'s **PHP
 8.6 refusals**. Both are written and accepted; this goal implements them and reopens neither.
 [docs/plan/m1.md](../../plan/m1.md) items 5 and 6 are the scope.
 
@@ -52,7 +52,7 @@ including the PHP-callable form, and a positive case carries the identity claim.
 with codes from the **`E02xx` rejected-PHP-constructs band** — the next free numbers are `E0247` onward,
 and `E0213`/`E0214` are retired holes that are never reused:
 
-1. A `return` — or an escaping `break`/`continue` — inside a `finally` block (ADR 0124 § 1).
+1. A `return` — or an escaping `break`/`continue` — inside a `finally` block (`rule:php-migration/no-return-leaves-a-finally`).
 2. `return $value;` in a constructor (§ 2).
 3. A default on a `readonly` property (§ 4).
 
@@ -77,7 +77,7 @@ is in the acceptance list.
 ## Standing decisions — pre-authorized, do not stop the loop for these
 
 - **The two ADRs are implemented, not reopened.** `rule:expressions/pipeline-substitution`'s `?|>` stays deferred with its trigger named,
-  and ADR 0124's non-adoptions stay non-adopted. A session that thinks either is wrong records the
+  and `rule:php-migration/a-deprecation-is-a-refusal`'s non-adoptions stay non-adopted. A session that thinks either is wrong records the
   thought in the handoff's `## Backlog` and implements what is written.
 - **The renumbering is mechanical and it is the ADR's body that moves.** No new ADR number, no overlay
   note, no "see also" — `docs/agent/conventions.md` § *An ADR* is the shape and the registry's own rule

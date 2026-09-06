@@ -25,7 +25,7 @@
 //! operand is marked in [`Env::coalesce_guarded`] — the same set `??` fills
 //! for the same reason, and the same one [`super::check_expr`]'s
 //! `ExprKind::Index` arm reads to answer `?elem_ty` and record `guarded` on
-//! its [`crate::expr_table::ExprInfo::Index`] entry. ADR 0007 § 7 row 11's
+//! its [`crate::expr_table::ExprInfo::Index`] entry. `rule:php-migration/every-divergence-is-deliberate-and-listed` row 11's
 //! throw is what that marking turns off; without it these two would report
 //! absence by raising the very error they exist to avoid.
 //!
@@ -82,7 +82,7 @@ pub(crate) fn check_empty_operand(
 }
 
 /// Marks every `Index` level of `operand` as a guarded read, so an absent key
-/// answers `null` there instead of taking ADR 0007 § 7 row 11's throw.
+/// answers `null` there instead of taking `rule:php-migration/every-divergence-is-deliberate-and-listed` row 11's throw.
 ///
 /// Called *before* the operand is checked, because the arm that reads the mark
 /// is inside that check — [`Env::coalesce_guarded`]'s own doc comment owns the

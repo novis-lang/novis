@@ -1,4 +1,4 @@
-# ADR 0124 — PHP 8.6 lands as four compile-time refusals and one session rule
+# `rule:php-migration/a-deprecation-is-a-refusal` — PHP 8.6 lands as four compile-time refusals and one session rule
 
 - **Status:** Accepted
 - **Date:** 2026-08-31

@@ -1243,7 +1243,7 @@ pub enum InstKind {
     /// every helper call gets by `nvs-codegen`, against the runtime entry
     /// point `nvs_array_required_get` — which is why the two representations
     /// above are told apart there, by the key's own tag, rather than by
-    /// picking a symbol here. PHP warns and yields `null`; ADR 0007 § 7 row 11
+    /// picking a symbol here. PHP warns and yields `null`; `rule:php-migration/every-divergence-is-deliberate-and-listed` row 11
     /// records the divergence and that helper's doc comment says why the old
     /// answer was a null dereference rather than a value. A stored `null` is
     /// *not* an absent key and reads back unchanged. Under
@@ -1513,7 +1513,7 @@ pub enum TestedClass {
 /// What an [`InstKind::ArrayGet`] answers when its key names no entry.
 ///
 /// Two answers rather than one because PHP has two: a bare `$a["k"]` warns
-/// and yields `null` (Novis throws instead — ADR 0007 § 7 row 11), while
+/// and yields `null` (Novis throws instead — `rule:php-migration/every-divergence-is-deliberate-and-listed` row 11), while
 /// `$a["k"] ?? "d"` is defined as *"absent or `null`, without the warning"*
 /// and must produce the default. The guard is recognized in `nvs_types`,
 /// which records it on the subscript's own
@@ -1628,7 +1628,7 @@ pub enum Helper {
     ///
     /// It exists because a write asks the absent-key question and gets the
     /// opposite answer to a read's: [`InstKind::ArrayGet`] *throws* there
-    /// (ADR 0007 § 7 row 11), while `$g[9][0] = 1` must build the row PHP
+    /// (`rule:php-migration/every-divergence-is-deliberate-and-listed` row 11), while `$g[9][0] = 1` must build the row PHP
     /// would have built. It also *borrows*, where a descent needs a reference
     /// of its own to hand the [`InstKind::ArraySet`] on the way back up.
     /// Folding the two into

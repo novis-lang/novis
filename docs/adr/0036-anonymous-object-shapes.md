@@ -155,7 +155,7 @@ makes it the one unchecked position, so `$m->name` defers not only which class i
 whether there is one at all. The fetch below is what answers both, and a receiver whose tag turns out not
 to be an object is one more catchable throw, worded as PHP words its warning. Every receiver whose
 *declared* type can hold no object — a scalar, an `array<T>`, a union naming no single class — is refused
-where it is written instead (`E0495`, ADR 0007 § 7 row 13): the deferral is what `mixed` is for, and a type
+where it is written instead (`E0495`, `rule:php-migration/every-divergence-is-deliberate-and-listed` row 13): the deferral is what `mixed` is for, and a type
 that already answers the question does not get to ask it again at run time. The two rules below apply to
 all three triggers:
 
@@ -210,7 +210,7 @@ the answer: declare an ordinary class.
 - PHP's `stdClass`/dynamic-property idiom still has no mechanical translation — a PHP object built by
   assigning arbitrary properties after construction has no Novis literal equivalent, since every field must be
   fixed at the point of construction. `nvs convert` (M11) must flag this as a `TODO`, joining the TODO
-  classes [ADR 0007](0007-explicit-type-system.md) § 7 and `rule:classes/property-observer` already
+  classes `rule:php-migration/every-divergence-is-deliberate-and-listed` and `rule:classes/property-observer` already
   carry.
 
 ## Alternatives rejected

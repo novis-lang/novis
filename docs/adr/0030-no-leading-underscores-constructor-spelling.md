@@ -71,8 +71,8 @@
 
 **Negative**
 
-- Another structural break from PHP, already priced into `rule:core-api/identifier-casing`'s and [ADR 0007](0007-explicit-type-system.md)
-  § 7's divergence lists.
+- Another structural break from PHP, already priced into `rule:core-api/identifier-casing`'s and `rule:php-migration/every-divergence-is-deliberate-and-listed`
+  's divergence lists.
 - `_`-prefixed PHP fields, parameters and locals — a common "private-ish"/"intentionally unused" convention
   — need mechanical renaming during conversion. Cheap per `rule:core-api/identifier-casing`'s own cost analysis, but one more line in
   that list.

@@ -53,7 +53,7 @@ playbook = [
 
 plan = ["Open now", "Blocking"]
 
-# The acceptance paragraph alone. What these two items build is `rule:expressions/pipeline-substitution` and ADR 0124, both of which
+# The acceptance paragraph alone. What these two items build is `rule:expressions/pipeline-substitution` and `rule:php-migration/a-deprecation-is-a-refusal`, both of which
 # this manifest already names whole.
 milestones = ["M1:verify"]
 

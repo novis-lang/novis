@@ -1,5 +1,5 @@
 --TEST--
-An expression used as its own statement is evaluated for its effects and its value discarded, whatever shape it is — ADR 0007 § 7
+An expression used as its own statement is evaluated for its effects and its value discarded, whatever shape it is — `rule:php-migration/every-divergence-is-deliberate-and-listed`
 --FILE--
 <?nvs
 // PHP evaluates an expression statement for what it does and throws the value

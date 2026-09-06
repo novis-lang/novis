@@ -27,7 +27,7 @@ because prose was carrying the argument.
 
 A `dropped` row is a promise: `nvs convert` (M11) emits its cell as the diagnostic, so a migrating program
 is told what happened rather than left with an unresolved call. The editor keeps the same promise a keystroke
-earlier — [ADR 0111](../adr/0111-a-php-builtin-completes-to-its-novis-destination.md) offers every name in
+earlier — `rule:php-migration/every-php-builtin-is-a-completion-candidate` offers every name in
 the inventory as a completion candidate, and shows this cell to whoever reaches for the dropped built-in.
 
 **This table is read by a machine, so the Novis cell has one shape that is mechanical and one that is not.**
@@ -37,7 +37,7 @@ that rule's id from `rule:tooling/convert-three-tables`. Neither the
 name table nor the rule table is copied into the other.
 
 **Two machines read these rows, and one row may mean different things to them.** `nvs-lsp` reads the same
-cells ([ADR 0111](../adr/0111-a-php-builtin-completes-to-its-novis-destination.md)) with a person in the
+cells (`rule:php-migration/every-php-builtin-is-a-completion-candidate`) with a person in the
 loop, so a cell naming more than one member — prose the converter may not act on — is one completion item
 per member there. Every `member` spelling in this file is checked against `nvs-stdlib`'s registry when that
 layer is generated, so a spelling this file gets wrong fails a build instead of reaching anyone.

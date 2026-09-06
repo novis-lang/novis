@@ -30,8 +30,8 @@
 //! for `rule:types/conversion`'s reason rather than § 4's: it is the one unchecked
 //! position, so even "is this an object at all" is deferred to that throw.
 //! Every *other* receiver — a scalar, an `array<T>`, a union naming no single
-//! class — is `E_RECEIVER_HAS_NO_PROPERTIES` where it is written (ADR 0007
-//! § 7 row 13). `unset()`'s operand is narrowed to one shape by
+//! class — is `E_RECEIVER_HAS_NO_PROPERTIES` where it is written (`rule:php-migration/every-divergence-is-deliberate-and-listed`
+//! row 13). `unset()`'s operand is narrowed to one shape by
 //! [`check_unset_target`], which is that rule's only home: a declared
 //! property, static or instance, is refused regardless of nullability
 //! (`rule:classes/unset-is-refused-on-a-property`), and so is every operand that is not an array element of a
@@ -40,7 +40,7 @@
 //! [`infer_instanceof`] draws the same line one type earlier, and both sides
 //! of the operator are checked. A **subject** whose declared type can hold no
 //! object already answered the question, so the test is `E0497` where it is
-//! written (ADR 0007 § 7 row 14) while `mixed`, `object`, a shape and any
+//! written (`rule:php-migration/every-divergence-is-deliberate-and-listed` row 14) while `mixed`, `object`, a shape and any
 //! union holding a class keep the run-time test. A **right-hand side** must be
 //! a written name the program declares: the dynamic form is `rule:types/conversion`'s
 //! no-computed-names rule, an enum is a value type (`rule:enums/closed-integer-type`) and a `Core`
@@ -276,7 +276,7 @@ fn report_unfoldable_const(
 /// a `Core` class, an enum and the dynamic `$x instanceof $name` form are
 /// `E_INSTANCEOF_NOT_A_CLASS`, whose own doc comment says why each has no test
 /// to run; and a left-hand side whose declared type can hold no object is
-/// `E_INSTANCEOF_SUBJECT_NOT_OBJECT` (ADR 0007 § 7 row 14).
+/// `E_INSTANCEOF_SUBJECT_NOT_OBJECT` (`rule:php-migration/every-divergence-is-deliberate-and-listed` row 14).
 pub(crate) fn infer_instanceof(
     expr: &Expr,
     inner: &Expr,
@@ -298,7 +298,7 @@ pub(crate) fn infer_instanceof(
             .with_help(
                 "declare the subject `mixed`, `object`, or the base class you expect — a \
                  declared scalar, `array<T>` or enum is not a class and never becomes one \
-                 (ADR 0007 § 7 row 14)",
+                 (`rule:php-migration/every-divergence-is-deliberate-and-listed` row 14)",
             ),
         );
     }
@@ -1330,7 +1330,7 @@ pub(crate) fn check_property_member(
         // Every receiver that neither names a class nor erases to one of the
         // three shapes above: a scalar, an `array<T>`, an enum, a `callable`,
         // or a union naming no single class. PHP warns and yields `null` for
-        // the first family and this refuses it instead — ADR 0007 § 7 row 13,
+        // the first family and this refuses it instead — `rule:php-migration/every-divergence-is-deliberate-and-listed` row 13,
         // which is row 8's rule ("nothing makes an absent thing read as a
         // zero value") at the one storage kind a *declared* type already
         // answers before the program runs. `mixed` is not here: it took the

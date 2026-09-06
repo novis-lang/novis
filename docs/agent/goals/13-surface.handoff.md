@@ -4,7 +4,7 @@
 
 **Goal 13 — the pipeline operator and the PHP 8.6 refusals — has just started; nothing of it has landed
 yet.** Goal 12's whole list is this goal's Stage 1 floor. Both designs are written and accepted
-(`rule:expressions/pipeline-substitution`, ADR 0124); this goal implements them and reopens neither.
+(`rule:expressions/pipeline-substitution`, `rule:php-migration/a-deprecation-is-a-refusal`); this goal implements them and reopens neither.
 
 **One thing is already known and is stage 0.** `rule:expressions/pipeline-substitution`'s table assigns `E0124`, `E0125` and `E0126`, and
 all three were allocated to other diagnostics after it was written — `rule:iteration/for-init-clause`'s two `for`-header codes and
@@ -27,12 +27,12 @@ Do that before writing a single case.
 
 ## Backlog
 
-- Stage 3 (`let`/`is` reserved, and the three ADR 0124 checks) shares `token.rs` and `parser/decl.rs` —
+- Stage 3 (`let`/`is` reserved, and the three `rule:php-migration/a-deprecation-is-a-refusal` checks) shares `token.rs` and `parser/decl.rs` —
   a session that lands the group above with headroom takes the reserved spellings, which are two lines
   and two tests.
 - Stage 4 (the reference heading and its four proofs) is prose plus three examples and one bench, and
   it is the cheapest session to start cold.
 - **Off path:** anything in `crates/nvs-lsp` or `editors/` — goals 14 and 15. `rule:expressions/pipeline-substitution`'s deferred `?|>`
-  and ADR 0124's non-adoptions stay closed.
+  and `rule:php-migration/a-deprecation-is-a-refusal`'s non-adoptions stay closed.
 - When this goal's last check goes green the chain advances to goal 14 — `crates/nvs-lsp`, the server
   behind `nvs lsp`.

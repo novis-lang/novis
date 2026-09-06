@@ -76,7 +76,7 @@ UNAUDITED = [
 # functions, so a row here neither raises nor lowers the percentage the parity program's floors gate on;
 # it only stops being an error.
 AHEAD_OF_THE_BUILD = {
-    # [ADR 0124](../docs/adr/0124-php-86-lands-as-four-refusals-and-one-session-rule.md): already
+    # `rule:php-migration/a-deprecation-is-a-refusal`: already
     # `Core\Math::clamp`, and generic over any naturally ordered type rather than over int|float.
     "clamp": "PHP 8.6",
 }

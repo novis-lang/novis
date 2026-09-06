@@ -1,4 +1,4 @@
-# ADR 0111 — A PHP built-in completes to its Novis destination, and a completion item may only insert what the registry holds
+# `rule:php-migration/every-php-builtin-is-a-completion-candidate` — A PHP built-in completes to its Novis destination, and a completion item may only insert what the registry holds
 
 - **Status:** Accepted
 - **Date:** 2026-08-29

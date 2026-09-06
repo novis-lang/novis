@@ -1040,7 +1040,7 @@ pub mod code {
     /// target (`$a[][0] = 1`) is a target and stays legal.
     ///
     /// `$a[] .= "x"` is the one spelling PHP accepts and this refuses, and
-    /// it is ADR 0007 § 7 row 10: PHP appends because the element that is
+    /// it is `rule:php-migration/every-divergence-is-deliberate-and-listed` row 10: PHP appends because the element that is
     /// not there yet reads as `""`, and no rule in Novis makes an absent
     /// element read as a zero value — which is § 7 row 8 one storage kind
     /// along, not a new judgement.
@@ -1166,7 +1166,7 @@ pub mod code {
     /// `int $i = 5; echo $i->name;` — or on one that names no single class,
     /// such as a union of two.
     ///
-    /// PHP warns and yields `null` here; ADR 0007 § 7 row 13 makes it a
+    /// PHP warns and yields `null` here; `rule:php-migration/every-divergence-is-deliberate-and-listed` row 13 makes it a
     /// check-time error instead, for row 8's reason: a declared type is what
     /// makes the answer knowable before the program runs, and nothing in Novis
     /// makes an absent thing read as a zero value. `mixed` is the one receiver
@@ -1182,7 +1182,7 @@ pub mod code {
     /// computed, which is the same line `$$var` and `eval` are already on. Its
     /// three spellings share one report
     /// (`nvs_types::expr::members::reject_dynamic_class_name`) because they are
-    /// one mistake — ADR 0007 § 7 row 14 says so of the `instanceof` one, and a
+    /// one mistake — `rule:php-migration/every-divergence-is-deliberate-and-listed` row 14 says so of the `instanceof` one, and a
     /// second code for the same rule at `new` would be a distinction the
     /// language does not make. A
     /// `Core` class has no descriptor for the test to point at, `Core` classes
@@ -1195,7 +1195,7 @@ pub mod code {
     /// `instanceof` over a left-hand side whose declared type can hold no
     /// object at all — `int $n = 1; $n instanceof Box;`.
     ///
-    /// PHP answers `false`, having no declaration to read; ADR 0007 § 7 row 14
+    /// PHP answers `false`, having no declaration to read; `rule:php-migration/every-divergence-is-deliberate-and-listed` row 14
     /// refuses it instead, for the reason `rule:expressions/one-equality-operator` refuses two statically
     /// disjoint types under `==` — the declaration already answered, so the
     /// test is dead code that reads as a live question. `mixed`, `object`, a
@@ -1668,7 +1668,7 @@ pub mod code {
     /// whatever holds the array, and a temporary holds it nowhere — the write
     /// would land in a value dropped at the end of the statement. PHP 8.5
     /// accepts the spelling and discards the write with no diagnostic at all
-    /// (checked with `php -r`, not assumed), which makes this ADR 0007 § 7's
+    /// (checked with `php -r`, not assumed), which makes this `rule:php-migration/every-divergence-is-deliberate-and-listed`'s
     /// fifteenth deliberate divergence rather than a PHP-compatible refusal
     /// like `E0478` beside it.
     ///
@@ -3140,7 +3140,7 @@ pub mod code {
     /// log or re-raise; in the expression form the body *is* the value, so an
     /// unbound arm over the root is by construction "discard every failure,
     /// including the ones this site never anticipated" — PHP's `@` operator,
-    /// which [ADR 0007](/docs/adr/0007-explicit-type-system.md) § 7
+    /// which `rule:php-migration/every-divergence-is-deliberate-and-listed`
     /// removed, regrown as a one-liner. The two honest spellings are naming
     /// the class the site expects and binding `$e` to carry the value. A
     /// warning rather than an error because the hazard is a habit and not a

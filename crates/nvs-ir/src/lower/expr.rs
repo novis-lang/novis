@@ -1414,7 +1414,7 @@ impl<'a> Lowering<'a> {
     ///
     /// No operand can *throw* on absence: `nvs_types::expr::presence` marks
     /// every subscript level under an `isset` in `Env::coalesce_guarded`, the
-    /// same set `??` fills, so ADR 0007 § 7 row 11's throw is off for exactly
+    /// same set `??` fills, so `rule:php-migration/every-divergence-is-deliberate-and-listed` row 11's throw is off for exactly
     /// the reads this construct exists to ask about.
     pub(crate) fn lower_isset(
         &mut self,

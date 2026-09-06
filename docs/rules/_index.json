@@ -104,6 +104,11 @@
       "topic": "ide",
       "title": "The editor",
       "order": 210
+    },
+    {
+      "topic": "php-migration",
+      "title": "Migrating from PHP",
+      "order": 220
     }
   ]
 }

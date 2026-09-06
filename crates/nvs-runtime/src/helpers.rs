@@ -286,7 +286,7 @@ crate::nvs_helper! {
     /// `array<string>`, and the null-shaped value this used to answer with was
     /// read by every consumer as its declared type — a string pointer, an
     /// object pointer — so the failure was a null dereference below the
-    /// language rather than an error inside it. ADR 0007 § 7 row 11 records
+    /// language rather than an error inside it. `rule:php-migration/every-divergence-is-deliberate-and-listed` row 11 records
     /// the divergence, and it is row 8 (an undefined *variable* is a check-time
     /// error) one storage kind along: absent storage is never a zero value.
     ///
@@ -325,7 +325,7 @@ crate::nvs_helper! {
     /// — the same **borrowed** read as [`nvs_array_required_get`], answering an
     /// absent key with `null` instead of throwing.
     ///
-    /// This is the read under a `??`, and it is the one place ADR 0007 § 7
+    /// This is the read under a `??`, and it is the one place `rule:php-migration/every-divergence-is-deliberate-and-listed`
     /// row 11's divergence is carved back out: PHP's `??` is precisely "absent
     /// or `null`, without the warning", so the whole point of the guard is that
     /// the absent case has an answer. The answer is always a
@@ -380,7 +380,7 @@ crate::nvs_helper! {
 /// (`E0482`) on purpose: "only an `array<T>` has elements" is one rule, and a
 /// base that hid the answer behind a `mixed` should read as the same refusal
 /// the site makes wherever the declared type shows it. PHP warns and yields
-/// `null` here; ADR 0007 § 7 row 11 already records that divergence for the
+/// `null` here; `rule:php-migration/every-divergence-is-deliberate-and-listed` row 11 already records that divergence for the
 /// absent key, and this is the same one storage kind up.
 fn not_subscriptable(base: Value) -> Fault {
     Fault::thrown(format!(

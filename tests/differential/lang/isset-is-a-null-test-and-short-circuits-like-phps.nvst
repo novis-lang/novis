@@ -1,5 +1,5 @@
 --TEST--
-`isset(...)` agrees with PHP on every operand shape: a null test, an absent key answering `false` rather than throwing, a stored `null` answering `false` too, and a left-to-right conjunction that short-circuits — `rule:classes/unset-is-refused-on-a-property`, ADR 0007 § 7 row 11
+`isset(...)` agrees with PHP on every operand shape: a null test, an absent key answering `false` rather than throwing, a stored `null` answering `false` too, and a left-to-right conjunction that short-circuits — `rule:classes/unset-is-refused-on-a-property`, `rule:php-migration/every-divergence-is-deliberate-and-listed` row 11
 --FILE--
 <?nvs
 // `rule:classes/unset-is-refused-on-a-property`: `isset($x)` is `$x != null`, and nothing else. A
@@ -9,7 +9,7 @@
 string $s = "plain";
 echo isset($a) ? "y" : "n", isset($b) ? "y" : "n", isset($s) ? "y" : "n", "\n";
 
-// ADR 0007 § 7 row 11's throw is off under an `isset`, exactly as it is
+// `rule:php-migration/every-divergence-is-deliberate-and-listed` row 11's throw is off under an `isset`, exactly as it is
 // under a `??`: an absent key is what this construct exists to ask about.
 array<string> $arr = ["k" => "v"];
 echo isset($arr["k"]) ? "y" : "n", isset($arr["nope"]) ? "y" : "n", "\n";

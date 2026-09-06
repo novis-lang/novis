@@ -161,7 +161,7 @@ discriminant already exists, and the omitting call site emits one constant eithe
   mechanism rather than adding a second.
 - Stricter than PHP at compile time: PHP happily compiles a constructor that leaves a typed property unset
   on some path, and only fails when that path is actually read. Porting PHP source with such a gap needs a
-  fix, not just a recompile — `nvs convert` (M11) must flag it, joining the TODO classes ADR 0007 §7 and
+  fix, not just a recompile — `nvs convert` (M11) must flag it, joining the TODO classes `rule:php-migration/every-divergence-is-deliberate-and-listed` and
   `rule:classes/property-observer` already grow.
 - One more internal discriminant on the tagged-value representation, though at zero additional bytes per
   `rule:programs/memory-priority`'s accounting — see *3*.

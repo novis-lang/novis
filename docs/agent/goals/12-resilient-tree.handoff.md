@@ -36,4 +36,4 @@ cost twice.
 - **Off path:** `nvs lsp-test`, the `.lspt` format itself, and anything under `editors/`. Those are
   goals 14 and 15. `## Backlog` and move on.
 - When this goal's last check goes green the chain advances to goal 13 — `rule:expressions/pipeline-substitution`'s pipeline operator
-  and ADR 0124's PHP 8.6 refusals, the two front-end items the editor's grammar must colour correctly.
+  and `rule:php-migration/a-deprecation-is-a-refusal`'s PHP 8.6 refusals, the two front-end items the editor's grammar must colour correctly.

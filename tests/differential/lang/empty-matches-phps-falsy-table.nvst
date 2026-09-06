@@ -38,7 +38,7 @@ array<string> $rows = [];
 echo "loc ", Show::of(empty($s)), Show::of(empty($t)), Show::of(empty($z)),
      Show::of(empty($rows)), "\n";
 
-// An absent key answers `true` rather than throwing (ADR 0007 § 7 row 11's
+// An absent key answers `true` rather than throwing (`rule:php-migration/every-divergence-is-deliberate-and-listed` row 11's
 // exception), and a present `"0"` answers `true` for the falsy-table reason
 // instead — the two are indistinguishable here, exactly as they are in PHP.
 $rows["k"] = "v";

@@ -507,8 +507,8 @@ pub(crate) fn mint(ctx: &mut Ctx) -> String {
 /// § 2's `load` — the record under `id`, or **absent**.
 ///
 /// Absent is the answer to all three of
-/// [ADR 0124](/docs/adr/0124-php-86-lands-as-four-refusals-and-one-session-rule.md)
-/// § 6's cases at once: an id no store issued, one that has expired, and one an attacker minted.
+/// `rule:php-migration/a-session-id-the-store-did-not-issue-is-rejected`
+/// 's cases at once: an id no store issued, one that has expired, and one an attacker minted.
 /// `Core\Session::start()` responds to it by issuing a fresh id, which is why there is no separate
 /// `validateId` for the two of them to disagree about.
 ///

@@ -1,5 +1,5 @@
 --TEST--
-Integer `+`, `-`, `*` and unary `-` answer one step inside their type's bound and throw `ArithmeticError` at it, on the `int` arm and the `uint` arm alike — ADR 0007 §§ 4, 7
+Integer `+`, `-`, `*` and unary `-` answer one step inside their type's bound and throw `ArithmeticError` at it, on the `int` arm and the `uint` arm alike — `rule:types/arithmetic` and `rule:php-migration/every-divergence-is-deliberate-and-listed`
 --FILE--
 <?nvs
 // `rule:types/arithmetic` names this the divergence from PHP it is least willing to

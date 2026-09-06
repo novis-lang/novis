@@ -1085,7 +1085,7 @@ is why" — is this file.
   path and the next session opens the source of truth rather than the third copy of it.
 - **A `loop-goal.toml` check can fail on a file no session wrote — the user edits this tree too.**
   Session 5 opened on `check-migration at 33%` failing, and the cause was an uncommitted
-  `docs/spec/02-php-migration.md` row for `clamp` from a by-hand ADR 0124 pass: the row is right and
+  `docs/spec/02-php-migration.md` row for `clamp` from a by-hand `rule:php-migration/a-deprecation-is-a-refusal` pass: the row is right and
   the *inventory* is the PHP 8.5 oracle build, so a name PHP has only announced reads as a typo. Two
   things follow. `git status --short` before diagnosing says whose change it is, and a fix that lands
   in a *tool* is committable on its own without touching the user's in-flight files — never stage
@@ -3577,7 +3577,7 @@ is why" — is this file.
   itself, since `echo` has no `null` row.
 - **A green conformance case can be pinning the bug you are about to fix.**
   `reading-an-absent-array-key-throws.nvst` asserted `$maybe["gone"] ?? "stored-null"` *throws* —
-  it was written to pin ADR 0007 § 7 row 11 and reached for `??` as a convenient way to spell
+  it was written to pin `rule:php-migration/every-divergence-is-deliberate-and-listed` row 11 and reached for `??` as a convenient way to spell
   the read, freezing the exact divergence from PHP that row was not claiming. So when a case
   goes red under a fix, check its expectation against PHP (`php -r '…'`) before adjusting
   either side: a `--EXPECT--` block is only as authoritative as the session that wrote it, and
@@ -9092,7 +9092,7 @@ every session. Nothing below was reworded on the way.
   not always agree with itself.** `echo $a[];` is *"Cannot use [] for reading"* and `unset($a[])`
   is *"Cannot use [] for unsetting"*, both compile errors — but `$a[] .= "x"` **appends**, silently,
   with no notice even at `error_reporting=-1`, because the element that is not there yet reads as
-  `""`. So refusing that third one is a divergence and needed a row of its own (ADR 0007 § 7 row
+  `""`. So refusing that third one is a divergence and needed a row of its own (`rule:php-migration/every-divergence-is-deliberate-and-listed` row
   10), not a sentence in a doc comment. Three `php -r` calls settled what an hour of reasoning from
   the first two would have got wrong.
 - **Turning a panic into a diagnostic breaks the tests that pinned the panic, and they do not look

@@ -1229,7 +1229,7 @@ fn classes_spelled(name: &str) -> Vec<&'static registry::CoreClass> {
 /// **Every spelling in the cell, not the cell.** That file's *How to read a
 /// row* says a cell holding exactly one member is the rename `nvs convert`
 /// applies while a cell naming two is prose the converter may not act on — but
-/// [ADR 0111](/docs/adr/0111-a-php-builtin-completes-to-its-novis-destination.md)
+/// `rule:php-migration/every-php-builtin-is-a-completion-candidate`
 /// makes the second one *completion items* in an editor, one per member, so
 /// both shapes reach a person and both have to resolve. A cell that names a
 /// member in passing to say what it is *not* (`array_map`'s zip has no member —

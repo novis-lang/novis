@@ -313,7 +313,7 @@ pub(crate) fn infer(
         }
         ExprKind::Binary { op, lhs, rhs } => {
             // PHP's `??` is "absent or `null`, without the warning", so no
-            // subscript under one takes ADR 0007 § 7 row 11's throw — and that
+            // subscript under one takes `rule:php-migration/every-divergence-is-deliberate-and-listed` row 11's throw — and that
             // is the whole chain, not only the outermost level: PHP reads
             // `$a["k"]["j"] ?? "d"` as "`"d"` unless every level is there".
             // Marked before the operand is checked, because the arm that reads
@@ -871,7 +871,7 @@ pub(crate) fn infer(
 /// class below the root is a site saying which failure it anticipated. Only
 /// the three together spell *discard every failure, including the ones this
 /// site never anticipated* — which is PHP's `@`, removed by
-/// [ADR 0007](/docs/adr/0007-explicit-type-system.md) § 7 and regrown
+/// `rule:php-migration/every-divergence-is-deliberate-and-listed` and regrown
 /// as a one-liner. `nvs_diagnostics::code::W_CATCH_ARM_DISCARDS_EVERY_FAILURE`
 /// says why it is a warning and not a refusal.
 fn warn_discarding_throwable_arm(arm: &CatchArm, ty: TypeId, env: &mut Env<'_>) {

@@ -28,8 +28,8 @@
 ## Context
 
 - Converting untrusted input is the single most common thing a web program does, and PHP's answer —
-  `(int)$x` yielding `0` for `"abc"` and `12` for `"12abc"` — is [ADR 0007](0007-explicit-type-system.md)
-  § 7's divergence 4, rejected because it silently accepts garbage. Novis's replacement throws, which is
+  `(int)$x` yielding `0` for `"abc"` and `12` for `"12abc"` — is `rule:php-migration/every-divergence-is-deliberate-and-listed`
+  's divergence 4, rejected because it silently accepts garbage. Novis's replacement throws, which is
   right when invalid input *is* an error and wrong when it is an ordinary expected outcome: an absent page
   number, an optional sort order, a filter that may not be filled in.
 - `rule:core-api/shape-rules` R4 makes failure throw and R5 **bans** `try…`, `…OrNull`,
@@ -195,7 +195,7 @@ in the language, which is a larger decision than this one and is not taken here.
   from Swift or Kotlin, where `as?` is a downcast, is no longer told that Novis spells a *parse* the same way
   for two class names and refuses it for the rest.
 - **`nvs convert` (M11) must not take the obvious shortcut.** PHP's `(int)$x` now has a tempting mechanical
-  target in `$x as ?int ?? 0`, which would quietly restore the silent-zero behaviour ADR 0007 § 7 diverges
+  target in `$x as ?int ?? 0`, which would quietly restore the silent-zero behaviour `rule:php-migration/every-divergence-is-deliberate-and-listed` diverges
   from deliberately — and would not even be faithful, since `(int)"12abc"` is `12` in PHP and `null` here.
   It keeps emitting a diagnostic naming both forms and lets the author choose.
 

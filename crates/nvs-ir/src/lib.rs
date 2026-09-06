@@ -279,7 +279,7 @@
 //!    [`ir::InstKind::Untag`] and the whole tagged value reaches the runtime,
 //!    which throws in PHP's own wording for a receiver that is not an object
 //!    — every *statically* non-object receiver having been `E0495` at the
-//!    checker (ADR 0007 § 7 row 13). An
+//!    checker (`rule:php-migration/every-divergence-is-deliberate-and-listed` row 13). An
 //!    anonymous `{a: 1}` literal
 //!    constructs, as an instance of the class [`lower::shape_class_label`]
 //!    names. Nullsafe `?->` *reads* — a call and a property alike, over
@@ -303,7 +303,7 @@
 //!    its root holder plus one key per level, descends, and writes every
 //!    level back with the outermost last, auto-vivifying an absent row the
 //!    way PHP does. Neither
-//!    [`ir::InstKind::ArrayGet`] throws on an absent key (ADR 0007 § 7 row
+//!    [`ir::InstKind::ArrayGet`] throws on an absent key (`rule:php-migration/every-divergence-is-deliberate-and-listed` row
 //!    11), which is the *read* side's answer to the same question this
 //!    vivifying descent asks; [`ir::InstKind::ArraySet`] models no absent key
 //!    at all, because a write is what makes one present. A **static** property

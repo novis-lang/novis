@@ -2966,7 +2966,7 @@ pub unsafe extern "C" fn nvs_object_field_get(ptr: *mut ObjHeader, index: usize)
 ///
 /// A second [`Fault::Thrown`] when the receiver is not an object at all, in
 /// PHP's own wording — a `mixed` is the only receiver that reaches it, every
-/// other non-object being `E0495` at check time (ADR 0007 § 7 row 13).
+/// other non-object being `E0495` at check time (`rule:php-migration/every-divergence-is-deliberate-and-listed` row 13).
 ///
 /// A third when the slot was never written — `rule:classes/an-unwritten-property-read-throws`, whose storage
 /// state is [`Tag::Unset`] and whose only reachable declaration is a
