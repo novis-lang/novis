@@ -1,7 +1,8 @@
 ---
 /**
  * Header override: the default Starlight header (title, search, social icons,
- * theme switch) plus the site navigation — Novis / Docs / Why Novis?.
+ * theme switch) plus the site navigation — Novis / Docs / Why Novis? /
+ * Sponsoring.
  *
  * Layout follows the default component so the search stays centered over the
  * content column; the nav sits between the title and the search.
@@ -23,6 +24,7 @@ const nav = [
   { label: 'Novis', href: withBase('/') },
   { label: 'Docs', href: withBase('/docs/') },
   { label: 'Why Novis?', href: withBase('/why-novis/') },
+  { label: 'Sponsoring', href: withBase('/sponsoring/') },
 ]
 
 const { pathname } = Astro.url

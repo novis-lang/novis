@@ -82,6 +82,27 @@ change is expected to follow. Start there, then [AGENTS.md](AGENTS.md) — it ca
 every design choice is judged against, the invariants that are easy to break, and a table pointing at the
 *one* document to open for a given piece of work.
 
+## Sponsoring
+
+Novis is open source and free, and it always will be. What it costs is time — and time is exactly what we
+are willing to invest to reach our goal. But some things already cost real money: servers, licences,
+hardware. Novis has a baseline that is paid every month.
+
+That is where sponsors come in — maybe you?! Sponsors help us cover those fixed costs. Right now we are not
+a company, just individuals trying to build something great, and today a donation is received by a private
+individual: Roland, the creator of Novis. The plan is already set out, though: when the time comes we will
+found a *gemeinnütziger Verein* in Austria — a charitable association, the best legal form for this
+project. It is a non-profit whose purpose is not to make money, and it is what lets us be a proper
+organisation with transparent financial reports, employ people, rent an office, and keep the machine
+running.
+
+Every donation helps, no matter how large, how small, how long or how short. Ask on
+[Discord](https://discord.gg/8ftMjPeH8h) and we will tell you how — the full story is on the website's
+sponsoring page.
+
+And if you would rather not donate, or cannot: come to us with ideas and discussion instead, any time.
+That is what [CONTRIBUTING.md](CONTRIBUTING.md) is for.
+
 ## Licence
 
 Novis is [MIT](LICENSE). Contributions are accepted under the same licence.
