@@ -8,17 +8,24 @@
  *
  *   --nv-accent  the mark's crimson. Links, active nav, focus rings, the one
  *                color allowed to shout.
- *   --nv-rose    the accent gone quiet. The middle of the neutral ramp, so
- *                secondary text, hairlines and panel edges are warm rather
- *                than the stock blue-grey.
- *   --nv-mist    near-white. Headings in the dark theme, the page ground in
- *                the light one.
- *   --nv-teal    the complement. Everything affirmative — "accepted", "proof",
- *                keywords in a signature — so approval never reads as an
- *                accent link.
+ *   --nv-rose    the accent gone quiet, as --nv-quiet. The small annotations
+ *                that sit beside something else: a comment in a signature, a
+ *                chip, a hint.
+ *   --nv-mist    near-white. What the accent lies on rather than a color of
+ *                its own: the light theme's highlight ground, selected text,
+ *                the home-screen icon.
+ *   --nv-teal    the complement, and it does two jobs. Affirmative —
+ *                "accepted", "proof", keywords in a signature, so approval
+ *                never reads as an accent link — and, at a whisper, the tint
+ *                of every neutral surface on the site.
+ *
+ * The surfaces are the load-bearing part: page, panels, hairlines and body
+ * text are one ramp of near-grey between --nv-ink and --nv-fog, and the ramp
+ * leans cool because a ground tinted toward the accent stops reading as a
+ * neutral carrying an accent and starts reading as a colored page.
  *
  * The two themes light and darken the same four with color-mix(); the raw
- * accent is dark enough to read on white (6.6:1) but not on the dark ground
+ * accent is dark enough to read on the light ground (6.8:1) but not the dark one
  * (2.5:1), which is why the dark theme lifts it toward white and the light
  * theme uses it as drawn. Every token that carries text clears WCAG AA against
  * the surface it is painted on, in both themes — check a new one before adding
@@ -40,10 +47,14 @@
   --nv-caution: #d99b34;
   --nv-alarm: #e8623f;
 
-  /* The two ends the neutral ramp runs between. Both carry a trace of the
-     accent, so even the greys belong to the palette. */
-  --nv-ink: color-mix(in oklab, var(--nv-accent) 10%, #0d0d11);
-  --nv-paper: color-mix(in oklab, var(--nv-mist) 40%, white);
+  /* The two ends the neutral ramp runs between, and every surface on the site
+     with them. Teal at a whisper — the page ground has to stay a grey that
+     merely leans cool, never a color: a body tinted toward the accent's warm
+     side reads as a colored page rather than a neutral one carrying an accent.
+     Ink is the dark theme's ground and the light theme's headings; fog is the
+     reverse. Both ramps run between exactly these two. */
+  --nv-ink: color-mix(in oklab, var(--nv-teal) 8%, #0f1113);
+  --nv-fog: color-mix(in oklab, var(--nv-teal) 6%, white);
 
   /* --------------------------------- dark theme (Starlight's :root default) */
 
@@ -52,19 +63,24 @@
   --sl-color-accent: color-mix(in oklab, var(--nv-accent) 85%, white);
   --sl-color-accent-high: color-mix(in oklab, var(--nv-accent) 48%, white);
 
-  /* Neutral ramp. The bright end is mist, so body text stays near-neutral;
-     rose sits *unmixed* at the muted step — the one both themes use for
-     secondary text, and the lightness Starlight puts there anyway (5.3:1 on
-     the page, 4.6:1 on a panel, which is what the stock grey measures). Every
-     quiet label, hairline and panel edge on the site is one of these. */
-  --sl-color-white: var(--nv-mist);
-  --sl-color-gray-1: color-mix(in oklab, var(--nv-mist) 96%, var(--nv-ink));
-  --sl-color-gray-2: color-mix(in oklab, var(--nv-mist) 82%, var(--nv-ink));
-  --sl-color-gray-3: var(--nv-rose);
-  --sl-color-gray-4: color-mix(in oklab, var(--nv-rose) 57%, var(--nv-ink));
-  --sl-color-gray-5: color-mix(in oklab, var(--nv-rose) 36%, var(--nv-ink));
-  --sl-color-gray-6: color-mix(in oklab, var(--nv-rose) 14%, var(--nv-ink));
+  /* Neutral ramp: six steps of fog into ink, so every surface, hairline and
+     line of body text is the same barely-cool grey at a different lightness.
+     The steps land on Starlight's own lightnesses, which is what keeps the
+     stock contrast ratios. */
+  --sl-color-white: var(--nv-fog);
+  --sl-color-gray-1: color-mix(in oklab, var(--nv-fog) 92%, var(--nv-ink));
+  --sl-color-gray-2: color-mix(in oklab, var(--nv-fog) 78%, var(--nv-ink));
+  --sl-color-gray-3: color-mix(in oklab, var(--nv-fog) 58%, var(--nv-ink));
+  --sl-color-gray-4: color-mix(in oklab, var(--nv-fog) 34%, var(--nv-ink));
+  --sl-color-gray-5: color-mix(in oklab, var(--nv-fog) 19%, var(--nv-ink));
+  --sl-color-gray-6: color-mix(in oklab, var(--nv-fog) 8%, var(--nv-ink));
   --sl-color-black: var(--nv-ink);
+
+  /* Rose is the site's quiet voice: the small annotations that sit beside
+     something else — a comment in a signature, a chip, a "see also" hint. It
+     stays off the ramp on purpose. Warmed text over a cool ground reads as
+     deliberate; a whole ramp of it reads as a pink page. */
+  --nv-quiet: color-mix(in oklab, var(--nv-rose) 85%, var(--nv-fog));
 
   /* Washes: the accent at reading strength for a panel it must not compete
      with. -soft carries an icon, -softer a whole block. */
@@ -79,40 +95,57 @@
 
   /* The ground under a code block — one step off the page, the way Starlight
      sets it. Wired into Expressive Code by astro.config.ts. */
-  --nv-code-bg: color-mix(in oklab, var(--nv-rose) 16%, var(--nv-ink));
+  --nv-code-bg: color-mix(in oklab, var(--nv-fog) 10%, var(--nv-ink));
+
+  /* Selected text: the accent's own dark end, which nothing else uses as a
+     background in this theme. */
+  --nv-selection: var(--sl-color-accent-low);
 }
 
 :root[data-theme='light'] {
-  /* The accent as drawn: 6.6:1 on the paper ground, so links need no lift. */
-  --sl-color-accent-low: color-mix(in oklab, var(--nv-accent) 16%, white);
+  /* The accent as drawn: 6.8:1 on the light ground, so links need no lift.
+     -low is mist itself — Starlight's palest accent step is exactly the
+     highlight ground mist was picked to be. */
+  --sl-color-accent-low: var(--nv-mist);
   --sl-color-accent: var(--nv-accent);
   --sl-color-accent-high: color-mix(in oklab, var(--nv-accent) 72%, black);
 
-  /* The same ramp, walked the other way: Starlight's light theme swaps the
-     ends, so gray-1 is the darkest here, the page ground is -black, and rose
-     lands one step further along (gray-4) at the same absolute lightness it
-     holds in the dark theme. */
+  /* The same ramp, read from the other end: Starlight's light theme swaps
+     them, so gray-1 is the darkest here and the page ground is -black. Every
+     step is one the dark theme also uses. */
   --sl-color-white: var(--nv-ink);
-  --sl-color-gray-1: color-mix(in oklab, var(--nv-rose) 14%, var(--nv-ink));
-  --sl-color-gray-2: color-mix(in oklab, var(--nv-rose) 29%, var(--nv-ink));
-  --sl-color-gray-3: color-mix(in oklab, var(--nv-rose) 57%, var(--nv-ink));
-  --sl-color-gray-4: var(--nv-rose);
-  --sl-color-gray-5: color-mix(in oklab, var(--nv-rose) 45%, var(--nv-paper));
-  --sl-color-gray-6: color-mix(in oklab, var(--nv-rose) 14%, var(--nv-paper));
-  --sl-color-gray-7: color-mix(in oklab, var(--nv-rose) 6%, var(--nv-paper));
-  --sl-color-black: var(--nv-paper);
+  --sl-color-gray-1: color-mix(in oklab, var(--nv-fog) 8%, var(--nv-ink));
+  --sl-color-gray-2: color-mix(in oklab, var(--nv-fog) 19%, var(--nv-ink));
+  --sl-color-gray-3: color-mix(in oklab, var(--nv-fog) 34%, var(--nv-ink));
+  --sl-color-gray-4: color-mix(in oklab, var(--nv-fog) 58%, var(--nv-ink));
+  --sl-color-gray-5: color-mix(in oklab, var(--nv-fog) 78%, var(--nv-ink));
+  --sl-color-gray-6: color-mix(in oklab, var(--nv-fog) 92%, var(--nv-ink));
+  --sl-color-gray-7: color-mix(in oklab, var(--nv-fog) 96%, var(--nv-ink));
+  --sl-color-black: var(--nv-fog);
+
+  /* Darkened to carry small text on a light ground; still legibly rose. */
+  --nv-quiet: color-mix(in oklab, var(--nv-rose) 78%, black);
 
   /* Thinner: the same wash reads twice as strong over a light ground. */
   --nv-accent-soft: color-mix(in oklab, var(--nv-accent) 13%, transparent);
   --nv-accent-softer: color-mix(in oklab, var(--nv-accent) 6%, transparent);
 
-  /* All three darkened to clear 4.5:1 on paper — a teal or an amber bright
-     enough for the dark ground is a pastel on this one. */
+  /* All three darkened to clear 4.5:1 on the light ground — a teal or an amber
+     bright enough for the dark ground is a pastel on this one. */
   --nv-ok: color-mix(in oklab, var(--nv-teal) 62%, black);
   --nv-warn: color-mix(in oklab, var(--nv-caution) 72%, black);
   --nv-danger: color-mix(in oklab, var(--nv-alarm) 72%, black);
 
-  --nv-code-bg: color-mix(in oklab, var(--nv-rose) 8%, var(--nv-paper));
+  --nv-code-bg: color-mix(in oklab, var(--nv-fog) 96%, var(--nv-ink));
+  --nv-selection: var(--nv-mist);
+}
+
+/* Mist's other job: the accent is a color to lie *under* text, never over it,
+   so the light theme selects in it and the dark theme in the accent's own
+   dark end. Both keep the page's own text color. */
+::selection {
+  background-color: var(--nv-selection);
+  color: var(--sl-color-white);
 }
 
 /* Utility used by components. */
@@ -171,7 +204,7 @@
   white-space: normal;
   overflow-wrap: anywhere;
   min-width: 12ch;
-  color: var(--sl-color-gray-3);
+  color: var(--nv-quiet);
   font-style: italic;
 }
 .method-signature-decl .sig-comment code {
@@ -262,14 +295,14 @@
 }
 
 .method-see-also-hint {
-  color: var(--sl-color-gray-3);
+  color: var(--nv-quiet);
   font-size: var(--sl-text-sm);
 }
 
 /* ------------------------------------------------------------- class pages */
 
 .class-member-count {
-  color: var(--sl-color-gray-3);
+  color: var(--nv-quiet);
   font-size: var(--sl-text-sm);
 }
 .class-member-table-wrapper {
@@ -310,7 +343,7 @@
   overflow-wrap: anywhere;
 }
 .adr-ref-title {
-  color: var(--sl-color-gray-3);
+  color: var(--nv-quiet);
 }
 .adr-amended-note {
   margin-top: 1rem;
@@ -407,7 +440,7 @@
   padding: 0.15em 0.5em;
   border-radius: 999px;
   border: 1px solid var(--sl-color-hairline);
-  color: var(--sl-color-gray-3);
+  color: var(--nv-quiet);
 }
 .adr-index-status[data-status='accepted'],
 .nv-adr-tooltip-status[data-status='accepted'] {
@@ -470,7 +503,7 @@
   padding: 0.5rem 0.9rem;
   margin-top: 1rem;
   font-size: var(--sl-text-xs);
-  color: var(--sl-color-gray-3);
+  color: var(--nv-quiet);
 }
 
 /* ------------------------------------------------------------ landing page */
@@ -548,8 +581,8 @@
   font-weight: 600;
   padding: 0.2em 0.6em;
   border-radius: 999px;
-  border: 1px solid var(--sl-color-hairline);
-  color: var(--sl-color-gray-3);
+  border: 1px solid color-mix(in oklab, var(--nv-quiet) 35%, transparent);
+  color: var(--nv-quiet);
 }
 .nv-claim-chip-draft {
   color: var(--nv-warn);

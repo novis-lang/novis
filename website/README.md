@@ -103,16 +103,22 @@ block. A hex literal belongs in that block and nowhere else.
 | | | Where it lands |
 | --- | --- | --- |
 | `--nv-accent` | `#b20038` | links, active nav, focus rings — the one color allowed to shout |
-| `--nv-rose` | `#bd767a` | the muted step of the neutral ramp: secondary text, hairlines, panel edges |
-| `--nv-mist` | `#ffe4e4` | headings in the dark theme, the page ground in the light one |
-| `--nv-teal` | `#5abab6` | everything affirmative — "accepted", "proof", keywords in a signature |
+| `--nv-rose` | `#bd767a` | as `--nv-quiet`: the small annotations beside something else — a comment in a signature, a chip, a hint |
+| `--nv-mist` | `#ffe4e4` | what the accent lies *on* — the light theme's highlight ground, selected text, the home-screen icon |
+| `--nv-teal` | `#5abab6` | affirmative ("accepted", "proof", keywords) and, at a whisper, the tint of every neutral surface |
 
-The two themes lighten and darken the same four: the raw accent reads on white (6.6:1) but
-not on the dark ground (2.5:1), so the dark theme lifts it toward white and the light theme
-uses it as drawn. Caution and danger (`--nv-warn`, `--nv-danger`) are the two semantics the
-palette cannot carry and are the only colors outside it — a taint sink drawn in the accent's
-crimson is indistinguishable from a link. Every text token clears WCAG AA against the
-surface it is painted on, in both themes; keep it that way when adding one.
+Surfaces are the load-bearing part. Page, panels, hairlines and body text are one ramp of
+near-grey between `--nv-ink` and `--nv-fog`, both a few percent of teal, so the ground stays
+a grey that merely leans cool: tint it toward the accent instead and it stops reading as a
+neutral carrying an accent and starts reading as a colored page. The ramp's six steps land
+on Starlight's own lightnesses, which is what keeps the stock contrast ratios.
+
+The two themes lighten and darken the same four: the raw accent reads on the light ground
+(6.8:1) but not on the dark one (2.5:1), so the dark theme lifts it toward white and the
+light theme uses it as drawn. Caution and danger (`--nv-warn`, `--nv-danger`) are the two
+semantics the palette cannot carry and are the only colors outside it — a taint sink drawn
+in the accent's crimson is indistinguishable from a link. Every text token clears WCAG AA
+against the surface it is painted on, in both themes; keep it that way when adding one.
 
 ## Logo and favicon
 
