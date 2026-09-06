@@ -7,6 +7,7 @@ tableOfContents: false
 ---
 
 import { DISCORD_URL, githubFile } from '@config/site.mjs'
+import { externalLinkAttrs } from '@config/external-links.mjs'
 
 Novis is a young, new programming language, built from a mix of concepts taken from
 other languages and ideas of our own — combined and developed so we get the best of all
@@ -43,14 +44,14 @@ first. Sponsored money will be published transparently — we will use the
 Every donation helps us, no matter how large, how small, how long or how short. Today
 that money is received by a private individual: Roland, the creator of Novis. There is
 more about that in the [Impressum](/impressum/) — and for anything else,
-<a href={DISCORD_URL}>talk to us on Discord</a>.
+<a href={DISCORD_URL} {...externalLinkAttrs(DISCORD_URL)}>talk to us on Discord</a>.
 
 Good. Now you know how we are set up and why we need money.
 
 ## And if you would rather not — that is fine too
 
 Even if you do not want to donate, or cannot, you are welcome any time with ideas,
-discussion and everything else. That is what our <a href={githubFile('CONTRIBUTING.md')}>Contributing
+discussion and everything else. That is what our <a href={githubFile('CONTRIBUTING.md')} {...externalLinkAttrs(githubFile('CONTRIBUTING.md'))}>Contributing
 guide</a> is for.
 
 See you around, kind regards, Roland (aka BrainFooLong)
