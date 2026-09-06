@@ -103,7 +103,7 @@ modules = [
 # them: the record is frozen on its date and the fragment is what the work is held to, so naming
 # the record shipped this goal the history and left the current text a call away.
 rules = [
-  "0067", "0084", "0024", "0051", "0082", "0132", "0063", "0117", "0005",
+  "0067", "0084", "0024", "0051", "0082", "0132", "0063", "0117",
   "core-classes/schema-introspection",     # stage 4
   "core-classes/schema-converges",         # stage 5
   "core-classes/schema-plan",              # stage 5's grades
@@ -117,7 +117,11 @@ rules = [
 # the map prints -- do not add them back.
 adrs = ["0067", "0084", "0082"]
 
-shapes = ["A `Core` member — the five edits", "A rule fragment", "A decision record", "A `.nvst` test case", "A commit message"]
+# Neither "A rule fragment" nor "A decision record" is named: stage 2's one ADR slot is landed as
+# 0145, every rule stages 6-7 are held to is on disk, and no remaining check writes either. A
+# session that does need one peeks conventions.md, and the wrap's rulebook gate refuses a malformed
+# fragment loudly rather than letting it land.
+shapes = ["A `Core` member — the five edits", "A `.nvst` test case", "A commit message"]
 
 playbook = [
   'Writing Novis itself > core is',
