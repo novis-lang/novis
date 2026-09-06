@@ -18,17 +18,19 @@
   identifier judgement of its own, and inherits all four.
   [0132](0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md) — its sans-io seam is what decides
   that the vocabulary, the emitters, the introspectors and the diff are `nvs-db` and not `nvs-stdlib`.
-- **Amends:** [0067](0067-core-db.md) — its *Revisiting* item, *"a portable `Core\Db\Schema`, if migration
-  tooling in `nvs` itself needs it"*, is closed by this ADR, and the trigger it named has fired; § 3's two
-  deny-by-default capabilities become three, with `db.schema` gating the act of *issuing* DDL rather than
-  the act of connecting; § 9's type map is now read in both directions, and its write direction is § 2's
-  column type enum; § 10's refusal to maintain per-dialect SQL grammars is extended from queries to DDL,
-  which is what makes introspection the only reverse path.
-  [0084](0084-durable-background-jobs.md) § 2 — the two queue tables stop being hand-written per-dialect
-  DDL inside `nvs-stdlib` and become one `Core\Db\Schema` value that `nvs queue migrate` converges, which
-  is what finally gives that command its SQL Server and SQLite arms; the rule the section exists for — the
-  runtime never issues DDL implicitly at boot or from a request — is unchanged and is now enforced by a
-  capability rather than by convention.
+- **Amends:** [0067](0067-core-db.md) — its *Revisiting* item, *"a portable `Core\Db\Schema`, if
+  migration tooling in `nvs` itself needs it"*, is closed by this ADR, and the trigger it named has
+  fired; § 3's two deny-by-default capabilities become three, with `db.schema` gating the act of
+  *issuing* DDL rather than the act of connecting; § 9's type map is now read in both directions,
+  and its write direction is § 2's column type enum; § 10's refusal to maintain per-dialect SQL
+  grammars is extended from queries to DDL, which is what makes introspection the only reverse path.
+  [0084](0084-durable-background-jobs.md) § 2 — the two queue tables stop being hand-written
+  per-dialect DDL inside `nvs-stdlib` and become one `Core\Db\Schema` value that `nvs queue migrate`
+  converges, which is what finally gives that command its SQL Server and SQLite arms; the rule the
+  section exists for — the runtime never issues DDL implicitly at boot or from a request — is
+  unchanged and is now enforced by a capability rather than by convention;
+  [0063](0063-core-api-conventions.md) R5 — the `…Safe` ban is a ban on a *non-throwing variant*,
+  and `applySafe` is named for the grade of the steps it will run
 
 > **In short:** a schema is **a value**, not a directory of scripts. It is written with typed builders,
 > serialized to an array, or read back off a live server by catalog query — three spellings of one thing,
