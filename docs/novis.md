@@ -10606,7 +10606,7 @@ Core\IO::temporaryDir(): string
 
 Creates a new, empty, private directory under the root Novis owns — `[io] temp_root`, or a `novis` subdirectory of the platform temporary directory — and answers its path. `sys_get_temp_dir` and `tempnam` in one member, and the directory is made rather than merely named, so there is no window between choosing a name and owning it. Needs the `fs.write` capability **for the path it creates**: the name is chosen first and asked about second, so a configuration granting only the working directory does not reach the temporary root.
 
-**Returns** `string` — The absolute path of a directory that exists, holds nothing, and belongs to this process. Removing it is the program's own job — `remove` each entry, then `removeDir` — because a runtime that swept it would be deciding the lifetime of data it knows nothing about.
+**Returns** `string` — The absolute path of a directory that exists, holds nothing, and belongs to this script. The runtime deletes it, and everything in it, when the script ends — after the last user code and whatever the ending was — so a program never has to remember and can never leak one. Removing it early is allowed and is not an error; a file that must outlive its script is storage, not a temporary.
 
 **Throws** `RuntimeError` — The configuration does not grant `fs.write` for the temporary root; the message names the path a grant would have to cover.; `IOError` — The capability allowed it and no directory could be created — the root is full, read-only, or absent.
 
