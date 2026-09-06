@@ -8,6 +8,14 @@
 //! a plan whose risky steps are elided into "3 unsafe changes" is useless to
 //! that person.
 //!
+//! # Two halves: the whole table, and one change to it
+//!
+//! [`create_table`] writes a table that does not exist yet, and [`step`]
+//! answers one [`Change`] to a table that does — with its SQL, its § 6 grade
+//! and the sentence that justifies the grade, which are one dialect's three
+//! answers to the same reading and are computed together for that reason.
+//! [`crate::plan`] holds the vocabulary and no SQL at all.
+//!
 //! # Four emitters, not five
 //!
 //! Keyed on [`Dialect`] and never on [`Driver`](crate::Driver). MariaDB and
@@ -55,13 +63,26 @@
 //!    identity column that is one of several primary-key columns has no SQLite
 //!    spelling and is emitted without it. [`Table`]'s own rule is only that an
 //!    identity is *in* the primary key.
-//! 4. **SQLite's declared types carry affinity, and two of them convert.** A
+//! 4. **A SQL Server default is a separate named constraint, so a change to
+//!    one is not emitted.** `ALTER COLUMN` carries a type and a nullability
+//!    there and nothing else; replacing a default means dropping the
+//!    constraint holding it, by the name the server generated, and no
+//!    [`Change`] carries that name. Stage 4's introspector is what can supply
+//!    it, and until it does, a SQL Server default change is a step whose SQL
+//!    brings the type and the nullability across and leaves the default alone.
+//! 5. **A SQLite unique constraint added after the fact is an index**, where
+//!    one written into a `CREATE TABLE` is a constraint with an
+//!    `sqlite_autoindex_…` the introspector cannot match to the name the
+//!    schema gave it. [`add_key`] takes the index form deliberately; the two
+//!    paths reaching the same catalog by different spellings is § 5's input.
+//! 6. **SQLite's declared types carry affinity, and two of them convert.** A
 //!    `JSON` or `DECIMAL` column has NUMERIC affinity, so a document that is a
 //!    bare number and an exact decimal with trailing zeros are stored as
 //!    numbers. That is the SQLite driver's binding question — the same one
 //!    `DECIMAL` already poses there — and it is not answered by choosing a
 //!    different declared type here, which would cost the round-trip in gap 1.
 
+use crate::plan::{Change, Grade, KeyKind, Step};
 use crate::schema::{
     Column, ColumnDefault, FloatWidth, Ident, IntWidth, Key, ScalarType, Schema, Table,
 };
@@ -98,6 +119,28 @@ pub fn create_schema(schema: &Schema, dialect: Dialect) -> Vec<String> {
 /// all. The other three either have the guard or roll the pair back.
 #[must_use]
 pub fn create_table(table: &Table, dialect: Dialect) -> Vec<String> {
+    let mut statements = vec![create_table_statement(
+        &table.name().to_string(),
+        table,
+        dialect,
+    )];
+    if dialect != Dialect::MySql {
+        statements.extend(
+            table
+                .indexes()
+                .iter()
+                .map(|key| create_index(table, key, dialect)),
+        );
+    }
+    statements
+}
+
+/// The one `CREATE TABLE` for `table`, written under `name` rather than under
+/// its own.
+///
+/// The two are the same everywhere but in [`sqlite_rebuild`], which builds the
+/// table it is about to become under a staging name and renames it into place.
+fn create_table_statement(name: &str, table: &Table, dialect: Dialect) -> String {
     let rowid = rowid_identity(table, dialect);
     let mut clauses: Vec<String> = table
         .columns()
@@ -130,20 +173,7 @@ pub fn create_table(table: &Table, dialect: Dialect) -> Vec<String> {
         }
     }
 
-    let mut statements = vec![format!(
-        "CREATE TABLE {} (\n    {}\n);",
-        table.name(),
-        clauses.join(",\n    ")
-    )];
-    if dialect != Dialect::MySql {
-        statements.extend(
-            table
-                .indexes()
-                .iter()
-                .map(|key| create_index(table, key, dialect)),
-        );
-    }
-    statements
+    format!("CREATE TABLE {name} (\n    {}\n);", clauses.join(",\n    "))
 }
 
 /// One `CREATE INDEX`, for the three dialects that declare one outside the
@@ -451,10 +481,422 @@ fn quoted(text: &str, dialect: Dialect) -> String {
     }
 }
 
+/// The step that makes `change` in `dialect`: its SQL, its grade and the
+/// reason for that grade.
+///
+/// This is the only place a [`Step`] is built, because § 6 puts the grade in
+/// the dialect emitter: the same change is not the same risk on two backends,
+/// and the two answers are computed from the same reading of the change.
+///
+/// **The SQL is complete and terminated even when the step is a report** — a
+/// [`Change::is_report`] is § 7's "carried and never applied", not "carried
+/// and summarised".
+#[must_use]
+pub fn step(change: Change, dialect: Dialect) -> Step {
+    let sql = sql_for(&change, dialect);
+    let (grade, reason) = grade_of(&change, dialect);
+    Step::new(change, grade, reason, sql)
+}
+
+/// The statements that make `change` in `dialect`, each terminated.
+fn sql_for(change: &Change, dialect: Dialect) -> Vec<String> {
+    match change {
+        Change::CreateTable(table) => create_table(table, dialect),
+        Change::DropTable(name) => vec![format!("DROP TABLE {name};")],
+        Change::AddColumn { table, column } => add_column(table, column, dialect),
+        Change::DropColumn { table, column } => {
+            if dialect == Dialect::Sqlite {
+                sqlite_rebuild(table, None)
+            } else {
+                vec![format!(
+                    "ALTER TABLE {} DROP COLUMN {column};",
+                    table.name()
+                )]
+            }
+        }
+        Change::ChangeColumn { table, from, to } => change_column(table, from, to, dialect),
+        Change::AddKey { table, key, kind } => vec![add_key(table, key, *kind, dialect)],
+        Change::DropKey { table, key, kind } => drop_key(table, key, *kind, dialect),
+    }
+}
+
+/// `ALTER TABLE … ADD COLUMN`, or SQLite's rebuild where it cannot.
+///
+/// SQL Server is the one that does not write the word `COLUMN`, and it is not
+/// optional there — `ADD COLUMN c INT` is a syntax error, where the other
+/// three take the keyword and PostgreSQL and MySQL also take it away.
+fn add_column(table: &Table, column: &Column, dialect: Dialect) -> Vec<String> {
+    if dialect == Dialect::Sqlite && !sqlite_can_add(column) {
+        return sqlite_rebuild(table, Some(column.name()));
+    }
+    let keyword = if dialect == Dialect::SqlServer {
+        ""
+    } else {
+        "COLUMN "
+    };
+    vec![format!(
+        "ALTER TABLE {} ADD {keyword}{};",
+        table.name(),
+        column_clause(column, dialect, false)
+    )]
+}
+
+/// Whether SQLite's own `ALTER TABLE … ADD COLUMN` can carry this column.
+///
+/// Three refusals, and each is SQLite's own rather than a caution of ours: the
+/// default must be a constant, so [`ColumnDefault::Now`] is out; a `NOT NULL`
+/// column must have one, because every existing row needs a value; and an
+/// identity is the rowid there, which is the primary key and cannot be added
+/// to a table that already has one.
+fn sqlite_can_add(column: &Column) -> bool {
+    if column.is_identity() {
+        return false;
+    }
+    match column.default_value() {
+        Some(ColumnDefault::Now) => false,
+        Some(_) => true,
+        None => column.is_nullable(),
+    }
+}
+
+/// A column's type, nullability and default brought to `to`.
+///
+/// Three shapes for four dialects. MySQL restates the whole definition in one
+/// `MODIFY COLUMN`, so nothing has to be compared; SQL Server restates the
+/// type and the nullability together and keeps its default in a separate named
+/// constraint; PostgreSQL spells each property in its own statement, and gets
+/// only the ones that changed — a `TYPE` alter it did not need is a full table
+/// rewrite. SQLite has no spelling for any of it and rebuilds.
+fn change_column(table: &Table, from: &Column, to: &Column, dialect: Dialect) -> Vec<String> {
+    let name = table.name();
+    match dialect {
+        Dialect::Sqlite => sqlite_rebuild(table, None),
+        Dialect::MySql => vec![format!(
+            "ALTER TABLE {name} MODIFY COLUMN {};",
+            column_clause(to, dialect, false)
+        )],
+        Dialect::SqlServer => vec![format!(
+            "ALTER TABLE {name} ALTER COLUMN {} {} {};",
+            to.name(),
+            column_type(to.ty(), dialect),
+            if to.is_nullable() { "NULL" } else { "NOT NULL" }
+        )],
+        Dialect::PostgreSql => {
+            let retype = format!(
+                "ALTER TABLE {name} ALTER COLUMN {} TYPE {};",
+                to.name(),
+                column_type(to.ty(), dialect)
+            );
+            let mut statements = Vec::new();
+            if from.ty() != to.ty() {
+                statements.push(retype.clone());
+            }
+            if from.is_nullable() != to.is_nullable() {
+                statements.push(format!(
+                    "ALTER TABLE {name} ALTER COLUMN {} {};",
+                    to.name(),
+                    if to.is_nullable() {
+                        "DROP NOT NULL"
+                    } else {
+                        "SET NOT NULL"
+                    }
+                ));
+            }
+            if from.default_value() != to.default_value() {
+                statements.push(match to.default_value() {
+                    Some(default) => format!(
+                        "ALTER TABLE {name} ALTER COLUMN {} SET DEFAULT {};",
+                        to.name(),
+                        literal(default, to.ty(), dialect)
+                    ),
+                    None => format!(
+                        "ALTER TABLE {name} ALTER COLUMN {} DROP DEFAULT;",
+                        to.name()
+                    ),
+                });
+            }
+            // A step is never empty, whatever the caller handed us.
+            if statements.is_empty() {
+                statements.push(retype);
+            }
+            statements
+        }
+    }
+}
+
+/// One `CREATE INDEX` or one `ADD CONSTRAINT … UNIQUE`.
+///
+/// SQLite is the departure and it is not a rebuild: it cannot add a constraint
+/// to an existing table, but a unique *index* is the same refusal by another
+/// name, and it keeps the name the schema gave it where the constraint form
+/// would leave an `sqlite_autoindex_…` the introspector cannot match back.
+fn add_key(table: &Table, key: &Key, kind: KeyKind, dialect: Dialect) -> String {
+    match (kind, dialect) {
+        (KeyKind::Index, _) => create_index(table, key, dialect),
+        (KeyKind::Unique, Dialect::Sqlite) => format!(
+            "CREATE UNIQUE INDEX {} ON {} ({});",
+            key.name(),
+            table.name(),
+            key_columns(table, key.columns(), dialect)
+        ),
+        (KeyKind::Unique, _) => format!(
+            "ALTER TABLE {} ADD CONSTRAINT {} UNIQUE ({});",
+            table.name(),
+            key.name(),
+            key_columns(table, key.columns(), dialect)
+        ),
+    }
+}
+
+/// The `DROP` for a key, which every dialect spells differently.
+///
+/// MySQL has no `DROP CONSTRAINT` before 8.0.19 and drops the index the
+/// constraint is; MySQL and SQL Server both need the table named on a
+/// `DROP INDEX` where PostgreSQL and SQLite refuse it, because an index is a
+/// schema-level object there and a table-level one here. SQLite cannot drop a
+/// constraint at all and rebuilds.
+fn drop_key(table: &Table, key: &Ident, kind: KeyKind, dialect: Dialect) -> Vec<String> {
+    let name = table.name();
+    match (kind, dialect) {
+        (KeyKind::Unique, Dialect::Sqlite) => sqlite_rebuild(table, None),
+        (KeyKind::Unique, Dialect::MySql) => {
+            vec![format!("ALTER TABLE {name} DROP INDEX {key};")]
+        }
+        (KeyKind::Unique, _) => vec![format!("ALTER TABLE {name} DROP CONSTRAINT {key};")],
+        (KeyKind::Index, Dialect::MySql | Dialect::SqlServer) => {
+            vec![format!("DROP INDEX {key} ON {name};")]
+        }
+        (KeyKind::Index, _) => vec![format!("DROP INDEX {key};")],
+    }
+}
+
+/// SQLite's create-copy-drop-rename, for every alter its own `ALTER TABLE`
+/// cannot express.
+///
+/// `table` is the table as it should be **after** the change, which is why
+/// [`Change`]'s own doc fixes that convention: the rebuild builds exactly that
+/// under a staging name, copies what both shapes have in common, drops the
+/// original and renames. `added` names the one column a rebuild must *not*
+/// select, because it is the column being added and the old table has no such
+/// value to copy — the new one takes its default, or, having none, refuses the
+/// insert on a table that already holds rows, which is precisely what
+/// `NOT NULL` means on every other backend too.
+///
+/// Indexes come last and not with the `CREATE TABLE`: an index name is unique
+/// across a SQLite database, so the staging table cannot carry the names the
+/// original still holds. Dropping the original takes its indexes with it,
+/// which is why they are re-created here rather than left alone.
+///
+/// The applier wraps this in a transaction — SQLite has transactional DDL, so
+/// a rebuild that fails half way leaves the original table untouched, which is
+/// the one thing that makes a data copy tolerable as a schema change at all.
+fn sqlite_rebuild(table: &Table, added: Option<&Ident>) -> Vec<String> {
+    let dialect = Dialect::Sqlite;
+    let name = table.name();
+    let staging = format!("{name}_nvs_rebuild");
+    let copied: Vec<String> = table
+        .columns()
+        .iter()
+        .map(Column::name)
+        .filter(|column| !added.is_some_and(|new| new == *column))
+        .map(ToString::to_string)
+        .collect();
+
+    let mut statements = vec![create_table_statement(&staging, table, dialect)];
+    // A rebuild whose every column is the new one has nothing to copy, and
+    // `INSERT INTO t () SELECT FROM u` is not a statement.
+    if !copied.is_empty() {
+        let columns = copied.join(", ");
+        statements.push(format!(
+            "INSERT INTO {staging} ({columns})\n    SELECT {columns} FROM {name};"
+        ));
+    }
+    statements.push(format!("DROP TABLE {name};"));
+    statements.push(format!("ALTER TABLE {staging} RENAME TO {name};"));
+    statements.extend(
+        table
+            .indexes()
+            .iter()
+            .map(|key| create_index(table, key, dialect)),
+    );
+    statements
+}
+
+/// Whether SQLite answers `change` with [`sqlite_rebuild`] rather than with an
+/// `ALTER TABLE` of its own.
+///
+/// This is the *grading* half of a judgement [`sql_for`]'s arms make again
+/// when they emit, and the two are held together by
+/// `sqlite_rebuilds_the_table_for_an_alter_it_cannot_express`, which asserts
+/// the agreement over every change in the vocabulary rather than either
+/// answer on its own.
+fn sqlite_rebuilds(change: &Change, dialect: Dialect) -> bool {
+    dialect == Dialect::Sqlite
+        && match change {
+            Change::AddColumn { column, .. } => !sqlite_can_add(column),
+            Change::DropColumn { .. } | Change::ChangeColumn { .. } => true,
+            Change::DropKey { kind, .. } => *kind == KeyKind::Unique,
+            Change::CreateTable(_) | Change::DropTable(_) | Change::AddKey { .. } => false,
+        }
+}
+
+/// § 6's grade for `change` in `dialect`, and the sentence an operator reads
+/// instead of taking our word for it.
+fn grade_of(change: &Change, dialect: Dialect) -> (Grade, String) {
+    let (grade, reason) = base_grade(change);
+    if sqlite_rebuilds(change, dialect) {
+        return (
+            grade.up_to(Grade::Destructive),
+            format!(
+                "{reason} SQLite cannot express this alter, so it is a \
+                 create-copy-drop-rename rebuild, which copies every row — destructive \
+                 unconditionally, whatever the change would have cost elsewhere."
+            ),
+        );
+    }
+    (grade, reason.to_owned())
+}
+
+/// The grade every dialect agrees on, before SQLite's rebuild is considered.
+///
+/// The version-keyed half of § 6 is where the grade-up rule does its work:
+/// adding a column with a default is instant on PostgreSQL 11+ and MySQL
+/// 8.0.12+ and a full table rewrite on anything older, and nothing in a
+/// sans-io emitter knows which server it is talking to. It grades up, and the
+/// reason says so, so an operator who does know can overrule it by reading.
+fn base_grade(change: &Change) -> (Grade, &'static str) {
+    match change {
+        Change::CreateTable(_) => (
+            Grade::Safe,
+            "A new table holds no rows: nothing to lose, nothing to validate, nothing to block.",
+        ),
+        Change::DropTable(_) => (
+            Grade::Destructive,
+            "Every row in the table. Reported and never applied: a schema value describes what \
+             its author knows about, and this database holds a table it does not name.",
+        ),
+        Change::AddColumn { column, .. } => {
+            if column.default_value().is_some() {
+                (
+                    Grade::Locking,
+                    "A column with a default is a catalog write on PostgreSQL 11+ and MySQL \
+                     8.0.12+ and a full table rewrite on anything older. The server's version is \
+                     not known here, so this grades up.",
+                )
+            } else if column.is_nullable() {
+                (
+                    Grade::Safe,
+                    "A nullable column with no default is a catalog write on all four: every \
+                     existing row already has its value, and it is null.",
+                )
+            } else {
+                (
+                    Grade::Locking,
+                    "A NOT NULL column with no default has no value for the rows that are \
+                     already there, so it fails outright on a table that is not empty.",
+                )
+            }
+        }
+        Change::DropColumn { .. } => (
+            Grade::Destructive,
+            "Every value in the column. Reported and never applied, per the same rule as a \
+             dropped table.",
+        ),
+        Change::ChangeColumn { from, to, .. } => {
+            if widens(from.ty(), to.ty()) {
+                if from.is_nullable() && !to.is_nullable() {
+                    (
+                        Grade::Locking,
+                        "The new type holds every value the old one did, but NOT NULL is checked \
+                         against every existing row and fails on the first null.",
+                    )
+                } else {
+                    (
+                        Grade::Locking,
+                        "The new type holds every value the old one did, but most servers rewrite \
+                         the table to change one and block writes while they do.",
+                    )
+                }
+            } else {
+                (
+                    Grade::Destructive,
+                    "The new type does not hold every value the old one did, so the server either \
+                     truncates what does not fit or refuses the whole statement. Where the \
+                     emitter has no rule that says otherwise, § 6 grades up.",
+                )
+            }
+        }
+        Change::AddKey {
+            kind: KeyKind::Unique,
+            ..
+        } => (
+            Grade::Locking,
+            "A unique key is validated against every existing row, and fails where two of them \
+             already collide.",
+        ),
+        Change::AddKey {
+            kind: KeyKind::Index,
+            ..
+        } => (
+            Grade::Locking,
+            "An index is built over every existing row and holds a lock while it is built; v1 \
+             emits no concurrent build.",
+        ),
+        Change::DropKey { .. } => (
+            Grade::Destructive,
+            "A key is not data, but dropping is an operation someone writes rather than one this \
+             tool performs. Reported and never applied.",
+        ),
+    }
+}
+
+/// Whether every value of `from` fits in `to`.
+///
+/// Conservative on purpose, and the default arm is § 6's grade-up rule: a pair
+/// this has no rule for is *not* a widening, which makes the change
+/// destructive and costs an operator a confirmation. The reverse mistake costs
+/// them the column. Nothing here crosses type families — an integer into a
+/// float loses exactness past 2^53 and a date into a text is a spelling, not a
+/// conversion — so the rules are within a family and the identity.
+fn widens(from: &ScalarType, to: &ScalarType) -> bool {
+    match (from, to) {
+        (ScalarType::Int(narrow), ScalarType::Int(wide))
+        | (ScalarType::Uint(narrow), ScalarType::Uint(wide)) => wide.bits() >= narrow.bits(),
+        // An unsigned value fits a signed type only with a bit to spare for
+        // the sign, which the three portable widths supply one step apart.
+        (ScalarType::Uint(narrow), ScalarType::Int(wide)) => wide.bits() > narrow.bits(),
+        (ScalarType::Float(narrow), ScalarType::Float(wide)) => wide.bits() >= narrow.bits(),
+        (
+            ScalarType::Decimal {
+                precision: from_precision,
+                scale: from_scale,
+            },
+            ScalarType::Decimal {
+                precision: to_precision,
+                scale: to_scale,
+            },
+        ) => {
+            to_precision >= from_precision
+                && to_scale >= from_scale
+                && to_precision - to_scale >= from_precision - from_scale
+        }
+        (ScalarType::Text { max: from_max }, ScalarType::Text { max: to_max })
+        | (ScalarType::Bytes { max: from_max }, ScalarType::Bytes { max: to_max }) => {
+            match (from_max, to_max) {
+                (_, None) => true,
+                (None, Some(_)) => false,
+                (Some(narrow), Some(wide)) => wide >= narrow,
+            }
+        }
+        _ => from == to,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::conn::Driver;
+    use crate::plan::Plan;
 
     /// The four dialects, in the order [`Dialect`] declares them.
     const DIALECTS: [Dialect; 4] = [
@@ -820,6 +1262,339 @@ mod tests {
                     .any(|statement| statement.contains("body(")),
                 "{dialect:?} indexes a text column whole"
             );
+        }
+    }
+
+    /// The name every alter fixture below is about.
+    fn wide_name() -> Ident {
+        Ident::new("wide").unwrap()
+    }
+
+    /// [`every_construct`]'s `wide`, with `extra` appended and `dropped`
+    /// removed — the **after** shape a [`Change`] carries, by that enum's own
+    /// convention.
+    ///
+    /// Only `thumb` is ever dropped here, because it is the one column of the
+    /// fixture that no key names and the builder refuses a key over a column
+    /// that is not there.
+    fn wide_after(extra: Option<Column>, dropped: Option<&str>) -> Table {
+        let schema = every_construct();
+        let wide = schema.table(&wide_name()).unwrap();
+        let mut columns: Vec<Column> = wide
+            .columns()
+            .iter()
+            .filter(|column| dropped.is_none_or(|name| column.name().as_str() != name))
+            .cloned()
+            .collect();
+        columns.extend(extra);
+        Table::new("wide", columns)
+            .unwrap()
+            .primary_key(&["id"])
+            .unwrap()
+            .unique("wide_label_key", &["label"])
+            .unwrap()
+            .index("wide_body_idx", &["body"])
+            .unwrap()
+            .index("wide_day_clock_idx", &["day", "clock"])
+            .unwrap()
+    }
+
+    /// `label` as the fixture has it, which every `ChangeColumn` below starts
+    /// from.
+    fn label_column() -> Column {
+        every_construct()
+            .table(&wide_name())
+            .unwrap()
+            .column(&Ident::new("label").unwrap())
+            .unwrap()
+            .clone()
+    }
+
+    /// A `label` of `max` characters, keeping the default the fixture gave it.
+    fn label_of(max: u32) -> Column {
+        Column::new("label", ScalarType::Text { max: Some(max) })
+            .unwrap()
+            .default(ColumnDefault::Text("it's \\ fine".to_owned()))
+            .unwrap()
+    }
+
+    /// One change of every variant the vocabulary has, including all three
+    /// shapes of `AddColumn` and both ends of a type change.
+    ///
+    /// Four of the twelve are § 7 reports — a dropped table, column, unique
+    /// key and index — and they are here rather than in a fixture of their own
+    /// because the property under test is that they are written in full
+    /// *alongside* the steps that will run.
+    fn every_change() -> Vec<Change> {
+        let plain = wide_after(None, None);
+        let note = Column::new("note", ScalarType::Text { max: Some(40) })
+            .unwrap()
+            .null();
+        let owner = Column::new("owner", ScalarType::Int(IntWidth::Big)).unwrap();
+        let touched = Column::new("touched_at", ScalarType::DateTime)
+            .unwrap()
+            .default(ColumnDefault::Now)
+            .unwrap();
+
+        vec![
+            Change::CreateTable(plain.clone()),
+            Change::DropTable(wide_name()),
+            Change::AddColumn {
+                table: wide_after(Some(note.clone()), None),
+                column: note,
+            },
+            Change::AddColumn {
+                table: wide_after(Some(owner.clone()), None),
+                column: owner,
+            },
+            Change::AddColumn {
+                table: wide_after(Some(touched.clone()), None),
+                column: touched,
+            },
+            Change::DropColumn {
+                table: wide_after(None, Some("thumb")),
+                column: Ident::new("thumb").unwrap(),
+            },
+            Change::ChangeColumn {
+                table: wide_after(Some(label_of(400)), Some("label")),
+                from: label_column(),
+                to: label_of(400),
+            },
+            Change::ChangeColumn {
+                table: wide_after(Some(label_of(20)), Some("label")),
+                from: label_column(),
+                to: label_of(20),
+            },
+            Change::AddKey {
+                table: plain.clone(),
+                key: plain.unique_keys()[0].clone(),
+                kind: KeyKind::Unique,
+            },
+            Change::AddKey {
+                table: plain.clone(),
+                key: plain.indexes()[0].clone(),
+                kind: KeyKind::Index,
+            },
+            Change::DropKey {
+                table: plain.clone(),
+                key: Ident::new("wide_gone_key").unwrap(),
+                kind: KeyKind::Unique,
+            },
+            Change::DropKey {
+                table: plain,
+                key: Ident::new("wide_gone_idx").unwrap(),
+                kind: KeyKind::Index,
+            },
+        ]
+    }
+
+    /// § 8: every step's SQL is complete, terminated and dialect-correct — and
+    /// the four steps the applier refuses are written out in the same detail
+    /// as the eight it would run.
+    ///
+    /// **Invariance over a sweep**: asserted by walking every change in the
+    /// vocabulary in every dialect and *counting*, rather than by reading one
+    /// expected statement off a line. An emitter that elided a report — the
+    /// natural shortcut, since nothing will ever run it — answers plausibly
+    /// statement by statement and fails the count here.
+    #[test]
+    fn every_step_carries_terminated_executable_sql_including_the_ones_apply_refuses() {
+        for dialect in DIALECTS {
+            let plan = Plan::new(
+                every_change()
+                    .into_iter()
+                    .map(|change| step(change, dialect))
+                    .collect(),
+            );
+            assert_eq!(plan.len(), 12, "{dialect:?} lost a change");
+
+            for taken in plan.steps() {
+                let where_ = format!("{dialect:?} {}", taken.change());
+                assert!(!taken.sql().is_empty(), "{where_} carries no SQL at all");
+                for statement in taken.sql() {
+                    assert!(
+                        statement.ends_with(';'),
+                        "{where_}: `{statement}` is unterminated"
+                    );
+                    assert_eq!(
+                        statement.matches(';').count(),
+                        1,
+                        "{where_}: `{statement}` is more than one statement in one string"
+                    );
+                    assert!(
+                        statement.starts_with("CREATE ")
+                            || statement.starts_with("ALTER ")
+                            || statement.starts_with("DROP ")
+                            || statement.starts_with("INSERT "),
+                        "{where_}: `{statement}` does not open with a DDL verb"
+                    );
+                }
+                assert!(
+                    taken
+                        .sql()
+                        .concat()
+                        .contains(taken.change().table_name().as_str()),
+                    "{where_} does not name the table it changes"
+                );
+                assert!(
+                    taken.reason().ends_with('.'),
+                    "{where_} grades without a reason an operator can read"
+                );
+            }
+
+            // § 7's four reports, each Destructive, each written out in full.
+            let reports: Vec<&Step> = plan
+                .steps()
+                .iter()
+                .filter(|step| step.is_report())
+                .collect();
+            assert_eq!(reports.len(), 4, "{dialect:?} lost a report");
+            assert_eq!(reports.len() + plan.runnable().count(), plan.len());
+            for report in reports {
+                assert_eq!(report.grade(), Grade::Destructive);
+                assert!(!report.sql().is_empty(), "a report the plan did not show");
+            }
+
+            // And the reason that distinction exists: reports are Destructive,
+            // every plan against a shared database has them, and `applySafe`
+            // has to stay usable anyway.
+            let carried = Plan::new(
+                every_change()
+                    .into_iter()
+                    .filter(Change::is_report)
+                    .map(|change| step(change, dialect))
+                    .collect(),
+            );
+            assert_eq!(carried.count(Grade::Destructive), 4);
+            assert!(
+                carried.first_refused().is_none(),
+                "{dialect:?}: a plan of nothing but reports refused applySafe"
+            );
+            assert!(
+                plan.first_refused().is_some(),
+                "{dialect:?}: a plan that adds a NOT NULL column ran under applySafe"
+            );
+
+            // The document itself, which is what a DBA is handed.
+            let document = plan.to_string();
+            assert!(
+                document.contains("-- [destructive] drop table wide, reported and never applied")
+            );
+            assert!(document.contains("-- [safe] create table wide\n"));
+            for taken in plan.steps() {
+                for statement in taken.sql() {
+                    assert!(
+                        document.contains(statement),
+                        "the document elided a statement"
+                    );
+                }
+            }
+        }
+    }
+
+    /// The standing decision SQLite forces: every alter its own `ALTER TABLE`
+    /// cannot express is a create-copy-drop-rename, graded `Destructive`
+    /// unconditionally because it copies every row.
+    ///
+    /// **Agreement**, over the whole vocabulary: [`sqlite_rebuilds`] grades a
+    /// change and [`sql_for`]'s arms emit it, and the two read the same
+    /// judgement in two places. The sweep asserts they answer the same, so a
+    /// case that grew a rebuild in one half and not the other fails here while
+    /// looking right on its own line.
+    #[test]
+    fn sqlite_rebuilds_the_table_for_an_alter_it_cannot_express() {
+        let mut rebuilt = 0;
+        for dialect in DIALECTS {
+            for change in every_change() {
+                let graded = sqlite_rebuilds(&change, dialect);
+                let taken = step(change, dialect);
+                let emitted = taken
+                    .sql()
+                    .iter()
+                    .any(|statement| statement.contains("wide_nvs_rebuild"));
+                assert_eq!(
+                    graded,
+                    emitted,
+                    "{dialect:?} {}: the grade and the SQL disagree about rebuilding",
+                    taken.change()
+                );
+                if emitted {
+                    rebuilt += 1;
+                    assert_eq!(dialect, Dialect::Sqlite, "only SQLite rebuilds");
+                    assert_eq!(
+                        taken.grade(),
+                        Grade::Destructive,
+                        "a rebuild copies every row"
+                    );
+                }
+            }
+        }
+        assert_eq!(
+            rebuilt, 6,
+            "six of the twelve changes are past SQLite's ALTER"
+        );
+
+        // The twelve steps of the rebuild, in the order that survives an index
+        // name being unique across the database.
+        let taken = step(
+            Change::DropColumn {
+                table: wide_after(None, Some("thumb")),
+                column: Ident::new("thumb").unwrap(),
+            },
+            Dialect::Sqlite,
+        );
+        let sql = taken.sql();
+        assert_eq!(sql.len(), 6, "create, copy, drop, rename and two indexes");
+        assert!(sql[0].starts_with("CREATE TABLE wide_nvs_rebuild ("));
+        assert!(sql[1].starts_with("INSERT INTO wide_nvs_rebuild (id, small_int"));
+        assert!(sql[1].ends_with("FROM wide;"));
+        assert!(
+            !sql[1].contains("thumb"),
+            "the dropped column has nowhere to go"
+        );
+        assert_eq!(sql[2], "DROP TABLE wide;");
+        assert_eq!(sql[3], "ALTER TABLE wide_nvs_rebuild RENAME TO wide;");
+        assert!(
+            sql[4..]
+                .iter()
+                .all(|statement| statement.starts_with("CREATE INDEX ")
+                    && statement.contains(" ON wide (")),
+            "the indexes went with the table the drop took, and come back named"
+        );
+
+        // A column being added has no value in the old table to copy, so the
+        // rebuild declares it and does not select it.
+        let owner = Column::new("owner", ScalarType::Int(IntWidth::Big)).unwrap();
+        let added = step(
+            Change::AddColumn {
+                table: wide_after(Some(owner.clone()), None),
+                column: owner,
+            },
+            Dialect::Sqlite,
+        );
+        assert!(added.sql()[0].contains("owner BIGINT NOT NULL"));
+        assert!(
+            !added.sql()[1].contains("owner"),
+            "there is no value to copy"
+        );
+
+        // The same change is one statement everywhere else, and is not
+        // Destructive: the rebuild is SQLite's price, not the change's.
+        for dialect in [Dialect::PostgreSql, Dialect::MySql, Dialect::SqlServer] {
+            let elsewhere = step(
+                Change::ChangeColumn {
+                    table: wide_after(Some(label_of(400)), Some("label")),
+                    from: label_column(),
+                    to: label_of(400),
+                },
+                dialect,
+            );
+            assert_eq!(
+                elsewhere.grade(),
+                Grade::Locking,
+                "{dialect:?} widened a column"
+            );
+            assert!(!elsewhere.sql().concat().contains("_nvs_rebuild"));
         }
     }
 }
