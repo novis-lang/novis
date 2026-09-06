@@ -396,3 +396,18 @@ python tools/plan.py --set "Open now" --from <file>   # replace it
 
 The field set is fixed and `plan.py` refuses a name that is not already there. Write the new text with
 the Write tool; `--set` re-wraps that one field and leaves every other byte of the file alone.
+
+## A playbook bullet
+
+```
+- **<The trap, as the claim a reader can match against their own symptom.>** <Why it happens, one
+  or two sentences.> <What to do instead, naming the file, flag or command.>
+```
+
+Three sentences and about 400 bytes; the first is the whole bullet's selector, so it states the trap and
+not the story. Every bullet is charged to every session whose item names its file, and
+`python tools/playbook.py --check` prints what each section costs. What does **not** go in: the
+session's narrative (which stage, which check, what was tried first — `git log` holds it), a number the
+tool re-derives, or a rule that already has a home (an ADR, a module doc, `AGENTS.md`). A bullet whose
+trap is a stale comment in `loop-goal.toml` or a wrong claim in a handoff fixes the comment instead.
+`python tools/playbook.py --match <path>` before writing says whether the trap is already there.

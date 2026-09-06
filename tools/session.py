@@ -1345,7 +1345,9 @@ def template() -> int:
     say("")
     say("## playbook: Tooling")
     say("- **DELETE THIS SECTION unless a trap cost you time.** A bullet is appended under the")
-    say("  heading, never rewritten, so only add one that is not already there. The headings are")
+    say("  heading, never rewritten, so only add one that is not already there -- three sentences,")
+    say("  trap / why / what to do (conventions.md § A playbook bullet), not the session's story,")
+    say("  which git log holds. The headings are")
     for heading in playbook_headings():
         say(f"  {heading}")
     say("")
