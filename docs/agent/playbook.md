@@ -2195,6 +2195,19 @@ is why" — is this file.
   errors travel in its". Join the paragraph before you take a sentence out of it, and skip a fenced
   block rather than reading its first line as prose. The same function has to reduce a `rule:`
   citation to its id, or the index shows a raw token where the reader expects a name.
+- **An optional group in a rewriting regex is currency the engine will spend to satisfy a guard
+  further along — write it `?+`.** `(?:\([^)]*\))?` holding a markdown link's URL got shed from the
+  match twice, by two different lookaheads: a `(?!\s*:)` meant to exclude a reference-link
+  *definition* read an ordinary sentence's colon and backtracked, and a trailing `(?!…§)` meant to
+  leave an unowned section alone matched half the citation rather than none of it. Both wrote a
+  *valid* result — the replacement token was correct, the URL just stranded beside it as prose — so
+  the check that every citation still resolves saw nothing wrong at 27 sites. The two fixes are
+  narrow (put the guard on the only alternative that can begin a definition; make the group
+  possessive so the whole match or none of it survives), but the general shape is the part worth
+  keeping: **a script that rewrites the tree needs patterns for the shapes of damage, not only a
+  check that the result still parses.** `migrate-docs.py`'s `DEBRIS` list is that, and it is what
+  caught the third instance before it touched 728 files. A validity check is structurally blind to
+  a rewrite that names the wrong thing.
 
 ## Running things
 
@@ -6136,6 +6149,15 @@ is why" — is this file.
   — delete it and move the test's `.0`/`.1` accesses onto the fields rather than renaming either
   side: two vocabularies for one row is what the tree does not keep, and the positional accesses
   are the half a later slice would otherwise have to rewrite anyway.
+- **A `.nvst`'s expected output pins line numbers in the `--FILE--` block above it, so a tree-wide
+  script that touches case files must preserve their line *count*.** A citation rewrite that joined
+  two `//` comment lines into one shifted every `--> case.nvs:NN:CC` below the join, and
+  `tests/conformance/reject/a-test-attribute-payload-is-checked-against-its-option-shape.nvst`
+  failed at `--> case.nvs:32:18` for a reason with nothing to do with what it tests. Cases whose
+  expected output is program text rather than a diagnostic survive the same join, which is exactly
+  what makes this look safe when you spot-check it — two of them stayed joined and passed. The
+  budget is lines, not bytes: rewrite the token in place and leave the break standing, the way
+  `tools/migrate-docs.py`'s `keep_line_breaks` does, rather than reflowing and re-recording.
 
 ## Splitting a file that got too big
 

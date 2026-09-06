@@ -61,7 +61,7 @@
 > a network `socket`, a local one is 0600, `reload` its only operation, a changed `Boot` key named.
 > **ADR 0093 refuses**: `E0630`-`E0634`; `nvs service unit` prints § 5's. **ADR 0017 is guarded**:
 > `never` never `stat`s, one window is one check, a swap publishes, § 3a picks `validate`, 10k cold
-> compile once. **ADR 0042 lands.** **`Core\Cldr` is whole.** Conformance 1567, differential 276,
+> compile once. **ADR 0042 lands.** **`Core\Cldr` is whole.** Conformance 1570, differential 276,
 > migration 100%; valgrind green, arrays too. Serve: 2.78x php-cgi.
 >
 > **Blocking:** Nothing waiting on a decision — every design call goals 1–6 reach is pre-authorized
