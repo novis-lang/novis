@@ -2,54 +2,56 @@
 
 ## State
 
-**Goal 9 — `Core\Db\Schema` — has its ADR and its vocabulary.**
-[ADR 0145](../adr/0145-a-schema-is-a-value-core-db-schema-converges-a-closed.md) is stage 2's first
-slice and this goal's only design act: it closes ADR 0067's *Revisiting* item, takes over ADR 0084
-§ 2's schema, adds a third deny-by-default capability (`db.schema`) to ADR 0067 § 3, and makes § 9's
-type map a table read in both directions. `Web\Migration` stays blocked and no session may close ADR
-0082 § 7.
+**Goal 9 stage 2 is green.** `crates/nvs-db/src/schema.rs` holds the closed vocabulary *and* ADR 0145
+§ 1's canonical array form: `Node` (an ordered map/list value, because this crate is sans-io and holds
+no Novis value), `ScalarType`'s `Display`/`from_spelling` — `int64`, `text(200)`, `decimal(10,2)` —
+and `Schema::to_array`/`from_array`, ordered as § 1 requires: declaration order for columns and for a
+key's own columns, name order for tables, constraints and indexes. `from_array` builds through the
+same builders a program calls, so a file cannot say anything a program could not have built. The five
+tests stage 2's check names are all on disk under those names; three were renamed from what the
+previous session landed, and nothing else linked the old names.
 
-`crates/nvs-db/src/schema.rs` is stage 2's second slice: `Schema`/`Table`/`Column`/`Key`,
-`ScalarType` as § 9's write direction, a closed `ColumnDefault` set, and every construction rule
-refused at build time so no emitter re-checks. Eight `-p nvs-db` tests, including the queue's jobs
-table said in the vocabulary. `is_bare_identifier` moved here from `nvs-stdlib` and
-`Core\Db::quoteIdentifier` now calls it, so the identifier judgement has one home.
+**`examples/schema.nvs` is on disk and does not compile yet, on purpose.** It is stage 6's target,
+written against the surface ADR 0145 states — `Schema::fromArray`, `planAgainst`, `applySafe`,
+`Plan\Step::grade()/sql()/isRefused()`, `Plan\Grade` — and `nvs run` reports exactly the `E0405`s for
+those members and nothing else. **The driver will name it every session until stage 6 lands; that is
+the ordinary state, not a regression** — see the playbook bullet for why writing it was still right and
+what it masks (every `cargo-named` check of this goal, since program checks run first).
 
-**Two decisions the implementation forced, both folded into the ADR**: a column carries an
-**identity** flag (§ 2 — every backend has one, three shared rules: integer, one per table, in the
-primary key), and an index is **never unique** (a unique constraint is the canonical spelling, so one
-schema is not expressible two ways).
+**Not done, deliberately:** `nvs.toml` owes `examples/schema.nvs` an `[[app]]` entry with
+`connect = ["schema"]`, the new `db.schema` grant, and a `[db.schema]` SQLite block. That file is one
+snapshot every fixture loads, so a key `nvs_config` does not know yet would break all of them — it goes
+in with the capability, at stage 6.
 
 ## Next group
 
-**Stage 2's tail and stage 3's head** — one file set: `crates/nvs-db/src/schema.rs`, beside
-`crates/nvs-db/src/sql.rs:72`'s four-valued `Dialect`.
+**Stage 3, the emitters** — one file set: `crates/nvs-db/src/schema.rs` and a new
+`crates/nvs-db/src/ddl.rs` beside it, keyed on `crates/nvs-db/src/sql.rs:72`'s four-valued `Dialect`
+(four, not five — ADR 0145 § 8: MariaDB and MySQL share SQL text exactly).
 
-- [ ] **The canonical array form, and the round trip.** ADR 0145 § 1: the array form is canonical and
-      **ordered** — declaration order for columns, name order for everything else — and
-      `to_array(from_array(a)) == a` is the property over every construct. `nvs-db` is sans-io and
-      holds no Novis value, so this is a small ordered-node form here and one conversion in
-      `nvs-stdlib` at stage 6, never two serializations. Anchors:
-      `crates/nvs-db/src/schema.rs:164` (`ScalarType`), `crates/nvs-db/src/schema.rs:271`
-      (`ColumnDefault`), `crates/nvs-db/src/schema.rs:432` (`Key`),
-      `crates/nvs-db/src/schema.rs:454` (`Table`), `crates/nvs-db/src/schema.rs:622` (`Schema`).
-- [ ] **`CREATE TABLE` in all four dialects**, one named test per construct — goal stage 3.2 and ADR
-      0145 § 8. Emitters follow `Dialect` and not `Driver`; the traps are transcription from
-      `crates/nvs-stdlib/src/queue.rs:296` (no `create index if not exists` on MySQL, no partial
-      index at all, no `text` index without a prefix length). Anchors:
-      `crates/nvs-db/src/sql.rs:72`, `crates/nvs-db/src/schema.rs:164`.
-- [ ] **A step, its grade and its reason.** ADR 0145 § 6: three grades, keyed on driver *and* server
-      version, and an emitter that does not know **grades up**; SQLite's non-additive alters are the
-      create-copy-drop-rename rebuild, `Destructive` unconditionally. Anchors:
-      `crates/nvs-db/src/schema.rs:622`, `crates/nvs-db/src/sql.rs:72`.
+- [ ] **`CREATE TABLE` in all four dialects**, one named test per construct — goal stage 3.2, ADR 0145
+      § 8. `every_construct_in_the_vocabulary_emits_in_all_four_dialects` and
+      `the_emitters_follow_dialect_rather_than_driver`. Anchors: `crates/nvs-db/src/sql.rs:72`
+      (`Dialect`), `crates/nvs-db/src/schema.rs:192` (`ScalarType`, whose `Display` is the *canonical*
+      spelling and not the SQL one), `crates/nvs-db/src/schema.rs:300` (`ColumnDefault`),
+      `crates/nvs-db/src/schema.rs:483` (`Table`), `crates/nvs-db/src/schema.rs:651` (`Schema`).
+- [ ] **MySQL's two departures**: an index is declared inside the `CREATE TABLE` (it has no
+      `IF NOT EXISTS` for one), and an indexed text column takes a prefix length.
+      `mysql_declares_an_index_inside_its_create_table_having_no_if_not_exists` and
+      `mysql_gives_an_indexed_text_column_a_prefix_length`. Anchors:
+      `crates/nvs-db/src/schema.rs:461` (`Key`), `crates/nvs-db/src/sql.rs:72`.
+- [ ] **A step, its grade and its reason** — ADR 0145 §§ 6 and 8, plus § 7's new paragraph: a *report*
+      is a step the plan carries and never applies, and `applySafe` reads only the grades of the steps
+      it would run. `every_step_carries_terminated_executable_sql_including_the_ones_apply_refuses` and
+      `sqlite_rebuilds_the_table_for_an_alter_it_cannot_express`. Anchors:
+      `crates/nvs-db/src/schema.rs:651` (`Schema`), `crates/nvs-db/src/sql.rs:72` (`Dialect`).
 
 ## Backlog
 
-- The queue's PostgreSQL dedupe index is **partial** (`where state = 0`) and § 11 keeps partial
-  indexes out of v1 — stage 7's retirement owes it one spelling both dialects can hold. ADR 0145,
-  *Consequences*.
-- Stage 4's five introspectors and `nvs schema dump`; the diff and its normalization is stage 5.
-- Stage 6 owes: `Core\Db\Schema` in `nvs-stdlib`, `docs/spec/01-core-library.md` § 18's rows,
-  `docs/reference/core/Db/Schema.md`, and the `db.schema` capability in `nvs-config`.
-- `[context] modules`' `crates/nvs-db/src/schema.rs` pattern matched nothing when this session
-  opened; the file now exists, so `orient.py`'s warning is spent.
+- `examples/schema.json` — stage 6's `nvs schema plan --schema examples/schema.json` check wants it; it
+  is not in `files`, so it blocks nothing yet. Same array form as the fixture's literal.
+- `nvs.toml`'s grant and `[db.schema]` block, with the `db.schema` capability — stage 6, ADR 0145 § 9.
+- The fixture's member spelling is a proposal, not a decision: stage 6 either builds it or edits the
+  fixture, whose source is not frozen (its four printed lines are).
+- ADR 0145 § 11 owes the queue's partial unique index an answer before stage 7 retires
+  `crates/nvs-stdlib/src/queue.rs`'s four `MIGRATION_*` lists.

@@ -2148,6 +2148,16 @@ is why" — is this file.
   workspace member the goal names like any other, and they are the only tests in the tree outside
   those two roots. Grep the repository root, or you will file a slice to write a test that has
   existed since M2.
+- **A goal's own new fixture blocks the *entire* acceptance sweep until it exists — and then masks every
+  cargo check until it passes.** `tools/loop.py`'s `begin()` refuses before anything is built if a `files`
+  entry is not on disk (`tools/loop.py:2159`), so goal 9's first two sessions each ran **1 check** and the
+  ledger learned nothing about the tree beyond `examples/schema.nvs is missing`. Writing the fixture is the
+  repair, and it is worth knowing exactly what it buys: `_check` runs **all** program checks before **any**
+  cargo check, so a fixture written against a surface later stages will build fails on `exit 1` and the
+  goal's own `cargo-named` stages still never run. Until that fixture passes, the frontier is the handoff's
+  `## Next group` and `verify.py` rather than the driver's report, and an acceptance line naming the goal's
+  own fixture every session is the ordinary state and not a regression. Write it anyway: while it is
+  absent, the ~30 program fixtures that would otherwise still be guarding the floor do not run either.
 
 ## Running things
 
