@@ -272,8 +272,8 @@ const AFTER_RESPONSE_DOC: MethodDoc = MethodDoc {
           made, and a request that ended by a throw, an `exit` or a `FATAL` runs none of them.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "When the call is not the request's own task — a `Core\\Task` child, a spawned \
-               isolate, or deferred work itself, none of which has a queue anything would drain. \
+        desc: "When the call is not the request's own task — a `Core\\Task` child or deferred \
+               work itself, neither of which has a queue anything would drain. \
                Hand the work back to the request that started you and register it there.",
     }],
 };
@@ -609,7 +609,7 @@ nvs_runtime::nvs_helper! {
             // to do instead rather than what went wrong.
             nvs_runtime::deferred::DeferError::Sealed => {
                 "Core\\Task::afterResponse: only the request's own task may defer work, and this \
-                 is a child task — a `Core\\Task` child, an isolate, or deferred work itself; \
+                 is a child task — a `Core\\Task` child or deferred work itself; \
                  hand it back to the request that started you"
                     .to_string()
             }

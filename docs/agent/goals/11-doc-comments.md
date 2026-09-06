@@ -7,7 +7,7 @@ argument so the two renderers already on that pipeline get user declarations for
 `rule:tooling/doc-comment-is-three-slashes` is the whole design.
 
 This goal closes a hole rather than adding a feature.
-`rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`'s `textDocument/hover` row
+`rule:ide/the-request-set-is-closed`'s `textDocument/hover` row
 already promises "for a declaration, the `TriviaKind::DocComment` run attached to it" — and nothing in
 the tree defines which trivium that is, because the trivia layer does not exist yet.
 
@@ -23,7 +23,7 @@ section's fourth variant. M4B then inherits it done and keeps the rest: the `Syn
 syntax highlighting, `.lspt`. [docs/plan/m4b.md](../../plan/m4b.md) records the move.
 
 **Hover is the one row this goal cannot contain.** It needs `crates/nvs-lsp`, which does not exist. It
-needs no note either: `rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`'s row and `docs/plan/m4b.md` were both folded when `rule:tooling/doc-comment-is-three-slashes` landed,
+needs no note either: `rule:ide/the-request-set-is-closed`'s row and `docs/plan/m4b.md` were both folded when `rule:tooling/doc-comment-is-three-slashes` landed,
 so M4B arrives knowing what hover reads and which half of its tree is already built.
 
 ## The surface, in one block
@@ -116,8 +116,8 @@ One file set: a new `crates/nvs-cli/src/doc.rs`, `crates/nvs-cli/src/main.rs`.
 2. **`nvs check --strict-docs`** — a **public** member with no attached doc comment is reported. Silent
    without the flag, in every project, at every other setting. There is nothing for an autofix to
    generate, which is the property `rule:tooling/strict-docs` relies on.
-3. **No hover code lands here.** `rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`
-   's hover row already names the `TriviaKind::DocComment` run as what it reads, and
+3. **No hover code lands here.** `rule:ide/the-request-set-is-closed`'s hover row
+   already names the `TriviaKind::DocComment` run as what it reads, and
    [docs/plan/m4b.md](../../plan/m4b.md) already records which half of its tree this goal built — both
    folded when `rule:tooling/doc-comment-is-three-slashes` landed. There is nothing left for this stage to write down.
 

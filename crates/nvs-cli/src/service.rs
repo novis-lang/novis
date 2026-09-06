@@ -115,7 +115,7 @@ pub(crate) struct Request<'a> {
 pub(crate) struct Host {
     /// This binary, absolute. § 3 quotes it unconditionally.
     pub(crate) exe: PathBuf,
-    /// Whether this binary is an `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host` bundle (§ 6).
+    /// Whether this binary is an `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host` bundle (`rule:programs/bundle-trust-domain`).
     ///
     pub(crate) from_a_bundle: bool,
     /// Whether the config the argv names sets `[log] target` to something a

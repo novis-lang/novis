@@ -161,8 +161,9 @@ snapshot is unit A3 rather than an afterthought. **Nothing moves before it exist
 ### The legacy debt check 1 exempts
 
 Taking the snapshot found **16 citations that were already broken** before the migration began —
-`ADR 0002 § 1` from `nvs-cli/src/cache.rs`, where ADR 0002 has no numbered sections at all; `0140`
-and `0141` from two goal handoffs, where neither record exists; and thirteen more.
+a `§ 1` of record 0002 from `nvs-cli/src/cache.rs`, where that record has no numbered sections at all;
+`0140` and `0141` from two goal handoffs, where neither record exists; and thirteen more. Unit C8
+re-cited the ten that were left to the rules that hold them.
 `python tools/adr.py` reports clean because its section-ref check does not reach into `crates/`.
 
 The gate cannot demand zero from unit B1 — it would fail every transaction for debt that predates
@@ -216,7 +217,7 @@ read-only and runs parallel again.
 | Unit | What |
 |---|---|
 | C1 | Freeze all 143 records: strip `Amends:`/`Amended by:`, add `changes:`, move to `docs/decisions/` |
-| C2 | Retire `docs/spec/` (folded), `ground-rules.md` and `divergences.md` (now generated), and `adr/README.md`'s routing and index tables |
+| C2 | Retire `ground-rules.md` and `divergences.md` (now generated) and `adr/README.md`'s routing and index tables. `docs/spec/` **stays live**: `01-core-library.md` is read at test time by `crates/nvs-stdlib/tests/spec_registry_coverage.rs` and by `tools/check-migration.py`, and `02-php-migration.md` is the only home of the per-builtin table `tools/reference.py` renders into `docs/novis.md` |
 | C3 | Rewrite `AGENTS.md` — the routing table, the five rules, the session workflow |
 | C4 | Rewrite `commands.md`, `conventions.md`, `doc-style.md`, `session-prompt.md`, `loop-authoring.md`, `decisions-summary.md`; delete `doc-cleanup.md` § 4 |
 | C5 | `adr.py` becomes decision-record tooling: the fold and amend machinery is deleted, the audit is kept |

@@ -528,9 +528,10 @@ impl RouteTable {
     /// The row § 1's `name` names, or `None` where no route claims it — § 4's
     /// `url`/`urlAbsolute` reverse the table by exactly this question.
     ///
-    /// The first match, which is the only one that can be reached: two rows
-    /// claiming one name is [`code::E_DUPLICATE_ROUTE_NAME`], so a program in
-    /// which this could be ambiguous does not compile.
+    /// The first match, and never an ambiguous one: two rows may share a name
+    /// only when they share a path (`rule:routing/repeated-routes-share-a-name-when-they-share-a-path`),
+    /// so name-to-path is a function and every other duplicate is
+    /// [`code::E_DUPLICATE_ROUTE_NAME`] and does not compile.
     #[must_use]
     pub fn named(&self, name: &str) -> Option<&Route> {
         self.rows.iter().find(|row| {

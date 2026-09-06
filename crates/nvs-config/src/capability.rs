@@ -28,7 +28,7 @@
 //! Three refusals hold the rule to that shape:
 //!
 //! - **A bare `*` is not a spelling.** `true` is already "every host" — `Grant::Everything` — and
-//!   a grant reachable two ways is what `rule:core-api/shape-rules` R20 forbids. `*` alone therefore matches no host
+//!   a grant reachable two ways is what `rule:core-api/shape-rules` R17 forbids. `*` alone therefore matches no host
 //!   at all, including a host literally named `*`, and so does `*.` with nothing after it.
 //! - **The wildcard is `db.open`'s alone**, which is [`Cap::takes_host_wildcard`]. `net.connect`'s
 //!   grant is asked of a *name* and then `rule:http-server/allow-url-pins-the-address`
@@ -60,8 +60,9 @@ pub enum Cap {
     FsRead,
     /// `fs.write` — the roots writable.
     FsWrite,
-    /// `script.spawn` — the roots a `spawn script` target may live under (ADR 0006 § 5). Being able
-    /// to read a file is not permission to run it, which is why this is not implied by `fs.read`.
+    /// `script.spawn` — the roots a `spawn script` target may live under
+    /// (`rule:security/script-spawn-capability`). Being able to read a file is not permission to run
+    /// it, which is why this is not implied by `fs.read`.
     ScriptSpawn,
     /// `net.connect` — the hosts an outbound connection may reach.
     NetConnect,

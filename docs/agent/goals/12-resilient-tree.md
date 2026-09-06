@@ -79,7 +79,7 @@ itself, `nvs lsp-test`, and the canonical rendering are goal 14's: [conventions.
 `--json` and `--resilient` on `run_ast` in `crates/nvs-cli/src/main.rs`. A node is `kind`, `span` as
 `[start, end]`, its own scalar fields and `children`; **trivia and recovery nodes are included**, because
 the panel this feeds is least useful on a file that compiles. `--resilient` is the default, and the schema
-is frozen by a snapshot over `examples/`. `rule:ide/every-feature-is-staged-behind-its-dependency` assumed this already existed; it does not, and
+is frozen by a snapshot over `examples/`. `rule:ide/the-ast-panel-shells-out-to-the-cli` reads this flag; it does not exist yet, and
 `{stmts:#?}` has no stability contract.
 
 It is documented under `docs/reference/tools/10-cli.md`'s **existing** `# nvs ast` heading — two new

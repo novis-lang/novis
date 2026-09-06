@@ -1426,7 +1426,7 @@ fn inbound_of<'a>(ctx: &'a Ctx, member: &str) -> Result<&'a Inbound, Fault> {
 /// Whether `verb` names one of [`crate::router::METHOD`]'s eight cases at all —
 /// the question the *door* asks, before an isolate exists.
 ///
-/// `rule:http-server/a-path-is-never-derived-from-a-url`'s server refuses a token outside the roster with a `501`
+/// The server refuses a token outside the roster with a `501`
 /// (`nvs_server::Reply::not_implemented`), which is what makes
 /// [`nvs_core_request_method`]'s closed answer total in practice: the throw it
 /// still carries is for the program that reached it another way. This predicate

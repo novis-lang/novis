@@ -56,7 +56,7 @@
 //! without them: an exporter reads [`Registry::series`] in order and formats it,
 //! and adding one changes nothing above.
 //!
-//! **`Core\Metrics`'s three members (§ 3) have no row yet**, so the only writer
+//! **`Core\Metrics`'s three members (`rule:observability/metrics-three-members`) have no row yet**, so the only writer
 //! is [`Registry::request`]. When they land they are three calls onto this same
 //! type, and § 3's "accumulates even with no exporter built" is
 //! [`Registry::new`] — a registry with no protocol in force, which
@@ -917,8 +917,8 @@ mod tests {
         assert_eq!(histogram.bounds, LATENCY_BUCKETS);
     }
 
-    /// § 1's two request series are recorded together, carrying the route's
-    /// declared name — and a request that matched nothing carries the label
+    /// `rule:observability/default-series`'s two request series are recorded together, carrying
+    /// `rule:observability/route-label-is-the-declared-name`'s declared name — and a request that matched nothing carries the label
     /// empty rather than not at all.
     #[test]
     fn a_request_records_both_series_under_the_routes_declared_name() {

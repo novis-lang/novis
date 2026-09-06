@@ -41,7 +41,7 @@ what the ledger names.
 
 ## Backlog
 
-- Stage 3 (`rule:http-server/a-session-store-answers-four-operations`, `hold_body`, `claim_body` rewritten, `body()` idempotent) shares
+- Stage 3 (the new body-read rule, `hold_body`, `claim_body` rewritten, `body()` idempotent) shares
   `crates/nvs-runtime/src/ctx/inbound.rs` with stage 2b but nothing else; it is the natural second group and it is
   where the one new ADR number gets spent.
 - Stage 4 (the two members, the five edits each, the spec § 15 bullet, six `.nvst` cases) needs stage 2

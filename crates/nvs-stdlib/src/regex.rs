@@ -23,18 +23,19 @@
 //!   C dependency buys, and the answer here would be a *second* opinion about
 //!   pattern syntax, which is what `rule:core-classes/regex-two-tiers` exists to avoid.
 //!
-//! # Tiering happens at the first call, not while checking
+//! # Tiering happens while checking for a literal, at the first call otherwise
 //!
 //! `rule:core-classes/regex-literal-tiering` makes a **literal** pattern's tier a compile-time fact, over
 //! `rule:expressions/intrinsic-literals`'s
-//! literal-folding mechanism. That mechanism is not built, so today every
-//! pattern — literal or assembled — takes the run-time path in [`compiled`]:
+//! literal-folding mechanism: `nvs_types::intrinsics` runs [`validate`] on the
+//! literal, refuses a malformed one as a compile error, and records the tier it
+//! landed in. An assembled pattern takes the run-time path in [`compiled`]:
 //! the linear engine is offered the pattern first and the backtracking engine
 //! gets it only if the linear engine's *parser* refused a construct, which is
-//! [`build`]'s routing rule and the one place that decision lives. The tier a given pattern lands in
-//! is therefore already the tier § 3 will report; what is missing is the
-//! *reporting*, the compile error for a malformed literal, and
-//! `[regex] backtracking = "deny"`. Recorded as gap 1 below.
+//! [`build`]'s routing rule and the one place that decision lives. Both paths
+//! answer the same tier for the same text. What is missing is the *reporting*
+//! of the recorded tier past the checker, and `[regex] backtracking = "deny"`,
+//! which has no `[regex]` block to live in — gap 2 below.
 //!
 //! # What a compiled pattern costs, and where it is held
 //!

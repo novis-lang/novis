@@ -63,7 +63,7 @@ retired = "2026-09-05"
 # a gap a shipped feature already carries, written down in the module that owns it, and claimed by
 # no entry on this chain: the `db.open` wildcard `rule:core-classes/db-capabilities` writes and nothing reads, `nvs
 # check` never building the grants its own § 10 diagnostic needs, a cycle closed through an array
-# surviving `rule:security/isolate-teardown-is-a-drain-then-a-sweep`'s sweep, `rule:observability/metrics-and-trace-blocks-are-system`'s four log-record fields, `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`'s fleet
+# surviving `rule:security/isolate-teardown-is-a-drain-then-a-sweep`'s sweep, `rule:observability/a-log-record-carries-trace-ids-when-a-trace-is-active`'s four log-record fields, `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`'s fleet
 # lease, spec § 18's `stream`/`streamAs`, the two rules that were waiting on a diagnostic band
 # that has since opened, and the CLDR rosters that throw. Its stage 2 is the keystone and the
 # reason it is first: an outstanding key gains an owner column and the test fails when that owner
@@ -205,7 +205,7 @@ handoff = "docs/agent/goals/15-editor.handoff.md"
 milestone = "M4B"
 preflight = "docker"
 
-# `rule:http-server/a-session-store-answers-four-operations`'s body rule and the two JSON body readers, plus the `.nvst` request sections that make any of
+# The body-read rule (a new `http-server/` fragment) and the two JSON body readers, plus the `.nvst` request sections that make any of
 # it provable in language. It is here rather than beside goal 6 because it was decided after that goal was
 # written, and the rule it replaces is one goal 6 landed: a fixture written against the old wording in the
 # meantime is a fixture rewritten twice, which is what its stage 0 pays off. Docker preflight because its
@@ -230,7 +230,7 @@ handoff = "docs/agent/goals/17-test-request.handoff.md"
 milestone = "M8"
 preflight = "docker"
 
-# ADR 0140's one converter from `array<mixed>` to a declared shape, and the two `Core\Request` members
+# goal 18's record: one converter from `array<mixed>` to a declared shape, and the two `Core\Request` members
 # over it -- which is what stops a request reader's answer being `mixed`. Last because its stage 2 is
 # type-surface work (`rule:types/object-top`'s optional field, `rule:security/tainted-qualifier`'s qualifier over a shape) and every goal before
 # it writes shapes whose spelling this one widens; running it earlier would mean writing them twice. Its
@@ -244,7 +244,7 @@ handoff = "docs/agent/goals/18-input-shapes.handoff.md"
 milestone = "M7"
 preflight = "docker"
 
-# ADR 0141's `Parses` -- the global interface that replaces `converts_from_string`'s `Core\Uuid` name
+# goal 19's record: `Parses` -- the global interface that replaces `converts_from_string`'s `Core\Uuid` name
 # test, so a route capture, a `#[Query]`, a command argument and an option admit any class that declares
 # it can be built from text. Last because it is the only entry that edits a predicate all four of those
 # surfaces read, and every goal before it writes routes and commands against the roster as it stands;

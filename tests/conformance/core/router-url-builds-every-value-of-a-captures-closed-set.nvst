@@ -1,5 +1,5 @@
 --TEST--
-`Core\Router::url` builds a link for every value of a capture's closed set, and for no other — `rule:routing/a-capture-narrows-to-a-closed-set` and `rule:routing/an-absolute-link-takes-a-configured-origin`, `rule:routing/matching-is-not-dispatching`
+`Core\Router::url` builds a link for every value of a capture's closed set, and for no other — `rule:routing/a-capture-narrows-to-a-closed-set` and `rule:routing/an-absolute-link-takes-a-configured-origin`, `rule:routing/link-name-and-params-are-checked`
 --FILE--
 <?nvs
 // § 5's own example, compiled: a capture narrows to a closed set with a *type*,

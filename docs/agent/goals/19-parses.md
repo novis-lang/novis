@@ -180,7 +180,7 @@ is refused at the door. Plus:
   (`routes.rs:1737`), so it changes no route's rank, no precedence and no `Core\Router::url`. Two routes
   distinguished only by a `Parses` capture's *content* are the same route, exactly as two `{id}` captures
   are today.
-- **This goal may open [ADR 0141] and no other new number.** Everything else is a change to a rule that already stands, through a record whose `changes:` block
+- **This goal may open one new record and no other number.** Everything else is a change to a rule that already stands, through a record whose `changes:` block
   names it: `rule:classes/comparable` (the roster gains a third global interface, on the precedent it set),
   `rule:expressions/try-parse` (the `tryParse` shape is now a contract and its three conditions are what the interface
   encodes), `rule:security/route-capture-is-laundered-by-its-type` and `rule:routing/a-query-parameter-is-declared-like-a-capture` and `rule:routing/a-capture-narrows-to-a-closed-set` (the type roster's last entry becomes a predicate), and

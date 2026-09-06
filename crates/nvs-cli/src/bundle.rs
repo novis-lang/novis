@@ -43,7 +43,8 @@
 //!
 //! * § 6's `.nvsx` entries are not embedded yet — Tier 1 extensions do not
 //!   load at all today, so there is nothing for the flat list to carry.
-//! * § 5's macOS ad-hoc signing runs `codesign --sign -` and reports a failure
+//! * `rule:packaging/a-macos-bundle-is-ad-hoc-signed-at-build` has the build
+//!   sign; here the macOS ad-hoc signing runs `codesign --sign -` and reports a failure
 //!   as a warning rather than failing the build: an unsigned bundle is still
 //!   the artifact the author asked for, and on a machine with no developer
 //!   tools installed refusing to produce one would be worse than saying so.

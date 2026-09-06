@@ -52,6 +52,11 @@
 //! is visible to the script being run: § 3 is explicit that a bad entry is exactly as invisible as a
 //! cold cache, so nothing here returns a diagnostic, panics or throws.
 //!
+//! **The mapping itself is overturned, not yet replaced.** `rule:packaging/the-artifact-cache-is-read-not-mapped`
+//! decides the entry is read into a heap buffer — a file replaced under a mapping raises `SIGBUS`,
+//! which nothing in-process contains — and that read path is not built; until it is, the hit cost
+//! below is the mapped one.
+//!
 //! **Verification is a property of the type, not of a caller's discipline.** [`Cache::load`] hands
 //! back a [`Verified`], which is constructed on exactly one code path — the far side of the
 //! checksum comparison — and holds the mapping privately. A caller cannot reach the bytes without
@@ -813,8 +818,9 @@ impl Loaded {
         let address = self.pages.as_ptr().wrapping_add(self.entry);
         // SAFETY: `address` is inside `self.pages`, which `relocate` made executable and this type
         // keeps mapped; `entry` is the offset of the symbol `nvs_ir::lower::ENTRY_SCRIPT_LABEL`
-        // names, and every frame `nvs-codegen` emits has `NvsFn`'s signature — ADR 0002 § 1 is the
-        // one home of that convention and both ends of this file agree on it.
+        // names, and every frame `nvs-codegen` emits has `NvsFn`'s signature —
+        // `rule:errors/propagation` is the one home of that convention and both ends of this
+        // file agree on it.
         let function = unsafe { std::mem::transmute::<*const u8, nvs_runtime::NvsFn>(address) };
         Entry {
             function,

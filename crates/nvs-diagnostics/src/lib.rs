@@ -1668,9 +1668,9 @@ pub mod code {
     /// whatever holds the array, and a temporary holds it nowhere — the write
     /// would land in a value dropped at the end of the statement. PHP 8.5
     /// accepts the spelling and discards the write with no diagnostic at all
-    /// (checked with `php -r`, not assumed), which makes this `rule:php-migration/every-divergence-is-deliberate-and-listed`'s
-    /// fifteenth deliberate divergence rather than a PHP-compatible refusal
-    /// like `E0478` beside it.
+    /// (checked with `php -r`, not assumed), which makes this a deliberate
+    /// divergence (`rule:php-migration/an-element-write-needs-storage-to-write-back-into`)
+    /// rather than a PHP-compatible refusal like `E0478` beside it.
     ///
     /// Parentheses are **not** a temporary: `($a)["0"] = "y"` writes `$a["0"]`
     /// here exactly as it does in PHP, because
@@ -2402,7 +2402,7 @@ pub mod code {
 
     /// Two `#[Route]`s declare the same verb and the same path shape.
     ///
-    /// `rule:security/route-capture-is-laundered-by-its-type`'s duplicate-route error. § 2 matches by *shape*, so
+    /// `rule:routing/routes-are-compiled-not-registered`'s duplicate-route error. § 2 matches by *shape*, so
     /// `/users/{id}` and `/users/{userId}` are one route however they are
     /// spelled, and the same path under a different verb is not a duplicate at
     /// all. A question about the whole enumeration rather than about one
@@ -2470,7 +2470,7 @@ pub mod code {
 
     /// `Core\Router::url`/`urlAbsolute` names a route the table does not hold.
     ///
-    /// `rule:routing/matching-is-not-dispatching`: a *literal* `$name` that is not a declared route is a
+    /// `rule:routing/link-name-and-params-are-checked`: a *literal* `$name` that is not a declared route is a
     /// compile error, and a computed one throws instead — so this is reported
     /// at the argument rather than at the call, which is where the literal is.
     /// The table it is checked against is the whole program's, which is why
@@ -2481,7 +2481,7 @@ pub mod code {
     /// A `Core\Router::url` `$params` literal covers none of some capture the
     /// named route's path declares.
     ///
-    /// `rule:routing/matching-is-not-dispatching`: a `$params` array that does not cover the route's
+    /// `rule:routing/link-name-and-params-are-checked`: a `$params` array that does not cover the route's
     /// captures is a compile error. Only a `{name?}` may be absent — its
     /// segment simply is not emitted — so every `{name}` and `{name...}` the
     /// path writes needs a key of that name. A `$params` that is not an array
@@ -2524,7 +2524,7 @@ pub mod code {
     /// A `Core\Router::url` `$params` key names neither a capture of the route's
     /// path nor one of its declared `#[Query]` parameters.
     ///
-    /// `rule:routing/an-absolute-link-takes-a-configured-origin`: keys that are not captures become the link's query string,
+    /// `rule:routing/a-leftover-link-key-is-a-query-string`: keys that are not captures become the link's query string,
     /// so a key that covers nothing is not inert — it silently ships as
     /// `?typo=…`. The rule is what makes the query half safe to have at all,
     /// and it is the mirror of [`E_ROUTE_LINK_MISSING_PARAM`]: that one is a

@@ -1310,7 +1310,7 @@ pub const CLASSES: &[CoreClass] = &[
     crate::hash::CLASS,
     crate::hash::STREAM,
     crate::uri::CLASS,
-    // § 15's link half only — `rule:routing/matching-is-not-dispatching`'s `url`/`urlAbsolute`. `match` and
+    // § 15's link half only — `rule:routing/link-name-and-params-are-checked`'s `url`/`urlAbsolute`. `match` and
     // `methodsFor` answer a request and land with the server; [`crate::router`]
     // owns why, and owns the enum that section's `method` parameter takes.
     crate::router::CLASS,
@@ -2386,8 +2386,8 @@ pub const ITERABLES: &[(&str, &CoreTy)] = &[
     // And the second, for the same reason: an entry of a walked tree is a
     // `string` whatever the tree held.
     (crate::io::WALK_NAME, &CoreTy::Str),
-    // ADR 0067 § 18's `foreach ($rows as Row $row)`: a result set walks what it
-    // is already holding, which is its own `T` — a `Core\Db\Row` for `query`
+    // `rule:core-classes/db-statement-members`' `Db\Rows` under `foreach ($rows as Row
+    // $row)`: a result set walks what it is already holding, which is its own `T` — a `Core\Db\Row` for `query`
     // and the hydrated class for `queryAs<T>`. Back to one of the receiver's
     // own variables, like the three collections above, because § 18's `Rows`
     // and `Rows<T>` are one generic class and not two.

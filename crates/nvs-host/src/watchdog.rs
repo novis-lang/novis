@@ -30,8 +30,10 @@
 //! that would make it possible, so detection is the whole of what happens here.
 //! The other half of § 7's sentence — the core stops accepting new work and
 //! `max_in_flight` accounts for its share as unavailable — belongs to admission
-//! control, which does not exist in this crate yet; when it does, it subscribes
-//! to the same report rather than growing a second detector.
+//! control, which is `nvs_server::admit` and does not subscribe to this report
+//! yet (`rule:http-server/a-wedged-core-is-shed-never-killed` is `designed`);
+//! when it does, it subscribes to the same report rather than growing a second
+//! detector.
 //!
 //! A stall is reported **once per deadline**, not once per sweep: a wedged core
 //! republishes nothing, so its earliest deadline is a stable identity for the

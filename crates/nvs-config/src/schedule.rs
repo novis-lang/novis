@@ -456,7 +456,7 @@ impl Cron {
 
 /// § 6's zone: what `timezone` names, or `UTC` when the entry does not say.
 ///
-/// There is no ambient timezone anywhere in Novis (ADR 0063 § 4), so an absent key is the documented
+/// There is no ambient timezone anywhere in Novis (`rule:core-api/no-ambient-state`), so an absent key is the documented
 /// default rather than the host's setting, and an empty one has said nothing — the same reading
 /// [`required`] gives every other key.
 ///

@@ -155,8 +155,8 @@ impl SecretPair {
 
 /// Every secret directive § 7 marks, one row each.
 pub const SECRETS: &[SecretPair] = &[
-    // ADR 0067 § 3a, and § 7's own "today": the database password, the pair this whole mechanism was
-    // written for.
+    // `rule:core-classes/db-capabilities`, and § 7's own "today": the database password, the pair
+    // this whole mechanism was written for.
     SecretPair {
         block: "db.*",
         value: "password",

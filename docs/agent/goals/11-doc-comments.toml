@@ -31,7 +31,7 @@ modules = [
 
 rules = ["0137", "0099", "0117", "0087", "0046", "0015", "0007", "0011"]
 
-# 0137 whole: it is this goal's entire design. 0099 s1 is the tree shape being built; s5 is the hover
+# 0137 whole: it is this goal's entire design. 0099 s1 is the tree shape being built; s3 is the hover
 # row it feeds. The rest are sections.
 adrs = ["0137", "0099 §1", "0117 §2", "0087 §1"]
 

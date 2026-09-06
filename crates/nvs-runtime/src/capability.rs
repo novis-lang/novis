@@ -1069,7 +1069,7 @@ mod tests {
         }
     }
 
-    /// `rule:concurrency/all-answers-a-typed-shape`'s children "share the request", and this is the half every capability-gated
+    /// `rule:concurrency/a-child-belongs-to-the-calling-task`'s children "share the request", and this is the half every capability-gated
     /// member depends on: [`Ctx::child`] carries the request's configuration, so a grant the
     /// request holds is a grant inside a task of it. Before the field crossed, [`granted`] answered
     /// `false` to *everything* inside a child — `Core\Db::connect` succeeded in a program's main

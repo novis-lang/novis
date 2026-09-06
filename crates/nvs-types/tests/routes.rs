@@ -762,7 +762,7 @@ fn a_capture_or_query_parameter_outside_the_type_list_is_a_diagnostic() {
 
 #[test]
 fn a_url_key_that_is_neither_a_capture_nor_a_query_parameter_is_a_diagnostic() {
-    // `rule:routing/an-absolute-link-takes-a-configured-origin`: every key that is not a capture *becomes* the link's query
+    // `rule:routing/a-leftover-link-key-is-a-query-string`: every key that is not a capture *becomes* the link's query
     // string, so a key naming nothing at all is not inert — it ships as
     // `?pge=2` and nothing says so. That is the whole reason the refusal exists,
     // and it is why it could not be written before `#[Query]` did: refusing

@@ -38,7 +38,7 @@ modules = [
 rules = ["0097", "0017", "0006", "0042", "0061", "0116", "0004"]
 
 # 0097 whole -- its ceiling, its backoff and its h2c refusal all argue from balanced cores.
-adrs = ["0097", "0017 §3a", "0017 §5"]
+adrs = ["0097", "0017"]
 
 shapes = ["A decision record", "A commit message"]
 

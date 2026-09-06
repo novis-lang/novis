@@ -67,7 +67,7 @@ honestly without it.
 
 ## Stage 3 — the rule: buffering readers share, streaming readers consume
 
-1. **`rule:http-server/a-session-store-answers-four-operations`**, this goal's one new number. *A body is read once. A **streaming** reader — `bodyStream`,
+1. **The body-read rule, a new `http-server/` fragment**, this goal's one new number. *A body is read once. A **streaming** reader — `bodyStream`,
    `files` — consumes it and refuses every later reader. A **buffering** reader — `body`, `post`, `json`,
    `jsonAs` — keeps what it read, so any buffering reader may follow another.* `post()` joining `files`
    stops being an exception and becomes a consequence: `files` buffers the non-file parts on its way past,
@@ -90,7 +90,7 @@ Two `Core` members, the five edits each, in `crates/nvs-stdlib/src/request.rs` b
    `Box<dyn Any>` (`crates/nvs-runtime/src/ctx/inbound.rs:571`) is the precedent for the slot, and the value is
    dropped with the request.
 3. **The spec** — § 15's `Core\Request` bullet gains both members and loses the three-way exclusivity
-   sentence to `rule:http-server/a-session-store-answers-four-operations`'s rule. `spec_registry_coverage.rs` reads that bullet as the roster, so this edit
+   sentence to the new body-read rule. `spec_registry_coverage.rs` reads that bullet as the roster, so this edit
    is what makes the registry rows legal rather than a separate chore.
 4. **Three `.nvst` cases each**, each asking a different question, over stage 2's sections — the first
    request-facing members in this repository proven the way every other member is.
@@ -125,7 +125,7 @@ request boundary, so it gets a `valgrind` run of its own rather than riding the 
 - **An absent or empty body is a `ParseError`, never `null` and never `LogicError`.** `?mixed` cannot
   distinguish "no body" from a body holding the document `null`, and a peer must never be able to make a
   program throw `LogicError`.
-- **This goal may open `rule:http-server/a-session-store-answers-four-operations` and no other new number.** Everything else is an amendment folded into
+- **This goal may open the body-read rule (one new `http-server/` fragment and its record) and no other new number.** Everything else is an amendment folded into
   the existing body: spec § 15's roster and exclusivity sentence,
   `rule:http-server/the-body-is-read-on-demand-under-two-caps` and
   `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename` and `rule:http-server/a-part-is-consumed-in-one-of-three-ways`

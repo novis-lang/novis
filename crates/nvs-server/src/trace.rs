@@ -1,5 +1,5 @@
-//! `rule:observability/a-trace-id-exists-for-every-request`'s trace
-//! identity, taken at the door: the `traceparent` the request arrived with,
+//! `rule:observability/an-inbound-traceparent-is-continued`'s trace
+//! identity — `rule:observability/a-trace-id-exists-for-every-request`'s id — taken at the door: the `traceparent` the request arrived with,
 //! read once, before any application code runs.
 //!
 //! # Why the door, and why it is one call
@@ -42,7 +42,7 @@ use nvs_runtime::{Inbound, TraceContext};
 /// `HeaderName` on the way in and the carrier keeps what it was given.
 const TRACEPARENT: &str = "traceparent";
 
-/// Decides `rule:observability/a-trace-id-exists-for-every-request`'s trace for this request, and records it on the
+/// Decides `rule:observability/an-inbound-traceparent-is-continued`'s trace for this request, and records it on the
 /// carrier.
 ///
 /// The header is read off `inbound` rather than off `hyper`'s request for
@@ -111,7 +111,7 @@ mod tests {
     /// One valid inbound header, and the trace it names.
     const INBOUND: &str = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
 
-    /// `rule:observability/a-trace-id-exists-for-every-request`: an inbound `traceparent` is continued — trace id, parent
+    /// `rule:observability/an-inbound-traceparent-is-continued`: an inbound `traceparent` is continued — trace id, parent
     /// span id and sampled flag all adopted — and a request that arrived
     /// without one is a new trace rather than no trace.
     ///
@@ -231,7 +231,7 @@ mod tests {
         (carried, line)
     }
 
-    /// `rule:observability/a-trace-id-exists-for-every-request` and `rule:observability/metrics-and-trace-blocks-are-system`, across the seam neither crate owns alone: the trace
+    /// `rule:observability/a-trace-id-exists-for-every-request` and `rule:observability/a-log-record-carries-trace-ids-when-a-trace-is-active`, across the seam neither crate owns alone: the trace
     /// id a record carries is the one **this door** decided, and not a second
     /// one drawn where the record was written.
     ///

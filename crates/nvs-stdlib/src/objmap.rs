@@ -458,7 +458,7 @@ nvs_runtime::nvs_helper! {
     /// `Core\ObjectMap<K, V>::keys(): array<K>` — every key, as a list.
     ///
     /// A list rather than a map keyed by anything: an `array<T>` keys on
-    /// `int|string` (ADR 0063 § 4), which is the whole reason this class
+    /// `string` (`rule:types/arrays`), which is the whole reason this class
     /// exists, so there is no key here to preserve. Position pairs with
     /// [`nvs_core_object_map_values`]'s.
     fn nvs_core_object_map_keys(_ctx, args: [1]) {

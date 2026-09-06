@@ -116,7 +116,7 @@ pub struct Config {
     pub cache: Option<Cache>,
     /// `[control]` — the local control socket (`rule:config/one-local-control-socket`).
     pub control: Option<Control>,
-    /// `[opcache]` — revalidation and the file cache (ADRs 0017, 0042 § 9).
+    /// `[opcache]` — revalidation and the file cache (`rule:config/an-edit-reaches-the-next-request-without-a-restart`, `rule:config/opcache-file-cache-directives-are-system`).
     pub opcache: Option<Opcache>,
     /// `[session]` — where `Core\Session`'s records live, and how long one survives (`rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`).
     pub session: Option<Session>,
@@ -175,7 +175,9 @@ pub struct Limits {
     pub cpu_time: Option<Setting>,
     /// `Runtime` — wall time.
     pub wall_time: Option<Setting>,
-    /// `Runtime` — concurrent tasks.
+    /// `Runtime` — concurrent tasks. Parsed, rostered and named to users, and **enforced
+    /// nowhere yet**: no scheduler or budget reads it, though
+    /// `rule:security/isolate-budget-is-the-trees` names it as the root's bound on child tasks.
     pub max_tasks: Option<Setting>,
     /// `Runtime` — bytes written to the response.
     pub max_output: Option<Setting>,
@@ -241,7 +243,7 @@ pub struct Mode {
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Capabilities {
-    /// `script.spawn` (ADR 0006 § 5).
+    /// `script.spawn` (`rule:security/script-spawn-capability`).
     pub script: Option<CapScript>,
     /// `fs.read` and `fs.write`.
     pub fs: Option<CapFs>,
@@ -262,7 +264,7 @@ pub struct Capabilities {
 #[serde(default, deny_unknown_fields)]
 pub struct CapScript {
     /// The roots a `spawn script` target may live under. Being able to *read* a file is not
-    /// permission to run it, so this does not follow from `fs.read` (ADR 0006 § 5).
+    /// permission to run it, so this does not follow from `fs.read` (`rule:security/script-spawn-capability`).
     pub spawn: Option<Setting>,
 }
 
@@ -637,14 +639,14 @@ pub struct Database {
     /// also where the default lives — this crate names no driver's constant.
     pub statement_cache: Option<u32>,
     /// How long a statement on this connection may take before it is also written to `Core\Log`
-    /// (`rule:observability/a-query-is-a-trace-event`), as `200ms` or `1s`.
+    /// (`rule:observability/a-slow-query-is-logged-past-a-threshold`), as `200ms` or `1s`.
     ///
     /// Unset is off, and that is the ADR's own default rather than a number: § 11 gives the
     /// threshold no value, and a slow-query log every deployment gets without asking would be the
     /// ungated output that section refuses. A written `0` is legal and logs every statement, which
     /// is the honest reading of "slower than nothing" and the spelling an operator debugging one
     /// request reaches for. `nvs_config::db::slow_query_for` is the reader, and the line itself is
-    /// `Core\Db`'s — it carries the span `rule:observability/trace-events-carry-a-kind`'s `query` event carries, which is what § 11 means
+    /// `Core\Db`'s — it carries the span `rule:observability/trace-events-carry-a-kind`'s `query` event carries, which is what `rule:observability/a-slow-query-is-logged-past-a-threshold` means
     /// by *the same facts*.
     pub slow_query: Option<Setting>,
     /// The zone this database's zone-less `DATETIME`/`TIMESTAMP` columns are written in
@@ -974,7 +976,8 @@ pub struct Control {
     pub socket: Option<Setting>,
 }
 
-/// `[opcache]` — revalidation (ADR 0017 § 2) and the file cache (ADR 0042 § 9), every key `System`.
+/// `[opcache]` — revalidation (`rule:config/opcache-revalidation-is-system-class`) and the file cache
+/// (`rule:config/opcache-file-cache-directives-are-system`), every key `System`.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Opcache {

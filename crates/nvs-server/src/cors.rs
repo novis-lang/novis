@@ -13,7 +13,7 @@
 //! wire.
 //!
 //! The second is a decision, and [`Cors::preflight`] is it: an `OPTIONS` carrying `Origin` and
-//! `Access-Control-Request-Method` — `rule:http-server/a-request-resolves-in-five-steps`'s two headers — is a browser asking
+//! `Access-Control-Request-Method` — `rule:http-server/a-preflight-is-answered-before-any-code-runs`'s two headers — is a browser asking
 //! permission, and a server that has named no origin has none to give. **`403` and not `405`**,
 //! because the verb is one this server implements and answers elsewhere — what is refused is the
 //! *origin*, and saying `405` would tell a browser to stop asking about a method rather than that
@@ -224,7 +224,7 @@ impl Cors {
     /// § 2's answer to one preflight, or [`None`] where this request is not a preflight at all.
     ///
     /// A preflight is an `OPTIONS` carrying **both** `Origin` and `Access-Control-Request-Method`,
-    /// which is `rule:http-server/a-request-resolves-in-five-steps`'s own definition and is read here as written. Neither header alone
+    /// which is `rule:http-server/a-preflight-is-answered-before-any-code-runs`'s own definition and is read here as written. Neither header alone
     /// is one: a program may answer an ordinary `OPTIONS` — that is what `Allow` is for — and
     /// refusing every one of them would take a method away in order to close a door it never went
     /// through, while a request that named no origin is not asking to cross whatever else it sent.
@@ -701,7 +701,7 @@ mod tests {
         );
     }
 
-    /// `rule:http-server/a-request-resolves-in-five-steps` names two headers and both are required, so an `OPTIONS` missing either is the
+    /// `rule:http-server/a-preflight-is-answered-before-any-code-runs` names two headers and both are required, so an `OPTIONS` missing either is the
     /// program's to answer — under an open list as under a closed one, which is the half that would
     /// otherwise take `Allow` away from every application the moment an origin was named.
     ///

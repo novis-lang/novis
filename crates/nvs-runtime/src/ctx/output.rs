@@ -272,7 +272,7 @@ impl Ctx {
     /// shape — neither the two keys the floor writes with no request in front
     /// of it nor the six a served one carries. Two shapes, not three, is
     /// § 6's sameness. An absent key is omitted rather than written empty,
-    /// which is `rule:observability/metrics-and-trace-blocks-are-system`'s rule
+    /// which is `rule:observability/a-log-record-carries-trace-ids-when-a-trace-is-active`'s rule
     /// for `trace_id`/`span_id` applied to the whole envelope.
     ///
     /// `request_id` is the trace id, because `rule:observability/a-trace-id-exists-for-every-request` has that be Novis's
@@ -341,8 +341,9 @@ impl Ctx {
     /// [`Self::write_log_record`]'s floor, resolved with the target above.
     ///
     /// `Debug` for an unset directive rather than `rule:config/a-mode-is-five-defaults`'s per-mode
-    /// `Info`: that default is applied to the *tree*, so a resolved
-    /// configuration already carries it here, and a context configured by
+    /// `Info`: that default belongs to the *tree* — not yet applied at boot,
+    /// which `nvs_config::mode`'s module doc carries as its open gap — so a
+    /// resolved configuration is where it will arrive, and a context configured by
     /// something other than a resolved tree has said nothing about which
     /// records it wants. The safe answer to that is all of them. A word the
     /// grammar does not carry reads the same way and never boots — `E0614`

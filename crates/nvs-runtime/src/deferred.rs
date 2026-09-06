@@ -24,7 +24,7 @@
 //! # Only the request's own task may register
 //!
 //! The queue is a field of one [`Ctx`], and a [`Ctx::child`] — a `Core\Task`
-//! child, an isolate, and the deferred closures below, which run as children
+//! child and the deferred closures below, which run as children
 //! themselves — is born **sealed**. A registration made on one would be drained
 //! by nobody and released when that child ended, so a refusal is the only
 //! honest answer: `Core\Task::afterResponse` throws the `RuntimeError` § 6's
@@ -108,8 +108,8 @@ use crate::value::Value;
 /// because they oblige a caller to do two different things.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DeferError {
-    /// The queue is sealed: this context is a child — a `Core\Task` child, an
-    /// isolate, or deferred work itself — and § 6's last bullet refuses it. The
+    /// The queue is sealed: this context is a child — a `Core\Task` child or
+    /// deferred work itself, never an isolate — and § 6's last bullet refuses it. The
     /// caller hands the work back to the request that started it; retrying
     /// cannot help.
     Sealed,

@@ -1,5 +1,5 @@
 --TEST--
-a `Core\Router::url` `$params` key that names no capture becomes a percent-encoded query string, spelled exactly as `Core\Uri::buildQuery` spells it — `rule:routing/an-absolute-link-takes-a-configured-origin`
+a `Core\Router::url` `$params` key that names no capture becomes a percent-encoded query string, spelled exactly as `Core\Uri::buildQuery` spells it — `rule:routing/a-leftover-link-key-is-a-query-string`
 --FILE--
 <?nvs
 // § 6's other half. The prepared path names every capture, so a key still in

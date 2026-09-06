@@ -51,7 +51,7 @@ try {
     echo "too large\n";
 }
 
-// A class participates in a wire format by writing so (ADR 0063 § 4): with no
+// A class participates in a wire format by writing so (`rule:core-api/written-participation`): with no
 // `#[Json\Derive]` on it, encoding an instance is refused rather than guessed
 // at, and it is a LogicError because the value was built by this program.
 // `json-derive-encodes-declared-fields` is the other side of this.

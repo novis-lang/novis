@@ -175,7 +175,7 @@ tests = [
   "post_as_hydrates_the_whole_form_into_the_shape_it_was_given",
   "post_as_with_a_name_hydrates_one_bracket_subtree",
   "query_as_reads_the_query_string_the_same_way",
-  # `rule:http-server/a-session-store-answers-four-operations`, unchanged: this is a buffering reader, and it takes the claim as one.
+  # Goal 16's body-read rule, unchanged: this is a buffering reader, and it takes the claim as one.
   "post_as_may_follow_another_buffering_reader",
   "post_as_refuses_after_a_streaming_reader_has_consumed_the_body",
   # `rule:security/tainted-qualifier`'s return, at the site that pays for it.

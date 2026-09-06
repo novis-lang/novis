@@ -52,8 +52,8 @@ pub enum FaultSite {
 /// comment defers for the same reason.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TraceKind {
-    /// A call site's entry or exit — `rule:testing/debug-probes`'s probe pair, and the only
-    /// kind anything in the tree records today.
+    /// A call site's entry or exit — `rule:testing/debug-probes`'s probe pair, and with
+    /// [`TraceKind::Query`] one of the two kinds anything in the tree records today.
     Call,
     /// A cycle-collector pause — `rule:observability/gc-pause-is-its-own-event`. The collector's run routine
     /// does not record one yet.

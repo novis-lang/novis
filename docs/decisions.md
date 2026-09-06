@@ -7,19 +7,12 @@ Every decision this project has taken, in plain language, grouped by what it is 
 in the order it was decided. Each entry says what is true now, not how it got there.
 
 The full reasoning behind any one of them -- the alternatives weighed, the costs accepted,
-the exact wording -- lives in [the decision records](adr/README.md).
+the exact wording -- lives in the frozen records under `docs/decisions/`, each reached through
+the rule it changed in [the rulebook](ground-rules.md).
 
 ## What Novis is
 
 Who the language is for, what it refuses to be, and the ground the rest stands on: how errors travel, what a running script is, what ships in the box.
-
-**Novis is built for web applications of every kind**
-
-Novis's main goal is to serve web applications — any of them, whatever they do or whatever you want
-them to do. It ships with a rich feature set built right into the core, so you don't have to go
-looking for outside packages to get your everyday work done. We looked at what modern web
-applications and businesses actually demand today, and built that in from the start. Oh, and you can
-build nice command-line-only applications too, just so you know.
 
 **Errors travel home on every call’s return value**
 
@@ -43,13 +36,42 @@ copied, never handed over as a pointer into shared memory. Limits are counted ag
 that began the whole chain, so a script cannot escape its budget by spawning more work, and a child
 never holds more permission than its parent.
 
-**Four doors stay shut, and they are the ones attackers use**
+**A fatal error climbs a four-step ladder of handlers, and is never caught**
 
-Novis will never call into C libraries directly, never treat a file path as a hidden network
-address, never let two requests share memory, and never run a piece of text as code. Each was a
-large part of what made PHP deployments breakable, and closing them is also what lets the compiler
-promise anything at all about where data goes. Work that genuinely needs one of them goes through a
-sandboxed extension instead.
+A resource limit is not an exception: `catch` never sees it, and a handler that tries is refused
+while building. The failure climbs a ladder instead: a limit handler the request registered, then
+its handler for uncaught throws, then a script the operator configures — an ordinary sandboxed
+script on a small budget the engine keeps back, so a request that has spent its own is still
+reported — and last a hardcoded line the engine writes itself. No step is retried, and every step
+writes the same log record.
+
+**Novis is for anyone building for the web, and promises no PHP compatibility**
+
+Novis is built to serve web applications of every kind. Its safety properties — injection and secret
+leaks caught while building, one sandbox per request in a single process, permissions granted rather
+than assumed — exist to catch an ordinary application's own mistakes; that they also make it safe to
+run code you did not write is a benefit, not the point. Command-line programs are a second use of
+the same runtime. The pitch is isolation and typed qualifiers, never "faster than PHP", and the
+PHP-shaped syntax is a way in, not a compatibility promise.
+
+**A web framework ships in the box, half in the runtime and half as a package**
+
+Novis ships a working web framework. Anything needing runtime privilege, cleaning untrusted data or
+waiting on the outside world — sessions, validation, the job queue, password hashing, mail transport
+— is built into the binary. Everything above that — controllers, middleware, auth flows, scaffolding
+— is `nvs/web`, a first-party package. No ORM and no service container: data access is prepared
+statements plus codecs derived from your classes, and wiring is constructor injection resolved while
+building. `nvs new` produces an application that serves a route, talks to a database and passes a
+test.
+
+**Against Python, Novis claims the tool you hand over, not the throwaway script**
+
+Python owns the quick script through its REPL, its tolerance for code that is wrong yet still runs,
+and its packages. Novis takes none of the three. Its claim is the one Python is worst at: the tool
+handed to somebody else — one file with nothing to install, argument parsing and `--help` already in
+the binary, a shell string or a logged secret stopping the build. "Faster than Python" is a phrasing
+Novis does not use; Python is measured instead. A file beginning with `#!` starts in code mode.
+There is no REPL.
 
 ## Types and values
 
@@ -71,44 +93,260 @@ setting to make either half work. Novis splits them. Text is always valid UTF-8 
 characters a reader sees; raw data is its own type and counts bytes. Turning raw data into text is
 checked, and it can fail.
 
-**An `if` accepts any value, and empty things count as false**
+**`if ($rows)` works: a condition uses PHP’s truthy table, nothing else does**
 
-You can write `if ($rows)` or `while ($line)` without spelling out a comparison, and it means what
-it means in PHP: zero, empty text, an empty list and null are false, and everything else is true.
-Conditions are the one place the language reads a value loosely on your behalf. Everywhere else,
-putting a number where a yes-or-no belongs is still an error you have to fix.
+In an `if`, `while` or `for`, a ternary, or an operand of `&&`, `||` and `!`, any value may stand
+alone and is judged as PHP judges it: `null`, `false`, `0`, `0.0`, `""` and `"0"` are false, an
+empty array is false, and everything else — every object, closure and enum case, every non-empty
+array — is true. A `bytes` value is false only when empty. Those positions are the whole list: a
+`bool` parameter, property or return, and `==` or `match`, still need an explicit `as bool` or a
+comparison.
+
+**`object` is the top of every class, and `{x: 1}` builds one without a class**
+
+`{x: 1, y: 2}` creates an ordinary object with exactly those fields, typed from the values, no
+methods, shared by reference. `object` is the type above every class, promising nothing about shape;
+a field read through it is looked up by name at run time, throwing if absent. For checked access
+without a class, a shape goes inline in a signature — `{x: int, y: int}` — and any object with at
+least those fields, of those types, satisfies it. That structural check is the one exception in a
+name-based type system.
+
+**`var $n = expr;` declares a local with the type of its initializer**
+
+`var $count = 0;` gives `$count` the type `int`, fixed for its whole life exactly as if `int` had
+been written. The type is whatever the initializer already has — honest, not clever: `var $id =
+Core\Request::query('id');` is `mixed`, because that is what the call returns. An initializer is
+required. A bare array literal is the one refused shape: `var $x = [1, 2];` stops the build and
+names `array<T> $x = [1, 2];` as the fix, because an array literal takes its type from where it
+lands rather than supplying one.
+
+**A literal or an enum case is a type, and a union of them is a closed set**
+
+`"asc"|"desc"` and `1|2|3` are types, accepted anywhere a type is written, so a parameter can spell
+out exactly which values it takes. A scalar class constant used as a type stands for its own value,
+so `Sort::ASC|Sort::DESC` means the same as the two literals it names. An enum case used as a type
+is different on purpose: `Mode::A|Mode::B` accepts only those two cases of `Mode`, never a raw
+integer equal to their backing value. Widening to the base type is free; narrowing back needs a
+check or an `as`.
+
+**decimal is a scalar type for exact money arithmetic; bcmath and gmp are gone**
+
+`decimal` sits beside `int`, `float` and `string` as a scalar: a 128-bit value with 29 significant
+digits and up to 28 decimal places. It is a scalar rather than a class because Novis has no operator
+overloading, and `$price->mul($qty)->add($shipping)` is exactly why PHP developers reach for `float`
+and accept the rounding. A literal takes `decimal` or `float` from its target type, so there is no
+suffix. Mixing `decimal` and `float` in one expression stops the build. Arbitrary-magnitude integers
+are `Core\BigInt`; beyond 29 digits is `Core\BigDecimal`, a class.
+
+**Write `as ?int` to convert without throwing, and get null when it fails**
+
+`$s as int` converts and throws if it cannot; `$s as ?int` gives the same value where that would
+succeed and null where it would throw, so a failed conversion is a value you test with an if rather
+than an exception you catch. A null operand gives null. Where a conversion cannot fail the form is
+refused as pointless, and where no conversion exists it is still a build error. The keyword never
+targets a class; text becomes a Uri through that class's own tryParse. It never removes a tainted or
+secret marking.
+
+**`==` is the only equality operator, and unrelated types cannot be compared**
+
+Novis has `==` and `!=`, and nothing else: `===` and `!==` do not parse. `==` never converts either
+side, and both sides must have types that can hold the same value — `"1" == 1` stops the build
+rather than answering true or false. Where PHP's operators disagreed, the strict answer wins: two
+strings compare as text, so `"1" == "01"` is false; objects compare by identity, and content
+comparison is a named method. An operand typed `mixed` is decided at run time, and there a mismatch
+answers false.
+
+**A class reference is a typed value, and `as` is the only way to get one**
+
+`class<Animal>` is a type whose value is a real class: `Animal` or something that extends it. The
+only way to make one is a checked conversion — `$name as class<Animal>` throws unless the text names
+such a class, and `Dog::class as class<Animal>` is settled while building. `Foo::class` alone is
+still just a string. The three places that refuse a bare string, `new $cls(...)`, `$cls::f()` and
+`instanceof $cls`, accept this value and nothing else, so no code is ever reached from an unchecked
+string. A `new` through `class<Animal>` is checked against `Animal`'s constructor.
+
+**A property name is a typed value, and `as` is the only way to get one**
+
+`property<User>` is a type whose values are the names of `User`'s public declared properties. The
+only source is a checked conversion: `$name as property<User>` throws for any other name, and
+`"email" as property<User>` is settled while building. With one in hand, `$obj->$key` is allowed
+where a computed name is otherwise refused. Reading through a key gives the union of the properties'
+declared types; writing is checked against each of them and refused outright if any is `readonly`,
+because the key might name it. The set is exactly the one reflection lists.
+
+**A callable type spells out its parameters and its return type**
+
+`callable(User, string): string` is a type: parameters in parentheses, then a mandatory return type
+after the colon. Bare `callable` still accepts anything callable, so nothing already written breaks,
+but it keeps the slower dynamic call. A closure may take fewer parameters than the type names; the
+extra arguments are dropped. Assignment follows the usual function rule. A `fn` literal takes its
+parameter types from where it is written, so `Core\Arr::map($users, fn($u) => $u->name)` knows `$u`
+is a `User` with no annotation, and the per-argument check on every call is gone.
 
 ## How code is written
 
 Spelling. What parses and what does not, which PHP forms were kept and which were rejected, naming, visibility, and the shape of a file.
 
-**Naming style is checked by the compiler, with no way to switch it off**
+**`static` marks a class member; function statics and `global` are gone**
 
-Type names start with a capital letter, methods and variables start lower case, and constants are
-upper case with underscores. Getting it wrong stops the build rather than producing a warning people
-learn to scroll past. Only the first character is checked, so both spellings of an abbreviation are
-equally fine. Nothing may begin with an underscore, which is what leaves the rule with no exceptions
-to remember.
+Static methods, static properties, `static::` and `new static()` work as they do in PHP, late
+binding included. Two other PHP uses of the word do not compile: a `static` variable inside a
+function body, and `static fn`. `global` is refused as well. Each error names the replacement: a
+static property for state that must outlive a call, a parameter for state that must cross a
+function, and nothing for `static fn`, because a closure captures `$this` only when its body uses
+it. No variable exists that the script did not declare itself.
 
-**`as` is the only way to convert a value**
+**Nothing gets a second name, except a `type` alias for a shape**
 
-PHP's old cast spelling no longer parses, so writing `(int)$x` is an error that tells you to write
-`$x as int` instead. One conversion word means one rule to learn, one thing to document, and one
-place where a failed conversion reports itself. The conversion is checked, so it complains rather
-than quietly handing back a wrong number.
+A class, interface, enum, method or constant is reachable under the name it was declared with —
+short or fully qualified — and under no other. There is no `class_alias()`, and `use Foo\Bar as
+Baz;` does not compile. What survives is a `type` alias, such as `type UserId = uint;` or `type Row
+= array<string, int|string>;`: a synonym for a type expression that the checker resolves and nothing
+at run time ever sees. An alias may not name a single bare class, which would be import renaming
+through a different door.
 
-**The opening tag is `<?nvs`, and `exit` is the only way to stop**
+**`require` is the only way to pull another file in**
 
-`<?php` no longer opens a block of code, and `die` no longer ends a script; both report an error
-naming the spelling that survived. They were exact duplicates of forms already kept, differing in
-nothing whatsoever. Since PHP source has to go through a conversion step anyway, carrying a second
-name for the same thing would cost every reader and buy nobody anything.
+`require 'header.nvs';` does what it does in PHP: it throws if the file is missing or does not
+parse, and it runs every time control reaches it, so a template partial inside a loop renders on
+each pass. `include`, `include_once` and `require_once` do not compile, and the error names
+`require` as the replacement. There is no warn-and-continue inclusion, because nothing in Novis
+fails quietly, and no once-only guard, because declarations resolve by namespace rather than by how
+many times a file was spliced in.
+
+**Identifier casing is a build error, with no way to suppress it**
+
+Types — classes, interfaces, enums and their cases, namespace segments — are `PascalCase`. Methods,
+properties, parameters and locals are `camelCase`. Class constants are `SCREAMING_SNAKE_CASE`. A
+mismatch stops the build; not a lint, with no switch to turn it off. Only the first character is
+judged, so `HTTPClient` and `HttpClient` are both fine and no acronym dictionary is needed. No name
+in any category begins with `_`. The cost is real: `snake_case` PHP does not compile until renamed,
+and one spelling per category was fixed early, since renaming later breaks every caller.
+
+**The constructor is a method named `constructor`, and nothing starts with `_`**
+
+A class's constructor is spelled `constructor`, an ordinary lowercase method name. It does
+everything `__construct` did: `new` calls it, a subclass calls `parent::constructor(...)`, and it is
+where the duty to assign every property attaches. `__construct` itself gets a dedicated error naming
+the rename, rather than a generic casing complaint. No property, parameter or local may begin with
+an underscore either, so the casing rule has no exception left to remember for any identifier.
+Converting a PHP class means one mechanical rename per constructor.
+
+**`(int)$x` does not parse; `$x as int` is the only conversion**
+
+PHP's cast family — `(int)`, `(float)`, `(string)`, `(bool)`, `(array)`, `(object)` — is rejected
+before anything runs. The parser still recognizes the shape so the error can name the exact
+replacement, `$x as int`, which throws instead of silently truncating. One conversion operator means
+one thing to learn, one thing to document and one behaviour to reason about. The cost is a
+mechanical rewrite of every legacy cast before a PHP file compiles, and Novis accepts that break for
+a single spelling with no second one to explain.
+
+**Logical and/or are spelled && and ||; the keyword forms are rejected**
+
+PHP keeps two spellings of the same connective, `$a && $b` and `$a and $b`, with different
+precedence, a well-known source of bugs in assignments. Novis keeps one. `and`, `or` and `xor` stay
+reserved words, so writing one is a build error that names the fix: `&&` or `||`. `xor` has no
+direct replacement, since there is no `^^` operator; its error suggests `$a != $b` when both sides
+are booleans, or `($a || $b) && !($a && $b)` otherwise. That is a small loss of capability rather
+than a spelling change, accepted on purpose.
+
+**A file opens with <?nvs and stops with exit; <?php and die are rejected**
+
+`<?nvs` is the only tag that opens code mode, and `exit` is the only keyword that ends the process.
+Writing `<?php` or `die` is a build error naming the form to use. Both were exact duplicates of the
+spelling kept, with no difference in behaviour at all, unlike other PHP pairs, which at least
+differed in precedence or scope. Since PHP source already goes through a conversion pass to become
+Novis, a second spelling of an identical construct buys nothing and costs a reader one more thing to
+know. `<?=` is unchanged.
+
+**Destructuring is written [$a, $b] = $pair, and list(...) is rejected**
+
+`[$a, $b] = $pair;` and `['id' => $id, 'name' => $name] = $row;` are the only way to take an array
+apart in an assignment or a `foreach`. `list($a, $b) = $pair;` does not parse, and the error names
+the bracket form. The two spellings were identical in every detail: keys, nesting, skipped slots,
+reference markers. Keeping both would have been a second spelling of something the language already
+fully covers, the same trade Novis refuses for `and`, `die`, `<?php` and `include`.
+
+**Case is decided by the compiler, never by the operating system**
+
+Names of classes, functions, constants and variables are all case-sensitive, so Foo and foo are two
+different things everywhere. Keywords are lower case and nothing else. A path in a require or an
+autoload is compared against the directory entry exactly as written, so a program that builds on
+Windows or macOS builds on Linux, or fails on all three. PHP is case-insensitive for classes and
+keywords, case-sensitive for variables, and takes the filesystem's word on file names, which is why
+a program that works on a laptop can break when deployed.
+
+**A duration is written as a literal: 30s, 500ms, 1h30m**
+
+Durations are a type rather than an integer of unstated units, and writing Duration::seconds(30) at
+every timeout, sleep, retry and cache lifetime is the pressure under which integer-seconds
+parameters grow back. So a duration is a literal: 30s, 500ms or 1h30m is one token, typed as a
+duration, and folded to a constant while building, so it costs nothing at run time. The grammar is
+Go's ParseDuration with days and weeks added, and one implementation serves the literal, the parser
+for a string that arrives at run time, and the server's configuration file.
 
 **Every class member says whether it is public, protected or private**
 
-There is no default, because there is no sensible thing to default to. Leaving the word off is an
-error, in exactly the way leaving off a type is. PHP's habit of quietly making an untagged member
-public is gone, and so is the guessing that goes with reading a class somebody else wrote.
+Every property, constant and method in a class, interface or anonymous class is written with exactly
+one of `public`, `protected` or `private`. Leaving the word off is not a shorthand for `public`; it
+stops the build, with a fix that offers `public` so ported code keeps its behaviour. An inferred
+`public` is how an internal helper becomes public API because someone forgot a word. A constructor
+parameter with no visibility stays a plain parameter — writing one is what turns it into a property.
+The asymmetric form is written in full: `public private(set) string $name;`.
+
+**The pipeline operator is a rewrite of one hole, not a call**
+
+`$subject |> Str::trim($_) |> Str::lower($_)` reads left to right. The right side of `|>` is an
+ordinary expression containing the hole `$_` exactly once, and the parser replaces the hole with the
+left side, producing exactly what the nested spelling would have; nothing later in the compiler
+knows the operator exists. This is not PHP 8.5's version, which applies a callable while the program
+runs: that design needs free functions Novis does not have. The spelling is shared; the shape is
+not. A hole written zero times or twice stops the build.
+
+**A by-reference binding is spelled `inout`, at the declaration and at the call**
+
+A parameter, `foreach` binding or destructuring slot that writes back to its source is written
+`inout` before the type — `inout int $x` — and the caller writes it again: `Adder::bump(inout $n)`.
+`&` is not a by-reference marker; using it that way stops the build with a message naming `inout`,
+and so does a missing or spurious marker at a call. The word describes what happens, a copy in and a
+copy back, so a reader can see at the call that an argument will be written. There is no `out`-only
+mode.
+
+**A `for` header may declare its own typed counter**
+
+`for (int $i = 0; $i < $n; $i++)` is the normal way to write a counted loop. The init clause is
+either one typed local declaration or a list of expressions, never both; a header that mixes them
+gets one message naming that rule rather than a cascade of errors about a semicolon. Nothing about
+scope changes — a variable declared in the header is visible for the rest of the function, as one
+declared on the line above would be — so this is purely `for` getting the type slot `foreach`
+already had.
+
+**A name containing a backslash is always read from the root**
+
+`App\Models\User` means the same thing in every file, wherever it is written. A name with no
+backslash is short, and is resolved through the file's imports and then its own namespace, nowhere
+else. There is no relative form — inside `namespace App;`, writing `Models\User` does not find
+`App\Models\User` — and importing `Core\Json` does not let you write `Json\Derive`; an import binds
+one whole name, never a prefix. A leading backslash does not parse at all, and the error names the
+spelling without it. One rule decides every name.
+
+**`catch` can guard a single expression and supply its value**
+
+`var $cfg = Core\Json::parse($raw) catch (ParseError) => [];` guards one expression and gives a
+fallback where it threw. Each arm names an error class, may bind it to a variable, and arms chain in
+order like the clauses of a try block. The arm's body is an expression, which is the whole rule:
+`throw` is one, so wrapping and rethrowing fits on one line, while `return`, `break` and `continue`
+are refused by name. The result type is the union of the guarded expression and every arm, as in
+`match`. There is no `finally`.
+
+**PHP 8.6's deprecations are build errors here, not warnings**
+
+Most of PHP 8.6 asks nothing of Novis: `clamp` and a duration type already exist, and nearly every
+deprecation names something Novis never shipped. What remains is refused while building rather than
+warned about at run time: a `return` cannot leave a `finally` block, a constructor's `return`
+carries no value, `let` and `is` are reserved words, and a `readonly` property declares no default.
+Partial function application is not adopted, because `fn` already spells it. And a session id the
+store did not issue is always rejected, with no setting to turn that off.
 
 ## Language features
 
@@ -121,75 +359,961 @@ so a case costs nothing while the program runs and carries no methods, no interf
 functions. Cases count up from zero unless you give them values. PHP's split between plain and
 backed enums is gone, and so is backing a case with text rather than a number.
 
-**There are no traits; interfaces carry the shared code instead**
+**Objects can be ordered only when their class says how**
 
-A trait bundles two unrelated jobs — sharing behaviour and sharing state — behind one copy-and-paste
-mechanism with its own conflict rules on top. Novis drops it. An interface method may carry a body,
-which covers shared behaviour, and a single line of delegation hands a whole interface to an object
-that already implements it, which covers the rest. Both are ordinary inheritance rules you already
-know.
+Writing `$a < $b` on two objects requires their class to implement the `Comparable` interface, whose
+one method `compareTo` returns negative, zero or positive, as `strcmp` does. All five ordering
+operators call that method. A class that does not implement it cannot be ordered, and the attempt
+stops the build — PHP's habit of silently walking the two objects' properties and comparing them one
+by one is gone. Both operands must be the same class; two different classes are never ordered
+against each other. Equality is a separate question and is unaffected.
 
-**Concurrency is one call that returns when everything has finished**
+**Property hooks stay; `__get`, `__set` and `__call` are gone**
 
-You hand it a group of things to do and get all their results back, each with its own type. Nothing
-is still running when the call returns: if one part fails, the others are stopped and the failure is
-passed on, and if the deadline passes, everything is stopped. There is no way to accidentally leave
-work running in the background after a request is over.
+A property may declare `get` and `set` hooks exactly as PHP 8.4 spells them. Touching a property the
+class never declared is an error, so there is nothing left for `__get` and `__set` to catch, and
+neither name means anything. A class that wants to watch all of its own properties from one place
+implements `PropertyObserver`: once a hook or plain storage has settled a value, the observer is
+told, and it can report but not change the result. `__call` and `__callStatic` have no replacement;
+calling a method that does not exist stops the build.
 
-**Tests are part of the language, not a library you install**
+**Every property is assigned by the time a constructor returns**
 
-Marking a method as a test is all it takes. The compiler collects them while it builds, so a
-duplicate or malformed test is a build error rather than a test that silently never ran. Each test
-runs in its own sandbox, so nothing one test does can leak into the next. The tricks test frameworks
-usually need are unnecessary here, because the compiler can do the same work with real types.
+Every property a class declares is assigned on every path out of every constructor, or the build
+stops at the constructor that forgot. An inline default or a promoted parameter counts, and a
+subclass discharges what it inherits by calling the parent constructor. A class with no constructor
+and a non-nullable property without a default is refused outright. There is no `undefined` value; a
+property that may hold nothing is spelled `?T`. Only an object built through reflection, which skips
+every constructor, can be read unassigned, and that read throws.
+
+**There are two copy depths, and no class can change what either means**
+
+`clone` is PHP's shallow copy: one level of the object's fields, with everything reachable through
+them still shared. The graph copy is the deep one, and it is a single operation with two uses:
+values crossing into another sandbox, and `Core\Serialize`, to and from bytes. Neither can be
+customized — there is no `__clone`, `__serialize`, `__unserialize`, `__sleep` or `__wakeup` — so no
+method runs while an object is rebuilt from data, which closes PHP's unserialize attacks. Decoding
+accepts only bytes Novis produced, and refuses a payload whose fields do not match the class.
+
+**Only a closure is `callable`, and no object can be called with `()`**
+
+A `callable` is a closure and nothing else. PHP's other spellings — the bare string `'strlen'`, the
+string `'Class::method'`, the array `[$obj, 'method']` — are refused, and the error points at
+first-class callable syntax: `Core\Str::length(...)`, `$obj->method(...)`, `self::helper(...)`.
+There is no `__invoke`; `$obj(...)` is an error whenever `$obj` is not a closure, whatever its class
+declares, so `()` means one thing everywhere. The rule holds at every `callable` position —
+parameter, property, return type, library signature — so a callee never has to interpret what it was
+handed.
+
+**There are no magic methods, and no destructors**
+
+No method changes what a class does merely by its name. `__toString` is the interface `Stringable`,
+one method `toString(): string`, required wherever an object meets a string. `__destruct` does not
+exist: cleanup is a method you call. `__debugInfo` is gone, so a debug dump shows the real
+properties and values. `__set_state` is gone; rebuilding an object from data is serialization's job.
+`unset()` on a declared property does not compile, since a property is never unset, and `isset` on
+one is a plain null check. Nothing beginning with `_` can even be declared.
+
+**`fn` is the only closure, capture is implicit, and `Closure` is not a type**
+
+`fn($x) => $x + 1` and `fn($x) => { ...; return $x; }` are the two shapes; `function (...) use (...)
+{}` does not parse. There is no `use` clause: a closure captures the outer variables its body reads,
+by value, when it is created. Two closures share state through an ordinary object, since a captured
+object is still the same object. A closure that calls itself carries a self-name: `fn factorial($n)
+=> ...`. The type is `callable`; `Closure`, `Closure::fromCallable`, `call_user_func` and
+`call_user_func_array` are gone, because `$fn(...$args)` already does their job.
+
+**`lateinit` lets a container assign a property after construction**
+
+A property marked `lateinit` is excused from the constructor-must-assign rule, for containers and
+ORMs that fill an object after `new` returns. The property stays as non-nullable as any other, and
+reading it before its first write throws a catchable error. It is allowed only on a non-nullable
+class or interface type — a scalar has a free default like `= 0`, and `?T` already means "may be
+empty" — and never with `readonly`, whose write-once promise is the opposite. The price is a second
+way a read can fail at run time.
+
+**There are no traits; interfaces carry default methods and a class can delegate**
+
+`trait`, `use Trait;` inside a class and `insteadof` do not parse. Shared behaviour goes on an
+interface: a public interface method may carry a body, inherited by every implementing class and
+overridable, and a private interface method is a helper visible only to that interface's own bodies.
+Shared state is delegation: `class Post implements Timestamped by $timestamps` forwards every method
+the interface requires to that property. If a method name reaches a class from more than one default
+or delegated source and the class does not define it, the build stops.
+
+**Attributes are constant data on a declaration, read back by shape, not by name**
+
+`#[Route(path: "/users", method: "GET")]` attaches a small object literal to a class, interface,
+method, property or parameter. `Route` is a type alias for an object shape, and the literal is
+checked against it while building like any other shape-typed value. No class is declared or
+constructed, and every field must be a constant, so the whole thing is resolved during the build.
+Reading one is `Core\Attributes::get<Route>(...)` or `::all<Route>(...)`: you ask for a shape, and
+the answer is fixed while building. Asking `get` when two literals fit is a build error.
+
+**Iteration has two interfaces plus generators, and foreach accepts nothing else**
+
+`Iterator<T>` is a cursor, `advance()` then `current()`, and `Iterable<T>` is anything that can hand
+out a fresh one. `foreach` walks an array, an `Iterable` or an `Iterator`, and nothing else; there
+is no `ArrayAccess` and no `Countable`. A function containing `yield` is a generator returning
+`Iterator<T>`, and its body is rewritten into an ordinary object that resumes where it left off, so
+a generator needs no stack. The price: `yield` may appear only in the generator's own body, never in
+a helper it calls, and a generator is one-way.
+
+**Autoloading is a declaration resolved while building, not a function that runs**
+
+An autoload declaration says which files declare which names, using literal paths relative to the
+file that holds it. There is no manifest, no directory search and nothing that runs when a class is
+first used: every name is resolved while the program is built, and a missing file stops the build. A
+file reached this way declares exactly one thing. The question an autoloader cannot answer, which
+classes exist that nothing names, is a built-in query that expands while building to every class
+implementing an interface.
+
+**One attribute derives JSON and database decoding; a failure names every field**
+
+Marking a class with a Derive attribute generates its JSON codec, or its reader from a database row,
+from the class's own declared property types, so hand-written hydration code does not exist. Every
+field must also be a constructor parameter of the same name and type, so a decode is an ordinary
+new. A parameter default makes a key optional; a nullable type makes null legal; the two are
+independent. A failed decode throws once, carrying every field that failed with its path and
+message, because a form needs the whole list.
+
+**Running things at once is one call that returns when nothing is still running**
+
+Task::all takes a literal of closures and returns their results as a literal in which each field
+keeps its own type; Task::map runs one closure over a collection. Both take an optional limit and
+deadline. Control never leaves either call with work still running: the first failure cancels its
+siblings and is rethrown, the deadline cancels everything and throws a timeout, and the call waits
+for the cancellation to finish. Cancellation runs no user code, not even a finally block.
+Task::afterResponse runs work after the response is sent; it is not a durable queue.
+
+**Testing is built into the language, and every test runs in its own sandbox**
+
+A test is an ordinary method carrying `#[Test]`, collected while compiling, so a duplicate test
+stops the build. Each test runs in its own sandbox, so nothing leaks between tests and they run in
+parallel by default. Assertions are typed: `assertEquals($count, "3")` does not compile. A double is
+a set of closures checked against an interface, with no generated class and no mocking language.
+Benchmarks count the language's own work, so numbers match on every machine, and `nvs test --mutate`
+asks whether any test would notice the code being wrong.
+
+**`::class` names the class a value actually is**
+
+`Foo::class`, `self::class` and `parent::class` name a class the compiler can resolve, so they are
+compile-time constants. `static::class` and `$obj::class` cannot be folded: given `User $u = new
+Admin()`, `$u::class` must answer `Admin`, and `static::class` in an inherited method must answer
+the subclass, so both read the name at run time from a descriptor the frame already holds.
+Converting a `class<T>` value to a string is that same read. The operand must be known to carry a
+class while building: `mixed`, a nullable type and a scalar are refused, with a pointer to what
+answers instead.
 
 ## Security and isolation
 
 The decisions that exist because the code and the data are not trusted: qualifiers on values, what a request can reach, what an extension may do, what the doors are.
 
-**Untrusted input has its own type, and cannot reach a database or a page**
+**Extensions run in a WebAssembly sandbox, never as native libraries**
 
-Anything arriving from outside — a form field, a header, a query string — is marked by the compiler
-as untrusted, and the mark spreads to everything built from it. Putting such a value into a query, a
-page, a shell command or a file path is a build error until it passes through the matching cleaning
-function. The mark exists only while compiling, so it costs nothing at all while the program runs.
+An add-on is a WebAssembly component in a single file; there is no way to load a native shared
+library or call into C. The extension never sees the server's memory: values stay on the host side
+and it reads them through checked handles, so a buggy or hostile extension spoils one request and
+nothing else. Each request gets a fresh copy, under that request's own limits and permissions. Every
+call across the boundary has a fixed price, so pieces that need raw speed, such as database drivers,
+are built into the binary instead.
 
-**Confidential values are marked too, and tracked separately**
+**Untrusted input has its own type and cannot reach a page or a query**
 
-A password, token or key can be declared confidential, and the compiler follows where it flows. It
-answers a different question from the untrusted mark — not "can I trust this" but "where is this
-allowed to go" — and one value can carry both marks at once. Like the other mark it disappears
-before the program runs, so it costs nothing while serving.
+A string or bytes from outside the program is `tainted string` or `tainted bytes`, a mark checked
+while building and gone at run time. Joining a tainted value with anything else taints the result,
+and HTML output, SQL text, process arguments, headers and file paths refuse it. A conversion that
+proves a shape, like `as int`, clears the mark; otherwise only a function named for one sink does,
+or the loud `Core\Taint::assertTrusted`. HTML is the one implicit step: `echo` escapes everything
+that is not `Markup`, and only a literal in the source becomes `Markup`.
+
+**A `secret` value cannot be printed, logged or dumped**
+
+`secret string` and `secret bytes` mark confidential values; a submitted password is `secret tainted
+string`. Nothing becomes secret on its own, only where a declaration says so, and combining a secret
+with anything makes the result secret. HTML and terminal output, log fields, serialization,
+exception messages and attribute payloads refuse it; a debug dump shows a placeholder. Database
+parameters, process arguments and outbound requests accept it, because that is where a credential
+legitimately goes. `Core\Secret::reveal` is the deliberate way out; a checked conversion like `as
+uint` also clears it, an accepted gap.
+
+**Four doors stay shut: no FFI, no stream wrappers, no shared state, no eval**
+
+Four PHP mechanisms have no Novis equivalent, and none has an opt-in, a setting or a trusted mode.
+There is no FFI and no native module, because loading native code into the process destroys the
+safety claims the runtime rests on. A path argument is always a filesystem path, so there is no
+`phar://`, no `php://filter` and no remote inclusion. Nothing is shared between requests, neither
+memory nor a process-wide setting a script can change. And there is no `eval`; dynamic code runs as
+a spawned sandboxed script with its own budget.
+
+**An extension can declare its inputs and outputs more restricted, never safer**
+
+Untrusted input keeps its marking through every extension call without the extension declaring
+anything: a result computed from a tainted argument is tainted. A manifest may declare only two
+departures, and both tighten: a parameter can refuse tainted values, and a return can be declared
+always tainted. No manifest can declare that an extension cleans a value; only a `Core` function
+whose contract names one specific destination may do that. Secrets do not cross an extension
+boundary at all. A hostile manifest can make an extension harder to call but never opens a hole.
+
+**A URL from user input cannot be fetched until it has been checked and pinned**
+
+Server-side request forgery is an injection like any other. A URL built from user input cannot reach
+the HTTP client until one named check has resolved the hostname, tested the address against a policy
+and pinned it, so the connection goes to the address that was checked, not to whatever the name
+resolves to a moment later. The policy belongs to the network permission and covers hardcoded URLs
+too: loopback, private and link-local addresses are refused by default. Redirects are off, and each
+hop is checked again.
+
+**Five security protocols are built in, and the list is closed**
+
+Signed and encrypted cookies, CSRF tokens, time-based one-time passwords, JWT signing and
+verification, and a detached signature over a payload ship in the standard library. The line is
+sharp: a stateless operation over a key is in; a multi-step flow with network traffic and stored
+state, such as OAuth, OpenID Connect or WebAuthn, belongs in a library. Each protocol is safe by
+construction: a JWT's algorithm comes from the key you hold, never from the token, so "alg: none"
+cannot be expressed. A verified signature does not make its payload trusted.
+
+**With nothing configured, HTTP is safe inbound and never waits forever outbound**
+
+A server with no HTTP configuration written at all already sends nosniff, a referrer policy and HSTS
+on https, and every cookie is Secure, HttpOnly and SameSite=Lax. Cross-origin requests stay closed
+until origins are named, and allowing every origin with credentials is refused. Outbound, the HTTP
+client has no way to spell "wait forever": a call that names no deadline inherits a finite one.
+Retry is opt-in and jittered, its deadline covers all attempts, and a POST or PATCH is not retried
+without a key that makes repeating it safe.
+
+**An unclosed text-direction control stops the build and never reaches output**
+
+Certain Unicode controls make text display in an order its bytes do not have, so a reviewer approves
+one program and the compiler builds another. Identifiers are ASCII-only, so names cannot be faked.
+Comments, string literals, inline HTML and runtime data are checked by one test: a direction control
+that opens a scope and never closes. Balanced controls, which real Arabic and Hebrew text uses, pass
+untouched. In source the unbalanced case stops the build; on the terminal and in HTML it becomes a
+visible placeholder; and logs and stack traces get the same answer.
+
+**A sink is any parameter that becomes an instruction; unclassified ones refuse**
+
+A built-in parameter is a sink when its content becomes an instruction something executes — a query,
+a template, a command line — rather than data something returns. There is no list to fall behind: a
+built-in text or bytes parameter nobody has classified refuses untrusted input, so a `printf`
+template cannot quietly accept what a query cannot. Every context has an output sink and the default
+is the terminal, so `echo` in a scheduled script or a job worker neutralizes control bytes; only an
+HTTP request attaches the HTML sink.
+
+**Input whose spelling and meaning could come apart is refused, not cleaned up**
+
+Where a name could be read two ways — an ambiguously framed HTTP message, a cookie name that only
+matches after case folding, a path component Windows would treat as a device — Novis refuses the
+input rather than normalising or truncating it into one interpretation. The list of what counts as
+ambiguous is closed and written down, so "strict" cannot grow every time someone rereads a
+specification; anything not on it is merely unusual and accepted as written. HTTP is checked in both
+directions, since a remote server is an attacker too.
+
+**A route without a written access decision does not build**
+
+Every method that declares a route must also declare who may reach it, with a second attribute
+beside the first. Leaving it off stops the build; there is no implicit "public" and no setting that
+supplies one, because a route that is open on purpose must be distinguishable from one that is open
+because its author forgot. The compiler checks only that the decision was written and that the name
+it refers to exists — never whether it was a good decision. Protection against cross-site request
+forgery is on by default for unsafe verbs.
+
+**Nothing a request can send kills or wedges a worker**
+
+Catching a panic contains a panic, but not a process abort, not a signal, and not a worker that
+stays alive without making progress — so containment covers the whole worker task, and every depth
+and duration a request can drive is bounded inside the engine. A worker never blocks on a system
+call; one that stops progressing is shed by its deadline, not killed; and admission is arithmetic
+against the memory budget. One fault class remains — a memory bug in unsafe code or a miscompile —
+and it is named, not hidden.
+
+**A package's permissions are keyed on its namespace and checked while building**
+
+A package declares which capabilities it needs — files, the network, a database — and the
+application grants them per namespace, the longest matching prefix winning and `Vendor\*` covering a
+whole tree. The namespace is the one thing an override cannot change, so replacing a single class
+never quietly inherits the application's full authority. The check runs while building and costs
+nothing while the program runs. A capability declared optional compiles ungranted and throws only if
+that code is reached, so a library can degrade instead of refusing to build.
+
+**A sandbox owns what it can reach, not a slab of memory**
+
+Entering a sandbox maps no memory and leaving one unmaps none. What the sandbox owns is everything
+reachable from its own context, and the only way a value moves in or out is a copy at the boundary.
+Tearing one down releases that whole tree and then sweeps the cycles the counts could not free,
+running each object's proper cleanup. Because both sides allocate from the same place, a value
+nothing else holds can cross by a plain handoff that costs nothing. A sandbox never shares its
+parent's static variables.
+
+**Capabilities are checked at the door to the operating system**
+
+Every built-in that touches the outside world — a file, a socket, a process — does so through one
+function in the runtime, and that function is the check. A member cannot forget to ask permission,
+because the only way to do anything at all is the thing that asks. Each question is a grant plus a
+scope, answered from the request's own settings. What each member needs is written in one table, and
+a test proves table and doors agree. A denial is an ordinary catchable error, and a member needing
+nothing pays nothing.
+
+**A PHP-stored bcrypt hash still verifies, but a new hash is always Argon2id**
+
+`Core\Password::verify` reads exactly two stored shapes: the Argon2id string that `hash` writes, and
+the bcrypt hash PHP has produced by default since 5.5 (`$2y$`, `$2a$`, `$2b$`), because that is what
+the user table of almost every migrating application holds. A bcrypt hash verifies, `needsRehash`
+answers true for every one of them, and `hash` still writes only Argon2id — so the usual
+verify-then-rehash login loop migrates the table one login at a time, with no algorithm argument
+anywhere. Anything else throws, and a bcrypt cost above 17 is refused before any work.
+
+**Escaping for HTML returns markup, so a value is never escaped twice**
+
+`Core\Html::escape` returns `Core\Html\Markup`, not a `string`. An escaped value returned as plain
+text looks like text nobody escaped, so a page that escapes automatically would escape it again and
+`&` would arrive as `&amp;amp;`. Markup is joined with `+`, refused by `.`, and placed into a page
+as it stands, so a double escape is a compile error; `sanitize` returns markup for the same reason.
+Every other cleaning function still returns a plain `string`, because you call its sink by hand.
+`Core\Html::toSource` is the one way back, and it takes a written reason.
+
+**A configured store is already authorized, and may be a Unix socket**
+
+When an operator writes a cache or database endpoint into root-owned configuration, that act is the
+authorization. A program asking for the shared cache or a rate limiter asks for the `cache.shared`
+grant with no host attached, exactly as a database connection asks by name. Because the question is
+no longer "which address", the endpoint may have none: a Unix socket is allowed, as a `unix:` URL
+where the setting is a URL and a bare path where it is a host. A socket path supplied by the program
+is refused.
+
+**A URL signs itself over the form it already compares by**
+
+`Core\Signature::sign` and `verify` sign a map of values, and two doors sit on top where people look
+for them: `$uri->sign` and `$uri->verifySignature`, plus `Core\Router`'s pair for a mount prefix.
+Most signed-URL bugs come from inventing a special form of the URL just for the signature; Novis
+invents none. A URL is signed over the normalization `compareTo` already defines, so signing and
+verifying cannot drift apart. A lifetime is always written, and `{until: null}` is the spelling for
+forever, because a permanent signed link is a permanent credential and should be typed on purpose.
 
 ## The standard library and runtime
 
 What is built in and how it behaves: the Core namespace's own conventions, the components that ship with it, and how the runtime serves a request.
 
-**There is one database interface, and every query is prepared**
+**The config file sets what a request starts with, not what it may never exceed**
 
-A single built-in replaces the four separate database extensions PHP ships. A program asks for a
-connection by name, and the credentials live in a configuration file the application itself cannot
-write. There is no way to build a query by pasting text together: every statement is prepared and
-its values are sent separately, so the most common way to be breached is simply not expressible.
+Every setting in the configuration file is one of three kinds. Some can be set only in the file,
+because changing them from inside a request would affect other requests. Most are defaults: a
+request may set any value for itself, higher or lower, up to a hard ceiling the operator writes down
+separately — so raising the memory limit for one large import works, as in PHP. A few may only be
+tightened, such as the permissions a script holds. A refused change returns false and leaves the
+value untouched; nothing is quietly clamped.
+
+**Every function and constant is a class member; built-ins live under `Core`**
+
+A `function` or `const` declared outside a class does not compile. PHP's global functions and
+constants are instead static members of classes in a reserved `Core` namespace, grouped by domain:
+`strlen($s)` becomes `Core\Str::length($s)`, and `PHP_EOL` becomes `Core\Env::EOL`. Nothing under
+`Core` is imported for you; you write `use Core\Str;` as for any other namespace. Anonymous and
+arrow functions are values, not declarations, and are unaffected. The cost falls on converted PHP
+code, where every built-in call is renamed; the gain is that no bare name is ever resolved by a
+fallback.
+
+**No superglobals: request, session and environment data are `Core` calls**
+
+No variable is ever filled in by the server behind your back. `$_SERVER` is `Core\Server`; `$_GET`,
+`$_POST`, `$_COOKIE` and `$_FILES` are `Core\Request`; `$_SESSION` is `Core\Session` after an
+explicit start; `$_ENV` is `Core\Env` and `$argv` is `Core\Cli`. `$GLOBALS` and `$_REQUEST` have no
+replacement at all. Where no web request is being handled — a command-line program, a scheduled
+script, a test, or a script spawned by another — asking `Core\Request` for input throws rather than
+returning something empty, because "no request" and "a request that sent nothing" are different
+facts.
+
+**An edited file reaches the next request without a restart or a watcher**
+
+Compiled code is cached by its content, not its path. When a request resolves a file, the runtime
+cheaply checks whether it changed, at a rate you cap, and if so compiles the new content off the
+request-serving cores and swaps one pointer. Requests already running keep their code; later ones
+get the new version. There is no file watcher, no pause of the whole server, and nothing a client
+can do to force a compile. If the edited file no longer compiles, requests that resolve it fail
+loudly rather than running the old version.
+
+**Reflection and source parsing are built in, and neither opens a back door**
+
+`Core\Reflect` reads the shape of a program — its classes, interfaces, enums, methods, properties,
+constants, attributes and parameters — and `Core\Ast` parses a string or a file into a typed syntax
+tree using the very same parser the compiler runs. Neither is an extension you install. Reflection
+follows the rules ordinary code follows: there is no `setAccessible(true)`, so a private property
+stays private however you reach for it. A parsed tree is inert data with no way back into execution,
+because `eval` does not exist; that is also why neither needs a permission grant.
+
+**Compiled code is cached on disk as immutable files, verified before they run**
+
+Compiled code is kept as one file per compiled unit, never touched again once written. A file's name
+is a hash of the source with the machine, the compiler build and the loaded extensions, so an
+artifact built for the wrong machine is not found at all. Each file carries its own header and
+checksum; a reader verifies all of it, copies it into memory it owns, and only then makes those
+pages executable. The checksum guards against corruption; a hostile neighbour is kept out by
+refusing a cache directory anyone else can write to.
+
+**Running another program takes a path and an argument list, never a shell line**
+
+There is one way to start a program: `Core\Process::run()`, which waits and captures output, and
+`Core\Process::spawn()`, which streams. Both take an executable path and an array of arguments, and
+no flag hands a string to a shell. On Windows a `.bat`, `.cmd` or `.ps1` target is refused, because
+the system can only run those through a second command-line parser that no quoting fully tames, the
+bug that has bitten both Node and Rust. Waiting on a child suspends only the calling coroutine, so
+one slow process does not stall other requests.
+
+**Six tests place each library candidate in Core, a native part or an extension**
+
+Novis does not inherit PHP's division into extensions, which reflects how the C sources were built
+in the 1990s rather than anything about the functions; it is why `ctype` is an extension and
+`str_pad` is not. Every candidate goes through six tests and lands in one of five places: `Core`,
+present in every runtime; a native component, capability-gated and removable; a sandboxed extension;
+dropped; or already answered by how Novis works. What decides the placement is the size of the
+public surface and the set of unsandboxed native dependencies, never binary size.
+
+**Regular expressions run in linear time unless a pattern needs backtracking**
+
+`Core\Regex` runs on an engine that cannot be made to blow up: matching time grows linearly with the
+input. Patterns that need lookaround or backreferences run on a second, backtracking engine under a
+step budget, and exhausting the budget throws. PHP's equivalent limit makes `preg_match` return
+`false`, a value almost nobody checks, so its denial-of-service guard becomes a wrong answer. When
+the pattern is a literal, which engine it needs is known while building, so `nvs check` can report a
+backtracking pattern on a request path.
+
+**A literal regex, URI or format string is checked while building, not when run**
+
+A short, closed list of `Core` methods take an argument that is really a small program: a regex, a
+URI, a date format, a format string. When that argument is a constant, the compiler validates it
+while building and prepares whatever the call would otherwise have built on first use. A malformed
+literal becomes a build error instead of an exception on the first request to reach that line. The
+prepared path and the ordinary run-time path share one implementation, so preparation can only give
+the same answer earlier, never a different one.
+
+**A cache belongs to one core; anything that needs agreement uses a real store**
+
+Nothing survives from one request to the next inside a process, so there is no shared memory segment
+of the kind APCu offers. Instead each processor core keeps a cache for itself, with no coordination
+between cores, and it must always be correct to find nothing there. Values are copied in and out, so
+a cached value cannot point into memory a finished request has released. Its memory is capped.
+Sessions, locks, rate limits and counters use the shared tier, a store reached over the network.
+
+**Every built-in has the same shape: subject first, options last, failure throws**
+
+The standard library is written to twenty rules fixed before any of it was written. The thing being
+operated on is always the first argument. Optional arguments are one trailing literal of named
+fields, never flags or bitmasks. Nothing modifies its argument in place and nothing takes a
+reference. Failure throws, absence is a nullable return, and false is never an answer. No operation
+is reachable two ways: no procedural twin of a class, no mutable and immutable pair, no methods on
+plain strings or arrays. Roughly 1,900 PHP functions become about 450 members.
+
+**One database API: connections are named, every statement is prepared**
+
+One API replaces PDO, mysqli, pgsql and sqlite3. A program opens a connection by name, and the
+credentials live in the server's root-owned configuration behind a permission that is off by
+default. Every statement is prepared and parameterised: there is no quote function, no separate
+prepare step and no multi-statement form. A row is read with typed readers or into a declared class.
+A transaction is a closure, nesting as a savepoint. Every failure is one error carrying a normalised
+kind, so "duplicate key" is a match on a name, not on a vendor's message.
+
+**Combining two arrays does one thing to every key, whatever the key looks like**
+
+array_merge renumbers integer keys and overwrites string keys, and `$a + $b` does a third thing
+under a spelling that looks like arithmetic. Novis arrays have no integer keys, so copying either
+rule would mean inspecting the text of a key to choose a behaviour. Instead there are three
+operations, each treating every key alike: overlay, where the right side wins; underlay, where the
+left side wins; and appendAll, which drops the keys and appends the values. There is no member
+called merge, and adding two arrays is a build error that names underlay.
+
+**Rate limiting covers what only the application knows; the weak tier is named**
+
+A proxy in front of the server already limits per address and per path, so Novis does not. What no
+proxy can do is limit on something only the application knows: five failed logins per account, ten
+exports per user per hour. Two members do two jobs. consume goes to the shared store, agrees across
+cores and machines, and enforces a policy. shed counts on one core, is approximate, and protects the
+host. Both return a decision carrying the exact Retry-After a 429 needs. An unreachable store throws
+rather than quietly allowing.
+
+**Metrics and traces come out of the box, and a label cannot hold user input**
+
+Request duration, database query time and garbage-collection pauses are measured by the runtime and
+exported without a line of code. Traces come from the same measurements, and an incoming trace
+header is continued on outbound HTTP calls. Your numbers go through three calls: `increment`,
+`observe` and `gauge`. A label value refuses untrusted input while building, so user text can never
+explode the number of series. At the cap a new series is dropped rather than an old one evicted,
+because a counter that appears to reset corrupts every rate over it.
+
+**Routes are declared on the method, checked while building, and only matched**
+
+A route is an attribute on the method that handles it, and the compiler bakes every one into a table
+in the program. Two routes with the same shape, a placeholder with no matching parameter, and a link
+to a route that does not exist all stop the build. A placeholder takes its type from the method's
+parameter: `{id}` on `show(uint $id)` is converted during matching, so a non-numeric segment simply
+does not match, while a text parameter arrives marked untrusted. The router matches and reverses
+URLs and nothing more.
+
+**A WebSocket connection is its own sandbox, written as an ordinary loop**
+
+A connection that outlives its request runs as its own sandbox with its own memory, CPU and time
+budget, sharing only compiled code. You open one the way you run another script — by naming a file
+or a static method, never a closure. Inside, the code is a plain loop, `while (var $msg =
+$conn->receive()) { ... }`, with no callbacks, because any function may wait. Connections meet only
+through `Core\Topic`, a publish/subscribe bus reaching every core; a subscriber that falls behind is
+closed so it cannot stall the publisher.
+
+**A background job is a database row that commits with your transaction**
+
+The job queue is a table in a database you already talk to. Pushing a job inside a transaction
+commits with it, so the order and the email confirming it are saved together or not at all. A job
+names a script file and runs as its own sandbox with its own budget and permissions. Delivery is
+at-least-once: bounded attempts, backoff with jitter, and a dead-letter row never silently
+discarded. One locking query claims a job, so a fleet of servers needs no coordination. A payload
+refuses secrets, because a durable row is an output.
+
+**Terminal output is guarded, styling is a value, and commands are compiled**
+
+Anything written to the terminal has every escape and control byte rendered visibly instead of acted
+on, so untrusted text cannot drive the terminal as it has `git`, `less` and `kubectl`. Styling is a
+value type, `Cli\Text`, the one thing that writes raw. Prompts — `ask`, `confirm`, `select`,
+`secret` — are built in, and a password read at a prompt is a secret that cannot be echoed or
+logged. `#[Command]` methods form a table built while compiling, with `--help` and shell completions
+generated.
+
+**Logs, dumps and exceptions share one record, drawn to fit the output in force**
+
+Where PHP has `var_dump`, `print_r`, `var_export` and `json_encode`, Novis has one record model and
+three renderings — plain text, JSON and HTML — and the output in force picks the rendering, never
+the call. Logs, dumps, exceptions, test results and compiler diagnostics all produce the same
+record, so redacting secrets, neutralizing control bytes and trimming depth are each decided once. A
+web request's dump goes to the log, and appears in the page only under development mode, so a
+forgotten dump cannot reach a production response.
+
+**The built-in server has two jobs, and a URL never turns into a file path**
+
+Novis ships one HTTP server with exactly two deployments: a development server that serves static
+files beside your scripts, and a production origin behind a reverse proxy. Everything a proxy does
+better — TLS, HTTP/2, compression, rate limiting — is left out. The governing rule is that a
+filesystem path is never derived from a URL while a request is being served. Instead the URL selects
+a mount from a table expanded against the disk at boot, so a fleet of applications costs one
+wildcard line of configuration.
+
+**A request is matched to its route once, before any of your code runs**
+
+The server matches an incoming request against the route table exactly once, before the handler, and
+the result travels on the request, where `Core\Request::route()` returns it. The CSRF check, the
+metrics label and the access decision all read that one answer. Around it, the table gained what an
+application misses early: a wrong verb answers 405 rather than 404, a query parameter is declared
+like a path capture, a trailing segment may be optional, a capture can narrow to a closed set of
+typed values but never a regex, and links can be built absolute.
+
+**An uploaded file is a stream, and there is one way to receive it**
+
+`Core\Request::files()` yields uploaded parts lazily, one at a time as they arrive, and it is the
+only way to receive an uploaded file; there is no array of finished uploads. A part is consumed in
+one of three ways: read whole, bounded by the request body cap; iterated as chunks of bytes; or
+written straight to disk. Peak memory for an upload of any size is one chunk per in-flight request.
+`request_body` bounds what is parsed into memory and `upload_total` bounds a streamed multipart
+body. There is no temporary file.
+
+**One method serving several verbs on one path shares a single route name**
+
+A route attribute is repeatable, which is how one method answers several HTTP verbs. Those repeated
+attributes may share a `name` as long as they share a `path`; one path per name keeps link building
+a plain function. Every other duplicate name — across two methods, or on one method whose paths
+differ — still stops the build. Link building, the metrics label and the generated API document all
+see one endpoint. There is no wildcard verb, because the `Allow:` header and the CSRF rule both need
+the exact set.
+
+**Every built-in carries its own reference card, next to its code**
+
+Each implemented member of the standard library declares its short description, its parameters, its
+return value and the errors it throws in the same registry the runtime dispatches from, so the
+documentation provably matches what ships. An enum carries one line per case, a constant one
+sentence, and a member without a card fails the tests. `nvs meta --json` prints the whole registry,
+and the reference pages are built from that alone. For a member not yet implemented the design
+document is all there is; where both speak, the registry wins field by field.
+
+**Images are processed by a chained plan that crosses into the sandbox once**
+
+`Novis\Image::open($bytes)->resize({fit: Fit::Cover, width: 800, height: 600})->encode()` is the
+whole shape. Opening reads only the header; each operation is added to a plan; encoding hands input
+and plan to the sandboxed component in one call and gets bytes back. There is one pixel model, one
+member per job, and none of gd's palette modes, flags or drawing primitives. Decoding applies
+orientation and converts colour profiles; encoding strips metadata unless asked not to, so GPS in a
+re-encoded upload is not your bug. A pixel cap, read from the header, refuses a bomb before any
+buffer exists.
+
+**HTML becomes PDF inside a sandbox that cannot fetch anything**
+
+One component turns HTML, a documented CSS subset and inline SVG into PDF. It has no I/O at all:
+every image, stylesheet and font is bytes the program hands in, and a reference nothing was handed
+for throws instead of rendering a gap. That makes the classic exploit — the renderer fetched what
+the HTML named — impossible rather than audited away. A document built top-down goes through a
+builder that emits the same HTML; there is no second engine. Unsupported CSS is dropped and
+reported. The output carries no scripts and no timestamps.
+
+**HTML is parsed the way browsers parse it, into the same tree XML uses**
+
+`Core\Html` parses HTML with the algorithm browsers run, so a document is read exactly as a browser
+reads it and parsing never fails: recovery from broken markup is the specified behaviour every
+browser agrees on, not a guess. It produces the same node tree the XML API builds, so there is one
+family of nodes with two front doors. It is never a mode of the XML parser, because that one refuses
+malformed input on purpose. PHP's `DOMDocument::loadHTML` parsed unlike any browser, which is the
+root of a whole class of sanitizer bypasses.
+
+**Spreadsheet files cross the sandbox as bytes, and nothing in them runs**
+
+A workbook goes in as bytes and comes out as bytes. Reading executes nothing: a formula comes back
+as text plus the result the file cached, macros are inert payload, and an external reference is
+data, never a fetch. Writing closes the injection class by type — only an explicit `Formula` value
+becomes a formula cell, so untrusted text beginning with `=` is a text cell by construction — and
+macros are never written; a filled `.xlsm` template comes out as `.xlsx`. Output has no timestamps
+and is reproducible byte for byte. Not yet scheduled.
+
+**A script's end is observable, except when it is fatal or cancelled**
+
+`Core\Script::onExit(callable $hook)` registers code that runs in order, once, as the last user code
+of the script — after a normal finish, after `exit`, and after an uncaught throw — each hook
+receiving a read-only report saying which ending it was. Hooks observe an ending and never steer
+one: the reason and the exit status are fixed before the first hook runs. A fatal error and a
+cancellation run none of them. This is PHP's `register_shutdown_function` for every ending that is
+not a fatal.
+
+**A PDF page is an image you can open, not a program you run**
+
+`Image::open($bytes, {page: 3, dpi: 150})` rasterises one page of a PDF into the ordinary image
+pipeline, and `Image::info($bytes)->frames` reports the page count without allocating a pixel. The
+interpreter is pure Rust and runs inside the sandbox — replacing PHP's usual ImageMagick-to-
+Ghostscript route, an unsandboxed interpreter with an exploit history long enough that ImageMagick
+ships with PDF disabled. The page's size at the requested dpi is checked against the pixel cap
+before any buffer exists. An encrypted file, a page out of range or an object the engine cannot
+decode throws rather than rendering approximately.
+
+**A temporary directory is deleted when its script ends, without you asking**
+
+`Core\IO::temporaryDir` hands out a directory under a root Novis owns, and the runtime deletes it
+when the script ends. That sweep never throws: a directory the program already removed is fine, and
+one the operating system refuses to delete becomes a log line retried next time. At server start and
+under `nvs tmp clean`, leftovers of dead processes are removed too, judged by whether the owner is
+alive and never by age. A debug setting keeps everything and logs each kept path. There is no
+temporary file: something that must outlive its script is storage.
+
+**A built-in member can take a fixed set of keys, with variants checked early**
+
+Some `Core` members take a literal with a fixed set of keys, database settings for instance, and
+which keys are allowed can depend on one of them. The variants are declared so that no two accept
+the same literal, so the one you meant follows from what you wrote: a `driver` of SQLite is a
+different variant from PostgreSQL, and a `host` key on the SQLite one stops the build. A field is
+required unless it declares a default. Under the hood the literal is passed exactly as an options
+bag is.
+
+**A session is a record its store issued, never kept on the local machine**
+
+A session is one record in a store that can answer whether it issued a given id, and an id the store
+never issued is rejected. The store is the shared cache tier or the database. The local tier is not
+allowed, and configuring it refuses at boot, because a session on one machine's disk stops being a
+session once a second machine serves the site. The record is loaded once when the session starts,
+written back whole when it changes, and expired by the store itself. No lock is held across a
+request.
+
+**A database schema is a value, and Novis converges the server to it**
+
+A schema is a value, not a folder of migration scripts. Typed builders, an array form and a live
+server's catalog are three spellings of the same thing. A plan is the difference between that value
+and what a connection holds: no version numbers, no history table, no up and down. The vocabulary is
+closed to what all five databases share, with no raw SQL escape hatch. Every step is graded `Safe`,
+`Locking` or `Destructive`. A table the value lacks is reported, never dropped. Planning is a read;
+applying needs the `db.schema` grant.
+
+**An options bag tells an omitted key from a written `null`, and `null` removes**
+
+An optional field of an options bag may be nullable, and leaving it out is not the same as writing
+`null`. `$uri->with({})` leaves every component alone; `$uri->with({fragment: null})` removes the
+fragment. Wherever a `Core` member accepts a written `null`, in a bag or as an ordinary argument, it
+means remove and never some second operation the member invented. Fields that are not nullable
+behave as before. `Core\Uri` also has `queryParameter` and `withQueryParameter`, which edit one
+query parameter by name, something `with` cannot do because a parameter's name is chosen at run
+time.
 
 ## Tools, editors and shipping
 
 Everything around the language: the command-line tool, the editor experience, formatting, packaging, deployment, and what the tools may and may not do for you.
 
-**One formatting style, built in, with nothing to configure**
+**One language server, with thin VS Code and PhpStorm clients around it**
 
-The formatter rewrites a file into a single layout, and running it twice produces byte-identical
-output. There are no options, so no team ever spends an afternoon arguing about them. The style
-follows the current PHP community standard everywhere the two languages look alike, and adds
-explicit rules for the parts PHP never had. It runs when you ask for it, never behind your back.
+Completion, hover, diagnostics, rename, go-to-definition and formatting are each implemented once,
+in the language server and formatter that ship with the toolchain. An editor client only starts
+them, forwards its editor's events and shows what comes back; it decides nothing about the language.
+VS Code is the reference client. The PhpStorm plugin bridges to the same server rather than
+rebuilding the smarts in JetBrains' own framework, so PhpStorm's native formatter settings and
+debugger window do not apply to Novis files; a full native plugin is a later decision if usage earns
+it.
+
+**Coverage, tracing and profiling are built in and can start mid-request**
+
+Code coverage, call tracing and a per-call profiler ship in the runtime, switched on with one
+setting or one `Core\Debug` call, and exported as Clover, lcov and Callgrind so the tools PHP
+developers already use read the output unchanged. Every compiled program carries a tiny check at
+each statement and each call, so turning a probe on for a running request is just flipping a flag —
+which lets a test harness start coverage around one test inside a long-lived process. In production
+the setting is a ceiling a request can never widen.
+
+**`nvs fmt` has one style, no configuration, and never runs unless asked**
+
+`nvs fmt` rewrites a file into one layout. The style is PER wherever Novis matches PHP, plus a fixed
+layout for each construct PER never saw. It never reflows: whether a call or array spans one line or
+many is your choice, and only the indentation, spacing and braces around it are normalized; there is
+no line-length rule. There is no config file and no flag that changes output. No compiler command
+runs it; an unformatted file is not even a warning. `nvs fmt --check` reports what would change
+without touching disk.
+
+**VS Code is the reference editor, and the parser is built for a half-typed file**
+
+A language server gives diagnostics, hover, go-to-definition and completion, and the VS Code
+extension is the client it is built against, available from the point the command-line language
+becomes usable. Deeper features each wait on the part of the language they depend on. Underneath,
+the parser never gives up on a broken file: an unclosed brace or a half-typed `$user->` still
+produces a tree with the invented parts marked, so completion keeps working around the error. The
+price is that every analysis reparses the whole document.
+
+**A trace shows garbage-collection pauses and sandbox spawns on one timeline**
+
+When tracing is on, every recorded event says what kind it is: a call, a garbage-collection pause,
+the start or join of a spawned sandbox, or a database statement. The run exports in the format
+speedscope reads, so all four kinds scroll past on one timeline in an existing viewer. A
+stop-the-world collection shows up as its own pause instead of being charged to whatever function
+was running. The bookkeeping lives in routines that are already rare and slow, and costs nothing
+when tracing is off.
+
+**A command-line program can ship as one executable with its source appended**
+
+`nvs build --compile entry.nvs -o app` produces a single file: the Novis runtime with the program's
+source tree appended after it and a small footer. At startup the runtime checks its own file for
+that footer and, if present, resolves `require` from the embedded tree instead of the disk. The
+executable never rewrites itself; to update the program, the author runs the same build again. This
+is for command-line programs only. It ships source rather than machine code, trading some startup
+time for one file that runs on any supported machine.
+
+**Server configuration is one TOML file, nvs.toml**
+
+The server reads its configuration from a TOML file named nvs.toml, at boot and again on reload.
+TOML has a specification and real types, so a setting that is a boolean, a list or a repeated record
+is written as one rather than as a string somebody has to parse. A key that appears twice is an
+error, and so is a key the server does not know, which catches a typo where INI would silently
+ignore it. The file is not a project manifest. ini_set and ini_get become Core\Config::set and
+Core\Config::get.
+
+**Third-party licence notices are generated, committed and built into the binary**
+
+Novis is MIT-licensed and links around eighty permissive components, every one of which asks that
+its notice travel with the binary. The notice file is generated from the resolved dependency graph,
+never written by hand, committed to the repository, and compiled into the nvs executable, so a copy
+handed to someone without the source still carries it. Continuous integration regenerates the file
+and fails the build if it differs, so a dependency added without its notice never ships. nvs info
+prints the build and component summary; nvs info --licenses prints every licence text in full.
+
+**Scheduled jobs are declared in nvs.toml and run as ordinary scripts**
+
+A schedule entry in the server's configuration names a five-field cron expression and a script,
+which runs in a fresh sandbox when the time comes. There is no scheduling API and nothing a program
+can register at run time. One key is mandatory with no default: scope, either "fleet", once across
+the deployment with the shared store as the lock, or "host", once on every machine. Fleet scope
+without a shared store refuses to boot. A missed fire is not caught up, and fleet scope means at
+most once, not exactly once.
+
+**Server config reloads over a local socket, and a request never sees it change**
+
+The parsed configuration is one read-only snapshot; a request copies it when it starts and is
+unaffected by anything afterwards. `nvs ctl reload` re-reads `nvs.toml` through a local socket only
+— no network port, token or TLS, because the socket's owner and permissions are the authentication.
+The whole file is validated before anything is published, and a broken file leaves the running
+snapshot untouched. Every setting says whether it applies on reload or only at boot, and a reload
+names the boot-only settings it could not apply.
+
+**A package is its hash, the highest minimum wins, and nothing runs on install**
+
+A package is identified by the hash of its contents; a name is only a way to find one. A published
+package may depend only on registry packages, so no git URL reaches you through a dependency. Each
+dependency names a minimum and the build takes the highest minimum anyone asked for: no solver, no
+unsolvable graph. No install script ever runs before your program does. Each package declares the
+permissions it wants, you grant them one line per package, and a call needing an ungranted one stops
+the build.
+
+**The API document is generated while building and cannot drift from the code**
+
+The compiler already knows every route and already derives a serialization codec from each class's
+declared properties. An OpenAPI 3.1 document is those two facts written out, produced by `nvs build
+--openapi` and never maintained by hand, so it cannot disagree with the code. What the types cannot
+say — a summary, an error response, a security scheme — comes from an `#[Api]` attribute and the doc
+comment, and an `#[Api]` that contradicts the code stops the build. `nvs api diff` fails the build
+on a breaking change.
+
+**PHP conversion is one rule table with two modes, and every line is graded**
+
+`nvs convert` translates PHP with one table of graded rules: proven to behave identically,
+mechanically translatable but possibly different, or no mechanical translation at all. The default
+mode emits only proven rules and comments out everything else with the idiomatic Novis replacement
+beside it — a worklist that will not run. The runnable mode also emits the possibly-different rules,
+each marked with a `TODO` naming how it may differ. A rule is "proven" only when a test against real
+PHP backs it, so the correctness number is measured, never asserted.
+
+**Two run modes, production by default, and a mode is only a list of defaults**
+
+A server runs in `development` or `production`, nothing else, and with nothing configured it runs in
+production. A mode is shorthand for the defaults of eight named settings — logging, error detail,
+debug output, static files, code revalidation — and hides no other behaviour; every setting stays
+individually settable. The mode is set in the root-owned `nvs.toml` or by `nvs serve --mode=`, never
+by an environment variable. A program may flip the request-level settings for its own request, under
+a ceiling that defaults to the mode the server started in.
+
+**A service install stores one command line, and the installer fails closed**
+
+Installing Novis as a service registers the binary with the platform's service manager and stores
+the command line after `--` verbatim, so any option the binary accepts is available to a service.
+Because a privileged account runs that line at every boot, the installer refuses anything doubtful:
+only serving and running may be hosted, no relative paths, no install whose output goes nowhere, no
+password on a command line. On Windows the service runs under a per-service virtual account; on
+Linux the tool prints a hardened systemd unit and writing it is an explicit opt-in.
+
+**One grammar serves editor and compiler, and an editor answer is a frozen test**
+
+The editor's language server has no second, error-tolerant parser. The one grammar already yields a
+tree for any input, however broken; the editor mode adds only the comments and whitespace the
+compiler discards, so a file can be rebuilt byte for byte, plus an index that answers what sits
+under the cursor. `nvs check` and `nvs run` are that same parse followed by refusing if anything was
+reported. An editor answer is frozen the way program output is: a case file holds a document with a
+cursor marker, a request and the expected response.
+
+**In the editor a secret is blurred by default; a tainted value is not marked**
+
+A literal or interpolated value whose type carries `secret` is blurred in place in the editor, so a
+screen share does not see it. The language server computes the ranges; the editor only draws them.
+Only the value is concealed, never the variable name that binds it. Revealing is explicit, per
+range, and does not survive closing the editor. Tainted values get no decoration by default: a
+tainted value on a screen is not a security event, a credential on a stream is. The bytes still stay
+in the file.
+
+**Configuration is a tree of TOML files, and file ownership decides trust**
+
+Configuration is a tree of TOML files. A root is named on the command line or found as `nvs.toml`,
+and it pulls in more files with `[[include]]`, by path or by directory. Resolution is one ordered
+stream — each file's own keys, then its includes, depth first — and later wins, so an included file
+overrides the one that included it. Every file is trusted as far as its ownership: a file writable
+by any account but its owner refuses to boot. A secret arrives as a file whose whole content is the
+value.
+
+**An application is its entry file, and per-app settings are keyed on that path**
+
+An application is the path of the file that starts it, so a command-line run has an identity just as
+a served request does. A per-application block, `[[app]]`, names either a `root` directory covering
+every entry file beneath it or a single `entry` file, resolved to its real location first so no `..`
+segment and no symlink inherits another application's rights. Every matching block applies, least
+specific first. A block may widen as well as narrow — raising a limit up to the global hard ceiling,
+or granting a capability the global settings withhold.
+
+**The editor completes only what the compiler already knows**
+
+Find references, highlight occurrences, code lenses above a declaration, the type hierarchy and the
+dimming of unused private members are all queries against one reference index the language server
+builds. Completion of values the program itself defines — a route name, a configuration directive —
+is offered only where the compiler already derives that value for its own reasons, never from
+scanning a directory layout or a naming convention; that keeps framework guesswork out of the
+server. The HTML half of a file gets the editor's own HTML and CSS services but no second formatter.
+
+**Typing a PHP function name in the editor offers its Novis replacement**
+
+Someone arriving from PHP types the name they already know, and the editor answers with the Novis
+one. The candidates come from the complete inventory of PHP built-ins, so every PHP name appears
+from the first day: a missing name would read as "Novis cannot do this", while one marked not yet
+classified reads as an audited gap with an answer owed. An item inserts only a library member that
+exists in the current build, so a promised but unbuilt destination is shown and inert.
+
+**The editor can narrow `array<mixed>` to the type a literal actually holds**
+
+Writing `array<array<array<float>>>` by hand is tedious, so a nested literal often gets annotated
+`array<mixed>` and loses type checking for good. The editor offers a fix: on an array literal right
+there in the source, it works out the narrowest type covering every element and proposes the
+spelling you could have typed. It answers only from the literal itself, declines when the value
+comes from input or would still be `mixed`, and always presents a diff to approve, never a silent
+change on save. The compiler never uses this; the language is unchanged.
+
+**Telemetry is off by default, and a process serving traffic never uploads**
+
+Two switches, both off until the operator turns them on: usage telemetry and the update check. Each
+`nvs` command then adds one to a local counter for the subcommand that ran, never its arguments and
+never anything about the requests a server handled. At most once a week the previous week's totals
+ride along with a short command, commonly the update check. A serving process only counts; it never
+uploads. An upload cannot fail the command carrying it, and `nvs telemetry show` prints what would
+be sent.
+
+**A doc comment is `///`, and its only tags are `@see` and `@example`**
+
+A documentation comment starts with `///`; four slashes or more is an ordinary comment. Inside is
+Markdown prose plus exactly two tags, `@see` naming a member and `@example` naming a file, and any
+other `@tag` stops the build. There is deliberately no `@param`, `@return`, `@throws` or `@var`: the
+signature already says the first two. The reference, the website and `nvs doc` all render the one
+JSON `nvs meta --json` emits. Nothing requires a doc comment by default: `nvs check --strict-docs`
+reports a public member without one, and publishing a package turns that on.
 
 ## Engineering decisions
 
 Decisions about how Novis itself is built and measured. Real decisions, kept for the record, but a reader learning the language can skip the group entirely.
 
-**Speed is tracked by counting work done, not by timing a stopwatch**
+**Performance history is an instruction count, not a stopwatch**
 
-Comparing performance across releases needs numbers that mean the same thing on every machine, so
-the historical record counts instructions executed rather than seconds elapsed. Timing is still
-used, but only for the narrower job of catching a change that made something suddenly slower on the
-very same machine.
+Two measurements exist, never mixed. Per-change guards compare one run against itself on whatever
+machine built it — a deep call chain against a shallow one, a throw against a return — and ask only
+whether a commit regressed. The history is separate: on every merge, one dedicated Linux machine
+runs a fixed workload under callgrind and appends the total instructions retired to a file in the
+repository. That number reproduces bit-for-bit across CPUs and years; a timer never does. Wall-clock
+time and the ratio against PHP sit beside it as context only.
+
+**Dependencies stay current, and a break they force is absorbed, not passed on**
+
+Being behind on a dependency is a defect with a date on it, because the alternative is one enormous
+forced migration under a security deadline. Before the first numbered release, anything is updated
+at any time. From then on a version contract applies: a change that only breaks Novis's insides is
+adapted around and shipped in a patch, while one that would change something a program author can
+see goes through a ladder of ways to absorb it first. The update sweep is started by a person, never
+by an agent.
+
+**The runtime waits for readiness, and a task that would block parks itself**
+
+On every platform the operating system tells the runtime when a socket is ready, and the runtime
+does the read or write itself. A task tries the operation first and parks only when it would block;
+when woken it tries again, treating the wake as a hint rather than a promise, so a warm socket pays
+nothing extra. A task's stack reserves a megabyte of address space but only the pages it touches
+cost real memory; stacks are pooled per worker and charged to the request, so memory tracks work in
+flight, not traffic served.
+
+**Five database drivers share one network stream and one connection model**
+
+PostgreSQL, MySQL, MariaDB, SQLite and SQL Server each get a driver that speaks its protocol itself
+over the runtime's own network stream, so no driver brings an async runtime of its own, and all
+share the one TLS client. Whether a connection is busy is tracked on the connection, not the stream.
+A connection whose wire is not at a clean message boundary is closed rather than reset, because a
+reset written into the middle of another message proves nothing. The drivers are a fixed set with
+one branch per operation, not a plug-in interface.
+
+**A feature is finished when it has tests, examples, a cost and a hostile case**
+
+A shipped feature owes four things: tests in Novis and in Rust that pin its behaviour; three short
+examples showing what it is for; one benchmark giving it a measured cost against Novis's own
+history, never PHP; and one program written to break it, which passes when the runtime is still
+standing. The list of features is derived from the binary's own metadata, never kept by hand, so a
+new feature owes its proofs on the next sweep and a deleted one stops owing them. A failing proof is
+fixed or recorded, never weakened.
+
+**A connection is one future, polled by the coroutine that accepted it**
+
+Inside the server each connection is a single future, and the coroutine that accepted it drives it
+in a loop: clear the flag, poll, park. A waker is not a scheduler; it is permission for one more
+poll, delivered to the parked task on its own core and issued again only after it fires. Nothing is
+spawned, nothing is queued, and a wake from another core wakes the task without moving it, so this
+is not a second scheduler. A cancellation ends the loop, and off a core driving a future blocks the
+thread.
+
+**A push runs the checks its diff can break; the nightly runs everything**
+
+Continuous integration has three lanes in one workflow. Every push runs the document checks, which
+cost seconds. Build, test, conformance and lint run on all three platforms whenever any code
+changes; the memory checker, dependency licensing and the reference check run only when a diff can
+affect them. Every night and at every release all of it runs, plus Miri, the fuzzers and the unsafe
+audit. No lane is ever narrowed by platform. The trade: a bug only Miri or a fuzzer sees is found
+within a day, not ten minutes.

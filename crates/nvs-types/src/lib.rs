@@ -425,7 +425,7 @@ pub(crate) struct Env<'a> {
     /// *between* declarations, and `rule:programs/implementing`'s scan is what puts the two
     /// colliding files in the same program.
     pub commands: &'a mut crate::commands::CommandTable,
-    /// `rule:routing/matching-is-not-dispatching`'s `Core\Router::url`/`urlAbsolute` sites, as the walk
+    /// `rule:routing/link-name-and-params-are-checked`'s `Core\Router::url`/`urlAbsolute` sites, as the walk
     /// reaches them and before any of them has been looked up.
     ///
     /// Beside [`Self::routes`] and threaded the same way for a stronger form of

@@ -63,11 +63,10 @@ findings, all of them false, and left this gate red in CI's `docs` job for as lo
 existed — while the links they are generated *from* are checked here in their source form, which is
 the spelling a human actually edits.
 
-That mirror is stale. Its sync script, `website/scripts/sync-adrs.mjs`, reads `docs/adr/NNNN-slug.md`,
-and the records have lived at `docs/decisions/NNNN.md` since the docs migration's unit C1 froze them,
-so the mirror on disk is the last sync before the move. Re-pointing the script is not this tool's
-job -- it is a website change with its own owner -- and the skip here is unaffected either way: the
-mirror's pages carry the marker whatever they were generated from.
+Its sync script, `website/scripts/sync-adrs.mjs`, reads the frozen records at `docs/decisions/NNNN.md`
+(the docs migration's unit C8 re-pointed it from `docs/adr/`), so the mirror on disk is whatever the
+last `npm run sync:adrs` produced. The skip here is unaffected either way: the mirror's pages carry
+the marker whatever they were generated from.
 """
 
 from __future__ import annotations

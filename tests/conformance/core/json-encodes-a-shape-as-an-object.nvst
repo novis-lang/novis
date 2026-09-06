@@ -33,7 +33,7 @@ echo Json::encode({n: 1}, {pretty: true}), "\n";
 // The refusal is unchanged for everything that *does* have a declaration: a
 // shape does not lend its structural encoding to a class one of its fields
 // holds. `rule:core-classes/derive-generates-what-is-missing` is an exception for the thing with no class to annotate,
-// not a hole in ADR 0063 § 4's written participation.
+// not a hole in `rule:core-api/written-participation`.
 class Impostor {
     public int $n;
     public function constructor(int $n) {

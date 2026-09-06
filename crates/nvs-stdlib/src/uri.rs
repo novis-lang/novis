@@ -1817,7 +1817,7 @@ fn scalar_text(value: Value, owner: &str, member: &str) -> Result<Vec<u8>, Fault
 ///
 /// **`Core\Router::url` is the second caller**, which is why `owner` names the
 /// class rather than being spelled into the message and why `omit` exists at
-/// all: `rule:routing/an-absolute-link-takes-a-configured-origin` makes a `$params` key that named no capture a query
+/// all: `rule:routing/a-leftover-link-key-is-a-query-string` makes a `$params` key that named no capture a query
 /// parameter, so the link's query string is exactly this member run over the
 /// same array with the captures left out. Written as one pass rather than as a
 /// filtered copy of the array, because a copy would be an allocation and a

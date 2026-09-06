@@ -400,7 +400,7 @@ pub(crate) fn run(
             // call — and `Core\Request::clientIp()` and `::scheme()` are what
             // read them back.
             inbound.set_peer(origin.client(), origin.scheme());
-            // `rule:observability/a-trace-id-exists-for-every-request`'s trace, off the header lines just pushed: continued
+            // `rule:observability/an-inbound-traceparent-is-continued`'s trace, off the header lines just pushed: continued
             // where the peer sent a `traceparent` this understands, and a new
             // root where it did not. `nvs_server::trace` owns why the door
             // reads it and why a bad header is never a refusal; every request
@@ -452,7 +452,7 @@ pub(crate) fn run(
     });
 
     // The loop runs *as a task*, which is not a formality: every connection it
-    // accepts is a child of it (`rule:concurrency/all-answers-a-typed-shape`), and `serve_on_this_core` refuses
+    // accepts is a child of it (`rule:concurrency/a-child-belongs-to-the-calling-task`), and `serve_on_this_core` refuses
     // to run anywhere else. Its own context writes nothing — a connection's
     // bytes are its request's isolate's, captured and handed back as data (ADR
     // 0088 § 3) — so `OutputSink::Sink` is what it holds rather than stdout.
@@ -484,7 +484,7 @@ pub(crate) fn run(
         );
         // A second task on *this* scheduler and not a second scheduler: the
         // ticker sleeps out its interval on a core the accept loop is still
-        // serving on, and each fire is a child task of it (`rule:concurrency/all-answers-a-typed-shape`).
+        // serving on, and each fire is a child task of it (`rule:concurrency/a-child-belongs-to-the-calling-task`).
         // `TaskRoot::Request` for the same reason the accept loop holds it — a
         // fault under a fire belongs to that run and must not retire the worker
         // the requests are being served by.

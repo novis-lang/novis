@@ -1,5 +1,5 @@
 --TEST--
-The route table's seven contradictions, refused in one compilation — `rule:routing/path-grammar`, `rule:security/route-capture-is-laundered-by-its-type` and `rule:routing/matching-is-not-dispatching` and `rule:routing/a-query-parameter-is-declared-like-a-capture`, `rule:routing/a-trailing-segment-may-be-absent` and `rule:routing/an-absolute-link-takes-a-configured-origin`
+The route table's seven contradictions, refused in one compilation — `rule:routing/path-grammar`, `rule:security/route-capture-is-laundered-by-its-type` and `rule:routing/link-name-and-params-are-checked` and `rule:routing/a-query-parameter-is-declared-like-a-capture`, `rule:routing/a-trailing-segment-may-be-absent` and `rule:routing/a-leftover-link-key-is-a-query-string`
 --FILE--
 <?nvs
 // Seven wrong route declarations in one program, because the point is not that
@@ -60,11 +60,11 @@ class Orders {
     public function show(uint $id, #[Core\Query] uint $page = 1): string { return ""; }
 }
 
-// 6. `rule:routing/matching-is-not-dispatching`: a *literal* name is checked against the compiled table. A
+// 6. `rule:routing/link-name-and-params-are-checked`: a *literal* name is checked against the compiled table. A
 // computed one is not checked here at all and throws at run time instead.
 echo Core\Router::url("orders.missing", ["id" => 1]), "\n";
 
-// 7. `rule:routing/an-absolute-link-takes-a-configured-origin`: every key that is not a capture becomes the link's query
+// 7. `rule:routing/a-leftover-link-key-is-a-query-string`: every key that is not a capture becomes the link's query
 // string, so a misspelling ships as `?pge=2` and nothing says so — which is why
 // this could not be refused before `#[Query]` said which keys are legitimate.
 echo Core\Router::url("orders.show", ["id" => 1, "pge" => 2]), "\n";

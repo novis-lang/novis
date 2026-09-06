@@ -40,6 +40,6 @@ since the module was written: `nvs_server::forwarded` already answers both facts
   (including `json()`/`jsonAs<T>()`), and spec § 13's `Core\Test` row rewritten in § 15's bullet shape.
   It closes no gate — §§ 13/16/17 are excluded from the coverage walk on purpose
   (`crates/nvs-stdlib/tests/spec_registry_coverage.rs:583`) and this goal does not change that.
-- **Goal 18 follows this one** — ADR 0140's one converter from `array<mixed>` to a declared shape, and the
+- **Goal 18 follows this one** — goal 18's one converter from `array<mixed>` to a declared shape, and the
   two `Core\Request` members over it. Its stages 4-5 are proven over the builder this goal freezes, so
   this list going green is what makes them writable.

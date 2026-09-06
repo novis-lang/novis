@@ -15000,7 +15000,7 @@ Runs `$fn` once the request's own execution is over, still charged to the reques
 
 **Returns** `void` — Nothing. Registering is request-local, the registrations run in the order they were made, and a request that ended by a throw, an `exit` or a `FATAL` runs none of them.
 
-**Throws** `RuntimeError` — When the call is not the request's own task — a `Core\Task` child, a spawned isolate, or deferred work itself, none of which has a queue anything would drain. Hand the work back to the request that started you and register it there.
+**Throws** `RuntimeError` — When the call is not the request's own task — a `Core\Task` child or deferred work itself, neither of which has a queue anything would drain. Hand the work back to the request that started you and register it there.
 
 <a id="core-core-task-channel"></a>
 ### `Core\Task\Channel<T>`
@@ -21970,7 +21970,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `phpcredits` | dropped | the same page, for names. Attribution ships with the distribution rather than from a call inside a request |
 | `phpversion` | dropped | the engine's version as a fact a request branches on. What a program compiles against is settled before it runs, and the deployed version is the operator's to report |
 | `pdo_drivers` | dropped | the drivers a binary was built with. What is reachable is the `[db.<name>]` blocks an operator configured (`rule:core-classes/db-one-api`, `rule:config/the-file-is-nvs-toml-and-it-is-toml`), which is a different question and the one that was being asked |
-| `php_strip_whitespace` | dropped | source with its comments removed, a deployment-size trick over a language that ships source. Novis ships a compiled artifact (`rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`) |
+| `php_strip_whitespace` | dropped | source with its comments removed, a deployment-size trick over a language that ships source. A Novis bundle ships source too (`rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`), so there is nothing to strip |
 | `highlight_file` | dropped | it reads a source file and prints it as coloured HTML — an information disclosure with a rendering attached |
 | `highlight_string` | dropped | the same over a string. Highlighting is the editor's (`rule:ide/one-server-two-thin-clients`); a program that renders code renders text, through `Core\Html::escape` |
 | `show_source` | dropped | `highlight_file`'s alias |

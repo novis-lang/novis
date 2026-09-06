@@ -12,7 +12,7 @@
 //! # One connection per coroutine, and the accept loop is a task too
 //!
 //! [`serve_on_this_core`] runs *as a task*, so every connection it accepts is
-//! its child ([`nvs_host::spawn_child`], `rule:concurrency/all-answers-a-typed-shape`'s "each is a child of the
+//! its child ([`nvs_host::spawn_child`], `rule:concurrency/a-child-belongs-to-the-calling-task`'s "each is a child of the
 //! calling task"). That is not a convenience: it is what makes a connection
 //! cancellable with the server, and it is the tree
 //! `rule:concurrency/nothing-is-still-running-when-a-call-returns`
@@ -485,7 +485,7 @@ impl Drop for Peer {
 ///
 /// `ctx` is the connection task's, and that makes it the root of this
 /// connection's request tree
-/// (`rule:concurrency/all-answers-a-typed-shape`
+/// (`rule:concurrency/a-child-belongs-to-the-calling-task`
 /// ): a request's isolate is a child of the connection, so a client that
 /// goes away takes its request's tasks with it rather than leaving them
 /// behind.

@@ -46,6 +46,6 @@ and a qualifier cannot reach it. Stage 2 fixes both, and stages 3 and 4 are then
   `Core\Request::json(): tainted mixed`, which `rule:security/tainted-qualifier`'s grammar admits no more than it admits
   `tainted {…}`. Either the widening covers `mixed` too or goal 16's signature is corrected to what the
   grammar allows. Decided-and-recorded in `rule:security/tainted-qualifier`'s body, never `BLOCKED`.
-- **When this goal's last check goes green the driver switches to goal 19** — ADR 0141's `Parses`, which
+- **When this goal's last check goes green the driver switches to goal 19** — goal 19's `Parses`, which
   opens the route-capture and command-argument roster to any class declaring it can be built from text.
   This goal's whole list becomes its floor.

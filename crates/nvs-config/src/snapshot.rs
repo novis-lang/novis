@@ -67,11 +67,11 @@ pub struct Snapshot {
     pub table: toml::Table,
     /// The entry file this snapshot is for, canonical.
     pub entry: PathBuf,
-    /// `[app] mode`, from the most specific block that set one. It sits on the block rather than in
+    /// The `[[app]]` block's `mode` key, from the most specific block that set one. It sits on the block rather than in
     /// a sub-table, so it is read off directly instead of merged: the global `[mode]` is a table
     /// with `default` and `ceiling` in it, and folding a string over that would replace both.
     pub mode: Option<String>,
-    /// `[app] origin` — what `Core\Router::urlAbsolute` prepends (`rule:http-server/a-mount-table-expands-at-boot`), from the most
+    /// The `[[app]]` block's `origin` key (`rule:config/origin-is-a-block-key-and-there-is-no-app-table`) — what `Core\Router::urlAbsolute` prepends (`rule:http-server/a-mount-table-expands-at-boot`), from the most
     /// specific block that set one, and read off directly for [`mode`](Snapshot::mode)'s reason.
     /// This is a URL and never a [`struct@Origin`], which is where a value was written.
     pub origin: Option<String>,

@@ -248,7 +248,7 @@ mod ratelimit;
 mod reflect;
 pub mod regex;
 pub mod registry;
-// `pub` for [`request::is_known_verb`] alone: `rule:http-server/a-path-is-never-derived-from-a-url`'s door refuses a verb outside
+// `pub` for [`request::is_known_verb`] alone: `nvs_server::Reply::not_implemented`'s door refuses a verb outside
 // `Core\Http\Method`'s eight with a `501` before an isolate exists, and the roster is this
 // module's — a second copy of it in the crate that accepts connections would be a second
 // answer. The members themselves are reached the way every other class's are, through
@@ -317,7 +317,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         // rosters are chained rather than the constructor being folded into
         // one of them.
         .chain(registry::CONSTRUCTORS.iter().map(|(_, new)| new.symbol))
-        // `rule:routing/matching-is-not-dispatching`'s two prepared link implementations, which no member row
+        // `rule:routing/link-name-and-params-are-checked`'s two prepared link implementations, which no member row
         // names on purpose — `router::link`'s own docs own why one member has
         // two entry points.
         .chain(router::link::SYMBOLS)
@@ -459,7 +459,7 @@ mod tests {
                 .map(|class| class.members().count())
                 .sum::<usize>()
                 + registry::CONSTRUCTORS.len()
-                // `rule:routing/matching-is-not-dispatching`'s two prepared link entry points, which belong
+                // `rule:routing/link-name-and-params-are-checked`'s two prepared link entry points, which belong
                 // to `Core\Router::url`/`::urlAbsolute` and to no row of their
                 // own — see `router::link`.
                 + router::link::SYMBOLS.len()

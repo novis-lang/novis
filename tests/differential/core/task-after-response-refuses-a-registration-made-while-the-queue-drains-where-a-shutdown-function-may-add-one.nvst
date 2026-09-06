@@ -33,6 +33,6 @@ Core\Task::afterResponse(fn (): void => {
 --EXPECT--
 response written
 deferred ran
-refused: Core\Task::afterResponse: only the request's own task may defer work, and this is a child task — a `Core\Task` child, an isolate, or deferred work itself; hand it back to the request that started you
+refused: Core\Task::afterResponse: only the request's own task may defer work, and this is a child task — a `Core\Task` child or deferred work itself; hand it back to the request that started you
 first
 second

@@ -5,8 +5,8 @@ room:someone-elses
 --FILE--
 <?nvs
 // § 4 states the rule and names the reason: a name derived from user input is
-// how one tenant subscribes to another's stream. It is the same refusal ADR
-// 0076 § 1 applies to a metric label, and it is a *compile* error rather than a
+// how one tenant subscribes to another's stream. It is the same refusal
+// `rule:security/metric-label-refuses-tainted` applies to a metric label, and it is a *compile* error rather than a
 // check inside the member, so a program cannot reach the bus with an unchecked
 // name at all -- there is no run in which the wrong subscription happened once.
 //

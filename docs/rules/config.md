@@ -693,6 +693,10 @@ that adds the block, so a reader of `nvs.toml` has one place to start:
 | `[cache]`, `[opcache]` | the artifact cache and hot reload rules |
 | `[control]` | the control socket rules |
 | `[image]` | [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline) |
+| `[io]` | [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep) |
+| `[mail.<name>]`, `[storage.<name>]` | [`programs/framework-core-half`](programs.md#programs-framework-core-half) |
+| `[session]` | [`http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`](http-server.md#http-server-session-backend-is-shared-or-db-and-local-is-refused-at-boot) |
+| `[app.log]` | [`errors/handler-script`](errors.md#errors-handler-script) |
 
 `[[schedule]]`, like `[[extension]]`, is an array of tables because it is a repeated record with
 several fields.

@@ -183,7 +183,7 @@ const AUDIENCE_DOC: EnumDoc = EnumDoc {
 /// every message quoting it cannot drift apart.
 pub(crate) const NAME: &str = r"Core\Router";
 
-/// `$params` — `rule:routing/matching-is-not-dispatching` writes it `array<string, mixed>`, and that is a
+/// `$params` — `rule:routing/link-name-and-params-are-checked` writes it `array<string, mixed>`, and that is a
 /// spelling the type system has no form for: `nvs_types::ty::Ty::Array` carries
 /// one element type, because a Novis array's keys are `int|string` by
 /// construction and are not part of its type. So the row declares the half that
@@ -500,7 +500,7 @@ const MATCH_PARAM_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// The two symbols `rule:routing/matching-is-not-dispatching`'s **folded** link is lowered to, and the wire
+/// The two symbols `rule:routing/link-name-and-params-are-checked`'s **folded** link is lowered to, and the wire
 /// format they read argument 0 as.
 ///
 /// Neither is a [`CoreMethod`] row, and that is the point: a program calls
@@ -604,7 +604,7 @@ fn segment_text(value: Value, member: &str, key: &str) -> Result<String, Fault> 
 /// segment between them is encoded on its own.
 ///
 /// **What the path did not take becomes the query string**, which is
-/// `rule:routing/an-absolute-link-takes-a-configured-origin`'s other half: the prepared pieces name every capture, so a
+/// `rule:routing/a-leftover-link-key-is-a-query-string`'s rule: the prepared pieces name every capture, so a
 /// `$params` key left over once they have been substituted is by construction
 /// not one, and § 6 makes it a query parameter. It is written by
 /// [`crate::uri::build`] — `Core\Uri::buildQuery`'s own pass, run over the same
@@ -767,19 +767,20 @@ fn produced(text: &str) -> HelperResult {
 /// A throw rather than an abort, and that is the difference from
 /// [`crate::program`]: `implementing<T>()` is expanded away in `nvs check`, so
 /// reaching its helper is a compiler bug. These two are ordinary runtime
-/// members — `rule:routing/matching-is-not-dispatching` says a *computed* `$name` throws — so the throw is a
+/// members — `rule:routing/link-name-and-params-are-checked` says a *computed* `$name` throws — so the throw is a
 /// real answer a program can catch, and it stays the answer for an unknown name
 /// after the table lands. What changes then is only which names are unknown.
 fn no_such_route(member: &str, args: &[nvs_runtime::Value]) -> Fault {
     let name = args[0].as_text().unwrap_or("<not a string>");
     Fault::thrown(format!(
-        "Core\\Router::{member}(): no route is named `{name}`. The compile-time route table is \
-         not built yet (`rule:routing/table-is-opt-in`), so no name resolves"
+        "Core\\Router::{member}(): no route is named `{name}`. A computed name is not resolved \
+         against the compile-time route table (`rule:routing/link-name-and-params-are-checked`); \
+         write the route's name as a literal"
     ))
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Router::url(string $name, array<mixed> $params): string` — `rule:routing/matching-is-not-dispatching`
+    /// `Core\Router::url(string $name, array<mixed> $params): string` — `rule:routing/link-name-and-params-are-checked`
     /// 's launderer for the URL-path sink.
     ///
     /// This is the *unfolded* member — reached only by a name the compiler
@@ -1035,7 +1036,7 @@ fn match_slot(args: &[Value], index: usize, member: &str) -> Result<Value, Fault
 
 nvs_runtime::nvs_helper! {
     /// `Core\Router\Match::name(): ?string` — `rule:routing/matched-once-before-the-handler`'s declared name,
-    /// which `rule:observability/default-series`'s `route` label reads and `Core\Router::url` resolves.
+    /// which `rule:observability/route-label-is-the-declared-name`'s `route` label reads and `Core\Router::url` resolves.
     fn nvs_core_router_match_name(_ctx, args: [1]) {
         match_slot(args, MATCH_ROUTE_NAME, "name")
     }

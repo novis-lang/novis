@@ -6818,7 +6818,7 @@ sibling in the same namespace unqualified.
 - **`array<K, V>` is a spelling the docs write and the type system has no form for.**
   `nvs_types::ty::Ty::Array` carries one `TypeId`, and there is no `CoreTy` for a keyed
   array — a Novis array's keys are `int|string` by construction and are not part of its
-  type. So `array<string, mixed>`, which spec § 15 and `rule:routing/matching-is-not-dispatching` both write for
+  type. So `array<string, mixed>`, which spec § 15 and `rule:routing/link-name-and-params-are-checked` both write for
   `Core\Router::url`'s `$params`, is declared as `CoreTy::Array(&CoreTy::Mixed)` and the
   key rule is enforced where it can be (§ 4 makes a literal key naming neither a capture
   nor a `#[Query]` parameter a compile error). Same family, one call earlier:
@@ -6839,7 +6839,7 @@ sibling in the same namespace unqualified.
   calls "the one that bites" — resolves nothing: `address_of` is only ever asked about a symbol the
   roster already produced. The symptom is `can't resolve symbol nvs_core_…` from
   `cranelift-jit/src/backend.rs`, naming no Novis file. Any symbol lowering emits that is not a
-  member's own — `rule:routing/matching-is-not-dispatching`'s two prepared link entry points, a constructor — owes a `.chain()`
+  member's own — `rule:routing/link-name-and-params-are-checked`'s two prepared link entry points, a constructor — owes a `.chain()`
   in that function beside `registry::CONSTRUCTORS`', **and** a term in
   `every_registered_member_has_an_implementation_address`' arithmetic, which is the same sum
   written out a second time and fails the moment the roster grows. [until: reviewed 2026-09-06]

@@ -8,7 +8,7 @@
 use super::*;
 
 /// What is reading this statement's span — `rule:observability/trace-events-carry-a-kind`
-/// 's trace, `rule:observability/a-query-is-a-trace-event`'s `slow_query` line, both or neither — asked
+/// 's trace, `rule:observability/a-slow-query-is-logged-past-a-threshold`'s `slow_query` line, both or neither — asked
 /// **before** a statement borrows the context.
 ///
 /// A statement holds `ctx` mutably for as long as its rows do
@@ -83,7 +83,7 @@ impl QueryWatch {
     }
 }
 
-/// `rule:observability/a-query-is-a-trace-event`'s threshold for the `[db.<name>]` block a statement is running
+/// `rule:observability/a-slow-query-is-logged-past-a-threshold`'s threshold for the `[db.<name>]` block a statement is running
 /// on, or `None` for a statement nothing is timing.
 ///
 /// Three cases answer `None` and they are one answer: the block wrote no

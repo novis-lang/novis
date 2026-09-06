@@ -50,8 +50,9 @@ decides whether Novis is any good is mostly not Rust:
 
 - **Say what you think of the design.** The type system, the `tainted`/`secret` rules, the naming of the
   `Core` library, the decision that every function is a method — all of it is written down and none of it
-  is set in stone. [docs/adr/](docs/adr/README.md) is one file per decision, each with the reasoning behind
-  it; disagreeing with one, in a discussion, is a contribution.
+  is set in stone. The rulebook under [docs/rules/](docs/rules/) states every rule, and
+  [docs/decisions/](docs/decisions/) holds one frozen record per decision with the reasoning behind it;
+  disagreeing with one, in a discussion, is a contribution.
 - **Say what would stop you using it.** A missing feature, a migration you cannot see a path through, a
   guarantee you would not trust. That is the most useful thing an outsider can report, and the hardest
   thing for the people inside to notice.
@@ -196,7 +197,7 @@ Code extension is TypeScript/Node tooling, the PhpStorm plugin is Kotlin/Gradle/
 tooling — and each is a thin client over `nvs-lsp`/`nvs-fmt`, never a second implementation of language
 smarts or formatting ([ADR 0016](docs/decisions/0016.md)).
 
-[`benches/abi-probe`](benches/abi-probe/) is worth knowing about early. Several decisions in `docs/adr/`
+[`benches/abi-probe`](benches/abi-probe/) is worth knowing about early. Several decisions in `docs/decisions/`
 depend on how Cranelift, `corosensei` and Wasmtime behave rather than on Novis's own code, so a dependency
 bump can invalidate them silently. It checks them continuously: that a throw propagates and a runtime
 panic is *contained* across native frames, that a coroutine can suspend from beneath live JIT frames, that
@@ -225,18 +226,20 @@ the premise the calling convention exists for.
 
 This is the short form. The fuller decision table, with the sequencing each choice implies, is in
 [docs/implementation-plan.md](docs/implementation-plan.md); the reasoning behind each choice and the
-measurements backing it are in [docs/adr/](docs/adr/README.md).
+measurements backing it are in the records under [docs/decisions/](docs/decisions/), each reached through a
+rule's `because` in [docs/ground-rules.md](docs/ground-rules.md).
 
 ### Making a change
 
 - [docs/agent/conventions.md](docs/agent/conventions.md) is the *shape* of what you are about to
-  write — a commit message, a `.nvst` case, a `Core` member, an ADR, a diagnostic code. Read it instead of
+  write — a commit message, a `.nvst` case, a `Core` member, a decision record, a diagnostic code. Read it instead of
   opening an example to copy.
 - [docs/agent/playbook.md](docs/agent/playbook.md) is the trap list: the things that look like they should
   work and do not. Add a bullet when one costs you time.
 - Keep each change small and commit it on its own, so `git log` reads a slice at a time.
-- A decision that would be expensive to reverse earns an ADR — `python tools/adr.py --draft` prints the
-  skeleton, and [docs/adr/README.md](docs/adr/README.md) § *Adding a decision* is the rest of the form.
+- A decision that would be expensive to reverse earns a record under `docs/decisions/`, written by hand to
+  the shape [docs/agent/conventions.md](docs/agent/conventions.md) § *A decision record* gives, and the rule
+  it changes under `docs/rules/` is edited in the same slice.
 - Every added, changed or removed feature owes a statement of its tradeoffs in performance, memory,
   usability and simplicity. Where they are large, raise them before building.
 

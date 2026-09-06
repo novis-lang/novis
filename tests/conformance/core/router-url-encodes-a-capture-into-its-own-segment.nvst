@@ -1,5 +1,5 @@
 --TEST--
-`Core\Router::url` percent-encodes each capture's value into its own segment, under RFC 3986's component rules rather than the query's — `rule:routing/an-absolute-link-takes-a-configured-origin`, `rule:routing/path-grammar` and `rule:routing/matching-is-not-dispatching`
+`Core\Router::url` percent-encodes each capture's value into its own segment, under RFC 3986's component rules rather than the query's — `rule:routing/an-absolute-link-takes-a-configured-origin`, `rule:routing/path-grammar` and `rule:routing/link-name-and-params-are-checked`
 --FILE--
 <?nvs
 // The path half of § 6. `router-url-turns-a-leftover-params-key-into-a-query-

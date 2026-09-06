@@ -484,7 +484,7 @@ pub(crate) fn infer_static_call(
         }
         env.exprs.record(expr.span, ExprInfo::Call(call));
     }
-    // `rule:routing/matching-is-not-dispatching`'s link, and the one fold that is *not* made here: the route
+    // `rule:routing/link-name-and-params-are-checked`'s link, and the one fold that is *not* made here: the route
     // a literal name asks for may be declared in a file § 5's scan has not
     // reached, so the site is only recorded and the lookup happens after the
     // whole walk. The `ExprInfo::Call` just above deliberately stands until

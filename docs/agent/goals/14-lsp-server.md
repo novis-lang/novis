@@ -70,7 +70,7 @@ The existing `nvs check` pipeline, at the negotiated encoding, with `code` from 
 constant is worse than none. Published for **open documents only**.
 
 The gate is the content of this stage, not a detail of it:
-[ADR 0099 § 3](../../decisions/0099.md) has the worked example where
+`rule:ide/diagnostics-are-phase-gated` has the worked example where
 one typo yields a spurious `E0301` *above* the `E0102` that caused it. A file that produced an `E00xx` or
 `E01xx` diagnostic suppresses `E03xx` and `E04xx` **for that file only**. Both directions are cases:
 gated, and `phase=all`.

@@ -43,5 +43,5 @@ echo "the response\n";
 echo "from a group child: ", $fromGroup->refusal, "\n";
 --EXPECT--
 the response
-from a group child: Core\Task::afterResponse: only the request's own task may defer work, and this is a child task — a `Core\Task` child, an isolate, or deferred work itself; hand it back to the request that started you
+from a group child: Core\Task::afterResponse: only the request's own task may defer work, and this is a child task — a `Core\Task` child or deferred work itself; hand it back to the request that started you
 both children refused, in the same words

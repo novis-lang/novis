@@ -211,7 +211,7 @@ impl Ctx {
     /// A context for a **child task of this request** — what `nvs-host` hands
     /// [`crate::host::Job`] when it runs a group.
     ///
-    /// `rule:concurrency/all-answers-a-typed-shape`
+    /// `rule:concurrency/a-child-belongs-to-the-calling-task`
     /// 's children "share the request", and this is the one place that
     /// sharing is decided: `nvs-host`'s `group` module doc is the home of *why*
     /// each field is on the side of the line it is on, because it is the only

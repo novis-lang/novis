@@ -1,5 +1,5 @@
 --TEST--
-a `{page?}` left out of `Core\Router::url`'s `$params` is not refused, because its whole segment is dropped — `rule:routing/path-grammar` and `rule:routing/matching-is-not-dispatching`
+a `{page?}` left out of `Core\Router::url`'s `$params` is not refused, because its whole segment is dropped — `rule:routing/path-grammar` and `rule:routing/link-name-and-params-are-checked`
 --FILE--
 <?nvs
 // The positive twin of the two refusals in

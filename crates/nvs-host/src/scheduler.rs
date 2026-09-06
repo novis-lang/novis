@@ -44,7 +44,7 @@
 //! Every task has a parent and a list of children, and the parent is **taken
 //! from the task that spawned it** rather than passed in: [`spawn_child`] reads
 //! [`current_task`], so
-//! `rule:concurrency/all-answers-a-typed-shape`'s
+//! `rule:concurrency/a-child-belongs-to-the-calling-task`'s
 //! "each is a child of the calling task" is a property of the call rather than
 //! of a caller's diligence. A task spawned from the worker itself
 //! ([`Scheduler::spawn`], with nothing running) is a root. No ADR slot is free
@@ -1140,7 +1140,7 @@ impl Scheduler {
 /// Spawns a child of the task that is running, answering with its id.
 ///
 /// **This is how a task gets a child at all**, and the parent is the caller
-/// rather than an argument — `rule:concurrency/all-answers-a-typed-shape`'s "each is a child of the calling
+/// rather than an argument — `rule:concurrency/a-child-belongs-to-the-calling-task`'s "each is a child of the calling
 /// task". The child's id is issued here, so a parent can wait on what it
 /// spawned before the scheduler has built anything; the coroutine itself is
 /// built on the scheduler's next turn, which the module doc's *task tree*
@@ -1989,7 +1989,7 @@ mod tests {
 
     #[test]
     fn a_child_takes_its_parent_from_the_task_that_spawned_it() {
-        // `rule:concurrency/all-answers-a-typed-shape`'s "each is a child of the calling task", asserted as a
+        // `rule:concurrency/a-child-belongs-to-the-calling-task`'s "each is a child of the calling task", asserted as a
         // property of the *call*: nothing here passes a parent in, and the only
         // way `spawn_child` could get this wrong is by reading the wrong task.
         let seen: Rc<Cell<Option<TaskId>>> = Rc::new(Cell::new(None));

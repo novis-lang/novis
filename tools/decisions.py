@@ -408,7 +408,8 @@ def render_md(entries: dict, adrs: dict) -> str:
         "in the order it was decided. Each entry says what is true now, not how it got there.",
         "",
         "The full reasoning behind any one of them -- the alternatives weighed, the costs accepted,",
-        "the exact wording -- lives in [the decision records](adr/README.md).",
+        "the exact wording -- lives in the frozen records under `docs/decisions/`, each reached through",
+        "the rule it changed in [the rulebook](ground-rules.md).",
         "",
     ]
     for (_, heading, blurb), rows in grouped(entries, adrs):
@@ -437,6 +438,9 @@ def render_json(entries: dict, adrs: dict) -> str:
                         "adr": e["adr"],
                         "headline": e["headline"],
                         "body": e["body"],
+                        # The site's route for a record. `website/scripts/sync-adrs.mjs` reads the
+                        # frozen records from docs/decisions/ and still publishes them under
+                        # /docs/adr/, so the route did not move when the files did.
                         "url": f"/docs/adr/{e['adr']}/",
                     }
                     for e in rows

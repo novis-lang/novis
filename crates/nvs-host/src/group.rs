@@ -10,7 +10,7 @@
 //! # 1. What a child gets for a `Ctx`
 //!
 //! [`crate::spawn_child`] takes an **owned** context, and
-//! `rule:concurrency/all-answers-a-typed-shape`'s
+//! `rule:concurrency/a-child-belongs-to-the-calling-task`'s
 //! children *share the request*. Those two only meet one way:
 //! [`Ctx::child`](nvs_runtime::Ctx::child) builds a fresh context that **aliases
 //! the request's static-property base** and owns everything else itself. The
@@ -70,10 +70,11 @@
 //! Whether a `{limit: 0}` deserves a diagnostic is the member's question, not
 //! this seam's.
 //!
-//! § 4's second throw is *written* rather than swallowed. `Core\Log` does not
-//! exist yet, so it goes to the failing child's diagnostic channel, which is
-//! [`OutputSink::Stderr`](nvs_runtime::OutputSink) unless a test moved it; the
-//! destination changes when that class lands and nothing else here does.
+//! § 4's second throw is *written* rather than swallowed, which is all
+//! `rule:concurrency/nothing-is-still-running-when-a-call-returns` asks. It goes to the failing
+//! child's diagnostic channel — [`OutputSink::Stderr`](nvs_runtime::OutputSink) unless a test
+//! moved it — and not to `Core\Log`: that class has since landed (`nvs_stdlib::log`), and
+//! re-pointing this seam at it is still owed. The destination is the only thing that changes then.
 //!
 //! # What it spends
 //!

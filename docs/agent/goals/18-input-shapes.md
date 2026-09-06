@@ -103,7 +103,7 @@ at `:255`, the cards after them, the bodies, the `address()` arm at `:982`):
    and `post(name)` indexes into it (`request.rs:1229`), so the whole-form spelling hands over the array
    that already exists. **This does not open a public `post(): array<mixed>`** — `$_POST` stays closed,
    and the array is reachable only through a declared shape.
-3. **`postAs` is a buffering reader** under `rule:http-server/a-session-store-answers-four-operations` — goal 16's rule, unchanged and not re-litigated: it
+3. **`postAs` is a buffering reader** under goal 16's body-read rule — unchanged and not re-litigated: it
    may follow another buffering reader and it refuses after a streaming one.
 4. **Three `.nvst` cases each**, over goal 16's stage 2 request sections and goal 17's builder.
 
@@ -135,7 +135,7 @@ required key names the key, and a shape whose `tainted` promises nothing is refu
   read as a claim it is not making.
 - **A conversion is `as` and only `as`.** No coercion table is written for this member. If a row is
   missing, the fix is `rule:types/conversion`'s table, where every other conversion in the language already reads.
-- **This goal may open [ADR 0140] and no other new number.** Everything else is a change to a rule that already stands, through a record whose `changes:` block
+- **This goal may open one new record and no other number.** Everything else is a change to a rule that already stands, through a record whose `changes:` block
   names it: `rule:types/shape-type` (the optional marker, and the two spellings it distinguishes), `rule:security/tainted-qualifier`
   (the qualifier grammar), `rule:types/arrays` (the third member at the type-argument door), `rule:core-api/shape-rules` R15's
   worked list, and spec §§ 6 and 15's rosters.

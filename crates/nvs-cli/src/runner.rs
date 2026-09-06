@@ -359,7 +359,7 @@ pub(crate) fn run(
 /// Without it there is no task beneath a test at all: `nvs_host::Wake::current`
 /// answers `None`, so a test's own isolate runs on this stack rather than as a
 /// child (`nvs_host::isolate::Isolate::start`), a `Core\Task::all` in a test
-/// has no calling task to put children under (`rule:concurrency/all-answers-a-typed-shape`), and § 16 has no
+/// has no calling task to put children under (`rule:concurrency/a-child-belongs-to-the-calling-task`), and § 16 has no
 /// tree to read a leftover off. One task and not one per test: the tests are a
 /// *suite*, and each test's own isolate is a child of it.
 ///
@@ -2410,7 +2410,7 @@ mod tests {
     fn the_runner_owns_the_tests_task_tree() {
         // `rule:testing/task-tree-and-virtual-clock`, both halves, from the language surface. The first
         // test's `Core\Task::all` has children only because the suite is
-        // itself a task (`rule:concurrency/all-answers-a-typed-shape`'s "a child of the calling task"), so a
+        // itself a task (`rule:concurrency/a-child-belongs-to-the-calling-task`'s "a child of the calling task"), so a
         // runner that ran off a bare stack fails it rather than passing it
         // differently. The second leaves a `spawn script` unawaited: § 16 says
         // that is a failure and says it by name, where the scheduler on its own

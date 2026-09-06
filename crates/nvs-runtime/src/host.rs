@@ -4,7 +4,7 @@
 //! Plus [`Host::sleep`], which is the one thing a member can want from a core
 //! that is not a group; § 3 below owns why it is the exception.
 //!
-//! `rule:concurrency/all-answers-a-typed-shape`'s
+//! `rule:concurrency/a-child-belongs-to-the-calling-task`'s
 //! `Core\Task::all` runs its fields as children of the calling task, and that
 //! task lives on `nvs-host`'s scheduler. A `Core` member is a `nvs-stdlib`
 //! helper. Nothing joined those two before this module, and the three decisions

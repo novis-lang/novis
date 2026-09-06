@@ -145,7 +145,7 @@ fn an_expression_that_never_comes_round_answers_nothing() {
     assert_eq!(fires("30 2 30 2 *", "UTC", "2026-01-01T00:00:00Z"), None);
 }
 
-/// § 6: `timezone` defaults to `UTC` — there is no ambient zone anywhere in Novis (ADR 0063 § 4) —
+/// § 6: `timezone` defaults to `UTC` — there is no ambient zone anywhere in Novis (`rule:core-api/no-ambient-state`) —
 /// and a name the database does not carry is a fault rather than a silent fall back to it, which is
 /// what [`nvs_config::schedule::validate`] turns into the boot refusal.
 #[test]

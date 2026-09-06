@@ -54,7 +54,7 @@ impl Ctx {
     /// instead of moving the carrier twice to make a second.
     pub fn set_inbound(&mut self, inbound: impl Into<Box<Inbound>>) {
         let inbound = inbound.into();
-        // `rule:observability/a-trace-id-exists-for-every-request`'s trace is the door's decision and rides on the carrier
+        // `rule:observability/an-inbound-traceparent-is-continued`'s trace is the door's decision and rides on the carrier
         // ([`Inbound::set_trace_context`]), so this is where it becomes the
         // context's — the one write [`Self::set_trace_context`] describes, made
         // before the program runs and beside the rest of what a request arrives
@@ -321,7 +321,7 @@ pub struct Inbound {
     /// one — an `Arc` bump on the row and one `String` per capture.
     /// [`crate::routes`] accounts for the rest.
     route: Option<crate::routes::Match>,
-    /// `rule:observability/a-trace-id-exists-for-every-request`'s trace,
+    /// `rule:observability/an-inbound-traceparent-is-continued`'s trace,
     /// as the door read it off the arrived `traceparent` — the trace continued
     /// when the header was one this understands, and the root it drew instead
     /// when it was not.
@@ -510,7 +510,7 @@ impl Inbound {
         self.route.as_ref()
     }
 
-    /// Records `rule:observability/a-trace-id-exists-for-every-request`'s trace, as the door decided it from the arrived
+    /// Records `rule:observability/an-inbound-traceparent-is-continued`'s trace, as the door decided it from the arrived
     /// `traceparent`.
     ///
     /// Called at most once, beside [`Self::set_peer`] and before the program

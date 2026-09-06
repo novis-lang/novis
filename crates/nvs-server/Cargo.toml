@@ -49,7 +49,7 @@ tungstenite.workspace = true
 # in this crate's own code names a TOML value; the configuration reaches it as
 # `nvs_config::snapshot::Snapshot` and never as a document.
 toml.workspace = true
-# Test-only, and for one seam: ADR 0076 § 6 has a log record carry the trace id this crate's
+# Test-only, and for one seam: `rule:observability/a-log-record-carries-trace-ids-when-a-trace-is-active` has a log record carry the trace id this crate's
 # `src/trace.rs` decided at the door, and a record is a `nvs_render::Record` at a
 # `nvs_render::Level`. Nothing in this crate's own code names either — the door writes a
 # `TraceContext` and the stamping is `nvs_runtime::Ctx::stamp_envelope`'s — so the vocabulary is

@@ -53,7 +53,7 @@ core, and M7's acceptance is that 10k concurrent cold requests compile it **exac
    it is immutable, so it is sound to share; what needs a publisher is the *swap*.
 2. **One publisher for `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s revalidate-and-swap.**
    A revalidation that wins publishes a new `Arc`; every core reads through the old one until it does,
-   and a reader never blocks on a compile. ADR 0017 § 3a's `validate` pick, its one-window-is-one-check
+   and a reader never blocks on a compile. `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s `validate` pick, its one-window-is-one-check
    rule and its "a fresher revalidation has not won" ordering are unchanged in meaning and re-stated
    for N readers rather than one.
 3. **The compile counter counts compiles, not cores** — `script.rs:193`'s counter is what M7's

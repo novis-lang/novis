@@ -21,6 +21,10 @@ that adds the block, so a reader of `nvs.toml` has one place to start:
 | `[cache]`, `[opcache]` | the artifact cache and hot reload rules |
 | `[control]` | the control socket rules |
 | `[image]` | `rule:core-classes/image-pipeline` |
+| `[io]` | `rule:core-classes/temporary-dir-sweep` |
+| `[mail.<name>]`, `[storage.<name>]` | `rule:programs/framework-core-half` |
+| `[session]` | `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot` |
+| `[app.log]` | `rule:errors/handler-script` |
 
 `[[schedule]]`, like `[[extension]]`, is an array of tables because it is a repeated record with
 several fields.

@@ -456,7 +456,7 @@ impl Match {
     }
 
     /// § 1's declared name, which
-    /// `rule:observability/default-series`'s `route`
+    /// `rule:observability/route-label-is-the-declared-name`'s `route`
     /// label reads. `None` where the route declares none.
     #[must_use]
     pub fn name(&self) -> Option<&str> {

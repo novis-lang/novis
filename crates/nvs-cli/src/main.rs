@@ -1,6 +1,6 @@
 //! The `nvs` binary.
 //!
-//! Ten subcommands so far, one per milestone that needed one:
+//! Thirteen subcommands so far, one per milestone that needed one:
 //!
 //! * `nvs ast` (M1) — dump what the parser produced.
 //! * `nvs check` (M2) — parse, resolve, type-check, report every diagnostic.
@@ -51,10 +51,17 @@
 //!   root whose owning process is gone, removed. Keyed on liveness and never on
 //!   age, with `--dry-run` and deliberately no force flag; see [`tmp`], and
 //!   [`serve`] for the other half of § 4, which is the same walk at boot.
+//! * `nvs serve <file>` — one core, one listening socket, every request
+//!   running the entry file as its own isolate; see [`serve`].
+//! * `nvs queue migrate` — `rule:core-classes/queue-storage-is-a-table`'s
+//!   two tables, created by the operator's explicit command; see [`queue`],
+//!   and [`worker`] for the in-process worker `[queue] workers` starts.
+//! * `nvs service` — `rule:packaging/a-service-is-one-stored-argv`'s
+//!   operator surface: the one argv a service manager stores; see [`service`].
 //!
 //! `run` **checks first**: on any diagnostic it reports and exits non-zero
 //! exactly as `check` does, rather than running a program the front end
-//! rejected. `serve`, `fmt` and the rest of the architecture diagram
+//! rejected. `fmt` and the rest of the architecture diagram
 //! (`docs/implementation-plan.md` § Architecture) arrive with the milestones
 //! that need them.
 //!
@@ -69,7 +76,7 @@
 //! It runs **inside a task**, on a [`nvs_host::Scheduler`] of its own with a
 //! reactor installed over it, rather than on the main thread's stack. That is
 //! not about concurrency at the top level — there is one task — but about what
-//! is beneath it: `rule:concurrency/all-answers-a-typed-shape`
+//! is beneath it: `rule:concurrency/a-child-belongs-to-the-calling-task`
 //! 's children are children *of the calling task*, and a `Core\Task::all`
 //! in a CLI program has nowhere to put them if the program is not one. The
 //! root is `TaskRoot::Request`, so a panic that reaches it fails this run
@@ -1341,7 +1348,7 @@ fn run_run(
     if let Some(site) = fault_inject {
         ctx.inject_fault(site.into());
     }
-    // `rule:concurrency/all-answers-a-typed-shape` and `rule:concurrency/limit-and-deadline-are-the-only-bounds`: the program is a *task*, because the children a
+    // `rule:concurrency/a-child-belongs-to-the-calling-task` and `rule:concurrency/limit-and-deadline-are-the-only-bounds`: the program is a *task*, because the children a
     // `Core\Task::all` inside it asks for are children of the calling task and
     // `nvs_host::spawn_child` reads that caller off the scheduler rather than
     // being told it. One task, one core, and no thread is pinned — a CLI run

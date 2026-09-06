@@ -4,7 +4,7 @@
 which `python tools/holes.py` can find on its own because the site is in the source. **This file is
 for the other kind** — a gap that is real, written down in the module doc that owns it, and invisible
 to every tool, because nothing in the tree is shaped wrong. A `Core\Log` record with two keys where
-`rule:observability/metrics-and-trace-blocks-are-system` names six compiles, tests green and ships.
+`rule:observability/a-log-record-carries-trace-ids-when-a-trace-is-active` names six compiles, tests green and ships.
 
 **It exists because the handoff cannot hold one.** `docs/agent/handoff.md` is *state*: `tools/loop.py`
 overwrites it with the next goal's seed at every switch, and `tools/goal-switch.py` carries the
@@ -53,7 +53,6 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 | `rule:core-classes/html-to-source`'s computed `$reason` is not refused — was blocked on a full diagnostic band | 21 | `crates/nvs-stdlib/src/html.rs` § *Known gaps* |
 | `queryAs<T>`'s three refusals are at run time — same blocker, same band | 21 | `crates/nvs-stdlib/src/db/mod.rs` gap 8 |
 | Twenty CLDR plural rosters throw; ordinals absent; eight pattern letters refused | 21 | `crates/nvs-stdlib/src/cldr.rs` gaps 2–4 |
-| `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s artifact cache is written, tested and has no caller | 22 | `crates/nvs-cli/src/cache.rs` § *Known gaps* |
 | `Core\Request::clientIp`/`host`/`scheme`, `Response::html`/`sendFile` | 17 | `crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt` |
 | `goto` labels, grouped `use`, `var` as a property declarator, an enum case named with a keyword | 13 | `crates/nvs-syntax/src/lib.rs` § *Known gaps* — M1's own *Verify* is a `php-src` corpus parse |
 | `nvs serve` runs on one core, and no path in the process starts a second | 23 | `crates/nvs-cli/src/serve.rs:42`, [m7.md](../plan/m7.md)'s own scope |
@@ -69,7 +68,7 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 
 ## Unowned
 
-Nobody's, and each is a scheduling question rather than a session's. **Three entries, on 2026-09-05.**
+Nobody's, and each is a scheduling question rather than a session's. **Four entries, on 2026-09-06.**
 The six that stood here before were made reachable as goals 23–28, and spec § 17's four classes — filed
 under an M9 that carries the extension system and none of them — are goals 25 and 26 now. The two that
 came back are the contract's second rule in plain sight: an owner that went green without closing its
@@ -93,6 +92,13 @@ gap is struck, not renamed.
   duplicate: `nvs_safepoint` clears and ignores two of its four flags (`crates/nvs-runtime/src/lib.rs`
   gap 5), and `COLLECT` is inert because this collector does not exist. The other, `DEBUG_BREAK`, waits
   on `nvs dap` and is M10's. [until: reviewed 2026-09-06]
+- **`rule:routing/a-shared-name-is-one-endpoint-everywhere` is shipped and unguarded.** Its three
+  observations — `Core\Router::url` answers the one path, `Match::name` answers for every verb, the
+  API document suffixes the operation with the verb — have no fixture: no `.nvst` under
+  `tests/conformance/` declares two `#[Route]`s sharing a name, and `crates/nvs-cli/tests/openapi.rs`
+  has no suffix case. The rows themselves are guarded by `crates/nvs-types/tests/routes.rs`. Found by
+  the docs migration's sweep (unit C8), which could record it and not write it.
+  [until: exists tests/conformance/core/a-shared-route-name-is-one-endpoint-everywhere.nvst]
 
 ## What is *not* on either list
 

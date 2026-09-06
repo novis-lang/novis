@@ -19,8 +19,8 @@
 //! — rather than by whichever subsystem asks for it first, which is what would let two of them
 //! disagree.
 //!
-//! **What is not here yet.** Nothing exports a span ([§ 1](/docs/decisions/0076.md)'s
-//! exporter is unbuilt) and nothing creates one, so a root's [`sampled`](TraceContext::sampled) flag
+//! **What is not here yet.** Nothing exports a span (`rule:observability/the-exporters-are-crates`'s
+//! exporters are unbuilt) and nothing creates one, so a root's [`sampled`](TraceContext::sampled) flag
 //! is always `false` — head-based `[trace] sample` is the only thing that will ever set it — and
 //! [`TraceContext::span_id`] is a bare drawn id rather than a span's. A continued trace's flag and
 //! parent id come from the header and are already right, which is why an inbound sampled trace is

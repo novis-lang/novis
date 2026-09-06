@@ -20,7 +20,7 @@ npx astro build --base /novis/ # build with a custom base
 | `npm run build` | production build into `dist/` |
 | `npm run preview` | serve the built site locally |
 | `npm run sync` | all three sync scripts, in order |
-| `npm run sync:adrs` | republish `../docs/adr/*.md` → `src/content/docs/docs/adr/` + `src/data/adrs.json` |
+| `npm run sync:adrs` | republish `../docs/decisions/NNNN.md` → `src/content/docs/docs/adr/` + `src/data/adrs.json` |
 | `npm run sync:core` | reparse the spec + registry → `src/data/core.json`, create missing member pages |
 | `npm run sync:examples` | mirror `../docs/examples/` → `examples/` |
 | `npm run examples:check` | run every example in `examples/` through the real `nvs` binary and diff against its `.out` file |
@@ -38,7 +38,7 @@ wherever it kept a component.
 
 | Path | Owner | Notes |
 | --- | --- | --- |
-| `src/content/docs/docs/adr/**` | tool | regenerated on every `sync:adrs` — edit the ADRs in `../docs/adr/` instead |
+| `src/content/docs/docs/adr/**` | tool | regenerated on every `sync:adrs` — the records in `../docs/decisions/` are frozen; the rule they changed lives in `../docs/rules/` |
 | `src/data/core.json`, `src/data/adrs.json` | tool | regenerated on every sync |
 | `src/data/core-changelog.json` | human | per-member changelog entries; the tool only creates the empty file |
 | `src/content/docs/docs/core/**.mdx` | **per page** | tool-owned (regenerated every `sync:core`) while `novis.draft: true`; remove the flag to take ownership — then yours: lead text, description, parameter docs, errors, tips, `<SeeAlso ids={…}>` |
@@ -80,8 +80,8 @@ Novis code blocks get syntax highlighting from `config/novis.tmLanguage.json`
 
 ## How the ADR pages work
 
-`sync:adrs` republishes every `../docs/adr/NNNN-*.md` verbatim, with three additions:
-a styled metadata panel (status, date, scope, amends/amended-by with resolved titles),
+`sync:adrs` republishes every `../docs/decisions/NNNN.md` verbatim, with three additions:
+a styled metadata panel (status, scope, depends-on, validated-by, and the rules the record created or changed),
 rewritten links (ADR→ADR links stay on the site; links into the repo go to GitHub), and
 the site-wide **hover tooltips**: any link to `/docs/adr/NNNN/` anywhere on the site
 shows the target ADR's title, status and "In short" summary instantly on hover or

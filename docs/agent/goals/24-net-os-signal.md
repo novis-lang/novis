@@ -69,7 +69,7 @@ Goal 23's whole acceptance list, carried in verbatim by `tools/goal-switch.py`. 
 1. **The roster is closed at shutdown.** `rule:core-api/tier-roster`'s row is "what remains of `pcntl_*` after `fork`
    is refused", and the surface is a handler for the terminating signals and nothing that resembles
    job control. There is no `kill`, no `alarm` and no signal number as an integer.
-2. **It composes with the drain that already exists.** ADR 0017 § 5's drain answers the probe and
+2. **It composes with the drain that already exists.** `rule:concurrency/a-drain-closes-a-connection-cleanly`'s drain answers the probe and
    `isDraining()`; a `Core\Signal` handler is the CLI-side entry into the same state machine, not a
    second one. On the server the signal path is the process's, and after goal 23 it is fleet-wide.
 3. **A handler runs as ordinary Novis code at a safepoint**, never in a signal context — the delivery

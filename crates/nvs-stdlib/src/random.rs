@@ -57,8 +57,9 @@
 //!    type is what stops a test helper being reached for in production, so it
 //!    is a class of its own here too rather than an option on these members.
 //! 2. **`ThreadRng` is not reseeded on `fork`.** Nothing in Novis forks today —
-//!    `rule:packaging/a-service-is-one-stored-argv`'s `nvs service` is
-//!    unbuilt — but a child process that inherits a parent's ChaCha state would
+//!    `rule:packaging/a-service-is-one-stored-argv`'s service-manager
+//!    registration (`install`/`run`/`start`/`stop`/`status`) is unbuilt, and
+//!    `nvs service unit` only writes a file — but a child process that inherits a parent's ChaCha state would
 //!    reproduce the parent's stream, so whatever lands there owes
 //!    `ThreadRng::reseed` in the child.
 //!

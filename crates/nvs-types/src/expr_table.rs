@@ -245,7 +245,7 @@ pub struct ObserverCalls {
     pub set: Option<String>,
 }
 
-/// One piece of `rule:routing/matching-is-not-dispatching`'s resolved link, in path order and each carrying
+/// One piece of `rule:routing/link-name-and-params-are-checked`'s resolved link, in path order and each carrying
 /// its own leading `/`: concatenating them left to right rebuilds the route's
 /// declared path with every capture substituted.
 ///
@@ -853,7 +853,7 @@ pub enum ExprInfo {
     },
     /// `Core\Router::url`/`urlAbsolute` over a **literal** name that resolved
     /// to a declared route —
-    /// `rule:routing/matching-is-not-dispatching`'s link,
+    /// `rule:routing/link-name-and-params-are-checked`'s link,
     /// with the lookup already made.
     ///
     /// Recorded *over* the [`ExprInfo::Call`] the same span already carries,

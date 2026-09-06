@@ -395,7 +395,7 @@ def steps_for(opts):
         # Rust failure should be reported by the Rust steps, not discovered here.
         #
         # Present-and-absent are both real states rather than one being an error. Before M4B the
-        # directory does not exist, and `docs/decisions/0016.md` § 5 is explicit that
+        # directory does not exist, and `rule:ide/editor-clients-live-under-editors` is explicit that
         # nothing sits scaffolded ahead of its milestone. Once it does exist, a missing `node` is a
         # machine that is not set up (docs/setup.md) and this says so rather than passing quietly.
         if not opts.package and (EXTENSION / "package.json").is_file():

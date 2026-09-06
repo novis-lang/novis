@@ -156,7 +156,7 @@ fn spawn_script_without_the_capability_fails() {
     assert!(granted.allows(Cap::ScriptSpawn, Scope::Path(target.as_path()), &disk));
 
     // Deny by default, one spelling of "nothing granted" per row. The last is the one that is not
-    // an omission at all: reading a file is not permission to run it (ADR 0006 § 5), so a tree
+    // an omission at all: reading a file is not permission to run it (`rule:security/script-spawn-capability`), so a tree
     // granting `fs.read` over the very same root still refuses the spawn.
     for (why, text) in [
         ("no `[capabilities]` block at all", ""),
@@ -426,7 +426,7 @@ fn a_wildcard_grant_does_not_match_a_suffix_inside_a_label() {
 }
 
 /// `open = true` is already "every host", so `"*"` is not a second way to write it — it grants
-/// nothing at all, which is the deny-by-default direction and what `rule:core-api/shape-rules` R20 asks for.
+/// nothing at all, which is the deny-by-default direction and what `rule:core-api/shape-rules` R17 asks for.
 ///
 /// The `true` case is asserted first so that the refusals below are the entry being inert and not
 /// the fixture answering `false` to everything.

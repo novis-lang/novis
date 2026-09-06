@@ -12,8 +12,8 @@ written against its shape, so a shape that is wrong here is wrong four times.
 ## The one design decision every session must hold
 
 **The runtime is ours and it is not `async`.** `corosensei` stackful coroutines on a thread-per-core
-scheduler (`rule:concurrency/one-scheduler`), and `tokio` appears in
-neither `Cargo.toml` nor `Cargo.lock` (`rule:ide/one-grammar-one-tree`).
+scheduler, and no crate of ours depends on `tokio` — where it appears at all it is compiled with
+`sync` alone, a channel library and not a runtime (`rule:concurrency/one-scheduler`).
 `docs/plan/design.md` § *Thread-per-core, shared-nothing runtime* is the one home for the rule and this
 file does not restate it.
 

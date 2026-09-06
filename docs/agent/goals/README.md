@@ -25,8 +25,8 @@ surface about to change is written twice.
 
 **Then two entries the user added after the chain was written**, both about the same thing from two sides:
 what a program may read off a request, and what a test may say to build one.
-[16 request-json](16-request-json.md) replaces spec § 15's three-way body exclusivity with `rule:http-server/a-session-store-answers-four-operations`'s
-*buffering readers share, streaming readers consume*, adds `Core\Request::json()`/`jsonAs<T>()`, and gives
+[16 request-json](16-request-json.md) replaces spec § 15's three-way body exclusivity with the body-read rule it
+opens — *buffering readers share, streaming readers consume* — adds `Core\Request::json()`/`jsonAs<T>()`, and gives
 `.nvst` the `.phpt` request sections — without which no request-facing member can be proven by a case at
 all. [17 test-request](17-test-request.md) freezes `Core\Test::request`'s shape (`rule:testing/in-process-request` has an
 example and no signature), builds it as one shared `InboundSpec`, and lands the peer fields that
@@ -35,7 +35,7 @@ because they were decided after it, and goal 16's stage 0 is what pays off the f
 against the rule it replaces.
 
 **Then a third, from the same conversation**: [18 input-shapes](18-input-shapes.md) is what stops a
-request reader's answer being `mixed`. ADR 0140 gives `Core\Arr` one converter from `array<mixed>` to a
+request reader's answer being `mixed`. Goal 18's record gives `Core\Arr` one converter from `array<mixed>` to a
 declared shape and `Core\Request` the two members over it, so untrusted data is checked once, where it
 arrives and where a `400` is still the right answer. Its stage 2 is type-surface work the other two need
 nothing of and everything before it would have had to write twice — `rule:types/shape-type`'s shape gains an
@@ -45,7 +45,7 @@ the other two.
 **Then a fourth**: [19 parses](19-parses.md) is the one the user asked for after that conversation ended.
 Four binding surfaces — a route `{capture}`, a `#[Query]`, a command argument and an option — all ask
 `nvs_types::commands::converts_from_string` whether a type can be built from text, and its class arm is a
-comparison against the string `Core\Uuid`. ADR 0141's `Parses` is what that arm becomes: one global
+comparison against the string `Core\Uuid`. Goal 19's `Parses` record is what that arm becomes: one global
 interface on `Comparable`'s precedent, one required member and one default body, so `Core\Uuid` reaches
 the door through the same contract as a user's own `Slug` and stops being a name in four match arms. Its
 stage 4 closes `nvs-runtime`'s two standing conversion gaps, which is why it goes after the goals that
@@ -66,7 +66,7 @@ drivers. It goes in front of the dossier because that entry stops adding surface
 rather than on the end, because goal 6 going green is what *makes* the problem they close.
 [21 carried-gaps](21-carried-gaps.md) takes every gap a shipped feature already carries that no entry on
 this chain claimed: an ADR-written `db.open` wildcard with no reader, `nvs check` never building the
-grants its own diagnostic needs, a cycle closed through an array surviving `rule:security/isolate-teardown-is-a-drain-then-a-sweep`'s sweep, `rule:observability/metrics-and-trace-blocks-are-system`'s four missing log-record fields, `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`'s unarmed fleet lease, spec § 18's
+grants its own diagnostic needs, a cycle closed through an array surviving `rule:security/isolate-teardown-is-a-drain-then-a-sweep`'s sweep, `rule:observability/a-log-record-carries-trace-ids-when-a-trace-is-active`'s four missing log-record fields, `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`'s unarmed fleet lease, spec § 18's
 `stream`/`streamAs`, two rules that were waiting on a diagnostic band that has since opened, and the
 CLDR rosters that throw. Its keystone is the mechanism rather than any of those: an outstanding-members
 key gains an owner column and the test fails when that owner is no longer a live entry, so a switch
@@ -154,8 +154,8 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [15 editor](15-editor.md) | M4B, `rule:ide/highlighting-is-two-layers`+6 | **`editors/vscode`** (new, TypeScript) |
 | [16 request-json](16-request-json.md) | M7, `rule:http-server/a-session-store-answers-four-operations` + spec § 15 | `nvs-stdlib`, `nvs-runtime`, `nvs-test`, `nvs-cli` |
 | [17 test-request](17-test-request.md) | M8, `rule:testing/in-process-request` | `nvs-runtime`, `nvs-stdlib`, `nvs-server`, `nvs-test`, `nvs-cli` |
-| [18 input-shapes](18-input-shapes.md) | M7, ADR 0140 + `rule:types/object-top`/0024 changed by a record | `nvs-syntax`, `nvs-types`, `nvs-stdlib` |
-| [19 parses](19-parses.md) | M7, ADR 0141 + `rule:classes/comparable`/0066/0077/0102 changed by a record | `nvs-hir`, `nvs-types`, `nvs-stdlib`, `nvs-runtime`, `nvs-cli` |
+| [18 input-shapes](18-input-shapes.md) | M7, one new record + `rule:types/object-top`/0024 changed by a record | `nvs-syntax`, `nvs-types`, `nvs-stdlib` |
+| [19 parses](19-parses.md) | M7, one new record + `rule:classes/comparable`/0066/0077/0102 changed by a record | `nvs-hir`, `nvs-types`, `nvs-stdlib`, `nvs-runtime`, `nvs-cli` |
 | [20 unix-sockets](20-unix-sockets.md) | M8, `rule:config/cache-shared-is-the-grant-over-the-configured-store` + `rule:http-server/allow-url-pins-the-address`/0059 changed by a record | `nvs-config`, `nvs-stdlib`, `nvs-db`, `nvs-host`, `nvs-diagnostics` |
 | [21 carried-gaps](21-carried-gaps.md) | post-parity, `rule:core-classes/db-one-api`/0073/0076/0116/0133 changed by a record | `nvs-config`, `nvs-cli`, `nvs-types`, `nvs-runtime`, `nvs-stdlib`, `nvs-server`, `nvs-db`, `nvs-diagnostics` |
 | [22 warm-start](22-warm-start.md) | post-parity, `rule:packaging/an-artifact-is-one-immutable-content-addressed-file` | `nvs-codegen`, `nvs-cli`, `nvs-config` |

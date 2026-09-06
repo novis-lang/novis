@@ -604,7 +604,7 @@ rather than degrading to `float`, because silent precision loss on a wire format
 `JSON_BIGINT_AS_STRING` exists to work around. A class participates by implementing
 `Core\Json\Codec`, which declares `toJson(): mixed` and a static `fromJson(mixed $value): static`; there is
 no magic hook and no structural encoding of public properties
-([ADR 0063 § 4](../decisions/0063.md)). An inline shape
+(`rule:core-api/written-participation`). An inline shape
 (`rule:types/object-top`) is the one instance that needs neither, encoding as a
 JSON object keyed by its field names — it has no declaration to carry a codec, and
 [ADR 0071 § 7](../decisions/0071.md) owns why that is not the same rule. A `secret` value cannot be encoded at all
@@ -700,8 +700,8 @@ launderer is `Core\IO::within`, in § 14, which is where the base is known.
 
 `array<T>` is list, stack, queue and dictionary, so `SplStack`, `SplQueue`, `SplDoublyLinkedList`,
 `SplFixedArray`, `ArrayObject` and `ArrayIterator` are dropped as restatements of it. These three survive
-because an insertion-ordered `int|string`-keyed hash cannot express them
-([ADR 0063 § 4](../decisions/0063.md)).
+because an insertion-ordered `string`-keyed hash cannot express them
+(`rule:types/arrays`).
 
 | Type | Members | Replaces |
 |---|---|---|

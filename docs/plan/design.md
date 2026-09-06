@@ -241,8 +241,8 @@ The decisive structural choice. One single-threaded runtime **pinned per CPU cor
 load-balanced across cores; a request never migrates between cores.
 
 **That runtime is ours, and it is not `async`.** It is `corosensei` stackful coroutines on a thread-per-core
-scheduler of our own (`rule:concurrency/one-scheduler`), and `tokio` appears in
-neither `Cargo.toml` nor `Cargo.lock` (`rule:ide/one-grammar-one-tree`).
+scheduler of our own, and no crate of ours depends on `tokio` — where it appears at all it is compiled
+with `sync` alone, a channel library and not a runtime (`rule:concurrency/one-scheduler`).
 Earlier drafts of this section and of `rule:http-server/a-core-is-never-blocked-on-a-syscall`
  said "Tokio"; that was stale text rather than a live decision, and both now say the same thing.
 
