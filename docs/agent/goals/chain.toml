@@ -110,10 +110,9 @@ retired = "2026-09-06"
 [[goal]]
 name = "8 program-id"
 md = "docs/agent/goals/8-program-id.md"
-toml = "docs/agent/goals/8-program-id.toml"
-handoff = "docs/agent/goals/8-program-id.handoff.md"
 milestone = "post-parity"
 preflight = "docker"
+retired = "2026-09-06"
 
 # Post-parity: `Core\Db\Schema`, closing ADR 0067's own *Revisiting* item. It is last for a reason that
 # is not tidiness. Its acceptance property — apply a schema, introspect it back, get an empty plan —
