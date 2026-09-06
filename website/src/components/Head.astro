@@ -1,10 +1,19 @@
 ---
 /**
  * Head override: the default Starlight head plus the site-wide client script
- * for ADR hover tooltips.
+ * for ADR hover tooltips, and the icons Starlight's own `favicon` option does
+ * not cover.
+ *
+ * The `favicon` option emits `<link rel="icon">` for public/favicon.ico; the
+ * home-screen icon is ours to add. Authored here rather than in the config's
+ * `head` array because only a component sees the resolved base path — a base
+ * passed as `--base` on the CLI never reaches astro.config.ts.
  */
 import Default from '@astrojs/starlight/components/Head.astro'
+
+import { withBase } from '~/lib/base'
 ---
 
 <Default><slot /></Default>
+<link rel="apple-touch-icon" sizes="180x180" href={withBase('/apple-touch-icon.png')} />
 <script src="../scripts/adr-tooltips.ts"></script>

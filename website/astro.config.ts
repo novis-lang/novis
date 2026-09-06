@@ -46,6 +46,13 @@ export default defineConfig({
     starlight({
       title: SITE_TITLE,
       description: SITE_DESCRIPTION,
+      // The mark next to the wordmark in the header. One source of truth:
+      // media/novis-logo.png is the design export, sized down by CSS in
+      // src/components/Header.astro. public/favicon.ico and
+      // public/apple-touch-icon.png are cut from the same file — see the
+      // website README's "Logo and favicon" section for the command.
+      logo: { src: './media/novis-logo.png', alt: '' },
+      favicon: '/favicon.ico',
       customCss: ['./src/styles/custom.css'],
       routeMiddleware: './src/routeData.ts',
       social: [
@@ -70,9 +77,20 @@ export default defineConfig({
         shiki: {
           langs: [novisGrammar],
         },
+        styleOverrides: {
+          // A code block's frame already follows the site's colors (Starlight
+          // hands Expressive Code its UI tokens), but the code surface itself
+          // comes from the syntax theme — a cold grey under a warm page. The
+          // value is --nv-code-bg in src/styles/custom.css, with the rest of
+          // the palette.
+          codeBackground: 'var(--nv-code-bg)',
+        },
       },
       head: [
-        { tag: 'meta', attrs: { name: 'theme-color', content: '#2563eb' } },
+        // The palette's accent, as it appears in the light theme — the browser
+        // chrome sits above a light page. Kept in step with --nv-accent in
+        // src/styles/custom.css, which is where the palette lives.
+        { tag: 'meta', attrs: { name: 'theme-color', content: '#b20038' } },
         { tag: 'meta', attrs: { property: 'og:site_name', content: SITE_TITLE } },
       ],
       sidebar: [

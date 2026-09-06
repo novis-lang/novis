@@ -95,9 +95,46 @@ keyboard focus (`src/scripts/adr-tooltips.ts`).
 
 ## Theming
 
-One knob: `--nv-base` at the top of `src/styles/custom.css`. Every accent shade, badge
-and highlight derives from it via `color-mix()` — change that line and the whole site
-re-tints.
+Four knobs: the palette block at the top of `src/styles/custom.css`, taken from the logo.
+Every other color — the accent scale, the neutral ramp, every hairline, wash and callout —
+derives from those four via `color-mix()`, so re-tinting the site is still editing one
+block. A hex literal belongs in that block and nowhere else.
+
+| | | Where it lands |
+| --- | --- | --- |
+| `--nv-accent` | `#b20038` | links, active nav, focus rings — the one color allowed to shout |
+| `--nv-rose` | `#bd767a` | the muted step of the neutral ramp: secondary text, hairlines, panel edges |
+| `--nv-mist` | `#ffe4e4` | headings in the dark theme, the page ground in the light one |
+| `--nv-teal` | `#5abab6` | everything affirmative — "accepted", "proof", keywords in a signature |
+
+The two themes lighten and darken the same four: the raw accent reads on white (6.6:1) but
+not on the dark ground (2.5:1), so the dark theme lifts it toward white and the light theme
+uses it as drawn. Caution and danger (`--nv-warn`, `--nv-danger`) are the two semantics the
+palette cannot carry and are the only colors outside it — a taint sink drawn in the accent's
+crimson is indistinguishable from a link. Every text token clears WCAG AA against the
+surface it is painted on, in both themes; keep it that way when adding one.
+
+## Logo and favicon
+
+`media/novis-logo.png` (512×512, the export beside its `.afdesign` source) is the one copy.
+The header renders it through Starlight's `logo` option and sizes it in
+`src/components/Header.astro`. The icons are cut from the same file — regenerate them after
+a logo change, from `website/`:
+
+```sh
+magick media/novis-logo.png -trim +repage mark.png
+magick mark.png -filter Lanczos -resize 48x48 -unsharp 0x0.6+0.5+0.02 i48.png
+magick mark.png -filter Lanczos -resize 32x32 -unsharp 0x0.6+0.6+0.02 i32.png
+magick mark.png -filter Lanczos -resize 16x16 -unsharp 0x0.6+0.8+0.02 i16.png
+magick i48.png i32.png i16.png public/favicon.ico
+magick mark.png -filter Lanczos -resize 160x160 -background '#ffe4e4' \
+  -gravity center -extent 180x180 -alpha remove -alpha off public/apple-touch-icon.png
+```
+
+The trim matters: the export carries ~7% transparent margin, which at 16px costs the ring
+its counters. Each size is sharpened for the size it is, which `-define icon:auto-resize`
+cannot do. The home-screen icon sits on `--nv-mist` because iOS fills transparency with
+black.
 
 ## Going live checklist
 

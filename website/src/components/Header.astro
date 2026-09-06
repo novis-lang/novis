@@ -1,8 +1,12 @@
 ---
 /**
- * Header override: the default Starlight header (title, search, social icons,
- * theme switch) plus the site navigation — Novis / Docs / Why Novis? /
- * Sponsoring.
+ * Header override: the default Starlight header (the mark and wordmark, search,
+ * social icons, theme switch) plus the site navigation — Novis / Docs /
+ * Why Novis? / Sponsoring.
+ *
+ * The mark comes from Starlight's `logo` option (see astro.config.ts) through
+ * `<SiteTitle />`; its size is set below, because the default suits a wide
+ * logo rather than a square one.
  *
  * Layout follows the default component so the search stays centered over the
  * content column; the nav sits between the title and the search.
@@ -81,6 +85,24 @@ const isCurrent = (href: string) =>
     padding: 0.25rem;
     margin: -0.25rem;
     min-width: 0;
+  }
+
+  /* Starlight sizes a logo to the nav height less its padding, which suits a
+     wide wordmark. Ours is a square mark inside a 512px export that carries
+     ~7% transparent margin of its own, so at the default it draws about a
+     fifth smaller than the box says. Set the box a little larger to land the
+     mark itself at the wordmark's height, and close the gap the `.site-title`
+     flex row leaves between the two. */
+  .title-wrapper :global(.site-title) {
+    gap: 0.55rem;
+  }
+  .title-wrapper :global(.site-title img) {
+    height: 2.1rem;
+  }
+  @media (max-width: 50rem) {
+    .title-wrapper :global(.site-title img) {
+      height: 1.8rem;
+    }
   }
 
   .site-nav {

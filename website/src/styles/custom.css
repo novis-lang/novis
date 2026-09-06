@@ -1,37 +1,118 @@
 /**
  * The Novis site theme.
  *
- * ONE knob: --nv-base. Every accent shade, badge, gradient and highlight is
- * derived from it with color-mix(), so re-tinting the whole site (the
- * Playwright-style "swap the green for blue") is a one-line change.
+ * FOUR knobs: the palette block at the top of :root, taken from the logo.
+ * Every other color on the site — the accent scale, the neutral ramp, every
+ * badge, hairline, wash and callout — is color-mix()ed out of those four, so
+ * re-tinting the site is still editing one block.
+ *
+ *   --nv-accent  the mark's crimson. Links, active nav, focus rings, the one
+ *                color allowed to shout.
+ *   --nv-rose    the accent gone quiet. The middle of the neutral ramp, so
+ *                secondary text, hairlines and panel edges are warm rather
+ *                than the stock blue-grey.
+ *   --nv-mist    near-white. Headings in the dark theme, the page ground in
+ *                the light one.
+ *   --nv-teal    the complement. Everything affirmative — "accepted", "proof",
+ *                keywords in a signature — so approval never reads as an
+ *                accent link.
+ *
+ * The two themes light and darken the same four with color-mix(); the raw
+ * accent is dark enough to read on white (6.6:1) but not on the dark ground
+ * (2.5:1), which is why the dark theme lifts it toward white and the light
+ * theme uses it as drawn. Every token that carries text clears WCAG AA against
+ * the surface it is painted on, in both themes — check a new one before adding
+ * it. A hex literal belongs in the palette block below and nowhere else.
  */
 
 :root {
-  /* The base color. Change this line to re-tint the site. */
-  --nv-base: #2563eb;
+  /* ------------------------------------------------------------ the palette */
+  --nv-accent: #b20038;
+  --nv-rose: #bd767a;
+  --nv-mist: #ffe4e4;
+  --nv-teal: #5abab6;
 
-  /* Derived accent scale (dark theme is the :root default in Starlight). */
-  --sl-color-accent-low: color-mix(in oklab, var(--nv-base) 32%, black);
-  --sl-color-accent: var(--nv-base);
-  --sl-color-accent-high: color-mix(in oklab, var(--nv-base) 55%, white);
+  /* Caution and danger: the two hues the palette does not carry and cannot
+     borrow. A warning that reads as the "accepted" tone is not a warning, and
+     a taint sink drawn in the accent's crimson is indistinguishable from a
+     link — so both sit far enough round the wheel from #b20038 to be read as
+     themselves. Each theme takes its --nv-warn / --nv-danger from these. */
+  --nv-caution: #d99b34;
+  --nv-alarm: #e8623f;
 
-  --nv-accent-soft: color-mix(in oklab, var(--nv-base) 16%, transparent);
-  --nv-accent-softer: color-mix(in oklab, var(--nv-base) 9%, transparent);
-  --nv-gradient: linear-gradient(
-    135deg,
-    color-mix(in oklab, var(--nv-base) 80%, white) 0%,
-    var(--nv-base) 55%,
-    color-mix(in oklab, var(--nv-base) 60%, black) 100%
-  );
+  /* The two ends the neutral ramp runs between. Both carry a trace of the
+     accent, so even the greys belong to the palette. */
+  --nv-ink: color-mix(in oklab, var(--nv-accent) 10%, #0d0d11);
+  --nv-paper: color-mix(in oklab, var(--nv-mist) 40%, white);
 
-  --nv-ok: #2f9e63;
-  --nv-warn: #b7791f;
+  /* --------------------------------- dark theme (Starlight's :root default) */
+
+  /* -low stays dark: Starlight uses it as the ink *on* an accent background. */
+  --sl-color-accent-low: color-mix(in oklab, var(--nv-accent) 55%, black);
+  --sl-color-accent: color-mix(in oklab, var(--nv-accent) 85%, white);
+  --sl-color-accent-high: color-mix(in oklab, var(--nv-accent) 48%, white);
+
+  /* Neutral ramp. The bright end is mist, so body text stays near-neutral;
+     rose sits *unmixed* at the muted step — the one both themes use for
+     secondary text, and the lightness Starlight puts there anyway (5.3:1 on
+     the page, 4.6:1 on a panel, which is what the stock grey measures). Every
+     quiet label, hairline and panel edge on the site is one of these. */
+  --sl-color-white: var(--nv-mist);
+  --sl-color-gray-1: color-mix(in oklab, var(--nv-mist) 96%, var(--nv-ink));
+  --sl-color-gray-2: color-mix(in oklab, var(--nv-mist) 82%, var(--nv-ink));
+  --sl-color-gray-3: var(--nv-rose);
+  --sl-color-gray-4: color-mix(in oklab, var(--nv-rose) 57%, var(--nv-ink));
+  --sl-color-gray-5: color-mix(in oklab, var(--nv-rose) 36%, var(--nv-ink));
+  --sl-color-gray-6: color-mix(in oklab, var(--nv-rose) 14%, var(--nv-ink));
+  --sl-color-black: var(--nv-ink);
+
+  /* Washes: the accent at reading strength for a panel it must not compete
+     with. -soft carries an icon, -softer a whole block. */
+  --nv-accent-soft: color-mix(in oklab, var(--nv-accent) 22%, transparent);
+  --nv-accent-softer: color-mix(in oklab, var(--nv-accent) 11%, transparent);
+
+  /* Semantics. Affirmative is the palette's teal; the other two read straight
+     off their base hues here, which the dark ground already suits. */
+  --nv-ok: var(--nv-teal);
+  --nv-warn: var(--nv-caution);
+  --nv-danger: var(--nv-alarm);
+
+  /* The ground under a code block — one step off the page, the way Starlight
+     sets it. Wired into Expressive Code by astro.config.ts. */
+  --nv-code-bg: color-mix(in oklab, var(--nv-rose) 16%, var(--nv-ink));
 }
 
 :root[data-theme='light'] {
-  --sl-color-accent-low: color-mix(in oklab, var(--nv-base) 22%, white);
-  --sl-color-accent: color-mix(in oklab, var(--nv-base) 92%, black);
-  --sl-color-accent-high: color-mix(in oklab, var(--nv-base) 65%, black);
+  /* The accent as drawn: 6.6:1 on the paper ground, so links need no lift. */
+  --sl-color-accent-low: color-mix(in oklab, var(--nv-accent) 16%, white);
+  --sl-color-accent: var(--nv-accent);
+  --sl-color-accent-high: color-mix(in oklab, var(--nv-accent) 72%, black);
+
+  /* The same ramp, walked the other way: Starlight's light theme swaps the
+     ends, so gray-1 is the darkest here, the page ground is -black, and rose
+     lands one step further along (gray-4) at the same absolute lightness it
+     holds in the dark theme. */
+  --sl-color-white: var(--nv-ink);
+  --sl-color-gray-1: color-mix(in oklab, var(--nv-rose) 14%, var(--nv-ink));
+  --sl-color-gray-2: color-mix(in oklab, var(--nv-rose) 29%, var(--nv-ink));
+  --sl-color-gray-3: color-mix(in oklab, var(--nv-rose) 57%, var(--nv-ink));
+  --sl-color-gray-4: var(--nv-rose);
+  --sl-color-gray-5: color-mix(in oklab, var(--nv-rose) 45%, var(--nv-paper));
+  --sl-color-gray-6: color-mix(in oklab, var(--nv-rose) 14%, var(--nv-paper));
+  --sl-color-gray-7: color-mix(in oklab, var(--nv-rose) 6%, var(--nv-paper));
+  --sl-color-black: var(--nv-paper);
+
+  /* Thinner: the same wash reads twice as strong over a light ground. */
+  --nv-accent-soft: color-mix(in oklab, var(--nv-accent) 13%, transparent);
+  --nv-accent-softer: color-mix(in oklab, var(--nv-accent) 6%, transparent);
+
+  /* All three darkened to clear 4.5:1 on paper — a teal or an amber bright
+     enough for the dark ground is a pastel on this one. */
+  --nv-ok: color-mix(in oklab, var(--nv-teal) 62%, black);
+  --nv-warn: color-mix(in oklab, var(--nv-caution) 72%, black);
+  --nv-danger: color-mix(in oklab, var(--nv-alarm) 72%, black);
+
+  --nv-code-bg: color-mix(in oklab, var(--nv-rose) 8%, var(--nv-paper));
 }
 
 /* Utility used by components. */
@@ -174,7 +255,7 @@
   }
 }
 .method-qualifier-sink {
-  color: color-mix(in oklab, var(--sl-color-red, #f87171) 85%, var(--sl-color-text));
+  color: var(--nv-danger);
 }
 .method-qualifier-launder {
   color: var(--nv-ok);
