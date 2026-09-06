@@ -1,0 +1,48 @@
+<?nvs
+// This program's identity, as a program.
+//
+// [ADR 0061](/docs/adr/0061-compile-time-autoload-and-program-discovery.md)
+// § 6 is the whole story. `Core\Program::id()` is `BLAKE3` over every
+// compiled unit's content hash, in program order, folded with the digest of
+// the environment they were compiled for — the two halves ADR 0042's cache
+// address is already made of, so the identity of a program costs one combine
+// over digests the caches were holding anyway.
+//
+// The interesting thing about this fixture is what it *cannot* print: the id
+// itself. The value is a digest of this file's own bytes, so writing it into
+// the expected output would change the thing it is a digest of. That
+// circularity is also why the member has a body at all, where every other
+// `Core\Program` member is folded away at compile time — a folded id would
+// change the unit it was folded into.
+//
+// So both lines below are properties, counted rather than read off: the shape
+// of the answer, and that it does not move while the program runs. § 6
+// computes it once, at program resolution, and again only at a hot-reload
+// swap; nothing here recomputes, caches or shortens anything.
+//
+// The two lines this prints are frozen in `docs/agent/loop-goal.toml`
+// (stage 3); the source is not.
+
+string $id = Core\Program::id();
+
+// Counted over the whole string rather than sampled. A member that answered
+// plausibly at the front and gave up at the back would still start with hex,
+// and a truncated one would still be entirely lower case.
+int $hex = 0;
+foreach (Core\Str::graphemes($id) as string $ch) {
+    if (Core\Str::contains("0123456789abcdef", $ch)) {
+        $hex = $hex + 1;
+    }
+}
+
+// All 32 bytes, and never a prefix: a caller who wants eight characters can
+// take eight, while a caller handed eight cannot get the other fifty-six
+// back. Lower case is part of the formula and not a rendering choice — two
+// spellings of one digest would be two cache keys.
+bool $shaped = Core\Str::length($id) == 64 && $hex == 64 && $id == Core\Str::lower($id);
+echo $shaped ? "id is 64 lowercase hex characters" : "id was not 64 lowercase hex: " . $id, "\n";
+
+// Constant within a run by construction rather than by memoization: the host
+// wrote it onto the context before this file started, so there is nothing
+// left for a second call to compute differently.
+echo Core\Program::id() == $id ? "two reads within one run agree" : "two reads disagreed", "\n";

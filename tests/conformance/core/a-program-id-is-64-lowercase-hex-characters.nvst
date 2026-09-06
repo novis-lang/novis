@@ -1,0 +1,29 @@
+--TEST--
+`Core\Program::id()` answers all 32 bytes as 64 lowercase hex characters, counted across the whole string rather than sampled — ADR 0061 § 6
+--FILE--
+<?nvs
+// The value itself can never be frozen in `--EXPECT--`: it is a digest of
+// this very file's bytes, so writing it down here would change it. That is
+// § 6's circularity seen from the outside, and it is why every line below
+// asserts a *property* of the answer instead of the answer.
+var $id = Core\Program::id();
+
+echo "length=", Core\Str::length($id), "\n";
+
+// Counted, not spot-checked. A member answering plausibly for the first
+// character and not the sixtieth passes any sampled check and fails this one.
+var $hex = 0;
+foreach (Core\Str::graphemes($id) as string $ch) {
+    if (Core\Str::contains("0123456789abcdef", $ch)) {
+        $hex = $hex + 1;
+    }
+}
+echo "hex=", $hex, "\n";
+
+// Lower case belongs to the formula rather than to the rendering: two
+// spellings of one digest are two cache keys, and the runtime picks one.
+echo "lower=", $id == Core\Str::lower($id) ? "true" : "false", "\n";
+--EXPECT--
+length=64
+hex=64
+lower=true

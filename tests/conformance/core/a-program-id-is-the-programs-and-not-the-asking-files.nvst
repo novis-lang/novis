@@ -1,0 +1,23 @@
+--TEST--
+The id a required file reads is the whole program's, not the unit that asked for it — ADR 0061 § 6
+--FILE helper.nvs--
+<?nvs
+// A second unit in the same program. Its own bytes are one of the content
+// hashes the id is folded from, but the answer it reads back is the graph's
+// and not its own.
+class Helper {
+    public static function id(): string {
+        return Core\Program::id();
+    }
+}
+--FILE--
+<?nvs
+require './helper.nvs';
+
+// Asserted as *agreement* rather than as two values. An id derived from the
+// asking unit would hand each file a different one, and both halves would
+// still print sixty-four plausible lowercase hex characters — which is
+// exactly what a case reading either one off a line of its own would accept.
+echo "one program, one id: ", Helper::id() == Core\Program::id() ? "true" : "false", "\n";
+--EXPECT--
+one program, one id: true

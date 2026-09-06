@@ -1,0 +1,29 @@
+--TEST--
+Every read of `Core\Program::id()` within one run answers the same string — before output, after it, and from inside a method — ADR 0061 § 6
+--FILE--
+<?nvs
+// § 6 computes the id once, at program resolution, and the host writes it
+// onto the context before any of this runs. So it is constant within a run
+// *by construction* rather than by memoization, and nothing the program does
+// while running can move it.
+class Reader {
+    public static function id(): string {
+        return Core\Program::id();
+    }
+}
+
+var $first = Core\Program::id();
+
+// Output between the two reads. A member that recomputed per call has every
+// chance to answer differently here, and one that folded the program's own
+// behaviour into the digest would answer differently for certain.
+echo "read once\n";
+
+var $second = Core\Program::id();
+
+echo "agree=", $first == $second ? "true" : "false", "\n";
+echo "agree_inside_a_method=", Reader::id() == $first ? "true" : "false", "\n";
+--EXPECT--
+read once
+agree=true
+agree_inside_a_method=true
