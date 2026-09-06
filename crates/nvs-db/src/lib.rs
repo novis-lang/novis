@@ -184,7 +184,7 @@ pub use pg::{CancelKey, PgColumn, PgDate, PgRow, PgRows, PgScalar, PgTarget, PgT
 // `CREATE TABLE`. It is `schema::Column`, where its neighbours say which
 // question it answers.
 pub use schema::{
-    ColumnDefault, FloatWidth, Ident, IntWidth, Key, MAX_IDENTIFIER, ScalarType, Schema,
+    ColumnDefault, FloatWidth, Ident, IntWidth, Key, MAX_IDENTIFIER, Node, ScalarType, Schema,
     SchemaError, Table, is_bare_identifier,
 };
 pub use span::{QuerySpan, SQL_LIMIT};

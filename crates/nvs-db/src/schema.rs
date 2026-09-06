@@ -31,16 +31,21 @@
 //! a nullable primary key, a default no backend will accept. An emitter that
 //! re-checked would be a second answer to the same question.
 //!
+//! # The canonical form
+//!
+//! § 1 makes the array form canonical — two schemas are the same schema exactly
+//! when their array forms agree — and [`Schema::to_array`] is where that form
+//! is defined, over [`Node`] rather than over a Novis value, because this crate
+//! is sans-io. It is **ordered**: declaration order for columns, name order for
+//! tables, constraints and indexes. `Schema::from_array` reads it back through
+//! the same builders a program calls, so a file cannot say anything a program
+//! could not have built.
+//!
 //! # Known gaps
 //!
-//! 1. **No canonical array form yet.** § 1 makes the array form canonical and
-//!    `toArray(fromArray(a)) == a` the property that holds the three spellings
-//!    together; these types carry no serialization at all, and the ordering rule
-//!    (declaration order for columns, name order for everything else) is stated
-//!    in that section and enforced nowhere.
-//! 2. **No emitters and no introspectors.** §§ 4 and 8 are the next two, and
+//! 1. **No emitters and no introspectors.** §§ 4 and 8 are the next two, and
 //!    both are `Dialect`-keyed and sans-io like everything else here.
-//! 3. **§ 11's exclusions are not represented and must not be added casually.**
+//! 2. **§ 11's exclusions are not represented and must not be added casually.**
 //!    Foreign keys, partial and expression indexes, index types, collations,
 //!    check constraints and the rest are out of v1 because they have no portable
 //!    spelling, and the vocabulary grows only when a construct exists on all
@@ -142,6 +147,18 @@ pub enum IntWidth {
     Big,
 }
 
+impl IntWidth {
+    /// How many bits wide, which is also what the canonical spelling counts.
+    #[must_use]
+    pub fn bits(self) -> u16 {
+        match self {
+            IntWidth::Small => 16,
+            IntWidth::Normal => 32,
+            IntWidth::Big => 64,
+        }
+    }
+}
+
 /// Which of the two binary floating-point columns, which every backend spells
 /// with two names and no more.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -150,6 +167,17 @@ pub enum FloatWidth {
     Single,
     /// `DOUBLE PRECISION`, 64 bits.
     Double,
+}
+
+impl FloatWidth {
+    /// How many bits wide, which is also what the canonical spelling counts.
+    #[must_use]
+    pub fn bits(self) -> u16 {
+        match self {
+            FloatWidth::Single => 32,
+            FloatWidth::Double => 64,
+        }
+    }
 }
 
 /// A column's type: [ADR 0067 § 9](/docs/adr/0067-core-db.md)'s map in the
@@ -216,7 +244,8 @@ impl ScalarType {
     ///
     /// Total, injective, and never [`ColumnType::Other`] — that case is every
     /// type with no Novis type of its own, and the vocabulary contains none of
-    /// them by construction. `a_written_type_describes_as_its_own_read_case`
+    /// them by construction.
+    /// `the_column_type_vocabulary_is_adr_0067_section_9s_map_in_the_write_direction`
     /// holds all three properties.
     #[must_use]
     pub fn describes(&self) -> ColumnType {
@@ -670,6 +699,374 @@ impl Schema {
     }
 }
 
+/// One node of [ADR 0145 § 1](/docs/adr/0145-a-schema-is-a-value-core-db-schema-converges-a-closed.md)'s
+/// canonical array form.
+///
+/// The array form is what makes a built schema, a saved file and an
+/// introspected database *one* value: two schemas are the same schema exactly
+/// when their array forms agree. That comparison has to happen somewhere, and
+/// it happens here — this crate is sans-io and holds no Novis value, so the
+/// form needs a small ordered node of its own rather than a second
+/// serialization at each end. `nvs-stdlib` turns this into a Novis array and
+/// back, once, and nothing else converts anything.
+///
+/// A [`Node::Map`] is a `Vec` of pairs rather than a map type on purpose:
+/// [ADR 0090](/docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
+/// § 4 makes key order part of an array's value, so key order is data here too
+/// and nothing on the way past may reorder it.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Node {
+    /// A string.
+    Text(String),
+    /// A signed integer.
+    Int(i64),
+    /// An unsigned integer, which ADR 0067 § 9 makes a Novis type of its own.
+    Uint(u64),
+    /// A binary floating-point number.
+    Float(f64),
+    /// A boolean.
+    Bool(bool),
+    /// An ordered list.
+    List(Vec<Node>),
+    /// An ordered map.
+    Map(Vec<(String, Node)>),
+}
+
+impl Node {
+    /// The value at `key`, or `None` for a missing key or a node that is not a
+    /// map at all.
+    #[must_use]
+    pub fn get(&self, key: &str) -> Option<&Node> {
+        match self {
+            Node::Map(pairs) => pairs.iter().find(|(at, _)| at == key).map(|(_, node)| node),
+            _ => None,
+        }
+    }
+
+    /// The string at `key`, which every reader below requires.
+    fn text(&self, key: &'static str) -> Result<&str, SchemaError> {
+        match self.get(key) {
+            Some(Node::Text(text)) => Ok(text),
+            _ => Err(SchemaError::BadArray {
+                key,
+                wanted: "a string",
+            }),
+        }
+    }
+
+    /// The list at `key`, where a missing key is the empty list — so a table
+    /// with no indexes may leave the key out and still read back.
+    fn list(&self, key: &'static str) -> Result<&[Node], SchemaError> {
+        match self.get(key) {
+            Some(Node::List(items)) => Ok(items),
+            None => Ok(&[]),
+            Some(_) => Err(SchemaError::BadArray {
+                key,
+                wanted: "a list",
+            }),
+        }
+    }
+
+    /// The list of names at `key`, in the order it states them.
+    fn names(&self, key: &'static str) -> Result<Vec<&str>, SchemaError> {
+        self.list(key)?
+            .iter()
+            .map(|node| match node {
+                Node::Text(name) => Ok(name.as_str()),
+                _ => Err(SchemaError::BadArray {
+                    key,
+                    wanted: "a list of names",
+                }),
+            })
+            .collect()
+    }
+
+    /// The flag at `key`, where a missing key is `false`.
+    fn flag(&self, key: &'static str) -> Result<bool, SchemaError> {
+        match self.get(key) {
+            Some(Node::Bool(set)) => Ok(*set),
+            None => Ok(false),
+            Some(_) => Err(SchemaError::BadArray {
+                key,
+                wanted: "true or false",
+            }),
+        }
+    }
+}
+
+fn pair(key: &str, node: Node) -> (String, Node) {
+    (key.to_string(), node)
+}
+
+fn name_node(name: &Ident) -> Node {
+    Node::Text(name.as_str().to_string())
+}
+
+fn name_list(names: &[Ident]) -> Node {
+    Node::List(names.iter().map(name_node).collect())
+}
+
+impl fmt::Display for ScalarType {
+    /// The canonical spelling, which is the only place a type is named in the
+    /// array form — one string rather than a map of a case and its parameters,
+    /// because this is also what a human writes into a schema file.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ScalarType::Int(width) => write!(f, "int{}", width.bits()),
+            ScalarType::Uint(width) => write!(f, "uint{}", width.bits()),
+            ScalarType::Float(width) => write!(f, "float{}", width.bits()),
+            ScalarType::Decimal { precision, scale } => write!(f, "decimal({precision},{scale})"),
+            ScalarType::Text { max: Some(max) } => write!(f, "text({max})"),
+            ScalarType::Text { max: None } => f.write_str("text"),
+            ScalarType::Bytes { max: Some(max) } => write!(f, "bytes({max})"),
+            ScalarType::Bytes { max: None } => f.write_str("bytes"),
+            ScalarType::Bool => f.write_str("bool"),
+            ScalarType::Date => f.write_str("date"),
+            ScalarType::Time => f.write_str("time"),
+            ScalarType::DateTime => f.write_str("datetime"),
+            ScalarType::Instant => f.write_str("instant"),
+            ScalarType::Uuid => f.write_str("uuid"),
+            ScalarType::Json => f.write_str("json"),
+        }
+    }
+}
+
+impl ScalarType {
+    /// The type a canonical spelling names.
+    ///
+    /// Whitespace inside the parentheses is accepted, so a spelling a person
+    /// typed reads the same as one [`ScalarType`]'s [`fmt::Display`] wrote.
+    /// This is not a SQL parser and must not become one — it reads this
+    /// vocabulary's own closed set of names, and a spelling outside it is
+    /// refused rather than passed through.
+    ///
+    /// # Errors
+    ///
+    /// [`SchemaError::UnknownType`] for a name the vocabulary has not got or a
+    /// parameter that is not a number, and the parameter refusals
+    /// [`SchemaError::BadPrecision`] and [`SchemaError::ZeroWidth`] for one
+    /// that is a number no backend accepts.
+    pub fn from_spelling(text: &str) -> Result<ScalarType, SchemaError> {
+        fn unknown(text: &str) -> SchemaError {
+            SchemaError::UnknownType(text.to_string())
+        }
+        let (head, args) = match (text.find('('), text.strip_suffix(')')) {
+            (Some(open), Some(body)) => (&text[..open], Some(body[open + 1..].trim())),
+            (None, None) => (text, None),
+            _ => return Err(unknown(text)),
+        };
+        let number = |digits: &str| digits.trim().parse::<u32>().map_err(|_| unknown(text));
+        let ty = match (head, args) {
+            ("int16", None) => ScalarType::Int(IntWidth::Small),
+            ("int32", None) => ScalarType::Int(IntWidth::Normal),
+            ("int64", None) => ScalarType::Int(IntWidth::Big),
+            ("uint16", None) => ScalarType::Uint(IntWidth::Small),
+            ("uint32", None) => ScalarType::Uint(IntWidth::Normal),
+            ("uint64", None) => ScalarType::Uint(IntWidth::Big),
+            ("float32", None) => ScalarType::Float(FloatWidth::Single),
+            ("float64", None) => ScalarType::Float(FloatWidth::Double),
+            ("decimal", Some(body)) => {
+                let (precision, scale) = body.split_once(',').ok_or_else(|| unknown(text))?;
+                ScalarType::Decimal {
+                    precision: u8::try_from(number(precision)?).map_err(|_| unknown(text))?,
+                    scale: u8::try_from(number(scale)?).map_err(|_| unknown(text))?,
+                }
+            }
+            ("text", None) => ScalarType::Text { max: None },
+            ("text", Some(body)) => ScalarType::Text {
+                max: Some(number(body)?),
+            },
+            ("bytes", None) => ScalarType::Bytes { max: None },
+            ("bytes", Some(body)) => ScalarType::Bytes {
+                max: Some(number(body)?),
+            },
+            ("bool", None) => ScalarType::Bool,
+            ("date", None) => ScalarType::Date,
+            ("time", None) => ScalarType::Time,
+            ("datetime", None) => ScalarType::DateTime,
+            ("instant", None) => ScalarType::Instant,
+            ("uuid", None) => ScalarType::Uuid,
+            ("json", None) => ScalarType::Json,
+            _ => return Err(unknown(text)),
+        };
+        ty.check()?;
+        Ok(ty)
+    }
+}
+
+impl ColumnDefault {
+    /// A default as one key mapped to one value.
+    ///
+    /// [`ColumnDefault::Now`] carries `true` rather than nothing, so that every
+    /// default in the form has the same shape and a reader never has to tell a
+    /// key with no value from a missing one.
+    fn to_node(&self) -> Node {
+        let (key, value) = match self {
+            ColumnDefault::Int(value) => ("int", Node::Int(*value)),
+            ColumnDefault::Uint(value) => ("uint", Node::Uint(*value)),
+            ColumnDefault::Float(value) => ("float", Node::Float(*value)),
+            ColumnDefault::Decimal(digits) => ("decimal", Node::Text(digits.clone())),
+            ColumnDefault::Text(text) => ("text", Node::Text(text.clone())),
+            ColumnDefault::Bool(value) => ("bool", Node::Bool(*value)),
+            ColumnDefault::Now => ("now", Node::Bool(true)),
+        };
+        Node::Map(vec![pair(key, value)])
+    }
+
+    fn from_node(node: &Node) -> Result<ColumnDefault, SchemaError> {
+        let bad = SchemaError::BadArray {
+            key: "default",
+            wanted: "one of `int`, `uint`, `float`, `decimal`, `text`, `bool` or `now`",
+        };
+        let Node::Map(pairs) = node else {
+            return Err(bad);
+        };
+        let [(key, value)] = &pairs[..] else {
+            return Err(bad);
+        };
+        Ok(match (key.as_str(), value) {
+            ("int", Node::Int(value)) => ColumnDefault::Int(*value),
+            ("uint", Node::Uint(value)) => ColumnDefault::Uint(*value),
+            ("float", Node::Float(value)) => ColumnDefault::Float(*value),
+            ("decimal", Node::Text(digits)) => ColumnDefault::Decimal(digits.clone()),
+            ("text", Node::Text(text)) => ColumnDefault::Text(text.clone()),
+            ("bool", Node::Bool(value)) => ColumnDefault::Bool(*value),
+            ("now", Node::Bool(true)) => ColumnDefault::Now,
+            _ => return Err(bad),
+        })
+    }
+}
+
+impl Column {
+    /// The column as a node: its name, its type's spelling, both flags, and a
+    /// default only when it has one.
+    fn to_node(&self) -> Node {
+        let mut pairs = vec![
+            pair("name", name_node(&self.name)),
+            pair("type", Node::Text(self.ty.to_string())),
+            pair("null", Node::Bool(self.nullable)),
+            pair("identity", Node::Bool(self.identity)),
+        ];
+        if let Some(default) = &self.default {
+            pairs.push(pair("default", default.to_node()));
+        }
+        Node::Map(pairs)
+    }
+
+    fn from_node(node: &Node) -> Result<Column, SchemaError> {
+        let mut column = Column::new(
+            node.text("name")?,
+            ScalarType::from_spelling(node.text("type")?)?,
+        )?;
+        if node.flag("null")? {
+            column = column.null();
+        }
+        if node.flag("identity")? {
+            column = column.identity()?;
+        }
+        if let Some(default) = node.get("default") {
+            column = column.default(ColumnDefault::from_node(default)?)?;
+        }
+        Ok(column)
+    }
+}
+
+impl Key {
+    fn to_node(&self) -> Node {
+        Node::Map(vec![
+            pair("name", name_node(&self.name)),
+            pair("columns", name_list(&self.columns)),
+        ])
+    }
+}
+
+impl Table {
+    /// The table as a node.
+    ///
+    /// Columns keep **declaration order**, because a `CREATE TABLE` has to
+    /// reproduce it; the primary key and every key's own columns keep the order
+    /// they were declared in, because an index is not the same index under a
+    /// different column order. Constraints and indexes are emitted in **name
+    /// order**, since nothing observable depends on the order they were added
+    /// in and an introspector answering the server's catalog order would
+    /// otherwise fail the round trip against a database that is not wrong in
+    /// any way.
+    fn to_node(&self) -> Node {
+        let sorted = |keys: &[Key]| {
+            let mut keys: Vec<&Key> = keys.iter().collect();
+            keys.sort_by(|left, right| left.name.as_str().cmp(right.name.as_str()));
+            Node::List(keys.into_iter().map(Key::to_node).collect())
+        };
+        Node::Map(vec![
+            pair("name", name_node(&self.name)),
+            pair(
+                "columns",
+                Node::List(self.columns.iter().map(Column::to_node).collect()),
+            ),
+            pair("primary_key", name_list(&self.primary_key)),
+            pair("unique", sorted(&self.unique)),
+            pair("indexes", sorted(&self.indexes)),
+        ])
+    }
+
+    fn from_node(node: &Node) -> Result<Table, SchemaError> {
+        let columns = node
+            .list("columns")?
+            .iter()
+            .map(Column::from_node)
+            .collect::<Result<Vec<Column>, SchemaError>>()?;
+        let mut table = Table::new(node.text("name")?, columns)?;
+        let key = node.names("primary_key")?;
+        if !key.is_empty() {
+            table = table.primary_key(&key)?;
+        }
+        for unique in node.list("unique")? {
+            table = table.unique(unique.text("name")?, &unique.names("columns")?)?;
+        }
+        for index in node.list("indexes")? {
+            table = table.index(index.text("name")?, &index.names("columns")?)?;
+        }
+        Ok(table)
+    }
+}
+
+impl Schema {
+    /// This schema in the canonical array form, with its tables in name order.
+    ///
+    /// `Schema::from_array(&a.to_array())` is `a` for every schema, and
+    /// `a.to_array()` is what two schemas are compared by — the diff normalizes
+    /// into this and nothing compares SQL text.
+    #[must_use]
+    pub fn to_array(&self) -> Node {
+        let mut tables: Vec<&Table> = self.tables.iter().collect();
+        tables.sort_by(|left, right| left.name.as_str().cmp(right.name.as_str()));
+        Node::Map(vec![pair(
+            "tables",
+            Node::List(tables.into_iter().map(Table::to_node).collect()),
+        )])
+    }
+
+    /// The schema an array form describes.
+    ///
+    /// Every construction rule is the builders' — this reads the form and hands
+    /// it to them, so a file cannot say anything a program could not have built.
+    ///
+    /// # Errors
+    ///
+    /// [`SchemaError::BadArray`] for a key that is missing or holds the wrong
+    /// kind of value, [`SchemaError::UnknownType`] for a type spelling outside
+    /// the vocabulary, and every refusal the builders state for a schema that
+    /// reads but is not coherent.
+    pub fn from_array(node: &Node) -> Result<Schema, SchemaError> {
+        let tables = node
+            .list("tables")?
+            .iter()
+            .map(Table::from_node)
+            .collect::<Result<Vec<Table>, SchemaError>>()?;
+        Schema::new(tables)
+    }
+}
+
 /// Why a construction was refused.
 ///
 /// Every one of these is a schema no backend would accept, or one two backends
@@ -719,6 +1116,16 @@ pub enum SchemaError {
     IdentityNotInKey(Ident),
     /// A default no backend takes on that type.
     DefaultDoesNotFit(Ident),
+    /// A type spelling the closed vocabulary does not contain.
+    UnknownType(String),
+    /// A node of the array form that is missing, or is not the kind of value
+    /// that place takes.
+    BadArray {
+        /// The key the reading stopped at.
+        key: &'static str,
+        /// What that key takes.
+        wanted: &'static str,
+    },
 }
 
 impl fmt::Display for SchemaError {
@@ -770,6 +1177,13 @@ impl fmt::Display for SchemaError {
                 f,
                 "column `{column}` cannot carry that default on all five backends"
             ),
+            SchemaError::UnknownType(spelling) => write!(
+                f,
+                "`{spelling}` is not one of the column types the vocabulary contains"
+            ),
+            SchemaError::BadArray { key, wanted } => {
+                write!(f, "the array form's `{key}` wants {wanted}")
+            }
         }
     }
 }
@@ -789,7 +1203,7 @@ mod tests {
     /// from the type it was written as, which is § 5's empty-plan property
     /// failing at the first `dump`.
     #[test]
-    fn a_written_type_describes_as_its_own_read_case() {
+    fn the_column_type_vocabulary_is_adr_0067_section_9s_map_in_the_write_direction() {
         let written = [
             ScalarType::Int(IntWidth::Small),
             ScalarType::Uint(IntWidth::Big),
@@ -829,10 +1243,34 @@ mod tests {
 
     /// The identifier rule is `Core\Db::quoteIdentifier`'s, and this crate is
     /// its one home.
+    ///
+    /// Asserted as an **agreement** and not only as a list of answers: an
+    /// [`Ident`] is exactly what [`is_bare_identifier`] admits, within
+    /// [`MAX_IDENTIFIER`], because that function is the judgement the member
+    /// one crate up calls rather than a second one written to match.
     #[test]
-    fn an_identifier_is_ascii_bare_and_no_longer_than_postgresqls_floor() {
+    fn an_identifier_is_validated_by_the_judgement_quote_identifier_states() {
         for good in ["id", "_x", "nvs_jobs", "A1"] {
             assert!(Ident::new(good).is_ok(), "{good} is a bare identifier");
+        }
+        let at_the_limit = "a".repeat(MAX_IDENTIFIER);
+        for name in [
+            "id",
+            "_x",
+            "A1",
+            "",
+            "1st",
+            "a-b",
+            "a b",
+            "naïve",
+            &at_the_limit,
+        ] {
+            assert_eq!(
+                Ident::new(name).is_ok(),
+                is_bare_identifier(name) && name.len() <= MAX_IDENTIFIER,
+                "`{name}` is judged one way by `Ident::new` and another by \
+                 the judgement `quoteIdentifier` states"
+            );
         }
         for bad in ["", "1st", "a-b", "a b", "a\"b", "naïve", "a;drop"] {
             assert!(matches!(
@@ -899,8 +1337,13 @@ mod tests {
 
     /// § 2's closed default set, and the two refusals that are portability
     /// rather than typing.
+    ///
+    /// The last assertion is the "and nothing else": an expression default is
+    /// not a thing the canonical form can *say*, so the DDL-injection hole and
+    /// the normalization hole § 5 spends its budget on are both closed by the
+    /// vocabulary rather than by a check someone has to remember to run.
     #[test]
-    fn a_default_the_five_backends_do_not_share_is_refused() {
+    fn a_default_is_a_vocabulary_scalar_or_now_and_nothing_else() {
         let varchar = Column::new("name", ScalarType::Text { max: Some(40) }).unwrap();
         assert!(
             varchar
@@ -937,6 +1380,15 @@ mod tests {
         assert!(matches!(
             varchar.default(ColumnDefault::Int(1)),
             Err(SchemaError::DefaultDoesNotFit(_))
+        ));
+        // And the set is closed at the form as well as at the type: there is no
+        // key an expression could arrive under.
+        assert!(matches!(
+            ColumnDefault::from_node(&Node::Map(vec![(
+                "expression".to_string(),
+                Node::Text("now()".to_string()),
+            )])),
+            Err(SchemaError::BadArray { .. })
         ));
     }
 
@@ -1042,5 +1494,226 @@ mod tests {
         assert_eq!(jobs.primary_key_columns(), [Ident::new("id").unwrap()]);
         assert_eq!(jobs.indexes().len(), 1);
         assert!(jobs.unique_keys().is_empty());
+    }
+
+    /// The names of a list of named nodes, in the order the form states them.
+    fn names_in(node: &Node, key: &str) -> Vec<String> {
+        let Some(Node::List(items)) = node.get(key) else {
+            panic!("`{key}` is not a list");
+        };
+        items
+            .iter()
+            .map(|item| match item.get("name") {
+                Some(Node::Text(name)) => name.clone(),
+                _ => panic!("an item of `{key}` has no name"),
+            })
+            .collect()
+    }
+
+    /// ADR 0145 § 1's property, over one schema using every construct the
+    /// vocabulary has: `to_array(from_array(a)) == a`.
+    ///
+    /// Asserted with the *order* rule and not only the structure, because the
+    /// form is canonical and an introspector answering a server's own catalog
+    /// order would otherwise round-trip into a different value and make § 5's
+    /// plan report a change against a database that is not wrong in any way.
+    /// So everything below is declared in the order the canonical form does not
+    /// use: the tables backwards by name, the keys backwards by name, and the
+    /// columns in the one order that *is* kept.
+    #[test]
+    fn a_schema_value_round_trips_through_its_array_form() {
+        let notes = Table::new(
+            "notes",
+            vec![
+                Column::new("id", ScalarType::Int(IntWidth::Big))
+                    .unwrap()
+                    .identity()
+                    .unwrap(),
+                Column::new("title", ScalarType::Text { max: Some(200) })
+                    .unwrap()
+                    .default(ColumnDefault::Text("untitled".to_string()))
+                    .unwrap(),
+                Column::new("body", ScalarType::Text { max: None })
+                    .unwrap()
+                    .null(),
+                Column::new(
+                    "rating",
+                    ScalarType::Decimal {
+                        precision: 4,
+                        scale: 2,
+                    },
+                )
+                .unwrap()
+                .null(),
+                Column::new("created_at", ScalarType::Instant)
+                    .unwrap()
+                    .default(ColumnDefault::Now)
+                    .unwrap(),
+            ],
+        )
+        .unwrap()
+        .primary_key(&["id"])
+        .unwrap()
+        .unique("notes_title", &["title"])
+        .unwrap()
+        .index("notes_recent", &["created_at", "title"])
+        .unwrap()
+        .index("notes_by_body", &["body"])
+        .unwrap();
+        let authors = Table::new(
+            "authors",
+            vec![
+                Column::new("id", ScalarType::Uint(IntWidth::Normal)).unwrap(),
+                Column::new("active", ScalarType::Bool)
+                    .unwrap()
+                    .default(ColumnDefault::Bool(true))
+                    .unwrap(),
+            ],
+        )
+        .unwrap()
+        .primary_key(&["id"])
+        .unwrap();
+
+        let schema = Schema::new(vec![notes, authors]).unwrap();
+        let array = schema.to_array();
+
+        // Name order for tables and for indexes; declaration order for columns,
+        // and for the columns *inside* one index, where a different order is a
+        // different index.
+        assert_eq!(names_in(&array, "tables"), ["authors", "notes"]);
+        let Some(Node::List(tables)) = array.get("tables") else {
+            unreachable!()
+        };
+        assert_eq!(
+            names_in(&tables[1], "columns"),
+            ["id", "title", "body", "rating", "created_at"]
+        );
+        assert_eq!(
+            names_in(&tables[1], "indexes"),
+            ["notes_by_body", "notes_recent"]
+        );
+        assert_eq!(
+            tables[1].get("indexes").unwrap(),
+            &Node::List(vec![
+                Node::Map(vec![
+                    ("name".to_string(), Node::Text("notes_by_body".to_string())),
+                    (
+                        "columns".to_string(),
+                        Node::List(vec![Node::Text("body".to_string())])
+                    ),
+                ]),
+                Node::Map(vec![
+                    ("name".to_string(), Node::Text("notes_recent".to_string())),
+                    (
+                        "columns".to_string(),
+                        Node::List(vec![
+                            Node::Text("created_at".to_string()),
+                            Node::Text("title".to_string()),
+                        ])
+                    ),
+                ]),
+            ])
+        );
+
+        // The property itself. Read back through the builders, and written out
+        // again to the byte-identical form -- which is the comparison § 5's
+        // diff normalizes into.
+        let read = Schema::from_array(&array).unwrap();
+        assert_eq!(read.to_array(), array);
+        assert_eq!(read.tables().len(), 2);
+    }
+
+    /// Every case of the vocabulary has a canonical spelling, they are all
+    /// distinct, and each one reads back as itself.
+    ///
+    /// A count, not a row-by-row reading: a fourteenth type added with no
+    /// spelling, or a parameter dropped on the way through, fails here rather
+    /// than in an emitter that then writes a column the introspector cannot
+    /// answer with.
+    #[test]
+    fn every_column_type_in_the_vocabulary_round_trips() {
+        let every = [
+            ScalarType::Int(IntWidth::Small),
+            ScalarType::Int(IntWidth::Normal),
+            ScalarType::Int(IntWidth::Big),
+            ScalarType::Uint(IntWidth::Small),
+            ScalarType::Uint(IntWidth::Normal),
+            ScalarType::Uint(IntWidth::Big),
+            ScalarType::Float(FloatWidth::Single),
+            ScalarType::Float(FloatWidth::Double),
+            ScalarType::Decimal {
+                precision: 38,
+                scale: 6,
+            },
+            ScalarType::Text { max: Some(255) },
+            ScalarType::Text { max: None },
+            ScalarType::Bytes { max: Some(16) },
+            ScalarType::Bytes { max: None },
+            ScalarType::Bool,
+            ScalarType::Date,
+            ScalarType::Time,
+            ScalarType::DateTime,
+            ScalarType::Instant,
+            ScalarType::Uuid,
+            ScalarType::Json,
+        ];
+
+        let mut spellings: Vec<String> = Vec::new();
+        for ty in &every {
+            let spelling = ty.to_string();
+            assert!(
+                !spellings.contains(&spelling),
+                "`{spelling}` spells two types"
+            );
+            assert_eq!(
+                &ScalarType::from_spelling(&spelling).unwrap(),
+                ty,
+                "`{spelling}` did not read back as {ty:?}"
+            );
+            spellings.push(spelling);
+        }
+        // Thirteen read cases, twenty write cases: the seven extra are the
+        // widths and the two lengths, which is exactly what the write direction
+        // keeps and the read direction does not.
+        assert_eq!(spellings.len(), 20);
+        let mut read_cases: Vec<ColumnType> = Vec::new();
+        for case in every.iter().map(ScalarType::describes) {
+            if !read_cases.contains(&case) {
+                read_cases.push(case);
+            }
+        }
+        assert_eq!(read_cases.len(), 13);
+
+        // And through a whole schema, where the spelling is the only place a
+        // type is written down.
+        let columns = every
+            .iter()
+            .enumerate()
+            .map(|(at, ty)| Column::new(&format!("c{at}"), ty.clone()).unwrap())
+            .collect();
+        let schema = Schema::new(vec![Table::new("every", columns).unwrap()]).unwrap();
+        let array = schema.to_array();
+        assert_eq!(Schema::from_array(&array).unwrap().to_array(), array);
+
+        // A spelling outside the closed set is refused, and so is one inside it
+        // carrying a parameter no backend accepts. There is no fallback and no
+        // pass-through: that is what makes the vocabulary closed.
+        for outside in ["smallint", "int24", "varchar(20)", "text(", "decimal(10)"] {
+            assert!(
+                matches!(
+                    ScalarType::from_spelling(outside),
+                    Err(SchemaError::UnknownType(_))
+                ),
+                "`{outside}` is not a spelling this vocabulary has"
+            );
+        }
+        assert_eq!(
+            ScalarType::from_spelling("text(0)"),
+            Err(SchemaError::ZeroWidth)
+        );
+        assert!(matches!(
+            ScalarType::from_spelling("decimal(39,2)"),
+            Err(SchemaError::BadPrecision { .. })
+        ));
     }
 }
