@@ -1,8 +1,8 @@
 --TEST--
-`Core\Cli::escape` passes exactly two of the thirty-two C0 bytes through, and each of the other thirty takes its own U+2400-block glyph — ADR 0086 § 1
+`Core\Cli::escape` passes exactly two of the thirty-two C0 bytes through, and each of the other thirty takes its own U+2400-block glyph — `rule:tooling/terminal-output-is-a-sink`
 --FILE--
 <?nvs
-// ADR 0086 § 1's table is a *sweep*, not a handful of interesting rows, and a
+// `rule:tooling/terminal-output-is-a-sink`'s table is a *sweep*, not a handful of interesting rows, and a
 // member that neutralized only `ESC` would print plausibly against any single
 // line of it. So this counts over the whole C0 range instead of reading the
 // answer off one byte: `LF` and `TAB` pass through because they are legitimate

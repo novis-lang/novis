@@ -88,7 +88,7 @@ compile-time table with M4S's other attribute pass, the matcher with M7.
 
 § 13 is neither: each of its entries is pure, but each also waits on something outside `Core`.
 `Core\Program` needs `rule:programs/no-runtime-autoload`'s `autoload`,
-`Core\Ast` needs [ADR 0019](../adr/0019-reflection-and-ast-parsing-are-core-features.md)'s inert-AST
+`Core\Ast` needs `rule:tooling/reflection-and-source-parsing-are-core-features`'s inert-AST
 surface, `Core\Attributes`' retrieval body is M8 by `rule:attributes/inert-metadata`
 (its `#[...]` *syntax* is M4), and `Core\Reflect`, `Core\Decimal` and `Core\BigInt` want a finished object
 representation under them. They land with whichever milestone closes their dependency, to this same
@@ -762,7 +762,7 @@ the `FATAL` at the true ceiling — is still not `Throwable` and still reaches n
 Domain-specific errors are user-defined classes; `Core` does not attempt to enumerate them. The
 exceptions are `Core\Db\DbError` and `Core\Db\RolledBack` (§ 18) and `Core\Cli\NotInteractive` (§ 15),
 all three extending `RuntimeError`: a driver failure, a deliberate rollback and a prompt with no
-controlling terminal to read ([ADR 0086](../adr/0086-core-cli-terminal-is-a-sink.md) § 4) have no
+controlling terminal to read (`rule:tooling/a-prompt-is-a-core-member`) have no
 user-defined home.
 
 ## 11. `Core\Random`, `Core\Uuid`, `Core\Hash`
@@ -973,7 +973,7 @@ transforms what was captured, and re-emitting it is a visible `echo Out::capture
 
 `Sink` above is not a type name — it is **the carrier of the sink in force**, `Core\Html\Markup` under an
 HTTP request and `Cli\Text` in every other context
-([ADR 0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md) §§ 3, 5). It is not a plain
+(`rule:tooling/echo-always-has-a-sink` and `rule:security/capture-answers-the-carrier`). It is not a plain
 `string`, because the captured bytes have already been through the sink and re-emitting them as a string
 would escape them a second time. `{through:}` therefore takes and returns that same carrier.
 
@@ -1064,7 +1064,7 @@ object (R14).
   a value and not a `File`: a descriptor the process was handed has no position to seek, no length to
   truncate, and a `close` on it would take the stream away from the whole process. There is **no**
   `stdout()` or `stderr()` — standard output and standard error are
-  [ADR 0086](../adr/0086-core-cli-terminal-is-a-sink.md) § 1's sink, whose one door is
+  `rule:tooling/terminal-output-is-a-sink`'s sink, whose one door is
   `Core\Cli::write`, and a raw handle onto either would be a hole in it.
 
 No stream wrappers, no `php://`, no `phar://`, no user-registered protocols
@@ -1133,7 +1133,7 @@ originates outside the process is `tainted` (`rule:security/tainted-qualifier`).
   (`rule:security/optional-capability-degrades` and `rule:security/capability-roster-is-closed`). It grants nothing and
   needs no capability of its own; there is no `Core\Cap::drop`, because dropping a capability is
   `Core\Config::set` and stays there.
-- `Core\Cli`: the terminal surface, owned by [ADR 0086](../adr/0086-core-cli-terminal-is-a-sink.md) —
+- `Core\Cli`: the terminal surface, owned by `rule:tooling/terminal-output-is-a-sink` —
   `arguments(): array<tainted string>`, `write`, `escape`, `isTty(Cli\Stream)`, `width`, `height`,
   `colorDepth`, `displayWidth`; the prompts `ask`, `confirm`, `select<T>`, `multiSelect<T>` and
   `secret(): secret tainted string`; and the scoped regions `live<T>` and `progress<T>`. Its value types

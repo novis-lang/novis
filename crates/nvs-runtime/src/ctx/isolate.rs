@@ -268,7 +268,7 @@ impl Ctx {
     pub unsafe fn child(&self) -> Self {
         // A fresh buffer, but not necessarily a fresh *sink*: `rule:concurrency/one-scheduler`'s task
         // is part of this request rather than a context of its own, so it is
-        // still answering whatever this one is answering and ADR 0088 § 3's
+        // still answering whatever this one is answering and `rule:tooling/echo-always-has-a-sink`'s
         // first row still applies to it. An isolate reaches the same conclusion
         // by the third row, and `nvs_host::Isolate` is where that is read.
         let mut child = Self::new(if matches!(self.output, OutputSink::Body(_)) {

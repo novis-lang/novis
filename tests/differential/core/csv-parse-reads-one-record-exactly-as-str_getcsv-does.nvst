@@ -16,7 +16,7 @@ Core\Csv::parse reads a record's fields exactly as str_getcsv does — a quoted 
 // `csv-escape-consumes-the-byte-str_getcsv-only-stops-reading-at`.
 final class Show {
     // A parsed field can hold a CR or an LF, and the terminal is a sink that
-    // would render those itself (ADR 0086), so both sides spell them out.
+    // would render those itself (`rule:tooling/terminal-output-is-a-sink`), so both sides spell them out.
     public static function of(array<string> $row): string {
         var $out = "";
         foreach ($row as string $field) {

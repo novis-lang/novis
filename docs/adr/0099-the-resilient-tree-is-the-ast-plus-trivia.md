@@ -105,7 +105,7 @@ pub struct Parsed {
 - **Losslessness is a property, and it is tested rather than asserted.** Concatenating every token's and
   every trivium's source text, in offset order, must equal the file byte-for-byte. That is one test over
   the whole corpus (`examples/`, `tests/`, and the vendored `php-src` checkout `corpus_parse.rs` already
-  walks), and it is what `nvs fmt` rests on at M10 — [ADR 0039](0039-canonical-code-formatting.md) § 4
+  walks), and it is what `nvs fmt` rests on at M10 — `rule:tooling/fmt-quotes`
   promises comments survive formatting, and a formatter walking a stream that drops them cannot keep that
   promise.
 - **Recovery becomes explicit rather than inferable.** Where a production today synthesizes a node at an
@@ -213,7 +213,7 @@ provider is a translation from `Suggestion` to `CodeAction`, which is a dozen li
 Any quick fix that would need the checker to compute something new is M10's, and the boundary is exactly
 that: **M4B ships the code actions whose fix a diagnostic already knows, and no others.** They are
 registered under `source.fixAll.nvs` so `editor.codeActionsOnSave` composes them with format-on-save when
-that arrives, per [ADR 0039](0039-canonical-code-formatting.md) § 9.
+that arrives, per `rule:tooling/fmt-is-never-a-diagnostic`.
 
 **Diagnostics are phase-gated, and this is the one rule an editor needs that a compiler does not.** The
 front end runs parse → declarations → resolution → types with **no gate between the phases**

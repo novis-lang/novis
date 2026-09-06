@@ -1,5 +1,5 @@
 --TEST--
-`Core\Reflect\ClassInfo::call` reaches an inherited `public` method, still refuses an inherited `private` one, and answers the same through both doors onto a description — ADR 0019 §§ 1-2
+`Core\Reflect\ClassInfo::call` reaches an inherited `public` method, still refuses an inherited `private` one, and answers the same through both doors onto a description — `rule:core-classes/reflect` and `rule:security/reflection-enforces-visibility`
 --FILE--
 <?nvs
 // `rule:core-classes/reflect`'s two doors reach one descriptor, so *what a description does*

@@ -384,7 +384,7 @@ impl Isolate {
         // The isolate's own root. Buffered under both options; § 4's fresh
         // statics base is `Ctx::isolate`'s whole reason for existing.
         //
-        // *Which* buffer is ADR 0088 § 3's table, and this is the one place it
+        // *Which* buffer is `rule:tooling/echo-always-has-a-sink`'s table, and this is the one place it
         // is read: an isolate handed a request attaches the HTML sink, because
         // its `echo` is the response body, and one spawned inside a request
         // takes its parent's carrier — that row says so, and it is what keeps a
@@ -1038,8 +1038,8 @@ mod tests {
         assert_eq!(ctx.statics_len(), 1, "the parent still has its one slot");
     }
 
-    /// [ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
-    /// § 3's third row: a `spawn script` isolate's `echo` reaches a buffer of
+    /// `rule:tooling/echo-always-has-a-sink`
+    /// 's third row: a `spawn script` isolate's `echo` reaches a buffer of
     /// its own, and what carries those bytes is the **parent's** carrier — so a
     /// child spawned by a CLI program, a scheduled script, a job worker or a
     /// `#[Test]` method takes `Core\Cli\Text` and its substitution, which is

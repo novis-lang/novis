@@ -323,7 +323,7 @@ impl Ctx {
         self.commands.as_deref()
     }
 
-    /// Hands this program the table the compiler built for it — ADR 0086 § 6,
+    /// Hands this program the table the compiler built for it — `rule:tooling/commands-are-compiled`,
     /// written before the program runs exactly as [`Self::set_config`] is.
     pub fn set_commands(&mut self, table: std::sync::Arc<crate::commands::CommandTable>) {
         self.commands = Some(table);
@@ -357,7 +357,7 @@ impl Ctx {
     }
 
     /// The name a completion script registers this program against — what
-    /// [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 6's
+    /// `rule:tooling/commands-are-compiled`'s
     /// `Core\Command::completions` writes into `complete -F … <name>`,
     /// `complete -c <name>` and `-CommandName <name>`.
     ///
@@ -468,7 +468,7 @@ impl Ctx {
     }
 
     /// Adds `answers` to the tail of this context's scripted answer queue —
-    /// ADR 0086 § 4's last paragraph, as `Core\Test::scriptAnswers`.
+    /// `rule:tooling/a-prompt-is-a-core-member`'s last paragraph, as `Core\Test::scriptAnswers`.
     ///
     /// The tail rather than a replacement, because a queue that discarded what
     /// it had not reached yet would make two calls scripting two halves of one

@@ -1,8 +1,8 @@
 --TEST--
-Core\Cli::live runs its body and answers what that body answered, at the body's own type -- ADR 0086 sections 5 and 8
+Core\Cli::live runs its body and answers what that body answered, at the body's own type -- `rule:tooling/terminal-output-is-a-sink` sections 5 and 8
 --FILE--
 <?nvs
-// ADR 0086 § 5: `live<T>(callable $body): T`. The region is scenery around a
+// `rule:tooling/in-place-output-is-a-scoped-live-region`: `live<T>(callable $body): T`. The region is scenery around a
 // call that computes whatever it was going to compute, so a call site pays
 // nothing in what it can return for drawing while it works.
 var $named = Core\Cli::live(fn(Core\Cli\Live $live): string => {

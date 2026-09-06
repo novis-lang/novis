@@ -5,7 +5,7 @@
 - **Scope:** the casing every user-written identifier must use — class/interface/enum names, enum cases,
   namespace segments, method names, property names (any visibility, static or instance), parameter names,
   local variable names, and class constant names. Does **not** cover whitespace, indentation or brace
-  placement — that is [ADR 0039](0039-canonical-code-formatting.md)'s. Built-in type keywords (`int`,
+  placement — that is `rule:tooling/fmt-is-one-canonical-style`'s. Built-in type keywords (`int`,
   `uint`, `bytes`, …) and language keywords (`isset`, `require`, …) are reserved words the grammar already
   lowercases; this ADR does not add a rule for them.
 - **Amended by:** 0030, 0032, 0062

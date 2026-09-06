@@ -1,5 +1,5 @@
 --TEST--
-A promoted constructor parameter is described by the keyword that promoted it, exactly as a written property is — ADR 0019 §§ 1-2
+A promoted constructor parameter is described by the keyword that promoted it, exactly as a written property is — `rule:core-classes/reflect` and `rule:security/reflection-enforces-visibility`
 --FILE--
 <?nvs
 // A promoted parameter is an ordinary property, so the description has to reach

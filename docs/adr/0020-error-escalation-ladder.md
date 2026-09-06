@@ -197,7 +197,7 @@ record carrying a count —
 Both bounds sit on the sink, so no caller has to be trusted to be rare.
 
 **The floor also restores the terminal**, before it writes and before it gives up. A CLI program holding
-raw mode, a hidden cursor or a live region ([ADR 0086](0086-core-cli-terminal-is-a-sink.md) § 5) has put
+raw mode, a hidden cursor or a live region (`rule:tooling/in-place-output-is-a-scoped-live-region`) has put
 the operator's shell into a state only this ladder can leave. Doing it in a `finally` is not enough —
 § 5's internal panics bypass user code by design — so restoration is hardcoded here, alongside the write,
 and runs on every path including the swallowed one. A ladder that protects the process while leaving the

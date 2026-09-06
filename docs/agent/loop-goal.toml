@@ -1535,7 +1535,7 @@ stage = "1 floor"
 name = "nvs-types (the command table)"
 args = ["test", "-p", "nvs-types"]
 tests = [
-  # Item 6 -- ADR 0086 § 6. The TABLE only; `Core\Command::run` is goal 4's.
+  # Item 6 -- `rule:tooling/commands-are-compiled`. The TABLE only; `Core\Command::run` is goal 4's.
   "a_command_table_is_built_from_the_program_enumeration",
   "a_duplicate_command_name_is_a_diagnostic",
   "two_options_sharing_a_spelling_are_a_diagnostic",
@@ -2379,7 +2379,7 @@ stage = "1 floor"
 name = "nvs-stdlib (Core\\Cli)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
-  # ADR 0086 § 1 -- the terminal is a sink, and it substitutes VISIBLY.
+  # `rule:tooling/terminal-output-is-a-sink` -- the terminal is a sink, and it substitutes VISIBLY.
   "terminal_output_substitutes_a_control_sequence_visibly",
   # § 2, § 3.
   "styling_is_a_value_type_and_never_a_grammar",
@@ -2578,7 +2578,7 @@ file = "examples/logging.nvs"
 want = ['{"level":"info","msg":"started"}', '{"level":"error","msg":"boom"}', "handler ran"]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 8 -- introspection. ADR 0019's two rules are the whole item: reflection obeys the same visibility
+# Stage 8 -- introspection. `rule:tooling/reflection-and-source-parsing-are-core-features`'s two rules are the whole item: reflection obeys the same visibility
 # checks ordinary code does, and a parsed AST is inert.
 # ---------------------------------------------------------------------------------------------------
 [[check]]

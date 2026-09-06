@@ -89,7 +89,7 @@
 `mbstring`. `Core\Time` (`date`, `calendar`), immutable only. `Core\Regex`
 (`rule:core-classes/regex-two-tiers`). `Core\Json`. `Core\Hash`, absorbing `openssl`'s digest half.
 `Core\Random`, secure by default. `Core\Reflect` and `Core\Ast`
-([ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md)). `Core\Session`. `Core\Encoding`
+(`rule:tooling/reflection-and-source-parsing-are-core-features`). `Core\Session`. `Core\Encoding`
 (`iconv`, over `encoding_rs`, sited at the `bytes`/`string` boundary where conversion is naturally
 failable). `Core\Xml`, one API replacing six extensions, and `Core\Html`, whose escaper and sanitizer are
 `rule:security/tainted-qualifier` launderers and whose WHATWG parser shares `Core\Xml`'s tree
@@ -100,7 +100,7 @@ server compresses nothing itself, per `rule:http-server/two-deployments-and-noth
 `Core\Zip`. `Core\Decimal` and
 `Core\BigInt` (`rule:types/decimal`). `Core\Os` (`posix`, minus fork). `Core\Cli`
 and `Core\Command` (`readline`, and the argument parser every other ecosystem leaves to a package —
-[ADR 0086](0086-core-cli-terminal-is-a-sink.md), admitted by test 2 as an output sink and by test 1 for
+`rule:tooling/terminal-output-is-a-sink`, admitted by test 2 as an output sink and by test 1 for
 raw-mode input, which no sandboxed tier can reach). `Core\Uuid`. `Core\Cache` (`rule:concurrency/cross-request-state-is-explicit`). `Core\Csv`.
 `Core\Test`. Plus `Core\Fatal`/`Core\Log` (`rule:errors/escalation-ladder`) and
 `Core\Attributes` (`rule:attributes/inert-metadata`), already scheduled for M8.

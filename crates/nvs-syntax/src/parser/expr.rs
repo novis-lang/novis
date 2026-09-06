@@ -1405,7 +1405,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 let field_start = self.peek().span;
                 // A field name is a name, not an expression, so a keyword is
                 // one: `{default: "ada"}` is `Core\Cli::ask`'s own option
-                // (ADR 0086 § 4) and `{match: …}`, `{class: …}` are the shapes
+                // (`rule:tooling/a-prompt-is-a-core-member`) and `{match: …}`, `{class: …}` are the shapes
                 // a JSON document or an HTML attribute set arrives as. Nothing
                 // is ambiguous here — the token is followed by a `:` inside an
                 // already-open literal, where no statement keyword can begin —

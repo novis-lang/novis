@@ -128,7 +128,7 @@ not an example to read for inspiration.
    way is [01-core-library.md](../../spec/01-core-library.md) § *Milestones*'s own instruction and not this
    goal's invention.
 6. **`#[Command]`/`#[Option]`/`#[Argument]` build the command table.**
-   [ADR 0086](../../adr/0086-core-cli-terminal-is-a-sink.md) § 6, with its own three compile errors: a
+   `rule:tooling/commands-are-compiled`, with its own three compile errors: a
    duplicate command name, two options sharing a spelling, an `#[Option]` on a parameter with no
    conversion from `string`. **The table only** — `Core\Command::run`, the generated `--help` and the
    completions are goal 4's, since neither argv nor a terminal is reachable before capabilities exist.
@@ -199,7 +199,7 @@ not an example to read for inspiration.
     [02-php-migration.md](../../spec/02-php-migration.md) § *How to read a row* is that rule and this file
     does not restate it. **A cell that is exactly one `Core` member spelling is the rename `nvs convert`
     applies**, so a cell naming two members or a rewrite must carry its rule id from
-    [ADR 0089](../../adr/0089-convert-is-one-rule-table-with-two-modes.md) § 6.
+    `rule:tooling/convert-three-tables`.
 
     **Nothing here is guessed to make a number move.** A name with no home is a finding, not a `dropped`
     row: three of them turned out to be real gaps last time somebody looked.

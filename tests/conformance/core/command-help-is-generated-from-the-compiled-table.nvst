@@ -1,5 +1,5 @@
 --TEST--
-`Core\Command::help` renders a usage page from the table `#[Command]` built while compiling, for one command and for the program — ADR 0086 § 6
+`Core\Command::help` renders a usage page from the table `#[Command]` built while compiling, for one command and for the program — `rule:tooling/commands-are-compiled`
 --FILE--
 <?nvs
 // § 6 builds the table from the declaration itself, so every line below is

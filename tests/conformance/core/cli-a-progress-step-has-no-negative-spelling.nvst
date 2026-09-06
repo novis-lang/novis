@@ -1,5 +1,5 @@
 --TEST--
-`Core\Cli\Progress::advance` has no spelling at all for a negative step, because `by` is a `uint` — ADR 0086 § 5
+`Core\Cli\Progress::advance` has no spelling at all for a negative step, because `by` is a `uint` — `rule:tooling/in-place-output-is-a-scoped-live-region`
 --FILE--
 <?nvs
 // The low bound on a step is the *type's*, not the member's: a program that

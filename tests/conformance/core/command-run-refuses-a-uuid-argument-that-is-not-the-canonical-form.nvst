@@ -1,5 +1,5 @@
 --TEST--
-`Core\Command::run` refuses the unhyphenated spelling of a `Core\Uuid` argument, because the argument matcher takes exactly what `Core\Uuid::parse` takes — ADR 0086 § 6, spec § 11
+`Core\Command::run` refuses the unhyphenated spelling of a `Core\Uuid` argument, because the argument matcher takes exactly what `Core\Uuid::parse` takes — `rule:tooling/commands-are-compiled`, spec § 11
 --FILE--
 <?nvs
 // The bound stated on both sides: the sibling case's canonical word converts,

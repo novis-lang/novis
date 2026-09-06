@@ -1,11 +1,11 @@
 //! `Core\Cli` — the terminal facts a program is allowed to ask for, and
 //! `Core\Cli\Text`, the carrier of the terminal sink.
 //!
-//! [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 3 is
+//! `rule:tooling/the-terminal-profile-resolves-once` is
 //! this module's half of that ADR: which of the three standard streams is a
 //! terminal, how wide and how tall it is, and how much colour it can show.
-//! [ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
-//! § 3's table pairs every context with a sink and every sink with a *carrier*:
+//! `rule:tooling/echo-always-has-a-sink`
+//! 's table pairs every context with a sink and every sink with a *carrier*:
 //! `Core\Html\Markup` under an HTTP request, `Core\Cli\Text` everywhere else,
 //! and § 5 makes that carrier the return of `Core\Out::capture`. So the carrier
 //! had to exist before [`crate::out`] could, which is why it is in this file
@@ -13,7 +13,7 @@
 //!
 //! # Every member here is one read of a profile resolved once
 //!
-//! ADR 0086 § 3 says the terminal profile is resolved **once per process, not
+//! `rule:tooling/the-terminal-profile-resolves-once` says the terminal profile is resolved **once per process, not
 //! per call**, so two reads of `Core\Cli::width()` are the same number by
 //! construction rather than by luck. That resolution is
 //! [`nvs_runtime::terminal`] and not this module: it reaches the operating
@@ -28,15 +28,15 @@
 //! [`crate::registry::ENUMS`] gives `Core\Cli\ColorDepth`. The mapping is the
 //! one thing this file can get wrong on its own, so
 //! `tests::the_two_enums_agree_with_the_runtimes_own` holds the two rosters
-//! together. Named rather than linked because this module is public — ADR 0086
-//! § 2's `Text + Text` is a row in `nvs_types`, which reaches `NAME` and
+//! together. Named rather than linked because this module is public — `rule:tooling/styling-is-a-value-not-a-grammar`
+//! 's `Text + Text` is a row in `nvs_types`, which reaches `NAME` and
 //! [`TEXT_CONCAT_SYMBOL`] through it — and a `#[cfg(test)]` item is not there
 //! for a documentation build to resolve.
 //!
 //! # Why `Core\Cli\Shell` is here, taken by nothing in this file
 //!
-//! [`SHELL`] is the third enum and no member of `Core\Cli` reads it: ADR 0086
-//! § 6's `Core\Command::completions` is the one thing that does, and
+//! [`SHELL`] is the third enum and no member of `Core\Cli` reads it: `rule:tooling/commands-are-compiled`
+//! 's `Core\Command::completions` is the one thing that does, and
 //! [`crate::command`] is where that member lives. [`crate::registry::ENUMS`]
 //! asks for one line per enum *declared beside the member that takes it*, and
 //! this is the exception the rule is worth making: the name is
@@ -50,7 +50,7 @@
 //! One slot, holding bytes that have already been through § 1's table, and one
 //! member: `plain`. A `Text` is **the language's one raw path** — `echo` writes
 //! a carrier through unchanged rather than substituting over it, which is what
-//! ADR 0086 § 1's *"there is exactly one raw path, `Cli\Text`"* asks for and
+//! `rule:tooling/terminal-output-is-a-sink`'s *"there is exactly one raw path, `Cli\Text`"* asks for and
 //! what `nvs_runtime`'s `nvs_echo_value` implements. Keying that on the class
 //! is deliberate: a `raw` bit riding on a `Tag::Str` would leave the carrier on
 //! the first member that answered one, and `is_carrier_value`'s doc comment in
@@ -65,7 +65,7 @@
 //!
 //! # What a style is, and where it is rendered
 //!
-//! ADR 0086 § 2's other half is here too: [`STYLE`] and [`COLOR`], the two
+//! `rule:tooling/styling-is-a-value-not-a-grammar`'s other half is here too: [`STYLE`] and [`COLOR`], the two
 //! value types that exist so the carrier has something to wear that is not a
 //! grammar. A colour is a class *constant that is an instance* —
 //! `Color::RED` is `Color::index(1)` inlined at the use site, which
@@ -90,7 +90,7 @@
 //!
 //! # The prompts, and the two questions each one asks first
 //!
-//! ADR 0086 § 4's `ask`, `confirm`, `select<T>` and `secret` are here, and
+//! `rule:tooling/a-prompt-is-a-core-member`'s `ask`, `confirm`, `select<T>` and `secret` are here, and
 //! what they have in common is where they *do not* read: `nvs_runtime`'s
 //! terminal module opens the controlling terminal by name, so a program whose
 //! standard input is a pipe can still ask a question. This module's own half
@@ -105,7 +105,7 @@
 //! something, so the read underneath is under a clock as well:
 //! `nvs_runtime::terminal::ANSWER_DEADLINE`, after which the prompt takes the
 //! same `default` and throws the same class with a sentence naming the
-//! deadline instead of the missing terminal ([`unanswered`]). ADR 0086 § 4's
+//! deadline instead of the missing terminal ([`unanswered`]). `rule:tooling/a-prompt-is-a-core-member`'s
 //! "it never blocks" is those two rules together — the terminal that is not
 //! there, and the terminal nobody is sitting at — and there is no argument on
 //! any of the four members that lengthens the second.
@@ -115,7 +115,7 @@
 //! not-interactive path by construction rather than by luck, and a case can
 //! freeze what it answers without a terminal or a person anywhere near it.
 //!
-//! A test can also *answer* them, which is ADR 0086 § 4's last paragraph and is
+//! A test can also *answer* them, which is `rule:tooling/a-prompt-is-a-core-member`'s last paragraph and is
 //! [`ask_terminal`]'s first line: `Core\Test::scriptAnswers` writes a queue onto
 //! the request's own context, and a prompt takes its oldest line ahead of both
 //! questions above. Ahead of them, because a flow whose answers depended on
@@ -155,7 +155,7 @@ use crate::registry::{
 /// every refusal that names the class cannot drift apart.
 pub(crate) const CLASS_NAME: &str = r"Core\Cli";
 
-/// ADR 0086 § 3's profile, § 1's launderer and § 4's prompts, as registry
+/// `rule:tooling/the-terminal-profile-resolves-once`'s profile, § 1's launderer and § 4's prompts, as registry
 /// rows. See [`crate::registry::CLASSES`].
 ///
 /// Fifteen members, which is the whole of § 3's table and § 4's prompts:
@@ -312,7 +312,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "live",
             names: &["body"],
-            // The one member here whose answer is the *body's* — ADR 0086 § 5
+            // The one member here whose answer is the *body's* — `rule:tooling/in-place-output-is-a-scoped-live-region`
             // writes `live<T>(callable $body): T`, so the region is scenery
             // around a call that computes whatever it was going to compute.
             params: &[CoreTy::CallableTo("T")],
@@ -421,7 +421,7 @@ const DISPLAY_WIDTH_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Cli::write`'s subject — ADR 0086 § 3's `string|Cli\Text $value`, and
+/// `Core\Cli::write`'s subject — `rule:tooling/the-terminal-profile-resolves-once`'s `string|Cli\Text $value`, and
 /// the one parameter in this file that admits the carrier as well as the text.
 ///
 /// [`Qual::Neutral`] rather than [`Qual::Sink`] is § 1's *"regardless of
@@ -434,7 +434,7 @@ const DISPLAY_WIDTH_DOC: MethodDoc = MethodDoc {
 /// nothing for confidentiality (`rule:security/secret-sinks-refuse`).
 const WRITABLE: &[CoreTy] = &[CoreTy::Text(Qual::Neutral), CoreTy::Instance(NAME)];
 
-/// `Core\Cli::write`'s trailing options — ADR 0086 § 3's
+/// `Core\Cli::write`'s trailing options — `rule:tooling/the-terminal-profile-resolves-once`'s
 /// `{stream?: Cli\Stream, newline?: bool}`.
 ///
 /// Both carry a value rather than [`Const::Null`], unlike every other bag in
@@ -507,7 +507,7 @@ const WRITE_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Cli::ask`'s trailing options — ADR 0086 § 4's
+/// `Core\Cli::ask`'s trailing options — `rule:tooling/a-prompt-is-a-core-member`'s
 /// `{default?: string, validate?: callable}`.
 ///
 /// Both defaults are [`Const::Null`] rather than a value of the option's own
@@ -559,7 +559,7 @@ const SELECT_OPTIONS: &[CoreOption] = &[
 ];
 
 /// `Core\Cli::multiSelect`'s bag — [`SELECT_OPTIONS`] without the `default`,
-/// which ADR 0086 § 4's table omits and which this member has nothing to do
+/// which `rule:tooling/a-prompt-is-a-core-member`'s table omits and which this member has nothing to do
 /// with: an empty line already names the empty set, so the one thing a
 /// `default` would be for is already spelled.
 const MULTI_SELECT_OPTIONS: &[CoreOption] = &[CoreOption {
@@ -764,7 +764,7 @@ pub(crate) const LIVE_NAME: &str = r"Core\Cli\Live";
 /// names. See [`REGIONS`].
 const LIVE_DEPTH: usize = 0;
 
-/// ADR 0086 § 5's `Cli\Live` — the handle `$body` is handed, and the whole of
+/// `rule:tooling/in-place-output-is-a-scoped-live-region`'s `Cli\Live` — the handle `$body` is handed, and the whole of
 /// what a program may do to a live region.
 ///
 /// One member, because § 5's table writes one: a region is *replaced* rather
@@ -781,7 +781,7 @@ pub(crate) const LIVE: CoreClass = CoreClass {
         // A `Cli\Text` per row rather than a `string`: the region writes to the
         // terminal sink, and `rule:security/capture-answers-the-carrier`'s carrier is what has already been
         // through it. A `string` here would be a second, unsubstituted way onto
-        // the screen — which is ADR 0086 § 1's whole subject.
+        // the screen — which is `rule:tooling/terminal-output-is-a-sink`'s whole subject.
         params: &[CoreTy::Array(&CoreTy::Instance(NAME))],
         defaults: &[],
         return_ty: CoreTy::Void,
@@ -854,7 +854,7 @@ const PROGRESS_DONE: usize = 2;
 /// See [`PROGRESS_DEPTH`].
 const PROGRESS_LABEL: usize = 3;
 
-/// `advance`'s options — ADR 0086 § 5's `{by?: uint, label?: string}`.
+/// `advance`'s options — `rule:tooling/in-place-output-is-a-scoped-live-region`'s `{by?: uint, label?: string}`.
 ///
 /// `by` defaults to one because counting one thing at a time is what a loop
 /// does. `label` defaults to [`Const::Null`] rather than to the empty string,
@@ -875,7 +875,7 @@ const ADVANCE_OPTIONS: &[CoreOption] = &[
     },
 ];
 
-/// ADR 0086 § 5's `Cli\Progress` — the handle `progress`'s body is handed.
+/// `rule:tooling/in-place-output-is-a-scoped-live-region`'s `Cli\Progress` — the handle `progress`'s body is handed.
 ///
 /// One member, as § 5's table writes it. `progress` over `live` is not an ADR
 /// 0063 R17 violation: R17 forbids a procedural twin of a class API and a class
@@ -928,7 +928,7 @@ const ADVANCE_DOC: MethodDoc = MethodDoc {
 /// [`crate::registry::ENUMS`], so the two cannot drift apart.
 pub(crate) const STREAM_NAME: &str = r"Core\Cli\Stream";
 
-/// ADR 0086 § 3's `Cli\Stream` — which standard stream a question is about.
+/// `rule:tooling/the-terminal-profile-resolves-once`'s `Cli\Stream` — which standard stream a question is about.
 ///
 /// The ordinals are [`nvs_runtime::terminal::Stream`]'s own declaration order,
 /// which is what [`stream_of`] converts between.
@@ -962,7 +962,7 @@ const STREAM_DOC: EnumDoc = EnumDoc {
 /// `Core\Cli\ColorDepth`'s fully-qualified name — see [`STREAM_NAME`].
 pub(crate) const COLOR_DEPTH_NAME: &str = r"Core\Cli\ColorDepth";
 
-/// ADR 0086 § 3's `Cli\ColorDepth` — how much colour a terminal can show.
+/// `rule:tooling/the-terminal-profile-resolves-once`'s `Cli\ColorDepth` — how much colour a terminal can show.
 ///
 /// Ordered from least to most, so the sink's `truecolor → 256 → 16 → none`
 /// degradation is a comparison on the ordinal rather than a table.
@@ -1001,7 +1001,7 @@ const COLOR_DEPTH_DOC: EnumDoc = EnumDoc {
 /// `Core\Cli\Shell`'s fully-qualified name — see [`STREAM_NAME`].
 pub(crate) const SHELL_NAME: &str = r"Core\Cli\Shell";
 
-/// ADR 0086 § 6's `Cli\Shell` — the shell `Core\Command::completions` writes a
+/// `rule:tooling/commands-are-compiled`'s `Cli\Shell` — the shell `Core\Command::completions` writes a
 /// script for, and a closed roster like [`crate::router::METHOD`]: § 6 names
 /// `bash`, `zsh`, `fish` and `pwsh` and nothing else.
 ///
@@ -1154,7 +1154,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Cli::write(string|Cli\Text $value, {stream?: Cli\Stream, newline?: bool}): void`
-    /// — ADR 0086 § 3's first row, replacing `fwrite(STDOUT, …)` and `print`.
+    /// — `rule:tooling/the-terminal-profile-resolves-once`'s first row, replacing `fwrite(STDOUT, …)` and `print`.
     ///
     /// # It is the sink `echo` already is, reached with a stream named
     ///
@@ -1177,7 +1177,7 @@ nvs_runtime::nvs_helper! {
     /// two channels; there is no third for a member to invent.
     ///
     /// `Stream::In` throws rather than being absent from the option's type:
-    /// `Cli\Stream` is one enum because ADR 0086 § 3 wants `isTty` to ask about
+    /// `Cli\Stream` is one enum because `rule:tooling/the-terminal-profile-resolves-once` wants `isTty` to ask about
     /// all three, and a second two-case enum spelled only for this parameter
     /// would be the "no operation is reachable two ways" rule broken sideways —
     /// two rosters of the same three streams, disagreeing the first time one
@@ -1251,13 +1251,13 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Cli::escape(tainted string $text): string` — ADR 0086 § 1's named
+    /// `Core\Cli::escape(tainted string $text): string` — `rule:tooling/terminal-output-is-a-sink`'s named
     /// launderer for the terminal sink, and PHP's missing counterpart to
     /// `htmlspecialchars`.
     ///
     /// # Why this exists when `echo` already substitutes
     ///
-    /// ADR 0086 § 1 puts the substitution at the sink and states outright that
+    /// `rule:tooling/terminal-output-is-a-sink` puts the substitution at the sink and states outright that
     /// *ordinary output does not need this member*. What needs it is a program
     /// that wants the neutralized text **as a value** — to interpolate into a
     /// `Core\Str::format` template, to measure, or to compare — and, under
@@ -1385,7 +1385,7 @@ nvs_runtime::nvs_helper! {
 /// The question a prompt writes, neutralized exactly as `echo` neutralizes
 /// what it is handed.
 ///
-/// ADR 0086 § 1's substitution over the question and not only over the answer:
+/// `rule:tooling/terminal-output-is-a-sink`'s substitution over the question and not only over the answer:
 /// a question is ordinary output, and a program that interpolates a filename
 /// or a claim from a token into one is writing untrusted bytes at a terminal
 /// like any other. [`nvs_core_cli_escape`]'s own docs own the table.
@@ -1405,7 +1405,7 @@ fn question_of(value: &Value, member: &str) -> Result<String, Fault> {
     Ok(nvs_render::text::substitute(text).to_string())
 }
 
-/// Whether this call has anyone to ask — ADR 0086 § 4's "with no controlling
+/// Whether this call has anyone to ask — `rule:tooling/a-prompt-is-a-core-member`'s "with no controlling
 /// terminal" as a predicate, and the reason a prompt never blocks a program
 /// nobody is watching.
 ///
@@ -1423,7 +1423,7 @@ fn watched(ctx: &nvs_runtime::Ctx) -> bool {
 /// instead — nobody to ask, or nobody answering inside
 /// [`nvs_runtime::terminal::ANSWER_DEADLINE`].
 fn ask_terminal(ctx: &mut nvs_runtime::Ctx, question: &str, echo: Echo) -> Answer {
-    // ADR 0086 § 4's last paragraph, and it is *ahead* of both other answers on
+    // `rule:tooling/a-prompt-is-a-core-member`'s last paragraph, and it is *ahead* of both other answers on
     // purpose. All five prompts reach the terminal through here, so the queue
     // costs none of them a path of their own; and a scripted answer wins over a
     // terminal that is there, because a test whose result depended on whether
@@ -1451,7 +1451,7 @@ fn answerable(ctx: &nvs_runtime::Ctx) -> bool {
 }
 
 /// What a prompt with nowhere to read and nothing to fall back on throws —
-/// ADR 0086 § 4's `Core\Cli\NotInteractive`, which is in
+/// `rule:tooling/a-prompt-is-a-core-member`'s `Core\Cli\NotInteractive`, which is in
 /// `nvs_hir::errors::TREE` so that a program can `catch` it by name.
 ///
 /// One function for all four prompts, so the sentence a program sees is the
@@ -1477,7 +1477,7 @@ fn not_interactive(member: &str) -> Fault {
 ///
 /// Only the second clause differs: [`not_interactive`]'s names a terminal that
 /// does not exist, which would be false here, where one was opened and written
-/// to. ADR 0086 § 4's deadline paragraph is the rule and
+/// to. `rule:tooling/a-prompt-is-a-core-member`'s deadline paragraph is the rule and
 /// `nvs_runtime::terminal`'s module doc owns how the bound is built.
 fn timed_out(member: &str) -> Fault {
     Fault::thrown_as(
@@ -1493,7 +1493,7 @@ fn timed_out(member: &str) -> Fault {
 /// and otherwise the throw that says which silence it was.
 ///
 /// One function for all four prompts and for both silences, so that a member
-/// cannot grow its own answer to a deadline — the failure mode ADR 0086 § 4's
+/// cannot grow its own answer to a deadline — the failure mode `rule:tooling/a-prompt-is-a-core-member`'s
 /// "it never blocks" exists to prevent is exactly a path that quietly waits
 /// instead.
 fn unanswered(quiet: &Answer, member: &str, fallback: Value) -> Result<Value, Fault> {
@@ -1532,7 +1532,7 @@ fn handed_back(value: Value) -> Value {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Cli::ask(string $question, {default?: string, validate?: callable}): tainted string`
-    /// — ADR 0086 § 4's first prompt, replacing `readline` and the
+    /// — `rule:tooling/a-prompt-is-a-core-member`'s first prompt, replacing `readline` and the
     /// `fgets(STDIN)` every PHP script writes instead of it.
     ///
     /// # It is not `fgets(STDIN)`, and that is the point
@@ -1916,19 +1916,19 @@ fn label_of(ctx: &mut nvs_runtime::Ctx, labels: Value, option: Value) -> Result<
 /// [`CoreTy::Instance`] spells it.
 ///
 /// Taken from `nvs_runtime::CARRIER_CLI_TEXT` rather than written again here:
-/// the *sink* decides what its carrier is (ADR 0088 § 3), the sink lives in
+/// the *sink* decides what its carrier is (`rule:tooling/echo-always-has-a-sink`), the sink lives in
 /// `nvs-runtime`, and `nvs_runtime::value_to_string` renders whatever that
 /// constant names. Two spellings could disagree and the render would silently
 /// stop happening.
 ///
-/// `pub` for the one edge `crate::html::MARKUP_NAME` already has: ADR 0086
-/// § 2's `Text + Text` is a row in `nvs_types`' operator table, that crate has
+/// `pub` for the one edge `crate::html::MARKUP_NAME` already has: `rule:tooling/styling-is-a-value-not-a-grammar`
+/// 's `Text + Text` is a row in `nvs_types`' operator table, that crate has
 /// no `nvs-runtime` dependency to read the runtime constant through, and a
 /// third spelling of the name is the drift this comment is about. It reaches
 /// it as `nvs_types::CORE_CLI_TEXT_CLASS`.
 pub const NAME: &str = nvs_runtime::CARRIER_CLI_TEXT;
 
-/// Spec § 13's `Core\Cli\Text` — `rule:security/capture-answers-the-carrier`'s slot, and ADR 0086 § 2's first
+/// Spec § 13's `Core\Cli\Text` — `rule:security/capture-answers-the-carrier`'s slot, and `rule:tooling/styling-is-a-value-not-a-grammar`'s first
 /// constructor over it. See the module docs for what is still owed.
 pub(crate) const TEXT: CoreClass = CoreClass {
     name: NAME,
@@ -2007,7 +2007,7 @@ const STYLED_DOC: MethodDoc = MethodDoc {
 /// **This transfers bytes; it does not neutralize them.** Every caller owes
 /// that itself, and there are two: [`crate::out`]'s `capture`, whose bytes came
 /// out of the sink already, and [`nvs_core_cli_text_plain`], which substitutes
-/// over its argument first. That is the whole of what keeps ADR 0086 § 1's raw
+/// over its argument first. That is the whole of what keeps `rule:tooling/terminal-output-is-a-sink`'s raw
 /// path closed — `nvs_runtime::helpers::is_carrier_value` owns why the sink
 /// trusts the class rather than the bytes.
 pub(crate) fn built(text: nvs_runtime::Value) -> nvs_runtime::Value {
@@ -2015,7 +2015,7 @@ pub(crate) fn built(text: nvs_runtime::Value) -> nvs_runtime::Value {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Cli\Text::plain(string $text): Cli\Text` — ADR 0086 § 2's first
+    /// `Core\Cli\Text::plain(string $text): Cli\Text` — `rule:tooling/styling-is-a-value-not-a-grammar`'s first
     /// constructor, and the half of § 1's raw path that keeps it from being a
     /// hole.
     ///
@@ -2046,7 +2046,7 @@ nvs_runtime::nvs_helper! {
     }
 }
 
-/// The symbol `Text + Text` lowers to — ADR 0086 § 2's composition rule, and
+/// The symbol `Text + Text` lowers to — `rule:tooling/styling-is-a-value-not-a-grammar`'s composition rule, and
 /// the third way a program obtains a [`TEXT`].
 ///
 /// Row-less exactly as [`crate::html::MARKUP_CONCAT_SYMBOL`] is, and for the
@@ -2075,7 +2075,7 @@ fn text_slot(value: Value, position: &str) -> Result<Value, Fault> {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$a + $b` over two `Core\Cli\Text` — ADR 0086 § 2's *"`Text + Text` is
+    /// `$a + $b` over two `Core\Cli\Text` — `rule:tooling/styling-is-a-value-not-a-grammar`'s *"`Text + Text` is
     /// `Text`, immutable (R20), composing the way `Markup` already does"*, and
     /// the whole of what [`TEXT_CONCAT_SYMBOL`] does.
     ///
@@ -2149,7 +2149,7 @@ const INK_INDEXED: i64 = 0;
 /// [`COLOR_KIND`] for 24-bit colour.
 const INK_RGB: i64 = 1;
 
-/// ADR 0086 § 2's `Cli\Color` — **a value type, not an enum**.
+/// `rule:tooling/styling-is-a-value-not-a-grammar`'s `Cli\Color` — **a value type, not an enum**.
 ///
 /// `rule:enums/closed-integer-type`'s closed
 /// named integer type does not fit a set with sixteen million members, so the
@@ -2231,7 +2231,7 @@ const RGB_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// ADR 0086 § 2's *"the sixteen named colours are class constants"*, as the
+/// `rule:tooling/styling-is-a-value-not-a-grammar`'s *"the sixteen named colours are class constants"*, as the
 /// [`Const::Built`] rows that makes them: `Color::RED` is `Color::index(1)`
 /// inlined at the use site, so it is one per-request allocation like any other
 /// object and nothing is shared between isolates.
@@ -2338,7 +2338,7 @@ const STYLE_FLAGS: usize = 2;
 /// of one.
 const ATTRIBUTES: [(i64, &str); 5] = [(1, "1"), (2, "2"), (4, "3"), (8, "4"), (16, "9")];
 
-/// ADR 0086 § 2's `Cli\Style::of` options — R2's one trailing shape, and the
+/// `rule:tooling/styling-is-a-value-not-a-grammar`'s `Cli\Style::of` options — R2's one trailing shape, and the
 /// whole surface of what a style is.
 ///
 /// Every option is absent by default and an absent colour is [`Const::Null`],
@@ -2383,7 +2383,7 @@ const STYLE_OPTIONS: &[CoreOption] = &[
     },
 ];
 
-/// ADR 0086 § 2's `Cli\Style` — what a `Text` wears, as a value.
+/// `rule:tooling/styling-is-a-value-not-a-grammar`'s `Cli\Style` — what a `Text` wears, as a value.
 ///
 /// One member, because a style is constructed and then read: `rule:core-api/shape-rules` R5's
 /// `of` for the canonical construction, R2's one trailing shape for the
@@ -2460,7 +2460,7 @@ struct Ink {
 }
 
 /// The SGR parameters for one [`Ink`] at `depth`, degraded to what the terminal
-/// has — ADR 0086 § 3's `truecolor → 256 → 16`, which is a comparison on
+/// has — `rule:tooling/the-terminal-profile-resolves-once`'s `truecolor → 256 → 16`, which is a comparison on
 /// [`ColorDepth`]'s ascending ordinals rather than a table.
 ///
 /// `background` picks the `4x`/`10x` half of the same numbering, which is the
@@ -2553,7 +2553,7 @@ fn basic_of_rgb(red: u8, green: u8, blue: u8) -> u8 {
 
 /// The escape sequence one style is written as at `depth`, or the empty string
 /// for a style that says nothing — and for **every** style at
-/// [`ColorDepth::None`], which is ADR 0086 § 3's *"when the stream is not a
+/// [`ColorDepth::None`], which is `rule:tooling/the-terminal-profile-resolves-once`'s *"when the stream is not a
 /// terminal, styling is dropped entirely"*.
 ///
 /// A pure function of the style and the depth, so
@@ -2644,7 +2644,7 @@ fn channel_of(value: Value, name: &str) -> Result<u64, Fault> {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Cli\Color::index(uint $index): Cli\Color` — ADR 0086 § 2's
+    /// `Core\Cli\Color::index(uint $index): Cli\Color` — `rule:tooling/styling-is-a-value-not-a-grammar`'s
     /// constructor for the 256-entry palette, and the one the sixteen named
     /// constants are built by.
     fn nvs_core_cli_color_index(_ctx, args: [1]) {
@@ -2693,7 +2693,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Cli\Style::of({color?, background?, bold?, dim?, italic?,
-    /// underline?, strikethrough?}): Cli\Style` — ADR 0086 § 2's style, as a
+    /// underline?, strikethrough?}): Cli\Style` — `rule:tooling/styling-is-a-value-not-a-grammar`'s style, as a
     /// value rather than as a fifth grammar (`rule:core-api/shape-rules` R11 fixes the count at
     /// four).
     ///
@@ -2751,7 +2751,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// # Where the degradation happens, and the one thing it cannot see
     ///
-    /// ADR 0086 § 3's profile is resolved once per process, so rendering the
+    /// `rule:tooling/the-terminal-profile-resolves-once`'s profile is resolved once per process, so rendering the
     /// style here gives byte-identical output to rendering it at the moment of
     /// the write — with one exception, which § 2's body records: a `Text` holds
     /// bytes, so it cannot be written *plain to a redirected stderr and styled
@@ -2796,7 +2796,7 @@ nvs_runtime::nvs_helper! {
 thread_local! {
     /// The live regions open on this core, innermost last.
     ///
-    /// A stack rather than one region, because ADR 0086 § 5's shape is a scoped
+    /// A stack rather than one region, because `rule:tooling/in-place-output-is-a-scoped-live-region`'s shape is a scoped
     /// closure and closures nest — and a stack is what makes a
     /// [`Core\Cli\Live`](LIVE) handle a plain `int`: the handle names a depth,
     /// so a handle that outlived its region names a depth that is no longer
@@ -2811,7 +2811,7 @@ thread_local! {
 
 /// One open region's scope, as a value whose destruction closes it.
 ///
-/// ADR 0086 § 8 makes restoration an obligation on **every** exit path, and
+/// `rule:tooling/the-terminal-is-restored-on-every-exit-path` makes restoration an obligation on **every** exit path, and
 /// [`nvs_core_cli_live`] cannot discharge that with a statement after the call:
 /// a throw from `$body` skips it, and an internal panic
 /// (`rule:errors/panics-bypass-user-code`) skips
@@ -2847,7 +2847,7 @@ impl Drop for Open {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Cli::live<T>(callable $body): T` — ADR 0086 § 5's scoped live
+    /// `Core\Cli::live<T>(callable $body): T` — `rule:tooling/in-place-output-is-a-scoped-live-region`'s scoped live
     /// region, and § 8's restoration obligation.
     ///
     /// The whole member is: open a region, run `$body` with a handle to it, and
@@ -2885,7 +2885,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Cli\Live::set(array<Cli\Text> $lines): void` — ADR 0086 § 5's one
+    /// `Core\Cli\Live::set(array<Cli\Text> $lines): void` — `rule:tooling/in-place-output-is-a-scoped-live-region`'s one
     /// member on a region.
     ///
     /// # Errors
@@ -2998,7 +2998,7 @@ fn bar(done: u64, total: u64, label: &str) -> String {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Cli::progress<T>(uint $total, callable $body): T` — ADR 0086 § 5's
+    /// `Core\Cli::progress<T>(uint $total, callable $body): T` — `rule:tooling/in-place-output-is-a-scoped-live-region`'s
     /// second row, over the region [`nvs_core_cli_live`] opens.
     ///
     /// The whole difference from `live` is who writes the frame: here the
@@ -3117,7 +3117,7 @@ mod tests {
         assert!(nvs_runtime::is_carrier(NAME));
     }
 
-    /// ADR 0086 §§ 5 and 8 with `rule:errors/panics-bypass-user-code`: a live region has an end, and the
+    /// `rule:tooling/in-place-output-is-a-scoped-live-region` and `rule:tooling/the-terminal-is-restored-on-every-exit-path` with `rule:errors/panics-bypass-user-code`: a live region has an end, and the
     /// terminal is put back at that end on **every** path — including the one
     /// no user code runs on.
     ///
@@ -3205,7 +3205,7 @@ mod tests {
         );
     }
 
-    /// ADR 0086 § 4: a prompt reads the **controlling terminal**, so
+    /// `rule:tooling/a-prompt-is-a-core-member`: a prompt reads the **controlling terminal**, so
     /// `cat data.csv | myprog` can still ask a question — and it never blocks
     /// where nobody can answer.
     ///
@@ -3248,7 +3248,7 @@ mod tests {
         assert!(
             !prompts.contains("std::io::stdin"),
             "the prompt half of nvs_runtime::terminal reads the program's standard input rather \
-             than the terminal ADR 0086 § 4 names"
+             than the terminal `rule:tooling/a-prompt-is-a-core-member` names"
         );
         // `Stream::In` *is* named there, and legitimately: `is_interactive`
         // asks whether standard input is a terminal, which is a question about
@@ -3274,7 +3274,7 @@ mod tests {
         }
     }
 
-    /// ADR 0086 § 4: a prompt **never blocks**, which is two rules — the
+    /// `rule:tooling/a-prompt-is-a-core-member`: a prompt **never blocks**, which is two rules — the
     /// terminal that is not there, and the terminal nobody is sitting at.
     ///
     /// The first is the other test's; this one is the second, and it is
@@ -3347,13 +3347,13 @@ mod tests {
                 assert!(
                     !["timeout", "deadline", "wait", "within"].contains(named),
                     "`Core\\Cli::{prompt}` takes a `{named}`, which is a spelling for waiting \
-                     longer than ADR 0086 § 4's deadline"
+                     longer than `rule:tooling/a-prompt-is-a-core-member`'s deadline"
                 );
             }
         }
     }
 
-    /// ADR 0086 § 4: `multiSelect`'s answer is a **set**, which is the whole of
+    /// `rule:tooling/a-prompt-is-a-core-member`: `multiSelect`'s answer is a **set**, which is the whole of
     /// what it adds to `select` — and the only part of it a conformance case
     /// cannot reach, since the parse runs after a line has been read from a
     /// terminal a piped case does not have.
@@ -3415,7 +3415,7 @@ mod tests {
         assert_eq!(TEXT.slots.len(), 1);
     }
 
-    /// ADR 0086 § 1: terminal output substitutes a control sequence
+    /// `rule:tooling/terminal-output-is-a-sink`: terminal output substitutes a control sequence
     /// **visibly**, and it does so at the sink rather than at any caller's
     /// discretion.
     ///
@@ -3467,7 +3467,7 @@ mod tests {
         }
     }
 
-    /// ADR 0086 § 1's *"there is exactly one raw path, `Cli\Text`"* — asserted
+    /// `rule:tooling/terminal-output-is-a-sink`'s *"there is exactly one raw path, `Cli\Text`"* — asserted
     /// as the **disagreement** it has to be, over one payload.
     ///
     /// The same control sequence is written three ways and the sink has to
@@ -3534,7 +3534,7 @@ mod tests {
         }
     }
 
-    /// ADR 0086 § 3: the profile is resolved **once per process**, so every
+    /// `rule:tooling/the-terminal-profile-resolves-once`: the profile is resolved **once per process**, so every
     /// fact in it answers identically however many times it is asked.
     ///
     /// Asserted three ways, because the interesting failure is not "two reads
@@ -3568,7 +3568,7 @@ mod tests {
     }
 
     /// `cargo test` captures a child's output, so no standard stream here is a
-    /// terminal — which is the case ADR 0086 § 3 names the fallback for, and
+    /// terminal — which is the case `rule:tooling/the-terminal-profile-resolves-once` names the fallback for, and
     /// the one that makes `myprog | grep` and a CI log plain. Both halves are
     /// asserted together: the pair `80`/`24`, and the `None` depth that has to
     /// accompany it.
@@ -3639,7 +3639,7 @@ mod tests {
         );
     }
 
-    /// ADR 0086 § 6 names four shells and nothing else, and a case is only
+    /// `rule:tooling/commands-are-compiled` names four shells and nothing else, and a case is only
     /// reachable from source once [`crate::registry::ENUMS`] carries the enum.
     ///
     /// Both halves, because each fails on its own: a fifth case added ahead of
@@ -3666,7 +3666,7 @@ mod tests {
         );
     }
 
-    /// ADR 0086 § 2: **styling is a value type, never a grammar** — asserted as
+    /// `rule:tooling/styling-is-a-value-not-a-grammar`: **styling is a value type, never a grammar** — asserted as
     /// the three things that sentence means, because each half passes on its
     /// own while the rule is broken.
     ///
@@ -3692,7 +3692,7 @@ mod tests {
         assert_eq!(
             COLOR.constants.len(),
             16,
-            "ADR 0086 § 2 names sixteen colours as class constants"
+            "`rule:tooling/styling-is-a-value-not-a-grammar` names sixteen colours as class constants"
         );
         for (ordinal, constant) in COLOR.constants.iter().enumerate() {
             let entry = u64::try_from(ordinal).expect("sixteen constants");

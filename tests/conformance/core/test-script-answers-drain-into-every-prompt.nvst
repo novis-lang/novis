@@ -1,5 +1,5 @@
 --TEST--
-Core\Test::scriptAnswers writes the queue every Core\Cli prompt drains, so an interactive flow is assertable — ADR 0086 § 4, `rule:testing/determinism-declared-on-the-test`
+Core\Test::scriptAnswers writes the queue every Core\Cli prompt drains, so an interactive flow is assertable — `rule:tooling/a-prompt-is-a-core-member`, `rule:testing/determinism-declared-on-the-test`
 --FILE--
 <?nvs
 // This case runs with every standard stream redirected, which is § 4's "no

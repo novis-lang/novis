@@ -1,4 +1,4 @@
-# ADR 0130 — Usage telemetry is opt-in, counts only operator actions, and a serving process never uploads
+# `rule:tooling/telemetry-is-two-opt-ins` — Usage telemetry is opt-in, counts only operator actions, and a serving process never uploads
 
 - **Status:** Accepted
 - **Date:** 2026-09-01

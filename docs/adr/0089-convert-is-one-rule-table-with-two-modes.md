@@ -1,4 +1,4 @@
-# ADR 0089 — `nvs convert` is one rule table with two modes, and every emitted line is classified
+# `rule:tooling/convert-one-table-two-modes` — `nvs convert` is one rule table with two modes, and every emitted line is classified
 
 - **Status:** Accepted
 - **Date:** 2026-08-25

@@ -1,4 +1,4 @@
-# ADR 0086 — The terminal is a sink, styling is a value, and a CLI's commands are compiled
+# `rule:tooling/terminal-output-is-a-sink` — The terminal is a sink, styling is a value, and a CLI's commands are compiled
 
 - **Status:** Accepted
 - **Date:** 2026-08-24
@@ -383,7 +383,7 @@ stopped does not exist here, so stopping would be cargo-culting its shape rather
 - **`echo` is not one of those members, and does not throw.** It binds to whatever sink its context has —
   the response body under a request, this one everywhere else, including a scheduled script, a job worker,
   a test and a spawned isolate's buffer
-  ([ADR 0088](0088-a-sink-is-an-instruction-and-the-default-refuses.md) § 3). § 1's substitution is what
+  (`rule:tooling/echo-always-has-a-sink`). § 1's substitution is what
   those contexts get, because a run whose output is read out of a CI log later is exactly the case § 1's
   *uniform, not tty-dependent* rule was written for. What throws is claiming the *terminal*; writing text
   never does.

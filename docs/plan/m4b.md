@@ -32,7 +32,7 @@ parse followed by "refuse if anything was reported", which is what they already 
 
 **The `trivia` half of that paragraph lands before this milestone, in
 [goal 11](../agent/goals/11-doc-comments.md).**
-[ADR 0137](../adr/0137-a-doc-comment-is-three-slashes-and-two-tags.md) needs a doc comment to survive
+`rule:tooling/doc-comment-is-three-slashes` needs a doc comment to survive
 lexing, which is the same one edit to `skip_trivia`, so that goal builds the `Trivia` vector, all four
 `TriviaKind` variants and the losslessness property to ADR 0099 § 1's specification. What is still
 this milestone's, and has no consumer before it: the **`SyntaxIndex`**, and the explicit-recovery half —
@@ -127,7 +127,7 @@ matrix. Extension tests run in two tiers: headless Node every iteration (grammar
 `vscode-textmate`, a contributions/allowlist test, a protocol round-trip against the real binary), and
 `@vscode/test-electron` in the real extension host once per green tree.
 
-**Not here:** format-on-save (`nvs fmt` is M10 — [ADR 0039](../adr/0039-canonical-code-formatting.md)),
+**Not here:** format-on-save (`nvs fmt` is M10 — `rule:tooling/fmt-is-one-canonical-style`),
 rename, extract refactorings, workspace symbol search, inlay hints, signature help, `documentHighlight`,
 the Test Explorer, profiler visualization, debugger UI, and any code action whose fix a diagnostic does
 not already compute. The last two of those look adjacent to what M4B does build and are not:

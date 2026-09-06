@@ -84,7 +84,7 @@ session.
   `nvs_stdlib::registry` signature row and reference card
   (`rule:core-api/reference-card`); for a
   declaration, its own **doc comment**, which goal 11 made a checked structure rather than raw trivia
-  ([ADR 0137](../../adr/0137-a-doc-comment-is-three-slashes-and-two-tags.md)).
+  (`rule:tooling/doc-comment-is-three-slashes`).
 - **`definition`** — within the document or anywhere in its resolved graph.
 - **`completion`** — keywords filtered by position; members off a resolved receiver, instance and static,
   user classes and `Core` registry classes alike; enum cases after `Type::`; in-scope variables.

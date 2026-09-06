@@ -342,7 +342,7 @@ pub(crate) fn binary_result(
             let secret = is_secret(lhs, env.interner) || is_secret(rhs, env.interner);
             qualified_scalar(false, tainted, secret, env.interner)
         }
-        // `rule:core-classes/html-auto-escape`'s and ADR 0086 § 2's composition rules are ahead of the
+        // `rule:core-classes/html-auto-escape`'s and `rule:tooling/styling-is-a-value-not-a-grammar`'s composition rules are ahead of the
         // arithmetic table rather than rows of it: a carrier is a class, and
         // every class beside an arithmetic operator is refused two lines down.
         BinaryOp::Add => carrier_composition_result(lhs, rhs, span, env)
@@ -957,13 +957,13 @@ fn reject_unrowed_arithmetic_operand(
              `Core\\Html::escape(...)` — `+` is not a sink and will not escape it for you"
         }
         EqDomain::Object if carrier_of(offender, env) == Some(crate::CORE_CLI_TEXT_CLASS) => {
-            "ADR 0086 § 2 composes `Cli\\Text` with `Cli\\Text` and nothing else: lift the other \
+            "`rule:tooling/styling-is-a-value-not-a-grammar` composes `Cli\\Text` with `Cli\\Text` and nothing else: lift the other \
              operand with `Core\\Cli\\Text::plain(...)`, which substitutes its control bytes on \
              the way in — `+` is not a sink and will not substitute them for you"
         }
         EqDomain::Object => {
             "Novis has no operator overloading: `rule:types/arithmetic` names two classes in its arithmetic \
-             rows and both are sink carriers — `rule:core-classes/html-auto-escape`'s `Core\\Html\\Markup` and ADR 0086 \
+             rows and both are sink carriers — `rule:core-classes/html-auto-escape`'s `Core\\Html\\Markup` and `rule:tooling/terminal-output-is-a-sink` \
              § 2's `Core\\Cli\\Text` — so for every other class the operation belongs in a method \
              on it"
         }
@@ -1047,7 +1047,7 @@ pub(crate) fn arithmetic_result(lhs: TypeId, rhs: TypeId, span: Span, env: &mut 
 }
 
 /// `rule:core-classes/html-auto-escape`'s `Markup + Markup` is `Markup` and
-/// [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 2's
+/// `rule:tooling/styling-is-a-value-not-a-grammar`'s
 /// `Text + Text` is `Text` — the only rows of any operator table whose operands
 /// are a class, and the only arithmetic-shaped pairs that are not arithmetic at
 /// all.

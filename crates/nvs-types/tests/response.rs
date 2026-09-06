@@ -102,7 +102,7 @@ fn a_handler_that_writes_its_body_one_way_is_accepted() {
 
 #[test]
 fn a_method_no_request_reaches_may_write_both() {
-    // The scope decision, pinned: ADR 0088 § 3 binds `echo` by context, so a
+    // The scope decision, pinned: `rule:tooling/echo-always-has-a-sink` binds `echo` by context, so a
     // method with no `#[Route]` on it is a CLI body until something says
     // otherwise, and there is no response for two writers to disagree over.
     // The corpus depends on this — every `.nvst` case that observes a body

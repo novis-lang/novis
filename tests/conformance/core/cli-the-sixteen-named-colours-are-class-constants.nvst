@@ -1,5 +1,5 @@
 --TEST--
-Every one of `Core\Cli\Color`'s sixteen named colours is a class constant that builds an instance, beside the two constructors that reach the rest — ADR 0086 § 2
+Every one of `Core\Cli\Color`'s sixteen named colours is a class constant that builds an instance, beside the two constructors that reach the rest — `rule:tooling/styling-is-a-value-not-a-grammar`
 --FILE--
 <?nvs
 // § 2: "the sixteen named colours are class constants — `Color::RED` is exactly

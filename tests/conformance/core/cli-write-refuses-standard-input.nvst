@@ -1,5 +1,5 @@
 --TEST--
-`Core\Cli::write` refuses the one stream a program reads, whatever it was asked to write there — ADR 0086 § 3
+`Core\Cli::write` refuses the one stream a program reads, whatever it was asked to write there — `rule:tooling/the-terminal-profile-resolves-once`
 --FILE--
 <?nvs
 // `Cli\Stream` is one enum covering all three streams because "is this a

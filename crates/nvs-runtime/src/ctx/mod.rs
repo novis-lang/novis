@@ -602,7 +602,7 @@ pub struct Ctx {
     ///
     /// **What it spends:** 25 bytes per request and one CSPRNG draw.
     trace_context: crate::trace_context::TraceContext,
-    /// [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 6's
+    /// `rule:tooling/commands-are-compiled`'s
     /// command table, or `None` for a program that declared no `#[Command]` —
     /// [`crate::commands`] owns why the rows cross into the runtime at all and
     /// why both absences answer alike.
@@ -633,7 +633,7 @@ pub struct Ctx {
     /// shared and charged to whoever compiled them.
     routes: Option<std::sync::Arc<crate::routes::Routes>>,
     /// The process argument vector past the program itself — what
-    /// [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 6's
+    /// `rule:tooling/commands-are-compiled`'s
     /// `Core\Command::run` matches against the table above, and what § 13's
     /// `Core\Cli::arguments` will hand back unchanged.
     ///
@@ -648,7 +648,7 @@ pub struct Ctx {
     /// `rule:programs/memory-priority`.
     arguments: Vec<String>,
     /// The name the shell knows this program by — what
-    /// [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 6's
+    /// `rule:tooling/commands-are-compiled`'s
     /// `Core\Command::completions` registers its script against. See
     /// [`Self::program_name`] for which name that is, which is the whole of
     /// what the member can be wrong about.
@@ -747,7 +747,7 @@ pub struct Ctx {
     /// **What it spends:** three words per request, and the URL itself only in
     /// the tests that asked for a listener.
     test_server: Option<String>,
-    /// [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 4's
+    /// `rule:tooling/a-prompt-is-a-core-member`'s
     /// scripted answer queue: what the next `Core\Cli` prompts read instead of
     /// a terminal, oldest first, and empty for every context outside a test.
     ///

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Cli\Text::styled` neutralizes its body exactly as `Core\Cli\Text::plain` does, over the whole control range and counted — the constructor that emits control bytes on purpose is the one a program's own bytes could hide in — ADR 0086 §§ 1-2
+`Core\Cli\Text::styled` neutralizes its body exactly as `Core\Cli\Text::plain` does, over the whole control range and counted — the constructor that emits control bytes on purpose is the one a program's own bytes could hide in — `rule:tooling/terminal-output-is-a-sink` and `rule:tooling/styling-is-a-value-not-a-grammar`
 --FILE--
 <?nvs
 // § 2: both constructors *"apply § 1's substitution to their input"*. `plain`

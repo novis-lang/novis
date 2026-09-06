@@ -1,8 +1,8 @@
 --TEST--
-All three response body members write to the same output `echo` does, in call order, so what a body member adds over an `echo` is the declaration and never a second buffer -- ADR 0088 §§ 3-4
+All three response body members write to the same output `echo` does, in call order, so what a body member adds over an `echo` is the declaration and never a second buffer -- `rule:tooling/echo-always-has-a-sink` and `rule:security/response-body-is-one-typed-member`
 --FILE--
 <?nvs
-// ADR 0088 § 3 binds a request's `echo` to the response body, so there is one
+// `rule:tooling/echo-always-has-a-sink` binds a request's `echo` to the response body, so there is one
 // place a body can be. § 4's members add the `Content-Type` to that. Asked of
 // all three at once and by ordering, which is the shape that fails if any one
 // of them grew a buffer of its own: a member accumulating separately would

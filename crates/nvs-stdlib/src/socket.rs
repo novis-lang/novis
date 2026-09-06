@@ -185,8 +185,8 @@
 //!
 //! `output:` is the fifth and does not apply: an isolate's `output:` chooses
 //! between its own buffer and the parent's stream
-//! ([ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
-//! § 3), and a connection's output is the socket.
+//! (`rule:tooling/echo-always-has-a-sink`
+//! ), and a connection's output is the socket.
 
 use nvs_runtime::script::{Program, ResolveError};
 use nvs_runtime::{

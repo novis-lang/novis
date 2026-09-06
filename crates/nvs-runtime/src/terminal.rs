@@ -2,7 +2,7 @@
 //! standard streams are terminals, how wide and tall one is, how much colour it
 //! can show — and how many of its columns a given string will occupy.
 //!
-//! [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 3
+//! `rule:tooling/the-terminal-profile-resolves-once`
 //! specifies the answers and `crates/nvs-stdlib/src/cli.rs` is the surface that
 //! hands them to a program. What lives here is the *reaching*: an `ioctl` on
 //! Unix, two console calls on Windows, and the environment variables that
@@ -31,7 +31,7 @@
 //!
 //! # Once, not per call
 //!
-//! [`profile`] fills a [`OnceLock`] and every later call reads it. ADR 0086 § 3
+//! [`profile`] fills a [`OnceLock`] and every later call reads it. `rule:tooling/the-terminal-profile-resolves-once`
 //! requires that — two reads of the width in one run are the same number *by
 //! construction*, so a program that measures at the top and draws at the bottom
 //! cannot tear a frame — and the trade it makes is staleness: a window the user
@@ -42,11 +42,11 @@
 //!
 //! # The column count is here, and both of its callers are
 //!
-//! [`display_width`] answers ADR 0086 § 3's `Core\Cli::displayWidth` and
+//! [`display_width`] answers `rule:tooling/the-terminal-profile-resolves-once`'s `Core\Cli::displayWidth` and
 //! [`clamp`] cuts a region's row to the same unit. They are one table read
 //! twice on purpose: a row cut against a different answer than the one the
-//! program was handed is a frame that wraps, which is the one failure ADR 0086
-//! § 8's clamp exists to prevent. The unit itself — UAX #11 columns over the
+//! program was handed is a frame that wraps, which is the one failure `rule:tooling/the-terminal-is-restored-on-every-exit-path`
+//! 's clamp exists to prevent. The unit itself — UAX #11 columns over the
 //! string *as the sink would write it* — and the three code points that are
 //! not a column at all are [`display_width`]'s own doc comment, which is their
 //! only home.
@@ -54,12 +54,12 @@
 //! It sits in this module rather than beside `Core\Str`'s units because a
 //! column count is a property of the renderer, not of the string
 //! (`rule:types/string-is-utf8` fixed the two
-//! that are properties of the string, and ADR 0086 § 3's last paragraph is why
+//! that are properties of the string, and `rule:tooling/the-terminal-profile-resolves-once`'s last paragraph is why
 //! this third one is not a `Core\Str` member).
 //!
 //! # The prompts read the terminal, never `Stream::In`
 //!
-//! ADR 0086 § 4's prompts are the second half of this module: [`prompt`] opens
+//! `rule:tooling/a-prompt-is-a-core-member`'s prompts are the second half of this module: [`prompt`] opens
 //! the controlling terminal *by name* and reads a line from that, which is why
 //! `cat data.csv | myprog` can still ask a question. [`is_interactive`] is the
 //! question asked first, and its doc comment owns why it reads the profile
@@ -73,7 +73,7 @@
 //!
 //! # And they answer within [`ANSWER_DEADLINE`], terminal or no terminal
 //!
-//! ADR 0086 § 4's "it never blocks" is two rules, and the profile above only
+//! `rule:tooling/a-prompt-is-a-core-member`'s "it never blocks" is two rules, and the profile above only
 //! settles the first: with no terminal there is nothing to wait on. The second
 //! is that a terminal *nobody is sitting at* — a CI job that allocated a pty,
 //! a `docker run -t` with no keyboard behind it — must not hold the program
@@ -93,7 +93,7 @@
 //!
 //! # A live region ends in a `Drop`, because every other ending can be skipped
 //!
-//! ADR 0086 § 5's in-place output is the module's third half: [`Region`] owns
+//! `rule:tooling/in-place-output-is-a-scoped-live-region`'s in-place output is the module's third half: [`Region`] owns
 //! the cursor between the two ends of one `Core\Cli::live` call. § 8 makes
 //! putting the terminal back an obligation on **every** exit path — a throw, a
 //! fatal, an internal panic (`rule:errors/panics-bypass-user-code`), a signal — and the only construct in Rust that runs on all of them is
@@ -119,15 +119,15 @@ use std::sync::OnceLock;
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
-/// The default width, for a process with no controlling terminal — ADR 0086
-/// § 3 names it.
+/// The default width, for a process with no controlling terminal — `rule:tooling/the-terminal-profile-resolves-once`
+/// names it.
 pub const FALLBACK_WIDTH: u32 = 80;
 
 /// The default height, for [`FALLBACK_WIDTH`]'s reason and named by the same
 /// sentence.
 pub const FALLBACK_HEIGHT: u32 = 24;
 
-/// Which standard stream a question is about — ADR 0086 § 3's `Cli\Stream`,
+/// Which standard stream a question is about — `rule:tooling/the-terminal-profile-resolves-once`'s `Cli\Stream`,
 /// as the Rust half of it.
 ///
 /// A stream rather than one process-wide answer because "colour on stdout while
@@ -142,7 +142,7 @@ pub enum Stream {
     Err,
 }
 
-/// How much colour standard output can show — ADR 0086 § 3's `Cli\ColorDepth`.
+/// How much colour standard output can show — `rule:tooling/the-terminal-profile-resolves-once`'s `Cli\ColorDepth`.
 ///
 /// Ordered least to most, so the sink's `truecolor → 256 → 16 → none`
 /// degradation is a comparison rather than a table.
@@ -158,7 +158,7 @@ pub enum ColorDepth {
     TrueColor,
 }
 
-/// ADR 0086 § 3's terminal facts, resolved once — see the module docs.
+/// `rule:tooling/the-terminal-profile-resolves-once`'s terminal facts, resolved once — see the module docs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Profile {
     /// Whether each stream is a terminal, indexed as [`Stream`] is ordered.
@@ -250,7 +250,7 @@ fn setting(name: &str) -> String {
 
 /// The colour depth for standard output.
 ///
-/// The order is ADR 0086 § 3's: the refusals first, because `NO_COLOR` outranks
+/// The order is `rule:tooling/the-terminal-profile-resolves-once`'s: the refusals first, because `NO_COLOR` outranks
 /// a terminal that could show colour; then the forcing variables, which are how
 /// a CI runner that pipes its output still gets colour; then what the terminal
 /// itself claims.
@@ -410,7 +410,7 @@ fn enable_virtual_terminal() -> bool {
 
 /// Whether what a prompt reads is echoed as it is typed.
 ///
-/// ADR 0086 § 4's `secret` is the one member that asks for [`Self::Hidden`],
+/// `rule:tooling/a-prompt-is-a-core-member`'s `secret` is the one member that asks for [`Self::Hidden`],
 /// and the suppression is the terminal's own — the bytes are never written
 /// back — rather than an overwrite after the fact.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -433,7 +433,7 @@ const MAX_ANSWER: usize = 4096;
 
 /// How long a prompt waits for an answer before it gives up.
 ///
-/// ADR 0086 § 4 says a prompt never blocks, and
+/// `rule:tooling/a-prompt-is-a-core-member` says a prompt never blocks, and
 /// `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` says
 /// no wait may be spelled unbounded. Five minutes is what those two come to
 /// here: two orders of magnitude past the seconds a person spends answering a
@@ -450,7 +450,7 @@ pub const ANSWER_DEADLINE: std::time::Duration = std::time::Duration::from_secs(
 /// What one prompt got back.
 ///
 /// Three cases and not two, because the surface says a different sentence for
-/// the third: [`Self::Ended`] is *nobody to ask*, which ADR 0086 § 4 answers
+/// the third: [`Self::Ended`] is *nobody to ask*, which `rule:tooling/a-prompt-is-a-core-member` answers
 /// with the `default` or with `Core\Cli\NotInteractive`, while
 /// [`Self::TimedOut`] is a terminal that was opened, written to and then said
 /// nothing for [`ANSWER_DEADLINE`]. Both are silence and both take the same
@@ -470,7 +470,7 @@ pub enum Answer {
 /// Whether this process has a terminal to prompt at, which is not the same
 /// question as whether standard input is one.
 ///
-/// ADR 0086 § 4: a prompt reads the *controlling terminal*, so
+/// `rule:tooling/a-prompt-is-a-core-member`: a prompt reads the *controlling terminal*, so
 /// `cat data.csv | myprog` can still ask. Any one of the three streams being a
 /// terminal says the process was started from one; all three redirected — a CI
 /// job, a `cron` entry, a `.nvst` case, which runs as a child with its output
@@ -743,7 +743,7 @@ fn ask(_question: &str, _echo: Echo) -> std::io::Result<Option<String>> {
 
 // -------------------------------------------------------------- the live region
 
-/// How long a [`Region`] holds a frame before it paints — ADR 0086 § 5's
+/// How long a [`Region`] holds a frame before it paints — `rule:tooling/in-place-output-is-a-scoped-live-region`'s
 /// "coalesces frames on a timer rather than repainting per `set`".
 ///
 /// A loop that calls `set` once per file processed calls it thousands of times
@@ -759,7 +759,7 @@ const HIDE_CURSOR: &str = "\x1b[?25l";
 /// See [`HIDE_CURSOR`].
 const SHOW_CURSOR: &str = "\x1b[?25h";
 
-/// The terminal rows one `Core\Cli::live` call owns — ADR 0086 § 5's live
+/// The terminal rows one `Core\Cli::live` call owns — `rule:tooling/in-place-output-is-a-scoped-live-region`'s live
 /// region, and § 8's restoration obligation as a destructor.
 ///
 /// Three of the section's five properties are here: the cursor is hidden while
@@ -911,7 +911,7 @@ impl Region {
 }
 
 impl Drop for Region {
-    /// ADR 0086 § 8's restoration, and its only home — see the module docs.
+    /// `rule:tooling/the-terminal-is-restored-on-every-exit-path`'s restoration, and its only home — see the module docs.
     fn drop(&mut self) {
         self.close();
     }
@@ -934,14 +934,14 @@ impl std::fmt::Debug for Region {
 ///
 /// Eight is not a preference. It is where every terminal Novis can write to has
 /// its stops, because the only way to move one is an escape sequence, and
-/// [`display_width`] measures a string ADR 0086 § 1 has already replaced every
+/// [`display_width`] measures a string `rule:tooling/terminal-output-is-a-sink` has already replaced every
 /// escape in with a picture — so a program cannot have moved the stops in the
 /// text this counts, and a program that moved them by writing a `Cli\Text` it
 /// built from `styled` moved them for a run in which nothing else it wrote is
 /// measurable either.
 const TAB_STOP: usize = 8;
 
-/// `text`'s width in terminal columns — ADR 0086 § 3's `Core\Cli::displayWidth`,
+/// `text`'s width in terminal columns — `rule:tooling/the-terminal-profile-resolves-once`'s `Core\Cli::displayWidth`,
 /// whose paragraph beside that table states the rule and is its only home:
 /// UAX #11 widths, over grapheme clusters, measured on the string § 1's
 /// substitution will actually put on the screen, with `TAB` reaching the next
@@ -993,7 +993,7 @@ fn advance(cluster: &str, at: usize) -> usize {
 /// written — so a row of wide glyphs stops one column short of the edge rather
 /// than one past it, which is the side of the rounding that cannot wrap.
 ///
-/// A row holds no newline of its own: ADR 0086 § 1's substitution has already
+/// A row holds no newline of its own: `rule:tooling/terminal-output-is-a-sink`'s substitution has already
 /// replaced every control byte a `Cli\Text` was built from with a visible
 /// glyph, so one `Cli\Text` is one terminal row by construction.
 fn clamp(row: &str, width: usize) -> String {

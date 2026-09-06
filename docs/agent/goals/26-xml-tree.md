@@ -37,7 +37,7 @@ Goal 25's whole acceptance list, carried in verbatim by `tools/goal-switch.py`. 
    coexist", so it is not read as an exception to R17. The module doc restates the split once and the
    member cards never re-argue it.
 3. **A parsed tree is inert data**, on
-   [ADR 0019](../../adr/0019-reflection-and-ast-parsing-are-core-features.md)'s rule for the AST: no
+   `rule:tooling/reflection-and-source-parsing-are-core-features`'s rule for the AST: no
    path back into execution, no entity expansion that reaches a filesystem or a network, and no
    `XSLTProcessor` shape at all.
 4. **The three classic XML attacks are refused by construction**: external entity resolution does not

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Cli\Text::plain` neutralizes its own input, so the sink's one raw path agrees with the sink — ADR 0086 §§ 1-2
+`Core\Cli\Text::plain` neutralizes its own input, so the sink's one raw path agrees with the sink — `rule:tooling/terminal-output-is-a-sink` and `rule:tooling/styling-is-a-value-not-a-grammar`
 --FILE--
 <?nvs
 // § 2: `Text::plain` applies § 1's substitution to its argument. That is what

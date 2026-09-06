@@ -1,5 +1,5 @@
 --TEST--
-`Core\Command::run` and `::help` read one table, so an empty command line and the program's own page agree — ADR 0086 § 6
+`Core\Command::run` and `::help` read one table, so an empty command line and the program's own page agree — `rule:tooling/commands-are-compiled`
 --FILE--
 <?nvs
 // With no `--ARGS--` there is no first word to select a row with, and § 6's

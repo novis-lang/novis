@@ -33,7 +33,7 @@ the inventory as a completion candidate, and shows this cell to whoever reaches 
 **This table is read by a machine, so the Novis cell has one shape that is mechanical and one that is not.**
 A cell that is exactly one `Core` member spelling is the rename `nvs convert` applies; anything else — a
 cell naming two members, a rewrite, or a reason — is prose the converter may not guess at, and must carry
-that rule's id from [ADR 0089](../adr/0089-convert-is-one-rule-table-with-two-modes.md) § 6. Neither the
+that rule's id from `rule:tooling/convert-three-tables`. Neither the
 name table nor the rule table is copied into the other.
 
 **Two machines read these rows, and one row may mean different things to them.** `nvs-lsp` reads the same
@@ -877,7 +877,7 @@ answers the second by never accepting a shell string at all, which is why `escap
 | `get_current_user` | dropped | same |
 | `getmyinode` | dropped | the inode of the running script, which has no meaning here: there is no script file being interpreted at run time |
 | `getrusage` | member | `Core\Os` — `memoryUsage`, `loadAverage` and `cpuCount`, one member per fact rather than one array whose keys differ by platform (R11) |
-| `getopt` | member | `Core\Command`, whose option table is built while compiling from `#[Command]`, `#[Option]` and `#[Argument]` ([ADR 0086](../adr/0086-core-cli-terminal-is-a-sink.md)). `Core\Cli::arguments` is the raw vector where a program insists on reading it itself |
+| `getopt` | member | `Core\Command`, whose option table is built while compiling from `#[Command]`, `#[Option]` and `#[Argument]` (`rule:tooling/terminal-output-is-a-sink`). `Core\Cli::arguments` is the raw vector where a program insists on reading it itself |
 | `exit` | language | `exit` is a statement, not a function. `Core\Script::onExit` hooks still run, because the end of a script is observable (`rule:observability/script-on-exit`) |
 | `die` | language | the same statement; `die` is PHP's second spelling of it |
 | `register_shutdown_function` | member | `Core\Script::onExit`, FIFO, run as the last user code at every non-fatal ending. What PHP used it for on a *fatal* is `rule:errors/escalation-ladder`'s handler ladder, which is a different mechanism on a reserved budget |
@@ -892,7 +892,7 @@ answers the second by never accepting a shell string at all, which is why `escap
 | `sapi_windows_cp_set` | dropped | same, and it is process-global besides |
 | `sapi_windows_cp_is_utf8` | dropped | same; the answer is fixed |
 | `sapi_windows_cp_conv` | dropped | same — converting between encodings is `Core\Encoding`, on every platform alike |
-| `sapi_windows_vt100_support` | dropped | `Core\Cli` answers what the terminal supports rather than which console API the platform has, and it does so identically on every platform ([ADR 0086](../adr/0086-core-cli-terminal-is-a-sink.md) § 1) |
+| `sapi_windows_vt100_support` | dropped | `Core\Cli` answers what the terminal supports rather than which console API the platform has, and it does so identically on every platform (`rule:tooling/terminal-output-is-a-sink`) |
 | `sapi_windows_set_ctrl_handler` | dropped | signals are `Core\Signal`, graceful shutdown only (`rule:core-api/tier-roster`) |
 | `sapi_windows_generate_ctrl_event` | dropped | sending one is `Core\Process::spawn`'s handle where the target is a child, and not offered at all where it is not |
 
@@ -1296,7 +1296,7 @@ confidence `rule:security/tainted-qualifier` exists to prevent — **no
 
 ## The terminal, and the ambient locale
 
-[ADR 0086](../adr/0086-core-cli-terminal-is-a-sink.md) owns the first half: `Core\Cli` is the terminal
+`rule:tooling/terminal-output-is-a-sink` owns the first half: `Core\Cli` is the terminal
 surface, its output is a `tainted` sink that substitutes control bytes visibly, and its prompts are members
 rather than a line editor a program configures with global callbacks.
 
@@ -1309,14 +1309,14 @@ restore.
 
 | PHP | Outcome | Novis |
 |---|---|---|
-| `readline` | member | `Core\Cli::ask`, one of the prompts [ADR 0086](../adr/0086-core-cli-terminal-is-a-sink.md) puts on the class that already owns the terminal |
+| `readline` | member | `Core\Cli::ask`, one of the prompts `rule:tooling/terminal-output-is-a-sink` puts on the class that already owns the terminal |
 | `readline_add_history` | dropped | a persistent history file is a REPL's feature, and a Novis program is not one. Nothing in `Core\Cli` writes to the user's home directory on a program's behalf |
 | `readline_read_history` | dropped | the same file, being read. A program that wants one owns it, through `Core\IO` under `fs.read` |
 | `readline_write_history` | dropped | the same, under `fs.write` — which is the point: this is a file operation wearing a prompt's name |
 | `readline_list_history` | dropped | reads libreadline's in-memory copy of it |
 | `readline_clear_history` | dropped | empties that copy |
 | `readline_completion_function` | dropped | it installs a global callback the line editor calls back into. A closed set of answers is `Core\Cli`'s selection prompts; free-text completion over a dynamic set is not a `Core` member |
-| `readline_info` | dropped | reads and writes libreadline's internal state by string key — the widest of the terminal's back doors, and the one [ADR 0086](../adr/0086-core-cli-terminal-is-a-sink.md)'s sink rule could not survive |
+| `readline_info` | dropped | reads and writes libreadline's internal state by string key — the widest of the terminal's back doors, and the one `rule:tooling/terminal-output-is-a-sink`'s sink rule could not survive |
 | `setlocale` | dropped | process-global C state, unsound per-core and leaky across requests. Locale is an explicit argument, and there is no ambient one to set (`rule:core-api/tier-roster`) |
 | `localeconv` | dropped | reads that global's number and currency table. Formatting takes the locale it formats for |
 | `hebrev` | dropped | it reorders logical-order Hebrew into visual order for terminals that could not do bidi. Text is UTF-8 in logical order (`rule:types/bytes`) and ordering is the renderer's |
@@ -1329,7 +1329,7 @@ most of it. **A constant is a class member declared at compile time**
 (`rule:classes/no-free-functions-or-constants`), so there is no runtime table to
 define into, read by string, or enumerate. And **the program's shape is decided while compiling** — the
 include graph by `rule:programs/no-runtime-autoload`'s discovery,
-reflection by [ADR 0019](../adr/0019-reflection-and-ast-parsing-are-core-features.md)'s read-only surface
+reflection by `rule:tooling/reflection-and-source-parsing-are-core-features`'s read-only surface
 over a class it is *given* — so a runtime list that could disagree with it does not exist.
 
 `phpinfo` is the row worth naming twice. It prints the configuration, the extension list and the build

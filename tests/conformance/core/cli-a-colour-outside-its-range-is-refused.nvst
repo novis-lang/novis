@@ -1,5 +1,5 @@
 --TEST--
-`Core\Cli\Color`'s two constructors refuse a value their colour space has no entry for, on both sides of the bound — ADR 0086 § 2
+`Core\Cli\Color`'s two constructors refuse a value their colour space has no entry for, on both sides of the bound — `rule:tooling/styling-is-a-value-not-a-grammar`
 --FILE--
 <?nvs
 // A palette has 256 entries and a channel has 256 levels, so both constructors

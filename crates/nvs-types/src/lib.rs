@@ -199,7 +199,7 @@
 pub(crate) mod attributes;
 pub(crate) mod capability;
 pub mod check;
-// Public for [`routes`]'s reason: ADR 0086 § 6's finished table is read back
+// Public for [`routes`]'s reason: `rule:tooling/commands-are-compiled`'s finished table is read back
 // out of [`expr_table::ExprTypeTable::commands`] by whoever runs the program,
 // which hands it to `nvs_runtime::commands` for `Core\Command` to answer from.
 pub mod commands;
@@ -417,7 +417,7 @@ pub(crate) struct Env<'a> {
     /// only collects signatures hands it a scratch table, exactly as it does
     /// [`Self::exprs`].
     pub routes: &'a mut crate::routes::RouteTable,
-    /// ADR 0086 § 6's command table as it is collected — one row per
+    /// `rule:tooling/commands-are-compiled`'s command table as it is collected — one row per
     /// `#[Command]` the per-class walk reaches, across every file.
     ///
     /// Beside [`Self::routes`] and threaded exactly as it is, for its reason:

@@ -23,7 +23,7 @@ wrong, so the fold into `rule:core-classes/html-parsing`'s body is stage 0's wor
 - [ ] **The tree materialises and the stream does not, and no operation is available through both.**
       Spec § 17 states this as the one place two shapes of a subsystem coexist, so it is not read as an
       exception to R17. Say it once in the module doc; member cards never re-argue it.
-- [ ] **A parsed tree is inert data**, on ADR 0019's rule for the AST: no path back into execution, no
+- [ ] **A parsed tree is inert data**, on `rule:tooling/reflection-and-source-parsing-are-core-features`'s rule for the AST: no path back into execution, no
       `XSLTProcessor` shape at all.
 - [ ] **The three classic attacks are refused by construction** — external entity resolution is *not a
       code path* rather than a flag defaulting to off, billion-laughs is bounded by goal 25's ceiling,

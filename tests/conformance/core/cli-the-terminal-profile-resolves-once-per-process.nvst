@@ -1,5 +1,5 @@
 --TEST--
-Every fact in the terminal profile answers identically however many times it is asked, because it is resolved once for the process rather than per call — ADR 0086 § 3
+Every fact in the terminal profile answers identically however many times it is asked, because it is resolved once for the process rather than per call — `rule:tooling/the-terminal-profile-resolves-once`
 --FILE--
 <?nvs
 // § 3: "The profile is resolved once per process, not per call." A program

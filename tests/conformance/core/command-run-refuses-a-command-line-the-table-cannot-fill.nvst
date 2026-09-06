@@ -1,5 +1,5 @@
 --TEST--
-`Core\Command::run` answers a command line its table cannot fill with a usage status, and runs no handler — ADR 0086 § 6
+`Core\Command::run` answers a command line its table cannot fill with a usage status, and runs no handler — `rule:tooling/commands-are-compiled`
 --FILE--
 <?nvs
 // A command line is *input*, so nothing about one is a throw: § 6's answer to a

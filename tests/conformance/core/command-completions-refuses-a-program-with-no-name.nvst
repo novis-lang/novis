@@ -1,5 +1,5 @@
 --TEST--
-`Core\Command::completions` refuses a program that was not started from a command line, because a completion script has nothing to register against — ADR 0086 § 6
+`Core\Command::completions` refuses a program that was not started from a command line, because a completion script has nothing to register against — `rule:tooling/commands-are-compiled`
 --RUN--
 test
 --FILE--

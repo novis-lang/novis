@@ -94,6 +94,11 @@
       "topic": "http-server",
       "title": "The HTTP server",
       "order": 190
+    },
+    {
+      "topic": "tooling",
+      "title": "Tooling",
+      "order": 200
     }
   ]
 }

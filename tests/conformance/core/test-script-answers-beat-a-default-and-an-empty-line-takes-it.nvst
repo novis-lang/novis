@@ -1,5 +1,5 @@
 --TEST--
-A scripted answer is taken over a prompt's default, and a scripted empty line takes that default — ADR 0086 § 4
+A scripted answer is taken over a prompt's default, and a scripted empty line takes that default — `rule:tooling/a-prompt-is-a-core-member`
 --FILE--
 <?nvs
 // A queued line is what a person typed, so it wins over the `default` the

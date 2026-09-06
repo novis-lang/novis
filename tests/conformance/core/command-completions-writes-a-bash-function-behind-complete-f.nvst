@@ -1,5 +1,5 @@
 --TEST--
-`Core\Command::completions(Cli\Shell::Bash)` writes a function over `COMP_WORDS` registered with `complete -F`, over the same table `help` reads — ADR 0086 § 6
+`Core\Command::completions(Cli\Shell::Bash)` writes a function over `COMP_WORDS` registered with `complete -F`, over the same table `help` reads — `rule:tooling/commands-are-compiled`
 --FILE--
 <?nvs
 // § 6 generates the script from the declaration, exactly as it generates the

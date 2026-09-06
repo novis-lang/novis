@@ -1,4 +1,4 @@
-# ADR 0019 — Reflection and AST/source parsing are first-class `Core` features, not aftermarket extensions
+# `rule:tooling/reflection-and-source-parsing-are-core-features` — Reflection and AST/source parsing are first-class `Core` features, not aftermarket extensions
 
 - **Status:** Accepted
 - **Date:** 2026-08-21

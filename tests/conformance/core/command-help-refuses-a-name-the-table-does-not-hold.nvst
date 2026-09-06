@@ -1,5 +1,5 @@
 --TEST--
-`Core\Command::help` throws for a name the program declares no `#[Command]` for, and still answers for one it does — ADR 0086 § 6
+`Core\Command::help` throws for a name the program declares no `#[Command]` for, and still answers for one it does — `rule:tooling/commands-are-compiled`
 --FILE--
 <?nvs
 class Tools {

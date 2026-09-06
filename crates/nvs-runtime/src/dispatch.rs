@@ -107,7 +107,7 @@ pub fn call_method(
 /// `args`, or `None` where this program declares no such class or no such
 /// method on it.
 ///
-/// [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 6's
+/// `rule:tooling/commands-are-compiled`'s
 /// dispatch is the caller: a `#[Command]` handler is named by a string the
 /// compiler put in the table and reached from a native member, which is the one
 /// shape the receiver-keyed [`call_method`] above cannot serve — there is no

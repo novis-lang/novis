@@ -1,8 +1,8 @@
 --TEST--
-every `#[Command]` and `#[Option]` the program declares is readable back out of its own declaration, so a usage text is generated rather than written — ADR 0086 § 6, `rule:attributes/structural-retrieval` and `rule:attributes/retrieval-folds-while-checking`
+every `#[Command]` and `#[Option]` the program declares is readable back out of its own declaration, so a usage text is generated rather than written — `rule:tooling/commands-are-compiled`, `rule:attributes/structural-retrieval` and `rule:attributes/retrieval-folds-while-checking`
 --FILE--
 <?nvs
-// ADR 0086 § 6's command table is built while compiling, and its reader —
+// `rule:tooling/commands-are-compiled`'s command table is built while compiling, and its reader —
 // `Core\Command::help(?string $name): Cli\Text` — is goal 4's, because a
 // terminal is not reachable before capabilities exist
 // (docs/agent/goals/1-core-depth.md item 6). So this case asks the question

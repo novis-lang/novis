@@ -464,7 +464,7 @@ mod tests {
                 // own — see `router::link`.
                 + router::link::SYMBOLS.len()
                 // `rule:security/isolate-shares-nothing`'s `spawn script` — in its two entry forms, which
-                // are two symbols and one construct — and `await`, `rule:core-classes/html-auto-escape`'s `as Markup` and `Markup + Markup`, and ADR 0086 § 2's
+                // are two symbols and one construct — and `await`, `rule:core-classes/html-auto-escape`'s `as Markup` and `Markup + Markup`, and `rule:tooling/styling-is-a-value-not-a-grammar`'s
                 // `Text + Text`: six symbols behind five constructs, each
                 // syntax rather than a call, so none of them has a row
                 // either — see `script`'s, `html`'s and `cli`'s module docs.

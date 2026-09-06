@@ -86,8 +86,8 @@ pub struct Lexer<'a> {
 impl<'a> Lexer<'a> {
     /// Starts lexing `file` from its first byte, in HTML mode — or in code
     /// mode when the file's first two bytes are `#!`
-    /// ([ADR 0100](/docs/adr/0100-against-python-nvs-claims-the-tool-that-gets-handed-over.md)
-    /// § 3).
+    /// (`rule:tooling/shebang-opens-code-mode`
+    /// ).
     ///
     /// **The shebang line is not skipped and is not a token: it is lexed as
     /// the `#` comment it already is.** Starting the outer mode as
@@ -424,7 +424,7 @@ impl<'a> Lexer<'a> {
             *self.modes.last_mut().expect("mode stack never empty") = Mode::Html;
             // Past the first `?>` a shebang file is an ordinary template: the
             // text after it is output and a later `<?nvs` reopens code mode
-            // (ADR 0100 § 3).
+            // (`rule:tooling/shebang-opens-code-mode`).
             self.shebang_open = false;
             // One immediately following newline is swallowed, so a template
             // line ending in `?>` does not emit a blank line (spec § 1).
@@ -440,7 +440,7 @@ impl<'a> Lexer<'a> {
             && self.peek() == Some('<')
             && let Some((TokenKind::OpenTagNvs, len)) = self.match_open_tag()
         {
-            // ADR 0100 § 3: this file is already in code mode, so the tag is
+            // `rule:tooling/shebang-opens-code-mode`: this file is already in code mode, so the tag is
             // named rather than lexed as `<` `?` `nvs` and reported three
             // tokens later as something the author did not write. Consuming it
             // and carrying on is the recovery that matches the intent.
@@ -1346,7 +1346,7 @@ mod tests {
 
     #[test]
     fn a_shebang_first_line_opens_code_mode_and_is_not_a_token() {
-        // ADR 0100 § 3: the bytes `#!` at offset 0 put the outer mode in code,
+        // `rule:tooling/shebang-opens-code-mode`: the bytes `#!` at offset 0 put the outer mode in code,
         // and line 1 is trivia — the token stream is what the same file
         // without it would produce behind a `<?nvs`.
         assert_eq!(
@@ -1374,7 +1374,7 @@ mod tests {
 
     #[test]
     fn an_open_tag_in_a_shebang_file_is_named_until_a_close_tag() {
-        // ADR 0100 § 3: `<?nvs` before any `?>` is E0009 and the tag is
+        // `rule:tooling/shebang-opens-code-mode`: `<?nvs` before any `?>` is E0009 and the tag is
         // consumed, so the code after it still lexes as code…
         let (kinds, diags) = kinds("#!/usr/bin/env nvs\n<?nvs echo 1;");
         assert_eq!(

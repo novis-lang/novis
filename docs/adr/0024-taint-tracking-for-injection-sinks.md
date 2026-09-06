@@ -143,7 +143,7 @@ needs; they are not the definition, and a new sink does not need an ADR to becom
 - **Terminal output** — `echo` and `Core\Cli::write` neutralize every control byte, in every value
   regardless of qualifier, by substituting a *visible* glyph (`ESC` → `␛`) rather than deleting it. Like
   HTML this needs no explicit launderer on the ordinary path, and unlike HTML it transforms no visible
-  text, because a control sequence was never text — [ADR 0086](0086-core-cli-terminal-is-a-sink.md) § 1
+  text, because a control sequence was never text — `rule:tooling/terminal-output-is-a-sink`
   owns the table and the reasoning, and `Core\Cli::escape` is its named launderer for the program that
   wants the neutralized value rather than the write.
 - **`Core\Db`'s query-text parameter** requires the plain, unqualified `string` — a tainted value cannot
@@ -180,7 +180,7 @@ ordering ranks security above simplicity for exactly this kind of conflict, and 
 the single most common real-world XSS root cause — so this ADR spends that priority explicitly rather than
 holding the "no magic" line for its own sake.
 
-It is one of **two**, and the second is cheaper. [ADR 0086](0086-core-cli-terminal-is-a-sink.md) § 1 gives
+It is one of **two**, and the second is cheaper. `rule:tooling/terminal-output-is-a-sink` gives
 terminal output the same by-default treatment, and the difference is worth carrying: HTML auto-escaping
 transforms *visible* text (`&` becomes `&amp;`), which is the surprise this section pays for, whereas a
 terminal control sequence is not text at all and is today consumed by the terminal and shown to nobody — so
@@ -215,7 +215,7 @@ default does not follow: § 4's other sinks still refuse rather than transform.
   framing its own content, so a JSON body is never escaped into corruption; mixing `echo` with one of them
   on a single response is a compile error. Which sink `echo` binds to in every *other* context, and why
   the default is the terminal rather than this one, is
-  [ADR 0088](0088-a-sink-is-an-instruction-and-the-default-refuses.md) §§ 3–4.
+  `rule:tooling/echo-always-has-a-sink` and `rule:security/response-body-is-one-typed-member`.
 - `Core\Html::escape` additionally **neutralizes an unterminated bidirectional control**, substituting
   `�` — `rule:security/bidi-predicate` owns that predicate and its two
   other callers. Escaping `<`, `>`, `&` and quotes does nothing about display order, so without this row a
@@ -260,7 +260,7 @@ default does not follow: § 4's other sinks still refuse rather than transform.
   gives over a dynamic tag, paying a representation/per-op cost
   `rule:programs/memory-priority` argues against when the compile-time version is free.
 - **A bolt-on static-analysis pass outside `nvs check`**, mirroring Error Prone. Rejected on the same
-  grounds [ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md) already used for reflection: an
+  grounds `rule:tooling/reflection-and-source-parsing-are-core-features` already used for reflection: an
   optional, skippable analysis is not the same guarantee as a compiler that refuses to emit code.
 - **Require an explicit escape call at every HTML interpolation site, no auto-escape default.** Rejected:
   AGENTS.md's priority ordering puts security above simplicity, and "the compiler escapes for you unless you
@@ -313,4 +313,4 @@ Verification, in the order it becomes possible:
 - **M8**: `Core\Db`'s query API rejects a tainted value at its SQL-text parameter at compile time, and
   accepts one freely at its bound-parameters argument; `Core\Html::escape`/`Markup` round-trip tested
   against the OWASP XSS filter-evasion cheat sheet strings, held to the same fuzz-corpus rigor
-  [ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md) already set for `Core\Ast::parse()`.
+  `rule:tooling/reflection-and-source-parsing-are-core-features` already set for `Core\Ast::parse()`.

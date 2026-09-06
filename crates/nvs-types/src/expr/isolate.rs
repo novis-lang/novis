@@ -76,7 +76,7 @@
 //! already proves is read wrong.
 //!
 //! `output` is typed `string` here, and that is the one field whose type is not
-//! settled: ADR 0088 §§ 3, 5 make captured output carry the *parent sink's*
+//! settled: `rule:tooling/echo-always-has-a-sink` and `rule:security/capture-answers-the-carrier` make captured output carry the *parent sink's*
 //! carrier type — `Core\Html\Markup` under a request, `Cli\Text` everywhere
 //! else — which is a property of the running process rather than of the
 //! compilation. Item 24 owns `output: capture|inherit` and owns that question

@@ -48,7 +48,7 @@ $ring->next = $ring;
 echo Core\Debug::render($ring), "\n";
 
 // § 5: the control-byte substitution is applied on the way *into* the record,
-// so every rendering inherits one answer -- ADR 0086 § 1's table, and the
+// so every rendering inherits one answer -- `rule:tooling/terminal-output-is-a-sink`'s table, and the
 // CWE-117 property a plaintext view would otherwise lose. A bare `CR` becomes
 // its U+2400-block Control Picture; `TAB` is not substituted at all, and the
 // backslash on its line is the plaintext view's own quoting rather than a

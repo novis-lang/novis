@@ -1,4 +1,4 @@
-//! ADR 0086 § 6's `#[Command]` and `#[Option]`: the nominal match that keeps a
+//! `rule:tooling/commands-are-compiled`'s `#[Command]` and `#[Option]`: the nominal match that keeps a
 //! userland spelling out of the command table, and the payload check that is
 //! the pass behind both roster entries.
 //!

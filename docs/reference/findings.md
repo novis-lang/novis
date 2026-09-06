@@ -135,7 +135,7 @@ in that goal. An item's owner is the row it sits in.
       `Qual::Reveal`, brought forward from goal 4 because every `rule:security/secret-sinks-refuse` refusal's help text
       already named the call. The mark admits a `secret` argument and the answer drops the
       qualifier by not declaring it; `tainted` still crosses, so `reveal` launders one axis only.
-- [x] **U6** `#[Command]` accepts an instance method and an `int` return — ADR 0086 § 6 says static and
+- [x] **U6** `#[Command]` accepts an instance method and an `int` return — `rule:tooling/commands-are-compiled` says static and
       `void`/`uint`. (A positional parameter is *not* required to be `tainted`; that half of the original
       finding was wrong.) *ref-attr `command-*`* `E0789` now refuses both from
       `commands.rs`'s `check_command_shape`, worded from what the declaration did as the `#[Test]` and
@@ -328,7 +328,7 @@ in that goal. An item's owner is the row it sits in.
       `nullable_default_int`, `nullable_default_class`*
 - [x] **D26** `continue` (level 1) inside a `switch` inside a loop continues the enclosing loop — the
       documented Novis choice, but PHP acts as `break`; noted so the crosswalk row stays deliberate.
-- [x] **D27** A shebang `#!` first line opens code mode, per ADR 0100 § 3, and is trivia rather than
+- [x] **D27** A shebang `#!` first line opens code mode, per `rule:tooling/shebang-opens-code-mode`, and is trivia rather than
       output. `nvs_syntax::lexer`'s `Lexer::new` owns why it is lexed as the `#` comment it already is
       instead of skipped before lexing, and `E0009` names an `<?nvs` in such a file. *php-diff probes*
 - [ ] **D28** The on-disk compile cache is unwired: `cache.rs` and `[cache] dir` exist, nothing in
@@ -340,7 +340,7 @@ in that goal. An item's owner is the row it sits in.
       `nvs meta --json`. A help text now names a `Core` member only where the registry holds one
       (`nvs_syntax::parser`'s `superglobal_replacement` owns why, and it is the rule for any help).
 - [ ] **D31** `Core\Cli\Text` has no members and no constructor (module doc: deliberate), so
-      `Core\Str::length($text)` is refused while `echo`, `.` and `as string` accept it; ADR 0086
+      `Core\Str::length($text)` is refused while `echo`, `.` and `as string` accept it; `rule:tooling/terminal-output-is-a-sink`
       gives it `plain`/`styled`/`+`.
 - [x] **D32** `Core\Validate::isEmail` does not launder — `string $s = $in;` after a `true` answer is
       still E0401 (may be intended; noted because a reader expects a validator to launder).
@@ -387,7 +387,7 @@ in that goal. An item's owner is the row it sits in.
 - [x] **M5** `Core\Uuid` has no `version()`; the cards' `errors` never name it. (Calling it is P12.)
       Closed as *the member is not in the spec's roster*: calling it is now E0405 rather than a panic,
       and adding a member is a spec question rather than a finding.
-- [ ] **M6** `Core\Command::run`/`help`/`completions` (ADR 0086 § 6) do not exist; the command table
+- [ ] **M6** `Core\Command::run`/`help`/`completions` (`rule:tooling/commands-are-compiled`) do not exist; the command table
       is built and checked, and `Core\Program::implementing` is the only reader.
 - [ ] **M7** `nvs serve`, `nvs fmt`, `nvs convert`, `nvs lsp`, `nvs ctl` are unrecognized subcommands.
 - [x] **M8** `Core\Secret`, `Core\Taint`, `Core\Log`, `Core\Env`, `Core\Cli`, `Core\Request`,

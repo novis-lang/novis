@@ -1,4 +1,4 @@
-# ADR 0137 — A doc comment is `///`, and its only tags are `@see` and `@example`
+# `rule:tooling/doc-comment-is-three-slashes` — A doc comment is `///`, and its only tags are `@see` and `@example`
 
 - **Status:** Accepted
 - **Date:** 2026-09-03

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Reflect::forClass` reaches the same description by name that `forObject` reaches through a value, and a name nothing declares is `null` — ADR 0019 §§ 1-2, `rule:core-api/shape-rules` R6
+`Core\Reflect::forClass` reaches the same description by name that `forObject` reaches through a value, and a name nothing declares is `null` — `rule:core-classes/reflect` and `rule:security/reflection-enforces-visibility`, `rule:core-api/shape-rules` R6
 --FILE--
 <?nvs
 class Point {

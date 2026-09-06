@@ -661,7 +661,7 @@ pub enum ExprInfo {
     /// `$a + $b` over two sink carriers of the same kind, keyed by the `+`
     /// expression's own span —
     /// `rule:core-classes/html-auto-escape`'s `Markup + Markup` and
-    /// [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 2's
+    /// `rule:tooling/styling-is-a-value-not-a-grammar`'s
     /// `Text + Text`, which [`crate::expr::operators`] admits as one rule.
     ///
     /// Carries the symbol rather than the class for [`Self::SecretEquality`]'s
@@ -1229,7 +1229,7 @@ impl ExprTypeTable {
         &self.routes
     }
 
-    /// Records ADR 0086 § 6's finished command table — every `#[Command]` in
+    /// Records `rule:tooling/commands-are-compiled`'s finished command table — every `#[Command]` in
     /// the program, collected across its files and already held to § 6's
     /// duplicate-name error by [`crate::commands::check_table`].
     ///
@@ -1240,7 +1240,7 @@ impl ExprTypeTable {
         self.commands = commands;
     }
 
-    /// ADR 0086 § 6's command table, empty for a program declaring no
+    /// `rule:tooling/commands-are-compiled`'s command table, empty for a program declaring no
     /// `#[Command]` — which is that section's "a program with no `#[Command]`
     /// builds no table" as a consumer sees it.
     #[must_use]

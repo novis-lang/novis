@@ -13,7 +13,7 @@
 //! and miss the others. Exactly one of the three is lexical, so exactly one
 //! crate is forced: the lexer cannot reach `nvs-stdlib` without the front end
 //! depending on the runtime heap, while `nvs-stdlib` reaching *here* is an edge
-//! [ADR 0019](/docs/adr/0019-reflection-and-ast-parsing-are-core-features.md)
+//! `rule:tooling/reflection-and-source-parsing-are-core-features`
 //! already owes for `Core\Ast`. So this is `nvs-syntax`'s, and the other two
 //! call in.
 //!

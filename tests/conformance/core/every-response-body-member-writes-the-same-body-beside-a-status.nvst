@@ -1,5 +1,5 @@
 --TEST--
-Every way a response body is produced agrees that a status set in front of it changes nothing, `echo` included -- spec § 15 and ADR 0088 §§ 3-4
+Every way a response body is produced agrees that a status set in front of it changes nothing, `echo` included -- spec § 15 and `rule:tooling/echo-always-has-a-sink` and `rule:security/response-body-is-one-typed-member`
 --FILE--
 <?nvs
 // Agreement, asked of the whole roster at once: the question is not what each

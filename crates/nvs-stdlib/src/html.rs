@@ -87,7 +87,7 @@
 //! owns the predicate, and this is its third caller — the lexer refuses a
 //! source span, the terminal sink substitutes, and this sink substitutes too.
 //! What it is *not* is [`nvs_render::text::substitute`]: that function is
-//! ADR 0086 § 1's terminal table, which also turns every C0 byte into a
+//! `rule:tooling/terminal-output-is-a-sink`'s terminal table, which also turns every C0 byte into a
 //! Control Picture. A newline is legitimate HTML text, and rewriting it as `␊`
 //! would corrupt every escaped document, so this member calls the bidi
 //! predicate directly and leaves the C0 rows to the sink that wants them.
@@ -671,7 +671,7 @@ mod tests {
     /// application. `Core\Cli::escape` is the near miss the name-half of this
     /// test exists for — the terminal *also* launders on its own, and its
     /// escape is idempotent because the glyph it substitutes holds no `ESC`,
-    /// so it keeps its `string` (ADR 0086 § 1).
+    /// so it keeps its `string` (`rule:tooling/terminal-output-is-a-sink`).
     ///
     /// Two rows read wrong at a glance and neither is a counterexample.
     /// `Core\Cli\Text::plain` and `styled` answer a carrier while their sink is

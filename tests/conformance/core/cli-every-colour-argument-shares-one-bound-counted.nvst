@@ -1,5 +1,5 @@
 --TEST--
-`Core\Cli\Color`'s palette index and its three channels are one bound reached four times — 255 accepted and 256 refused on every one of them, counted, and each refusal names its own subject — ADR 0086 § 2
+`Core\Cli\Color`'s palette index and its three channels are one bound reached four times — 255 accepted and 256 refused on every one of them, counted, and each refusal names its own subject — `rule:tooling/styling-is-a-value-not-a-grammar`
 --FILE--
 <?nvs
 // A bound asserted on both sides, over a *sweep* rather than over a line: § 2's

@@ -43,8 +43,8 @@
 //!   the spelling anyone arriving from PHP will try first; see [`info`].
 //! * `nvs meta --json` — the `Core` registry as JSON: every class, every
 //!   member, and each documented member's reference card, which is
-//!   [ADR 0117](/docs/adr/0117-an-implemented-core-member-documents-itself-in-the-registry.md)
-//!   § 2's contract. A build-time consumer's input, never a runtime feature;
+//!   `rule:tooling/meta-json`
+//!   's contract. A build-time consumer's input, never a runtime feature;
 //!   see [`meta`].
 //! * `nvs tmp clean` —
 //!   `rule:core-classes/temporary-dir-orphan-sweep`'s orphan sweep, run by hand: every entry under the owned temporary
@@ -180,7 +180,7 @@ enum Command {
         /// `nvs_runtime::FaultSite` documents each site.
         #[arg(long, value_name = "SITE")]
         fault_inject: Option<FaultSiteArg>,
-        /// The program's own arguments — ADR 0086 § 6's command line, which
+        /// The program's own arguments — `rule:tooling/commands-are-compiled`'s command line, which
         /// `Core\Command::run()` matches against the compiled table.
         ///
         /// Everything past the file is the program's and nothing here reads it,
@@ -363,7 +363,7 @@ enum Command {
     /// `--json` is required for the reason `build --openapi` is: a `meta`
     /// with nothing named would succeed having printed nothing, and the flag
     /// is how a second format joins without changing what this one means.
-    /// The shape is ADR 0117 § 2's, and this command owns it; see [`meta`].
+    /// The shape is `rule:tooling/meta-json`'s, and this command owns it; see [`meta`].
     Meta {
         /// Write the registry as JSON to standard output.
         #[arg(long, required = true)]
@@ -942,7 +942,7 @@ fn run_build(path: &std::path::Path, openapi: bool) -> ExitCode {
     ExitCode::SUCCESS
 }
 
-/// ADR 0086 § 6's table, as the runtime carries it.
+/// `rule:tooling/commands-are-compiled`'s table, as the runtime carries it.
 ///
 /// A copy rather than a borrow, because the context outlives the front end's
 /// own tables in every caller and a task owns what it was handed. It is a
@@ -1270,7 +1270,7 @@ fn run_run(
     // installed, a few hundred lines below.
     let for_compiler = std::sync::Arc::clone(&snapshot);
     ctx.set_config(snapshot);
-    // ADR 0086 § 6: `Core\Command`'s members are generated from the table the
+    // `rule:tooling/commands-are-compiled`: `Core\Command`'s members are generated from the table the
     // front end already built, so the rows cross here — once, before the program
     // starts, like everything else this context is handed.
     // `nvs_runtime::commands` owns why they cross as a runtime value rather than

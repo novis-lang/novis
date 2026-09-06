@@ -1,5 +1,5 @@
 --TEST--
-`+` composes a carrier with its own kind only, so neither a `string` nor a `Markup` sums with a `Cli\Text` — ADR 0086 § 2, `rule:core-classes/html-auto-escape`
+`+` composes a carrier with its own kind only, so neither a `string` nor a `Markup` sums with a `Cli\Text` — `rule:tooling/styling-is-a-value-not-a-grammar`, `rule:core-classes/html-auto-escape`
 --FILE--
 <?nvs
 // § 2 reads `Text` **+** `Text`, and the emphasis is on both sides: `+` is not
@@ -10,7 +10,7 @@ var $text = Core\Cli\Text::plain("red");
 echo $text + "raw", "\n";
 
 // The two sink carriers are one rule, not one type: a `Markup` passed `rule:core-classes/html-auto-escape`
-// 's rule and a `Text` passed ADR 0086 § 1's substitution, and neither
+// 's rule and a `Text` passed `rule:tooling/terminal-output-is-a-sink`'s substitution, and neither
 // verdict is the other's. So the cross pair is refused exactly as a `string`
 // operand is, rather than composing into whichever carrier was written first.
 var $markup = "<b>" as Core\Html\Markup;
@@ -20,10 +20,10 @@ echo $text + $markup, "\n";
 --EXPECTF-ERROR--
 error[E0716]: `+` has no meaning for `Core\Cli\Text`
 %A
-  = help: ADR 0086 § 2 composes `Cli\Text` with `Cli\Text` and nothing else: lift the other operand with `Core\Cli\Text::plain(...)`, which substitutes its control bytes on the way in — `+` is not a sink and will not substitute them for you
+  = help: `rule:tooling/styling-is-a-value-not-a-grammar` composes `Cli\Text` with `Cli\Text` and nothing else: lift the other operand with `Core\Cli\Text::plain(...)`, which substitutes its control bytes on the way in — `+` is not a sink and will not substitute them for you
 
 error[E0716]: `+` has no meaning for `Core\Cli\Text`
 %A
-   = help: ADR 0086 § 2 composes `Cli\Text` with `Cli\Text` and nothing else: lift the other operand with `Core\Cli\Text::plain(...)`, which substitutes its control bytes on the way in — `+` is not a sink and will not substitute them for you
+   = help: `rule:tooling/styling-is-a-value-not-a-grammar` composes `Cli\Text` with `Cli\Text` and nothing else: lift the other operand with `Core\Cli\Text::plain(...)`, which substitutes its control bytes on the way in — `+` is not a sink and will not substitute them for you
 
 error: aborting due to 2 errors

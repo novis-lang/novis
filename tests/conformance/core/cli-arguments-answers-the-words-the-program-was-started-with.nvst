@@ -1,5 +1,5 @@
 --TEST--
-`Core\Cli::arguments` answers the program's own words in the order they were written, one element per word and no splitting — spec § 15, ADR 0086 § 6
+`Core\Cli::arguments` answers the program's own words in the order they were written, one element per word and no splitting — spec § 15, `rule:tooling/commands-are-compiled`
 --ARGS--
 greet
 ada lovelace
@@ -15,8 +15,8 @@ echo Core\Arr::count($words), "\n";
 
 // Order is the shell's, and a word is one element whatever it contains -- the
 // bracket around each is what shows the space did not split "ada lovelace"
-// into two. Echoing a `tainted` element needs no launderer because ADR 0086
-// § 1 makes the terminal a substituting sink rather than a refusing one.
+// into two. Echoing a `tainted` element needs no launderer because `rule:tooling/terminal-output-is-a-sink`
+// makes the terminal a substituting sink rather than a refusing one.
 foreach ($words as tainted string $word) {
     echo "[", $word, "]\n";
 }

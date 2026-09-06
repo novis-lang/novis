@@ -1,5 +1,5 @@
 --TEST--
-`Core\Cli\Style::of`'s seven options land in seven independent slots — each one asked alone, and each one asked as the difference between two styles, counted, so a bag that dropped or aliased an option fails here while every single option still reads correctly — ADR 0086 § 2
+`Core\Cli\Style::of`'s seven options land in seven independent slots — each one asked alone, and each one asked as the difference between two styles, counted, so a bag that dropped or aliased an option fails here while every single option still reads correctly — `rule:tooling/styling-is-a-value-not-a-grammar`
 --FILE--
 <?nvs
 // § 2's style is a value built out of typed parts, and the parts are seven: two

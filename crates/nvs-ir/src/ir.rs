@@ -1901,7 +1901,7 @@ pub enum Helper {
     /// [`crate::ty::Ty::Object`] or [`crate::ty::Ty::Tagged`] operand, which are
     /// the two static types `rule:security/capture-answers-the-carrier`'s sink carrier can arrive under.
     ///
-    /// [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 1
+    /// `rule:tooling/terminal-output-is-a-sink`
     /// puts exactly one raw path in the language and § 2 makes it a *type*,
     /// `Core\Cli\Text`. A type can only be recognised while the operand still
     /// has one, so the conversion [`crate::lower::Lowering::concat_operand`]

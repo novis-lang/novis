@@ -66,7 +66,7 @@
 //! same walk.
 //!
 //! The conversion roster is [`crate::commands::converts_from_string`], read and
-//! never copied — ADR 0086 § 6 takes § 3's list unchanged and `rule:routing/a-query-parameter-is-declared-like-a-capture` takes
+//! never copied — `rule:tooling/commands-are-compiled` takes § 3's list unchanged and `rule:routing/a-query-parameter-is-declared-like-a-capture` takes
 //! it unchanged again for a query parameter, so all three passes ask one
 //! question. The single thing this pass adds to it is that a `{name...}` arrives
 //! as the one `tainted string` § 3 says it does, so it binds a `string` and

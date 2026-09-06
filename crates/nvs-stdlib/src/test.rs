@@ -113,7 +113,7 @@
 //!
 //! * **[`MESSAGE`]'s `message` is not a sink.** It really does reach a
 //!   terminal — [`failed`] renders it into the line the runner prints — and a
-//!   reader who knows [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md)
+//!   reader who knows `rule:tooling/terminal-output-is-a-sink`
 //!   may expect the refusal there. The refusal is the *terminal's*, made once
 //!   where the bytes are written and where control bytes are substituted
 //!   visibly, not made a second time at every member whose text might one day
@@ -955,8 +955,8 @@ fn lines_of(value: Value) -> Result<Vec<String>, Fault> {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Test::scriptAnswers(array<string> $answers): void` — ADR 0086
-    /// § 4's last paragraph, which is the whole of what makes an interactive
+    /// `Core\Test::scriptAnswers(array<string> $answers): void` — `rule:tooling/a-prompt-is-a-core-member`
+    /// 's last paragraph, which is the whole of what makes an interactive
     /// flow assertable: prompts drain a queue the test supplied rather than
     /// reading a terminal.
     ///
@@ -971,7 +971,7 @@ nvs_runtime::nvs_helper! {
     /// **Why it lives here rather than on `Core\Cli`.** Scripting an answer is
     /// something a *test* does to its subject, and `Core\Cli`'s own members are
     /// what the subject calls; a filler on `Core\Cli` would be a way for
-    /// production code to answer its own prompts, which is a door ADR 0086 § 4
+    /// production code to answer its own prompts, which is a door `rule:tooling/a-prompt-is-a-core-member`
     /// has no reason to open. The state is on `nvs_runtime::Ctx` beside the
     /// fixed clock, and `rule:testing/isolate-per-test`'s per-test isolate is what scopes it —
     /// that field's docs are the home of both decisions.
@@ -1989,7 +1989,7 @@ mod tests {
     /// Every assertion — every row but the four that are not one: § 5's
     /// `expectFailure`, which takes a body rather than a subject; § 12's
     /// `advance`, which asserts nothing at all and is the fixed clock's
-    /// mutator; ADR 0086 § 4's `scriptAnswers`, which is the same kind of
+    /// mutator; `rule:tooling/a-prompt-is-a-core-member`'s `scriptAnswers`, which is the same kind of
     /// thing as `advance` — a test declaring the world its subject runs in,
     /// here the answers its prompts read; and § 18's two, `request` and
     /// `serverUrl`, which are the subject rather than a claim about one and are
@@ -2132,7 +2132,7 @@ mod tests {
         assert!(matches!(member.params, [CoreTy::Callable]));
         assert!(matches!(member.return_ty, CoreTy::Void));
         // It is one of exactly five rows that assert nothing about a subject —
-        // this, § 12's `advance`, ADR 0086 § 4's `scriptAnswers` and § 18's
+        // this, § 12's `advance`, `rule:tooling/a-prompt-is-a-core-member`'s `scriptAnswers` and § 18's
         // `request` and `serverUrl` — and [`asserting_members`] names all five
         // by hand. This count is what makes adding a member to this class have
         // to answer "is it an assertion?": a new row joins § 4's shape sweep

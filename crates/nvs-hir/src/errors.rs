@@ -41,7 +41,7 @@
 ///
 /// `Core\Cli\NotInteractive` is the second, and it is here for exactly that
 /// reason rather than by analogy:
-/// [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 4 makes
+/// `rule:tooling/a-prompt-is-a-core-member` makes
 /// it what a prompt throws when the process has no controlling terminal and
 /// the call named no default, so a program that wants to fall back writes a
 /// `catch` — and a `catch` matches a name in this tree and nothing else. Its

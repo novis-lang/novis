@@ -88,7 +88,7 @@ assignment error `rule:types/declaration` already plans for locals — one analy
 
 ### 3. The residual runtime case: `Core\Reflect` bypassing every constructor
 
-[ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md) makes object construction without running
+`rule:tooling/reflection-and-source-parsing-are-core-features` makes object construction without running
 a constructor a first-class, reachable operation, so it is the one place *2*'s compile-time guarantee
 cannot reach. A property on such an object that has never been written and is then read:
 
@@ -112,7 +112,7 @@ additional bytes per property**.
 
 That state is `nvs_runtime::Tag::Unset`, whose own doc comment is its home, and a slot is stamped with it at
 construction by the same one-store-per-slot pass that arms a declared `= expr` default. Until `Core\Reflect`
-exists (ADR 0019, M6) the one *property* declaration that can reach the state is a **`lateinit` property**
+exists (`rule:tooling/reflection-and-source-parsing-are-core-features`, M6) the one *property* declaration that can reach the state is a **`lateinit` property**
 (`rule:classes/lateinit`) — *2* discharges every other non-nullable property at its
 constructor — and `rule:classes/lateinit-read-before-write`'s intraprocedural check already refuses the reads it can see, so what the
 runtime answers is the read from outside the class. The two readers ask the question differently and get one
@@ -189,7 +189,7 @@ Deferred deliberately, each needing its own argument once there is real code to 
 - **Whether `Core\Reflect`'s constructor-bypassing instantiation should require every non-nullable
   property's value up front**, closing the residual runtime case in *3* entirely rather than leaving it to
   a first-read throw. That is a decision for `Core\Reflect`'s own API surface
-  ([ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md)), not this one.
+  (`rule:tooling/reflection-and-source-parsing-are-core-features`), not this one.
 - **The exact propagation of *2* through abstract classes with no constructor of their own, multi-level
   inheritance, and interfaces** (which declare no storage at all) belongs to `docs/spec/`, unwritten as of
   this ADR — this document fixes the top-level rule only, the same deferral

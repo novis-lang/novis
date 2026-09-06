@@ -1,5 +1,5 @@
 --TEST--
-`Core\Command::run` throws for a `#[Command]` parameter no argument's text is converted into yet, rather than guessing — ADR 0086 § 6
+`Core\Command::run` throws for a `#[Command]` parameter no argument's text is converted into yet, rather than guessing — `rule:tooling/commands-are-compiled`
 --FILE--
 <?nvs
 // § 6 admits a *subset* of an enum's cases among the types an argument may be

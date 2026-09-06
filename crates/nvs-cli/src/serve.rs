@@ -605,7 +605,7 @@ impl nvs_server::Fires for Scheduled {
         // consumes, so nothing here releases anything.
         let args = Value::str(nvs_runtime::NvsStr::new(entry.name().as_bytes()));
         // `Output::Capture` because a scheduled run's `echo` is its own captured
-        // output rather than this process's stdout (ADR 0088 § 3's table), and
+        // output rather than this process's stdout (`rule:tooling/echo-always-has-a-sink`'s table), and
         // that capture is what the line below reports.
         Some(Isolate::new(program, args, Output::Capture))
     }

@@ -1,5 +1,5 @@
 --TEST--
-A live region's rows carry no command byte — every C0, `DEL` and C1 handed to `Core\Cli\Live::set` is substituted exactly as the sink substitutes it, counted over the whole control range — ADR 0086 §§ 1, 2 and 5
+A live region's rows carry no command byte — every C0, `DEL` and C1 handed to `Core\Cli\Live::set` is substituted exactly as the sink substitutes it, counted over the whole control range — `rule:tooling/terminal-output-is-a-sink`, `rule:tooling/styling-is-a-value-not-a-grammar` and `rule:tooling/in-place-output-is-a-scoped-live-region`
 --FILE--
 <?nvs
 // § 5's region is the one place a caller most expects a cursor movement to

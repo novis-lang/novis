@@ -1,8 +1,8 @@
 //! `nvs meta --json` — the `Core` registry as JSON, for a consumer outside
 //! the build.
 //!
-//! [ADR 0117](/docs/adr/0117-an-implemented-core-member-documents-itself-in-the-registry.md)
-//! § 2 is the contract, and this command owns it: every class in
+//! `rule:tooling/meta-json`
+//! is the contract, and this command owns it: every class in
 //! [`nvs_stdlib::registry::CLASSES`], every member — static ones first, then
 //! instance ones — with the `$name` each of its positional parameters is
 //! callable by under `names` (`rule:core-api/shape-rules`

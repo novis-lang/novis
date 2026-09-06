@@ -1,5 +1,5 @@
 --TEST--
-`Core\Cli::displayWidth` measures the string the sink will write and not the one it was handed, so a control byte costs the column its Control Picture costs and an SGR sequence cannot make a string measure short — ADR 0086 §§ 1 and 3
+`Core\Cli::displayWidth` measures the string the sink will write and not the one it was handed, so a control byte costs the column its Control Picture costs and an SGR sequence cannot make a string measure short — `rule:tooling/terminal-output-is-a-sink` and `rule:tooling/the-terminal-profile-resolves-once`
 --FILE--
 <?nvs
 // § 1's substitution is uniform and runs on the way to the terminal, so the

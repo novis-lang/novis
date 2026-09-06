@@ -98,7 +98,7 @@ def run(cmd: list[str], cwd: Path) -> tuple[str, int]:
         proc = subprocess.run(
             # UTF-8 explicitly, because `text=True` decodes with the console's
             # own code page and Windows hands back cp1252 — under which a case
-            # echoing one of ADR 0086 § 1's Control Pictures (`␛` is
+            # echoing one of `rule:tooling/terminal-output-is-a-sink`'s Control Pictures (`␛` is
             # `E2 90 9B`) raises `UnicodeDecodeError` in the reader thread
             # rather than failing the comparison. `replace` for the same
             # reason: a program under test may write bytes that are not UTF-8

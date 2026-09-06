@@ -1,5 +1,5 @@
 --TEST--
-A `Core\Cli\Style` is built out of typed values, and neither rejected spelling of styling means anything to `Core\Cli\Text::styled` — ADR 0086 §§ 1-2
+A `Core\Cli\Style` is built out of typed values, and neither rejected spelling of styling means anything to `Core\Cli\Text::styled` — `rule:tooling/terminal-output-is-a-sink` and `rule:tooling/styling-is-a-value-not-a-grammar`
 --FILE--
 <?nvs
 // § 2 rejects both of the obvious designs: a raw `"\e[31m"` escape and a

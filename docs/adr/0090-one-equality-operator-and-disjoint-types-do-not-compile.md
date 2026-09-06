@@ -178,7 +178,7 @@ disjoint from the subject's is *2*'s compile error. `match (true) { … }` is un
 
 ### 7. Porting
 
-[ADR 0089](0089-convert-is-one-rule-table-with-two-modes.md)'s `==` rule keeps its destination spelling
+`rule:tooling/convert-one-table-two-modes`'s `==` rule keeps its destination spelling
 and re-tiers against this table:
 
 - **Tier E** — both operands proven the same non-`string` scalar type, or proven numeric. PHP's two

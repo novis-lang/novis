@@ -4,7 +4,7 @@
 
 **Goal 11 — `///` is a doc comment — has just started; nothing of it has landed yet.** Goal 10's whole
 list is this goal's Stage 1 floor. The design is settled and is not to be re-derived:
-ADR 0137 landed with this goal and its
+`rule:tooling/doc-comment-is-three-slashes` landed with this goal and its
 four decisions were taken with the user — `///` as the marker with `////` staying ordinary, prose plus
 exactly `@see` and `@example` with every other `@tag` a diagnostic, `nvs meta --json` as the one
 machine-readable source with `nvs doc` a renderer over it, and enforcement silent by default.

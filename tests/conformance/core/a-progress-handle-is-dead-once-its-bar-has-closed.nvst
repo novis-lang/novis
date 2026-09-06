@@ -1,5 +1,5 @@
 --TEST--
-A Core\Cli\Progress handle refuses to advance once the bar it names has closed -- ADR 0086 sections 5 and 8
+A Core\Cli\Progress handle refuses to advance once the bar it names has closed -- `rule:tooling/terminal-output-is-a-sink` sections 5 and 8
 --FILE--
 <?nvs
 // The same scoping `Core\Cli\Live` has, said in this member's own words: a bar

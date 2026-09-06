@@ -98,7 +98,7 @@ low-churn instinct [AGENTS.md](../../AGENTS.md) already applies to documentation
   VS Code Tasks. Semantic tokens are **in** — [ADR 0099 § 4](0099-the-resilient-tree-is-the-ast-plus-trivia.md)
   owns the two-layer split and the token legend, whose `tainted`/`secret` modifiers are the point of the
   layer rather than a detail of it. **Not yet included:** format-on-save (`nvs fmt` doesn't exist until
-  M10 — [ADR 0039](0039-canonical-code-formatting.md)), rename, and any code action beyond the two above —
+  M10 — `rule:tooling/fmt-is-one-canonical-style`), rename, and any code action beyond the two above —
   the boundary is that M4B ships the fixes a diagnostic already computes and no others.
 - `nvs-lsp` and `editors/vscode` are **one crate/one package each across both milestones** — M10 extends
   the same crate and the same extension in place rather than standing up a second "real" implementation
@@ -126,7 +126,7 @@ to a property access whose name was synthesized at the cursor. `rowan` exists be
 - **Trivia, from one site.** The lexer's `skip_trivia` — the single function that consumes whitespace,
   `//`, `#` and `/* */` — records each as a `Trivia { kind, span }` instead of only advancing.
   Concatenating tokens and trivia in offset order then reproduces the file byte-for-byte, which is the
-  losslessness `nvs fmt` needs at M10 to keep [ADR 0039](0039-canonical-code-formatting.md) § 4's promise
+  losslessness `nvs fmt` needs at M10 to keep `rule:tooling/fmt-quotes`'s promise
   that comments survive formatting.
 - **Explicit recovery.** A node the parser synthesized says so (`MemberName::Missing`, a span on
   `ExprKind::Error`) rather than being inferable from an empty span, because completion's whole behaviour
@@ -165,7 +165,7 @@ first, so the catalog is honest about sequencing rather than implying all of it 
   frozen schema for it **at M4B**, since M1 shipped only the command and its `{stmts:#?}` debug output,
   which has no stability contract ([ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 7). A
   tree view renders that output for the active file, resilient tree by default so the panel works on a
-  file that does not compile. This does not need `Core\Ast` ([ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md))
+  file that does not compile. This does not need `Core\Ast` (`rule:tooling/reflection-and-source-parsing-are-core-features`)
   at all — that's the *language-level* reflective parse a running Novis program calls; the *editor* panel is
   simpler and can shell out to the CLI the same way `nvs check` already backs diagnostics.
 
@@ -193,7 +193,7 @@ first, so the catalog is honest about sequencing rather than implying all of it 
   And they are **off by default but composable with format-on-save**: the extension registers them under
   `source.fixAll.nvs`, which VS Code runs through `editor.codeActionsOnSave` independently of
   `editor.formatOnSave`, so a developer who opts in gets the layout *and* the fixes on one keystroke while
-  `nvs fmt` itself stays layout-only. [ADR 0039](0039-canonical-code-formatting.md) § 9 owns that boundary
+  `nvs fmt` itself stays layout-only. `rule:tooling/fmt-is-never-a-diagnostic` owns that boundary
   and why it is worth keeping — `nvs fmt --check` must fail for exactly one reason. PhpStorm's *Reformat
   Code* dialog, with its own per-action checkboxes, is the same composition through a different client.
 - **Refactorings** as LSP requests: workspace-wide rename, extract-to-method/variable, organize-imports
@@ -203,7 +203,7 @@ first, so the catalog is honest about sequencing rather than implying all of it 
   inserting the correct fully-qualified name (never an alias, same `rule:statements/nothing-gets-a-second-name` constraint), inlay hints for
   `var`-inferred types (`rule:types/var-inference`) and call-site parameter names.
 - Format-on-save and the format commands, wired to `nvs fmt` once it exists
-  ([ADR 0039](0039-canonical-code-formatting.md)) — unchanged from ADR 0016 § 2.
+  (`rule:tooling/fmt-is-one-canonical-style`) — unchanged from ADR 0016 § 2.
 - **A native Test Explorer**, using VS Code's finalized Testing API, wired to `nvs test`/`.nvst`, with
   **coverage** fed through VS Code's own `FileCoverage` API from the Clover/lcov exporters M10 already
   builds (`rule:testing/debug-probes`) — no custom
@@ -235,7 +235,7 @@ first, so the catalog is honest about sequencing rather than implying all of it 
   the colour picker, validation. **Formatting is excluded**, so `nvs fmt` stays the only formatter that
   touches a `.nvs` file
   ([ADR 0108](0108-one-reference-index-completion-from-derived-facts-and-services-in-a-template-region.md) § 3,
-  [ADR 0039](0039-canonical-code-formatting.md) § 9). This is not a small addition for Novis specifically:
+  `rule:tooling/fmt-is-never-a-diagnostic`). This is not a small addition for Novis specifically:
   `rule:programs/first-party-framework` makes inline HTML the template engine, so this region is
   where an application's markup is written.
 - **Four code actions that write rather than fix** — implement missing members, override a method,
@@ -260,7 +260,7 @@ first, so the catalog is honest about sequencing rather than implying all of it 
 
 **Named but not committed to any milestone (see *Revisiting*):**
 
-- A live, debug-session object/value inspector built on `Core\Reflect` ([ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md)) — distinct from the static AST panel above, this needs both the stdlib
+- A live, debug-session object/value inspector built on `Core\Reflect` (`rule:tooling/reflection-and-source-parsing-are-core-features`) — distinct from the static AST panel above, this needs both the stdlib
   reflection surface (M7/M8) and `nvs dap` (M10) to exist together, and a design for how a DAP `variables`
   request surfaces a reflected object graph.
 - A request-tree visualization for `spawn`/`spawn script` (`rule:security/isolate-shares-nothing`)

@@ -1,7 +1,7 @@
 //! Where a request's bytes go, and what it declares about them.
 //!
-//! [`OutputSink`] is [ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
-//! § 3's row as a type: the sink decides the carrier, so the `CARRIER_*`
+//! [`OutputSink`] is `rule:tooling/echo-always-has-a-sink`
+//! 's row as a type: the sink decides the carrier, so the `CARRIER_*`
 //! constants and [`is_carrier`] are named here rather than in `nvs-stdlib`
 //! where the classes themselves are declared.
 //!
@@ -15,8 +15,8 @@
 use super::*;
 
 /// The `Core` class a captured terminal sink hands its bytes back as —
-/// [ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
-/// § 3's default row, and § 5's carrier.
+/// `rule:tooling/echo-always-has-a-sink`
+/// 's default row, and § 5's carrier.
 ///
 /// Named here rather than in `nvs-stdlib`, where the class itself is declared,
 /// because the *sink* is what decides the carrier and the sink lives in this
@@ -25,7 +25,7 @@ use super::*;
 /// cannot drift apart.
 pub const CARRIER_CLI_TEXT: &str = r"Core\Cli\Text";
 
-/// The carrier of the **HTML** sink — ADR 0088 § 3's HTTP-request row.
+/// The carrier of the **HTML** sink — `rule:tooling/echo-always-has-a-sink`'s HTTP-request row.
 ///
 /// Selected by [`OutputSink::Body`] and by nothing else, which is that row's
 /// "attached by an HTTP request and by nothing else" written as a fact about
@@ -76,8 +76,8 @@ pub enum OutputSink {
     /// back the same way, and the one sink that answers
     /// [`CARRIER_HTML_MARKUP`].
     ///
-    /// [ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
-    /// § 3's first row: inside an HTTP request `echo` writes to the response
+    /// `rule:tooling/echo-always-has-a-sink`
+    /// 's first row: inside an HTTP request `echo` writes to the response
     /// body, and what carries those bytes is `Core\Html\Markup`. A variant
     /// rather than a flag on [`Self::Buffer`], because "which sink is attached"
     /// is then one question with one answer and [`Ctx::carrier`] is one arm
@@ -416,8 +416,8 @@ impl Ctx {
     }
 
     /// The `Core` class this request's sink hands captured bytes back as —
-    /// [ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
-    /// § 3's table, read as a class name.
+    /// `rule:tooling/echo-always-has-a-sink`
+    /// 's table, read as a class name.
     ///
     /// [`CARRIER_HTML_MARKUP`] for [`OutputSink::Body`], and
     /// [`CARRIER_CLI_TEXT`] for every other sink, because every other one is a
@@ -465,7 +465,7 @@ impl Ctx {
     /// Whether what this request writes reaches the process's own standard
     /// streams, rather than a buffer, a response body or nothing at all.
     ///
-    /// ADR 0086 § 4's prompts are the caller: a question is only a question if
+    /// `rule:tooling/a-prompt-is-a-core-member`'s prompts are the caller: a question is only a question if
     /// the person answering can see it, so `Core\Cli::ask` under `nvs serve`,
     /// inside a `Core\Out::capture` or under a test's [`OutputSink::Buffer`]
     /// is not interactive however many terminals the process has. Without
@@ -752,7 +752,7 @@ mod tests {
     }
 
     /// Every sink that exists today is a terminal or a stand-in for one, so
-    /// each names the same carrier — ADR 0088 § 3's default row.
+    /// each names the same carrier — `rule:tooling/echo-always-has-a-sink`'s default row.
     #[test]
     fn every_sink_today_carries_cli_text() {
         assert_eq!(Ctx::stdout().carrier(), CARRIER_CLI_TEXT);

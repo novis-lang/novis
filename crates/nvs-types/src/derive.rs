@@ -169,14 +169,14 @@ pub const FIXTURE: &str = r"Core\Test\Fixture";
 /// may carry.
 pub const TEST_WITH: &str = r"Core\Test\TestWith";
 
-/// `#[Command(name: string, about?: string)]` — ADR 0086 § 6's marker, on a
+/// `#[Command(name: string, about?: string)]` — `rule:tooling/commands-are-compiled`'s marker, on a
 /// `static` method. It is the same class the entry point `Core\Command::run`
 /// is a member of, so the `use Core\Command;` that lets a program spell the
 /// attribute bare is the one that reaches the runner too;
 /// [`crate::commands`] owns the payload.
 pub const COMMAND: &str = r"Core\Command";
 
-/// `#[Option(short?: string, long?: string, about?: string)]` — ADR 0086 § 6's
+/// `#[Option(short?: string, long?: string, about?: string)]` — `rule:tooling/commands-are-compiled`'s
 /// per-parameter marker, and the one sentence that decides what a parameter is:
 /// a parameter is a positional argument unless it carries this, with no
 /// inference from defaults or types. [`crate::commands`] owns the payload.

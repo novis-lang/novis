@@ -4195,7 +4195,7 @@ is why" — is this file.
   `#[Core\Option]`. Two limits come with it, found the same way. `get<T>` answers only the **first** of
   two `#[Command]`s on one method, so an alias is read with `all<T>` and indexed (`$rows[1]->name`
   works). And a payload-*less* `#[Option]` is indistinguishable from a parameter carrying no attribute
-  at all — there is nothing for a shape to match — which is exactly why ADR 0086 § 6's table is built
+  at all — there is nothing for a shape to match — which is exactly why `rule:tooling/commands-are-compiled`'s table is built
   off the nominal roster rather than out of this pass.
   `tests/conformance/core/a-command-table-answers-its-own-help.nvst` is the worked example.
 
@@ -4671,7 +4671,7 @@ is why" — is this file.
   reader takes the lines *after* the header as the body verbatim, so
   `a-shebang-line-opens-code.nvst` really does hand the lexer `#!` at offset 0. Worth knowing before
   writing any case whose subject is the first bytes of a file: if the harness had kept the separator's
-  newline, the case would have passed while testing nothing, because the rule it pins (ADR 0100 § 3)
+  newline, the case would have passed while testing nothing, because the rule it pins (`rule:tooling/shebang-opens-code-mode`)
   is exact about the offset and every other position is ordinary text.
 - **A `namespace` in Novis is a statement and not a block, so a case that needs two of them needs two
   files.** `namespace App { … }` is `E0243`, *"write `namespace X;` once, before any declaration, and
@@ -5168,7 +5168,7 @@ is why" — is this file.
   is the shape.
 - **A `Core` value type's slots are observable from a program through `Core\Debug::render`, and that
   is how a case asks what a `Cli\Style` or a `Cli\Progress` *holds* when nothing it renders reaches
-  the output.** ADR 0086 § 3 leaves a captured stream at `ColorDepth::None`, so every style renders
+  the output.** `rule:tooling/the-terminal-profile-resolves-once` leaves a captured stream at `ColorDepth::None`, so every style renders
   as exactly the text it wraps and a case comparing rendered output cannot tell `bold` from
   `italic` — which is most of what a `Style` is. The obvious way out is a trap: `--ENV--` with
   `CLICOLOR_FORCE=1` forces colour on Linux and *not* on Windows, because `enable_virtual_terminal()`
@@ -5250,7 +5250,7 @@ is why" — is this file.
   own file. Two spellings to have ready before the first run, because they are what the compiler stops
   on rather than the oracle: `var $x` is function-scoped, so two `foreach` bodies in one case cannot both
   declare it (`E0406: $x is already declared`, pointing at the first loop); and anything echoed can hold
-  a byte the terminal sink renders itself (ADR 0086) — put
+  a byte the terminal sink renders itself (`rule:tooling/terminal-output-is-a-sink`) — put
   `Core\Str::replaceAll($s, ["\r" => "<CR>", "\n" => "<LF>"])` against PHP's `strtr` with the same map on
   both sides rather than comparing raw control bytes. That is not only about a *parsed* field: the
   substituted band is wider than CR and LF, and `Core\Json::encode` writes DEL (0x7f) bare because JSON
@@ -5951,7 +5951,7 @@ is why" — is this file.
   "never blocks a request-serving core" is a claim about.
 - **Two things bite a `.nvst` case that pins a *rendering*, and both report as an error about the
   case rather than about the member.** First, `Core\Debug::render` answers `Core\Cli\Text` and not
-  `string` (ADR 0086 § 1's carrier), so `string $r = Core\Debug::render($v);` is
+  `string` (`rule:tooling/terminal-output-is-a-sink`'s carrier), so `string $r = Core\Debug::render($v);` is
   `E0401: expected string, found Core\Cli\Text` — a case that wants to compare a rendering against a
   literal has to write the literal, which is the better shape anyway: it pins the text rather than
   asserting a member agrees with itself. Second, a rendered *property* name begins with `$`, so
@@ -7423,7 +7423,7 @@ sibling in the same namespace unqualified.
   `&'static str` kinds; the general shape is that any per-variant table over another crate's AST
   belongs in that crate, where a new variant is a build error in the file its author is already in.
 - **An ADR's aside that "we already have that machinery" can be about a *shape* rather than a
-  row — read the struct before pricing the slice.** ADR 0086 § 2 ends with "A `Core` class
+  row — read the struct before pricing the slice.** `rule:tooling/styling-is-a-value-not-a-grammar` ends with "A `Core` class
   constant that is an instance is machinery `nvs-stdlib` already has", and
   `nvs_stdlib::registry::CoreConst`'s `value` is a `Const` whose whole roster is scalar and
   which the compiler inlines at every use site, so `Cli\Color::RED` has no row it could be
@@ -7437,7 +7437,7 @@ sibling in the same namespace unqualified.
   budgeted as free.
 - **A "known gap" in a module doc can be wrong about the tree, and one stale field comment is how it
   gets that way.** `cli.rs`'s gap 3 said `Cli\Color` was blocked on "a `Core` class constant that is
-  an instance", contradicting ADR 0086 § 2's *"machinery `nvs-stdlib` already has"* — and the ADR was
+  an instance", contradicting `rule:tooling/styling-is-a-value-not-a-grammar`'s *"machinery `nvs-stdlib` already has"* — and the ADR was
   right: `registry::Const::Built { symbol, args }` has expressed exactly that since
   `Core\Time\Zone::UTC`, `nvs_types::ConstArg::Built` carries it across, and
   `nvs_ir::lower::emit_const_arg` emits the `InstKind::CoreCall` at the use site. What produced the
@@ -7447,7 +7447,7 @@ sibling in the same namespace unqualified.
   disagree about what exists, `grep -n` the enum before believing either: it is one call, and the
   alternative is a session that designs a mechanism the tree already ships.
 - **A shape-literal field name had to be an `Ident`, so an option the spec spells `default` was
-  unwritable at every call site.** ADR 0086 § 4's prompts take `{default?: string}`, and
+  unwritable at every call site.** `rule:tooling/a-prompt-is-a-core-member`'s prompts take `{default?: string}`, and
   `{default: "ada"}` produced four diagnostics at once — `E0101 expected a field name`, then
   `E0118 an object literal has no shorthand field`, then two more recovering — none of which says
   "that word is a keyword". `nvs_syntax::parser::expr::parse_object_literal_fields` is the whole
@@ -7461,7 +7461,7 @@ sibling in the same namespace unqualified.
   (`registry::OPTIONS_NAME`), so a *positional* parameter cannot also be called that —
   `every_registry_row_names_one_parameter_per_positional_slot` reports "gives a positional
   parameter the trailing bag's own name" with `left: "options"` / `right: "options"`, which reads
-  like a tautology until you know what the right-hand side is. ADR 0086 § 4 spelled `select`'s list
+  like a tautology until you know what the right-hand side is. `rule:tooling/a-prompt-is-a-core-member` spelled `select`'s list
   `$options`; it is `$choices` now, in that ADR's own table as well as in the row, because the
   later and wider rule wins.
 - **A row answering a qualified type joins a closed roster in another crate, and the failure names
@@ -7478,7 +7478,7 @@ sibling in the same namespace unqualified.
   there is theirs by construction — but `select` and `multiSelect` ask `watched(ctx)` *first*, since
   they render a menu and run the caller's `labels` callback before there is a question to ask, and an
   early `return` above the call is invisible to a grep for `ask_terminal` that finds five call sites
-  and reads as five members. ADR 0086 § 4's scripted answer queue was the case: drained inside
+  and reads as five members. `rule:tooling/a-prompt-is-a-core-member`'s scripted answer queue was the case: drained inside
   `ask_terminal`, it would have been unreachable for exactly the two prompts whose flow a test most
   wants to script. What holds is a second predicate beside `watched` — `answerable`, which is the
   queue *or* a terminal — that the deciding-early members read instead.
@@ -8229,7 +8229,7 @@ sibling in the same namespace unqualified.
   dependency to name one of its types with, so `grep RouteTable` over `crates/` answers "compiler
   only" and reads as a gap in the wiring rather than as a decision. It is a decision, and it is
   written down twice: `nvs_runtime::commands`' module doc § *Why the table is a runtime value at
-  all* argues it for ADR 0086 § 6's commands, and `nvs-cli`'s `runtime_commands` is the copy that
+  all* argues it for `rule:tooling/commands-are-compiled`'s commands, and `nvs-cli`'s `runtime_commands` is the copy that
   crosses — strings plus one closed enum for whatever a matcher needs that no string spells. Anything
   `rule:routing/the-servers-match-dispatches-nothing`'s routes, `rule:concurrency/enqueue-commits-with-your-write`'s jobs or a later table needs is that shape again. Check for the
   sibling before designing the edge: the cost of missing it is a dependency edge in a review rather

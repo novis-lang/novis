@@ -1,5 +1,5 @@
 --TEST--
-The two code points ADR 0086 § 1 passes through are the two that are not a column: a tab advances to the next stop wherever it stands, and a newline ends the row so the answer is the widest row rather than a sum — ADR 0086 §§ 1 and 3
+The two code points `rule:tooling/terminal-output-is-a-sink` passes through are the two that are not a column: a tab advances to the next stop wherever it stands, and a newline ends the row so the answer is the widest row rather than a sum — `rule:tooling/terminal-output-is-a-sink` and `rule:tooling/the-terminal-profile-resolves-once`
 --FILE--
 <?nvs
 // Both bounds are named together on purpose. A member that gave the tab a

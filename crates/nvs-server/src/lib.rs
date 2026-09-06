@@ -18,8 +18,8 @@
 //! answers a request by **running** it: its caller's handler names the isolate
 //! a request is, [`nvs_host::Isolate`] runs it as a child of the connection's
 //! own task, and what that isolate echoed is the response body
-//! ([ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
-//! § 3). There is one isolation path in this tree and that is it; a second one
+//! (`rule:tooling/echo-always-has-a-sink`
+//! ). There is one isolation path in this tree and that is it; a second one
 //! would leave M7's state-bleed suite proving nothing.
 //!
 //! **A connection is bounded by a clock**: `rule:http-server/the-server-block-is-boot-class`'s four waits arrive as

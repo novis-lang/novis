@@ -1,5 +1,5 @@
 --TEST--
-§ 14's standard streams are `Core\IO::stdin` alone — there is no `stdout` half, because writing to that stream is `Core\Cli::write`'s sink — spec § 14, ADR 0086 §§ 1 and 7
+§ 14's standard streams are `Core\IO::stdin` alone — there is no `stdout` half, because writing to that stream is `Core\Cli::write`'s sink — spec § 14, `rule:tooling/terminal-output-is-a-sink` and `rule:tooling/no-raw-handle-onto-standard-output`
 --FILE--
 <?nvs
 // The reading half is here, and it is a value rather than a handle: a
@@ -8,7 +8,7 @@
 tainted string $input = Core\IO::stdin();
 echo "read=", Core\Str::length($input), "\n";
 
-// The writing half is not here at all. ADR 0086 § 1's substitution is uniform
+// The writing half is not here at all. `rule:tooling/terminal-output-is-a-sink`'s substitution is uniform
 // -- not tty-dependent, not qualifier-dependent -- so a raw descriptor onto
 // standard output would be the way around the sink rather than a second
 // convenience beside it, and `Core\Cli::write` already is that operation.

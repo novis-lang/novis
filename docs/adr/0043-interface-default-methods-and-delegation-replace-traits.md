@@ -47,7 +47,7 @@
   proof this project already prefers "declare a capability as an interface" over "declare an ambient
   mechanism." A trait, by contrast, gives the reused code no type identity at all — a class using `Greets`
   is not `instanceof Greets`, cannot be checked for it, and does not show up as a capability in
-  [ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md)'s reflection surface.
+  `rule:tooling/reflection-and-source-parsing-are-core-features`'s reflection surface.
 - `rule:classes/no-traits` already narrowed trait composition once — dropping the `as`
   rename/visibility clause, keeping `insteadof` — but that was a narrowing of PHP's mechanism, not a
   replacement of it. `crates/nvs-hir`'s `hierarchy.rs` and `members.rs` already implement that narrowed
@@ -112,7 +112,7 @@ class Person implements Greets
 ```
 
 `Person` gets `greet()` for free, exactly like an inherited method — and, unlike a trait, `Person` is
-genuinely `instanceof Greets`, reflectable via `Core\Reflect` ([ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md)),
+genuinely `instanceof Greets`, reflectable via `Core\Reflect` (`rule:tooling/reflection-and-source-parsing-are-core-features`),
 and checkable at every call site that asks for `Greets`. A class may override a default exactly as it
 overrides an inherited method — ordinary syntax a reader already knows, no `insteadof` needed for the single-
 source case.

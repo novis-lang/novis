@@ -1,5 +1,5 @@
 --TEST--
-Every prompt with no default throws Core\Cli\NotInteractive rather than waiting, and a validate callback never runs without a terminal — ADR 0086 § 4
+Every prompt with no default throws Core\Cli\NotInteractive rather than waiting, and a validate callback never runs without a terminal — `rule:tooling/a-prompt-is-a-core-member`
 --FILE--
 <?nvs
 // Agreement across the prompts: asked with no default given — and, for

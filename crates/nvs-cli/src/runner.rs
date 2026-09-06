@@ -529,8 +529,8 @@ impl nvs_runtime::inproc::Answering for UnderTest {
             });
         // `Isolate` and not `Host::start_isolate`: the seam's operation takes no
         // request, and the request is exactly what decides the child's sink —
-        // an isolate answering one writes to a response body under ADR 0088
-        // § 3, and a `Core` member reaching the host through the trait could
+        // an isolate answering one writes to a response body under `rule:tooling/echo-always-has-a-sink`
+        // , and a `Core` member reaching the host through the trait could
         // not have said so. `nvs_host::Isolate::answering` is the one spelling
         // of that, and it is this crate's to reach.
         let running = nvs_host::Isolate::new(

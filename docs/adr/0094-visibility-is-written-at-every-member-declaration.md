@@ -9,7 +9,7 @@
   one. Does **not** cover
   what each level *means* at an access site (who may read a `private` property), which is
   `rule:types/declaration`'s checker debt owned by `nvs-types`; nor modifier *order*
-  ([ADR 0039](0039-canonical-code-formatting.md) § 1); nor casing (`rule:core-api/identifier-casing`);
+  (`rule:tooling/fmt-base-style-is-per`); nor casing (`rule:core-api/identifier-casing`);
   nor property-hook semantics (`rule:classes/property-observer`).
 
 > **In short:** every member declaration in a class, interface or anonymous-class body writes exactly
@@ -108,11 +108,11 @@ and `static int $x;` that Novis's own grammar accepts today.
 
 ### 5. `nvs fmt` never inserts it; `nvs convert` does
 
-[ADR 0039](0039-canonical-code-formatting.md)'s formatter orders modifiers and does not supply a missing one.
+`rule:tooling/fmt-is-one-canonical-style`'s formatter orders modifiers and does not supply a missing one.
 A formatter that inserted `public` would make a file's *meaning* depend on whether a tool had been run over
 it, and would restore the implicit default through the back door for anyone who formats on save.
 
-[ADR 0089](0089-convert-is-one-rule-table-with-two-modes.md)'s converter is the opposite case and carries the
+`rule:tooling/convert-one-table-two-modes`'s converter is the opposite case and carries the
 insertion as an **E-tier** row: PHP's omission provably means `public`, so writing it is a behaviour-identical
 rewrite, discharged by a differential case like any other E branch. Porting a PHP file therefore costs the
 author nothing here.

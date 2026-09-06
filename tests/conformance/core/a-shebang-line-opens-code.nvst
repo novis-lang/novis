@@ -1,8 +1,8 @@
 --TEST--
-A file whose first two bytes are `#!` starts in code mode, and line 1 is trivia rather than output — ADR 0100 § 3
+A file whose first two bytes are `#!` starts in code mode, and line 1 is trivia rather than output — `rule:tooling/shebang-opens-code-mode`
 --FILE--
 #!/usr/bin/env nvs
-// ADR 0100 § 3: the line above is trivia — not a token, not emitted — so the
+// `rule:tooling/shebang-opens-code-mode`: the line above is trivia — not a token, not emitted — so the
 // first byte this program writes is the `o` of `opened`. Before the lexer
 // slice landed the whole shebang line was inline HTML and was copied to
 // stdout (findings.md § Divergences D27).

@@ -72,7 +72,7 @@ M4's, goal 1's, goal 2's and goal 3's whole acceptance lists, **never traded.**
    **argv-only with no shell-string form at all**, a Windows batch/PowerShell-target refusal, coroutine-
    suspending waits behind the `process.exec` gate. A tainted `$path` or `$argv` element is a compile-time
    diagnostic. The suspending wait is goal 2's blocking pool — a child process has no readiness to wait on.
-9. **`Core\Cli`, whole.** [ADR 0086](../../adr/0086-core-cli-terminal-is-a-sink.md) §§ 1–5 and 8: terminal
+9. **`Core\Cli`, whole.** `rule:tooling/terminal-output-is-a-sink`, `rule:tooling/styling-is-a-value-not-a-grammar`, `rule:tooling/the-terminal-profile-resolves-once`, `rule:tooling/a-prompt-is-a-core-member`, `rule:tooling/in-place-output-is-a-scoped-live-region` and `rule:tooling/the-terminal-is-restored-on-every-exit-path`: terminal
    output is a **sink** that substitutes visibly, styling is a value type and never a grammar, streams and
    tty and colour depth and width resolve **once per process** over `anstream`, the five prompts read the
    controlling terminal rather than stdin and never block forever, and in-place output is a **scoped** live
@@ -82,7 +82,7 @@ M4's, goal 1's, goal 2's and goal 3's whole acceptance lists, **never traded.**
     live region that survives a panic is the defect the whole scoped shape exists to prevent.
 11. **`Core\Command::run`, its generated `--help`, and its shell completions**, over the table goal 1
     built. Unlike `Core\Router` it *dispatches*, because a CLI has one entry point and no middleware
-    question — ADR 0086 § 6 says so and it is the reason the two classes differ.
+    question — `rule:tooling/commands-are-compiled` says so and it is the reason the two classes differ.
 
 ## Stage 4 — crypto, and the protocols built on it
 
@@ -155,7 +155,7 @@ M4's, goal 1's, goal 2's and goal 3's whole acceptance lists, **never traded.**
 ## Stage 8 — introspection
 
 24. **`Core\Reflect` and `Core\Ast`**, built-in rather than extension-provided —
-    [ADR 0019](../../adr/0019-reflection-and-ast-parsing-are-core-features.md). Reflective access enforces
+    `rule:tooling/reflection-and-source-parsing-are-core-features`. Reflective access enforces
     **the same visibility and hook checks ordinary code does**, and a parsed AST is typed, inert data with
     no path back into execution. `Core\Ast::parse()` is fuzzed with M1's own corpus.
 35. **The checked property key, `property<T>` — after item 24, never before it.** The design is

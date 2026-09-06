@@ -1,5 +1,5 @@
 --TEST--
-`Core\Response::text` writes its argument to the request's output with nothing escaped or substituted, because the media type it declares is not HTML -- ADR 0088 §§ 3-4
+`Core\Response::text` writes its argument to the request's output with nothing escaped or substituted, because the media type it declares is not HTML -- `rule:tooling/echo-always-has-a-sink` and `rule:security/response-body-is-one-typed-member`
 --FILE--
 <?nvs
 // `rule:security/response-body-is-one-typed-member`: `text` owns one body shape and sets `text/plain` for it, so

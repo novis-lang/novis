@@ -1,5 +1,5 @@
 --TEST--
-Core\Cli::multiSelect answers an array<T> rather than a T, and is the one prompt with no default — ADR 0086 § 4
+Core\Cli::multiSelect answers an array<T> rather than a T, and is the one prompt with no default — `rule:tooling/a-prompt-is-a-core-member`
 --FILE--
 <?nvs
 // This case runs with every standard stream redirected, which is § 4's "no

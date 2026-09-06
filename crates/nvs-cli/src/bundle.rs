@@ -106,7 +106,7 @@ pub(crate) fn run(bundle: Bundle) -> ExitCode {
     // Every word past the executable is the bundled program's own, there being
     // no `nvs run` in front of it to claim any: `rule:programs/bundle-trust-domain`'s whole point is
     // that the binary *is* the program, so this is the plainest reading of its
-    // command line and the one ADR 0086 § 6's `Core\Command::run` matches.
+    // command line and the one `rule:tooling/commands-are-compiled`'s `Core\Command::run` matches.
     super::run_run(
         &entry,
         false,

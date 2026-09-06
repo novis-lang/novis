@@ -44,6 +44,6 @@ dereference, paid per argument per call. This goal makes it a compile-time proof
 - Stage 6 is the codegen and the valgrind leg, and it is the only stage that touches `nvs-ir`,
   `nvs-codegen` and `nvs-runtime`. It shares nothing with the four before it — expect it to want its own
   session.
-- When this goal's last check goes green the driver takes goal 11 — ADR 0137's doc comments, whose
+- When this goal's last check goes green the driver takes goal 11 — `rule:tooling/doc-comment-is-three-slashes`'s doc comments, whose
   stage 2 is M4B's trivia layer landing early. The chain then runs to goal 17 — M4B is entries 12–15,
   and 16–17 are the request-body and test-request pair.

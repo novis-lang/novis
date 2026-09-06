@@ -1,4 +1,4 @@
-//! [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 6's
+//! `rule:tooling/commands-are-compiled`'s
 //! two command-table attributes: what `#[Command]` and `#[Option]` may carry.
 //!
 //! # Why these are recognized names rather than shape aliases
@@ -86,7 +86,7 @@ use crate::testing::OptionTy;
 use crate::ty::{Ty, TypeId};
 use crate::{Ctx, Env, span_text, strip_sigil};
 
-/// `#[Command(name: string, about: string)]` — ADR 0086 § 6's own spelling, in
+/// `#[Command(name: string, about: string)]` — `rule:tooling/commands-are-compiled`'s own spelling, in
 /// the order that section writes it.
 pub(crate) const COMMAND_OPTIONS: &[(&str, OptionTy)] =
     &[("name", OptionTy::Str), ("about", OptionTy::Str)];
@@ -281,7 +281,7 @@ fn cases_of(name: &QName, env: &Env<'_>) -> ArgConv {
     }
 }
 
-/// One row of ADR 0086 § 6's table: a `#[Command]` that named the one field a
+/// One row of `rule:tooling/commands-are-compiled`'s table: a `#[Command]` that named the one field a
 /// row cannot exist without, with the parameter list a command line fills.
 ///
 /// Public for [`crate::routes::Route`]'s reason — the finished row is what
@@ -390,7 +390,7 @@ pub(crate) fn check_class_commands(
     }
 }
 
-/// ADR 0086 § 6's two facts about the *declaration* a `#[Command]` sits on: it
+/// `rule:tooling/commands-are-compiled`'s two facts about the *declaration* a `#[Command]` sits on: it
 /// is `static`, and it returns `void` or `uint`.
 ///
 /// The return half is § 6 in prose — `Core\Command::run(): uint` is the entry
@@ -526,7 +526,7 @@ pub(crate) fn check_table(table: &CommandTable, diags: &mut Diagnostics) {
     }
 }
 
-/// ADR 0086 § 6's marker held to the declaration that reads it: an `#[Option]`
+/// `rule:tooling/commands-are-compiled`'s marker held to the declaration that reads it: an `#[Option]`
 /// on a parameter of a method carrying no `#[Command]`.
 ///
 /// Asked from [`crate::attributes`]' per-method walk rather than from
@@ -560,7 +560,7 @@ pub(crate) fn check_stray_options(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env
             )
             .with_primary(attr.span, "nothing reads this marker")
             .with_help(
-                "ADR 0086 § 6 gives `#[Option]` its meaning on a `#[Command]` method's parameter, \
+                "`rule:tooling/commands-are-compiled` gives `#[Option]` its meaning on a `#[Command]` method's parameter, \
                  where it is the spelling an argument arrives by — anywhere else nothing supplies \
                  it: write the `#[Command]` this parameter serves, or delete the marker",
             ),

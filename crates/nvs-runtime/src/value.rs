@@ -99,7 +99,7 @@ pub enum Tag {
     /// Only a `lateinit` property (`rule:classes/lateinit`) can currently reach the state:
     /// `rule:classes/definite-property-initialization` discharges every other non-nullable property at its
     /// constructor. `Core\Reflect`'s constructor-bypassing instantiation
-    /// (ADR 0019, M6) is the other one § 3 names, and it will need no new
+    /// (`rule:tooling/reflection-and-source-parsing-are-core-features`, M6) is the other one § 3 names, and it will need no new
     /// state — only the same stamp on every slot it does not fill.
     Unset = 12,
 }

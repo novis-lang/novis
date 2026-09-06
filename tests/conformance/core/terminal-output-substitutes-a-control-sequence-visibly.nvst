@@ -1,8 +1,8 @@
 --TEST--
-`echo` replaces every control byte of a computed escape sequence with a visible glyph, and `Core\Cli::escape` answers the same bytes as the sink it launders for — ADR 0086 § 1, `rule:security/launderers-are-sink-named`
+`echo` replaces every control byte of a computed escape sequence with a visible glyph, and `Core\Cli::escape` answers the same bytes as the sink it launders for — `rule:tooling/terminal-output-is-a-sink`, `rule:security/launderers-are-sink-named`
 --FILE--
 <?nvs
-// ADR 0086 § 1: standard output is a sink, and a control byte is replaced by
+// `rule:tooling/terminal-output-is-a-sink`: standard output is a sink, and a control byte is replaced by
 // its U+2400-block Control Picture *before* a byte reaches the stream. The
 // rule is uniform — no qualifier gates it and no tty test does either — so a
 // plain literal is enough to show it.

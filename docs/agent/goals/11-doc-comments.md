@@ -4,7 +4,7 @@ Give Novis source the one thing it has no way to say: the sentence a type cannot
 doc comment, its content is prose plus exactly `@see` and `@example`, every other `@tag` is a
 diagnostic, both tags are *checked* rather than rendered on trust, and `nvs meta --json` grows a program
 argument so the two renderers already on that pipeline get user declarations for free.
-[ADR 0137](../../adr/0137-a-doc-comment-is-three-slashes-and-two-tags.md) is the whole design.
+`rule:tooling/doc-comment-is-three-slashes` is the whole design.
 
 This goal closes a hole rather than adding a feature.
 [ADR 0099](../../adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 5's `textDocument/hover` row
@@ -23,7 +23,7 @@ section's fourth variant. M4B then inherits it done and keeps the rest: the `Syn
 syntax highlighting, `.lspt`. [docs/plan/m4b.md](../../plan/m4b.md) records the move.
 
 **Hover is the one row this goal cannot contain.** It needs `crates/nvs-lsp`, which does not exist. It
-needs no note either: ADR 0099 § 5's row and `docs/plan/m4b.md` were both folded when ADR 0137 landed,
+needs no note either: ADR 0099 § 5's row and `docs/plan/m4b.md` were both folded when `rule:tooling/doc-comment-is-three-slashes` landed,
 so M4B arrives knowing what hover reads and which half of its tree is already built.
 
 ## The surface, in one block
@@ -42,7 +42,7 @@ public function charge(uint $cents): void { … }
 
 ## Stage 0 — the catch-up
 
-Nothing. ADR 0137 landed with this goal. The seven files already carrying `///` reclassify with no edit
+Nothing. `rule:tooling/doc-comment-is-three-slashes` landed with this goal. The seven files already carrying `///` reclassify with no edit
 and read correctly as-is — that is stage 2's own test, not a migration.
 
 ## Stage 1 — the floor
@@ -79,11 +79,11 @@ One file set: `crates/nvs-syntax/src/parser/decl.rs`, `crates/nvs-syntax/src/ast
    nothing is a diagnostic. `crates/nvs-syntax/src/parser/decl.rs` is where a declaration and its
    attributes already meet, so it is where its doc comment joins them.
 2. **The two tags parse** — `@see <member>` and `@example <path>`, each on its own line in a trailing
-   block. ADR 0137 § 2 is the shape.
+   block. `rule:tooling/doc-comment-tags-are-see-and-example` is the shape.
 3. **Every other `@tag` at the start of a line is a diagnostic** — this item *is* the closed set; without
    it the set is a convention, and a convention is how PHPDoc came to document a signature twice.
    `@param`, `@return` and `@throws` each get their own wording naming what to write instead, per
-   ADR 0137 § *Diagnostics*.
+   `rule:tooling/doc-comment-tags-are-see-and-example`.
 
 ## Stage 4 — the two checks that keep a tag honest
 
@@ -104,7 +104,7 @@ One file set: `crates/nvs-cli/src/main.rs`, `crates/nvs-cli/src/meta.rs`.
    renderers on this pipeline. With one, the program's own declarations are emitted beside the `Core`
    registry.
 2. **The user-declaration shape mirrors the registry's** — name, signature, prose, `@see` list,
-   `@example` list. ADR 0117 § 2 owns the `Core` half and is not touched; ADR 0137 § 4 owns this half.
+   `@example` list. `rule:tooling/meta-json` owns the `Core` half and is not touched; `rule:tooling/meta-json-takes-a-program` owns this half.
 
 ## Stage 6 — the renderer and the lint
 
@@ -115,26 +115,26 @@ One file set: a new `crates/nvs-cli/src/doc.rs`, `crates/nvs-cli/src/main.rs`.
    cover every in-tree consumer, so this exists for a project that does not have them.
 2. **`nvs check --strict-docs`** — a **public** member with no attached doc comment is reported. Silent
    without the flag, in every project, at every other setting. There is nothing for an autofix to
-   generate, which is the property ADR 0137 § 6 relies on.
+   generate, which is the property `rule:tooling/strict-docs` relies on.
 3. **No hover code lands here.** [ADR 0099](../../adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md)
    § 5's hover row already names the `TriviaKind::DocComment` run as what it reads, and
    [docs/plan/m4b.md](../../plan/m4b.md) already records which half of its tree this goal built — both
-   folded when ADR 0137 landed. There is nothing left for this stage to write down.
+   folded when `rule:tooling/doc-comment-is-three-slashes` landed. There is nothing left for this stage to write down.
 
 ## Standing decisions
 
-- **ADR 0137 is settled and is not re-derived.** Its four decisions — `///` as the marker with `////`
+- **`rule:tooling/doc-comment-is-three-slashes` is settled and is not re-derived.** Its four decisions — `///` as the marker with `////`
   ordinary, prose plus exactly `@see` and `@example` with any other tag a diagnostic, `nvs meta --json`
   as the one machine-readable source with `nvs doc` as a renderer over it, and enforcement silent by
   default — were taken with the user before this goal was written. A session that finds an
   implementation reason to differ records it in that ADR's *Revisiting* and implements the decision as
   written.
-- **This goal may open no new ADR number.** ADR 0137's body is the home for a rule, the touched module's
+- **This goal may open no new ADR number.** `rule:tooling/doc-comment-is-three-slashes`'s body is the home for a rule, the touched module's
   doc comment for a mechanism, the playbook for a trap.
 - **The tag set does not grow, in this goal or in a session's judgement.** A third tag needs a *check* it
-  makes possible, argued in ADR 0137's *Revisiting*, not a rendering it would improve.
+  makes possible, argued in `rule:tooling/doc-comment-is-three-slashes`'s *Revisiting*, not a rendering it would improve.
 - **No `@param`-shaped structure, even where it would be easy.** Per-parameter documentation is parked
-  against the package manager in ADR 0137's *Revisiting*, and if it ever lands it lands as a
+  against the package manager in `rule:tooling/doc-comment-is-three-slashes`'s *Revisiting*, and if it ever lands it lands as a
   registry-shaped field in stage 5's JSON — never as a tag.
 - **Diagnostic codes come from `python tools/brief.py`, not from this file.** ADR 0137 §
   *Diagnostics* names the *bands* — parser `E01xx` for an unknown tag and an unattached run, name

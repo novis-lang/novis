@@ -1,5 +1,5 @@
 --TEST--
-`Core\Cli\Progress::advance` is bounded at neither end of its own total — the step that completes the bar, the step past it and a step of zero are all ordinary, and only the row that is drawn clamps — ADR 0086 § 5
+`Core\Cli\Progress::advance` is bounded at neither end of its own total — the step that completes the bar, the step past it and a step of zero are all ordinary, and only the row that is drawn clamps — `rule:tooling/in-place-output-is-a-scoped-live-region`
 --FILE--
 <?nvs
 // § 5 gives the runtime the cursor and the program the counter, so the two

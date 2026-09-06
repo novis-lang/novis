@@ -37,7 +37,7 @@
 > feature of the product reviewed — resolving a template engine's components and an ORM's columns — has no
 > counterpart here to build: Novis has neither ([0082](0082-the-first-party-framework.md)). The embedded
 > services get one hard edge: **services yes, formatting no**, because a second formatter inside a `.nvs`
-> file is the exact thing [ADR 0039](0039-canonical-code-formatting.md) exists to prevent.
+> file is the exact thing `rule:tooling/fmt-is-one-canonical-style` exists to prevent.
 
 ## Context
 
@@ -74,7 +74,7 @@
   that region is not an edge case in Novis — it is where a web application's markup is written.
 - **What is *not* worth copying is as informative**, and their pricing page is the evidence: the features
   behind the paywall are whole-workspace analysis, a per-rule configurable formatter, and completion-list
-  re-ranking. Two of those three are things [ADR 0039](0039-canonical-code-formatting.md) and
+  re-ranking. Two of those three are things `rule:tooling/fmt-is-one-canonical-style` and
   `rule:core-api/identifier-casing` already refuse on principle — a formatter with ~40
   rule settings across nine named code styles, and diagnostic severity configurable per file through
   `.editorconfig`, `settings.json` globs and in-source suppression tags, are the mature form of exactly the
@@ -181,7 +181,7 @@ and validation in the half of a `.nvs` file that is markup.
   not registered as formatting providers, and `editor.formatOnSave` in a `.nvs` file runs `nvs fmt` over
   the whole file and nothing else. Wiring VS Code's HTML formatter into the markup regions would put a
   second, configurable formatter inside a file whose formatter is unconfigurable by decision
-  ([ADR 0039](0039-canonical-code-formatting.md)), and `nvs fmt --check` would then fail for a second
+  (`rule:tooling/fmt-is-one-canonical-style`), and `nvs fmt --check` would then fail for a second
   reason, which § 9 of that ADR exists to prevent. `nvs fmt` treats an inline-HTML region as it treats any
   other span it does not reflow.
 - **Off by one setting.** `nvs.template.services` (default `true`) disables the forwarding, because a user
@@ -308,7 +308,7 @@ extension:
   to refuse it. § 2's rule is stated as a property of *where a value comes from* precisely so it answers
   both.
 - **Wire the built-in HTML/CSS formatters into template regions.** Rejected under
-  [ADR 0039](0039-canonical-code-formatting.md) § 9: two formatters in one file means `nvs fmt --check`
+  `rule:tooling/fmt-is-never-a-diagnostic`: two formatters in one file means `nvs fmt --check`
   fails for two reasons, and the second one is configurable.
 - **Ship code snippets**, as the reviewed product does and as most language extensions do. Rejected: a
   snippet body is a second copy of a syntactic shape the grammar already owns, unchecked against it and

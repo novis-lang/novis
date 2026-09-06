@@ -202,7 +202,6 @@ from the commit bodies of c7a9afca6 through 44ba60ce9, re-anchored to the lines 
 - docs/plan/m10.md:60 — "reversing ADR 0016 § 4 for VS Code specifically" will read "reversing rule:ide/the-debug-adapter-does-not-wait-for-an-editor", but that rule already carries the reversal, so the sentence should say the wiring is what that rule commits to, not a reversal of it.
 - docs/adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md:560 — "per ADR 0040 § 1's exclusion" refers to a historical exclusion of semantic tokens; `ide/the-first-server-answers-a-closed-list` includes `semanticTokens/full`, so the remapped citation names the opposite of what it did.
 - docs/adr/0039-canonical-code-formatting.md:174 — "ADR 0040 § 3's workspace-wide rename" will resolve to the catalog rule; `ide/no-refactoring-introduces-an-alias` is the rule that actually names rename, if the assembler prefers the finer target.
-
 ## B17 — packaging
 
 - crates/nvs-cli/src/cache.rs:49 — the read path `mmap`s the cache file read-only, which 0106 §11 (`rule:packaging/the-artifact-cache-is-read-not-mapped`) forbids because a file replaced under the mapping raises `SIGBUS`; the doc comment argues the mapping from 0042's *Investigation* and never mentions 0106.

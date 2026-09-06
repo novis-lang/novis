@@ -277,7 +277,7 @@ pub trait Fires {
     /// § 5's log line: what the run answered, delivered to nobody.
     ///
     /// A top-level `return` is [`Completion::value`], an uncaught throw is its `error`, and what the
-    /// script echoed is its captured output (ADR 0088 § 3's table).
+    /// script echoed is its captured output (`rule:tooling/echo-always-has-a-sink`'s table).
     ///
     /// **Read only.** That `value` carries one reference the collector must give up, and the
     /// collector is the ticker: [`Completion::discard_value`] is called on the way out of this,
@@ -640,7 +640,7 @@ impl Drop for Ran {
 /// § 5's rule is that a scheduled run is a second root — `rule:security/isolate-shares-nothing`'s other existing shape, the one an
 /// inbound request already is — so what is spawned here is a task with its own fresh [`Ctx`] and an
 /// [`Isolate`] with no `inbound`. `OutputSink::Sink` on that context for the reason the accept loop
-/// holds it: the run's own output is captured by its isolate and comes back as data (ADR 0088 § 3),
+/// holds it: the run's own output is captured by its isolate and comes back as data (`rule:tooling/echo-always-has-a-sink`),
 /// so the task around it writes nothing.
 ///
 /// The isolate is run to completion **on that task and not on the tick's**, which is what keeps a

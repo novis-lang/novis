@@ -88,8 +88,8 @@ pub mod code {
     pub const E_UNBALANCED_BIDI: Code = Code::new("E0008");
     /// An `<?nvs` open tag in a file that opens with `#!` and is therefore
     /// already in code mode, before any `?>` has left it, per
-    /// [ADR 0100](/docs/adr/0100-against-python-nvs-claims-the-tool-that-gets-handed-over.md)
-    /// § 3. Reported by `nvs_syntax`'s lexer, which consumes the tag and keeps
+    /// `rule:tooling/shebang-opens-code-mode`
+    /// . Reported by `nvs_syntax`'s lexer, which consumes the tag and keeps
     /// lexing code rather than leaving `<` `?` `nvs` for the parser.
     pub const E_TAG_IN_SHEBANG_FILE: Code = Code::new("E0009");
 
@@ -2359,7 +2359,7 @@ pub mod code {
     /// Two `#[Option]`s of one `#[Command]` claim the same short or long
     /// spelling.
     ///
-    /// ADR 0086 § 6's second compile error, and one of the two that need no
+    /// `rule:tooling/commands-are-compiled`'s second compile error, and one of the two that need no
     /// table: a command line is matched by the spellings one method's
     /// parameter list declares, so two parameters answering to `-n` is
     /// decidable from that list alone. An argument parser that discovers this
@@ -2375,7 +2375,7 @@ pub mod code {
     /// An `#[Option]` is attached to a parameter whose declared type has no
     /// conversion from `string`.
     ///
-    /// ADR 0086 § 6's third compile error. A matched value's type comes from
+    /// `rule:tooling/commands-are-compiled`'s third compile error. A matched value's type comes from
     /// the parameter and the argument arrives as text, so a parameter no text
     /// can be converted into is an option that could never be given — and § 6
     /// takes `rule:security/route-capture-is-laundered-by-its-type`'s conversion roster unchanged, which is why an
@@ -2448,7 +2448,7 @@ pub mod code {
     ///
     /// `rule:security/route-capture-is-laundered-by-its-type`'s second compile error, over the roster
     /// `nvs_types::commands::converts_from_string` holds for both this and
-    /// ADR 0086 § 6's `#[Option]` — one list, read twice. A `{name...}` is
+    /// `rule:tooling/commands-are-compiled`'s `#[Option]` — one list, read twice. A `{name...}` is
     /// the one capture that roster does not answer for: § 3 hands a catch-all
     /// over as the single `tainted string` it was read as, nothing about it
     /// having been checked, so it binds a `string` and no other type.
@@ -2603,7 +2603,7 @@ pub mod code {
 
     /// An `#[Option]` on a parameter of a method carrying no `#[Command]`.
     ///
-    /// ADR 0086 § 6's marker, held to the declaration that reads it, exactly as
+    /// `rule:tooling/commands-are-compiled`'s marker, held to the declaration that reads it, exactly as
     /// [`E_QUERY_WITHOUT_ROUTE`] holds `rule:routing/a-query-parameter-is-declared-like-a-capture`'s. Reported from the walk
     /// over every method rather than from the command pass, which by
     /// construction sees only the methods a `#[Command]` selects.
@@ -2611,14 +2611,14 @@ pub mod code {
 
     /// A `#[Command]` that names no command.
     ///
-    /// ADR 0086 § 6 selects a command by the `name` a command line writes, so
+    /// `rule:tooling/commands-are-compiled` selects a command by the `name` a command line writes, so
     /// a row without one is reachable by nothing and the table pass is what
     /// discovers it — the same reading [`E_ROUTE_INCOMPLETE`] gives a
     /// `#[Route]` that gave no path, and the answer to that module's own
     /// question of whether `name` is required.
     pub const E_COMMAND_WITHOUT_NAME: Code = Code::new("E0767");
 
-    /// Two `#[Command]`s claiming one name — the first of ADR 0086 § 6's three
+    /// Two `#[Command]`s claiming one name — the first of `rule:tooling/commands-are-compiled`'s three
     /// compile errors, and the one only the whole program's enumeration can
     /// answer.
     ///
@@ -2851,7 +2851,7 @@ pub mod code {
     /// A `#[Command]` method that is not `static`, or that returns something
     /// other than `void` or `uint`.
     ///
-    /// ADR 0086 § 6's two facts about the declaration the attribute sits on,
+    /// `rule:tooling/commands-are-compiled`'s two facts about the declaration the attribute sits on,
     /// under one code for [`E_TEST_METHOD_SHAPE`]'s reason: they are one
     /// question — whether this declaration is a command handler — and an
     /// author fixing either is editing the same line.
@@ -2863,7 +2863,7 @@ pub mod code {
     /// it without a member in between. It is refused **with no carrier
     /// bypass** — the value is being displayed to a person rather than used,
     /// and neutralizing a control byte does nothing for confidentiality —
-    /// and the name understates the reach: ADR 0088 § 3 routes a scheduled
+    /// and the name understates the reach: `rule:tooling/echo-always-has-a-sink` routes a scheduled
     /// script, a job worker, a `#[Test]` method and a `spawn script` isolate
     /// through this same sink, so the destination is as often a CI log or a
     /// test report as a terminal.

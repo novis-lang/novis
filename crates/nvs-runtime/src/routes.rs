@@ -6,7 +6,7 @@
 //!
 //! [`crate::commands`]' argument, one table along, and the same one § 1 makes
 //! for itself: the table is a compile product — `nvs_types::routes::RouteTable`,
-//! built by the same `rule:programs/implementing` scan ADR 0086's commands are — and the
+//! built by the same `rule:programs/implementing` scan `rule:tooling/terminal-output-is-a-sink`'s commands are — and the
 //! question asked of it is a *request's*, which no compile-time answer can
 //! hold. So the rows cross, and they cross as **strings and two closed enums**:
 //! [`CaptureConv`], which is the one thing a matcher needs that no string

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Cli::arguments` hands back a word that looks like syntax as the value it is — `--` ends nothing, `-abc` is one word rather than three flags and `--name=value` is one rather than a pair — spec § 15, ADR 0086 § 6
+`Core\Cli::arguments` hands back a word that looks like syntax as the value it is — `--` ends nothing, `-abc` is one word rather than three flags and `--name=value` is one rather than a pair — spec § 15, `rule:tooling/commands-are-compiled`
 --ARGS--
 --
 --
@@ -16,7 +16,7 @@
 // parser in the world treats as syntax — the end-of-options `--`, the standard
 // input `-`, a `name=value` pair, a bundled short cluster, a shell operator and
 // a word spelled like the runner's own flag. `Core\Command::run` is where a
-// meaning is assigned to any of that (ADR 0086 § 6), and a program reading this
+// meaning is assigned to any of that (`rule:tooling/commands-are-compiled`), and a program reading this
 // member declared no table, so it gets the words.
 //
 // There is exactly one word the launcher spends before the program sees it, and

@@ -100,7 +100,7 @@ nothing at run time; only a computed `Duration::seconds($n)` does. A literal who
 | `$n s` | not a literal. A computed count is `Duration::seconds($n)` |
 | `1.5h` | a lexer error. Write `90m` |
 
-`nvs fmt` ([ADR 0039](0039-canonical-code-formatting.md)) never rewrites one: `90m` and `1h30m` are the
+`nvs fmt` (`rule:tooling/fmt-is-one-canonical-style`) never rewrites one: `90m` and `1h30m` are the
 same value, and choosing between them is the author's, exactly as `0x10` versus `16` already is.
 
 ### 5. One grammar, three places, one implementation

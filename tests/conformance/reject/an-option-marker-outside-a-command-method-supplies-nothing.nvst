@@ -1,5 +1,5 @@
 --TEST--
-An `#[Option]` on a method that declares no command is refused rather than ignored — ADR 0086 § 6
+An `#[Option]` on a method that declares no command is refused rather than ignored — `rule:tooling/commands-are-compiled`
 --FILE--
 <?nvs
 // § 6 gives the marker its meaning on a `#[Command]` method's parameter, where

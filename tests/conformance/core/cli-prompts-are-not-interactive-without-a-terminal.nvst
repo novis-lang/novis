@@ -1,5 +1,5 @@
 --TEST--
-A prompt with no controlling terminal answers its default or throws Core\Cli\NotInteractive, and never blocks — ADR 0086 § 4
+A prompt with no controlling terminal answers its default or throws Core\Cli\NotInteractive, and never blocks — `rule:tooling/a-prompt-is-a-core-member`
 --FILE--
 <?nvs
 // This case runs with every standard stream redirected, which is § 4's "no

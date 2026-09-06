@@ -150,7 +150,7 @@ table lookup — the eleven code points are a match arm.
 - **A warning rather than an error at the lexer.** A warning nobody fails a build on is not a control, and
   `rule:core-api/identifier-casing` already settled that this project does not have a
   suppression story for spelling rules.
-- **Handle it only in `nvs fmt`.** [ADR 0039](0039-canonical-code-formatting.md) fixes that `fmt` is never
+- **Handle it only in `nvs fmt`.** `rule:tooling/fmt-is-one-canonical-style` fixes that `fmt` is never
   wired into `nvs check`, so a formatter-only rule is one an attacker's PR simply does not run.
 - **Handle it only at the sinks, not in source.** Inverts the severity: the source case is the one with a
   CVE and a working exploit against code review, and the runtime cases are display deception.

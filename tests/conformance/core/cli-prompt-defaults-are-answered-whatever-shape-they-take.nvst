@@ -1,5 +1,5 @@
 --TEST--
-Every shape of prompt default is answered as itself when there is no terminal, including the empty and false ones — ADR 0086 § 4
+Every shape of prompt default is answered as itself when there is no terminal, including the empty and false ones — `rule:tooling/a-prompt-is-a-core-member`
 --FILE--
 <?nvs
 // The bound on both sides of "a default was given": `""` and `false` are

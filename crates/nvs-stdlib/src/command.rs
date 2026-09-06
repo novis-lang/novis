@@ -1,6 +1,6 @@
 //! `Core\Command` — the compiled command table, as the members that read it.
 //!
-//! [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 6
+//! `rule:tooling/commands-are-compiled`
 //! builds the table *while compiling*, from the `#[Command]` methods the ADR
 //! 0061 § 3 scan found, and this class is the whole of what a program does with
 //! it. `nvs_runtime::commands` is the table as a running program holds it, and
@@ -91,7 +91,7 @@ use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamD
 /// every refusal that names the class cannot drift apart.
 pub(crate) const NAME: &str = r"Core\Command";
 
-/// ADR 0086 § 6's generated help, as a registry row. See
+/// `rule:tooling/commands-are-compiled`'s generated help, as a registry row. See
 /// [`crate::registry::CLASSES`].
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
@@ -244,7 +244,7 @@ nvs_runtime::nvs_helper! {
 const USAGE_STATUS: u64 = 2;
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Command::run(): uint` — ADR 0086 § 6's entry point, and its one
+    /// `Core\Command::run(): uint` — `rule:tooling/commands-are-compiled`'s entry point, and its one
     /// deliberate divergence from `rule:routing/routes-are-compiled-not-registered`: this table *dispatches*.
     ///
     /// Three steps, in the order a command line is read. The first word selects
@@ -377,7 +377,7 @@ nvs_runtime::nvs_helper! {
 /// what was asked for is not the program's answer — a shell pipeline reading
 /// this program's output must not receive a usage page as data. It is the
 /// channel `Core\Debug::dump` already writes to (`rule:errors/debug-dump`), which is this
-/// tree's only spelling of "not the answer" until ADR 0086 § 3's `write` lands.
+/// tree's only spelling of "not the answer" until `rule:tooling/the-terminal-profile-resolves-once`'s `write` lands.
 ///
 /// # Errors
 ///
@@ -982,7 +982,7 @@ mod tests {
         }
     }
 
-    /// ADR 0086 § 6's own example, as a row.
+    /// `rule:tooling/commands-are-compiled`'s own example, as a row.
     fn deploy() -> Command {
         Command {
             name: "deploy".to_owned(),
@@ -1088,7 +1088,7 @@ mod tests {
         );
     }
 
-    /// ADR 0086 § 6's flag is *given by being written*, so the answer for an
+    /// `rule:tooling/commands-are-compiled`'s flag is *given by being written*, so the answer for an
     /// option nobody wrote is `false` rather than a missing slot — and both of
     /// its spellings write the same `true`, which is the property a matcher
     /// keyed on one of them would still pass a single-spelling test with.
@@ -1396,7 +1396,7 @@ mod tests {
         ctx
     }
 
-    /// ADR 0086 § 6's dispatch, end to end: the first word selects a row, the
+    /// `rule:tooling/commands-are-compiled`'s dispatch, end to end: the first word selects a row, the
     /// words past it fill that row's parameters in **declaration** order, and
     /// the handler is reached by the label the compiler wrote into the row —
     /// the whole route `nvs_runtime::call_static` owns, over a class table
@@ -1461,7 +1461,7 @@ mod tests {
         }
     }
 
-    /// ADR 0086 § 6's two generated artefacts read the same table, asserted as
+    /// `rule:tooling/commands-are-compiled`'s two generated artefacts read the same table, asserted as
     /// an **agreement** rather than as four expected scripts: every command the
     /// program's own page lists, and every spelling one command's page names,
     /// is named by all four completion scripts as well.

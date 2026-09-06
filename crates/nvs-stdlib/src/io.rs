@@ -2076,7 +2076,7 @@ nvs_runtime::nvs_helper! {
     /// # Decision: the reading half is a value, and there is no writing half
     ///
     /// **Standard output and standard error are not here at all.**
-    /// [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 1
+    /// `rule:tooling/terminal-output-is-a-sink`
     /// makes both a sink whose substitution is uniform — not qualifier-dependent
     /// and, in that section's own words, not tty-dependent either, because a CI
     /// log is written to a pipe and read by a human afterwards. A
@@ -2113,7 +2113,7 @@ nvs_runtime::nvs_helper! {
     /// opened. Goal 6 is where a case can serve a request, and so where that
     /// decision is answerable rather than guessed at. The interactive half is
     /// `Core\Cli`'s prompts, which ask a question under a deadline
-    /// (ADR 0086 § 4) and are what a program at a terminal actually wants.
+    /// (`rule:tooling/a-prompt-is-a-core-member`) and are what a program at a terminal actually wants.
     ///
     /// **What it spends:** one buffer the size of the input, charged to the
     /// request's memory limit like [`nvs_core_io_read`]'s and bounded by the

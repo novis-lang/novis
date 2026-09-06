@@ -28,7 +28,7 @@
 //! **What counts as a path is a closed list, not a guess.** Every `--config`
 //! value in the argv, the entry file `serve`/`run` names, and the installer's
 //! own `--log-file` — and nothing else, because a rule that refused any word
-//! that *looked* like a path would refuse a `--listen` and an ADR 0086
+//! that *looked* like a path would refuse a `--listen` and an `rule:tooling/terminal-output-is-a-sink`
 //! program argument that happen to contain a separator. `Path::is_absolute` is
 //! the test, so it answers for **the host the installer is running on**: a
 //! Unix-shaped `/etc/nvs/nvs.toml` is not absolute on Windows, and refusing it

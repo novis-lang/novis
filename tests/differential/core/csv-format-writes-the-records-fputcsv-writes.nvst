@@ -10,7 +10,7 @@ Core\Csv::format writes a document byte for byte as fputcsv's formatting half do
 // Novis writes.
 //
 // The written document holds CR and LF by construction and the terminal is a
-// sink that renders those itself (ADR 0086), so both sides spell them out.
+// sink that renders those itself (`rule:tooling/terminal-output-is-a-sink`), so both sides spell them out.
 final class Show {
     public static function of(string $document): string {
         return "[" . Core\Str::replaceAll($document, ["\r" => "<CR>", "\n" => "<LF>"]) . "]";

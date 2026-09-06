@@ -44,7 +44,7 @@ four more to the same pass: a `{name?}` outside the last position or bound to a 
 (§ 4), a capture or `#[Query]` parameter whose type is outside § 3's list, and a `url()` key that is neither
 a capture nor a declared `#[Query]` parameter (§ 6). Its `#[Query]` and `#[Access]` are two further
 compiler-recognized attributes on the same nominal-matching rule. `Core\Router::match` itself waits for M7.
-The **third** rides the same pass: [ADR 0086](../adr/0086-core-cli-terminal-is-a-sink.md) § 6's
+The **third** rides the same pass: `rule:tooling/commands-are-compiled`'s
 `#[Command]`/`#[Option]`/`#[Argument]` command table, with its own three compile errors — a duplicate
 command name, two options sharing a spelling, an `#[Option]` on a parameter with no conversion from
 `string`. `Core\Command::run` and the rest of `Core\Cli` wait for M8, since neither argv nor a terminal is

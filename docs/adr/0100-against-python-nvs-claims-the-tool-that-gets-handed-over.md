@@ -1,4 +1,4 @@
-# ADR 0100 — Against Python, Novis claims the tool that gets handed over, not the script that gets thrown away
+# `rule:tooling/python-claims` — Against Python, Novis claims the tool that gets handed over, not the script that gets thrown away
 
 - **Status:** Accepted
 - **Date:** 2026-08-26

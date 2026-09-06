@@ -1,11 +1,11 @@
 --TEST--
-`Core\Cli::displayWidth` asks each whole grapheme cluster how wide it is rather than summing its code points, so it counts the units `Core\Str::length` counts and exceeds that count by exactly the wide columns — ADR 0086 § 3, `rule:types/string-is-utf8`
+`Core\Cli::displayWidth` asks each whole grapheme cluster how wide it is rather than summing its code points, so it counts the units `Core\Str::length` counts and exceeds that count by exactly the wide columns — `rule:tooling/the-terminal-profile-resolves-once`, `rule:types/string-is-utf8`
 --FILE--
 <?nvs
 // The three cases already on this member ask what a control byte, a tab and a
 // table column cost. What none asks is how the count is *composed*, which is
 // the one thing a zero-width mark and an emoji sequence disagree with a naive
-// implementation about: ADR 0086 § 3 makes this a renderer's count, and the
+// implementation about: `rule:tooling/the-terminal-profile-resolves-once` makes this a renderer's count, and the
 // renderer walks `rule:types/string-is-utf8`'s grapheme clusters and asks each whole cluster
 // for its width. A member summing per code point instead answers plausibly for
 // every string whose clusters are one code point each — which is every sample

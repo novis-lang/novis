@@ -73,7 +73,7 @@ median above is the honest statistic; a single row's third digit is not.
 **The suite measures four engines as of 2026-08-26** — Novis, PHP 8.5.9, CPython 3.11.2 and Bun 1.4.0 —
 because Novis's CLI claim is made against Python and this project does not publish an unmeasured one, and
 because a suite that measured only engines Novis beats would stop being evidence
-([ADR 0100](../adr/0100-against-python-nvs-claims-the-tool-that-gets-handed-over.md) § 5). On the same
+(`rule:tooling/bench-engine-list-is-data`). On the same
 9-rep sweep as the table above, medians of the `work` ratio: **PHP 0.80×, Python 2.13×, Bun 0.57×.**
 Cold start — `00-baseline`'s *total*, which every `work` figure subtracts away — is **Novis 7.8 ms, Bun
 13.4 ms, Python 19.5 ms, PHP 39.2 ms.**

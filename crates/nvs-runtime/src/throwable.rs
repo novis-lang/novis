@@ -207,7 +207,7 @@ pub enum ThrownClass {
     TestFailure,
     /// `Core\Cli\NotInteractive` — a prompt with no controlling terminal to
     /// read and no default to fall back on
-    /// ([ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 4).
+    /// (`rule:tooling/a-prompt-is-a-core-member`).
     ///
     /// A throw rather than a block is the whole of that section's second rule,
     /// and it is `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s

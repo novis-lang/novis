@@ -1,5 +1,5 @@
 --TEST--
-`Core\Command::completions(Cli\Shell::Pwsh)` writes a `Register-ArgumentCompleter -Native` block that filters the table's own words — ADR 0086 § 6
+`Core\Command::completions(Cli\Shell::Pwsh)` writes a `Register-ArgumentCompleter -Native` block that filters the table's own words — `rule:tooling/commands-are-compiled`
 --FILE--
 <?nvs
 class Deployer {

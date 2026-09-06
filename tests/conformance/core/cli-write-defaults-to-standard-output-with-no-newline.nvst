@@ -1,5 +1,5 @@
 --TEST--
-`Core\Cli::write`'s two options each default to the absence of an effect, and both sides of each are named — ADR 0086 § 3
+`Core\Cli::write`'s two options each default to the absence of an effect, and both sides of each are named — `rule:tooling/the-terminal-profile-resolves-once`
 --FILE--
 <?nvs
 // `newline` appends exactly one `LF` and an omitted one appends nothing, so the

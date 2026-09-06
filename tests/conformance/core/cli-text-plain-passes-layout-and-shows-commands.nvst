@@ -1,5 +1,5 @@
 --TEST--
-`Core\Cli\Text::plain` passes `LF` and `TAB` through and shows every other control byte — ADR 0086 § 1
+`Core\Cli\Text::plain` passes `LF` and `TAB` through and shows every other control byte — `rule:tooling/terminal-output-is-a-sink`
 --FILE--
 <?nvs
 // § 1's table is a substitution and not a deletion, and the bound has two

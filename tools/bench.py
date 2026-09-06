@@ -18,7 +18,7 @@ owns only how they are *measured*.
 
 The roster in `build_engines()` is a list, not a pair, because the comparison this suite has to
 answer keeps changing:
-[ADR 0100](../docs/adr/0100-against-python-nvs-claims-the-tool-that-gets-handed-over.md) § 5 added
+`rule:tooling/bench-engine-list-is-data` added
 Python, since Novis's CLI claim is made against Python and this project does not publish an
 unmeasured claim, and that ADR's *Revisiting* is what pre-authorised Bun as the fourth. Everything
 downstream -- the baseline subtraction, the table, the JSON record -- iterates the list, so a
@@ -42,7 +42,7 @@ case in the `work` columns: every engine pays a fixed cost to start a process, r
 produce code before a single line of the benchmark runs, and over a 30 ms case that cost is the
 measurement. Read `total` for "what does this script cost me at the command line" and `work` for
 "how fast is the language". They answer different questions and the suite refuses to pick one --
-ADR 0100 § 5 is why `total` is the headline for a CLI claim and `work` for a language claim, and
+`rule:tooling/bench-engine-list-is-data` is why `total` is the headline for a CLI claim and `work` for a language claim, and
 why quoting either without saying which is a misuse.
 
 The ratio columns are `<engine> / nvs` on the `work` figures: **above 1.0 means Novis is faster**,
@@ -178,7 +178,7 @@ PHP_MODES = {
 class Engine:
     """One way to run a case: which twin it reads, how it is invoked, how it names its version.
 
-    ADR 0100 § 5 is why this is a class rather than two hardcoded branches. `label` is what the
+    `rule:tooling/bench-engine-list-is-data` is why this is a class rather than two hardcoded branches. `label` is what the
     table calls it -- deliberately short, because every engine costs three columns.
     """
 

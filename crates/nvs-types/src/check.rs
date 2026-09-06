@@ -135,7 +135,7 @@ pub fn check_program_granted(
     // `crate::routes::check_table` reports collisions between declarations,
     // and § 5's scan is what brings two files' routes into one program.
     let mut routes = crate::routes::RouteTable::default();
-    // ADR 0086 § 6's rows, accumulated for exactly that reason: a duplicate
+    // `rule:tooling/commands-are-compiled`'s rows, accumulated for exactly that reason: a duplicate
     // command name is a collision between two declarations, and § 6's scan is
     // the same one that brings two files' routes into one program.
     let mut commands = crate::commands::CommandTable::default();
@@ -188,7 +188,7 @@ pub fn check_program_granted(
         closure_seq = env.closure_seq;
     }
     crate::routes::check_table(&routes, diags);
-    // ADR 0086 § 6's duplicate command name, over the same enumeration and for
+    // `rule:tooling/commands-are-compiled`'s duplicate command name, over the same enumeration and for
     // the same reason — see `crate::commands::check_table`.
     crate::commands::check_table(&commands, diags);
     // § 4's fold, which is the second pass over the same table and the reason

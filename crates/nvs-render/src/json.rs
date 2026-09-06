@@ -403,7 +403,7 @@ mod tests {
 
     /// § 5's substitution is in the model, so the rendering inherits it: a
     /// message's control bytes are already Control Pictures by the time this
-    /// sees them, while `LF` — which ADR 0086 § 1 passes through — is JSON's
+    /// sees them, while `LF` — which `rule:tooling/terminal-output-is-a-sink` passes through — is JSON's
     /// own escape and cannot forge a second line.
     #[test]
     fn a_messages_control_bytes_arrive_substituted() {

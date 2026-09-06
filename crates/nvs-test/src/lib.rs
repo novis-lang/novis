@@ -147,7 +147,7 @@
 //! differential case get them — [`case::Case::env`] owns both rules.
 //!
 //! `--ARGS--` **is** honoured, since
-//! [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 6's
+//! `rule:tooling/commands-are-compiled`'s
 //! `Core\Command::run` gave `nvs run` a command line to pass on. Its lines are
 //! appended past the case file, so they are the program's arguments and never
 //! the runner's, and each line is one argument with no splitting and no

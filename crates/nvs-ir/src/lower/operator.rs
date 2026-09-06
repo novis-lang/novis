@@ -559,7 +559,7 @@ impl<'a> Lowering<'a> {
     }
 
     /// `rule:core-classes/html-auto-escape`'s `Markup + Markup` and
-    /// [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 2's
+    /// `rule:tooling/styling-is-a-value-not-a-grammar`'s
     /// `Text + Text` — two carrier fragments composed into one, and the last
     /// way each of the two classes is obtained.
     ///
@@ -653,7 +653,7 @@ impl<'a> Lowering<'a> {
         if lty == Ty::Decimal || rty == Ty::Decimal {
             return self.lower_decimal_binary(op, lv, rv, env, cur);
         }
-        // `rule:core-classes/html-auto-escape`'s `Markup + Markup` and ADR 0086 § 2's `Text + Text`,
+        // `rule:core-classes/html-auto-escape`'s `Markup + Markup` and `rule:tooling/styling-is-a-value-not-a-grammar`'s `Text + Text`,
         // which are the whole of what an object operand may do under an
         // arithmetic operator: `nvs_types::expr::operators`'
         // `carrier_composition_result` admits a carrier beside its own kind and

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Command::run` converts a `Core\Uuid` argument through the one parse `Core\Uuid::parse` reads, so an upper-case command line normalizes — ADR 0086 § 6, spec § 11
+`Core\Command::run` converts a `Core\Uuid` argument through the one parse `Core\Uuid::parse` reads, so an upper-case command line normalizes — `rule:tooling/commands-are-compiled`, spec § 11
 --FILE--
 <?nvs
 // The one *class* § 6 admits an argument at, matched nominally. Its grammar is

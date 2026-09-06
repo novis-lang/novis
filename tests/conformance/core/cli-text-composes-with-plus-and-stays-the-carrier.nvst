@@ -1,5 +1,5 @@
 --TEST--
-`Cli\Text + Cli\Text` is `Cli\Text`, so the sum is still the sink's one raw path — ADR 0086 §§ 1-2
+`Cli\Text + Cli\Text` is `Cli\Text`, so the sum is still the sink's one raw path — `rule:tooling/terminal-output-is-a-sink` and `rule:tooling/styling-is-a-value-not-a-grammar`
 --FILE--
 <?nvs
 // § 2: "`Text + Text` is `Text`, immutable (R20), composing the way `Markup`

@@ -361,7 +361,7 @@ without one gets no `route` label rather than a cardinality bomb.
   schedule is deployment state and a URL is source state — the code that handles a path and the path itself
   change together, in the same commit.
 - **Building the table from an inert `Core\Ast` walk at runtime**
-  ([ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md)). Possible today. Rejected: it parses
+  (`rule:tooling/reflection-and-source-parsing-are-core-features`). Possible today. Rejected: it parses
   the program again inside a request, gets none of the three compile-time checks, and puts
   `nvs-syntax` on the request path for something the compiler already knows.
 

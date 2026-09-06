@@ -1,5 +1,5 @@
 --TEST--
-`Core\Command::completions(Cli\Shell::Zsh)` writes a `#compdef` function whose command word is a `_describe` and whose options are an `_arguments` — ADR 0086 § 6
+`Core\Command::completions(Cli\Shell::Zsh)` writes a `#compdef` function whose command word is a `_describe` and whose options are an `_arguments` — `rule:tooling/commands-are-compiled`
 --FILE--
 <?nvs
 class Deployer {

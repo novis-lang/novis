@@ -1,5 +1,5 @@
 --TEST--
-`Core\Command::completions(Cli\Shell::Fish)` writes one `complete -c` line per command and per option spelling, with the dashes fish writes itself — ADR 0086 § 6
+`Core\Command::completions(Cli\Shell::Fish)` writes one `complete -c` line per command and per option spelling, with the dashes fish writes itself — `rule:tooling/commands-are-compiled`
 --FILE--
 <?nvs
 class Deployer {

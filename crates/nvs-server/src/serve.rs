@@ -105,8 +105,8 @@ use crate::secure::{Scheme, Secure};
 /// A type of ours rather than `http-body-util`'s `Full`, and that is a
 /// dependency not taken rather than a wheel reinvented: what a Novis response
 /// carries is the output an isolate produced
-/// ([ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
-/// § 3's table binds `echo` to the response body), which is a buffer the runtime
+/// (`rule:tooling/echo-always-has-a-sink`
+/// 's table binds `echo` to the response body), which is a buffer the runtime
 /// hands over whole. A crate whose job is to adapt streams would be carried for
 /// the one case that never streams.
 ///
@@ -188,7 +188,6 @@ pub enum Reply {
     /// request carried no body, which is also what leaves
     /// [`nvs_runtime::Inbound::has_body`] false.
     ///
-    /// [ADR 0088]: ../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md
     Run(Isolate, Option<Supply>),
     /// Answer with this, having run nothing: § 4 step 1's `404`, step 3's static
     /// file, and every refusal a mount table can reach before a program exists.
@@ -1053,8 +1052,8 @@ where
 
 /// The response one finished request is.
 ///
-/// [ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
-/// § 3's table in code: inside an HTTP request `echo` writes to the response
+/// `rule:tooling/echo-always-has-a-sink`
+/// 's table in code: inside an HTTP request `echo` writes to the response
 /// body, and an isolate's `echo` reaches its own capture buffer, so
 /// [`Completion::output`] **is** the body and no call site had to name a
 /// format.
@@ -1346,7 +1345,7 @@ where
             // This task's context is the root of one connection's request tree,
             // and `OutputSink::Sink` because a connection of itself writes
             // nothing: a request's bytes are captured by its own isolate and
-            // come back as data (ADR 0088 § 3).
+            // come back as data (`rule:tooling/echo-always-has-a-sink`).
             //
             // A connection's own failure is the connection's. There is nobody
             // to report a reset peer to, the socket that would carry the report
@@ -1880,7 +1879,7 @@ mod tests {
     /// A closure is the program a test at this level can build — turning a path
     /// into runnable code is `nvs_runtime::script`'s seam and there is no
     /// compiler in this crate — and it writes through `Ctx::write_output`,
-    /// which is the buffer a compiled `echo` reaches under ADR 0088 § 3's
+    /// which is the buffer a compiled `echo` reaches under `rule:tooling/echo-always-has-a-sink`'s
     /// table.
     fn echo_the_path() -> Rc<impl Fn(Request<Incoming>, Origin) -> Reply> {
         Rc::new(|request: Request<Incoming>, _origin: Origin| {
@@ -4215,8 +4214,8 @@ mod tests {
         })
     }
 
-    /// [ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
-    /// § 3's first row, end to end: inside an HTTP request `echo` writes to the
+    /// `rule:tooling/echo-always-has-a-sink`
+    /// 's first row, end to end: inside an HTTP request `echo` writes to the
     /// response body, and what carries those bytes is `Core\Html\Markup`. No
     /// call site on this path says so — the isolate was handed a request, and
     /// that is the whole of what attaches the sink.

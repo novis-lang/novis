@@ -111,7 +111,7 @@ does not weaken these one at a time — it makes all four unsound at once, and t
 be needed to keep them (a "no eval reached this file" analysis) are exactly as hard as not having it.
 
 The two legitimate uses have separate, better answers already decided.
-[ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md) gives `Core\Ast::parse()` for inspecting
+`rule:tooling/reflection-and-source-parsing-are-core-features` gives `Core\Ast::parse()` for inspecting
 code as data, and states from its own side that a parsed AST has no path back into execution; this section
 is that rule stated from the other side. `rule:security/isolate-shares-nothing`'s `spawn script`
 runs code chosen at runtime, in an isolate, spending the parent's budget — which is what a template engine

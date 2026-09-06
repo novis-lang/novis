@@ -1136,7 +1136,7 @@ mod tests {
     /// out of it is untrusted however the operator wrote it, and a variable
     /// holding a URL still has to reach `Core\Http::allowUrl`. `Core\Cli::ask`
     /// and `Core\Cli::secret` are the last two and the same reading again —
-    /// [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 4's
+    /// `rule:tooling/a-prompt-is-a-core-member`'s
     /// prompts answer what a person typed at a terminal, which is outside the
     /// program exactly as a request body is, and `secret`'s answer carries the
     /// other axis as well because a password is confidential *and* untrusted.

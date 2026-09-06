@@ -114,7 +114,7 @@ type `secret string`; the language gives no free ride the way it does for reques
 
 **One `Core` member originates the qualifier**, and it is the exception that proves the rule above:
 `Core\Cli::secret(string $question): secret tainted string`
-([ADR 0086](0086-core-cli-terminal-is-a-sink.md) § 4) reads a password at a terminal prompt with echo
+(`rule:tooling/a-prompt-is-a-core-member`) reads a password at a terminal prompt with echo
 disabled. It qualifies its own return because the *member's contract* is confidentiality — unlike
 `Core\Env::get()`, there is no reading of it under which the result is not a credential — so this is a
 member whose declared return type happens to be `secret`, not an ambient grant. Nothing about the paragraph
@@ -161,13 +161,13 @@ the same trust `Core\Html::escape()`'s author already carries for `tainted`.
 - **Terminal output** — `echo` and `Core\Cli::write` refuse a `secret` value outright, with **no
   `Core\Cli\Text` bypass**, the same shape as HTML output above and for the same reason: neutralizing a
   control byte does nothing for confidentiality.
-  [ADR 0086](0086-core-cli-terminal-is-a-sink.md) § 1 owns the substitution table this sits beside, and
+  `rule:tooling/terminal-output-is-a-sink` owns the substitution table this sits beside, and
   states the refusal there too.
   **The name understates the reach, which is the whole argument for the row.**
-  [ADR 0088](0088-a-sink-is-an-instruction-and-the-default-refuses.md) § 3 routes a scheduled script, a job
+  `rule:tooling/echo-always-has-a-sink` routes a scheduled script, a job
   worker, a `#[Test]` method and a `spawn script` isolate through this same sink, so "the terminal" means
   every one of those captured outputs — a CI log, a job log, a test report — which is where a credential
-  in practice leaks. A tty-dependent version of this rule is not available: ADR 0086 § 1 already rejects
+  in practice leaks. A tty-dependent version of this rule is not available: `rule:tooling/terminal-output-is-a-sink` already rejects
   tty-dependent behaviour outright, because a pipe read by a human later is the common case rather than
   the exception.
   This sink is **not** an instance of the exemption below. `Core\Db`, `Core\Process` and `Core\Http` are
@@ -175,7 +175,7 @@ the same trust `Core\Html::escape()`'s author already carries for `tainted`.
   *used*. A terminal is the secret being *displayed to a person*, which is disclosure, not use, and the one
   program whose purpose is disclosure (a `print-token` command) spells `Core\Secret::reveal()` with its
   reason at the one line where that is the point. It is also the direction
-  [ADR 0086](0086-core-cli-terminal-is-a-sink.md) § 4 already takes on the way in: `Core\Cli::secret()`
+  `rule:tooling/a-prompt-is-a-core-member` already takes on the way in: `Core\Cli::secret()`
   reads a password with terminal echo *disabled*, so treating the same terminal as a free destination
   would have the two directions disagree.
 - **`Core\Log`** — the opposite default from `tainted`, which `rule:security/sink-predicate` explicitly wants logged. A
@@ -332,7 +332,7 @@ operator for everything — and it makes the qualifier awkward for a thing progr
   to be dominated by ones whose reason string is some spelling of *"this command prints a token"*, the
   ceremony is buying nothing there and the answer is a narrow, named `Core\Cli` member that writes a
   `secret` deliberately — never widening `echo` itself, since `echo`'s reach through
-  [ADR 0088](0088-a-sink-is-an-instruction-and-the-default-refuses.md) § 3 is what the refusal is for.
+  `rule:tooling/echo-always-has-a-sink` is what the refusal is for.
 - **Whether `serialize()`/the isolate boundary should split** into "refuse `secret` only when externalizing
   to bytes, allow it across a live `spawn worker`/`spawn script` arena." Revisit if the blanket refusal proves
   to be real friction for a credential-isolating worker pattern, weighed against reopening
@@ -368,7 +368,7 @@ Verification, in the order it becomes possible:
   `spawn worker`/`spawn script` boundary, or into `serialize()` directly, is refused at compile time with a
   diagnostic naming this ADR; the identical value wrapped through `Core\Secret::reveal()` first crosses
   successfully.
-- **M8** (the milestone that builds [ADR 0086](0086-core-cli-terminal-is-a-sink.md) § 1's substitution
+- **M8** (the milestone that builds `rule:tooling/terminal-output-is-a-sink`'s substitution
   table, and so the earliest the terminal sink exists to refuse anything): `echo $secret` and
   `Core\Cli::write($secret)` are both refused at compile time with a diagnostic naming this section, while
   the identical `tainted`-only value is written with its control bytes substituted; the same refusal holds

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Cli::write` and `echo` are one sink reached twice, on every shape that reaches it differently — ADR 0086 §§ 1 and 3
+`Core\Cli::write` and `echo` are one sink reached twice, on every shape that reaches it differently — `rule:tooling/terminal-output-is-a-sink` and `rule:tooling/the-terminal-profile-resolves-once`
 --FILE--
 <?nvs
 // § 1's substitution table has one home, and `write` performs that one rather

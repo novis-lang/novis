@@ -1,8 +1,8 @@
 --TEST--
-`Core\Response::text` writes to the same output `echo` does, so the two interleave in call order rather than accumulating in two buffers -- ADR 0088 §§ 3-4
+`Core\Response::text` writes to the same output `echo` does, so the two interleave in call order rather than accumulating in two buffers -- `rule:tooling/echo-always-has-a-sink` and `rule:security/response-body-is-one-typed-member`
 --FILE--
 <?nvs
-// ADR 0088 § 3 binds a request's `echo` to the response body, so there is one
+// `rule:tooling/echo-always-has-a-sink` binds a request's `echo` to the response body, so there is one
 // place a body can be. § 4's body members add the `Content-Type` to that, not
 // a second buffer -- which is observable as ordering: what a body member wrote
 // and what `echo` wrote come back in the order they were written.

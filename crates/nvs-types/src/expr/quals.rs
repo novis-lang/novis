@@ -754,11 +754,11 @@ fn report_secret_logged(span: Span, env: &mut Env<'_>) {
 /// makes one check at the sink cover `rule:security/secret-sinks-refuse`'s *"`echo` and
 /// interpolation"* both, rather than needing a rule per composition form.
 ///
-/// The reach is wider than the word "terminal": ADR 0088 § 3 sends a
+/// The reach is wider than the word "terminal": `rule:tooling/echo-always-has-a-sink` sends a
 /// scheduled script's, a job worker's, a `#[Test]` method's and a
 /// `spawn script` isolate's output through this same sink, so what this
 /// refuses is as often a credential landing in a CI log as one printed to a
-/// tty. A tty-dependent version of the rule is not available — ADR 0086 § 1
+/// tty. A tty-dependent version of the rule is not available — `rule:tooling/terminal-output-is-a-sink`
 /// rejects tty-dependent behaviour outright.
 pub(crate) fn reject_secret_output(ty: TypeId, span: Span, form: &str, env: &mut Env<'_>) -> bool {
     if !is_secret(ty, env.interner) {

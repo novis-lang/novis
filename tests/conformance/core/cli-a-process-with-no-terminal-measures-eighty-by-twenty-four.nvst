@@ -1,5 +1,5 @@
 --TEST--
-With no controlling terminal the width and height are exactly the documented `80` by `24`, and the colour depth beside them is `None` — ADR 0086 § 3's fallback, both dimensions named together
+With no controlling terminal the width and height are exactly the documented `80` by `24`, and the colour depth beside them is `None` — `rule:tooling/the-terminal-profile-resolves-once`'s fallback, both dimensions named together
 --FILE--
 <?nvs
 // § 3's table: "the controlling terminal's columns/rows, `80`/`24` when there

@@ -1,8 +1,8 @@
 --TEST--
-`Core\Cli::escape` replaces `DEL` and the whole C1 range and stops there — the last neutralized code point and the first passed-through one, named together — ADR 0086 § 1
+`Core\Cli::escape` replaces `DEL` and the whole C1 range and stops there — the last neutralized code point and the first passed-through one, named together — `rule:tooling/terminal-output-is-a-sink`
 --FILE--
 <?nvs
-// ADR 0086 § 1's table has two upper bounds above the C0 block, and a member
+// `rule:tooling/terminal-output-is-a-sink`'s table has two upper bounds above the C0 block, and a member
 // that stopped one code point early — or ran one late — would print
 // plausibly against either half of each on its own. So each is asserted from
 // both sides: the last thing replaced, and the first thing left alone.

@@ -55,7 +55,7 @@ can read back", with every reflective question routed to `Core\Reflect`.
 conformance case that pinned the refusal, both citing
 `rule:statements/storage-that-outlives-a-call` for a sentence § 3 does not contain
 — § 3 is about global constants folding in, and 0011 decides nothing about `::class` at all. The
-reflective surface is [ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md)'s. A rule that
+reflective surface is `rule:tooling/reflection-and-source-parsing-are-core-features`'s. A rule that
 lives only in the code that enforces it is the shape this repository's one-home convention exists to
 prevent, and it is why the refusal outlived its own argument.
 

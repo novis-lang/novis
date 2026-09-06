@@ -81,8 +81,8 @@ first two bytes are `#!` is a script: line 1 is trivia and the file continues in
 `<?nvs` stood there, so a CLI program written for the shebang the operating system already requires does not
 also pay for a tag that has no surrounding template to delimit. `<?nvs` remains the only code-mode open
 *tag*, and writing one in a shebang file before any `?>` is `E0009`. The rule, its bounds and why the
-simplicity cost is accepted are [ADR 0100](0100-against-python-nvs-claims-the-tool-that-gets-handed-over.md)
-§ 3.
+simplicity cost is accepted are `rule:tooling/shebang-opens-code-mode`
+.
 
 ## Consequences
 

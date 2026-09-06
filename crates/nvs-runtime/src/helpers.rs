@@ -2405,7 +2405,7 @@ crate::nvs_helper! {
     /// `nvs_ir::Helper::EchoStr` — the terminal sink, which neutralizes every
     /// control byte on the way in.
     ///
-    /// [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 1 is
+    /// `rule:tooling/terminal-output-is-a-sink` is
     /// the rule and [`nvs_render::text::substitute`] is the table, called rather
     /// than restated: `ESC` becomes `␛`, a bare `CR` becomes `␍`, `DEL` becomes
     /// `␡`, a C1 code point and an unterminated bidirectional control both
@@ -2488,7 +2488,7 @@ fn write_rendered(
 /// Whether `value` is a **sink carrier** — the one shape the terminal sink
 /// must not substitute over.
 ///
-/// [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 1 puts
+/// `rule:tooling/terminal-output-is-a-sink` puts
 /// exactly one raw path in the language and § 2 makes it a *type*,
 /// `Core\Cli\Text`, rather than a member or a bit riding on a string. Both of
 /// that type's constructors apply § 1's substitution to their own input, so the
@@ -2525,7 +2525,7 @@ crate::nvs_helper! {
     /// anything has turned the operand into bytes.
     ///
     /// **The sink substitutes everything except its own carrier.** That is
-    /// [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 1's
+    /// `rule:tooling/terminal-output-is-a-sink`'s
     /// "exactly one raw path, `Cli\Text`" read literally: the raw path is a
     /// *type*, so it has to be recognised while the operand still has one.
     /// `nvs-ir` sends every `Ty::Object` and `Ty::Tagged` operand here for that
@@ -3163,7 +3163,7 @@ mod tests {
         }
     }
 
-    /// ADR 0086 § 1 at the sink: control bytes are neutralized, and **nothing
+    /// `rule:tooling/terminal-output-is-a-sink` at the sink: control bytes are neutralized, and **nothing
     /// else is**. The markup characters are in the same value on purpose —
     /// this is not an HTML sink, so `<`, `&` and `"` reach the stream as
     /// themselves, and `\x00` does not.

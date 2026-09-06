@@ -1,5 +1,5 @@
 --TEST--
-`Core\Cli\Text::plain` is idempotent, so text that has already passed a sink is not escaped twice — ADR 0086 §§ 1-2
+`Core\Cli\Text::plain` is idempotent, so text that has already passed a sink is not escaped twice — `rule:tooling/terminal-output-is-a-sink` and `rule:tooling/styling-is-a-value-not-a-grammar`
 --FILE--
 <?nvs
 // § 1's table is idempotent: a Control Picture is not a control byte, so a

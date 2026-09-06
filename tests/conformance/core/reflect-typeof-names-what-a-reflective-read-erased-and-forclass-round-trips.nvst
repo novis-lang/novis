@@ -1,5 +1,5 @@
 --TEST--
-`Core\Reflect::typeOf` names what a reflective read erased, and `forClass` accepts exactly the name a description answers — ADR 0019 §§ 1-2
+`Core\Reflect::typeOf` names what a reflective read erased, and `forClass` accepts exactly the name a description answers — `rule:core-classes/reflect` and `rule:security/reflection-enforces-visibility`
 --FILE--
 <?nvs
 class Point {

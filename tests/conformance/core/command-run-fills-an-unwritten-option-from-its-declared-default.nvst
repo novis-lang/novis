@@ -1,5 +1,5 @@
 --TEST--
-`Core\Command::run` fills an argument the command line left out from the default its declaration wrote — ADR 0086 § 6
+`Core\Command::run` fills an argument the command line left out from the default its declaration wrote — `rule:tooling/commands-are-compiled`
 --FILE--
 <?nvs
 // § 6's own example writes `#[Option] uint $retries = 3`, and a command line

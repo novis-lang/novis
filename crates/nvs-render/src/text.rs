@@ -1,7 +1,7 @@
 //! `rule:errors/record-transformations`'s control-byte and bidi transformations, over one implementation.
 //!
-//! The table is [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md)
-//! § 1's, unchanged, and the bidi rule is
+//! The table is `rule:tooling/terminal-output-is-a-sink`
+//! 's, unchanged, and the bidi rule is
 //! `rule:security/bidi-predicate`'s
 //! predicate called rather than restated. What `rule:errors/diagnostic-record` adds is *where* they
 //! run: on the way into the record, not on the way out of a rendering, so all
@@ -25,11 +25,11 @@
 use std::borrow::Cow;
 
 /// The replacement character an unterminated bidi control and a C1 code point
-/// both become — ADR 0086 § 1's table, whose own column says why C1 loses its
+/// both become — `rule:tooling/terminal-output-is-a-sink`'s table, whose own column says why C1 loses its
 /// identity rather than taking a Control Picture.
 const REPLACEMENT: char = '\u{FFFD}';
 
-/// `text` with ADR 0086 § 1's substitutions applied: every C0 byte but `LF`
+/// `text` with `rule:tooling/terminal-output-is-a-sink`'s substitutions applied: every C0 byte but `LF`
 /// and `TAB` as its U+2400-block Control Picture, `DEL` as `␡`, every C1 code
 /// point as `�`, and every **unterminated** directional control as `�`.
 ///
@@ -43,7 +43,7 @@ const REPLACEMENT: char = '\u{FFFD}';
 ///
 /// # Why a [`Cow`] rather than a `String`
 ///
-/// ADR 0086 § 1's rule is uniform, so the terminal sink runs this on **every**
+/// `rule:tooling/terminal-output-is-a-sink`'s rule is uniform, so the terminal sink runs this on **every**
 /// `echo` — and text with nothing to substitute is nearly all of the output a
 /// program writes. Answering the borrow there keeps that path at one scan and
 /// no allocation, which is what makes a rule that cannot be switched off
@@ -83,7 +83,7 @@ fn needs_substitution(c: char) -> bool {
     substituted(c).is_some()
 }
 
-/// What `c` becomes under ADR 0086 § 1's table, or `None` where it passes
+/// What `c` becomes under `rule:tooling/terminal-output-is-a-sink`'s table, or `None` where it passes
 /// through.
 ///
 /// The bidi row is not here: it is a property of the *span*, not of the
@@ -108,7 +108,7 @@ fn substituted(c: char) -> Option<char> {
 mod tests {
     use super::*;
 
-    /// ADR 0086 § 1's table, row by row.
+    /// `rule:tooling/terminal-output-is-a-sink`'s table, row by row.
     #[test]
     fn every_control_byte_takes_its_row() {
         assert_eq!(substitute("a\u{1B}b"), "a\u{241B}b");
@@ -150,7 +150,7 @@ mod tests {
     }
 
     /// And it is unchanged *without being copied* — the property the terminal
-    /// sink depends on, since ADR 0086 § 1 runs this on every `echo` and
+    /// sink depends on, since `rule:tooling/terminal-output-is-a-sink` runs this on every `echo` and
     /// almost every one of them has nothing to substitute. Asserted as the
     /// [`Cow`] variant rather than as a timing, because "no allocation" is
     /// what the borrow means here.

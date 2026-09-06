@@ -1,5 +1,5 @@
 --TEST--
-`Core\Command::run` answers a word no `decimal` reads with a usage status and runs no handler, rather than with a plausible zero — ADR 0086 § 6, `rule:errors/ambiguous-input-refused`
+`Core\Command::run` answers a word no `decimal` reads with a usage status and runs no handler, rather than with a plausible zero — `rule:tooling/commands-are-compiled`, `rule:errors/ambiguous-input-refused`
 --FILE--
 <?nvs
 // The other side of the conversion, and the side that decides whether it is

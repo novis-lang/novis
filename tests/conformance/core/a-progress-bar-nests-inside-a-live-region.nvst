@@ -1,5 +1,5 @@
 --TEST--
-A progress bar nests inside a live region and hands the terminal back when it closes -- ADR 0086 sections 5 and 8
+A progress bar nests inside a live region and hands the terminal back when it closes -- `rule:tooling/terminal-output-is-a-sink` sections 5 and 8
 --FILE--
 <?nvs
 // One region owns the cursor at a time, and `live` and `progress` are the same

@@ -79,14 +79,14 @@
   is decided here — both still need their own design (key derivation and lifetime for memoisation; the
   operator-overload question for flags) — but both were blocked on *some* attribute mechanism existing at
   all, which this ADR now provides.
-- Retrieval was the harder question. [ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md) put
+- Retrieval was the harder question. `rule:tooling/reflection-and-source-parsing-are-core-features` put
   reflection and AST parsing in `Core`, deliberately not the language surface, so that reflective access
   keeps paying the same visibility/hook checks ordinary code does rather than opening a second, laxer path.
   Routing attribute retrieval through a generic `Core\Reflect::getAttributes()` walk would fit that pattern
-  but reintroduces exactly the dynamic, walk-anything shape ADR 0019 was careful to avoid making the *only*
+  but reintroduces exactly the dynamic, walk-anything shape `rule:tooling/reflection-and-source-parsing-are-core-features` was careful to avoid making the *only*
   path — Novis's attribute list per declaration is fully static, known at compile time, so a generic runtime
   walk throws away information the compiler already has. A narrow, statically-resolved `Core\Attributes`
-  accessor keeps ADR 0019's placement (a `Core` domain class, not a keyword) while being considerably more
+  accessor keeps `rule:tooling/reflection-and-source-parsing-are-core-features`'s placement (a `Core` domain class, not a keyword) while being considerably more
   specific than `Core\Reflect`'s general-purpose surface.
 
 ## Decision

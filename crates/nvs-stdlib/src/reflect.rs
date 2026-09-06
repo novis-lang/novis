@@ -1,4 +1,4 @@
-//! `Core\Reflect` — [ADR 0019](/docs/adr/0019-reflection-and-ast-parsing-are-core-features.md)'s
+//! `Core\Reflect` — `rule:tooling/reflection-and-source-parsing-are-core-features`'s
 //! read-only structural introspection, as the member that describes a value and
 //! the description it answers with.
 //!

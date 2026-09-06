@@ -367,8 +367,8 @@ pub enum CoreTy {
     /// `rule:security/tainted-qualifier`'s
     /// launderers are still what let it reach one. Dropping either half would
     /// be a claim the prompt cannot make —
-    /// [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md)
-    /// § 4 writes the return type with both words for that reason.
+    /// `rule:tooling/a-prompt-is-a-core-member`
+    /// writes the return type with both words for that reason.
     ///
     /// Return position, exactly as its two halves are: in parameter position
     /// it would demand what `nvs_types`' assignment relation already grants,
@@ -1359,7 +1359,7 @@ pub const CLASSES: &[CoreClass] = &[
     // run: `rule:programs/implementing` expands `implementing<T>()` while checking, so
     // [`crate::program`] registers a signature and an aborting body.
     crate::program::CLASS,
-    // § 13's terminal profile — ADR 0086 § 3's four members, which reach the
+    // § 13's terminal profile — `rule:tooling/the-terminal-profile-resolves-once`'s four members, which reach the
     // operating system and need no capability for it: [`crate::cli`]'s module
     // docs own why a question about a stream the process already holds grants
     // nothing, and why the rest of § 13 is not here yet.
@@ -1367,15 +1367,15 @@ pub const CLASSES: &[CoreClass] = &[
     // § 13, and here only because § 12's `Core\Out::capture` answers with it —
     // `rule:security/capture-answers-the-carrier`.
     crate::cli::TEXT,
-    // § 13's styling half — ADR 0086 § 2's two value types, which exist so that
+    // § 13's styling half — `rule:tooling/styling-is-a-value-not-a-grammar`'s two value types, which exist so that
     // the carrier above has something to wear that is not a grammar.
     crate::cli::COLOR,
     crate::cli::STYLE,
-    // § 13's in-place output — ADR 0086 § 5's two handles, which exist because
+    // § 13's in-place output — `rule:tooling/in-place-output-is-a-scoped-live-region`'s two handles, which exist because
     // a region has to have an end for § 8's restoration to be enforceable.
     crate::cli::LIVE,
     crate::cli::PROGRESS,
-    // § 13's other half — ADR 0086 § 6's members over the table `#[Command]`
+    // § 13's other half — `rule:tooling/commands-are-compiled`'s members over the table `#[Command]`
     // built while compiling. Beside `Core\Cli` because it answers with that
     // class's carrier; [`crate::command`] owns the page's layout, and
     // `nvs_runtime::commands` owns why the compiled rows cross into the runtime.
@@ -1618,7 +1618,7 @@ pub const CLASSES: &[CoreClass] = &[
     // reason [`CoreTy::Instance`] states — a `Core` instance has no property a
     // program can reach.
     crate::ratelimit::DECISION,
-    // ADR 0019's read-only introspection, whose members are the door onto a
+    // `rule:tooling/reflection-and-source-parsing-are-core-features`'s read-only introspection, whose members are the door onto a
     // description and nothing else — a program can reach a member it may not
     // call only through the description, and § 2 makes that reach face the
     // ordinary check.
@@ -4150,7 +4150,7 @@ mod tests {
     /// handing that address back would let a program rebuild the request
     /// around a different one ([`crate::http`]). The sixth and seventh are
     /// `Core\Cli\Color` and `Core\Cli\Style`, whose slots
-    /// `Core\Cli\Text::styled` reads when it renders one: ADR 0086 § 2 writes
+    /// `Core\Cli\Text::styled` reads when it renders one: `rule:tooling/styling-is-a-value-not-a-grammar` writes
     /// two constructors and a shape of options and no member on either result,
     /// because a style is built and worn rather than interrogated. The eighth
     /// is `Core\Html\Markup`, the other sink carrier and so `Core\Cli\Text`'s

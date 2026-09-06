@@ -10,8 +10,8 @@ The entry answering an in-process request reads no listener of its own, so `rule
 try {
     var $matched = Core\Request::route();
     if ($matched == null) {
-        // Answering a request, so this `echo` is the response body (ADR 0088
-        // § 3) and is read back below rather than printed here.
+        // Answering a request, so this `echo` is the response body (`rule:tooling/echo-always-has-a-sink`
+        // ) and is read back below rather than printed here.
         echo "inside=", Core\Debug::render(Core\Test::serverUrl());
     }
 } catch (LogicError $notARequest) {

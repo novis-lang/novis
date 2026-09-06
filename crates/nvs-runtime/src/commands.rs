@@ -1,4 +1,4 @@
-//! [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 6's
+//! `rule:tooling/commands-are-compiled`'s
 //! command table, as a *running* program sees it: the rows the compiler built,
 //! carried on the request's own context.
 //!
@@ -111,7 +111,7 @@ pub enum ArgConv {
     /// that crosses *is* the answer, exactly as [`Self::OneOf`]'s is.
     ///
     /// The class is the half [`Self::OneOf`] has not got, and both readers of
-    /// this row want it: ADR 0086 § 6's usage line and the refusal, each of
+    /// this row want it: `rule:tooling/commands-are-compiled`'s usage line and the refusal, each of
     /// which says what the words are cases of.
     Enum {
         /// The enum's declared name.

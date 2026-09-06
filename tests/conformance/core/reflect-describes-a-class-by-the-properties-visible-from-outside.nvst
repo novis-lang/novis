@@ -1,5 +1,5 @@
 --TEST--
-`Core\Reflect::forObject` names the class and walks only the properties code outside it can see — ADR 0019 §§ 1-2
+`Core\Reflect::forObject` names the class and walks only the properties code outside it can see — `rule:core-classes/reflect` and `rule:security/reflection-enforces-visibility`
 --FILE--
 <?nvs
 // `rule:core-classes/reflect`: a description is reached from a value, and it is read-only —

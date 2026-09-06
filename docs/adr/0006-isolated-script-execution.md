@@ -232,10 +232,10 @@ because the alternative silently mixes another script's bytes into a response th
 
 A child's `echo` writes to the **parent's sink**, so the captured output carries that sink's carrier type —
 `Core\Html\Markup` under a request, `Cli\Text` everywhere else — rather than a plain `string`
-([ADR 0088](0088-a-sink-is-an-instruction-and-the-default-refuses.md) §§ 3, 5). That is what lets a parent
+(`rule:tooling/echo-always-has-a-sink` and `rule:security/capture-answers-the-carrier`). That is what lets a parent
 re-emit a captured result without escaping it twice, and it is why `'inherit'` needs no separate rule: the
 two carriers already match. `Core\Cli`'s *members* still throw inside an isolate
-([ADR 0086](0086-core-cli-terminal-is-a-sink.md) § 8) — that rule is about owning the tty, which an
+(`rule:tooling/the-terminal-is-restored-on-every-exit-path`) — that rule is about owning the tty, which an
 isolate's buffered output never touches.
 
 ### One isolation implementation, not two

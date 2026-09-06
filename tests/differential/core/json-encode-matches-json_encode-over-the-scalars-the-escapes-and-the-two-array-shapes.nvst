@@ -54,7 +54,7 @@ echo Core\Json::encode("unit\u{1f}sep"), "\n";
 // wrong layer — `rule:security/launderers-are-sink-named` puts that at the sink, in `Core\Html::escape`.
 // DEL is 0x7f, above the band JSON requires escaped, so both writers leave it
 // as the byte it is — and the terminal is a sink that would substitute it
-// (ADR 0086), so both sides spell it out before echoing.
+// (`rule:tooling/terminal-output-is-a-sink`), so both sides spell it out before echoing.
 echo Core\Json::encode("<script>a && b</script>"), "\n";
 echo Core\Json::encode("it's"), "\n";
 echo Core\Str::replaceAll(Core\Json::encode("del\u{7f}end"), ["\u{7f}" => "<DEL>"]), "\n";

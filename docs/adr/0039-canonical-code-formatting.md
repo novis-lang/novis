@@ -1,4 +1,4 @@
-# ADR 0039 — `nvs fmt` is the one canonical, unconfigurable formatting style, run on demand only
+# `rule:tooling/fmt-is-one-canonical-style` — `nvs fmt` is the one canonical, unconfigurable formatting style, run on demand only
 
 - **Status:** Accepted
 - **Date:** 2026-08-22
@@ -236,7 +236,7 @@ diff-visible code action; it is not something a formatter does on save.
   § 11, on evidence rather than taste: `rule:core-classes/derive-field-list` makes property declaration
   order the encode order of a derived codec, and `rule:testing/bench-counters`
   makes it the test report order, so a formatter that reordered members would change a program's output
-  bytes. [ADR 0094](0094-visibility-is-written-at-every-member-declaration.md) § 5 already settled the
+  bytes. `rule:tooling/fmt-never-inserts-visibility` already settled the
   general form of this — "a formatter that changes meaning is not a formatter" — when it refused to let
   `nvs fmt` insert a missing `public`, and member reordering breaks it at more sites than that would have.
   `rule:classes/comparable` takes the same line for `nvs convert`: property declaration
@@ -247,13 +247,13 @@ diff-visible code action; it is not something a formatter does on save.
   differently" from "this file is wrong." Composing the two on one keystroke is a *client* concern and both
   target editors already have the mechanism, so nothing is lost by keeping the two contracts apart. A
   separate `nvs fix` verb was considered for the batch case and also declined: it would be a third rule
-  table beside `nvs fmt`'s and [ADR 0089](0089-convert-is-one-rule-table-with-two-modes.md)'s, and no user
+  table beside `nvs fmt`'s and `rule:tooling/convert-one-table-two-modes`'s, and no user
   has asked for one yet.
 - **Normalizing mis-cased keywords** (`IF` → `if`, `ECHO` → `echo`). Rejected by
   `rule:classes/reserved-spellings-are-lower-case` before this ADR
   reached it, and § 10 keeps the refusal: `rule:core-api/identifier-casing` makes those legal class names, so the rewrite is a
   guess. Normalizing PHP's case-insensitive reserved words is
-  [ADR 0089](0089-convert-is-one-rule-table-with-two-modes.md)'s job, where the input is known to be PHP.
+  `rule:tooling/convert-one-table-two-modes`'s job, where the input is known to be PHP.
 
 ## Revisiting
 

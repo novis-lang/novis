@@ -17,7 +17,7 @@
 //!
 //! `rule:errors/renderings` makes the plaintext rendering coloured *iff*
 //! `Cli::colorDepth() != None`, and reads that one answer from
-//! [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 3 rather
+//! `rule:tooling/the-terminal-profile-resolves-once` rather
 //! than resolving `NO_COLOR`/`CLICOLOR_FORCE`/`TERM` again here. `Core\Cli`
 //! does not exist yet (M8, and `nvs_stdlib::cli`'s own gap 2), so this
 //! rendering is uncoloured and there is deliberately no second resolution of

@@ -552,7 +552,7 @@ impl<'a> Lowering<'a> {
     /// uses, so it goes through its own [`Helper`] conversion — and handed to
     /// one [`Helper::EchoStr`] [`InstKind::HelperCall`]. A [`Ty::Object`] or
     /// [`Ty::Tagged`] operand is handed **unconverted** to
-    /// [`Helper::EchoValue`] instead, because ADR 0086 § 1's one raw path is
+    /// [`Helper::EchoValue`] instead, because `rule:tooling/terminal-output-is-a-sink`'s one raw path is
     /// the *type* `Core\Cli\Text` and a conversion in front of the sink would
     /// have thrown that away; that helper's own doc comment owns the rule and
     /// [`Self::convert_operand`]'s rows still describe what it renders. Either
@@ -572,7 +572,7 @@ impl<'a> Lowering<'a> {
         for operand in operands {
             let mark = self.temporaries_mark();
             // The sink substitutes everything except its own carrier, and a
-            // carrier is a *class* — ADR 0086 § 1's one raw path is the type
+            // carrier is a *class* — `rule:tooling/terminal-output-is-a-sink`'s one raw path is the type
             // `Core\Cli\Text`, so it can only be recognised while the operand
             // still has a type. `Ty::Object` and `Ty::Tagged` are the two it
             // can arrive under, and both go to `Helper::EchoValue` with no
@@ -770,7 +770,7 @@ impl<'a> Lowering<'a> {
     /// has already lowered.
     ///
     /// Split out for [`Self::lower_echo`], which has to see the operand's
-    /// [`Ty`] *before* deciding whether to convert it at all: ADR 0086 § 1's
+    /// [`Ty`] *before* deciding whether to convert it at all: `rule:tooling/terminal-output-is-a-sink`'s
     /// raw path is a class, so the sink recognises it from the static type and
     /// then does its own rendering. Nothing about the rows below changed in the
     /// split — `.` concatenation reaches them through `concat_operand` exactly

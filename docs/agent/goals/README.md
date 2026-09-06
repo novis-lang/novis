@@ -13,7 +13,7 @@ sits there because its acceptance property needs every driver goal 5 builds to b
 gives the type a function value's parameters and return, and it goes after every goal that *writes*
 callbacks so their registry rows are converted once rather than twice. An eleventh,
 [doc comments](11-doc-comments.md), is last —
-[ADR 0137](../../adr/0137-a-doc-comment-is-three-slashes-and-two-tags.md)'s `///`, whose stage 2 builds
+`rule:tooling/doc-comment-is-three-slashes`'s `///`, whose stage 2 builds
 ADR 0099 § 1's trivia layer because a doc comment cannot be read without it, so **M4B starts with its
 own tree half already done**.
 
@@ -147,7 +147,7 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [8 program-id](8-program-id.md) | post-parity, `rule:programs/no-runtime-autoload` amendment | `nvs-config`, `nvs-hir`, `nvs-runtime`, `nvs-stdlib` |
 | [9 schema](9-schema.md) | post-parity, one ADR slot | `nvs-db`, `nvs-stdlib`, `nvs-cli` |
 | [10 typed-callable](10-typed-callable.md) | post-parity, `rule:types/callable-signature` | `nvs-syntax`, `nvs-types`, `nvs-stdlib`, `nvs-ir`, `nvs-codegen`, `nvs-runtime` |
-| [11 doc-comments](11-doc-comments.md) | post-parity, ADR 0137 + M4B's tree half | `nvs-syntax`, `nvs-diagnostics`, `nvs-hir`, `nvs-cli` |
+| [11 doc-comments](11-doc-comments.md) | post-parity, `rule:tooling/doc-comment-is-three-slashes` + M4B's tree half | `nvs-syntax`, `nvs-diagnostics`, `nvs-hir`, `nvs-cli` |
 | [12 resilient-tree](12-resilient-tree.md) | M4B, ADR 0099 § 1's other half | `nvs-syntax`, `nvs-diagnostics`, `nvs-test`, `nvs-cli` |
 | [13 surface](13-surface.md) | M1 items 5-6, `rule:expressions/pipeline-substitution` + ADR 0124 | `nvs-syntax`, `nvs-diagnostics` |
 | [14 lsp-server](14-lsp-server.md) | M4B, ADR 0099 §§ 3+5 + `rule:security/redaction-ranges-come-from-the-server` | **`nvs-lsp`** (new), `nvs-cli`, `nvs-types`, `nvs-stdlib` |

@@ -31,7 +31,7 @@
 //! it belongs to, and no node stands for the parameter itself.
 //!
 //! The alternative was one node per struct in [`crate::ast`], which is the
-//! shape ADR 0019's typed roster eventually wants — but that roster is one
+//! shape `rule:tooling/reflection-and-source-parsing-are-core-features`'s typed roster eventually wants — but that roster is one
 //! *class* per production, and until those classes exist a node with no type
 //! of its own is just a kind string with a longer name. Drawing the line at
 //! the three productions the ADR names keeps every expression in the tree,

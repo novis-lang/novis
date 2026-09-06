@@ -1,5 +1,5 @@
 --TEST--
-A standard output that is not a terminal reports no colour at all, so a piped run and a CI log are plain — the agreement between `isTty` and `colorDepth` that ADR 0086 § 3 states
+A standard output that is not a terminal reports no colour at all, so a piped run and a CI log are plain — the agreement between `isTty` and `colorDepth` that `rule:tooling/the-terminal-profile-resolves-once` states
 --FILE--
 <?nvs
 // § 3: "When the stream is not a terminal, styling is dropped entirely", so

@@ -1,5 +1,5 @@
 --TEST--
-A scripted answer off the menu is asked again from the queue, and multiSelect reads one scripted line as a whole set — ADR 0086 § 4
+A scripted answer off the menu is asked again from the queue, and multiSelect reads one scripted line as a whole set — `rule:tooling/a-prompt-is-a-core-member`
 --FILE--
 <?nvs
 array<string> $choices = ["alpha", "beta", "gamma"];
