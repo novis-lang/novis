@@ -763,6 +763,13 @@ pub fn remove_dir(ctx: &Ctx, path: &Path, member: &str) -> Result<(), Fault> {
 /// root somebody else made cannot expose what a program puts inside one — but § 4's sweep is the
 /// part that leans on exclusivity, and examining the root is that slice's to own.
 ///
+/// **Every directory this hands back is recorded on the context** ([`Ctx::track_temporary_dir`]),
+/// which is what makes § 3's end-of-script sweep possible at all — the program is never asked to
+/// remember, and the runtime cannot delete what it did not write down. The record is taken after the
+/// directory exists and before the caller sees the path, so there is no ordering in which a program
+/// holds a directory the sweep does not know about. That is also why this takes `&mut Ctx` where
+/// every other door in this module takes `&Ctx`: it is the one that leaves something behind.
+///
 /// # Errors
 ///
 /// [`require`]'s catchable `RuntimeError` when the configuration does not grant `fs.write` for the
@@ -770,7 +777,7 @@ pub fn remove_dir(ctx: &Ctx, path: &Path, member: &str) -> Result<(), Fault> {
 /// attempt to create a directory under it failed.
 ///
 /// [ADR 0131]: ../../../docs/adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md
-pub fn temp_dir(ctx: &Ctx, member: &str) -> Result<PathBuf, Fault> {
+pub fn temp_dir(ctx: &mut Ctx, member: &str) -> Result<PathBuf, Fault> {
     /// Enough attempts that exhausting them means something other than a collision — a full disk, a
     /// root that is not writable, a temporary directory someone has filled with our names.
     const ATTEMPTS: u32 = 16;
@@ -786,7 +793,10 @@ pub fn temp_dir(ctx: &Ctx, member: &str) -> Result<PathBuf, Fault> {
             create_private_root(&root).map_err(|err| io_failure(member, &root, &err))?;
         }
         match create_private_dir(&path) {
-            Ok(()) => return Ok(path),
+            Ok(()) => {
+                ctx.track_temporary_dir(path.clone());
+                return Ok(path);
+            }
             Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => continue,
             Err(err) => return Err(io_failure(member, &path, &err)),
         }
@@ -1127,9 +1137,9 @@ mod tests {
     #[test]
     fn temporary_dir_creates_under_the_configured_temp_root_not_the_platform_default() {
         let root = scratch("configured");
-        let ctx = rooted_at(&root);
+        let mut ctx = rooted_at(&root);
 
-        let made = temp_dir(&ctx, "Core\\IO::temporaryDir").expect("`write = true` covers it");
+        let made = temp_dir(&mut ctx, "Core\\IO::temporaryDir").expect("`write = true` covers it");
 
         assert!(
             made.starts_with(&root),
@@ -1163,9 +1173,9 @@ mod tests {
         // pointing somewhere not yet on disk is made rather than refused.
         let root = scratch("first-use").join("owned");
         assert!(!root.exists(), "the case starts with nothing on disk");
-        let ctx = rooted_at(&root);
+        let mut ctx = rooted_at(&root);
 
-        let made = temp_dir(&ctx, "Core\\IO::temporaryDir").expect("`write = true` covers it");
+        let made = temp_dir(&mut ctx, "Core\\IO::temporaryDir").expect("`write = true` covers it");
 
         assert!(root.is_dir(), "the first use created the root");
         assert!(made.starts_with(&root), "and put the directory inside it");
@@ -1189,5 +1199,97 @@ mod tests {
             .parent()
             .expect("`root` was joined onto the scratch path");
         std::fs::remove_dir_all(scratch).expect("the case removes what it made");
+    }
+
+    /// ADR 0131 § 3's per-script list, from the only side that writes it: what the member hands back
+    /// is what the context holds, in order, and a call that created nothing leaves nothing behind.
+    ///
+    /// The refused half is the one worth the case. A list written before the capability check — or
+    /// before the directory existed — would still make every sweep test pass, and would have the
+    /// runtime try to delete a path no program was ever given; asserting the count *after* a refusal
+    /// is what separates "records what it created" from "records what it was asked for".
+    #[test]
+    fn every_directory_the_member_hands_back_is_recorded_and_a_refused_call_records_nothing() {
+        let root = scratch("tracked");
+        let mut ctx = rooted_at(&root);
+
+        let first = temp_dir(&mut ctx, "Core\\IO::temporaryDir").expect("`write = true` covers it");
+        let second = temp_dir(&mut ctx, "Core\\IO::temporaryDir").expect("and covers the second");
+
+        assert_eq!(
+            ctx.temporary_dirs(),
+            [first, second],
+            "the list is what the member answered, in the order it answered it"
+        );
+
+        // The same root, and a tree that grants nothing: § 2 chooses the name first and asks about
+        // it second, so this reaches the check and stops there.
+        let mut refused = Ctx::buffered();
+        refused.set_config(snapshot_of(&format!(
+            "[io]\ntemp_root = '{}'\n",
+            root.display()
+        )));
+        temp_dir(&mut refused, "Core\\IO::temporaryDir")
+            .expect_err("ADR 0118 § 1 denies `fs.write` by default");
+        assert!(
+            refused.temporary_dirs().is_empty(),
+            "a call that created no directory has nothing for the sweep to delete"
+        );
+
+        assert_eq!(
+            ctx.take_temporary_dirs().len(),
+            2,
+            "the sweep drains the list once"
+        );
+        assert!(
+            ctx.temporary_dirs().is_empty(),
+            "and a second sweep of the same context has nothing left to do"
+        );
+
+        std::fs::remove_dir_all(&root).expect("the case removes what it made");
+    }
+
+    /// ADR 0131 § 3, end to end and from the outside: what the member handed
+    /// out is gone once the script that asked for it is over, and the program
+    /// did nothing to make that happen.
+    ///
+    /// The two halves the sweep is written around are both here — a directory
+    /// the program filled and a file it left open inside one. The second is the
+    /// Windows case `Ctx::drop` closes the descriptors for: a held handle is a
+    /// refused deletion on that platform, so a sweep that ran before the files
+    /// went would log about a program that had merely forgotten to close.
+    #[test]
+    fn a_temporary_dir_still_standing_at_script_end_is_removed() {
+        let root = scratch("script-end");
+        let (filled, held) = {
+            let mut ctx = rooted_at(&root);
+            let filled = temp_dir(&mut ctx, "Core\\IO::temporaryDir").expect("`write = true`");
+            std::fs::write(filled.join("note.txt"), b"what the program wrote")
+                .expect("the directory was just created");
+
+            let held = temp_dir(&mut ctx, "Core\\IO::temporaryDir").expect("and the second");
+            ctx.hold_open_file(
+                std::fs::File::create(held.join("open.txt")).expect("the directory exists"),
+            );
+
+            assert!(
+                filled.is_dir() && held.is_dir(),
+                "both stand while the script is running — the sweep is the ending, not the call"
+            );
+            (filled, held)
+        };
+
+        assert!(!filled.exists(), "the directory the program filled is gone");
+        assert!(
+            !held.exists(),
+            "and so is the one holding a file the program never closed"
+        );
+        assert!(
+            root.is_dir(),
+            "the owned root itself stays: § 4's sweeps are what empty it, and the next script \
+             creates under it rather than remaking it"
+        );
+
+        std::fs::remove_dir_all(&root).expect("the case removes what it made");
     }
 }

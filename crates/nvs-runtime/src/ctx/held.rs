@@ -5,6 +5,13 @@
 //! number rather than a pointer and a handle awaited twice reads an empty slot
 //! rather than another request's resource.
 //!
+//! And one thing that is not a handle at all — the temporary directories
+//! [ADR 0131](/docs/adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md)
+//! § 3 has the runtime delete when the script ends. It is here for the second
+//! half of this file's title rather than the first: nothing in Novis holds a key
+//! to one, but the request gives them back when it ends exactly as it gives back
+//! the three tables. [`Ctx::track_temporary_dir`] is the one writer.
+//!
 //! [`HeldConnection`] is the trait that lets this crate hold a
 //! [ADR 0132](/docs/adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md)
 //! driver's connection without depending on the driver — the dependency runs
@@ -292,5 +299,53 @@ impl Ctx {
             .iter()
             .position(|held| held.memo.as_deref() == Some(memo) && held.connection.is_some())
             .map(|index| index as u64 + 1)
+    }
+
+    /// Records a directory `Core\IO::temporaryDir` has just created for this
+    /// script — [ADR 0131](/docs/adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md)
+    /// § 3's per-script list, written by
+    /// [`crate::capability::temp_dir`](crate::capability::temp_dir) and by
+    /// nothing else.
+    ///
+    /// Recorded **after** the directory exists, so the list is what the runtime
+    /// actually created rather than what it intended to: a call the capability
+    /// check refused, or one the operating system did, leaves nothing on disk
+    /// and so leaves nothing here for § 3's sweep to fail to delete.
+    ///
+    /// No handle and no key, unlike the three tables above. A directory's name
+    /// is the whole of it, a program never asks this context for one back, and
+    /// a program that removes its own directory has reached the goal state early
+    /// (§ 3) — so there is nothing to take out of the middle of the list and the
+    /// entry simply stays until the sweep drains all of them.
+    ///
+    /// **What it spends:** one `PathBuf` per `temporaryDir` call this script
+    /// made — O(directories created), request-local, released with the request
+    /// and charged to its memory limit, which is the bound
+    /// [ADR 0004](/docs/adr/0004-memory-for-simplicity.md) asks for.
+    /// A script that never calls the member allocates nothing at all.
+    pub fn track_temporary_dir(&mut self, path: std::path::PathBuf) {
+        self.temporary_dirs.push(path);
+    }
+
+    /// The directories this script has been handed, in the order it asked for
+    /// them.
+    #[must_use]
+    pub fn temporary_dirs(&self) -> &[std::path::PathBuf] {
+        &self.temporary_dirs
+    }
+
+    /// Takes the whole list, leaving this context with none — what § 3's sweep
+    /// calls once, after the last user code.
+    ///
+    /// Draining rather than borrowing, for two reasons the sweep depends on. It
+    /// needs the paths while holding the context mutably, to log a refusal
+    /// through the same record `Core\Log` writes; and the sweep must be
+    /// idempotent, because a request that dies mid-flight is swept by whichever
+    /// of its endings the worker reaches first and the ordinary end may follow.
+    /// An emptied list makes the second call a no-op rather than a second round
+    /// of deletions of paths that are already gone.
+    #[must_use]
+    pub fn take_temporary_dirs(&mut self) -> Vec<std::path::PathBuf> {
+        std::mem::take(&mut self.temporary_dirs)
     }
 }

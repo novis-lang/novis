@@ -1000,6 +1000,17 @@ pub struct Ctx {
     /// memoization key it was reached by and the pool lease it goes home on —
     /// see [`Ctx::hold_open_connection`].
     open_connections: Vec<OpenConnection>,
+    /// The temporary directories `Core\IO::temporaryDir` has handed this script,
+    /// in the order it handed them out — see [`Ctx::track_temporary_dir`], and
+    /// [ADR 0131](/docs/adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md)
+    /// § 3 for the sweep that reads it.
+    ///
+    /// Unlike its three neighbours this is a list and not a table: a directory
+    /// is a path rather than a handle, nothing in Novis holds a key to one, and
+    /// a program removing its own directory is § 3's goal state reached early
+    /// rather than a slot to empty. So an entry is never taken back out
+    /// individually and the sweep drains the whole list once.
+    temporary_dirs: Vec<std::path::PathBuf>,
     /// The session `Core\Session::start` opened, or `None` for a request that
     /// started none — see [`Session`].
     ///
@@ -1146,6 +1157,19 @@ impl Drop for Ctx {
                 }
             }
         }
+        // ADR 0131 § 3's sweep, and this is the only place it is called from —
+        // `crate::sweep`'s module doc owns why a context's teardown *is* that
+        // section's "after the last user code" for every ending at once.
+        //
+        // The files come first, and deliberately: a `Core\IO\File` the program
+        // opened inside its own temporary directory and never closed is dropped
+        // as a field a moment after this body either way, but on Windows a held
+        // handle is what makes a deletion fail — so closing them here is the
+        // difference between a program that forgot to close being swept and
+        // being logged about. Nothing else observes the order; a descriptor has
+        // no teardown but the close.
+        drop(std::mem::take(&mut self.open_files));
+        crate::sweep::at_script_end(self);
         // A failure that ended the request still owns its exception object,
         // and `Thrown`'s own `Drop` is what releases it. Taken here rather
         // than left to the field drop below, because a field is dropped

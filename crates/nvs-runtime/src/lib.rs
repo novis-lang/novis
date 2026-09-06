@@ -282,6 +282,7 @@ pub mod routes;
 pub mod script;
 pub mod sequence;
 mod string;
+pub mod sweep;
 pub mod terminal;
 pub mod throwable;
 pub mod trace_context;
