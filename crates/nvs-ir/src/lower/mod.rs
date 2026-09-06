@@ -479,6 +479,23 @@ fn field_slots(
         .unzip()
 }
 
+/// The name of the **entry** script frame: the top-level statements the
+/// runtime enters, which are `files[0]`'s ([`lower_program`]).
+///
+/// [`lower_program`] and [`lower_file`] take that name as a parameter rather
+/// than reading it here, so a caller lowering one file on its own can pick its
+/// own — but this is the spelling every caller in this workspace passes, and
+/// this constant is its **one home**. It has to have one, because the name is a
+/// contract between two crates: this one compiles the frame under it and an
+/// embedder looks the compiled function back up under the same string
+/// (`nvs_codegen::Unit::script`), with nothing in between to notice a typo but
+/// a `None` at run time.
+///
+/// `<` and `>` are what keep it out of a program's reach, the same job `#` and
+/// `$` do in [`file_script_label`]: neither is an identifier character, so no
+/// `Class::method` label a source declaration can produce collides with it.
+pub const ENTRY_SCRIPT_LABEL: &str = "<script>";
+
 /// The name of the script frame holding the file `id`'s own top-level
 /// statements — every file's but the entry's, whose frame keeps the name
 /// [`lower_program`]'s caller handed it.
