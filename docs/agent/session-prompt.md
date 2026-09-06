@@ -66,11 +66,12 @@ has read well before its window is full. `orient.py` starts you under 20k of it.
   and source reads took 53% of everything fetched — `python tools/loop-stats.py --attribute` is that
   number now.
 - **What is safe to delegate, and what is not.** Safe: *where is X*, *how many of Y are there*, *what
-  spelling does the corpus use*, over a tree you are not editing. Not safe, ever: writing anything;
-  reading a file you are about to edit; deciding a design question; judging whether a check passed;
-  the wrap. The handoff and the code must rest on what **you** read — a subagent's summary is a
-  pointer to verify, not evidence to commit. The one carve-out in this repository is
-  `dossier.py --partition`, which is a different protocol and says so.
+  spelling does the corpus use*, over a tree you are not editing — and sent as the read-only agent
+  type, `Explore`, which has no Edit or Write tool, so the boundary holds by construction rather than
+  by instruction. Not safe, ever: writing anything; reading a file you are about to edit; deciding a
+  design question; judging whether a check passed; the wrap. The handoff and the code must rest on
+  what **you** read — a subagent's summary is a pointer to verify, not evidence to commit. The one
+  carve-out in this repository is `dossier.py --partition`, which is a different protocol and says so.
 - **When you have two or three independent searches, send them in one message.** They then run
   concurrently and cost you one round trip instead of three, which is the wall-clock half of the win;
   the context half you get either way. Independent means neither one's prompt depends on the other's
