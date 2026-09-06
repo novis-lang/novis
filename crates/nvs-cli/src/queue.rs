@@ -3,7 +3,7 @@
 //!
 //! § 2 gives the runtime one jobs table and one dead-letter table and has them created from here and
 //! nowhere else: DDL is an injection sink and a privileged act
-//! ([ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)), so the runtime never
+//! (`rule:security/tainted-qualifier`), so the runtime never
 //! issues it at boot or from a request, and a queue's schema arrives by an operator running a
 //! command rather than by a request being served. This module is that command's front half — the
 //! configuration tree resolved, the `[db.<name>]` block proven, the driver read — and the

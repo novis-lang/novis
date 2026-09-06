@@ -236,7 +236,7 @@ that is not an error — allocates nothing for it.
 ### 6. Qualifiers: nothing new, and one refusal moved earlier
 
 - **`tainted` is unchanged.** A derived decoder assigns into declared property types and the ordinary
-  [ADR 0024](0024-taint-tracking-for-injection-sinks.md) assignment check applies, so a payload that carries
+  `rule:security/tainted-qualifier` assignment check applies, so a payload that carries
   the qualifier requires the fields that receive it to declare it — which is why `User` above declares
   `tainted string $name`. The rule is checked where the qualifier is statically known, which is the
   **call site**, not inside the codec: `Json::decodeAs<T>` over a `tainted string`, and every
@@ -246,7 +246,7 @@ that is not an error — allocates nothing for it.
   nothing.
 - **`secret` is refused at the declaration, not silently omitted.** A `secret` property on a class carrying
   `#[Json\Derive]` is a compile error naming
-  [ADR 0033](0033-secret-qualifier-for-confidential-values.md), with `skip: true` as the stated fix. This
+  `rule:security/secret-qualifier`, with `skip: true` as the stated fix. This
   does not add a sink — encoding was already one — it moves the report from wherever the value happened to
   reach the encoder to the declaration that put it on the wire contract, and it replaces a silent omission
   with a written one.
@@ -277,7 +277,7 @@ standing preference for a hard error over a suppressed one).
   (spec § 6). The encoding is structural, not derived: a shape's synthesized class is keyed on its field
   names alone, so it carries no per-field wire type a `CodecField` could hold, and each value is spelled by
   the tag it has. Key order is that class's, already sorted, so § 2's byte-determinism holds. A `secret`
-  field is refused at the call site rather than here, by ADR 0033 § 4's serialiser sink, because the
+  field is refused at the call site rather than here, by `rule:security/secret-sinks-refuse`'s serialiser sink, because the
   qualifier is inferred into the literal's type and never reaches a slot —
   [tests/conformance/reject/json-encode-refuses-a-secret.nvst](../../tests/conformance/reject/json-encode-refuses-a-secret.nvst)
   pins that position and
@@ -328,7 +328,7 @@ derive attribute pays nothing at all, including no pass.
   than once.
 - **`tainted` on decoded fields is friction at exactly the moment someone is trying to be quick.** Declaring
   `tainted string $email` on a DTO is one more thing to learn before the first payload decodes.
-  [ADR 0024](0024-taint-tracking-for-injection-sinks.md) already required it of hand-written hydration, so
+  `rule:security/tainted-qualifier` already required it of hand-written hydration, so
   nothing got worse — but the derive is where a newcomer meets it.
 - **Two `Field` attributes rather than one.** A class using both formats with the same renames writes the
   rename twice. The alternative forces the two names equal, which is worse, but the duplication is visible.

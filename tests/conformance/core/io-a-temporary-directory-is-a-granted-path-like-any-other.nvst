@@ -1,5 +1,5 @@
 --TEST--
-Core\IO::temporaryDir asks for `fs.write` on the path it is about to create, so a grant covering the working directory does not reach the temporary root — the member creates a name the program never wrote down and is still not exempt from the grant — ADR 0118 §§ 1-2, spec § 14
+Core\IO::temporaryDir asks for `fs.write` on the path it is about to create, so a grant covering the working directory does not reach the temporary root — the member creates a name the program never wrote down and is still not exempt from the grant — `rule:security/capability-question-is-grant-and-scope` and `rule:security/capability-check-at-the-door`, spec § 14
 --FILE--
 <?nvs
 // The bound this case names is the one that would be easy to get wrong in the

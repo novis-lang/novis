@@ -1,8 +1,8 @@
 --TEST--
-Core\Db::quoteIdentifier refuses every name that would need a delimiter to be legal, so nothing in its answer can end the identifier and start something else — ADR 0024 § 4
+Core\Db::quoteIdentifier refuses every name that would need a delimiter to be legal, so nothing in its answer can end the identifier and start something else — `rule:security/sink-predicate`
 --FILE--
 <?nvs
-// What laundering owes ADR 0024 § 4 is that the result cannot end the
+// What laundering owes `rule:security/sink-predicate` is that the result cannot end the
 // identifier and start something else. The member buys that with an alphabet
 // rather than with escaping: no quote, no backtick, no bracket, no space, no
 // dot, no semicolon and no comment opener survives, so there is nothing left in

@@ -1,4 +1,4 @@
-//! ADR 0088 § 4's sixth row: `echo` and a `Core\Response` body member on one
+//! `rule:security/response-body-is-one-typed-member`'s sixth row: `echo` and a `Core\Response` body member on one
 //! response is a compile error (`E0801`).
 //!
 //! Asserted from both ends, because the rule is as much about what it leaves

@@ -19,7 +19,7 @@
 //! rather than a second representation. The rejected alternative was a
 //! `Tag::Resource` handle into a per-request table: it buys native state
 //! directly and costs a second heap shape, a second release path, and a
-//! liveness rule every future `Core` class would have to restate. ADR 0052's
+//! liveness rule every future `Core` class would have to restate. `rule:security/closed-doors`'s
 //! closed door on stream wrappers is the same instinct — an engine-owned
 //! handle is a thing a program can hold and nothing can check.
 //!
@@ -544,7 +544,7 @@ mod tests {
     /// `echo $x` compile against, so a `mixed` holding one has to render at
     /// run time rather than throw. The two ways it can are the two rows of
     /// that check, and this asserts each class takes exactly one of them —
-    /// a carrier through ADR 0088 § 5's slot, everything else through the
+    /// a carrier through `rule:security/capture-answers-the-carrier`'s slot, everything else through the
     /// descriptor's own renderer.
     #[test]
     fn every_rendering_class_carries_a_renderer_or_is_a_carrier() {

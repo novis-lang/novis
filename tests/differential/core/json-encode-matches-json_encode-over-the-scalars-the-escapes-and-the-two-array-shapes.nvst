@@ -51,7 +51,7 @@ echo Core\Json::encode("unit\u{1f}sep"), "\n";
 // And the ones neither writer adds. `<`, `>`, `&` and `'` are escaped by
 // `json_encode` only under `JSON_HEX_TAG`, `JSON_HEX_AMP` and `JSON_HEX_APOS`,
 // which have no Novis spelling because they are HTML's escaping done in the
-// wrong layer — ADR 0024 § 3 puts that at the sink, in `Core\Html::escape`.
+// wrong layer — `rule:security/launderers-are-sink-named` puts that at the sink, in `Core\Html::escape`.
 // DEL is 0x7f, above the band JSON requires escaped, so both writers leave it
 // as the byte it is — and the terminal is a sink that would substitute it
 // (ADR 0086), so both sides spell it out before echoing.

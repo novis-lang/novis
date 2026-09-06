@@ -339,7 +339,7 @@ pub struct Unit {
     /// Handed to a context by [`Unit::install_in`].
     ///
     /// Shared rather than owned outright for the reason `classes` is: a context
-    /// armed from this list keeps it, so an ADR 0006 method-entry isolate of
+    /// armed from this list keeps it, so an `rule:security/isolate-shares-nothing` method-entry isolate of
     /// that context can arm itself against the same slot numbering with no unit
     /// in hand (`nvs_runtime::Ctx::method_isolate`).
     statics: std::rc::Rc<[Option<nvs_runtime::FieldDefault>]>,
@@ -655,7 +655,7 @@ impl Unit {
     ///    it over rather than an embedder building one. The list is **shared**
     ///    with the context, not copied into it, so a context can afterwards arm
     ///    a child against this unit's numbering with no `Unit` in hand — which
-    ///    is what an ADR 0006 method entry is
+    ///    is what an `rule:security/isolate-shares-nothing` method entry is
     ///    (`nvs_runtime::Ctx::method_isolate`, and `nvs_runtime::script`'s
     ///    module doc for why that needs no resolver).
     pub fn install_in(&self, ctx: &mut nvs_runtime::Ctx) {
@@ -1195,7 +1195,7 @@ impl Classes {
             self.table
                 .set_secret_fields(id, class.secret_fields.clone());
         }
-        // ADR 0019 § 2's visibility bit, at the one granularity a reflective
+        // `rule:security/reflection-enforces-visibility`'s visibility bit, at the one granularity a reflective
         // read can ask: the slot it is about to open. Guarded on the same length
         // agreement, for the same synthesized classes.
         if class.public_fields.len() == class.fields.len() && !class.public_fields.is_empty() {

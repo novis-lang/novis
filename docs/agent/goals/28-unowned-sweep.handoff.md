@@ -32,7 +32,7 @@ blocker.
       against each other.
 - [ ] **`Core\Queue`'s `$args` refuses a `secret`** — gap 2. `CoreTy::Mixed` carries no qualifier, so
       this needed a spelling rather than a line. A queued row is written to a database and read back by
-      another process, which is a sink by every test ADR 0033 applies.
+      another process, which is a sink by every test `rule:security/secret-qualifier` applies.
 
 ## Backlog
 
@@ -46,6 +46,5 @@ blocker.
   is presentation, never containment, so nothing about it lets a panic be recovered. `[limits]
   max_output` bounds a capture at `Core\Process` **and** `Core\IO::read`, which the module doc says the
   same signature closes — both or neither.
-- **Stage 5** rewrites `carried-gaps.md` § *Unowned* to what survives. One entry is expected to: ADR
-  0116's optional in-flight cycle collector, which is an **open decision rather than an unclosed gap**
+- **Stage 5** rewrites `carried-gaps.md` § *Unowned* to what survives. One entry is expected to: `rule:security/arena-is-an-ownership-root`'s optional in-flight cycle collector, which is an **open decision rather than an unclosed gap**
   and stays visible for exactly that reason.

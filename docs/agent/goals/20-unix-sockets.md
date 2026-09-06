@@ -5,7 +5,7 @@ that are one thing: the grant over a store an operator wrote stops naming a host
 store may be reached over a transport that has no host to name.
 
 Today `Core\Cache::shared()` asks `net.connect` at a host scope and then walks
-[ADR 0058](../../adr/0058-outbound-request-policy.md) § 3's denied-range table, so the ordinary
+`rule:security/net-address-policy`'s denied-range table, so the ordinary
 deployment — a Redis on loopback — has to write `net.connect` *and* `net.internal` for an endpoint only
 the operator ever named. That is the outcome § 3's own carve-out exists to prevent, missed because the
 carve-out named `[db.<name>]` and `[cache.shared]` was written after it. Fixing the question also

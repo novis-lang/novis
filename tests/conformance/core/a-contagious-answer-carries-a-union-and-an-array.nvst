@@ -1,5 +1,5 @@
 --TEST--
-a contagious member's `?string` answer taints the union's string member and leaves `null` alone, its `array<string>` answer taints the element, and a plain subject leaves both plain — ADR 0088 § 2
+a contagious member's `?string` answer taints the union's string member and leaves `null` alone, its `array<string>` answer taints the element, and a plain subject leaves both plain — `rule:security/unclassified-parameter-refuses-tainted`
 --FILE--
 <?nvs
 // The refused half -- declaring the plain `?string` or `array<string>` for

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Request::files` is the one member an uploaded part is received through: the walk binds a `Core\Request\Part` and no other body reader can be bound as one — ADR 0105 §§ 1-2, ADR 0012 § 7, spec § 15
+`Core\Request::files` is the one member an uploaded part is received through: the walk binds a `Core\Request\Part` and no other body reader can be bound as one — ADR 0105 §§ 1-2, `rule:security/request-state-throws-in-an-isolate`, spec § 15
 --FILE--
 <?nvs
 // ADR 0105 § 1's governing sentence is "there is one way to receive it", and
@@ -9,7 +9,7 @@
 // fails here while each member still reads plausibly on its own line.
 //
 // The superglobal half of the same rule is `a-superglobal-is-refused-and-names
-// -its-core-class` (ADR 0012 § 7); what is left to pin is that the `Core`
+// -its-core-class` (`rule:security/request-state-throws-in-an-isolate`); what is left to pin is that the `Core`
 // surface which replaced it has one door and not two.
 //
 // The line that is *not* in the error list below is the assertion. The walk

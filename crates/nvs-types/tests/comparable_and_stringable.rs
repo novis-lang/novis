@@ -240,7 +240,7 @@ fn a_class_implementing_stringable_converts_at_every_site_with_no_diagnostic() {
 ///
 /// Asked as an **agreement** over a table spanning both rows of that check —
 /// a class with a `toString` member, a sink carrier that renders through
-/// ADR 0088 § 5 with no member at all, and a `Core` class with neither —
+/// `rule:security/capture-answers-the-carrier` with no member at all, and a `Core` class with neither —
 /// because a checker that grew a roster of its own still looks right on any
 /// one of those lines. `nvs_stdlib::instance`'s
 /// `every_rendering_class_carries_a_renderer_or_is_a_carrier` asserts the

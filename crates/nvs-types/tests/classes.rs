@@ -449,7 +449,7 @@ class Config {
         "{diags:?}"
     );
 
-    // And ADR 0033 § 1's qualifier travels with the value: a folded constant
+    // And `rule:security/secret-qualifier`'s qualifier travels with the value: a folded constant
     // has lost it, so the declared type is the only thing left to check it
     // against, and a plain `string` slot is not it.
     let diags = check_src(

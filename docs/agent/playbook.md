@@ -584,7 +584,7 @@ is why" — is this file.
 - **A `Core` class can render as text without a `toString` row, and the second rule is
   `nvs_runtime::is_carrier`.** A refusal written off the registry's member rosters alone
   looks right, compiles, and then turns four green `Core\Out::capture` cases red at the
-  full verify: `Core\Cli\Text` is a **sink carrier**, so ADR 0088 § 5 renders it as the
+  full verify: `Core\Cli\Text` is a **sink carrier**, so `rule:security/capture-answers-the-carrier` renders it as the
   bytes it already holds — `value_to_string`'s own `Tag::Object` arm does it, asking for
   no member at all — and `Core\Html\Markup` is the other one. So "which `Core` classes
   render" is two rosters, not one; `nvs_stdlib::registry::class_renders` is where they
@@ -1186,7 +1186,7 @@ is why" — is this file.
   the obvious reading is that the slice owes one `#[test]` in `nvs-stdlib`. Stage 4 in
   `docs/agent/loop-goal.toml` has a *second* `cargo-named` check, over `-p nvs-types`, whose
   `a_verified_signature_does_not_launder_its_claims` had never been written and is the same slice's —
-  it is the only assertion that ADR 0060 § 5's qualifier reaches the signature at all. The orientation
+  it is the only assertion that `rule:security/verification-does-not-launder`'s qualifier reaches the signature at all. The orientation
   pack prints the item, not the stage, so the check costs one `grep -n -i <topic> docs/agent/loop-goal.toml`
   before starting: the driver stops at the first failure, so a named test left unwritten in a crate the
   item never mentions holds the whole acceptance list at that stage the way a misfiled fixture does.
@@ -1280,8 +1280,7 @@ is why" — is this file.
   can — and the ADR still wins.** The `Core\Mail` item said "its `net.connect` declaration beside it
   at `registry.rs:1392`", and `rule:programs/framework-core-half` says the endpoint is "named in root-owned `nvs.toml`
   under a **`mail.send`** capability, the shape 0067 established for outbound endpoints". Those are
-  not two spellings of one thing: `net.connect` is a grant over *hosts* with `Scope::Host` and ADR
-  0058 § 3's denied ranges applied, and `Core\Mail` reaches no host a program can name, so the row
+  not two spellings of one thing: `net.connect` is a grant over *hosts* with `Scope::Host` and `rule:security/net-address-policy`'s denied ranges applied, and `Core\Mail` reaches no host a program can name, so the row
   had to be a new `Cap` with `Scope::Name`. The handoff is state written by a session that had not
   read the section yet; the ADR is a decision. One `peek.py <adr>:"### N"` on every ADR § the item
   cites, *before* writing the row, is the whole check — and it is the same bullet as the
@@ -1304,7 +1303,7 @@ is why" — is this file.
 - **`nvs-stdlib`'s gates scan `io.rs`'s *prose*, not just its rows, and two of them read a doc
   comment as code.** `no_member_dispatches_on_a_uri_scheme` fails on the string `php://stdin` inside
   a reference card's `short` — the scan is for the scheme spelling anywhere in the module, because
-  ADR 0052 § 2 is that a path naming one is a file with that name, and a `-p nvs-stdlib --test
+  `rule:security/a-path-is-not-a-url` is that a path naming one is a file with that name, and a `-p nvs-stdlib --test
   capability` failure naming a line number in a doc comment reads like a code bug for a minute.
   Name what PHP's spelling *did* ("the standard-input wrapper") rather than writing it. Its sibling
   `no_registry_card_cites_an_adr` is the same shape one file over, and both fail a run that the
@@ -1427,7 +1426,7 @@ is why" — is this file.
   shell heredoc does not work — the backslash in `Core\Xml` is eaten before Python sees the pattern, and
   every class comes back missing, which reads as "01 names no classes at all".
 - **`cargo deny check`'s advisories leg can fail on a crate no session added, and the failure
-  arrives inside the diff of the one you just added.** Adding `bcrypt` for ADR 0129 made the first
+  arrives inside the diff of the one you just added.** Adding `bcrypt` for `rule:security/bcrypt-read-roster` made the first
   `cargo deny check` of that dependency print `advisories FAILED`, and the finding was
   `chacha20 0.10.1` — *yanked* upstream, in the tree since `chacha20poly1305` landed, and reached
   through `rand` as well. A yank is a fact about crates.io that changes under a tree nobody
@@ -1856,7 +1855,7 @@ is why" — is this file.
   docs is four edits, and the grep that found the gap is also the one that finds them.
 - **A `loop-goal.toml` check can name a crate that *depends* on the surface and still cannot host the
   test, and `Cargo.toml` will not settle it — what settles it is what kind of test that crate's
-  `tests/` already hold.** ADR 0088 § 4's `each_body_member_sets_its_own_content_type` was filed under
+  `tests/` already hold.** `rule:security/response-body-is-one-typed-member`'s `each_body_member_sets_its_own_content_type` was filed under
   `-p nvs-types` beside the `E0801` case it reads as a sibling of, and `crates/nvs-types/Cargo.toml`
   *does* name `nvs-stdlib`, so the neighbouring bullet's one-call manifest check passes and says
   nothing. It was still impossible: every case under `crates/nvs-types/tests/` compiles a source
@@ -2055,7 +2054,7 @@ is why" — is this file.
   `net.connect` wildcard because that capability "is asked of a *resolved address*
   (`capability.rs:87`)", and the acceptance check's own test name is
   `net_connect_takes_no_wildcard_because_it_is_asked_of_an_address`. `capability.rs:87` is
-  `denied_by_default`, which is ADR 0058 § 3's *address table* and a different question entirely:
+  `denied_by_default`, which is `rule:security/net-address-policy`'s *address table* and a different question entirely:
   `Cap::NetConnect`'s **grant** is asked of a hostname, at `crates/nvs-runtime/src/capability.rs:151`'s
   `pin_host`, before the name has been resolved at all. The ruling is pre-authorized and stands; its
   stated reason would have gone into a module doc as a sentence that is simply false, and a module doc
@@ -2536,7 +2535,7 @@ is why" — is this file.
   `$self` points at itself, and does it twice (the original and its decoded copy), so the sweep
   reported 48 bytes per ring with `graph::Reader::object` and `nvs_object_new` at the top of the two
   stacks. Nothing in `graph.rs` was wrong: Novis refcounts and has no cycle collector
-  (`crates/nvs-runtime/src/object.rs` § *Decision: no cycle collector*, and ADR 0116's *Consequences*
+  (`crates/nvs-runtime/src/object.rs` § *Decision: no cycle collector*, and `rule:security/arena-is-an-ownership-root`'s *Consequences*
   says the same of an isolate's teardown drain), so a self-referential object's last reference is its
   own field and dropping the local frees nothing. The fixture now breaks both rings by hand before it
   ends. A leak stack whose top frame is an object allocation is the shape to suspect — grep the `.nvs`
@@ -2579,11 +2578,11 @@ is why" — is this file.
   crate, and each costs a whole verification run to find.** The first is
   `registry::tests::no_registry_card_cites_an_adr`: `nvs meta --json` ships a card verbatim to a
   reader with no ADR tree, so a `short`, a `ret` or a `desc` may not cite one — not even a
-  parenthetical `(ADR 0024 § 1)` closing an otherwise self-contained sentence. State the fact and
+  parenthetical `(`rule:security/tainted-qualifier`)` closing an otherwise self-contained sentence. State the fact and
   leave the citation to the doc comment above the row. The second fires only on a row answering
   `CoreTy::TaintedStr`: `nvs_types::core_lib`'s `a_verified_signature_does_not_launder_its_claims`
   holds the **closed set** of members whose answer is qualified `tainted`, so a new one arrives as
-  a failure whose message is about ADR 0060 § 5 and JWT claims and reads like a regression in
+  a failure whose message is about `rule:security/verification-does-not-launder` and JWT claims and reads like a regression in
   neither. Widening it is the point — the set is where a promise invisible from every other row
   gets looked at — but the edit is in `crates/nvs-types`, which a `-p nvs-stdlib` loop never
   compiles.
@@ -2598,7 +2597,7 @@ is why" — is this file.
   why the driver never meets this and a session checking the example by hand does.
 - **An isolate reads the configuration in force where it was *spawned*, so an `[[app]]` block keyed
   on the child's own path never reaches it.** `Ctx::isolate` clones the parent's `Request` — that is
-  ADR 0006's overlay direction and its doc comment says so — and the snapshot was resolved once, for
+  `rule:security/isolate-shares-nothing`'s overlay direction and its doc comment says so — and the snapshot was resolved once, for
   the *entry* file, before the program started. So `[[app]] entry = "examples/logging/throws.nvs"`
   is dead configuration for `nvs run examples/logging.nvs`, however obviously it names the file that
   throws; the block that reaches a child is the one the **parent** matched. The related half is that
@@ -2998,7 +2997,7 @@ is why" — is this file.
   instrumented build before the third external measurement.
 - **A new `examples/*.nvs` acceptance fixture is a capability denial until the repository's own
   `nvs.toml` grants it, and the driver reports that as the fixture's *output* being wrong.**
-  `examples/tempdir.nvs` calls `Core\IO::temporaryDir`, which ADR 0118 § 1 denies by default, so the
+  `examples/tempdir.nvs` calls `Core\IO::temporaryDir`, which `rule:security/capability-question-is-grant-and-scope` denies by default, so the
   first run printed nothing on stdout and one `RuntimeError` line on stderr — an `exact` check would
   have read as "stdout was [], wanted [...]" with nothing pointing at the config. Every example that
   touches the operating system already has an `[[app]] entry = "examples/<name>.nvs"` block with the
@@ -3450,7 +3449,7 @@ is why" — is this file.
   square root of the *same* double and IEEE 754 requires them to agree — a property of the table, not of
   the host. The same test applies to any "these two spellings answer the same thing" float case.
 - **A `Core` member accepts a `tainted` argument wherever its row's mark says so, and what a case has to
-  get right is the declared type of the *answer*.** ADR 0088 § 2's classification reaches the checker
+  get right is the declared type of the *answer*.** `rule:security/unclassified-parameter-refuses-tainted`'s classification reaches the checker
   (`MethodSig::param_quals`), so a `Contagious`, `Neutral` or `Launder` parameter takes a tainted
   argument and only a `Sink` refuses one. A contagious call's answer then carries the qualifier through
   the atom, an array's element and every member of a union: `Core\Str::after($t, ",")` is
@@ -4533,7 +4532,7 @@ is why" — is this file.
 - **A `.nvst` case can carry its own `nvs.toml`, and once a capability guards a construct it has
   to.** ADR 0103 § 1 step 2 finds the configuration at `./nvs.toml` in the working directory, and
   the multi-file form writes files into the case's own directory — so `--FILE nvs.toml--` with
-  `[capabilities.script] spawn = true` is how a case that spawns keeps working under ADR 0118's
+  `[capabilities.script] spawn = true` is how a case that spawns keeps working under `rule:security/capability-check-at-the-door`'s
   deny-by-default. Putting the check inside `nvs_runtime::script::resolve` broke four cases at once
   (three under `tests/conformance/isolate/`, one under `task/`) and one `-p nvs-cli` unit test, and
   every one of them reported the *denial* rather than anything about the case, which reads as
@@ -4615,7 +4614,7 @@ is why" — is this file.
   `p()` in `crates/nvs-config/tests/request.rs` resolves `.` and `..` away so an ADR's `/a/b` spells
   itself host-natively, and reaching for the same helper in a case about a `..` escape hands
   `Capabilities::allows` a path that has already escaped — the assertion then passes on the
-  sibling-root rule and never on ADR 0118 § 4's canonicalise-then-prefix. It fails no test and looks
+  sibling-root rule and never on `rule:security/path-scope-canonicalise-then-prefix`'s canonicalise-then-prefix. It fails no test and looks
   right in review. `crates/nvs-config/tests/capability.rs` keeps the two apart: `raw()` is what the
   caller wrote, `lexical()` is what the filesystem answers, and only the fake `Files` may turn one
   into the other.
@@ -5108,7 +5107,7 @@ is why" — is this file.
   and a spawned child is a script.
 - **A `secret` cannot be measured from source, so a width invariant is asserted through the members
   bounded by it.** `Core\Bytes::length($key)` on a `secret bytes` is `E0401: expected bytes, found
-  secret bytes` — ADR 0033's qualifier does not widen downwards and no member reads a length off one,
+  secret bytes` — `rule:security/secret-qualifier`'s qualifier does not widen downwards and no member reads a length off one,
   so "every `Core\Crypto::generateKey` draw is 32 octets" is not writable as an equality at all. What a
   case can write is the behavioural half — every draw is accepted by the members that refuse every
   other width — with the width itself named separately over plain `bytes` candidates that widen *onto*
@@ -5544,7 +5543,7 @@ is why" — is this file.
   before the next statement — use a permanent table dropped on the way **in** (`DROP TABLE IF EXISTS`),
   since a failing assertion skips cleanup, and the matrix database is the driver's own. And the reset
   leaves `transaction_isolation_level` exactly where the last `transaction({isolation})` put it, which
-  `SELECT … FROM sys.dm_exec_sessions WHERE session_id = @@SPID` is what proves either way: ADR 0067 § 13
+  `SELECT … FROM sys.dm_exec_sessions WHERE session_id = @@SPID` is what proves either way: `rule:security/db-pool-reset-is-a-boundary`
   states the reset as a *property*, so where `sp_reset_connection` falls short of it the driver pays the
   difference — `crates/nvs-db/src/tds/plan.rs`'s `reset_session` now sends the restore itself. A pooled
   connection is the failure mode: the next request silently runs at `SERIALIZABLE`.
@@ -5646,8 +5645,8 @@ is why" — is this file.
   the same four bytes from `echo`, from `Core\Response::text` and from `Core\Response::bytes` and
   then counts `$a == $b` reports `agreed 0 of 2` *beside* an `on [body]` that shows all three
   agreeing. Nothing is wrong with the members; the comparison never asked about bytes. Interpolate
-  each into a `string` first — `string $s = "{$captured}";` renders the carrier through ADR 0088
-  § 5's `value_to_string` and `==` then compares content. The neighbouring `Core\Response` cases
+  each into a `string` first — `string $s = "{$captured}";` renders the carrier through `rule:security/capture-answers-the-carrier`
+  's `value_to_string` and `==` then compares content. The neighbouring `Core\Response` cases
   hide this by only ever printing a capture, so the corpus is no warning.
 - **A `Core` member whose answer no `.nvst` case can reach still owes three of them, so write the
   member's logic as a free function over the carrier and pin it twice.** Every `Core\Request`
@@ -5932,7 +5931,7 @@ is why" — is this file.
 - **A `-p nvs-cli` test whose program `spawn script`s needs a scheduler and a reactor on the
   thread, and `nvs_host::Isolate::run` on its own installs neither.** The two failures arrive one
   at a time and neither names the fixture: first ``  `spawn script` needs the capability
-  `script.spawn` ... which is not granted `` — ADR 0118 § 1 denies by default, and
+  `script.spawn` ... which is not granted `` — `rule:security/capability-question-is-grant-and-scope` denies by default, and
   `crates/nvs-cli/src/script.rs`'s `granting_ctx` is this crate's one spelling of the grant — and
   then, once that is past, `needs a scheduler on this thread and there is none`, which is
   `nvs_stdlib::script` refusing to spawn onto nothing. What closes it is exactly what `main`'s own
@@ -5967,7 +5966,7 @@ is why" — is this file.
   shape into a conformance case, where the outer run has none, fails with the throw escaping. The
   second half of the same surprise is that the trace's frame pointed at a line inside the `catch`
   block rather than at the `try`, so the message ("there is no request here — this program is not
-  answering one") is what identifies it and the line number is not. ADR 0012 § 7 is the rule; the
+  answering one") is what identifies it and the line number is not. `rule:security/request-state-throws-in-an-isolate` is the rule; the
   general shape is that "no request at all" is a *logic* error in this runtime and "the request sent
   nothing" is the runtime one.
 - **A `-p nvs-cli` runner fixture has no `nvs.toml`, so a `[db.<name>]` block is built in Rust —
@@ -6004,7 +6003,7 @@ is why" — is this file.
   a memory row, and that is the row which looks most load-bearing.** M7 asks for one suite run
   twice, so every row has to hold on both arms — and the obvious row, "the next run's ceiling and
   its arena are its own", is right across a request boundary and *wrong* across an isolate one:
-  [ADR 0006](../adr/0006-isolated-script-execution.md) gives a child isolate its parent's budget, so
+  `rule:security/isolate-shares-nothing` gives a child isolate its parent's budget, so
   a child reporting a fresh `Ctx::memory_limit` would be the bug rather than the pass. What
   parameterises is the state an ADR says is *never* shared — the carrier, the body, the declared
   response head, the response buffer — and each of those is plantable by the door or by a program
@@ -6904,8 +6903,8 @@ sibling in the same namespace unqualified.
   then fails `cargo doc` with `-D rustdoc::broken_intra_doc_links` — a whole verify run spent on a
   four-character edit. Before renaming a `pub` item, `grep -n "Self::<oldname>\|\[\`<oldname>\`\]"` over the
   crate: an intra-doc link is invisible to every other tool in the gate.
-- **A new `CoreTy` variant that *wraps* another type silently falsifies seven walkers, and ADR 0088
-  § 2's classification is a leaf variant because of it.** Every recursive `match` over `CoreTy` in
+- **A new `CoreTy` variant that *wraps* another type silently falsifies seven walkers, and `rule:security/unclassified-parameter-refuses-tainted`
+  's classification is a leaf variant because of it.** Every recursive `match` over `CoreTy` in
   `crates/nvs-stdlib/src/registry.rs` — `collect_written`, and the six inside `mod tests` — ends
   `_ => {}` under a comment saying "a variant that carries no nested type carries no variable
   either". `CoreTy` is `#[non_exhaustive]`, so nothing outside errors either, and a
@@ -6953,7 +6952,7 @@ sibling in the same namespace unqualified.
   gets dropped, and `crates/nvs-ir/src/lower/tests.rs`'s
   `a_resolved_route_link_releases_its_params_array` is the assertion shape that pins one — find
   the call's own argument `ValueId` and require a `Release` of *it*, never a count of releases.
-- **Classifying a `Core` class can break that class's *own* structural unit test, and the ADR 0088
+- **Classifying a `Core` class can break that class's *own* structural unit test, and the `rule:security/sink-predicate`
   ratchet says nothing about it.** `Core\Test`'s nine rows share one `MESSAGE: &[CoreOption]`, so
   marking the bag is a single edit — and `test::tests::the_only_option_is_a_message_that_defaults_to_absent`
   asserts `matches!(bag[0].ty, CoreTy::Str)` over every one of them, which
@@ -7103,7 +7102,7 @@ sibling in the same namespace unqualified.
   `address_of` is not enough, and the failure is a Cranelift panic at *run* time reading
   `can't resolve symbol nvs_core_script_spawn`, long after everything has compiled and every test
   in the crate has passed. `symbols()` walks `registry::CLASSES` and `CONSTRUCTORS`, so a member with
-  a row is found for free; a rowless symbol — ADR 0077's two prepared link entry points, ADR 0006's
+  a row is found for free; a rowless symbol — ADR 0077's two prepared link entry points, `rule:security/isolate-shares-nothing`'s
   `spawn script` and `await` — needs its own `.chain([...])` there beside `address`'s arm. Two
   registrations, not one, and the second has no compile-time gate at all.
 - **The live graph carrier keeps the source object's descriptor, so `rule:classes/graph-copy`'s *unresolvable class* has no counterpart there until someone hands it a receiving table.** `decode` resolves a class by name and refuses one the program does not declare; `copy_graph` never resolved anything, because both sides of a `clone` are one program. At the isolate boundary they are not — `nvs-cli` compiles one unit per written path — so the rule had to be added rather than found: `copy_graph_into(value, Some(&resolve))` and `Live::admit`. Do not read a refusal in `graph.rs` as covering both carriers; the `Carrier` trait is the list of what they share.
@@ -7195,7 +7194,7 @@ sibling in the same namespace unqualified.
   it.** `check_array_literal` (`crates/nvs-types/src/expr/literals.rs:718`) joins nothing: with no
   expectation on it a literal infers `array<mixed>`, so `Core\Json::encode(["token" => $secret])`
   compiles while `Core\Json::encode($secret)` and a declared `array<secret string>` are both refused
-  by the same rule. That is ADR 0033's unmodelled container axis, not a hole in the sink — the bit is
+  by the same rule. That is `rule:security/secret-qualifier`'s unmodelled container axis, not a hole in the sink — the bit is
   lost at the literal, and a call-site walk could not recover it one variable later anyway. So a
   refusal written over the argument's *type* is right and it is not the whole of § 4's "anywhere in
   the value it walks": probe the container spelling with a scratch `.nvs` before writing the case
@@ -7332,7 +7331,7 @@ sibling in the same namespace unqualified.
   `std::fs`, `std::process::Command`, `std::env::var` and six more — so a member that reads an
   environment variable fails it while `std::io::stdin().is_terminal()` and a raw `libc::ioctl`
   beside it pass unremarked. Neither the pass nor the fail is a judgement about capabilities:
-  ADR 0118 § 2's rule is that the *reaching* lives in `nvs-runtime`, and the answer to a failure is
+  `rule:security/capability-check-at-the-door`'s rule is that the *reaching* lives in `nvs-runtime`, and the answer to a failure is
   a module there, **not** a `registry::CAPABILITIES` row. `nvs_runtime::terminal` is the shape —
   a module beside `capability` rather than inside it, because a door that asks no `Cap` is not a
   door. Writing the OS half in `nvs-stdlib` first and moving it afterwards costs a whole rewrite of
@@ -7460,7 +7459,7 @@ sibling in the same namespace unqualified.
 - **A row answering a qualified type joins a closed roster in another crate, and the failure names
   neither your row nor the rule.** `nvs_types::core_lib`'s
   `a_verified_signature_does_not_launder_its_claims` pins the *set* of members whose return type
-  contains `tainted` — ADR 0060 § 5's point being that a member promising it is invisible from
+  contains `tainted` — `rule:security/verification-does-not-launder`'s point being that a member promising it is invisible from
   every row but its own — so `Core\Cli::ask` and `::secret` arrived as a two-line set diff in
   `-p nvs-types --lib` with nothing pointing back at `cli.rs`. The sibling
   `reveal_and_the_password_helpers_are_the_only_launderers_of_secret` is the same shape on the
@@ -7704,7 +7703,7 @@ sibling in the same namespace unqualified.
 - **A `Core` member's registry row has two gates that `conventions.md`'s five edits do not name, and
   both fire only under `cargo test -p nvs-stdlib --lib`.** `CoreTy::Str` reads as the sanctioned
   parameter spelling — its own doc comment says "in parameter position is not a default but a state:
-  ADR 0088 § 2 makes it refuse a `tainted` argument", which is exactly what a column name or a key
+  `rule:security/unclassified-parameter-refuses-tainted` makes it refuse a `tainted` argument", which is exactly what a column name or a key
   wants — and `every_member_parameter_carries_a_qualifier_classification` refuses it anyway: a
   `string`/`bytes` *parameter* is `CoreTy::Text(Qual::…)`/`Blob(Qual::…)` or the member goes on that
   test's `UNCLASSIFIED` roster. For a name that is only ever a lookup key the mark is
@@ -7905,7 +7904,7 @@ sibling in the same namespace unqualified.
   is full at `E0499` and `E07xx` — the band that was opened when `E04xx` filled — is full at
   `E0799`, and `python tools/brief.py` prints both as `FULL` rather than as a next number, which
   is easy to read past when you are scanning for one. A rule the checker has to enforce therefore
-  either reuses an existing code whose message it can honestly rewrite (ADR 0133's carrier refusal
+  either reuses an existing code whose message it can honestly rewrite (`rule:security/launderer-answers-a-carrier`'s carrier refusal
   reuses `E_CORE_CLASS_NOT_STRINGABLE`, whose subject really is "this class is not text") or waits
   on a decision about the band layout, which is an ADR and not a line in a checker. Do not invent
   an `E08xx`: `E09xx` is internal compiler errors, so a third types band is a change to
@@ -8077,7 +8076,7 @@ sibling in the same namespace unqualified.
   (`crates/nvs-stdlib/src/env.rs:109`, `cap.rs:79`, `out.rs:66`); `address` is `pub(crate)` in all of
   them for the same reason.
 - **`CoreTy::Text(Qual::Contagious)` on a `void` member *refuses* the tainted argument the ADR
-  says it admits, and the ADR's word for a row is not always the enum's case.** ADR 0088 § 4
+  says it admits, and the ADR's word for a row is not always the enum's case.** `rule:security/response-body-is-one-typed-member`
   calls `Core\Response::text`'s body "contagious", but `nvs_types`' `admits_tainted_argument`
   (`crates/nvs-types/src/expr/quals.rs:288`) reads `Contagious` as "admits `tainted` only where
   the *return type* can carry the bit back out" — so a `void` row marked that way gives
@@ -8086,7 +8085,7 @@ sibling in the same namespace unqualified.
   A writer that answers nothing and takes what it is given is `Qual::Neutral`, which is what
   `Core\Cli::write`'s `string` arm has been all along (`crates/nvs-stdlib/src/cli.rs:435`).
 - **An ADR's compile error can be stated over a thing the compiler cannot see, and the corpus tells
-  you before the build does.** ADR 0088 § 4's sixth row — "`echo` and a typed writer on the same
+  you before the build does.** `rule:security/response-body-is-one-typed-member`'s sixth row — "`echo` and a typed writer on the same
   response is a compile error" — reads as a rule about a *body*, and implementing it that way refuses
   nine landed `.nvst` cases at once: every case that observes `Core\Response::text` is a CLI script
   that also echoes, and two of them exist precisely to pin that the two writers share one output. The
@@ -8267,7 +8266,7 @@ sibling in the same namespace unqualified.
   `crates/nvs-server/src/serve.rs:709` — the line where a request ends with "its `Ctx` still live" —
   and that `ctx.borrow_mut()` is the **connection's** context. The request is a root isolate, so
   `Core\Session::start` opened the record on the *isolate's* `Ctx`, which `nvs-host` builds and drops
-  inside `isolate::finish` (ADR 0116 § 2) and which the door never sees. Adding the missing
+  inside `isolate::finish` (`rule:security/isolate-teardown-is-a-drain-then-a-sweep`) and which the door never sees. Adding the missing
   `nvs-stdlib` dependency to `nvs-server` would not have repaired it: it would have bought the wrong
   context with a new edge. The neighbouring bullets ask which crate *can* host a thing; this asks
   which `Ctx` is the one being talked about, and the one-call test is `peek.py
@@ -8323,7 +8322,7 @@ sibling in the same namespace unqualified.
   `arity` and `param_tags`, and the resolved call has `param_tys`, `inout`, `variadic` and
   `defaults` — everything a positional call needs and nothing a map keyed by name does, because
   every existing site binds names to positions in `nvs_types::expr::calls` and lowers the result.
-  So a feature that binds a *runtime* map to a callee's parameters (ADR 0006's `args:`, and
+  So a feature that binds a *runtime* map to a callee's parameters (`rule:security/isolate-shares-nothing`'s `args:`, and
   anything shaped like it) has to record the names somewhere new and emit them from the lowering;
   it is not a read the helper can make from the class descriptor it already reaches through
   `Ctx::class_desc`. The other half of the same fact is what makes a short argument list unsound
@@ -8480,7 +8479,7 @@ sibling in the same namespace unqualified.
   `front_end` is a two-line change that compiles. It would also have broken
   `tests/conformance/core/db-open-asks-the-grant-about-the-host-and-then-the-address.nvst`, which
   writes `[capabilities.db] open = ["127.0.0.1"]` into the case directory and expects the *runtime*
-  refusal its program catches — ADR 0118 § 5's denial the program is still running underneath.
+  refusal its program catches — `rule:security/denial-is-a-runtime-error`'s denial the program is still running underneath.
   `crates/nvs-test/src/run.rs`'s module doc is why: every case spawns the real binary with the case
   directory as its working directory, so ADR 0103 § 1 step 2 finds that file exactly as a user's
   would. The general shape: hoisting a runtime refusal to compile time is a language change wherever
@@ -8797,7 +8796,7 @@ every session. Nothing below was reworded on the way.
 - **Both encoding members count their reported offset in bytes**, asserted over eight positions in
   turn on each side, which is the one thing the two messages have to agree about since a caller
   uses one to index what it handed the other; and `encodeText`'s quoted operand is bounded on both
-  sides of 32 characters, ADR 0088's register being why it is bounded at all. `at`'s accepted set
+  sides of 32 characters, `rule:security/sink-predicate`'s register being why it is bounded at all. `at`'s accepted set
   is exactly the 2n indices from -n to n-1 and nothing else, over sixteen spanning both bounds, and
   the length it reports agrees with `Core\Str::length` on six subjects whose byte and cluster
   counts diverge in different places.

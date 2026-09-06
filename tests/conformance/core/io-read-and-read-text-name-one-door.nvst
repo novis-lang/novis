@@ -1,5 +1,5 @@
 --TEST--
-Core\IO::read and ::readText refuse an ungranted path identically, each naming `fs.read` for it, counted over a sweep of present, absent and impossible paths — and a file whose octets are not the charset asked for is still refused as a capability rather than as a conversion, so nothing about a file's contents is learnable without the grant that covers it — ADR 0118 §§ 1-2, spec § 14
+Core\IO::read and ::readText refuse an ungranted path identically, each naming `fs.read` for it, counted over a sweep of present, absent and impossible paths — and a file whose octets are not the charset asked for is still refused as a capability rather than as a conversion, so nothing about a file's contents is learnable without the grant that covers it — `rule:security/capability-question-is-grant-and-scope` and `rule:security/capability-check-at-the-door`, spec § 14
 --FILE--
 <?nvs
 // The claim is an agreement: two members that share one door say the same thing

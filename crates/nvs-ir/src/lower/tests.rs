@@ -3685,7 +3685,7 @@ echo Adder::sum(Adder::bump(inout $n), $n);
     assert_snapshot!(text);
 }
 
-/// ADR 0033 § 5: `==` over two `secret` operands is the constant-time
+/// `rule:security/secret-comparison-is-constant-time`: `==` over two `secret` operands is the constant-time
 /// helper, and an unqualified pair of the same representation is still
 /// the ordinary `BinOp::Eq` that `nvs-codegen` turns into `nvs_str_eq`.
 ///
@@ -3716,7 +3716,7 @@ bool $openly = $plain == $other;
     assert_eq!(text.matches("= eq ").count(), 1, "{text}");
 }
 
-/// The `bytes` base of the same rule, and `!=` — ADR 0033 § 1 puts the
+/// The `bytes` base of the same rule, and `!=` — `rule:security/secret-qualifier` puts the
 /// qualifier on both bases, and `Helper::SecretEq` answers `!=` under a
 /// `UnOp::Not` rather than through a second helper, the arrangement
 /// `Helper::NumericEq` already uses. A `!=` that had grown its own
@@ -3933,7 +3933,7 @@ fn a_spawn_lowers_to_a_task_on_the_current_core() {
     assert_eq!(
         const_str(output).as_deref(),
         Some("capture"),
-        "the third argument is ADR 0006's captured-by-default sink: {}",
+        "the third argument is `rule:security/isolate-shares-nothing`'s captured-by-default sink: {}",
         print_function(&f, map.file(file))
     );
     let released_in = |b: &crate::ir::BasicBlock, v: ValueId| {

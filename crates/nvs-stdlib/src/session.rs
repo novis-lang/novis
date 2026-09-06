@@ -34,10 +34,10 @@
 //!
 //! **Not the door.** The obvious reading of § 4 puts the send in `nvs-server`, at the line where a
 //! request's response is collected — and the door does not have the record. A request is a root
-//! isolate ([ADR 0006](/docs/adr/0006-isolated-script-execution.md)), so
+//! isolate (`rule:security/isolate-shares-nothing`), so
 //! `Core\Session::start` opened the session on the *isolate's* context, which is built and dropped
-//! inside `nvs-host` ([ADR 0116](/docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
-//! § 2) and is nothing the connection's own context can reach. Giving `nvs-server` a dependency on
+//! inside `nvs-host` (`rule:security/isolate-teardown-is-a-drain-then-a-sweep`
+//! ) and is nothing the connection's own context can reach. Giving `nvs-server` a dependency on
 //! this crate would not have fixed that; it would have bought the wrong context with a new edge.
 //!
 //! **Not a method on `nvs_runtime::host::Host`.** That trait is the seam a `Core` member reaches
@@ -140,7 +140,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             names: &["presented"],
             // `?tainted string` as this registry spells it: `Nullable` for the `?`, and
             // `Text(Qual::Neutral)` for the rest — `CoreTy::TaintedStr` is return position only,
-            // and a `Qual` is what says a `tainted` argument is admitted here (ADR 0088 § 2). It
+            // and a `Qual` is what says a `tainted` argument is admitted here (`rule:security/unclassified-parameter-refuses-tainted`). It
             // is admitted because § 2's strict-id rule makes the value a lookup key and never an
             // instruction: what the store did not issue is absent, whatever it was.
             params: &[CoreTy::Nullable(&CoreTy::Text(Qual::Neutral))],
@@ -154,7 +154,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             names: &["key"],
             // `Qual::Neutral` on the key, which is `Core\Cache\Store::get`'s judgement over the
             // same boundary: not a byte of it reaches the answer, and a record key derived from
-            // the request is data rather than an instruction (ADR 0088 § 2).
+            // the request is data rather than an instruction (`rule:security/unclassified-parameter-refuses-tainted`).
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             // `mixed` rather than `rule:core-api/shape-rules` R7's `?T`: what went in is any value the byte carrier

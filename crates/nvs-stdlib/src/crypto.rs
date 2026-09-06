@@ -45,7 +45,7 @@
 //! plaintext had, then [`TAG_LEN`]. The overhead is [`OVERHEAD`] octets flat,
 //! and the layout is not a format anything else parses: nothing outside this
 //! module reads a field of it, and a program that wants an interchange format
-//! wants a protocol from [ADR 0060](/docs/adr/0060-application-security-protocols.md)'s
+//! wants a protocol from `rule:security/protocol-roster`'s
 //! roster rather than this member's output. Stating it here is so that the
 //! *size* is predictable, not so that it is depended on.
 //!
@@ -78,7 +78,7 @@
 //! [`generateKey`](nvs_core_crypto_generate_key) answers
 //! [`CoreTy::SecretBytes`] and both other members declare
 //! [`CoreTy::SecretBlob`], which is a **qualifier written into the row** rather
-//! than one of ADR 0088 § 2's classifications — that variant's own docs are the
+//! than one of `rule:security/unclassified-parameter-refuses-tainted`'s classifications — that variant's own docs are the
 //! home of the difference. Two things follow, and they are the reason this
 //! class was worth waiting for the spelling. A program cannot put a generated
 //! key in a plain `bytes` variable: the assignment narrows a qualifier and the
@@ -96,15 +96,15 @@
 //! and a program that means to encrypt one writes
 //! `Core\Secret::revealBytes($plaintext, "sealed under a key the store cannot
 //! read")`. That reads like friction and is the mechanism: turning a secret
-//! into bytes that leave this process is the one event ADR 0033 exists to make
+//! into bytes that leave this process is the one event `rule:security/secret-qualifier` exists to make
 //! greppable, and encryption is not an exemption from it — it is the case it
 //! was written for.
 //!
 //! # This construction has one home, and two classes are on the near side of it
 //!
 //! [`cipher`], [`seal_under`] and [`open_under`] are `pub(crate)`, and
-//! [`crate::signed_cookie`] — [ADR 0060](/docs/adr/0060-application-security-protocols.md)
-//! § 1's first roster entry — is their second caller. That is what makes a
+//! [`crate::signed_cookie`] — `rule:security/protocol-roster`
+//! 's first roster entry — is their second caller. That is what makes a
 //! signed cookie *this* AEAD with a key ring over it rather than a second
 //! construction with its own nonce policy and its own opinion about tags: there
 //! is exactly one `XChaCha20Poly1305::new_from_slice` in `nvs-stdlib`, and
@@ -298,7 +298,7 @@ fn bytes_of<'a>(args: &'a [Value], index: usize, member: &str) -> Result<&'a [u8
 /// The construction keyed by `key`, or `None` for a `bytes` that is not a key.
 ///
 /// The one place in this tree a key becomes a cipher. [`crate::signedcookie`]
-/// reads it too, which is what makes ADR 0060 § 1's cookie entry *this*
+/// reads it too, which is what makes `rule:security/protocol-roster`'s cookie entry *this*
 /// construction with a key ring over it rather than a second one: there is one
 /// `XChaCha20Poly1305::new_from_slice` in `nvs-stdlib` and both classes are on
 /// the near side of it.

@@ -2,7 +2,7 @@
 `Core\Response::setHeader` puts no byte in the body, and setting one name twice is admitted rather than refused as a duplicate -- spec § 15
 --FILE--
 <?nvs
-// Like `setStatus` and unlike ADR 0088 § 4's five body members: this one
+// Like `setStatus` and unlike `rule:security/response-body-is-one-typed-member`'s five body members: this one
 // declares and writes nothing. That is why `E0801` does not reach it, and why
 // an `echo` beside it is the ordinary spelling rather than two writers
 // disagreeing about what the body is.

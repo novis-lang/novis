@@ -105,7 +105,7 @@
 //!
 //! # What these members do with a qualifier
 //!
-//! ADR 0088 § 2's classification, and this class is the flat case: **every
+//! `rule:security/unclassified-parameter-refuses-tainted`'s classification, and this class is the flat case: **every
 //! member answers `void`, so every one of them is [`Qual::Neutral`] in every
 //! parameter** — the `Qual` enum's own first bullet, with a return type that
 //! carries even less than the `bool` that bullet is written about. Two of them
@@ -121,7 +121,7 @@
 //!   own.
 //! * **`assertThrows`'s `$expected` is not [`Qual::Sink`] either.** It is a
 //!   class name matched by [`nvs_runtime::Ctx::pending_conforms_to`], and
-//!   [`Qual::Sink`] is ADR 0088 § 1's predicate — content that becomes an
+//!   [`Qual::Sink`] is `rule:security/sink-predicate`'s predicate — content that becomes an
 //!   instruction something executes, which on disk is `rule:core-api/shape-rules` R11's four
 //!   grammars plus `Core\IO`'s paths, where `..` and the separators direct the
 //!   resolver. A name matched
@@ -410,7 +410,7 @@ pub(crate) const RESPONSE: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             // Not `tainted`: the bytes are what the *program under test* wrote,
-            // which is its own output and not the peer's input. ADR 0024's
+            // which is its own output and not the peer's input. `rule:security/tainted-qualifier`'s
             // qualifier travels with what arrived, and nothing that arrived
             // reaches this without the program having put it there.
             return_ty: CoreTy::Str,

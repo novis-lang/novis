@@ -13,7 +13,7 @@ class Point {
 var $described = Core\Reflect::forObject(new Point());
 echo $described->name(), "\n";
 
-// ADR 0019 § 2: the walk faces the visibility ordinary code faces, so the
+// `rule:security/reflection-enforces-visibility`: the walk faces the visibility ordinary code faces, so the
 // `private` slot is not one of the three it could have named. Asserted as a
 // count *and* as the names, because a walk that dropped the wrong one counts
 // two either way.

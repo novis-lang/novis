@@ -1,5 +1,5 @@
 --TEST--
-Core\IO::append names `fs.write` for an ungranted path and refuses at the door — the name it was pointed at is still absent afterwards and the file that was already there still holds what it held — ADR 0118 §§ 1-2, spec § 14
+Core\IO::append names `fs.write` for an ungranted path and refuses at the door — the name it was pointed at is still absent afterwards and the file that was already there still holds what it held — `rule:security/capability-question-is-grant-and-scope` and `rule:security/capability-check-at-the-door`, spec § 14
 --FILE--
 <?nvs
 // `fs.read` covers this directory and `fs.write` covers nothing, so the two

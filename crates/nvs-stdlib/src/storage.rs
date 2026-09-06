@@ -40,8 +40,8 @@
 //! this class encodes it in the key it hands us.
 //!
 //! Because the grammar refuses rather than repairs, `$key` accepts a `tainted` argument freely —
-//! it is data in [ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
-//! § 7's sense, and storing a file a user named is the ordinary case. `$disk` is the opposite and
+//! it is data in `rule:security/log-is-not-a-sink`
+//! 's sense, and storing a file a user named is the ordinary case. `$disk` is the opposite and
 //! is the one [`Qual::Sink`] here, for [`crate::mail`]'s `$endpoint` reason: it selects between
 //! deployments an operator wrote, so it belongs at the call site and never in input. *Which*
 //! objects a caller may reach among those the grant covers is authorization, which is the

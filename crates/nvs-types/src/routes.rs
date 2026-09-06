@@ -59,7 +59,7 @@
 //! asked by the same walk that finds the `#[Route]` ([`check_access_declared`]);
 //! § 1a's one-per-method rule is a question about that list as a whole and so
 //! is [`check_one_access`], from the walk that visits every method's list. The
-//! decision itself rides on the row as [`Route::access`], because ADR 0102 § 8
+//! decision itself rides on the row as [`Route::access`], because `rule:security/access-is-checked-for-presence-not-meaning`
 //! leaves enforcement to whoever dispatches. § 4's `csrf` opt-out is a question
 //! about a *method's* verbs rather than a row's — one `#[Access]` covers every
 //! `#[Route]` the method carries — and so is [`check_csrf_opt_out`], from the
@@ -130,7 +130,7 @@ const EXAMPLE: &str = "example";
 const STATUS: &str = "status";
 const TYPE: &str = "type";
 
-/// The four verbs ADR 0096 § 4 turns CSRF on for, named once: [`CSRF`] is an
+/// The four verbs `rule:security/csrf-is-on-by-default` turns CSRF on for, named once: [`CSRF`] is an
 /// opt-out from *these*, and [`check_csrf_opt_out`] is the only reader.
 ///
 /// Spelled as [`verb_of`] answers — the enum case's own name — because that is
@@ -212,7 +212,7 @@ pub(crate) fn check_access(attr: &Attribute, env: &mut Env<'_>) {
             )
             .with_primary(value.span, "this names nothing that could resolve")
             .with_help(
-                "ADR 0096 § 2 never asks what a decision means, so what it asks instead is that \
+                "`rule:security/access-is-checked-for-presence-not-meaning` never asks what a decision means, so what it asks instead is that \
                  the name resolves: an enum case or a class constant, as `Role::Admin` or \
                  `Audience::Public`",
             ),
@@ -345,8 +345,8 @@ pub struct Route {
     pub params: Vec<RouteParam>,
     /// `rule:attributes/access-is-a-required-sibling`'s access decision, as the name it resolves to —
     /// `Core\Audience::Public`, `App\Role::Admin` — because
-    /// [ADR 0102](/docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
-    /// § 8 leaves enforcement to whoever dispatches. The decision has to cross
+    /// `rule:security/access-is-checked-for-presence-not-meaning`
+    /// leaves enforcement to whoever dispatches. The decision has to cross
     /// into `nvs-ir` on the row for that reason, exactly as [`Self::params`]
     /// does, and it is resolved here rather than left as written because a name
     /// depends on the file's imports and the row outlives the walk over that
@@ -681,7 +681,7 @@ fn csrf_of(access: Option<&Attribute>, env: &mut Env<'_>) -> bool {
     )
 }
 
-/// ADR 0096 § 4's opt-out, held to the thing it opts out of: `csrf: false`
+/// `rule:security/csrf-is-on-by-default`'s opt-out, held to the thing it opts out of: `csrf: false`
 /// beside a method whose every `#[Route]` names one of the verbs outside
 /// [`UNSAFE_VERBS`].
 ///
@@ -733,7 +733,7 @@ fn check_csrf_opt_out(access: &Attribute, m: &MethodMember, ctx: &Ctx<'_>, env: 
         )
         .with_primary(span, "every `#[Route]` on this method names a safe verb")
         .with_help(
-            "ADR 0096 § 4 turns CSRF on for `Post`, `Put`, `Patch` and `Delete` and for no other \
+            "`rule:security/csrf-is-on-by-default` turns CSRF on for `Post`, `Put`, `Patch` and `Delete` and for no other \
              verb — delete the field, or write it on the route that is actually unsafe",
         ),
     );
@@ -885,7 +885,7 @@ pub(crate) fn check_stray_access(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<
 /// declares one yet — there is no configuration surface for a security scheme
 /// anywhere, which `crates/nvs-cli/src/openapi.rs`'s own gap list already
 /// records. Refusing every name against an empty roster would refuse `rule:attributes/api-adds-and-cannot-contradict`'s own example, so what stands here today is the shape and the name is
-/// carried uninterpreted, exactly as ADR 0102 § 8 carries an access decision.
+/// carried uninterpreted, exactly as `rule:security/access-is-checked-for-presence-not-meaning` carries an access decision.
 /// The comparison lands in this function, unchanged, on the day a scheme has a
 /// home.
 ///

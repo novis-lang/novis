@@ -39,7 +39,7 @@ request reader's answer being `mixed`. ADR 0140 gives `Core\Arr` one converter f
 declared shape and `Core\Request` the two members over it, so untrusted data is checked once, where it
 arrives and where a `400` is still the right answer. Its stage 2 is type-surface work the other two need
 nothing of and everything before it would have had to write twice — `rule:types/shape-type`'s shape gains an
-optional field, and ADR 0024 § 1's qualifier learns to sit in front of one — which is why it comes after
+optional field, and `rule:security/tainted-qualifier`'s qualifier learns to sit in front of one — which is why it comes after
 the other two.
 
 **Then a fourth**: [19 parses](19-parses.md) is the one the user asked for after that conversation ended.
@@ -66,7 +66,7 @@ drivers. It goes in front of the dossier because that entry stops adding surface
 rather than on the end, because goal 6 going green is what *makes* the problem they close.
 [21 carried-gaps](21-carried-gaps.md) takes every gap a shipped feature already carries that no entry on
 this chain claimed: an ADR-written `db.open` wildcard with no reader, `nvs check` never building the
-grants its own diagnostic needs, a cycle closed through an array surviving ADR 0116 § 2's sweep, ADR
+grants its own diagnostic needs, a cycle closed through an array surviving `rule:security/isolate-teardown-is-a-drain-then-a-sweep`'s sweep, ADR
 0076 § 6's four missing log-record fields, ADR 0073 § 3's unarmed fleet lease, spec § 18's
 `stream`/`streamAs`, two rules that were waiting on a diagnostic band that has since opened, and the
 CLDR rosters that throw. Its keystone is the mechanism rather than any of those: an outstanding-members
@@ -95,7 +95,7 @@ blocker — an options bag the registry could not spell, which is what goal 18 l
 surface rather than closing one. [29 signed-urls](29-signed-urls.md) is
 `rule:core-api/signing-is-over-a-payload`: Novis could
 sign a cookie and a JWT and could not sign a link, which is what a password reset, an unsubscribe, a
-download and a tamper-proof AJAX endpoint all are. It lands `Core\Signature` — ADR 0060's fifth and
+download and a tamper-proof AJAX endpoint all are. It lands `Core\Signature` — `rule:security/protocol-roster`'s fifth and
 final roster entry, over a payload map — and the two doors onto it, `$uri->sign` and `Core\Router`'s
 pair. Its whole argument is that it invents **no** canonical form: `$uri->sign` signs what
 `$uri->compareTo` already normalizes, which is where every other language's version of this feature has
@@ -151,7 +151,7 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [11 doc-comments](11-doc-comments.md) | post-parity, ADR 0137 + M4B's tree half | `nvs-syntax`, `nvs-diagnostics`, `nvs-hir`, `nvs-cli` |
 | [12 resilient-tree](12-resilient-tree.md) | M4B, ADR 0099 § 1's other half | `nvs-syntax`, `nvs-diagnostics`, `nvs-test`, `nvs-cli` |
 | [13 surface](13-surface.md) | M1 items 5-6, `rule:expressions/pipeline-substitution` + ADR 0124 | `nvs-syntax`, `nvs-diagnostics` |
-| [14 lsp-server](14-lsp-server.md) | M4B, ADR 0099 §§ 3+5 + ADR 0101 | **`nvs-lsp`** (new), `nvs-cli`, `nvs-types`, `nvs-stdlib` |
+| [14 lsp-server](14-lsp-server.md) | M4B, ADR 0099 §§ 3+5 + `rule:security/redaction-ranges-come-from-the-server` | **`nvs-lsp`** (new), `nvs-cli`, `nvs-types`, `nvs-stdlib` |
 | [15 editor](15-editor.md) | M4B, ADR 0099 §§ 4+6 | **`editors/vscode`** (new, TypeScript) |
 | [16 request-json](16-request-json.md) | M7, ADR 0139 + spec § 15 | `nvs-stdlib`, `nvs-runtime`, `nvs-test`, `nvs-cli` |
 | [17 test-request](17-test-request.md) | M8, `rule:testing/in-process-request` | `nvs-runtime`, `nvs-stdlib`, `nvs-server`, `nvs-test`, `nvs-cli` |
@@ -166,7 +166,7 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [26 xml-tree](26-xml-tree.md) | M8, one ADR slot + `rule:core-classes/html-parsing`'s fold | `nvs-stdlib`, `nvs-diagnostics` |
 | [27 gap-owners](27-gap-owners.md) | post-parity, no ADR — a process gate | `tools/`, every crate's module docs |
 | [28 unowned-sweep](28-unowned-sweep.md) | post-parity, `rule:errors/propagation`/0033/0044 amendments | `nvs-stdlib`, `nvs-types`, `nvs-runtime` |
-| [29 signed-urls](29-signed-urls.md) | M8, `rule:core-api/signing-is-over-a-payload` + ADR 0060/0077 amendments | `nvs-stdlib`, `nvs-types`, `nvs-runtime` |
+| [29 signed-urls](29-signed-urls.md) | M8, `rule:core-api/signing-is-over-a-payload` + `rule:security/protocol-roster`/0077 amendments | `nvs-stdlib`, `nvs-types`, `nvs-runtime` |
 | 30–49 | free | the gap the dossier's number leaves, so a new hand-written entry costs one `[[goal]]` block and no renumber |
 | [50 dossier](50-dossier.md) | `rule:testing/four-proofs` | none — it writes the goals that open all of them, then optimizes the loop for their shape |
 | 51 onward | `rule:testing/four-proofs`, generated | one group of features per goal, its own `[context]` manifest |

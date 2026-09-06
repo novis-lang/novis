@@ -2,7 +2,7 @@
 The braced `namespace X { … }` form is refused — a namespace is a statement, and a file is one namespace
 --FILE--
 <?nvs
-// ADR 0112 keys authority on the enclosing namespace and ADR 0104 keys an
+// `rule:security/authority-is-the-enclosing-namespace` keys authority on the enclosing namespace and ADR 0104 keys an
 // application on its entry file, so a file holding two namespaces has an
 // authority that depends on the line number. The rewrite is one file each.
 namespace App\Billing {

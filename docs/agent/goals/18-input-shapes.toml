@@ -126,7 +126,7 @@ tests = [
   "a_source_missing_an_optional_field_satisfies_the_shape",
   "a_source_missing_a_required_field_does_not",
   "a_source_with_extra_fields_still_satisfies_the_shape",
-  # ADR 0024: the qualifier is never quietly a no-op, and never a launderer.
+  # `rule:security/tainted-qualifier`: the qualifier is never quietly a no-op, and never a launderer.
   "a_tainted_shape_naming_no_text_field_is_refused",
   "a_tainted_shape_is_not_assignable_to_the_same_shape_unqualified",
 ]
@@ -178,7 +178,7 @@ tests = [
   # ADR 0139, unchanged: this is a buffering reader, and it takes the claim as one.
   "post_as_may_follow_another_buffering_reader",
   "post_as_refuses_after_a_streaming_reader_has_consumed_the_body",
-  # ADR 0024's return, at the site that pays for it.
+  # `rule:security/tainted-qualifier`'s return, at the site that pays for it.
   "an_unqualified_shape_at_a_request_call_site_is_diagnosed_naming_the_shape",
 ]
 

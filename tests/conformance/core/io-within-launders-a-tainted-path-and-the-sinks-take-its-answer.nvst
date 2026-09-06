@@ -1,10 +1,10 @@
 --TEST--
-Core\IO::within is the path sink's launderer — a tainted path may be declared as the plain `string` it answers, and every other member of the class then accepts that answer where the tainted value itself is refused — ADR 0024 § 3, ADR 0088 § 1
+Core\IO::within is the path sink's launderer — a tainted path may be declared as the plain `string` it answers, and every other member of the class then accepts that answer where the tainted value itself is refused — `rule:security/launderers-are-sink-named`, `rule:security/sink-predicate`
 --FILE--
 <?nvs
-// ADR 0024 § 3 gives exactly one way out of `tainted`: a narrow `Core` member
+// `rule:security/launderers-are-sink-named` gives exactly one way out of `tainted`: a narrow `Core` member
 // whose return type is the plain type and whose contract names the one sink it
-// is safe for. `within` names the path sink -- which, by ADR 0088 § 1's table,
+// is safe for. `within` names the path sink -- which, by `rule:security/sink-predicate`'s table,
 // is every path parameter of this class, because `..` and the separators direct
 // the resolver. The refusal itself is
 // tests/conformance/reject/a-core-io-path-refuses-a-tainted-argument.nvst; what

@@ -1,4 +1,4 @@
-# ADR 0087 — An unterminated bidirectional control is rejected at every boundary, by one predicate
+# `rule:security/bidi-predicate` — An unterminated bidirectional control is rejected at every boundary, by one predicate
 
 - **Status:** Accepted
 - **Date:** 2026-08-24

@@ -1,7 +1,7 @@
 --TEST--
 `await` consumes the started isolate a handle names, so a handle awaited twice throws rather than waiting again — ADR 0006 § *Decision*
 --FILE nvs.toml--
-# ADR 0118 § 2: `spawn script` goes through a door that asks for
+# `rule:security/capability-check-at-the-door`: `spawn script` goes through a door that asks for
 # `script.spawn` first, and deny-by-default means a case with no
 # configuration cannot spawn at all. This grants it and nothing else.
 [capabilities.script]

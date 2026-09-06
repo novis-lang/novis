@@ -1,5 +1,5 @@
 --TEST--
-`Core\Html::escape` carries text holding none of the five characters through unchanged, and escapes an input that already reads as a character reference rather than leaving it alone — ADR 0024 § 3, `rule:errors/ambiguous-input-refused`, `rule:core-classes/html-escape-answers-markup`
+`Core\Html::escape` carries text holding none of the five characters through unchanged, and escapes an input that already reads as a character reference rather than leaving it alone — `rule:security/launderers-are-sink-named`, `rule:errors/ambiguous-input-refused`, `rule:core-classes/html-escape-answers-markup`
 --FILE--
 <?nvs
 // The other side of the boundary the sibling case pins. A launderer that
@@ -26,7 +26,7 @@ echo Core\Html::toSource(Core\Html::escape($text), "comparing the escape against
 // be.
 echo Core\Html::escape("&amp;"), "\n";
 
-// And that non-idempotence is exactly ADR 0133 § 1's second condition, so the
+// And that non-idempotence is exactly `rule:security/launderer-answers-a-carrier`'s second condition, so the
 // nested spelling of the line above no longer compiles: `escape` takes a
 // `tainted string` and its own answer is a `Markup`. Saying it twice is now a
 // deliberate act that has to name a reason, and it produces what it always

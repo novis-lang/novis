@@ -1,5 +1,5 @@
 --TEST--
-Core\SignedCookie::open accepts a cookie while the key that sealed it is anywhere in the ring and refuses it the step after that key leaves, counted over a ring walked one key at a time from both ends — ADR 0060 §§ 1 and 4
+Core\SignedCookie::open accepts a cookie while the key that sealed it is anywhere in the ring and refuses it the step after that key leaves, counted over a ring walked one key at a time from both ends — `rule:security/protocol-roster` and `rule:security/algorithm-comes-from-the-key`
 --FILE--
 <?nvs
 // A bound asserted on both sides. The rotation case next door pins which end of

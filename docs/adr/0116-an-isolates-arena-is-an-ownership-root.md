@@ -1,4 +1,4 @@
-# ADR 0116 — An isolate's arena is an ownership root, not an address range
+# `rule:security/arena-is-an-ownership-root` — An isolate's arena is an ownership root, not an address range
 
 - **Status:** Accepted
 - **Date:** 2026-08-29
@@ -21,7 +21,7 @@
 
 ## Context
 
-[ADR 0006](0006-isolated-script-execution.md) fixes the isolate's *behaviour*: it shares immutable compiled
+`rule:security/isolate-shares-nothing` fixes the isolate's *behaviour*: it shares immutable compiled
 code and its parent's budget and nothing else, values cross by copy or by move at refcount 1, and its arena
 is dropped wholesale when it ends. `docs/plan/design.md` § *Per-request isolation* says the same thing for a
 request — "its own heap arena with a hard byte cap … at request end the arena is released wholesale" — and
@@ -58,7 +58,7 @@ Nothing about being inside an isolate changes where a byte comes from: allocatio
 allocator — `alloc::Pooled` in an optimized build, the platform heap in a debug one — exactly as it does on
 the parent's own frames.
 
-The isolation ADR 0006 promises is therefore a property of **reachability**, enforced at the one place a
+The isolation `rule:security/isolate-shares-nothing` promises is therefore a property of **reachability**, enforced at the one place a
 value can move between two contexts. There is no second place: a compiled function reaches heap state
 through the arguments it was passed, the statics word in its `Ctx` (§ 4), and nothing else, so a value the
 graph copy did not carry across is a value the child has no name for.
@@ -85,7 +85,7 @@ million deep costs no stack; it is bounded by what is **live** at that moment, n
 allocated; and it runs every native drop on the way.
 
 A cancelled isolate takes the same path and no other. `crates/nvs-host/src/scheduler.rs`'s forced unwind
-runs on the scheduler's own stack, releasing the dead task's context there, which is what makes ADR 0006's
+runs on the scheduler's own stack, releasing the dead task's context there, which is what makes `rule:security/isolate-shares-nothing`'s
 "its arena is dropped; no orphan" a consequence of the machinery Stage 3 already landed rather than a
 second teardown to keep correct.
 
@@ -137,7 +137,7 @@ nobody chose.
 
 `Ctx::child` **aliases** the request's static-property base, because a task under
 [ADR 0072](0072-core-task-structured-concurrency.md) § 1 shares the request and a child with a store of its
-own would give one request two copies of every static. ADR 0006's table says the opposite for an isolate:
+own would give one request two copies of every static. `rule:security/isolate-shares-nothing`'s table says the opposite for an isolate:
 globals, class statics and runtime-defined constants are *fresh*.
 
 So an isolate's context is built with a **statics base of its own**, and that single word is the whole of
@@ -167,7 +167,7 @@ The refusals are the walk's, not the boundary's, which is the point of there bei
 `secret`-typed property is refused there too by `field_is_secret`. The half a run-time walk cannot see is
 refused earlier: `nvs_types::expr::quals::reject_secret_boundary_argument` (`E0775`) reads a call's written
 arguments, and `spawn`/`spawn worker`/`spawn script` hand it their own argument list rather than growing a
-second rule ([ADR 0033](0033-secret-qualifier-for-confidential-values.md) § 4).
+second rule (`rule:security/secret-sinks-refuse`).
 
 **The out crossing runs before the child's root is released**, and § 1 is what makes it cheap: because both
 contexts allocate from the same place, `Live`'s move at refcount 1 is a pointer handoff — the allocation
@@ -192,7 +192,7 @@ decides only what the crossing may do once it is.
 - **The walk is the audited surface.** With no address range to fall back on, a bug in `graph.rs` is the
   only way state can bleed between isolates. That is a concentration, not an exposure — it is one file
   with one test suite instead of an invariant spread across every allocation site — but it is why `rule:classes/graph-copy`'s "one operation, two carriers" is load-bearing here rather than merely tidy.
-- **Spawn-to-result stays in microseconds**, which is what ADR 0006's M5 acceptance figure needs: entering
+- **Spawn-to-result stays in microseconds**, which is what `rule:security/isolate-shares-nothing`'s M5 acceptance figure needs: entering
   an isolate is a `Ctx` construction and a pooled stack, with no mapping syscall in it. A region arena
   would put an `mmap`/`munmap` pair on every isolate, which for a trivial child is most of its lifetime.
 - **One implementation, as design.md requires.** An inbound HTTP request is the root isolate of its tree
@@ -221,7 +221,7 @@ decides only what the crossing may do once it is.
   offsets, so a field is an ABI change, not a struct change — the same reasoning `crates/nvs-runtime/src/host.rs`
   records for putting the host in a thread-local. There is nothing for the field to point at anyway once
   § 1 is decided.
-- **An OS process per isolate.** Already rejected by [ADR 0006](0006-isolated-script-execution.md) on cost
+- **An OS process per isolate.** Already rejected by `rule:security/isolate-shares-nothing` on cost
   and ambient authority; restated here only because "an address range you cannot reach" is the property a
   process gives for free and § 1 gives up.
 - **Segregating isolates by address range and checking pointers at the boundary.** A check cheap enough
@@ -241,6 +241,6 @@ decides only what the crossing may do once it is.
 - The WSL valgrind leg over `examples/cycles.nvs`: § 2's sweep claim — a cyclic object graph is reclaimed
   when its context drops, not at process exit. Goal 6 item 31 is the same claim under the server: live
   bytes stay flat across a soak of requests that build cycles.
-- ADR 0006's own M5 figure — spawn-to-result for a trivial child on a warm cache, in single-digit
+- `rule:security/isolate-shares-nothing`'s own M5 figure — spawn-to-result for a trivial child on a warm cache, in single-digit
   microseconds, next to the process baseline in `benches/isolation.rs` — is the measurement that holds
   this ADR's central claim against the region it rejected.

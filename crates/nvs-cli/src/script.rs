@@ -20,7 +20,7 @@
 //!
 //! # Decision: one unit per written path, swapped when its content moves
 //!
-//! ADR 0006's "an isolate shares immutable compiled code" is a property of this
+//! `rule:security/isolate-shares-nothing`'s "an isolate shares immutable compiled code" is a property of this
 //! cache and of nothing else — the seam hands over a closure and has no opinion
 //! about what is behind it. So a path is compiled once and every later isolate
 //! over it runs the same pages, which is what makes spawning a child cheap
@@ -480,7 +480,7 @@ impl Resolver for Compiler {
     /// error, exactly as `nvs check` does, and the message returned here is the
     /// one-line summary the parent sees as its failure value. Those are two
     /// audiences rather than one: a person fixing the child wants the spans, and
-    /// the parent program wants a string it can print. ADR 0006's
+    /// the parent program wants a string it can print. `rule:security/isolate-shares-nothing`'s
     /// failure-is-a-value rule is about the second and says nothing that
     /// forbids the first.
     fn resolve(&self, path: &str) -> Result<Program, String> {
@@ -595,7 +595,7 @@ mod tests {
     /// The same over a parent that may `spawn script`, on a scheduler and a
     /// reactor of its own — which is the whole of what a program reaching this
     /// resolver from inside its own run needs, and is what `main`'s run
-    /// installs for exactly the same reason. The capability is ADR 0118 § 1's,
+    /// installs for exactly the same reason. The capability is `rule:security/capability-question-is-grant-and-scope`'s,
     /// denied by default, and [`granting_ctx`] is why the grant has one
     /// spelling in this crate.
     fn run_serving(program: Program) -> nvs_host::Completion {
@@ -708,7 +708,7 @@ mod tests {
 
     #[test]
     fn one_written_path_is_compiled_once_however_many_isolates_run_it() {
-        // ADR 0006's "shares immutable compiled code", which is this cache and
+        // `rule:security/isolate-shares-nothing`'s "shares immutable compiled code", which is this cache and
         // nothing else — the module doc says so, and this is what says it is
         // true.
         let compiler = Compiler::default();
@@ -1033,7 +1033,7 @@ mod tests {
     /// A context granting every write and naming `root` as `rule:core-classes/temporary-dir-sweep`'s owned
     /// root, written the way an operator writes both — the grant because
     /// `Core\IO::temporaryDir` asks `fs.write` for the path it is about to
-    /// create (ADR 0118 § 2), and the root because the default is the platform
+    /// create (`rule:security/capability-check-at-the-door`), and the root because the default is the platform
     /// one and a case asserting a root is empty must own that root outright.
     ///
     /// Not [`granting_ctx`]: that one is the `script.spawn` grant a fixture

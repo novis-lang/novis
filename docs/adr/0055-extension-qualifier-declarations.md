@@ -1,9 +1,9 @@
-# ADR 0055 — Extension manifests carry `tainted` and `secret` qualifiers; an extension can only tighten
+# `rule:security/extension-manifest-only-tightens` — Extension manifests carry `tainted` and `secret` qualifiers; an extension can only tighten
 
 - **Status:** Accepted
 - **Date:** 2026-08-23
-- **Scope:** how [ADR 0024](0024-taint-tracking-for-injection-sinks.md)'s and
-  [ADR 0033](0033-secret-qualifier-for-confidential-values.md)'s compile-time qualifiers behave at a Tier 1
+- **Scope:** how `rule:security/tainted-qualifier`'s and
+  `rule:security/secret-qualifier`'s compile-time qualifiers behave at a Tier 1
   extension call site, and what the `nvs.manifest`/WIT world must be able to express. Not in scope: the
   rest of the WIT world's shape, which M8 authors.
 - **Amends:** [0003](0003-extension-system.md) — the manifest registers classes whose static methods and
@@ -14,13 +14,13 @@
   alongside serialize and isolate-crossing.
 - **Amended by:** 0081
 
-> **In short:** [ADR 0024](0024-taint-tracking-for-injection-sinks.md) § 2 already says any operation
+> **In short:** `rule:security/taint-propagation` already says any operation
 > combining a tainted operand with an untainted one produces a tainted result, and an extension call is
 > such an operation — so **contagion applies at the boundary automatically, with nothing declared**. The
 > manifest declares only two *deviations*: a parameter that **refuses** `tainted` (the extension is a
 > sink), and a return that is **always** tainted regardless of its arguments (the extension is a source).
 > There is deliberately **no manifest form that removes a qualifier** — an extension can never launder,
-> because ADR 0024 § 3 reserves that for a `Core` function whose contract names one sink, and a third-party
+> because `rule:security/launderers-are-sink-named` reserves that for a `Core` function whose contract names one sink, and a third-party
 > component asserting "this is safe for HTML" is exactly the false confidence that rule exists to prevent.
 > `secret` is refused at every extension boundary outright. The result is a **monotone** system: every
 > declaration a manifest can make is a restriction, so a hostile or mistaken manifest can make an
@@ -28,12 +28,12 @@
 
 ## Context
 
-- ADR 0024's analysis is sound because the checker knows which `Core` parameters refuse a qualifier and
+- `rule:security/tainted-qualifier`'s analysis is sound because the checker knows which `Core` parameters refuse a qualifier and
   which functions remove one. A Tier 1 extension currently has no way to say either, which leaves a gap
   precisely where extensions are most useful — a template engine, a query builder, an LDAP filter builder,
   a Markdown renderer are all *sinks*, and an extension that fetches or decodes remote data is a *source*.
 - Without a rule, the default behaviour is not merely limited but unsound: if qualifiers were stripped on
-  the way in and results came back plain, any `.nvsx` would be a universal bypass for ADR 0024. Passing a
+  the way in and results came back plain, any `.nvsx` would be a universal bypass for `rule:security/tainted-qualifier`. Passing a
   value through an extension would launder it.
 - `rule:core-api/tier-placement` makes this concrete rather than hypothetical. Placing
   internationalization at Tier 1 means a `tainted` string from `Core\Request` is routinely handed to a
@@ -48,7 +48,7 @@
 
 ### 1. Contagion is the default and needs no declaration
 
-An extension call is an operation under [ADR 0024](0024-taint-tracking-for-injection-sinks.md) § 2. If any
+An extension call is an operation under `rule:security/taint-propagation`. If any
 argument is `tainted`, every `string`/`bytes` in the result is `tainted`. This requires nothing in the
 manifest and nothing new in the checker beyond treating an extension call like any other call.
 
@@ -74,7 +74,7 @@ fetch:   func(url: string) -> tainted string;   // always a source
 
 ### 3. No extension may launder, and `secret` does not cross at all
 
-There is **no manifest form** whose declared effect is `tainted string -> string`. ADR 0024 § 3 states that
+There is **no manifest form** whose declared effect is `tainted string -> string`. `rule:security/launderers-are-sink-named` states that
 the only way to remove the qualifier is a `Core` function whose contract names the single sink it is safe
 for, plus the narrow, greppable `Core\Taint::assertTrusted` escape hatch. Neither is available to a guest.
 A third-party HTML sanitizer can exist as an extension; what it cannot do is *assert* that its output is
@@ -83,7 +83,7 @@ site, where it is visible and greppable.
 
 `secret` is refused at every extension boundary, in either direction. A `secret`-qualified value passed to
 an extension is a compile-time diagnostic, and no manifest may declare a `secret` return. This is the same
-refusal [ADR 0033](0033-secret-qualifier-for-confidential-values.md) already applies to serialize and to
+refusal `rule:security/secret-qualifier` already applies to serialize and to
 isolate-crossing, for the same reason: the value is copied into memory whose subsequent handling Novis cannot
 reason about. Where an extension genuinely must see a credential — a signing key for a protocol component —
 `Core\Secret::reveal()` is the existing, deliberately conspicuous way to say so at the call site.
@@ -115,30 +115,30 @@ extension-specific relaxation, so the two cannot drift.
   is still tainted, and reaches HTML output through `rule:core-classes/html-auto-escape`'s auto-escaping like any other value.
 - **An extension cannot be a launderer, which is a real capability loss** and is not hidden here. A
   community HTML sanitizer cannot present itself as one. The alternatives are for the sanitizer to be
-  adopted into `Core\Html` — where we own it, and where ADR 0024 § 3 already anticipates the roster growing
+  adopted into `Core\Html` — where we own it, and where `rule:security/launderers-are-sink-named` already anticipates the roster growing
   — or for the caller to use `Core\Taint::assertTrusted` with a written reason. Both are visible; the
   rejected option is the invisible one.
 - **`secret` never reaching an extension constrains protocol components.** A JWT signer as a `.nvsx` would
   need `Core\Secret::reveal()` at the call site. That is one reason
-  [ADR 0060](0060-application-security-protocols.md) keeps the protocol roster in `Core` rather than at
+  `rule:security/protocol-roster` keeps the protocol roster in `Core` rather than at
   Tier 1.
 
 ## Alternatives rejected
 
 - **No participation — qualifiers stripped at the boundary.** Nothing to design, nothing to freeze into the
-  ABI. Rejected as unsound rather than merely limited: it makes every `.nvsx` a universal ADR 0024 bypass.
+  ABI. Rejected as unsound rather than merely limited: it makes every `.nvsx` a universal `rule:security/tainted-qualifier` bypass.
 - **Sinks only, with no source declaration.** A simpler manifest and one less concept. Rejected: an
   extension that fetches remote data or decodes an untrusted file would return unqualified output from
   plain arguments, so untrusted bytes would enter the program clean — a hole exactly where Tier 1 is most
   valuable.
 - **Allow a signature-verified, operator-trusted extension to declare a laundering function.** Would let a
-  genuinely good third-party sanitizer exist as one. Rejected: it reopens ADR 0024 § 3's false-confidence
+  genuinely good third-party sanitizer exist as one. Rejected: it reopens `rule:security/launderers-are-sink-named`'s false-confidence
   hole behind a trust gate, and it breaks § 4's monotonicity, which is the property that lets the analysis
   stand without depending on signature verification having been configured correctly. "The operator
   installed it" is a much weaker guarantee than "the compiler team wrote it and named the one sink it is
   safe for."
 - **Let `secret` cross with a declared, capability-gated parameter.** Would let protocol extensions hold
-  keys. Rejected: it is the same argument ADR 0033 already heard and refused for serialization, and
+  keys. Rejected: it is the same argument `rule:security/secret-qualifier` already heard and refused for serialization, and
   `Core\Secret::reveal()` already provides the escape hatch with the property that matters — it is at the
   call site, in the application's own source, and greppable.
 

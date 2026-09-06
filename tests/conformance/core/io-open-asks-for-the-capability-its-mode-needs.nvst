@@ -1,5 +1,5 @@
 --TEST--
-`Core\IO::open` is the one member whose capability its argument decides: `Read` shows `fs.read`, `Write` shows `fs.write`, and `ReadWrite` shows both — so the same path opens under one mode and is refused under another — ADR 0118 §§ 1-2, spec § 14
+`Core\IO::open` is the one member whose capability its argument decides: `Read` shows `fs.read`, `Write` shows `fs.write`, and `ReadWrite` shows both — so the same path opens under one mode and is refused under another — `rule:security/capability-question-is-grant-and-scope` and `rule:security/capability-check-at-the-door`, spec § 14
 --FILE--
 <?nvs
 // The grant below reads everything here and writes only `scratch`. A door that

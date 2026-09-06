@@ -1,4 +1,4 @@
-# ADR 0052 — Four closed doors: no FFI, no stream wrappers, no cross-request state, no `eval`
+# `rule:security/closed-doors` — Four closed doors: no FFI, no stream wrappers, no cross-request state, no `eval`
 
 - **Status:** Accepted
 - **Date:** 2026-08-23
@@ -77,7 +77,7 @@ This closes two things that look unrelated and are the same violation:
 
 - **Shared memory and SysV IPC** — `shmop`, `sysvshm`, `sysvsem`, `sysvmsg`, and APCu's cross-process
   segment. *Strict shared-nothing requests* is a priority-1 commitment and load-bearing for the whole
-  design; a shared segment reintroduces exactly the channel [ADR 0006](0006-isolated-script-execution.md)
+  design; a shared segment reintroduces exactly the channel `rule:security/isolate-shares-nothing`
   exists to eliminate. There is no safe-if-careful version, because the entire isolation argument is that
   carefulness is not a mechanism.
 - **Userland calls that mutate process-global configuration** — `putenv`, `setlocale`, `bcscale`,
@@ -106,14 +106,14 @@ Four separate mechanisms depend on the set of code in a program being known befo
 [ADR 0048](0048-portable-single-file-executables.md) § 3 bundles; the artifact cache
 ([ADR 0042](0042-on-disk-artifact-cache-format.md)) is keyed on unit content; definite assignment
 (`rule:classes/definite-property-initialization`) and taint tracking
-([ADR 0024](0024-taint-tracking-for-injection-sinks.md)) are whole-program compile-time analyses. `eval`
+(`rule:security/tainted-qualifier`) are whole-program compile-time analyses. `eval`
 does not weaken these one at a time — it makes all four unsound at once, and the escape hatches that would
 be needed to keep them (a "no eval reached this file" analysis) are exactly as hard as not having it.
 
 The two legitimate uses have separate, better answers already decided.
 [ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md) gives `Core\Ast::parse()` for inspecting
 code as data, and states from its own side that a parsed AST has no path back into execution; this section
-is that rule stated from the other side. [ADR 0006](0006-isolated-script-execution.md)'s `spawn script`
+is that rule stated from the other side. `rule:security/isolate-shares-nothing`'s `spawn script`
 runs code chosen at runtime, in an isolate, spending the parent's budget — which is what a template engine
 or a plugin loader actually needs, with a boundary that `eval` never had.
 

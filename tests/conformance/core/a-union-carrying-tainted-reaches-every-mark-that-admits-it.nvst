@@ -1,5 +1,5 @@
 --TEST--
-a `string|tainted string` -- the shape a `?tainted string` takes the moment `??` gives it a default -- is admitted arm by arm wherever the atom would be, and the mark still decides the answer -- ADR 0088 § 2
+a `string|tainted string` -- the shape a `?tainted string` takes the moment `??` gives it a default -- is admitted arm by arm wherever the atom would be, and the mark still decides the answer -- `rule:security/unclassified-parameter-refuses-tainted`
 --FILE--
 <?nvs
 // `Core\Env::get` answers `?tainted string`, so `?? "…"` is how an environment

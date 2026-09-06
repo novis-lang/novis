@@ -321,7 +321,7 @@ fn text_of<'a>(args: &'a [Value], member: &str) -> Result<&'a str, Fault> {
 /// somewhere, so it is the one value in this module a caller controls the size
 /// of. A message is written to a log, so quoting it whole would let a request
 /// choose how many bytes that log gains
-/// ([ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
+/// (`rule:security/sink-predicate`
 /// is the wider rule); a bounded quote is still the only thing that makes the
 /// diagnostic actionable.
 fn shown(text: &str) -> String {

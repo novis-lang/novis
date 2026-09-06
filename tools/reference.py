@@ -203,7 +203,7 @@ def esc(text: str) -> str:
     return text.replace("|", "\\|")
 
 
-#: A parenthesised ADR citation inside a registry card -- `(`rule:classes/comparable`)`, `(ADR 0056 § 4)` -- which
+#: A parenthesised ADR citation inside a registry card -- `(`rule:classes/comparable`)`, `(`rule:security/regex-pattern-is-a-sink`)` -- which
 #: names a file this repository's readers have and the reference's readers do not.
 ADR_PAREN_RE = re.compile(r"\s*\(ADR \d{4}(?: §+ [\w.\-]+)?\)")
 

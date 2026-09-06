@@ -1,8 +1,8 @@
-//! `Core\Totp` — [ADR 0060](/docs/adr/0060-application-security-protocols.md)
-//! § 1's third roster entry: RFC 6238 one-time codes, with a window that has no
+//! `Core\Totp` — `rule:security/protocol-roster`
+//! 's third roster entry: RFC 6238 one-time codes, with a window that has no
 //! widening argument and a replay refusal the caller can actually enforce.
 //!
-//! ADR 0060 places the class; what belongs here is why the window is fixed at
+//! `rule:security/protocol-roster` places the class; what belongs here is why the window is fixed at
 //! one step, why "no replay" is a **counter this class answers** rather than
 //! state it keeps, why the algorithm is SHA-1 when nothing else in this tree
 //! is, and what a program still has to build itself.
@@ -11,7 +11,7 @@
 //!
 //! A code names a 30-second step of the Unix clock. [`check`] accepts the
 //! current step and one on either side — RFC 6238 § 5.2's recommendation, and
-//! the largest window that ADR 0060 § 4's "correct by construction" tolerates,
+//! the largest window that `rule:security/algorithm-comes-from-the-key`'s "correct by construction" tolerates,
 //! because it is the drift a phone's clock actually has rather than a number an
 //! operator tunes upward the first time a support ticket arrives.
 //!
@@ -36,7 +36,7 @@
 //! doing for the shared secret, and passes it back. The alternative — a class
 //! that kept the counter itself — would have to key it by *something*, and the
 //! only key available is the secret, so it would be a table of secrets held
-//! across requests: exactly the cross-request state ADR 0052 keeps behind a
+//! across requests: exactly the cross-request state `rule:security/closed-doors` keeps behind a
 //! closed door. A counter the caller holds also survives a restart, which a
 //! process-local table does not, and a restart is where a replay window would
 //! otherwise open.
@@ -62,8 +62,8 @@
 //! output is truncated to six digits and discarded after thirty seconds.
 //! Collision resistance — the property SHAttered took — is not used. That is
 //! why this exception exists and why it is one function with one caller rather
-//! than a `Digest` argument: **there is no algorithm parameter**, so ADR 0060
-//! § 4's rule that the algorithm never comes from the token holds here for
+//! than a `Digest` argument: **there is no algorithm parameter**, so `rule:security/algorithm-comes-from-the-key`
+//! 's rule that the algorithm never comes from the token holds here for
 //! free.
 //!
 //! # What this class does not do
@@ -84,8 +84,8 @@
 //! all three steps whatever the first one answered. The step number that comes
 //! back is not secret — it is the answer — so the one branch that reads a
 //! comparison's result is on a value the member is about to return anyway. No
-//! member here exposes an HMAC, a secret or a candidate code, which is ADR 0060
-//! § 4's "no API exposes the raw value" for this entry.
+//! member here exposes an HMAC, a secret or a candidate code, which is `rule:security/algorithm-comes-from-the-key`
+//! 's "no API exposes the raw value" for this entry.
 
 use subtle::ConstantTimeEq as _;
 
@@ -119,7 +119,7 @@ const MIN_SECRET: usize = 16;
 /// The secret both rows take, written once so neither can drift.
 const SECRET: CoreTy = CoreTy::SecretBlob(Qual::Neutral);
 
-/// ADR 0060 § 1's third roster entry, as two rows.
+/// `rule:security/protocol-roster`'s third roster entry, as two rows.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     methods: &[
@@ -366,7 +366,7 @@ nvs_runtime::nvs_helper! {
 mod tests {
     use super::*;
 
-    /// Stage 4's TOTP check — ADR 0060 § 1's third bullet, which asks for
+    /// Stage 4's TOTP check — `rule:security/protocol-roster`'s third bullet, which asks for
     /// generation and verification "with a bounded replay window and
     /// constant-time comparison".
     ///

@@ -637,7 +637,7 @@ impl Drop for Ran {
 
 /// One fire: a **root** isolate on its own task, and not a child of anything that is serving.
 ///
-/// § 5's rule is that a scheduled run is a second root — ADR 0006's other existing shape, the one an
+/// § 5's rule is that a scheduled run is a second root — `rule:security/isolate-shares-nothing`'s other existing shape, the one an
 /// inbound request already is — so what is spawned here is a task with its own fresh [`Ctx`] and an
 /// [`Isolate`] with no `inbound`. `OutputSink::Sink` on that context for the reason the accept loop
 /// holds it: the run's own output is captured by its isolate and comes back as data (ADR 0088 § 3),

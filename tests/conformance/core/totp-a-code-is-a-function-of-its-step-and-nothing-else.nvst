@@ -1,5 +1,5 @@
 --TEST--
-Core\Totp::code is a function of the step and the secret and of nothing else: every draw inside one step answers the same six digits, a wall-clock second moves the code only when it moves the step, and no code belongs to the step after its own -- ADR 0060 §§ 1, 4
+Core\Totp::code is a function of the step and the secret and of nothing else: every draw inside one step answers the same six digits, a wall-clock second moves the code only when it moves the step, and no code belongs to the step after its own -- `rule:security/protocol-roster` and `rule:security/algorithm-comes-from-the-key`
 --FILE--
 <?nvs
 // Invariance over a sweep, asserted by counting. `Core\Totp::code` takes no

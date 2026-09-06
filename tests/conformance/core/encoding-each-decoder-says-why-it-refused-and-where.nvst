@@ -1,5 +1,5 @@
 --TEST--
-`Core\Encoding`'s four decoders each name the reason they refused and the offset it is at, and bound the operand they quote back — spec § 7, `rule:types/conversion`, ADR 0088
+`Core\Encoding`'s four decoders each name the reason they refused and the offset it is at, and bound the operand they quote back — spec § 7, `rule:types/conversion`, `rule:security/sink-predicate`
 --FILE--
 <?nvs
 // Spec § 7's four `from*` members. The neighbouring cases pin *what* each
@@ -100,7 +100,7 @@ echo $named, " of 8\n";
 // that quotation is bounded on both sides of 32 characters: at 32 the whole of
 // it is there, at 34 the first 32 are, with an ellipsis saying so. A decoder
 // that echoed its whole argument would make a refusal message as large as the
-// attacker-supplied text that caused it (ADR 0088's register).
+// attacker-supplied text that caused it (`rule:security/sink-predicate`'s register).
 echo Say::hex(Core\Str::repeat("z", 32)), "\n";
 echo Say::hex(Core\Str::repeat("z", 34)), "\n";
 --EXPECT--

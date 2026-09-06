@@ -1,5 +1,5 @@
 --TEST--
-Core\Db::quoteIdentifier bounds an identifier's first character on both sides — `_` leads and a digit does not — and its refusal names the name — ADR 0024 § 4
+Core\Db::quoteIdentifier bounds an identifier's first character on both sides — `_` leads and a digit does not — and its refusal names the name — `rule:security/sink-predicate`
 --FILE--
 <?nvs
 // The rule is a letter or `_`, then letters, digits or `_`. This case names the

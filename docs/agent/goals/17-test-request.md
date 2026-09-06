@@ -89,7 +89,7 @@ Goal 16's whole acceptance list, never traded.
   single-use — but the argument for *one spelling in both directions* does, and it is the stronger one for
   a member a test author reads.
 - **The three peer members are `tainted`**
-  ([ADR 0024](../../adr/0024-taint-tracking-for-injection-sinks.md)). A client address that a proxy
+  (`rule:security/tainted-qualifier`). A client address that a proxy
   asserted is peer input; that it passed a trusted-proxy check makes it *trusted enough to believe*, never
   laundered.
 - **This goal opens no new ADR number.** `rule:testing/in-process-request` is amended in place — an ADR's body always states

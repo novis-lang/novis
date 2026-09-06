@@ -27,7 +27,7 @@
 //!
 //! # No capability check
 //!
-//! [ADR 0118](/docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)'s
+//! `rule:security/capability-check-at-the-door`'s
 //! doors stand in front of what a *program* asks for. This path is the engine
 //! writing its own diagnostics to a path an operator configured, with no
 //! program-supplied name anywhere in it, so there is no question for a door to

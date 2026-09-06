@@ -1,7 +1,7 @@
 # Loop goal 29 — signing a URL, and the payload behind it
 
 `rule:core-api/signing-is-over-a-payload`, built.
-One general member — `Core\Signature`, [ADR 0060](../../adr/0060-application-security-protocols.md)'s
+One general member — `Core\Signature`, `rule:security/protocol-roster`'s
 fifth and final roster entry — and the two doors onto it where a reader will actually look:
 `$uri->sign`/`$uri->verifySignature`, and `Core\Router`'s pair for the one case a path cannot express.
 
@@ -48,7 +48,7 @@ Core\Signature::verify(string $token, array<secret bytes> $keys): array<string, 
 3. **The token is unpadded URL-safe base64**, RFC 4648 § 5, which `signed_cookie.rs` already emits for
    the same reason: every octet is legal in a query string and in a `Set-Cookie` alike, so nothing
    downstream escapes it twice.
-4. **`verify` answers a `tainted` payload or throws.** ADR 0060 § 5 is the rule and `rule:core-classes/signature` says
+4. **`verify` answers a `tainted` payload or throws.** `rule:security/verification-does-not-launder` is the rule and `rule:core-classes/signature` says
    why `Core\SignedCookie`'s laundering exemption does not reach here — the round trip may cross two
    services, so "the application authored this plaintext" is not a property the checker can see.
 
@@ -105,8 +105,8 @@ Core\Router::signedRoute(array<secret bytes> $keys): Router\Match;
    already holding a valid signature. **A test proves the ordering**: a token both forged *and* past
    its `until` throws the *invalid* error, never the expired one.
 3. **`{until: null}` is the forever spelling and omitting the key does not compile** — `rule:core-api/a-lifetime-is-written`,
-   which is [ADR 0096](../../adr/0096-a-route-without-a-declared-access-decision-does-not-compile.md)
-   § 3's rule one surface over.
+   which is `rule:security/access-is-checked-for-presence-not-meaning`
+   's rule one surface over.
 
 ## Standing decisions
 

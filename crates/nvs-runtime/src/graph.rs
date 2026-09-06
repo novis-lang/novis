@@ -382,7 +382,7 @@ impl Carrier for Live<'_> {
     /// Identity is the descriptor's address, which is stricter than resolving
     /// the name and is deliberately so. A copy keeps the descriptor it was
     /// built with — that is what makes an adopted allocation a pointer handoff
-    /// rather than a rebuild (ADR 0116 § 5) — so admitting a same-named class
+    /// rather than a rebuild (`rule:security/isolate-values-cross-by-copy`) — so admitting a same-named class
     /// from another compiled unit would hand the receiving side an object
     /// whose field indices are the *sender's* layout and whose methods are the
     /// sender's compiled code. That is a hole in the isolation the boundary

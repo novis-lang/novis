@@ -1,4 +1,4 @@
-# ADR 0006 — Running another script is an in-process isolate, not a subprocess
+# `rule:security/isolate-shares-nothing` — Running another script is an in-process isolate, not a subprocess
 
 - **Status:** Accepted
 - **Date:** 2026-08-20

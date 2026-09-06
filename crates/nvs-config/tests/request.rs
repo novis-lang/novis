@@ -406,7 +406,7 @@ read = [\"nvs.toml\"]
     );
     let mut widened: Vec<String> = Vec::new();
     for cap in Cap::ALL {
-        // The grant's own key and the block above it, against the widest value ADR 0118 spells and
+        // The grant's own key and the block above it, against the widest value `rule:security/capability-check-at-the-door` spells and
         // against two narrower widenings — a root outside what was granted, and the one inside it,
         // which is not narrowing either once it is the whole grant.
         for key in [

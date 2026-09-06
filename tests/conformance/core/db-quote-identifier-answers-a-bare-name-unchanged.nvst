@@ -1,5 +1,5 @@
 --TEST--
-Core\Db::quoteIdentifier answers a bare identifier unchanged and adds no delimiter, because Core\Db has no connection and so no dialect — docs/spec/01-core-library.md § 18, ADR 0024 § 4
+Core\Db::quoteIdentifier answers a bare identifier unchanged and adds no delimiter, because Core\Db has no connection and so no dialect — docs/spec/01-core-library.md § 18, `rule:security/sink-predicate`
 --FILE--
 <?nvs
 // The launderer for the statement-text sink. `crates/nvs-stdlib/src/db.rs`'s

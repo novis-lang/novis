@@ -115,7 +115,7 @@ fn method_sig(
         // for a trailing bag, so `param_names` re-aligns them to `params`
         // — see its own docs for why the bag's entry is made there.
         param_names: param_names(method),
-        // ADR 0088 § 2's classification, carried rather than dropped.
+        // `rule:security/unclassified-parameter-refuses-tainted`'s classification, carried rather than dropped.
         // `lower` interns a `Text`/`Blob` parameter at its plain type
         // on purpose — what a member *does* with a qualifier is not
         // what the argument *is* — so this is the one place the row's
@@ -400,7 +400,7 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
         // pattern without a row saying so — and it is the reason a union can
         // never be given an *accepting* mark without widening this function.
         CoreTy::Str | CoreTy::Text(_) => interner.string(),
-        // ADR 0006's entry operand accepts two written shapes and is a
+        // `rule:security/isolate-shares-nothing`'s entry operand accepts two written shapes and is a
         // *syntactic* rule over them, so there is no declared type that states
         // it: `string` would report the accepted `Chat::run(...)` as a
         // mismatch, and `string|callable` would name a variable holding a
@@ -420,7 +420,7 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
         CoreTy::SecretBytes | CoreTy::SecretBlob(_) => interner.secret_bytes(),
         // The same pair of questions as the arm above, on the other axis: this
         // is a qualifier and not a classification, so it interns qualified.
-        // ADR 0060 § 5 is what needs it — a verified signature does not
+        // `rule:security/verification-does-not-launder` is what needs it — a verified signature does not
         // launder, and the only way to say that of a *result* is to type the
         // result. A `Qual::Contagious` parameter would have made the claims
         // tainted exactly when the token already was, which is the property
@@ -880,7 +880,7 @@ mod tests {
         assert_eq!(interner.describe(sig.return_ty), "uint");
     }
 
-    /// ADR 0088 § 2's classification is the row's own judgement, so the
+    /// `rule:security/unclassified-parameter-refuses-tainted`'s classification is the row's own judgement, so the
     /// signature the checker resolves has to *carry* it — `lower` interns a
     /// `Text`/`Blob` parameter at its plain type, and dropping the mark there
     /// is what left the whole surface refusing an argument it is meant to
@@ -925,7 +925,7 @@ mod tests {
         );
     }
 
-    /// The same sweep, two marks further. ADR 0088 § 2 has **four**
+    /// The same sweep, two marks further. `rule:security/unclassified-parameter-refuses-tainted` has **four**
     /// classifications and the test above proves only three of them arrive, so
     /// a [`Qual::Launder`] that stopped being lowered would leave every
     /// laundering row refusing the argument it exists to accept — and the only
@@ -1051,7 +1051,7 @@ mod tests {
         assert!(admits_secret_argument(Some(Qual::Reveal)));
     }
 
-    /// ADR 0024 § 3's escape hatch, asked the way the test above asks `rule:core-classes/secret-reveal`'s: as a **closed set** rather than of the one row.
+    /// `rule:security/launderers-are-sink-named`'s escape hatch, asked the way the test above asks `rule:core-classes/secret-reveal`'s: as a **closed set** rather than of the one row.
     ///
     /// [`Qual::Launder`] obliges a doc comment naming the sink the row launders
     /// for, and `Core\Taint::assertTrusted` is the one row that names all of
@@ -1073,7 +1073,7 @@ mod tests {
     /// terminal's *carrier*, which makes them constructors for that sink rather
     /// than an escape from every sink (`nvs_stdlib::html`'s
     /// `every_launderer_for_an_auto_escaping_sink_answers_a_carrier` is where
-    /// that reading is argued, against ADR 0133 § 1's table).
+    /// that reading is argued, against `rule:security/launderer-answers-a-carrier`'s table).
     #[test]
     fn the_launderer_that_names_no_sink_is_one_class_and_one_row() {
         use std::collections::BTreeSet;
@@ -1105,13 +1105,13 @@ mod tests {
         assert_eq!(
             hatches,
             BTreeSet::from([(r"Core\Taint", "assertTrusted")]),
-            "the roster of launderers that answer for every sink is closed at one — ADR 0024 § 3 \
+            "the roster of launderers that answer for every sink is closed at one — `rule:security/launderers-are-sink-named` \
              makes laundering sink-named and names a single exception, and a second class here is \
              the generic `sanitize()` that section exists to refuse"
         );
     }
 
-    /// ADR 0060 § 5, which reads like an oversight and is a decision: a
+    /// `rule:security/verification-does-not-launder`, which reads like an oversight and is a decision: a
     /// verified signature proves origin, not safety for any sink, so
     /// `Core\Jwt::verify`'s claims come back **`tainted`** — and the one
     /// signature check in the language that does the opposite is the cookie,
@@ -1129,7 +1129,7 @@ mod tests {
     /// **The promising side is six, and only one of them is a signature.**
     /// `Core\Http\Response::text` answers `tainted string` because a reply is
     /// bytes another host chose, and pinning an address settles which host they
-    /// came from rather than what is in them — ADR 0024 § 1's roster, which
+    /// came from rather than what is in them — `rule:security/tainted-qualifier`'s roster, which
     /// `nvs_stdlib::http`'s module doc argues from. `Core\Env::get` and
     /// `Core\Env::all` are the other two, and the plainest reading of that same
     /// roster: the environment is outside the program's own text, so a value
@@ -1322,7 +1322,7 @@ mod tests {
         );
     }
 
-    /// ADR 0024 § 1 asked as the **converse** of
+    /// `rule:security/tainted-qualifier` asked as the **converse** of
     /// `a_verified_signature_does_not_launder_its_claims`, over the one class
     /// tree every request reads itself through. That test pins which members
     /// across the whole registry *promise* `tainted`, and a `Core\Request` row
@@ -1464,7 +1464,7 @@ mod tests {
         );
     }
 
-    /// ADR 0058 § 1, asked as a **closed set** rather than of one row: across
+    /// `rule:security/outbound-url-is-a-sink`, asked as a **closed set** rather than of one row: across
     /// the whole registry, the only parameter that admits a `tainted` URL is
     /// the launderer's.
     ///
@@ -1512,7 +1512,7 @@ mod tests {
         assert_eq!(
             admitting,
             BTreeSet::from([(r"Core\Http", "allowUrl")]),
-            "an outbound URL is a sink (ADR 0058 § 1) and `Core\\Http::allowUrl` is the one door \
+            "an outbound URL is a sink (`rule:security/outbound-url-is-a-sink`) and `Core\\Http::allowUrl` is the one door \
              through it (§ 2) — a second member admitting a tainted URL is a second door, and the \
              policy is only worth what the narrowest of them enforces"
         );
@@ -1521,7 +1521,7 @@ mod tests {
     /// ADR 0058 § 2's load-bearing half: the launderer's answer is a **value**,
     /// not a laundered `string`.
     ///
-    /// A `Qual::Launder` that returned `CoreTy::Str` would satisfy ADR 0024 § 3
+    /// A `Qual::Launder` that returned `CoreTy::Str` would satisfy `rule:security/launderers-are-sink-named`
     /// completely and still be wrong here, because what it hands back is as
     /// resolvable as what went in — the check happens at one moment and the
     /// connection at another, and a second DNS answer in between is the
@@ -1551,7 +1551,7 @@ mod tests {
         assert_eq!(
             sig.qual_at(0),
             Some(Qual::Launder),
-            "ADR 0024 § 3's narrow, sink-named launderer — this one for the outbound sink"
+            "`rule:security/launderers-are-sink-named`'s narrow, sink-named launderer — this one for the outbound sink"
         );
         assert!(
             crate::expr::quals::admits_tainted_argument(
@@ -1733,7 +1733,7 @@ mod tests {
         );
     }
 
-    /// ADR 0044 § 6, held at the row rather than at the door: starting a
+    /// `rule:security/process-exec-capability`, held at the row rather than at the door: starting a
     /// program is a capability, it is the one `nvs.toml` spells `process.exec`,
     /// a host that configured nothing has granted it to nobody, and a request
     /// cannot widen it because the whole `capabilities` block is

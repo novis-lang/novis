@@ -61,7 +61,7 @@
 //!
 //! # Known gaps
 //!
-//! 1. **ADR 0056 § 4's sink is enforced, and seven of the eight rows enforce
+//! 1. **`rule:security/regex-pattern-is-a-sink`'s sink is enforced, and seven of the eight rows enforce
 //!    it without saying so.** `compile`'s pattern parameter carries
 //!    `Qual::Sink`; the seven members that take `Pattern|string` carry no
 //!    classification at all, because `nvs_types::core_lib`'s `qual_of` answers
@@ -486,7 +486,7 @@ const PATTERN_FLAGS_SLOT: usize = 1;
 /// `Regex::compile` exists for the call that wants flags or wants the
 /// pattern's validity checked at one place. [`pattern_of`] is where the two
 /// meet again.
-/// Its `string` half is ADR 0088 § 2's **sink**: a pattern is one of `rule:core-api/shape-rules`
+/// Its `string` half is `rule:security/unclassified-parameter-refuses-tainted`'s **sink**: a pattern is one of `rule:core-api/shape-rules`
 /// R11's four grammars, so its content becomes an instruction the engine
 /// executes and a `tainted` one is refused at the call. `Core\Regex::quote` is
 /// the [`Qual::Launder`] that answers for it.
@@ -1683,7 +1683,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Regex::quote(string $literal): string` — replacing `preg_quote`,
-    /// and ADR 0056 § 4's one laundering member for the pattern sink.
+    /// and `rule:security/regex-pattern-is-a-sink`'s one laundering member for the pattern sink.
     ///
     /// Escapes every character either engine gives a meaning to, so the result
     /// matches `$literal` and nothing else. PHP's optional `$delimiter`

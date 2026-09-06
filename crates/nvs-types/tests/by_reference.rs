@@ -140,11 +140,11 @@ T::bump(inout $this->doubled);
 }
 
 /// A plain `string` satisfies a `tainted string` parameter by value --
-/// ADR 0024 section 2's "a plain value is always a safe
+/// `rule:security/tainted-qualifier` section 2's "a plain value is always a safe
 /// over-approximation of may-be-tainted" -- but never by reference: the
 /// callee writes a `tainted string` back, and the caller's holder is
 /// declared plain. Accepting it would launder taint through an argument
-/// list, which is exactly the hole ADR 0024 exists to close, and it is
+/// list, which is exactly the hole `rule:security/tainted-qualifier` exists to close, and it is
 /// why assignability alone is not enough at an `inout` position.
 #[test]
 fn a_plain_string_passed_to_a_tainted_reference_parameter_is_diagnosed() {

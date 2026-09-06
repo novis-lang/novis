@@ -35,7 +35,7 @@
 //! between deployments — and it is the only qualifier this class refuses.
 //!
 //! `rule:core-classes/db-capabilities` is where that shape comes from and also why the address is **not** put through
-//! [ADR 0058](/docs/adr/0058-outbound-request-policy.md) § 3's denied ranges: an address
+//! `rule:security/net-address-policy`'s denied ranges: an address
 //! an operator wrote into root-owned configuration carries the same authority as the grant itself,
 //! and a mail relay lives at `127.0.0.1` or on a container network precisely inside the set § 3
 //! denies. `Core\Http`'s launderer pins because *its* host came from the program;
@@ -67,7 +67,7 @@
 //! operator's and has no `nvs.toml` key for yet — stops working with no remedy in the file that
 //! would hold one; or unverified, which that module has no spelling for and will not grow one,
 //! because a handshake nobody checked is exactly the false confidence
-//! [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md) § 3 refuses to sell.
+//! `rule:security/launderers-are-sink-named` refuses to sell.
 //! So TLS here is *asked for*, by configuring the credential that cannot travel without it, and
 //! where it is asked for it is required and verified. Encryption without authentication has no key
 //! today; it belongs beside the anchor bundle that module already names as unlanded, and the two
@@ -394,7 +394,7 @@ fn endpoint_of(ctx: &Ctx, endpoint: &str, member: &str) -> Result<Endpoint, Faul
 /// **No `pin_host` and no § 3 table**, which the module doc argues in full: this
 /// address came out of root-owned configuration, so the authority that would
 /// have granted an exception is the one that wrote it, and every ordinary relay
-/// sits inside the ranges ADR 0058 § 3 denies by default.
+/// sits inside the ranges `rule:security/net-address-policy` denies by default.
 ///
 /// # Errors
 ///

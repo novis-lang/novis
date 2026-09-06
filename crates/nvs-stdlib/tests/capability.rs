@@ -1,4 +1,4 @@
-//! [ADR 0118]'s claims, as tests: the refusal names the capability, a path escape does not match a
+//! `rule:security/capability-check-at-the-door`'s claims, as tests: the refusal names the capability, a path escape does not match a
 //! granted root, the declaration table names real members, every member of a class that bears one
 //! declares its own, no member reaches the operating system except through the door, and no member
 //! reads a URI scheme off a path.
@@ -6,7 +6,7 @@
 //! The middle two are § 7's closure claim and § 2's, and neither subsumes the other: the first
 //! catches a member that goes through a door without being declared as doing so, the second a
 //! member that reaches the operating system with no door at all. The last is
-//! [ADR 0052](/docs/adr/0052-closed-doors.md) § 2's rather than 0118's, and sits here
+//! `rule:security/a-path-is-not-a-url`'s rather than 0118's, and sits here
 //! because it is the same question one layer up: a door that asks about the path it was handed is
 //! no protection if the path the caller wrote names somewhere else entirely.
 //!
@@ -18,7 +18,6 @@
 //! platform the loop runs on. What the fake asserts is the same thing the symlink would — that
 //! `allows` compares the canonicalizer's *answer* and never the argument it was handed.
 //!
-//! [ADR 0118]: ../../../docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md
 
 use std::path::{Path, PathBuf};
 
@@ -62,7 +61,9 @@ fn an_ungranted_capability_throws_naming_the_capability() {
         nvs_runtime::capability::require(&ctx, Cap::FsWrite, Scope::Path(path), "Core\\IO::write")
             .expect_err("an unconfigured context grants nothing");
     let nvs_runtime::Fault::Thrown(class, message) = denied else {
-        panic!("a denial is a throw, never a fatal or a pending status — ADR 0118 § 5");
+        panic!(
+            "a denial is a throw, never a fatal or a pending status — `rule:security/denial-is-a-runtime-error`"
+        );
     };
     assert_eq!(class, nvs_runtime::ThrownClass::Runtime);
     assert!(
@@ -156,8 +157,8 @@ fn within(ctx: &mut nvs_runtime::Ctx, base: &Path, path: &str) -> Result<String,
             assert_eq!(
                 status,
                 nvs_runtime::THROWN,
-                "every refusal `within` makes is catchable — ADR 0118 § 5 for the capability half, \
-                 ADR 0024 § 3 for the containment half"
+                "every refusal `within` makes is catchable — `rule:security/denial-is-a-runtime-error` for the capability half, \
+                 `rule:security/launderers-are-sink-named` for the containment half"
             );
             Err(ctx
                 .take_pending()
@@ -169,7 +170,7 @@ fn within(ctx: &mut nvs_runtime::Ctx, base: &Path, path: &str) -> Result<String,
 
 #[test]
 fn within_resolves_and_then_proves_containment() {
-    // Spec § 14's *Resolution* bullet over ADR 0024 § 3: the launderer answers a path that is
+    // Spec § 14's *Resolution* bullet over `rule:security/launderers-are-sink-named`: the launderer answers a path that is
     // resolved — every `..` and every symlink already gone — and proved to be under the base. Both
     // halves matter, and the order is what separates this from `Core\Path::normalize`.
     let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -318,7 +319,7 @@ fn every_capability_bearing_member_declares_its_capability() {
 
 #[test]
 fn nvs_stdlib_reaches_the_os_only_through_the_gate() {
-    // ADR 0118 § 2: a `Core` member cannot forget the check, because the only way to perform the
+    // `rule:security/capability-check-at-the-door`: a `Core` member cannot forget the check, because the only way to perform the
     // effect is a door in `nvs_runtime` that has already asked. This is what holds that door shut.
     //
     // The list is the effect-performing spellings, not the modules: `std::net::IpAddr` is a parser
@@ -367,7 +368,7 @@ fn nvs_stdlib_reaches_the_os_only_through_the_gate() {
                 assert!(
                     !line.contains(spelling),
                     "{}:{} reaches the operating system directly (`{spelling}`); \
-                     ADR 0118 § 2 puts that behind a door in `nvs_runtime::capability`",
+                     `rule:security/capability-check-at-the-door` puts that behind a door in `nvs_runtime::capability`",
                     file.display(),
                     number + 1
                 );
@@ -376,7 +377,7 @@ fn nvs_stdlib_reaches_the_os_only_through_the_gate() {
     }
 }
 
-/// [ADR 0052] § 2's closed door — a path is a filesystem path — asserted **by construction** rather
+/// `rule:security/a-path-is-not-a-url`'s closed door — a path is a filesystem path — asserted **by construction** rather
 /// than by a blocklist of the schemes PHP shipped. `phar://` is not named as forbidden anywhere
 /// below, because a rule that refused a roster of scheme names would be exactly the registry § 2
 /// refuses to have: what is asserted is that nothing reads a scheme off a path at all.
@@ -398,7 +399,6 @@ fn nvs_stdlib_reaches_the_os_only_through_the_gate() {
 /// subject, and `Core\Http::allowUrl` takes a URL because ADR 0058's outbound door is where a URL
 /// belongs. Neither takes a path.
 ///
-/// [ADR 0052]: ../../../docs/adr/0052-closed-doors.md
 #[test]
 fn no_member_dispatches_on_a_uri_scheme() {
     const SPELLINGS: &[&str] = &["scheme", "wrapper", "protocol", "url", "uri"];
@@ -433,7 +433,7 @@ fn no_member_dispatches_on_a_uri_scheme() {
                 for spelling in SPELLINGS {
                     assert!(
                         !lowered.contains(spelling),
-                        "`{}::{}` takes a path, and `{name}` names a {spelling}; ADR 0052 § 2 \
+                        "`{}::{}` takes a path, and `{name}` names a {spelling}; `rule:security/a-path-is-not-a-url` \
                          refuses dispatch on the textual content of a path, so there is no \
                          argument for a member like this to read one from",
                         class.name,
@@ -487,7 +487,7 @@ fn no_member_dispatches_on_a_uri_scheme() {
             }
             assert!(
                 !line.contains("://"),
-                "{}:{} spells a URI scheme in a module whose subject is a path; ADR 0052 § 2 is \
+                "{}:{} spells a URI scheme in a module whose subject is a path; `rule:security/a-path-is-not-a-url` is \
                  that a path naming one is a file with that name and nothing more",
                 file.display(),
                 number + 1
@@ -507,7 +507,7 @@ fn no_member_dispatches_on_a_uri_scheme() {
         dispatched.as_deref(),
         Some(plain.as_str()),
         "a member that read the scheme off `php://filter/resource=registry.rs` would have found \
-         `registry.rs` behind the filter, which is the `php://filter` chain ADR 0052 § 2 names. \
+         `registry.rs` behind the filter, which is the `php://filter` chain `rule:security/a-path-is-not-a-url` names. \
          Whether the odd file name is refused or resolved as the name it is, what it must never \
          resolve to is the file spelled after the scheme"
     );

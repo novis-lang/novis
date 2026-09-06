@@ -27,7 +27,7 @@
 //! ordinary disconnect into a throw.
 //!
 //! **A received payload is untrusted input** — § 3 says `tainted`, and
-//! [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md) § 3 is what
+//! `rule:security/launderers-are-sink-named` is what
 //! that qualifier costs a caller. Nothing here can apply it: a qualifier is a
 //! *signature*'s, so the `Core\Socket` row that hands the payload to a program
 //! is where it is declared, and this seam carries bytes.

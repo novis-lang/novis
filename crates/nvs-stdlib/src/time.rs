@@ -100,12 +100,12 @@
 //!
 //! # What these members do with a qualifier
 //!
-//! ADR 0088 § 2's classification splits this module's `string` parameters in
+//! `rule:security/unclassified-parameter-refuses-tainted`'s classification splits this module's `string` parameters in
 //! two, and neither half is [`Qual::Contagious`] — which is unusual enough to
 //! be worth the paragraph.
 //!
 //! * **Every pattern is a [`Qual::Sink`].** `rule:core-api/shape-rules` R11's third grammar is
-//!   the CLDR date pattern, and ADR 0088 § 1's corollary makes a grammar a
+//!   the CLDR date pattern, and `rule:security/sink-predicate`'s corollary makes a grammar a
 //!   sink wherever it is declared: the three `format` members' one parameter,
 //!   and `Core\Time::parse`'s *second*. A pattern is an instruction to
 //!   [`crate::cldr`], so a `tainted` one is refused rather than compiled.
@@ -115,7 +115,7 @@
 //!   date-time, a magnitude of nanoseconds, an entry of the IANA roster. No
 //!   byte of the argument survives into any of them, and rendering one back
 //!   goes through a pattern the *call site* wrote, so there is nothing for a
-//!   qualifier to travel on. This is ADR 0024 § 2's "a checked conversion
+//!   qualifier to travel on. This is `rule:security/taint-propagation`'s "a checked conversion
 //!   launders" reached at a member rather than at a cast, and it is the same
 //!   judgement ADR 0102 § 5 makes when it narrows a route capture to a closed
 //!   set with a type.
@@ -828,7 +828,7 @@ nvs_runtime::nvs_helper! {
     /// `Duration::parse("1h30m")` and the literal `1h30m` are one value.
     ///
     /// Throws on anything it does not accept, which is what makes it an
-    /// [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)
+    /// `rule:security/tainted-qualifier`
     /// launderer for a `tainted` config string — the qualifier half of that is
     /// still owed, and `crate::regex`'s gap 2 owns why nothing in
     /// [`crate::registry`] can state it yet.

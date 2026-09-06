@@ -106,7 +106,7 @@ impl Ctx {
     /// from it, which is the one way this differs from
     /// [`Self::run_limit_handler`]'s array. § 2 says why: this is the request's
     /// own root rather than an isolate boundary
-    /// [ADR 0006](/docs/adr/0006-isolated-script-execution.md) has to
+    /// `rule:security/isolate-shares-nothing` has to
     /// copy across, so the object the program threw is still the object it
     /// threw, with its own class, message and backtrace reachable by the
     /// ordinary members. A handler declaring no parameter still runs, for

@@ -1,8 +1,8 @@
 --TEST--
-`Core\Response::bytes` sends its buffer verbatim, including octets no text-shaped body member could carry -- ADR 0088 § 4, `rule:types/bytes`
+`Core\Response::bytes` sends its buffer verbatim, including octets no text-shaped body member could carry -- `rule:security/response-body-is-one-typed-member`, `rule:types/bytes`
 --FILE--
 <?nvs
-// ADR 0088 § 4's fourth row is the member for a body that is not text, so the
+// `rule:security/response-body-is-one-typed-member`'s fourth row is the member for a body that is not text, so the
 // edge worth pinning is the one `text` cannot reach: a buffer holding a NUL
 // and bytes that are not valid UTF-8 goes out unchanged and unmeasured. The
 // write is read back through a capture -- § 5's redirection of the same output

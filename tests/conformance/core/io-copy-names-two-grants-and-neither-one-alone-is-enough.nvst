@@ -1,5 +1,5 @@
 --TEST--
-Core\IO::copy asks `fs.read` for its source and `fs.write` for its destination, and refuses naming whichever of the two is missing — a source it may not read and a destination it may not write are two different refusals over the same member — ADR 0118 §§ 1-2, spec § 14
+Core\IO::copy asks `fs.read` for its source and `fs.write` for its destination, and refuses naming whichever of the two is missing — a source it may not read and a destination it may not write are two different refusals over the same member — `rule:security/capability-question-is-grant-and-scope` and `rule:security/capability-check-at-the-door`, spec § 14
 --FILE--
 <?nvs
 // The grant reads `source` and `scratch` and writes only `scratch`, so all

@@ -43,7 +43,7 @@
 //!    which this registry still cannot spell. That is the same blocker `Core\Db::open` waits on
 //!    ([`crate::db`]'s own gaps), and the two lift together.
 //! 2. **`$args` is `mixed` and so does not refuse a `secret`**, which § 1 asks for. A durable row is
-//!    an output and ADR 0033's five sinks are the shape of the eventual answer; `CoreTy::Mixed`
+//!    an output and `rule:security/secret-qualifier`'s five sinks are the shape of the eventual answer; `CoreTy::Mixed`
 //!    carries no qualifier, so saying it needs a spelling the registry has not got.
 //! 3. **`key`'s "at most one pending job per key" is enforced by the statement, and by the index
 //!    only where the migration has been applied.** [`INSERT_POSTGRES`]'s `existing` arm reads the table
@@ -713,7 +713,7 @@ pub const RETRY_MYSQL: &str = "update nvs_jobs set state = 0, run_at = ?, claime
 /// which is the lease the move is keyed on, so the row says how long the last attempt ran for
 /// against `failed_at` beside it, and `class` and `message` are what the isolate answered with —
 /// data rather than an exception object, per
-/// [ADR 0006](/docs/adr/0006-isolated-script-execution.md).
+/// `rule:security/isolate-shares-nothing`.
 ///
 /// Built through `serde_json` rather than formatted, because a thrown message is arbitrary text and
 /// a hand-rolled array is one unescaped quote away from a column no reader can parse.
@@ -970,7 +970,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             name: "push",
             names: &["script"],
             params: &[
-                // A **sink**, and for `rule:core-classes/process-is-argv-only`'s reason rather than ADR 0024's usual one: the argument
+                // A **sink**, and for `rule:core-classes/process-is-argv-only`'s reason rather than `rule:security/tainted-qualifier`'s usual one: the argument
                 // selects which file a worker will execute, so a `tainted` one would let a request pick
                 // the program that runs on its behalf.
                 CoreTy::Text(Qual::Sink),

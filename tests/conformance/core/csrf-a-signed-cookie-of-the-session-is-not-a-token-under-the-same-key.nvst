@@ -1,5 +1,5 @@
 --TEST--
-Core\Csrf and Core\SignedCookie share one construction and one key type, and neither one's output is the other's input — the domain tag in a token's plaintext is what refuses the confusion — ADR 0060 §§ 1, 4
+Core\Csrf and Core\SignedCookie share one construction and one key type, and neither one's output is the other's input — the domain tag in a token's plaintext is what refuses the confusion — `rule:security/protocol-roster` and `rule:security/algorithm-comes-from-the-key`
 --FILE--
 <?nvs
 // Edges. The boundary this case sits on is the one a deployment reaches by

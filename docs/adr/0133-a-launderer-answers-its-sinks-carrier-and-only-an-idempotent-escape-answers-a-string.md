@@ -1,4 +1,4 @@
-# ADR 0133 — A launderer answers its sink's carrier, and only an idempotent escape answers a `string`
+# `rule:security/launderer-answers-a-carrier` — A launderer answers its sink's carrier, and only an idempotent escape answers a `string`
 
 - **Status:** Accepted
 - **Date:** 2026-09-02
@@ -17,7 +17,7 @@
   `Core\Html::escape`'s worked signature answers `Core\Html\Markup`; § 5 — the ways to obtain a `Markup`
   are four rather than three, since `escape` and the `sanitize` it is owed both answer one.
 
-> **In short:** [ADR 0024](0024-taint-tracking-for-injection-sinks.md) § 3 says a launderer answers the
+> **In short:** `rule:security/launderers-are-sink-named` says a launderer answers the
 > plain unqualified type. That is right for every sink a developer invokes by hand and wrong for the one
 > sink that launders on its own: HTML. An escaped value returned as a `string` is indistinguishable from
 > text nobody has escaped, so § 2's concatenation rule re-poisons it and § 5's escape-and-lift escapes it a

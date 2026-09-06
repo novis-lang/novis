@@ -1,5 +1,5 @@
 --TEST--
-`Core\IO\File::lock` is one lock whatever `FileMode` opened the handle, and asks for no capability of its own — spec § 14, ADR 0118 § 2
+`Core\IO\File::lock` is one lock whatever `FileMode` opened the handle, and asks for no capability of its own — spec § 14, `rule:security/capability-check-at-the-door`
 --FILE--
 <?nvs
 // A lock changes nothing about the file's contents, so a handle opened `Read`

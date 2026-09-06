@@ -30,7 +30,7 @@ try {
 }
 
 // An identifier is validated and never delimited — the judgement
-// `Core\Db::quoteIdentifier` already made for this project, which ADR 0024
+// `Core\Db::quoteIdentifier` already made for this project, which `rule:security/tainted-qualifier`
 // allows only one answer to — so a name that is not a plain identifier is
 // refused where it enters the value rather than escaped into safety later.
 try {

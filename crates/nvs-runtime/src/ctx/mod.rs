@@ -95,7 +95,7 @@
 //! **One word per request *tree*, not per context.** The field is a shared
 //! handle rather than the word itself, so a `spawn script` child polls the same
 //! word its root does:
-//! [ADR 0006](/docs/adr/0006-isolated-script-execution.md) gives a tree
+//! `rule:security/isolate-shares-nothing` gives a tree
 //! one ceiling to divide and charges a child's CPU to the root, and the timer
 //! that expires a request only ever holds the root to fire at. [`Ctx::isolate`]
 //! owns what the sharing costs.
@@ -236,7 +236,7 @@ pub struct Ctx {
     ///
     /// **Shared with every context in the request tree, which is why it is a
     /// handle and not the word.**
-    /// [ADR 0006](/docs/adr/0006-isolated-script-execution.md) gives a
+    /// `rule:security/isolate-shares-nothing` gives a
     /// tree "one ceiling to divide" and charges a child's CPU to the root. A
     /// copied flag satisfied that only in one direction — a child built *after*
     /// the timer fired was born expired, while one built a microsecond before
@@ -766,8 +766,8 @@ pub struct Ctx {
     /// answers themselves only where a test wrote them.
     scripted_answers: std::collections::VecDeque<String>,
     /// `Core\Out::capture`'s buffers, innermost last —
-    /// [ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
-    /// § 5.
+    /// `rule:security/capture-answers-the-carrier`
+    /// .
     ///
     /// A **stack**, because a capture is scoped to a closure and therefore
     /// nests by call nesting; PHP's global `ob_*` stack, which can be started
@@ -785,8 +785,8 @@ pub struct Ctx {
     /// have to match on.
     captures: Vec<Vec<u8>>,
     /// The media type this request's output has been *declared* to be —
-    /// [ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
-    /// § 4's five body members, each of which owns one body shape and sets its
+    /// `rule:security/response-body-is-one-typed-member`
+    /// 's five body members, each of which owns one body shape and sets its
     /// own `Content-Type`. `None` for a request that only echoed, which § 4's
     /// last bullet reads as `text/html`.
     ///
@@ -856,7 +856,7 @@ pub struct Ctx {
     ///
     /// **`None` is an answer, not a missing value.** A CLI program, a scheduled
     /// script and a test all run with no request, and
-    /// [ADR 0012](/docs/adr/0012-no-superglobals.md) § 7 makes reading
+    /// `rule:security/request-state-throws-in-an-isolate` makes reading
     /// `Core\Request` there a **throw** rather than an empty string — "there is
     /// no request here" and "the request sent nothing" are different facts, and
     /// an `Option` is what keeps them different this far down.
@@ -949,7 +949,7 @@ pub struct Ctx {
     /// unit whose code this context is running, as the one thing a child of it
     /// needs that its own class table does not already carry.
     ///
-    /// [ADR 0006](/docs/adr/0006-isolated-script-execution.md)'s method entry
+    /// `rule:security/isolate-shares-nothing`'s method entry
     /// is what reads it: a `Class::method` isolate runs code out of the
     /// *parent's* unit, so it has to arm a fresh store against that unit's slot
     /// numbering and there is no path for a resolver to compile. Shared rather
@@ -964,8 +964,8 @@ pub struct Ctx {
     /// Cold, and null for every context that is not an isolate's, which is
     /// every request. It is a field here rather than a slot the program keeps
     /// because it is the isolate's ownership *root*
-    /// ([ADR 0116](/docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
-    /// § 2): what releases it is dropping this context, and nothing else knows
+    /// (`rule:security/isolate-teardown-is-a-drain-then-a-sweep`
+    /// ): what releases it is dropping this context, and nothing else knows
     /// when that happens.
     isolate_argument: Value,
     /// `rule:testing/failure-ledger`'s per-test assertion ledger, in the order the assertions ran.
@@ -1138,7 +1138,7 @@ impl Drop for Ctx {
         // The other end of § 7's count, for a tree that ended without draining
         // — and a no-op for one that drained, which gave its slot back there.
         self.release_deferred_slot();
-        // ADR 0067 § 13: a connection the request is still holding is released
+        // `rule:security/db-pool-reset-is-a-boundary`: a connection the request is still holding is released
         // to this core's pool under the lease it was filed with, rather than
         // closed here — `crate::pool` decides which of those two happens, and
         // its module doc owns why the reset is the acquiring request's job and
@@ -1182,7 +1182,7 @@ impl Drop for Ctx {
         drop(self.pending.take());
         // Last, and only once every root above is gone: what is still on the
         // live list is then exactly the cyclic garbage the refcounts could not
-        // free. ADR 0116 § 2 is the decision and `crate::object::sweep` the
+        // free. `rule:security/isolate-teardown-is-a-drain-then-a-sweep` is the decision and `crate::object::sweep` the
         // mechanism.
         crate::object::sweep(&self.live);
     }

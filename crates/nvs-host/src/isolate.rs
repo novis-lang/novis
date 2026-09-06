@@ -1,10 +1,10 @@
-//! ADR 0006's isolate, as one type: a child task with a heap boundary.
+//! `rule:security/isolate-shares-nothing`'s isolate, as one type: a child task with a heap boundary.
 //!
-//! [ADR 0006](/docs/adr/0006-isolated-script-execution.md) fixes what an
+//! `rule:security/isolate-shares-nothing` fixes what an
 //! isolate *is* — it shares immutable compiled code and its parent's budget and
 //! nothing else, values cross by copy or by move at refcount 1, and a child's
 //! failure arrives as data rather than as an unwind.
-//! [ADR 0116](/docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
+//! `rule:security/arena-is-an-ownership-root`
 //! decides how, and this module is that decision in code: an arena is an
 //! ownership root, so building one is [`Ctx::isolate`] and releasing one
 //! wholesale is dropping that context.
@@ -41,7 +41,7 @@
 //!   existed. [`Isolate::run`] answers `Err`, no task is started, and the caller
 //!   raises it in the parent — which is where the offending value's name and its
 //!   path in the graph mean something.
-//! * An **answer** that cannot cross was built by the child. That is ADR 0006's
+//! * An **answer** that cannot cross was built by the child. That is `rule:security/isolate-shares-nothing`'s
 //!   *failure is a value*: it lands as `ok = false` carrying the walk's own
 //!   message, beside an uncaught throw and a limit breach, and the parent keeps
 //!   running.
@@ -70,7 +70,7 @@
 //!
 //! # What it spends
 //!
-//! ADR 0116 § 3 is the one home of the accounting. Per **in-flight** isolate:
+//! `rule:security/isolate-budget-is-the-trees` is the one home of the accounting. Per **in-flight** isolate:
 //! one [`Ctx`], one pooled task stack, and the values the child allocates.
 //! Nothing here is O(isolates created) — a finished isolate's context is dropped
 //! as its task ends, and that drop is the wholesale release.
@@ -113,7 +113,7 @@ pub struct Isolate {
     peer: Option<Box<dyn PeerSocket>>,
 }
 
-/// Whose budget an isolate spends: ADR 0006's answer, and `rule:errors/handler-script`'s one
+/// Whose budget an isolate spends: `rule:security/isolate-shares-nothing`'s answer, and `rule:errors/handler-script`'s one
 /// named exception to it.
 ///
 /// Private, and a builder rather than a parameter of [`Isolate::new`], because
@@ -182,7 +182,7 @@ impl Isolate {
     ///
     /// That is also why a `spawn script` child answers no request — nothing calls
     /// this for one, and
-    /// [ADR 0006](/docs/adr/0006-isolated-script-execution.md)'s isolate
+    /// `rule:security/isolate-shares-nothing`'s isolate
     /// shares nothing but compiled code, so `Core\Request::method()` inside one
     /// throws exactly as it does in a CLI program. Passing the request down
     /// automatically would be ambient authority crossing the boundary that exists
@@ -289,7 +289,7 @@ impl Isolate {
 
     /// Runs it to completion and answers with what crossed back.
     ///
-    /// The sequence is ADR 0116 §§ 2 and 5: copy the argument in, build the
+    /// The sequence is `rule:security/isolate-teardown-is-a-drain-then-a-sweep` and `rule:security/isolate-values-cross-by-copy`: copy the argument in, build the
     /// isolate's own ownership root, run it as a child task, copy the answer out
     /// **before** that root is released, and release it. Control does not return
     /// while the child is still running, exactly as it does not for a group
@@ -397,7 +397,7 @@ impl Isolate {
         } else {
             OutputSink::Buffer(Vec::new())
         };
-        // ADR 0006's method entry arms the child from the recipes *this* context
+        // `rule:security/isolate-shares-nothing`'s method entry arms the child from the recipes *this* context
         // is holding, there being no second unit to install and so no
         // `install_in` to run inside the program — `Ctx::method_isolate` owns
         // that reading. The handler's reserve is asked first because it is a
@@ -559,7 +559,7 @@ impl Running for Started {
         }
         self.park_until_done(true);
         // The completion, if the child filed one before it was told, is dropped
-        // with `self.slot`: nobody is left to read an answer, and ADR 0116 § 5
+        // with `self.slot`: nobody is left to read an answer, and `rule:security/isolate-values-cross-by-copy`
         // makes discarding the copy the whole of freeing it.
     }
 }
@@ -732,14 +732,14 @@ fn run_here(
         nvs_runtime::deferred::run_deferred(&mut isolate_ctx);
     }
     completion
-    // `isolate_ctx` is dropped here: ADR 0116 § 2's wholesale release.
+    // `isolate_ctx` is dropped here: `rule:security/isolate-teardown-is-a-drain-then-a-sweep`'s wholesale release.
 }
 
 /// Classifies how the isolate ended and copies its answer **out** of the arena
 /// it was built in.
 ///
 /// Called on the child's own stack, while its context is still alive, which is
-/// the ordering ADR 0116 § 5 requires: the copy reads the child's graph, and the
+/// the ordering `rule:security/isolate-values-cross-by-copy` requires: the copy reads the child's graph, and the
 /// caller's root owns what comes back.
 fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) -> Completion {
     let cancelled = isolate_ctx.cancelled();
@@ -753,7 +753,7 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
         // output joins the child's and crosses at the await like every other
         // byte the child wrote.
         //
-        // **Tier 4 is deliberately not reached from here.** ADR 0006's
+        // **Tier 4 is deliberately not reached from here.** `rule:security/isolate-shares-nothing`'s
         // failure-is-a-value already carries this throw back to the parent,
         // which is a reporter the CLI's own root task does not have, so a line
         // on `stderr` beside it would be a second report of one failure rather
@@ -765,7 +765,7 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
         // the tier below it and before the buffer is taken, so its output
         // crosses at the await with everything else the child wrote. A parent's
         // handler is not reached from here — a registration is request-local
-        // (`Ctx::set_uncaught_handler`), and ADR 0006's failure-is-a-value is
+        // (`Ctx::set_uncaught_handler`), and `rule:security/isolate-shares-nothing`'s failure-is-a-value is
         // how this throw reaches the parent at all.
         isolate_ctx.run_uncaught_handler(thrown);
         let record = nvs_runtime::floor::uncaught(thrown);
@@ -786,7 +786,7 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
         isolate_ctx.end_session();
     }
     let output = isolate_ctx.take_buffered_output().unwrap_or_default();
-    // ADR 0088 § 4's declaration, taken beside the bytes it describes and on
+    // `rule:security/response-body-is-one-typed-member`'s declaration, taken beside the bytes it describes and on
     // every path out of here — a child that threw still wrote what it wrote,
     // and whether that reaches a peer is the collector's call rather than
     // this one's.
@@ -800,7 +800,7 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
     let headers = isolate_ctx.take_headers();
 
     if let Some(thrown) = thrown {
-        // ADR 0006's second row: the class name and the message as copied data.
+        // `rule:security/isolate-shares-nothing`'s second row: the class name and the message as copied data.
         // The exception object stays in the arena that is about to go.
         let class = class_name(&thrown);
         release(answer);
@@ -994,7 +994,7 @@ mod tests {
         }
     }
 
-    /// `rule:statements/an-isolate-has-its-own-statics`, which is ADR 0006's "globals, class statics and
+    /// `rule:statements/an-isolate-has-its-own-statics`, which is `rule:security/isolate-shares-nothing`'s "globals, class statics and
     /// runtime-defined constants are fresh": an isolate's statics base is its
     /// own, so nothing it writes can reach the parent's slot. This is the
     /// assertion the whole boundary rests on, because compiled code reaches a
@@ -1085,7 +1085,7 @@ mod tests {
         );
     }
 
-    /// ADR 0116 § 5's copy is rooted in the **collector's** ownership, so a
+    /// `rule:security/isolate-values-cross-by-copy`'s copy is rooted in the **collector's** ownership, so a
     /// completion still holds the answer after the child's arena has gone and
     /// discarding it is what frees the graph. The collector that has to act on
     /// that is the one with nobody to answer — `nvs queue`'s worker, which runs
@@ -1573,7 +1573,7 @@ mod tests {
     /// is the three consequences — the child stops at the safepoint and takes
     /// no further step, [`Ctx::cancelled`] is what its own body reads to know
     /// it must stop, and [`finish`] therefore classifies it as cancelled rather
-    /// than as an answer, so the awaiting parent gets ADR 0006's failure value.
+    /// than as an answer, so the awaiting parent gets `rule:security/isolate-shares-nothing`'s failure value.
     ///
     /// The cancellation comes from a **sibling** task, because that is the only
     /// place it can come from while the child is still runnable: the parent is
@@ -1807,8 +1807,8 @@ mod tests {
 
     /// One pair of objects that hold each other and that nothing else holds —
     /// the smallest graph no reference count can reclaim, and the one
-    /// [ADR 0116](/docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
-    /// § 2's teardown sweep exists for.
+    /// `rule:security/isolate-teardown-is-a-drain-then-a-sweep`
+    /// 's teardown sweep exists for.
     ///
     /// An `extern "C"` entry reached through [`nvs_runtime::call`] rather than
     /// a plain Rust call from the program closure, because that call is what
@@ -1867,8 +1867,8 @@ mod tests {
         peak.get()
     }
 
-    /// [ADR 0116](/docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
-    /// § 2 at the boundary ADR 0006 gives a request: what the root drain leaves
+    /// `rule:security/isolate-teardown-is-a-drain-then-a-sweep`
+    /// at the boundary `rule:security/isolate-shares-nothing` gives a request: what the root drain leaves
     /// is swept when the arena is dropped, so a request that built a cycle
     /// still gives every byte back. `nvs_runtime::object`'s
     /// `a_cyclic_object_graph_is_reclaimed_when_its_context_drops` is the same

@@ -1,9 +1,9 @@
 --TEST--
-`Core\Request`'s refusal is an ordinary `Throwable` a program continues past, and reading twice refuses twice -- ADR 0012 § 7, `rule:errors/on-limit`, spec § 15
+`Core\Request`'s refusal is an ordinary `Throwable` a program continues past, and reading twice refuses twice -- `rule:security/request-state-throws-in-an-isolate`, `rule:errors/on-limit`, spec § 15
 --FILE--
 <?nvs
 // The edge on the other side of the refusal: what a program can do *after*
-// one. ADR 0012 § 7 asks for a throw rather than an empty value, and a throw
+// one. `rule:security/request-state-throws-in-an-isolate` asks for a throw rather than an empty value, and a throw
 // is a rung of `rule:errors/escalation-ladder`'s ladder every `catch` sees -- so the program is still
 // running here, which is what separates this from a fatal.
 uint $steps = 0;

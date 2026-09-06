@@ -16,7 +16,7 @@ try {
     echo $refused->message, "\n";
 }
 
-// ADR 0118 § 5's shape: the world refused a call, and the program is still
+// `rule:security/denial-is-a-runtime-error`'s shape: the world refused a call, and the program is still
 // running underneath it.
 echo "still running", "\n";
 --FILE nvs.toml--

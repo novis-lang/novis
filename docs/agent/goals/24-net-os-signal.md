@@ -39,7 +39,7 @@ Goal 23's whole acceptance list, carried in verbatim by `tools/goal-switch.py`. 
 3. **TCP.** `connect`, and a listener that accepts — over `nvs_host::NvsTcp`/`NvsListener`
    (`crates/nvs-host/src/net.rs:227`, `:313`), which park on the reactor and are what the drivers and
    the server already speak through. A program-supplied host walks
-   [ADR 0058](../../adr/0058-outbound-request-policy.md) § 3's denied-range table through
+   `rule:security/net-address-policy`'s denied-range table through
    `nvs_runtime::capability::pin_host`, unchanged — goal 20's carve-out was for *configured* stores and
    does not reach a program's own `connect`.
 4. **Unix.** `NvsUnix` exists (`net.rs:460`) and needs no new transport. A program-supplied socket
@@ -48,7 +48,7 @@ Goal 23's whole acceptance list, carried in verbatim by `tools/goal-switch.py`. 
 5. **UDP is new to the host.** `nvs-host` has no datagram type; `NvsUdp` over `mio::net::UdpSocket` is
    this goal's one addition to that crate, written to the same shape as `NvsStream` so it parks the
    coroutine rather than blocking the core.
-6. **No scheme dispatch anywhere** — [ADR 0052](../../adr/0052-closed-doors.md) § 2. A socket is
+6. **No scheme dispatch anywhere** — `rule:security/a-path-is-not-a-url`. A socket is
    opened by an address, never by a URL that something interprets.
 
 ## Stage 3 — `Core\Os`, five facts about the host

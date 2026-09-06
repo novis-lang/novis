@@ -94,8 +94,8 @@ impl<'a> Lexer<'a> {
     /// [`Mode::Code`] with `pos` still at 0 is the whole implementation — code
     /// mode's own trivia rule then consumes line 1 to its `\n`, emits nothing,
     /// and bidi-checks it exactly as it checks any other `#` comment
-    /// ([ADR 0087](/docs/adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md)
-    /// § 2). Skipping the bytes before lexing would have been shorter and
+    /// (`rule:security/bidi-boundaries`
+    /// ). Skipping the bytes before lexing would have been shorter and
     /// would have opened a hole at the one place in a file where an unbalanced
     /// override reorders everything after it.
     ///
@@ -221,8 +221,8 @@ impl<'a> Lexer<'a> {
         Span::new(self.file.id(), start, end)
     }
 
-    /// [ADR 0087](/docs/adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md)
-    /// § 2 at the lexer: a directional control that opens a scope must close it
+    /// `rule:security/bidi-boundaries`
+    /// at the lexer: a directional control that opens a scope must close it
     /// inside the span that opened it, and the span is **one line** of one
     /// token — so a heredoc, a block comment or an inline-HTML run cannot open
     /// a scope on one line and close it on the next. A failure is a hard error
@@ -1367,7 +1367,7 @@ mod tests {
     #[test]
     fn a_shebang_line_is_bidi_checked_like_the_comment_it_is() {
         // The one line in a file whose unbalanced override would reorder
-        // everything after it (ADR 0087 § 2) — which is why the shebang is
+        // everything after it (`rule:security/bidi-boundaries`) — which is why the shebang is
         // lexed as trivia rather than skipped by `Lexer::new`.
         assert_eq!(bidi_errors("#!/usr/bin/env nvs \u{202E}x\necho 1;"), 1);
     }
@@ -1569,7 +1569,7 @@ mod tests {
 
     #[test]
     fn tainted_is_a_keyword() {
-        // ADR 0024 § 1: `tainted` needs a new reserved keyword, landing in
+        // `rule:security/tainted-qualifier`: `tainted` needs a new reserved keyword, landing in
         // M1's grammar alongside `uint`'s own addition above.
         assert_eq!(
             kinds_ok("<?nvs tainted string"),
@@ -1584,7 +1584,7 @@ mod tests {
 
     #[test]
     fn secret_is_a_keyword() {
-        // ADR 0033 § 1: `secret` needs its own new reserved keyword,
+        // `rule:security/secret-qualifier`: `secret` needs its own new reserved keyword,
         // independent of `tainted`'s.
         assert_eq!(
             kinds_ok("<?nvs secret string"),
@@ -1731,7 +1731,7 @@ mod tests {
         assert_eq!(kinds, vec![OpenTagNvs, SingleQuotedString, Eof]);
     }
 
-    /// ADR 0087 § 2: the four source spans that carry free text, each rejected
+    /// `rule:security/bidi-boundaries`: the four source spans that carry free text, each rejected
     /// when a directional scope it opens outlives the line that opened it.
     fn bidi_errors(src: &str) -> usize {
         let (_, diags) = kinds(src);
@@ -1776,7 +1776,7 @@ mod tests {
     #[test]
     fn a_bidi_scope_may_not_cross_a_line_inside_one_token() {
         // Balanced across the heredoc as a whole, unbalanced per line -- which
-        // is the span ADR 0087 § 2 gives the lexer, so this is rejected.
+        // is the span `rule:security/bidi-boundaries` gives the lexer, so this is rejected.
         let src = "<?nvs $s = <<<TXT\n\u{202E}first\nsecond\u{202C}\nTXT;\n";
         assert_eq!(bidi_errors(src), 1);
         // The same two lines, each closing its own scope, are fine.
@@ -1786,7 +1786,7 @@ mod tests {
 
     #[test]
     fn a_stray_terminator_is_not_an_error() {
-        // It closes nothing and opens nothing -- ADR 0087 § 1.
+        // It closes nothing and opens nothing -- `rule:security/bidi-predicate`.
         assert_eq!(bidi_errors("<?nvs echo 'a\u{202C}b\u{2069}';"), 0);
     }
 

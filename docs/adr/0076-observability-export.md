@@ -134,7 +134,7 @@ the series and not of the call, and a series recorded two ways is a bug the back
 site cannot see.
 
 A literal `$name` is validated at compile time against `[a-z][a-z0-9_]*`, by the same call-site literal
-inspection [ADR 0033](0033-secret-qualifier-for-confidential-values.md) § 4 already performs. A name is also
+inspection `rule:security/secret-sinks-refuse` already performs. A name is also
 fixed to one kind on first use within a process; a second kind for the same name is a runtime throw naming
 both sites, because it is a mistake and not a mode.
 
@@ -145,23 +145,23 @@ behaviour is identical across builds except for the export path — and a progra
 
 ### 4. A label value refuses `tainted`
 
-The `labels` value position is an [ADR 0024](0024-taint-tracking-for-injection-sinks.md) **sink**. A
+The `labels` value position is an `rule:security/tainted-qualifier` **sink**. A
 `tainted string` — a query parameter, a header, a path segment, a database column — cannot become a label.
 
 There is deliberately **no launderer for it**, because there is no sanitisation that would make it safe: the
 hazard is not the value's *content*, it is that the value is drawn from an unbounded set. What exists
 instead is the set of things that are already unqualified and are what a label should have been:
 
-- an enum case or an `int` converted with `as` — [ADR 0024](0024-taint-tracking-for-injection-sinks.md) § 2
+- an enum case or an `int` converted with `as` — `rule:security/taint-propagation`
   already launders a checked conversion, so `$statusCode as string` is a legal label for free;
 - a route name from [ADR 0077](0077-compile-time-routing.md)'s closed table;
 - a literal, a class constant, a configured value;
 - and, when someone genuinely has a bounded user-derived set, `Core\Taint::assertTrusted` — the rare,
-  greppable, reason-carrying escape hatch [ADR 0024](0024-taint-tracking-for-injection-sinks.md) § 3 already
+  greppable, reason-carrying escape hatch `rule:security/launderers-are-sink-named` already
   defines, which is exactly the right shape for a claim only the author can make.
 
 `secret` is refused there too, and needs no new rule: a metric export is output, and
-[ADR 0033](0033-secret-qualifier-for-confidential-values.md) already refuses `secret` at every output sink.
+`rule:security/secret-qualifier` already refuses `secret` at every output sink.
 
 This is the decision this ADR is most likely to be remembered for. It costs a compile error at exactly the
 line that would have taken the collector down, and it is only available because Novis spent the qualifier
@@ -348,7 +348,7 @@ registry, both of which are about Novis's own runtime and could not be a crate.
   per window.
 - **M4S/M8:** a `tainted string` in a `labels` value is a compile-time diagnostic naming § 4 and the
   alternatives; `$status as string` from an `int` compiles; `Core\Taint::assertTrusted` compiles; a `secret`
-  is refused naming [ADR 0033](0033-secret-qualifier-for-confidential-values.md).
+  is refused naming `rule:security/secret-qualifier`.
 - **M8:** `Core\Metrics::increment` on a name previously used as a gauge throws naming both call sites; a
   name that is not `[a-z][a-z0-9_]*` is a compile error at a literal call site.
 - **M8:** `Core\Http\Client` sends `traceparent` when `[trace] propagate` is on and omits it when off; a

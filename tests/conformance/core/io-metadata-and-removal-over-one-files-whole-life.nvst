@@ -1,5 +1,5 @@
 --TEST--
-Core\IO::exists, ::size, ::remove and ::removeDir agree about one file and one directory across the whole of their life — the size is the operating system's byte count rather than the length of the string that was handed over, and each removal is asserted by the `exists` after it rather than by the call having returned — spec § 14, ADR 0118 § 2
+Core\IO::exists, ::size, ::remove and ::removeDir agree about one file and one directory across the whole of their life — the size is the operating system's byte count rather than the length of the string that was handed over, and each removal is asserted by the `exists` after it rather than by the call having returned — spec § 14, `rule:security/capability-check-at-the-door`
 --FILE--
 <?nvs
 // The four members are one story about one name: it is not there, it is, it is

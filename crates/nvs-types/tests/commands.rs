@@ -150,7 +150,7 @@ fn two_options_sharing_a_spelling_are_a_diagnostic() {
 
 #[test]
 fn an_option_on_a_parameter_with_no_conversion_from_string_is_a_diagnostic() {
-    // § 6's third compile error, which is ADR 0077 § 3's conversion roster
+    // § 6's third compile error, which is `rule:security/route-capture-is-laundered-by-its-type`'s conversion roster
     // applied unchanged: an argument arrives as text, so a parameter no text
     // can become is an option that could never be given.
     let diags = check_src(&command_src(

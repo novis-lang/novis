@@ -237,7 +237,7 @@ change for every deployment.
 - **KDL, RON, HCL.** An operator would meet the format for the first time here, and their editor would not
   validate it. Nothing any of them offers over TOML is reachable at this file's size.
 - **Dhall, or configuration written in Novis itself.** Both make the configuration file a program.
-  [ADR 0052](0052-closed-doors.md) closed `eval`; a configuration language with functions and imports
+  `rule:security/closed-doors` closed `eval`; a configuration language with functions and imports
   reopens it in the one file that is root-owned and read before any sandbox exists.
 - **Bare integers with implied units (`memory = 134217728`).** Drops the suffix parser at the cost of a
   file nobody can edit confidently — and the parser has to exist anyway for `Core\Config::set`.

@@ -21,7 +21,7 @@ The goal is a new programming language for web servers and CLI, written in Rust,
 - compiles to native code just-in-time with no build step (edit file → run),
 - has first-class in-language parallelism,
 - can run another `.nvs` file as a fully isolated unit of work **inside the same process**, so a script
-  never has to spawn an interpreter to get isolation ([ADR 0006](../adr/0006-isolated-script-execution.md)),
+  never has to spawn an interpreter to get isolation (`rule:security/isolate-shares-nothing`),
 - is memory-safe and hard to attack,
 - serves HTTP from a **single process** with **no worker-pool ceiling** — fully isolated requests bounded
   only by a safety valve, never by a `pm.max_children` — while
@@ -63,7 +63,7 @@ spellings rejected, and the reasoning. Do not restate that detail here when addi
 | Code cache | Content-addressed on-disk cache (BLAKE3) + in-process `Arc` sharing; hot-reloads on an edit via a per-path pointer swap, no watcher, no restart ([ADR 0017](../adr/0017-hot-reload-without-restart.md)); the on-disk file format, its mmap-verify-then-execute read path and its eviction policy are [ADR 0042](../adr/0042-on-disk-artifact-cache-format.md) |
 | Parallelism | Hybrid: `async`/`await` for I/O inside a task (same heap, cooperative) + isolated workers on other cores for CPU work |
 | Suspension | Stackful coroutines — no async colouring; any function may yield |
-| Isolated execution | `spawn script 'file.nvs'` runs another file in-process as a child isolate, file-only, never a source string ([ADR 0006](../adr/0006-isolated-script-execution.md)) |
+| Isolated execution | `spawn script 'file.nvs'` runs another file in-process as a child isolate, file-only, never a source string (`rule:security/isolate-shares-nothing`) |
 | Type system | Static, mandatory, explicit; every binding's declared type never changes; `uint` alongside signed `int` (`rule:types/declaration`) |
 | Enums | A closed, named integer type, C#-style; PHP's class-like enum design (`::cases()`, methods, `string` backing) is disregarded entirely (`rule:enums/closed-integer-type`) |
 | Scoping and state | `static` is a class-member modifier only; no function-scope `static`, no `static fn`, no `global` (`rule:statements/static-is-a-member-modifier`) |
@@ -122,7 +122,7 @@ listener for it ([ADR 0097](../adr/0097-development-server-and-proxied-origin.md
   loop, so it is fast to get correct, and typed inlining layers on afterwards without redesign.
 - **Database connections are pooled per core, so a connection reset is a security boundary.** Shared-nothing
   is a rule about *program* state; a connection is host state Novis code cannot observe, so pooling it costs
-  the model nothing ([ADR 0067](../adr/0067-core-db.md) § 13). What it does cost is a reset that must be
+  the model nothing (`rule:security/db-pool-reset-is-a-boundary`). What it does cost is a reset that must be
   provable rather than best-effort — a connection that cannot be proven clean is destroyed, because one
   tenant's session state arriving in another tenant's request is a leak, not a performance bug.
 - **An existing PHP application's framework and packages do not come along.** No trait, no `__call`, no
@@ -153,7 +153,7 @@ listener for it ([ADR 0097](../adr/0097-development-server-and-proxied-origin.md
   has to learn and the spec has to define next to `require`, which they will confuse it with. Accepted:
   the requirement it answers — run another file, isolated, without a second process — has no other honest
   answer, and it reuses the request boundary and the worker value rules rather than adding either
-  ([ADR 0006](../adr/0006-isolated-script-execution.md)).
+  (`rule:security/isolate-shares-nothing`).
 - **This is an 18–24 month effort at full-time pace for one experienced engineer**, front-loaded: M0–M4
   (a usable CLI language) is roughly 3–4 months; the stdlib and DB drivers are the long tail.
 
@@ -276,7 +276,7 @@ doc is the home for that layout.
 
 Memory: refcounting + copy-on-write arrays/strings (PHP semantics). Reference cycles — objects only: a
 string is immutable and an array copies on write, so neither can close one — are reclaimed by the teardown
-sweep of [ADR 0116](../adr/0116-an-isolates-arena-is-an-ownership-root.md) § 2, which is what bounds a
+sweep of `rule:security/isolate-teardown-is-a-drain-then-a-sweep`, which is what bounds a
 cycle by the request or isolate that built it. Long-running CLI scripts additionally get an optional
 mark-sweep cycle collector running at safepoints — a decision still open; whichever milestone implements
 its run routine also gives it a `gc`-kind trace event, at no cost to the safepoint poll itself
@@ -339,7 +339,7 @@ consults the *request's* config snapshot, so a script cannot affect its neighbou
 ### In-process isolated script execution
 
 The provisional surface, the semantics, and what is/is not shared are decided and stated in full in
-[ADR 0006](../adr/0006-isolated-script-execution.md) — including the `spawn script … with(…)` example, how
+`rule:security/isolate-shares-nothing` — including the `spawn script … with(…)` example, how
 values cross (the graph-copy operation `rule:classes/two-copy-depths` now
 formally defines, shared with `serialize()`/`unserialize()`), how budgets are accounted (at the root of the
 request tree, never per isolate), the `script.spawn` capability and its path resolution, and failure
@@ -371,7 +371,7 @@ Two cross-cutting consequences the milestones below depend on:
   value unchanged — it is **not** clamped.
 - Every `[limits]` value is accounted against the **root of a request tree**, not per isolate, which is
   what keeps the process worst case independent of how many isolates a script creates
-  ([ADR 0006](../adr/0006-isolated-script-execution.md)).
+  (`rule:security/isolate-shares-nothing`).
 
 ---
 

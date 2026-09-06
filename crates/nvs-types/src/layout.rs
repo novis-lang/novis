@@ -68,8 +68,8 @@ pub struct ClassLayout {
     ///
     /// Carried for [`Self::methods`]' reason exactly: visibility is a keyword
     /// on a declaration and nothing below the front end can see one, while
-    /// [ADR 0019](/docs/adr/0019-reflection-and-ast-parsing-are-core-features.md)
-    /// § 2's rule — a reflective read faces the check ordinary code at that
+    /// `rule:security/reflection-enforces-visibility`
+    /// 's rule — a reflective read faces the check ordinary code at that
     /// site faces — has to be answered at run time, of a value whose class the
     /// checker never saw. `nvs_ir::ir::Class::public_fields` carries it down and
     /// `nvs_runtime::ClassDesc::field_is_public` is what
@@ -328,7 +328,7 @@ fn is_public(modifiers: &[Modifier]) -> bool {
 /// constructor parameter alike, each where it stands among the members.
 ///
 /// The visibility bit is [`own_methods`]' bit, read the same way by
-/// [`is_public`]: ADR 0019 § 2's reflective read has to face the check ordinary
+/// [`is_public`]: `rule:security/reflection-enforces-visibility`'s reflective read has to face the check ordinary
 /// code faces, and nothing below this crate can see a keyword.
 ///
 /// A promoted parameter occupies an ordinary slot, because it is an ordinary
@@ -399,7 +399,7 @@ fn flatten_fields(
             // class stays valid for every subclass. The ancestor's visibility
             // is the slot's too, for the same reason it is one slot: there is
             // one field, so there is one answer to who may read it, and the
-            // narrower one is the safe direction for a question ADR 0019 § 2
+            // narrower one is the safe direction for a question `rule:security/reflection-enforces-visibility`
             // makes a privilege check.
             if !fields.iter().any(|(held, _)| *held == slot.0) {
                 fields.push(slot.clone());

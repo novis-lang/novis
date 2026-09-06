@@ -30,7 +30,7 @@
 
 > **In short:** `Core\Cli` is four members today and M4 is titled *a usable CLI language*. This ADR makes it
 > the surface a CLI program is actually written against, and takes five decisions. **The terminal is an
-> [ADR 0024](0024-taint-tracking-for-injection-sinks.md) sink**: `echo` and `Cli::write` render every `ESC`
+> `rule:security/tainted-qualifier` sink**: `echo` and `Cli::write` render every `ESC`
 > and control byte *visibly* — `ESC` becomes `␛` — instead of letting the terminal act on it. Twelve
 > terminal CVEs in 2022–23 were reached through exactly the output `git`, `less` and `kubectl` print, and
 > unlike HTML's `&`→`&amp;` this substitution transforms no visible text, because a control sequence was
@@ -87,7 +87,7 @@
 
 ### 1. Terminal output is a sink, and it substitutes visibly
 
-Standard output and standard error are [ADR 0024](0024-taint-tracking-for-injection-sinks.md) sinks. Every
+Standard output and standard error are `rule:security/tainted-qualifier` sinks. Every
 value written through `echo` or `Cli::write` — **regardless of qualifier** — has its control bytes replaced
 before a byte reaches the stream:
 
@@ -97,7 +97,7 @@ before a byte reaches the stream:
 | Every other C0 (0x00–0x1F), including `ESC` and `CR` | its U+2400-block Control Picture — `ESC` → `␛`, `CR` → `␍` | Visible, inert, and one code point per input byte. `CR` is included because bare-`CR` overwriting is the oldest text-hiding trick and needs no `ESC`. |
 | `DEL` (0x7F) | `␡` (U+2421) | |
 | A C1 code point (U+0080–U+009F) | `�` (U+FFFD) | Several terminals still parse these as a CSI introducer. The U+2400 block has no glyph for them; losing their identity is deliberate and bounded, because a C1 code point is never legitimate text. |
-| An **unterminated** bidirectional control | `�` (U+FFFD) | Display order that the bytes do not have. [ADR 0087](0087-unbalanced-bidi-is-rejected-at-every-boundary.md) owns the predicate and its other three callers; a *balanced* control is legitimate text and passes through. |
+| An **unterminated** bidirectional control | `�` (U+FFFD) | Display order that the bytes do not have. `rule:security/bidi-predicate` owns the predicate and its other three callers; a *balanced* control is legitimate text and passes through. |
 
 **Uniform, not qualifier-dependent.** Escaping only `tainted` values was considered and rejected: it makes
 *whether output is escaped* depend on a fact that is not visible at the `echo` line, which is a worse kind
@@ -169,7 +169,7 @@ degrade identically. The one difference is per-stream, and it is a known limit r
 `Text` written to a terminal standard output and to a redirected standard error in the same run sends both
 the same thing, where § 3's "when the stream is not a terminal, styling is dropped entirely" would want the
 second plain. Closing it means a `Text` that carries **runs** — text and style in pairs, rendered by
-whichever stream receives it — and the cost is that ADR 0088 § 5's carrier, which is the return of
+whichever stream receives it — and the cost is that `rule:security/capture-answers-the-carrier`'s carrier, which is the return of
 `Core\Out::capture` and therefore arbitrary captured bytes, becomes two representations instead of one.
 That trade is not worth making before `Cli::write` takes a stream at all, since `echo` writes standard
 output and nothing else can observe the difference.
@@ -367,7 +367,7 @@ stopped does not exist here, so stopping would be cargo-culting its shape rather
   price, recorded rather than hidden: a program cannot emit byte-exact binary on its standard output, and
   one whose output is bytes names a file.
 - **Bidirectional-Unicode spoofing** (Trojan Source, CVE-2021-42574) is **covered**, but the rule is not
-  this ADR's: [ADR 0087](0087-unbalanced-bidi-is-rejected-at-every-boundary.md) owns it, because the same
+  this ADR's: `rule:security/bidi-predicate` owns it, because the same
   predicate binds the lexer and `Core\Html::escape` as well as this sink. § 1's table gains its one row
   there — an *unterminated* directional control becomes `�`, while the balanced controls that legitimate
   Arabic and Hebrew actually use pass through untouched.

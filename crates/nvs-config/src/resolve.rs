@@ -303,7 +303,7 @@ pub fn resolve(
     // `[db]` block is resolved against the file that wrote it, and only the merge knows which of
     // them won.
     crate::db::canonicalize(&mut resolved.config, &mut resolved.table, &origins, files)?;
-    // ADR 0067 § 13's pool bounds, in the same pass's second half: a `lifetime` that spells nothing
+    // `rule:security/db-pool-reset-is-a-boundary`'s pool bounds, in the same pass's second half: a `lifetime` that spells nothing
     // is a boot refusal naming its file, rather than the first acquire of the first request.
     crate::db::validate(&resolved.config, &origins)?;
     // `rule:core-classes/queue-storage-is-a-table`'s `[queue]`, immediately after the roster it names: whether `connection = "main"`

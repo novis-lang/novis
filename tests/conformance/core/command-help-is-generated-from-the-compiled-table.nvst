@@ -20,7 +20,7 @@ class Deployer {
     }
 }
 
-// A `Cli\Text` renders as the bytes it already holds (ADR 0088 § 5). An option
+// A `Cli\Text` renders as the bytes it already holds (`rule:security/capture-answers-the-carrier`). An option
 // that wrote a `short:` claims two spellings: the usage line summarizes it by
 // the long one and the `options:` block names both.
 echo "" . Core\Command::help("deploy");

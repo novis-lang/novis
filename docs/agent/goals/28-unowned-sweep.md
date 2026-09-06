@@ -59,7 +59,7 @@ implements** — read it first. The design is settled; a session takes it rather
    are checked against each other.
 4. **`Core\Queue`'s `$args` refuses a `secret`.** § 1 asks for it and `CoreTy::Mixed` carries no
    qualifier, so the refusal needed a spelling rather than a line. A durable row is an output and
-   [ADR 0033](../../adr/0033-secret-qualifier-for-confidential-values.md)'s sinks are the shape of the
+   `rule:security/secret-qualifier`'s sinks are the shape of the
    answer: a queued job's arguments are written to a database and read back by another process, which
    is a sink by every test that ADR applies.
 
@@ -99,7 +99,7 @@ both sides, and the widening side wins:
 ## Stage 5 — the list is shorter, and says so
 
 `carried-gaps.md` § *Unowned* is rewritten to what survives. What is expected to survive is one
-entry — [ADR 0116](../../adr/0116-an-isolates-arena-is-an-ownership-root.md)'s optional in-flight cycle
+entry — `rule:security/arena-is-an-ownership-root`'s optional in-flight cycle
 collector — because it is an **open decision rather than an unclosed gap**, and it stays visible for
 exactly that reason. Its consequence is visible in a second place and that is not a duplicate: it is
 one of the two flags `nvs_safepoint` clears and ignores (`crates/nvs-runtime/src/lib.rs` gap 5), the

@@ -1,8 +1,8 @@
 --TEST--
-`query` refuses a `tainted` statement and binds a `tainted` value freely, so untrusted data reaches a database only through a placeholder — ADR 0024 § 4, `rule:core-classes/db-one-api` and `rule:core-classes/db-parameters`
+`query` refuses a `tainted` statement and binds a `tainted` value freely, so untrusted data reaches a database only through a placeholder — `rule:security/sink-predicate`, `rule:core-classes/db-one-api` and `rule:core-classes/db-parameters`
 --FILE--
 <?nvs
-// ADR 0024 § 4 is the whole injection story for `Core\Db\Connection`: the
+// `rule:security/sink-predicate` is the whole injection story for `Core\Db\Connection`: the
 // query-text parameter is a **sink**, so a value that came from outside the
 // process cannot be written into the statement at all, and a bound parameter
 // accepts the same value freely. There is no escaper to launder one with —

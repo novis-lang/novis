@@ -32,7 +32,7 @@
 //! balance now and the balance when its [`Ctx`](crate::Ctx) was made —
 //! [`Ctx::memory_used`](crate::Ctx::memory_used) — which is exact for the one
 //! request a thread runs at a time and is what
-//! [ADR 0006](/docs/adr/0006-isolated-script-execution.md)'s isolate boundary will
+//! `rule:security/isolate-shares-nothing`'s isolate boundary will
 //! sharpen when a core runs several.
 //!
 //! A block allocated on one thread and freed on another makes the freeing
@@ -45,7 +45,7 @@
 //! per-context field could not have. An isolate writes on the thread that
 //! spawned it, so a thread-local count puts a child's bytes on the root's
 //! reading as well as on the child's own — which is what
-//! [ADR 0006](/docs/adr/0006-isolated-script-execution.md) already says
+//! `rule:security/isolate-shares-nothing` already says
 //! the directive means, and what makes the tree's output budget a budget for
 //! the tree rather than one per isolate. Monotonic where [`live_bytes`] is a
 //! balance, because bytes written to a response are never given back, so it

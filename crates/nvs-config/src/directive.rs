@@ -107,7 +107,7 @@ pub const DIRECTIVES: &[Directive] = &[
     Directive { key: "mode.default", class: Class::Runtime, apply: Apply::Reload },
     Directive { key: "mode.ceiling", class: Class::System, apply: Apply::Reload },
     // Every grant in the block is the same class — a script may drop a right it holds and never add
-    // one it does not (ADR 0005, ADR 0006) — so which grants exist is not this registry's question.
+    // one it does not (ADR 0005, `rule:security/isolate-shares-nothing`) — so which grants exist is not this registry's question.
     Directive { key: "capabilities", class: Class::RuntimeTighten, apply: Apply::Reload },
     // ADR 0005 names a response header as the counter-example to `System`: a request may set any of
     // ADR 0074's policy directives for itself, because it could already write the header directly.

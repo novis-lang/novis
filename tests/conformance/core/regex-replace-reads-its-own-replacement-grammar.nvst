@@ -1,5 +1,5 @@
 --TEST--
-`Core\Regex::replace`'s replacement is `$1`/`${name}`/`$$` and nothing else — `\1` stays literal, a reference to a group that does not exist expands to empty, and `${1}` is how a digit follows a group — docs/spec/01-core-library.md § 4, ADR 0056 § 4
+`Core\Regex::replace`'s replacement is `$1`/`${name}`/`$$` and nothing else — `\1` stays literal, a reference to a group that does not exist expands to empty, and `${1}` is how a digit follows a group — docs/spec/01-core-library.md § 4, `rule:security/regex-pattern-is-a-sink`
 --FILE--
 <?nvs
 // `$0` is the whole match and `$1`… are the numbered groups, counted in the

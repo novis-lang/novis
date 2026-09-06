@@ -35,7 +35,7 @@
 //!   so it is written bare and carries nothing into the statement it lands in.
 //!   The cost of that judgement is that a table named `order` is not sayable,
 //!   which is the trade
-//!   [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md) already
+//!   `rule:security/tainted-qualifier` already
 //!   made for `Core\Db::quoteIdentifier`.
 //! - **A literal is one of [`ColumnDefault`]'s seven cases**, each with a
 //!   spelling per dialect. There are no expression defaults, so the one place a

@@ -59,7 +59,7 @@ fn an_fn_literal_is_refused_as_a_spawn_target_naming_the_method_form() {
     );
     assert!(
         stderr.contains("Class::method(...)"),
-        "ADR 0006 requires the diagnostic to name the method form: {stderr}"
+        "`rule:security/isolate-shares-nothing` requires the diagnostic to name the method form: {stderr}"
     );
 }
 
@@ -154,7 +154,7 @@ fn failing_run(fixture: &str) -> String {
     stderr
 }
 
-/// A map that does not name the entry's parameters is ADR 0006's ordinary
+/// A map that does not name the entry's parameters is `rule:security/isolate-shares-nothing`'s ordinary
 /// named-argument error, and it is raised **at the spawn** — the parent's own
 /// frame, where the ADR says a non-literal map's mismatch is reported, so
 /// nothing is started and no `ScriptResult` carries it.

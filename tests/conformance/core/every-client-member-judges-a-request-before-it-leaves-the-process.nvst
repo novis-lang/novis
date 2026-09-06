@@ -12,7 +12,7 @@ Every `Core\Http\Client` member decides the URL and the option bounds before any
 // the argument, the capability and the option bag alone, which is what lets a
 // program's own tests find a wrong URL without a network.
 
-// ADR 0058 § 3: the name is granted and the *address* is not. The cloud
+// `rule:security/net-address-policy`: the name is granted and the *address* is not. The cloud
 // metadata endpoint is the canonical SSRF target, and a policy applied to the
 // hostname would be re-resolved out from under itself.
 try {

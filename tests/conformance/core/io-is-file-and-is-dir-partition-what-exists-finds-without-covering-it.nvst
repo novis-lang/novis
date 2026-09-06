@@ -1,5 +1,5 @@
 --TEST--
-`Core\IO::isFile` and `::isDir` are asked of every name `::exists` is, so the three answers are read as a table: the pair splits what `exists` finds and does not cover it, and a name that is not there answers `false` to both rather than throwing — spec § 14 *Metadata*, ADR 0118 § 2
+`Core\IO::isFile` and `::isDir` are asked of every name `::exists` is, so the three answers are read as a table: the pair splits what `exists` finds and does not cover it, and a name that is not there answers `false` to both rather than throwing — spec § 14 *Metadata*, `rule:security/capability-check-at-the-door`
 --FILE--
 <?nvs
 // One sweep over every kind of name rather than one assertion per member. Asked

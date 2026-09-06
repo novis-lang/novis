@@ -106,7 +106,7 @@ core, and M7's acceptance is that 10k concurrent cold requests compile it **exac
   are rejected: they cost N compiles of the same file and would have made the milestone's own
   acceptance figure mean something different at four cores than at one.
 - **This does not weaken shared-nothing.** [design.md](../../plan/design.md)'s rule is about *request*
-  state; a compiled unit is immutable program text, which is the same exception ADR 0006 already
+  state; a compiled unit is immutable program text, which is the same exception `rule:security/isolate-shares-nothing` already
   makes when it says an isolate "shares immutable compiled code".
 - **This goal may open one ADR number** for the per-core accept and the shared unit cache, and no
   second. Every other question it meets is a folded edit to ADR 0097's or ADR 0017's body.

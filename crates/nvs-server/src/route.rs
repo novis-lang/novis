@@ -5,7 +5,7 @@
 //! # Why the door and not the program
 //!
 //! § 1 names three rules that were already written against a match the server
-//! had not got — ADR 0096 § 4's CSRF check, ADR 0076 § 1's `route` label, and
+//! had not got — `rule:security/csrf-is-on-by-default`'s CSRF check, ADR 0076 § 1's `route` label, and
 //! § 8's access decision — and each of them needs the answer *before* the
 //! handler is called. A program that matched for itself would make two matches
 //! of one question and could not have answered the first three at all, so the
@@ -20,7 +20,7 @@
 //!
 //! # What the answer is read for, and what is still missing
 //!
-//! Two of § 1's three rules read it here: [`csrf_required`] is ADR 0096 § 4's
+//! Two of § 1's three rules read it here: [`csrf_required`] is `rule:security/csrf-is-on-by-default`'s
 //! question and [`label`] is ADR 0076 § 1's `route` label. Neither matches
 //! anything — each is a field of the row the door already found — which is what
 //! § 1 buys and is why they live beside [`take`] rather than beside the
@@ -29,7 +29,7 @@
 //!
 //! **Known gap 1: the door answers whether a request is CSRF-checked and does
 //! not yet refuse one.** § 4's refusal needs the presented token *verified*,
-//! and verification is ADR 0060's constant-time comparison against a key bound
+//! and verification is `rule:security/protocol-roster`'s constant-time comparison against a key bound
 //! to the session that issued the token — of which this crate has neither half
 //! in reach. `Core\Csrf::verify` is `nvs-stdlib`'s, a crate above this one and
 //! deliberately not a dependency of it, and no `[http]` directive names a key
@@ -93,7 +93,7 @@ pub fn take(routes: &Routes, inbound: &mut Inbound) {
     }
 }
 
-/// ADR 0096 § 4's question, asked of the match rather than of the table: is
+/// `rule:security/csrf-is-on-by-default`'s question, asked of the match rather than of the table: is
 /// this request CSRF-checked?
 ///
 /// `true` where the request matched a row an unsafe verb declared and whose
@@ -223,7 +223,7 @@ mod tests {
         ])
     }
 
-    /// ADR 0096 § 4's CSRF check and ADR 0076 § 1's `route` label, which are two
+    /// `rule:security/csrf-is-on-by-default`'s CSRF check and ADR 0076 § 1's `route` label, which are two
     /// of the three rules ADR 0102 § 1 was written for: each reads the match the
     /// door already made rather than making a second one.
     ///

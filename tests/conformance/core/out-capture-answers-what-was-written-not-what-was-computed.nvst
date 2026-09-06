@@ -1,5 +1,5 @@
 --TEST--
-`Core\Out::capture` discards its closure's result, answers a value that outlives the next capture, closes its level on a caught throw, and runs `{through:}` after the level is already closed — spec § 12, ADR 0088 § 5
+`Core\Out::capture` discards its closure's result, answers a value that outlives the next capture, closes its level on a caught throw, and runs `{through:}` after the level is already closed — spec § 12, `rule:security/capture-answers-the-carrier`
 --FILE--
 <?nvs
 // `crates/nvs-stdlib/src/out.rs`'s module doc owns the three properties this
@@ -60,7 +60,7 @@ echo "[", Core\Out::capture(
     {through: fn (Core\Cli\Text $t): Core\Cli\Text => { echo "<in-through>"; return $t; }}
 ), "]\n";
 
-// ADR 0088 § 5 is why the carrier is not a `string`, so a `through` that hands
+// `rule:security/capture-answers-the-carrier` is why the carrier is not a `string`, so a `through` that hands
 // back plain text is refused rather than quietly re-entering the sink. The
 // message names the class the transform owed; the tag it answered with is left
 // to the implementation.

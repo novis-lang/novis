@@ -1,5 +1,5 @@
 --TEST--
-`Core\Http\Response::text` answers a `tainted string` and `::status` an ordinary `int`, so a plain `string` binding refuses the body and nothing refuses the code — ADR 0024 § 1, ADR 0074 § 6
+`Core\Http\Response::text` answers a `tainted string` and `::status` an ordinary `int`, so a plain `string` binding refuses the body and nothing refuses the code — `rule:security/tainted-qualifier`, ADR 0074 § 6
 --FILE--
 <?nvs
 // The claim is *a bound asserted on both sides*: the two readers of one value
@@ -8,7 +8,7 @@
 // fails the first; a `status()` that gained one fails the other way round.
 //
 // A reply is bytes another host chose, and pinning an address settles where
-// they came from rather than what is in them — ADR 0024 § 1's roster names
+// they came from rather than what is in them — `rule:security/tainted-qualifier`'s roster names
 // this reader for that reason.
 Core\Http\Target $pinned = Core\Http::allowUrl("http://93.184.216.34/ok");
 Core\Http\Response $r = Core\Http\Client::get($pinned);

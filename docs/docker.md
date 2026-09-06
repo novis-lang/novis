@@ -91,7 +91,7 @@ dir = "/var/cache/novis"        # optional; a writable volume here keeps compile
 
 **Capabilities are denied by default and that does not change in a container.** A program that
 reads files, opens sockets or connects to a database needs the grants in its `[[app]]` block —
-[ADR 0118](adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md) for `script.spawn`,
+`rule:security/capability-check-at-the-door` for `script.spawn`,
 [ADR 0058](adr/0058-outbound-request-policy.md) for `net`. Running as root in a container grants
 nothing; the container boundary and the capability tree are unrelated mechanisms and both apply.
 

@@ -97,7 +97,7 @@ pub(super) fn deadline_of(args: &[Value]) -> Result<Option<std::time::Instant>, 
 /// **Pinned here and asked nothing else**, which is `rule:core-classes/db-capabilities`: the endpoint
 /// was written into root-owned configuration by the same authority that granted
 /// `db.connect`, so it is pre-approved and is *not* additionally checked against
-/// [ADR 0058](/docs/adr/0058-outbound-request-policy.md) § 3's denied
+/// `rule:security/net-address-policy`'s denied
 /// ranges — where every database on a container network or a `10/8` estate
 /// lives. `Core\Db::open`'s host is program-supplied and stays subject to that
 /// policy in full, which is the whole difference between the two members.
@@ -204,7 +204,7 @@ nvs_runtime::nvs_helper! {
 }
 
 /// Opens `[db.<name>]` for this request and files it, answering the key it is filed
-/// under — `Core\Db::connect`'s body from the memo down, and every ADR 0067 § 13
+/// under — `Core\Db::connect`'s body from the memo down, and every `rule:security/db-pool-reset-is-a-boundary`
 /// decision with it.
 ///
 /// **Separate from the member because it has a second caller, and that caller is a
@@ -264,7 +264,7 @@ pub(crate) fn open_named(
              operator has not written yet"
         ))
     })?;
-    // ADR 0067 § 13's ticket, through the reader that applies the unscoped
+    // `rule:security/db-pool-reset-is-a-boundary`'s ticket, through the reader that applies the unscoped
     // `pool = false` before it reads this block's own table. The bounds were
     // validated at boot by `nvs_config::db::validate`, so the refusal below
     // cannot fire; if it ever did, `OFF` is the answer that closes this
@@ -577,7 +577,7 @@ pub(super) fn settings_key(
 /// be opened with.
 ///
 /// **This is how an `open` finds the block whose bounds are its own**, which is
-/// ADR 0067 § 13's answer for a member that names no block. `connect` is keyed
+/// `rule:security/db-pool-reset-is-a-boundary`'s answer for a member that names no block. `connect` is keyed
 /// on the name an operator wrote and reads that block's `[db.<name>.pool]`
 /// directly; a settings literal names nothing, so the only honest question is
 /// whether the settings it wrote *are* a block's — and the memo key already
@@ -631,7 +631,7 @@ nvs_runtime::nvs_helper! {
     /// one does not. `db.open` is asked about the host rather than a block
     /// name, because a host is what a settings literal chooses; and the
     /// address it resolves to is then put through
-    /// [ADR 0058](/docs/adr/0058-outbound-request-policy.md) § 3's
+    /// `rule:security/net-address-policy`'s
     /// denied ranges in full, which is the check a `connect`-named endpoint is
     /// deliberately exempt from — [`address_of`]'s doc owns that asymmetry from
     /// the other side.
@@ -1085,7 +1085,7 @@ nvs_runtime::nvs_helper! {
 /// judgement decides what may enter a
 /// `rule:core-classes/schema-is-a-value`
 /// schema value, and a second copy here would be two answers to the question
-/// [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md) allows one
+/// `rule:security/tainted-qualifier` allows one
 /// answer to. The *length* half of that module's rule is deliberately not
 /// applied here — a name laundered for a statement someone else wrote has no
 /// schema to be too long for.
@@ -1094,8 +1094,8 @@ fn is_bare_identifier(name: &str) -> bool {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Db::quoteIdentifier(tainted string $name): string` — ADR 0024
-    /// § 4's launderer for the statement-text sink.
+    /// `Core\Db::quoteIdentifier(tainted string $name): string` — `rule:security/sink-predicate`
+    /// 's launderer for the statement-text sink.
     ///
     /// It validates rather than escapes, and this module's docs are the whole
     /// argument for why: with no connection there is no dialect, and the
@@ -1154,8 +1154,8 @@ nvs_runtime::nvs_helper! {
     /// `$c->close(): void` — spec § 18's `Connection` row, over
     /// [`nvs_runtime::Ctx::close_open_connection`].
     ///
-    /// **The work is the runtime's, and deliberately all of it.** ADR 0067
-    /// § 13's release is one piece of code — the two lines a request's teardown
+    /// **The work is the runtime's, and deliberately all of it.** `rule:security/db-pool-reset-is-a-boundary`
+    /// 's release is one piece of code — the two lines a request's teardown
     /// runs over every connection it still holds — and a `close` is that code
     /// reached early for one of them. Writing the release again here would be a
     /// second answer to "where does a connection go", and the pool's bounds are
@@ -1208,7 +1208,7 @@ mod tests {
     use super::*;
     use nvs_runtime::{Ctx, OutputSink};
 
-    /// ADR 0067 § 13's key for `open` is § 2's memo key, so what that hash
+    /// `rule:security/db-pool-reset-is-a-boundary`'s key for `open` is § 2's memo key, so what that hash
     /// separates is what two requests are refused a shared connection over.
     ///
     /// **Asserted as a sweep that every field moves the key**, rather than as
@@ -1463,7 +1463,7 @@ mod tests {
     }
 
     /// `rule:core-classes/db-capabilities`'s asymmetry, asserted as the **contrast** it is: the very
-    /// loopback address ADR 0058 § 3's door refuses is the address
+    /// loopback address `rule:security/net-address-policy`'s door refuses is the address
     /// `Core\Db::connect` opens to, on a deployment that grants `db.connect`
     /// and writes nothing under `[capabilities.net]` at all.
     ///
@@ -1511,7 +1511,7 @@ mod tests {
         // is resolved — the first of the two ways a database on loopback would
         // be unreachable if a named endpoint went through it.
         let by_door = nvs_runtime::capability::pin_host(&ctx, HOST, CONNECT)
-            .expect_err("the door asks `net.connect` first — ADR 0058 § 3");
+            .expect_err("the door asks `net.connect` first — `rule:security/net-address-policy`");
         assert_eq!(
             format!("{by_door:?}"),
             format!("{ungranted:?}"),
@@ -1549,7 +1549,7 @@ mod tests {
 
     /// `rule:core-classes/db-capabilities`'s other side, and the same address: a target
     /// `Core\Db::open` was *granted* is still refused when it resolves into one
-    /// of ADR 0058 § 3's denied ranges, because a program-supplied address
+    /// of `rule:security/net-address-policy`'s denied ranges, because a program-supplied address
     /// stays subject to that policy in full.
     ///
     /// The claim is the pair, not either half. `db.open` granting the host is

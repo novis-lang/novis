@@ -285,7 +285,7 @@ pub struct CapFs {
 pub struct CapNet {
     /// The hosts an outbound connection may reach.
     pub connect: Option<Setting>,
-    /// The addresses inside ADR 0058 § 3's denied ranges this deployment reaches anyway — the
+    /// The addresses inside `rule:security/net-address-policy`'s denied ranges this deployment reaches anyway — the
     /// operator's exception, written as IP address literals and never as hostnames, because the
     /// policy is asked of a resolved address and a name can resolve anywhere.
     ///
@@ -538,7 +538,7 @@ pub struct StorageDisk {
     pub root: Option<String>,
 }
 
-/// `[db]` — every named block, and the one directive [ADR 0067] § 13 lets an operator write
+/// `[db]` — every named block, and the one directive `rule:security/db-pool-reset-is-a-boundary` lets an operator write
 /// *unscoped*.
 ///
 /// **A bare map has no home for an unscoped `pool = false`.** § 13's switch is written per block as
@@ -556,7 +556,6 @@ pub struct StorageDisk {
 /// the whole of how a name is looked up; the field is named only by the passes that iterate, which
 /// cannot borrow through a deref.
 ///
-/// [ADR 0067]: ../../../docs/adr/0067-core-db.md
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct Databases {
@@ -660,7 +659,7 @@ pub struct Database {
     /// and the bound; it answers *no* offset for anything else, which is a value refused rather
     /// than a zone read silently wrong.
     pub time_zone: Option<String>,
-    /// `[db.<name>.pool]`'s bounds, or the `pool = false` that turns pooling off (ADR 0067 § 13).
+    /// `[db.<name>.pool]`'s bounds, or the `pool = false` that turns pooling off (`rule:security/db-pool-reset-is-a-boundary`).
     ///
     /// One key in two shapes, because § 13 writes both against the same name and TOML has one `pool`
     /// for a table and a boolean alike. [`Pool`] is that pair; `nvs_config::db::pool_for` is the
@@ -668,7 +667,7 @@ pub struct Database {
     pub pool: Option<Pool>,
 }
 
-/// `[db.<name>] pool` — ADR 0067 § 13's switch, or the table of bounds written under the same key.
+/// `[db.<name>] pool` — `rule:security/db-pool-reset-is-a-boundary`'s switch, or the table of bounds written under the same key.
 ///
 /// § 13 writes `pool = false` to restore connect-per-request and `[db.<name>.pool] max = 16` for the
 /// bounds, and neither spelling can be moved without contradicting the ADR. `true` is the default
@@ -724,7 +723,7 @@ impl<'de> serde::de::Visitor<'de> for PoolVisitor {
     }
 }
 
-/// `[db.<name>.pool]` — ADR 0067 § 13's four bounds.
+/// `[db.<name>.pool]` — `rule:security/db-pool-reset-is-a-boundary`'s four bounds.
 ///
 /// The numbers are not here: this struct is the roster, exactly as every other block's is, and
 /// `nvs_config::db::PoolBounds` holds the default set beside the parse that reads `"30m"`. Which is

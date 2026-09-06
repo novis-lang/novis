@@ -157,7 +157,7 @@ is a consumer of it.
     [01-core-library.md](../../spec/01-core-library.md) § 13 holds the reasoning and it is not restated in
     the implementation.
 18. **A `secret`-qualified value is refused at the boundary** unless it went through
-    `Core\Secret::reveal()` — [ADR 0033](../../adr/0033-secret-qualifier-for-confidential-values.md).
+    `Core\Secret::reveal()` — `rule:security/secret-qualifier`.
     Same walk, one check.
 19. **Bytes that are not Novis's own format are refused rather than partially accepted**, and so are bytes
     naming a class whose declared properties no longer match. A partially-accepted graph is the type
@@ -166,7 +166,7 @@ is a consumer of it.
 ## Stage 6 — `spawn script`, and the isolate
 
 20. **The `Isolate` type in `nvs-host`**, with its own arena, `Core` accessor backing state and config
-    overlay — [ADR 0006](../../adr/0006-isolated-script-execution.md). It belongs in this goal rather
+    overlay — `rule:security/isolate-shares-nothing`. It belongs in this goal rather
     than later because an isolate is a task with a heap boundary, which is exactly what Stage 2 built.
 21. **The request tree and its shared budget**, § *Budgets are accounted at the root of the request tree*.
     Enforcement of the *limits* is goal 3's; the accounting is this item's, and until then it runs under
@@ -212,7 +212,7 @@ there by the switch that left it and folded forward at every switch since.
     uses, what the parking contract is, what a `WouldBlock` costs, and how a coroutine's stack is
     accounted. This is the design four goals are written against and it may not live in a module comment.
   - **The isolate heap boundary** (Stage 6, item 20). What an arena is, what it costs, and how a value
-    crosses — the parts ADR 0006 specifies as behaviour rather than as implementation.
+    crosses — the parts `rule:security/isolate-shares-nothing` specifies as behaviour rather than as implementation.
 
   Anything else is decided-and-recorded. Claim the next free ADR number by creating the file, and
   **re-check it immediately before you do**: `python tools/brief.py` derives it from the directory.

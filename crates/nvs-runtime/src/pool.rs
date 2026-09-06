@@ -1,4 +1,4 @@
-//! [ADR 0067](/docs/adr/0067-core-db.md) § 13's connection pool: where a
+//! `rule:security/db-pool-reset-is-a-boundary`'s connection pool: where a
 //! request's database connection goes at teardown instead of being dropped.
 //!
 //! **Per core, and never shared between cores** — § 13's first bullet, and the

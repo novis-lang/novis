@@ -1,5 +1,5 @@
 --TEST--
-Core\Jwt refuses a key below RFC 7518 § 3.2's 32 octets and a lifetime below one whole second, and accepts the first value above each — ADR 0060 §§ 1, 4
+Core\Jwt refuses a key below RFC 7518 § 3.2's 32 octets and a lifetime below one whole second, and accepts the first value above each — `rule:security/protocol-roster` and `rule:security/algorithm-comes-from-the-key`
 --FILE--
 <?nvs
 // A bound asserted on both sides. Both of these read plausibly from either

@@ -22,7 +22,7 @@ class Styled {
         return Core\Str::fromCodePoint(65533 as uint);
     }
 
-    // Read back with `as string` rather than echoed: ADR 0088 § 5 renders a
+    // Read back with `as string` rather than echoed: `rule:security/capture-answers-the-carrier` renders a
     // carrier as the bytes it already holds, so this is what the constructor
     // stored and not what a sink made of it.
     public static function counts(Core\Cli\Style $style, bool $bare): string {
@@ -41,7 +41,7 @@ class Styled {
                 // Idempotence through the styled path, which holds at any
                 // colour depth: the opening sequence is the style's and is the
                 // same both times, so a body that escaped twice — the second
-                // escape ADR 0088 § 5 exists to prevent — shows up as a
+                // escape `rule:security/capture-answers-the-carrier` exists to prevent — shows up as a
                 // difference here whether or not the run has a terminal.
                 string $once = Core\Cli\Text::styled($raw, $style) as string;
                 string $again = Core\Cli\Text::styled(Core\Cli::escape($raw), $style) as string;

@@ -1,5 +1,5 @@
 --TEST--
-Core\IO::exists, ::size, ::remove and ::removeDir each refuse an ungranted path naming the capability their own half of the door asks for — `fs.read` for the two that look and `fs.write` for the two that destroy — counted over a sweep of present, absent and impossible paths so that a member answering plausibly for one of them still fails here — ADR 0118 §§ 1-2, spec § 14
+Core\IO::exists, ::size, ::remove and ::removeDir each refuse an ungranted path naming the capability their own half of the door asks for — `fs.read` for the two that look and `fs.write` for the two that destroy — counted over a sweep of present, absent and impossible paths so that a member answering plausibly for one of them still fails here — `rule:security/capability-question-is-grant-and-scope` and `rule:security/capability-check-at-the-door`, spec § 14
 --FILE--
 <?nvs
 // The claim is an *agreement*: four members that share a door say the same

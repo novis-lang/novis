@@ -1,5 +1,5 @@
 --TEST--
-Core\SignedCookie::seal then ::open is the identity over a sweep of payloads — the empty one, one carrying the cookie delimiters, one whose octets outnumber its characters and one long enough to cross a kilobyte — and two different cookies of one value both open to that value — ADR 0060 § 1
+Core\SignedCookie::seal then ::open is the identity over a sweep of payloads — the empty one, one carrying the cookie delimiters, one whose octets outnumber its characters and one long enough to cross a kilobyte — and two different cookies of one value both open to that value — `rule:security/protocol-roster`
 --FILE--
 <?nvs
 // Invariance over a sweep. The round trip is asserted against *the payload

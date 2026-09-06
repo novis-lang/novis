@@ -331,7 +331,7 @@
 //!
 //! # What these members do with a qualifier
 //!
-//! ADR 0088 § 2's classification, and the judgement that separates this class
+//! `rule:security/unclassified-parameter-refuses-tainted`'s classification, and the judgement that separates this class
 //! from [`crate::time`]'s: **a parse here is [`Qual::Contagious`], not
 //! [`Qual::Neutral`].** `Core\Time::parse` answers an instant, and an instant
 //! is a closed space no byte of the argument survives into. A `Uri` is the
@@ -1788,7 +1788,7 @@ fn scalar_text(value: Value, owner: &str, member: &str) -> Result<Vec<u8>, Fault
     })?;
     // A post-condition of the call above rather than a boundary, and so
     // unreachable from source with no diagnostic to name: every `Ok` arm of
-    // `value_to_string` builds a `Value::str` — including ADR 0088 § 5's
+    // `value_to_string` builds a `Value::str` — including `rule:security/capture-answers-the-carrier`'s
     // carrier arm, which hands back the carrier's own checked text slot — so
     // this is a `Tag::Str` or it is the `Err` the `?` above already took.
     let bytes = text
@@ -2228,8 +2228,8 @@ nvs_runtime::nvs_helper! {
     /// **It launders** ([`Qual::Launder`]), and the sink it launders for is
     /// the URI grammar itself: a path segment, a query name or value, a
     /// fragment. A `tainted` argument comes back plain because after this
-    /// member no byte of it can be read as a delimiter — which is ADR 0088
-    /// § 2's whole condition for claiming the mark.
+    /// member no byte of it can be read as a delimiter — which is `rule:security/unclassified-parameter-refuses-tainted`
+    /// 's whole condition for claiming the mark.
     fn nvs_core_uri_encode_component(_ctx, args: [1]) {
         let text = text_of(args, "encodeComponent")?;
 

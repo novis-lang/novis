@@ -110,28 +110,28 @@ pub enum TypeAtom {
     String,
     /// `bytes` — `rule:types/bytes`.
     Bytes,
-    /// `tainted string` — ADR 0024 § 1. A compile-time qualifier on `String`,
+    /// `tainted string` — `rule:security/tainted-qualifier`. A compile-time qualifier on `String`,
     /// erased before codegen; kept as its own atom (rather than a generic
     /// wrapper) because the grammar restricts `tainted` to exactly `string`
     /// and `bytes`, and the parser enforces that restriction before this
     /// variant is ever produced.
     TaintedString,
-    /// `tainted bytes` — ADR 0024 § 1, the `Bytes` counterpart of
+    /// `tainted bytes` — `rule:security/tainted-qualifier`, the `Bytes` counterpart of
     /// [`Self::TaintedString`].
     TaintedBytes,
-    /// `secret string` — ADR 0033 § 1. A second compile-time qualifier,
+    /// `secret string` — `rule:security/secret-qualifier`. A second compile-time qualifier,
     /// independent of `tainted`: same "own atom, not a generic wrapper"
     /// shape as [`Self::TaintedString`], for the same reason (the grammar
     /// restricts `secret` to exactly `string`/`bytes`).
     SecretString,
-    /// `secret bytes` — ADR 0033 § 1, the `Bytes` counterpart of
+    /// `secret bytes` — `rule:security/secret-qualifier`, the `Bytes` counterpart of
     /// [`Self::SecretString`].
     SecretBytes,
-    /// `secret tainted string` — ADR 0033 § 1: both qualifiers composed.
+    /// `secret tainted string` — `rule:security/secret-qualifier`: both qualifiers composed.
     /// `secret` must be spelled first; `tainted secret string` is a
     /// diagnostic, not a second valid spelling of this atom.
     SecretTaintedString,
-    /// `secret tainted bytes` — ADR 0033 § 1, the `Bytes` counterpart of
+    /// `secret tainted bytes` — `rule:security/secret-qualifier`, the `Bytes` counterpart of
     /// [`Self::SecretTaintedString`].
     SecretTaintedBytes,
     /// `array`, or `array<T>` when a type argument is given.

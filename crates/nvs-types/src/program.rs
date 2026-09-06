@@ -11,7 +11,7 @@
 //! [`crate::expr_table::ExprInfo::CoreConst`], and `nvs-ir` emits the `new`s
 //! and the array. The instances are therefore per-request like any other
 //! object and nothing crosses an isolate boundary
-//! ([ADR 0006](/docs/adr/0006-isolated-script-execution.md)).
+//! (`rule:security/isolate-shares-nothing`).
 //!
 //! # The scan already happened
 //!

@@ -1,5 +1,5 @@
 --TEST--
-Core\IO::temporaryDir is refused with no configuration at all, like every other member of the class, and the refusal is a catchable RuntimeError rather than a fatal — so a program that only wanted somewhere to work can degrade instead of dying — ADR 0118 §§ 1, 5
+Core\IO::temporaryDir is refused with no configuration at all, like every other member of the class, and the refusal is a catchable RuntimeError rather than a fatal — so a program that only wanted somewhere to work can degrade instead of dying — `rule:security/capability-question-is-grant-and-scope` and `rule:security/denial-is-a-runtime-error`
 --FILE--
 <?nvs
 // Deny by default, on the member that takes no argument at all: there is no

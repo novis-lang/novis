@@ -2,12 +2,12 @@
 `Core\Html::escape` writes all five of `&<"'` as character references and answers a `Core\Html\Markup` for a `tainted` argument — ADR 0024 §§ 3, 5, ADR 0133 §§ 1, 2
 --FILE--
 <?nvs
-// ADR 0024 § 3 writes this member out as *the* worked example of a launderer:
+// `rule:security/launderers-are-sink-named` writes this member out as *the* worked example of a launderer:
 // narrow, named for one sink, and the only route from an untrusted value to
 // text that may be written into an HTML document. The route runs end to end
 // here — the value arrives tainted, the escape happens, and the answer is a
 // `Core\Html\Markup`, which is the whole of what "it launders" means plus what
-// ADR 0133 § 1 adds: the HTML sink escapes on its own and escaping is not
+// `rule:security/launderer-answers-a-carrier` adds: the HTML sink escapes on its own and escaping is not
 // idempotent, so the answer has to be a value the sink can tell from text.
 tainted string $t = "<a href='x' title=\"y\">Tom & Jerry</a>";
 

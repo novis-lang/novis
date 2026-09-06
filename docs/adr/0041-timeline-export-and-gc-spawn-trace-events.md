@@ -38,12 +38,12 @@
   names the absence of a third-party viewer for that format as a known gap.
 - Two kinds of program event are invisible today regardless of format: a cycle-collector stop-the-world pass
   (already an accepted mechanism, firing from the safepoint poll per the project-start architecture decision)
-  and an isolate boundary (`spawn` / `spawn worker` / `spawn script`, [ADR 0006](0006-isolated-script-execution.md)).
+  and an isolate boundary (`spawn` / `spawn worker` / `spawn script`, `rule:security/isolate-shares-nothing`).
   Both currently distort the numbers `rule:testing/debug-probes` already reports: a GC pause that happens to run while some
   function is executing gets counted as that function's own self time, and a spawn's total wall time gives no
   way to tell real child work from scheduling overhead.
 - Checked whether isolate-spawn tracing could ride `rule:testing/debug-probes`'s existing "every call site" probe for free, the
-  way this amendment's approach would ideally cost nothing new to wire up: [ADR 0006](0006-isolated-script-execution.md)
+  way this amendment's approach would ideally cost nothing new to wire up: `rule:security/isolate-shares-nothing`
   rules this out explicitly — it rejects modeling `spawn script` as a function call in so many words ("...
   which is exactly what it is not"), so spawn does not flow through `emit_call()` and needs its own
   instrumentation point.
@@ -56,7 +56,7 @@
   routine is already the slow path (a stop-the-world pass), so adding one more branch and a timestamp pair
   inside it costs nothing relative to what it already costs to run.
 - **Isolate spawn.** Exactly three fixed forms exist — `spawn`, `spawn worker`, `spawn script` — each already
-  funneling through one dedicated runtime routine per ADR 0006 (its own arena, its own task stack, a
+  funneling through one dedicated runtime routine per `rule:security/isolate-shares-nothing` (its own arena, its own task stack, a
   capability-narrowing check, `ScriptResult` construction on return). Instrumenting those three routines once
   is a fixed, small change — not a new probe type scattered through codegen the way `rule:testing/debug-probes`'s per-statement
   and per-call checks are.
@@ -73,7 +73,7 @@
 args, entry/exit timestamp, checked-return status, result). The `query` kind is emitted from inside
 `Core\Db`'s own statement routines and carries duration, driver, connection name, truncated SQL text, rows
 returned and rows affected — **never a bound parameter value**, since a trace is a `secret` sink
-([ADR 0067](0067-core-db.md) § 11, [ADR 0033](0033-secret-qualifier-for-confidential-values.md)). Like `gc`
+([ADR 0067](0067-core-db.md) § 11, `rule:security/secret-qualifier`). Like `gc`
 and `spawn` it sits in a routine that is already slow, so it adds nothing to the hot path.
 
 ### 2. GC-pause events (`kind: gc`)
@@ -94,7 +94,7 @@ giving "real child compute" vs. "isolate scheduling/copy-out cost" as two separa
 opaque total.
 
 The child's own trace/profile stream is **not** merged live into the parent's during the spawn — that would
-cross the arena boundary [ADR 0006](0006-isolated-script-execution.md)'s isolation model exists to prevent,
+cross the arena boundary `rule:security/isolate-shares-nothing`'s isolation model exists to prevent,
 the identical reasoning `rule:testing/debug-probes` already gives for not merging a child's coverage data live. Stitching a
 child's events into one visual timeline under its parent's `spawn` event, anchored at the spawn's timestamp,
 is a **tooling-side, export-time** operation (in the CLI's exporter) over data that already crosses the
@@ -153,7 +153,7 @@ per function call is unstorable, and admitting one would put export cost on the 
   trying not to touch — while the actual collection run is already the rare, slow path where a check costs
   nothing extra.
 - **Merging a child isolate's trace/profile stream live into the parent's at spawn/join time.** Rejected: it
-  crosses the arena boundary ADR 0006's isolation model exists to prevent, the identical reasoning `rule:testing/debug-probes`
+  crosses the arena boundary `rule:security/isolate-shares-nothing`'s isolation model exists to prevent, the identical reasoning `rule:testing/debug-probes`
   already used for not merging a child's coverage data live.
 - **A bespoke Novis timeline-viewer webview instead of speedscope's evented format.** Rejected per ADR 0040's
   own reasoning: an open, already-maintained viewer exists, and Novis is already committed to it for the

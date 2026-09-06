@@ -1,5 +1,5 @@
 --TEST--
-Core\SignedCookie::open answers one RuntimeError for a tampered cookie, one that is not base64, one too short to be a cookie and one under a retired key, while a ring entry that was never a key is a LogicError instead — ADR 0060 §§ 1 and 4
+Core\SignedCookie::open answers one RuntimeError for a tampered cookie, one that is not base64, one too short to be a cookie and one under a retired key, while a ring entry that was never a key is a LogicError instead — `rule:security/protocol-roster` and `rule:security/algorithm-comes-from-the-key`
 --FILE--
 <?nvs
 // Agreement, asked of four ways of not being an authentic cookie. Every PHP

@@ -202,7 +202,7 @@ it — and that test is what keeps the list from drifting back toward M10's cata
 | `textDocument/selectionRange` | expand-selection. `SyntaxIndex.at(offset)` returns the innermost node **and its ancestors**, and that ancestor list is the response — the request is a projection of the index, not a feature built on top of it |
 | `textDocument/foldingRange` | from the same walk `documentSymbol` does, plus comment blocks out of the trivia layer, which nothing else can see |
 | `textDocument/documentLink` | the path literal in `require './foo.nvs'` and in an `autoload` declaration, made clickable. The graph is already resolved for `definition`; this is that resolution pointed at the literal rather than at a name |
-| `nvs/redactions` | the ranges the client conceals — a literal token or interpolation slot whose static type carries `secret` ([ADR 0101](0101-secret-is-redacted-in-the-editor-and-the-range-comes-from-the-server.md) §§ 1–2). The one non-standard request here, and it is non-standard because LSP has no shape for "do not show this to the room" |
+| `nvs/redactions` | the ranges the client conceals — a literal token or interpolation slot whose static type carries `secret` (`rule:security/redaction-ranges-come-from-the-server` and `rule:security/redaction-covers-bytes-only`). The one non-standard request here, and it is non-standard because LSP has no shape for "do not show this to the room" |
 
 Plus **two code actions**, and only two, closing ADR 0040 *Revisiting*'s "one or two cheap ones early"
 question: the casing fix (`rule:core-api/identifier-casing`/[0030](0030-no-leading-underscores-constructor-spelling.md))
@@ -270,11 +270,11 @@ PHP and a borrowed PHP grammar therefore gets wrong:
   `foreach` binding, typed local, and the inline shape type `{x: int}` from
   `rule:types/object-top`. PHP has no syntax for most of these, so this is the single
   largest divergence from any PHP grammar.
-- The **qualifiers** `tainted` and `secret` ([ADR 0024](0024-taint-tracking-for-injection-sinks.md),
+- The **qualifiers** `tainted` and `secret` (`rule:security/tainted-qualifier`,
   [0033](0033-secret-qualifier-for-confidential-values.md)), and `decimal`
   (`rule:types/decimal`) as a scalar type keyword beside `int`/`float`/`string`.
 - Novis's own keywords, which no PHP grammar has: `spawn` and `spawn script`
-  ([ADR 0006](0006-isolated-script-execution.md)), `autoload` (`rule:programs/no-runtime-autoload`),
+  (`rule:security/isolate-shares-nothing`), `autoload` (`rule:programs/no-runtime-autoload`),
   `type` (`rule:types/declaration`), `by`-delegation
   (`rule:classes/no-traits`), property hooks and their
   `get`/`set` bodies (`rule:classes/property-observer`).
@@ -307,7 +307,7 @@ types M4B emits, each chosen because the grammar structurally cannot answer it:
 visibly not user code), `interface`, `enum`, `enumMember`, `type` (a `type` alias), `method`, `property`,
 `parameter`, `variable`, `typeParameter`, and two modifiers of Novis's own: **`tainted` and `secret`**, so a
 qualified value is visibly qualified at every use site rather than only where it was declared. That last
-pair is the reason this layer is worth building at M4B rather than M10: ADR 0024's and ADR 0033's whole
+pair is the reason this layer is worth building at M4B rather than M10: `rule:security/tainted-qualifier`'s and `rule:security/secret-qualifier`'s whole
 model is that a value carries a qualifier through the program, and an editor that shows it is the
 cheapest teaching surface the language has.
 
@@ -413,11 +413,11 @@ showing server health and version; `nvs run`/`nvs test` as Tasks; and the AST pa
   configuration silently — which makes this the cheapest thing on this page to get right and among the
   more annoying to get wrong. Settings: `nvs.path` (the binary, falling back to `PATH`), `nvs.lsp.enable`,
   `nvs.lsp.debounce`, `nvs.lsp.trace.server`, and — added by
-  [ADR 0101](0101-secret-is-redacted-in-the-editor-and-the-range-comes-from-the-server.md) §§ 3–4 —
+  `rule:security/reveal-is-explicit-and-window-local` and `rule:security/tainted-has-no-default-decoration` —
   `nvs.secrets.redact` (default `true`) and `nvs.taint.mark` (default `off`). Commands: `nvs.run`,
   `nvs.test`, `nvs.showAst`, `nvs.restartServer`, and from the same source `nvs.revealSecret` and
   `nvs.hideSecrets`. Nothing else is contributed at M4B, and anything added later is added, never
-  renamed — which is the rule ADR 0101 was applied under, not an exception to it, and the rule under which
+  renamed — which is the rule `rule:security/redaction-ranges-come-from-the-server` was applied under, not an exception to it, and the rule under which
   [ADR 0108](0108-one-reference-index-completion-from-derived-facts-and-services-in-a-template-region.md) § 6
   adds, at M10, the settings `nvs.check.scope`, `nvs.codeLens.enable` and `nvs.template.services`, the
   command `nvs.checkWorkspace`, and a second request of Novis's own, `nvs/regions` — and under which
@@ -463,8 +463,8 @@ developer is looking at the panel to understand. It is frozen by a snapshot test
 
 **One scalar field is not the source text**, and it is the only place this output depends on anything past
 the parse: a literal node whose static type carries `secret` emits the fixed placeholder
-[ADR 0033](0033-secret-qualifier-for-confidential-values.md) § 4 gives a dumped property, rather than its
-own bytes — [ADR 0101](0101-secret-is-redacted-in-the-editor-and-the-range-comes-from-the-server.md) § 5.
+`rule:security/secret-sinks-refuse` gives a dumped property, rather than its
+own bytes — `rule:security/redaction-reaches-the-tools-own-renderings`.
 Without it the AST panel prints in a webview exactly the credential the buffer behind it is concealing, and
 putting the rule in the JSON rather than in the panel is what stops `--json` and the webview from
 disagreeing about it.

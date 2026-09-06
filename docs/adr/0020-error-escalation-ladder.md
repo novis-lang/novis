@@ -26,7 +26,7 @@
 
 - `rule:errors/propagation` fixed `OK`/`THROWN`/`FATAL` and that `FATAL` unwinds to the request
   boundary — tested and not reopened here — but never said what consumes it *at* that boundary, beyond
-  [ADR 0006](0006-isolated-script-execution.md)'s narrow answer for a spawned child (`ScriptResult->error`).
+  `rule:security/isolate-shares-nothing`'s narrow answer for a spawned child (`ScriptResult->error`).
 - Left open: the **root** isolate has no parent to read a `ScriptResult`; an uncaught `THROWN` has no
   equivalent of PHP's `set_exception_handler`; the **entry file** failing to **compile** has no running
   frame to `catch` into (unlike a mid-execution `include`/`spawn script` failure); an **internal runtime
@@ -138,7 +138,7 @@ what make "a request cannot exhaust a stack" true rather than true of one stack.
 Fires when an ordinary `THROWN` propagates through every frame uncaught and reaches the isolate/request
 root. Unlike tier 1, this needs no special reserve — execution was healthy up to this point, so the request's
 ordinary remaining budget applies — and it gets the **real `Throwable` object**, not copied data: this is the
-root itself, not a boundary [ADR 0006](0006-isolated-script-execution.md) has to copy across.
+root itself, not a boundary `rule:security/isolate-shares-nothing` has to copy across.
 
 Same zero-retry rule: a handler that itself faults falls straight to tier 3.
 
@@ -150,7 +150,7 @@ A handler faulting here changes nothing about it — the queue runs either way.
 ### 3. The configured `.nvs` handler — an ordinary `spawn script` isolate, with one narrow exception
 
 A new `System`-class directive, illustrative name `[log] handler = 'path/to/handler.nvs'`. When set, it is
-invoked as a **`spawn script` isolate** — the exact mechanism [ADR 0006](0006-isolated-script-execution.md)
+invoked as a **`spawn script` isolate** — the exact mechanism `rule:security/isolate-shares-nothing`
 already defines, fresh arena, fresh globals, its own config overlay, sharing nothing but compiled code —
 receiving one explicit argument (illustrative shape `Core\Fatal\ErrorReport`: kind, message, request id,
 timestamp, and whatever structured detail that failure kind carries) through `Core\Script::args()`, exactly
@@ -160,7 +160,7 @@ panic, the runtime's own state is exactly what is in question. This is not a new
 `rule:statements/no-host-populated-variables` already makes those accessors throw inside any spawned isolate — it is
 that restriction applying somewhere it matters more than usual.
 
-**The one deliberate exception to ADR 0006:** that ADR fixes that "an isolate does not receive a budget of
+**The one deliberate exception to `rule:security/isolate-shares-nothing`:** that ADR fixes that "an isolate does not receive a budget of
 its own... it spends its parent's" — correct for an ordinary child, and exactly wrong here, since a request
 already at its ceiling has nothing left to give this isolate, and the whole point of tier 3 is to still run
 when that is true. Tier 3's isolate is instead charged to a small, fixed, **engine-owned** allotment —
@@ -220,7 +220,7 @@ Ordinary application code and the tier-3 handler script call the same API —
 enum is [0092](0092-one-diagnostic-record-three-renderings.md) § 2's — implemented as a
 thin binding over the **exact same native record-and-write helper** tier 4 calls directly when it has no
 script to run at all. One implementation, two callers, the same shape
-[ADR 0006](0006-isolated-script-execution.md) already uses for its own isolation code ("one isolation
+`rule:security/isolate-shares-nothing` already uses for its own isolation code ("one isolation
 implementation, not two") — so a Loki dashboard never has to reconcile two log shapes depending on which
 tier happened to produce a given line.
 
@@ -262,7 +262,7 @@ kind of judgment call this ADR does not want resting on tier 4's one shot.
   that too" cannot even be written for tier 1's case, let alone loop.
 - Reuses two already-decided mechanisms wholesale — the checked-return `FATAL` status
   (`rule:errors/propagation`) and `spawn script` isolation
-  ([ADR 0006](0006-isolated-script-execution.md)) — rather than inventing new ones. One new, narrow rule (the
+  (`rule:security/isolate-shares-nothing`) — rather than inventing new ones. One new, narrow rule (the
   engine-owned budget for tier 3) is the only genuinely new mechanism.
 - Operators get one place, in the language the application already runs, to format and route every error
   category to their observability stack (Loki, Sentry, anything that reads JSON Lines) — no second,
@@ -272,7 +272,7 @@ kind of judgment call this ADR does not want resting on tier 4's one shot.
 
 **Negative**
 
-- One narrow, explicitly-named exception to [ADR 0006](0006-isolated-script-execution.md)'s "an isolate
+- One narrow, explicitly-named exception to `rule:security/isolate-shares-nothing`'s "an isolate
   spends its parent's budget" rule. Flagged here so it is read as a deliberate carve-out for exactly this
   purpose, not a precedent for isolates getting independent budgets generally.
 - New `nvs.toml` surface: `fatal_reserve_memory`/`fatal_reserve_time`, `[log] handler`,
@@ -314,7 +314,7 @@ kind of judgment call this ADR does not want resting on tier 4's one shot.
   `[log] handler`, `handler_reserve_memory`/`handler_reserve_time`, `[log] target`) and the
   `Core\Fatal`/`Core\Log`/`LimitReport`/`ErrorReport` class shapes are M6 (limits) and M8 (stdlib) work,
   following the same "ADR fixes semantics, spec/implementation fixes spelling" split
-  [ADR 0006](0006-isolated-script-execution.md) used for `spawn script`'s own grammar.
+  `rule:security/isolate-shares-nothing` used for `spawn script`'s own grammar.
 - **Whether internal panics should ever reach a user-registered handler** could be reopened if operators need
   panic-specific application-level alerting badly enough to accept running code atop uncertain runtime
   state — tier 3/4 already log every panic regardless, so reopening this is about whether tier 1/2 ever see

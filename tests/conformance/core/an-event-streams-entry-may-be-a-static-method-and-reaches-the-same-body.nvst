@@ -1,5 +1,5 @@
 --TEST--
-`Core\Sse::upgrade` accepts ADR 0006's second entry spelling — a static method reference — and it reaches the same body the path form does rather than any compile question — ADR 0083 §§ 2 and 5
+`Core\Sse::upgrade` accepts `rule:security/isolate-shares-nothing`'s second entry spelling — a static method reference — and it reaches the same body the path form does rather than any compile question — ADR 0083 §§ 2 and 5
 --FILE--
 <?nvs
 // ADR 0083 § 5 gives this member "the identical clause" its sibling takes, so

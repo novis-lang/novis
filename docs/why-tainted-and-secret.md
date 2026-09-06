@@ -52,22 +52,22 @@ whose guarantee is genuinely stronger than the rule
    for you — and the same standing rule covers data read back out of a store, which is what closes stored
    injection by the same mechanism as reflected.
 2. **A sink is a predicate, not a list.** Everyone else enumerates dangerous functions, so every new API is
-   a new hole. [ADR 0088](adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md) § 2 makes an
+   a new hole. `rule:security/unclassified-parameter-refuses-tainted` makes an
    unclassified parameter refuse a tainted argument, so a member nobody classified fails closed.
 3. **No generic `sanitize()`.** Perl and Ruby both shipped taint and both let you launder with a regex,
    which is why both became theatre. Novis has one launderer per sink, named for that sink, or none
-   ([ADR 0024](adr/0024-taint-tracking-for-injection-sinks.md) § 3).
+   (`rule:security/launderers-are-sink-named`).
 4. **Not skippable, and no annotation debt.** It is `nvs check`, not a pass beside it — nothing to
    configure, nothing to suppress, and no third-party library to annotate first. That last cost is why Java
    has the annotations and almost nobody uses them.
 5. **`secret` exists at all.** Outside cryptography DSLs, no general-purpose language has it
-   ([ADR 0033](adr/0033-secret-qualifier-for-confidential-values.md)).
+   (`rule:security/secret-qualifier`).
 
 ## What not to claim yet
 
 **Not "XSS is impossible."** Auto-escaping closes text-node XSS; attribute context, `javascript:` URLs,
 inline `<script>` and CSS context need the context-specific escapers that
-[ADR 0024](adr/0024-taint-tracking-for-injection-sinks.md) § 3 still owes as stdlib design, and
+`rule:security/launderers-are-sink-named` still owes as stdlib design, and
 `Core\Html::sanitize` is the hardest item on that roster. Until they land, the sentence this project may
 write is *injection is a compile error* — which is the stronger claim anyway, because it is about who
 enforces it rather than about how complete the escaping is.
@@ -79,12 +79,12 @@ that as a headline, and pairing a retired claim with a live one weakens both.
 
 | Topic | File |
 |---|---|
-| `tainted`: how it enters, propagates and is laundered; the sinks that refuse it; HTML auto-escape and `Core\Html\Markup` | [ADR 0024](adr/0024-taint-tracking-for-injection-sinks.md) |
-| `secret`: the second qualifier, its sinks, and why it has no ambient source | [ADR 0033](adr/0033-secret-qualifier-for-confidential-values.md) |
-| What makes something a sink, and why an unclassified one refuses | [ADR 0088](adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md) |
+| `tainted`: how it enters, propagates and is laundered; the sinks that refuse it; HTML auto-escape and `Core\Html\Markup` | `rule:security/tainted-qualifier` |
+| `secret`: the second qualifier, its sinks, and why it has no ambient source | `rule:security/secret-qualifier` |
+| What makes something a sink, and why an unclassified one refuses | `rule:security/sink-predicate` |
 | Where untrusted data enters a program at all | `rule:statements/no-host-populated-variables` |
-| A launderer's return type, and why only an idempotent escape answers a `string` | [ADR 0133](adr/0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md) |
-| Both qualifiers at an extension boundary | [ADR 0055](adr/0055-extension-qualifier-declarations.md) |
-| A `secret` value concealed in the editor | [ADR 0101](adr/0101-secret-is-redacted-in-the-editor-and-the-range-comes-from-the-server.md) |
+| A launderer's return type, and why only an idempotent escape answers a `string` | `rule:security/launderer-answers-a-carrier` |
+| Both qualifiers at an extension boundary | `rule:security/extension-manifest-only-tightens` |
+| A `secret` value concealed in the editor | `rule:security/redaction-ranges-come-from-the-server` |
 | Who Novis is for, and the three claims it makes about itself | `rule:programs/audience` |
 | How a developer writes either qualifier | [the reference](novis.md), chapter A.2 |

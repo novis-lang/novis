@@ -758,7 +758,7 @@ fn check_convertible(param: &Param, method: &str, ty: TypeId, env: &mut Env<'_>)
     );
 }
 
-/// ADR 0077 § 3's conversion roster, which § 6 takes unchanged, plus the one
+/// `rule:security/route-capture-is-laundered-by-its-type`'s conversion roster, which § 6 takes unchanged, plus the one
 /// row § 6 adds: a `bool` `#[Option]` is a flag, so it is given by being
 /// written rather than by carrying text.
 ///

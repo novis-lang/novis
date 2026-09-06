@@ -1,8 +1,8 @@
 --TEST--
-`Core\Taint::assertTrusted` answers a plain `string` for a tainted argument, and that answer is taken by every grammar sink rather than by the one sink a launderer normally names — ADR 0024 § 3
+`Core\Taint::assertTrusted` answers a plain `string` for a tainted argument, and that answer is taken by every grammar sink rather than by the one sink a launderer normally names — `rule:security/launderers-are-sink-named`
 --FILE--
 <?nvs
-// ADR 0024 § 3 makes laundering sink-named — a value safe for HTML text is not
+// `rule:security/launderers-are-sink-named` makes laundering sink-named — a value safe for HTML text is not
 // safe for a shell argument, so there is no generic `sanitize()` — and then
 // names the one exception: the developer validated the value and needs to say
 // so. Every other `Qual::Launder` row on the roster is refused at the sinks it

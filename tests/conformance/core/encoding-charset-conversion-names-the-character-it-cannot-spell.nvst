@@ -1,5 +1,5 @@
 --TEST--
-`Core\Encoding::encodeText` names the character a charset has no spelling for and `::decodeText` the offset a sequence it cannot read starts at, and neither substitutes — spec § 7, `rule:types/conversion`, ADR 0088
+`Core\Encoding::encodeText` names the character a charset has no spelling for and `::decodeText` the offset a sequence it cannot read starts at, and neither substitutes — spec § 7, `rule:types/conversion`, `rule:security/sink-predicate`
 --FILE--
 <?nvs
 // Spec § 7's text trio sits on the `bytes`<->`string` seam, and `rule:types/conversion`
@@ -143,7 +143,7 @@ echo $decNamed, " of 8\n";
 // that quotation is bounded on both sides of 32 characters — at 32 the whole of
 // it is there, at 34 the first 32 are with an ellipsis saying so. The text is a
 // value that arrived from somewhere, so quoting it whole would let a request
-// pick how many bytes a log gains (ADR 0088's register). The bound counts
+// pick how many bytes a log gains (`rule:security/sink-predicate`'s register). The bound counts
 // *characters* where the offset counts bytes, which is why the offset is 31 and
 // 33 while the quotation stops at 32 either way.
 try { echo Core\Encoding::toHex(Core\Encoding::encodeText(Core\Str::repeat("z", 31) . "é", Core\Charset::Ascii)), "\n"; }

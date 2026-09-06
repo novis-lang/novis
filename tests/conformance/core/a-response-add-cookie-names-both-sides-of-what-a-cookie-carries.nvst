@@ -62,7 +62,7 @@ foreach ($uncarriable as string $smuggled) {
 echo "refused ", $refusedValues, " of 5 values\n";
 
 // A cookie declares and writes nothing, like `setStatus`, `setHeader` and
-// `redirect` beside it and unlike ADR 0088 § 4's five body members. Two calls
+// `redirect` beside it and unlike `rule:security/response-body-is-one-typed-member`'s five body members. Two calls
 // naming one cookie are both admitted, because this member appends where
 // `setHeader` overrides — what the peer receives is asserted in `nvs-server`,
 // where a response exists.

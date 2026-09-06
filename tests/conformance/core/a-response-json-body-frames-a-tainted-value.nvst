@@ -1,9 +1,9 @@
 --TEST--
-`Core\Response::json` takes `mixed` and accepts a tainted value anywhere inside it, because the serializer owns the framing -- ADR 0088 §§ 1, 4 and ADR 0024 § 4
+`Core\Response::json` takes `mixed` and accepts a tainted value anywhere inside it, because the serializer owns the framing -- `rule:security/sink-predicate` and `rule:security/response-body-is-one-typed-member` and `rule:security/sink-predicate`
 --FILE--
 <?nvs
-// ADR 0088 § 4: `json` takes `mixed` and accepts tainted freely, by the same
-// argument ADR 0024 § 4 already makes for `Core\Log` fields and bound database
+// `rule:security/response-body-is-one-typed-member`: `json` takes `mixed` and accepts tainted freely, by the same
+// argument `rule:security/sink-predicate` already makes for `Core\Log` fields and bound database
 // parameters -- the framing belongs to the serializer, never to concatenation.
 tainted string $t = "\" , \"injected\": \"yes" as tainted string;
 Core\Response::json(["field" => $t]);

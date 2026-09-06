@@ -170,7 +170,7 @@ and validation in the half of a `.nvs` file that is markup.
 
 - **The region list comes from the server**, as one request of Novis's own, `nvs/regions`, beside
   `nvs/redactions`. The lexer already knows where a mode ends; the client is not to re-derive it from a
-  grammar, for the identical reason [ADR 0101](0101-secret-is-redacted-in-the-editor-and-the-range-comes-from-the-server.md) § 1
+  grammar, for the identical reason `rule:security/redaction-ranges-come-from-the-server`
   gives for redaction ranges — the server knows, the client draws, and a client that guesses is a second
   implementation of the lexer.
 - **This is not language logic in the client**, so [ADR 0016](0016-ide-integration.md) § 1 holds: the

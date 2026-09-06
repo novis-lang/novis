@@ -81,7 +81,7 @@ refusal. Neither asks `net.connect`, and neither consults § 3's denied-range ta
 This is `Cap::MailSend`'s shape and `Cap::DbConnect`'s reasoning, which
 `crates/nvs-config/src/capability.rs` already states for both: *the endpoint an operator wrote into
 root-owned configuration carries the authority that granted this capability, so it is pre-approved and
-is not additionally asked about ADR 0058 § 3's denied ranges.* A third key of the same kind gets the
+is not additionally asked about `rule:security/net-address-policy`'s denied ranges.* A third key of the same kind gets the
 same treatment rather than a fourth rule.
 
 **Unscoped, because there is nothing to scope on.** A deployment has one shared store —

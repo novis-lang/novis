@@ -1,5 +1,5 @@
 --TEST--
-`Core\Request::files` names the walk rather than taking it, so a program answering no request is refused where it asked and not at the first part — spec § 15, ADR 0105 §§ 1-2, ADR 0012 § 7
+`Core\Request::files` names the walk rather than taking it, so a program answering no request is refused where it asked and not at the first part — spec § 15, ADR 0105 §§ 1-2, `rule:security/request-state-throws-in-an-isolate`
 --FILE--
 <?nvs
 // Where the refusal lands is the question, and it is one only a lazy member can

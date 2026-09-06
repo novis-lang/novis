@@ -125,7 +125,7 @@ pub(crate) fn infer_method_call(
     let (sig, written) =
         check_written_type_args(type_args, sig, label.as_deref(), expr.span, ctx, env);
     let (arg_types, slots, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
-    // ADR 0088 § 2's contagion, decided here because `resolved_call` below
+    // `rule:security/unclassified-parameter-refuses-tainted`'s contagion, decided here because `resolved_call` below
     // takes `slots` by value and it is the slots that say which parameter each
     // tainted argument filled. See [`carries_contagion`].
     let contagious = sig
@@ -298,7 +298,7 @@ pub(crate) fn infer_static_call(
                     if found.is_none() && qname.is_core() {
                         report_unknown_member(expr.span, &qname, &name, "member", env);
                     }
-                    // ADR 0088 § 4's sixth row, noted here because this is the
+                    // `rule:security/response-body-is-one-typed-member`'s sixth row, noted here because this is the
                     // one site where a `Core\Response::…` call has a resolved
                     // class name to be recognized by — `crate::response` owns
                     // the roster and the refusal.
@@ -356,21 +356,21 @@ pub(crate) fn infer_static_call(
     let contagious = sig
         .as_ref()
         .is_some_and(|s| carries_contagion(s, &slots, &arg_types, env.interner));
-    // ADR 0033 § 4's debug-dump sink, at the one end where the qualifier is
+    // `rule:security/secret-sinks-refuse`'s debug-dump sink, at the one end where the qualifier is
     // still visible — both members declare `mixed`, so nothing below this
     // point can tell. See [`reject_secret_debug_argument`].
     if let Some((owner, name, _)) = &resolved {
         reject_secret_debug_argument(owner, name, args, &arg_types, env);
-        // ADR 0033 § 4's cross-boundary sink, at the same end and for the same
+        // `rule:security/secret-sinks-refuse`'s cross-boundary sink, at the same end and for the same
         // reason — `Core\Serialize::encode` declares `mixed` too. See
         // [`reject_secret_boundary_argument`], which the `spawn` forms will
         // reach rather than growing a second rule.
         reject_secret_boundary_argument(owner, name, args, &arg_types, env);
-        // ADR 0033 § 4's serialiser sink, the third member of the same shape:
+        // `rule:security/secret-sinks-refuse`'s serialiser sink, the third member of the same shape:
         // `Core\Json::encode` declares `mixed` too, and what it walks is the
         // whole value. See [`reject_secret_encoded_argument`].
         reject_secret_encoded_argument(owner, name, args, &arg_types, env);
-        // ADR 0033 § 4's log sink, the fourth — and the one whose open type is
+        // `rule:security/secret-sinks-refuse`'s log sink, the fourth — and the one whose open type is
         // that ADR's own decision rather than a member's convenience, which is
         // why it takes the `scope` the others do not: `fields` stays
         // `array<mixed>`, so an element that names a binding is asked about by
@@ -387,7 +387,7 @@ pub(crate) fn infer_static_call(
         // Records rather than refuses, like every other hook here that reads a
         // written argument. See [`crate::testing::note_inline_snapshot`].
         crate::testing::note_inline_snapshot(owner, name, args, env);
-        // ADR 0112 § 6's roster, over the one member whose argument names a
+        // `rule:security/optional-capability-degrades`'s roster, over the one member whose argument names a
         // capability — static-only, like the member. See
         // [`crate::capability`], which replaces nothing.
         crate::capability::reject_unknown_capability(owner, name, args, env);
@@ -402,7 +402,7 @@ pub(crate) fn infer_static_call(
         // A member that opens an isolate, which its row says by marking an
         // entry parameter — ADR 0083 § 2's `Core\Socket::upgrade`. Its entry
         // takes ADR 0006 § *Decision*'s operand rule and its other arguments
-        // take ADR 0033 § 4's crossing refusal, both of them the `spawn
+        // take `rule:security/secret-sinks-refuse`'s crossing refusal, both of them the `spawn
         // script` site's own rather than a second copy. Static-only, like
         // every marked row: this is the one call path where an argument's
         // *written shape* still decides whether it is accepted. See

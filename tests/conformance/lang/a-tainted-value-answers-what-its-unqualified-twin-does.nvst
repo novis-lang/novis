@@ -1,8 +1,8 @@
 --TEST--
-`tainted` is erased before codegen, so a qualified value answers exactly what its unqualified twin answers on every question it can be asked — ADR 0024 §§ 1-2 and ADR 0033 §§ 1-2
+`tainted` is erased before codegen, so a qualified value answers exactly what its unqualified twin answers on every question it can be asked — `rule:security/tainted-qualifier` and `rule:security/taint-propagation` and `rule:security/secret-qualifier` and `rule:security/secret-propagation`
 --FILE--
 <?nvs
-// ADR 0024 § 1: the qualifier is "checked exactly once, by `nvs check`, and
+// `rule:security/tainted-qualifier`: the qualifier is "checked exactly once, by `nvs check`, and
 // carries no representation at all past that point". A case can only see the
 // second half of that, so this one asks a *tainted* value and its plain twin
 // the same question on every row and **counts** the rows where the two
@@ -28,7 +28,7 @@ int $sameRoundTrip = 0;
 foreach ($rows as tainted string $t) {
     string $p = $twin[$rowCount];
 
-    // ADR 0024 § 2's poisoning is a *type* rule: it says nothing about the
+    // `rule:security/taint-propagation`'s poisoning is a *type* rule: it says nothing about the
     // answer, and this row is what says the answer did not move.
     if ($t == $p) { $sameValue = $sameValue + 1; }
 
@@ -43,7 +43,7 @@ foreach ($rows as tainted string $t) {
     string $pi = "[{$p}]";
     if ($ti == $pi) { $sameInterp = $sameInterp + 1; }
 
-    // `rule:types/conversion` / ADR 0024 § 2: `bytes`/`string` preserve the qualifier
+    // `rule:types/conversion` / `rule:security/taint-propagation`: `bytes`/`string` preserve the qualifier
     // across either direction, so the round trip stays tainted the whole way
     // and must still land on the byte-identical value.
     tainted bytes $tb = $t as bytes;
@@ -56,7 +56,7 @@ foreach ($rows as tainted string $t) {
 echo "rows=", $rowCount, "\n";
 echo "value=", $sameValue, " concat=", $sameConcat, " interp=", $sameInterp, " roundtrip=", $sameRoundTrip, "\n";
 
-// ADR 0033 § 2: the two axes poison independently. Every binding below is a
+// `rule:security/secret-propagation`: the two axes poison independently. Every binding below is a
 // compile-time assertion that this file's compiling *is* the claim -- there is
 // no runtime witness for a qualifier that was erased -- so each names the
 // exact atom the checker must have produced.
@@ -65,7 +65,7 @@ tainted string $widenedTainted = $plain;
 secret string $widenedSecret = $plain;
 secret tainted string $widenedBoth = $widenedTainted;
 // The witness is a comparison rather than the value itself, as the two below
-// it are: ADR 0033 § 4 refuses a `secret` operand at `echo` (E0790), and a
+// it are: `rule:security/secret-sinks-refuse` refuses a `secret` operand at `echo` (E0790), and a
 // conversion to `string` keeps both qualifiers, so there is no spelling that
 // prints one. What the comparison still shows is the whole claim -- widening
 // changed the type and nothing else.
@@ -80,7 +80,7 @@ secret tainted string $mixRight = $onlySecret . $onlyTainted;
 if ($mixLeft == "ts") { echo "poisoned both ways\n"; } else { echo "BAD\n"; }
 if ($mixRight == "st") { echo "poisoned both ways\n"; } else { echo "BAD\n"; }
 
-// ADR 0024 § 2: a checked conversion to a type that already throws on a
+// `rule:security/taint-propagation`: a checked conversion to a type that already throws on a
 // malformed shape removes the qualifier on success, with no new syntax -- the
 // plain `uint`/`int`/`bool` slots are what assert it.
 tainted string $digits = "17";
@@ -91,7 +91,7 @@ bool $truth = $flag as bool;
 echo "laundered=", $laundered, " signed=", $signed, "\n";
 if ($truth) { echo "bool laundered\n"; } else { echo "BAD\n"; }
 
-// ADR 0033 § 2 again: the conversion strips *both* bits at once, which is the
+// `rule:security/secret-propagation` again: the conversion strips *both* bits at once, which is the
 // known, accepted gap that ADR's own Alternatives-rejected section names.
 secret tainted string $both = "8";
 uint $stripped = $both as uint;

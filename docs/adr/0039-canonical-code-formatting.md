@@ -150,7 +150,7 @@ read as promising that two semantically identical files converge; what converges
   developer who has not yet learned a rule gets carried by save. Each fix is a diagnostic-backed LSP code
   action owned by [ADR 0040](0040-vscode-deep-tooling-and-resilient-parsing.md) § 3, applied to a file that
   may not parse at all — a mis-ordered `tainted secret string`
-  ([ADR 0033](0033-secret-qualifier-for-confidential-values.md)) is a *parse error* whose diagnostic already
+  (`rule:security/secret-qualifier`) is a *parse error* whose diagnostic already
   names the fix, so those actions run against ADR 0040 § 2's resilient tree, not a successful parse. This
   buys the fast iteration without costing `--check` its meaning: `nvs fmt --check` still fails for exactly
   one reason, and a CI job reading it never has to tell "laid out differently" from "semantically wrong."
@@ -304,7 +304,7 @@ to test against)
   collapsed or re-wrapped (§ 2).
 - A `tainted`/`secret`-qualified property and a `lateinit` property both format consistently (§ 7) —
   `nvs fmt` never needs to check whether either is used *legally*, only that it is laid out consistently;
-  legality stays covered by ADR 0033's and `rule:classes/lateinit`'s own checker fixtures.
+  legality stays covered by `rule:security/secret-qualifier`'s and `rule:classes/lateinit`'s own checker fixtures.
 - § 10's two normalizations, one fixture each: `5Min` → `5min` and `<?NVS` → `<?nvs`. Alongside each, a
   negative case proving the criterion holds — a class named `IF`, and a method named `Min`, both formatted
   with their spelling untouched.

@@ -17,7 +17,7 @@
 > **In short:** cron already exists, every deployment already runs it, and the only thing it does badly is
 > that its job definition lives somewhere other than the application. So Novis takes the *declaration* and
 > nothing else: a `[[schedule]]` entry in `nvs.toml` names a `cron` expression and a `script`, and fires it
-> as an ordinary `spawn script` isolate ([ADR 0006](0006-isolated-script-execution.md)) — **no API surface
+> as an ordinary `spawn script` isolate (`rule:security/isolate-shares-nothing`) — **no API surface
 > at all**, no `Core\Schedule`, nothing a program can register at runtime. `nvs run` runs the identical
 > file by hand, which is the whole debugging story. One key is **mandatory with no default**: **`scope`**,
 > either `"fleet"` (once across the deployment, over the shared store) or `"host"` (once per host). Both
@@ -38,7 +38,7 @@
   The failure is silent — four copies of a nightly billing run look exactly like one until the invoices go
   out.
 - **Novis already has every piece except the ticker.** `spawn script`
-  ([ADR 0006](0006-isolated-script-execution.md)) runs a file in an isolate with its own arena, its own
+  (`rule:security/isolate-shares-nothing`) runs a file in an isolate with its own arena, its own
   config overlay and capability narrowing. `nvs.toml` ([ADR 0064](0064-configuration-file-format.md)) is a
   root-owned file the operator already writes. `Core\Cache::shared()`
   ([ADR 0059](0059-cross-request-state-is-explicit.md)) is a coherent store across machines. What is
@@ -82,7 +82,7 @@ several fields — [ADR 0064](0064-configuration-file-format.md) § 2's existing
 as a duplicate key already is (§ 3 of that ADR).
 
 `script` is resolved against the same `[capabilities] script.spawn` roots
-[ADR 0006](0006-isolated-script-execution.md) already defines, canonicalised and prefix-checked. A path
+`rule:security/isolate-shares-nothing` already defines, canonicalised and prefix-checked. A path
 outside them is a **boot** error, not a first-fire error: the set of files a deployment can execute is one
 list, and a schedule is not a way around it.
 
@@ -133,7 +133,7 @@ so not even `RuntimeTighten` applies. This is the same class and the same reason
 
 ### 5. A scheduled run is a root isolate, and spends a root's budget
 
-[ADR 0006](0006-isolated-script-execution.md) fixes that an isolate spends its **parent's** budget. A
+`rule:security/isolate-shares-nothing` fixes that an isolate spends its **parent's** budget. A
 scheduled run has no parent, and this is not a new exception to that rule — it is that ADR's other existing
 shape: *"an inbound HTTP request becomes the root isolate of a request tree."* A scheduled fire is a second
 root, built by the same `Isolate` code path, and everything downstream follows with nothing added:
@@ -168,7 +168,7 @@ which is the entire debugging and backfill story and is why no `--run-now` flag 
   [ADR 0072](0072-core-task-structured-concurrency.md) § 7 refuses to build, and it would be no better
   here.
 - **`"kill"`** — the running isolate is cancelled at its next safepoint
-  ([ADR 0006](0006-isolated-script-execution.md)), the scheduler waits for its teardown, then the new run
+  (`rule:security/isolate-shares-nothing`), the scheduler waits for its teardown, then the new run
   starts. Cancellation runs no user code, per
   [ADR 0072](0072-core-task-structured-concurrency.md) § 5.
 
@@ -253,7 +253,7 @@ the operator wrote down.
 
 - **A `[[schedule]]` entry firing something other than a script** — an HTTP request to itself, a `Core`
   member — should stay rejected: `spawn script` is the one mechanism, and a second one is a second isolation
-  path ([ADR 0006](0006-isolated-script-execution.md)).
+  path (`rule:security/isolate-shares-nothing`).
 - **Sub-minute cadence** if a real workload needs it. The answer is more likely a separate `[[timer]]`
   concept with its own accuracy contract than a seconds field bolted to cron.
 - **Exactly-once fleet semantics** if an application appears that genuinely cannot be made idempotent. That

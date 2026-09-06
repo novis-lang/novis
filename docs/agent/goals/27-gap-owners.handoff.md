@@ -13,7 +13,7 @@ the same failure `carried-gaps.md` was created to fix, one level down.
 **Most of those 110 are not alarming, and that is the point.** The module docs are careful: an item
 typically says where it is closed (`nvs-hir`'s visibility gap is closed in
 `nvs_types::expr::members::check_member_visibility`), or names its blocker (`Core\Queue`'s two wait on
-a shape spelling), or explains why it is inert (`nvs_safepoint`'s two cleared flags wait on ADR 0116's
+a shape spelling), or explains why it is inert (`nvs_safepoint`'s two cleared flags wait on `rule:security/arena-is-an-ownership-root`'s
 collector and on `nvs dap`). What is missing is not care — it is a **machine-readable owner**, so the
 short list of real scheduling questions can be told from the long list of explained residue without
 reading 50 module docs.

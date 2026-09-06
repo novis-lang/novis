@@ -1,8 +1,8 @@
-//! [ADR 0118] § 2's check, and § 5's refusal: the one function a door to the operating system calls
+//! `rule:security/capability-check-at-the-door`'s check, and § 5's refusal: the one function a door to the operating system calls
 //! before it opens.
 //!
 //! [`require`] is deliberately the only *decision* here, and [`granted`] is that same decision
-//! without the sentence — a door needs to say what it refused, and ADR 0112 § 6's `Core\Cap::has`
+//! without the sentence — a door needs to say what it refused, and `rule:security/optional-capability-degrades`'s `Core\Cap::has`
 //! needs only the yes or no. The decision procedure is
 //! [`nvs_config::capability`] and is pure; this is the half that knows about a request — where the
 //! snapshot comes from, and what a denial looks like to the program that hit it. Twelve below are
@@ -21,7 +21,6 @@
 //! same deny-by-default the absent block gets, and a request path that reached a capability check
 //! without a snapshot has a bug that should fail closed rather than quietly succeed.
 //!
-//! [ADR 0118]: ../../../docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md
 
 use std::fs::{File, ReadDir};
 use std::path::{Path, PathBuf};
@@ -31,7 +30,7 @@ use std::process::{Child, Command, Stdio};
 /// name it.
 ///
 /// `nvs-stdlib` may not write `std::fs` anywhere —
-/// `nvs_stdlib_reaches_the_os_only_through_the_gate` is the scan that holds ADR 0118 § 2's door
+/// `nvs_stdlib_reaches_the_os_only_through_the_gate` is the scan that holds `rule:security/capability-check-at-the-door`'s door
 /// shut — so a `Core` member that passes one of these to a helper of its own would otherwise have
 /// no spelling for the parameter, and would have to re-derive each field at the call site instead.
 /// Re-exporting the type grants nothing: every way of *obtaining* one still goes through a door
@@ -54,7 +53,7 @@ use crate::{Fault, ThrownClass};
 /// [`Fault::thrown`] — a `RuntimeError`, catchable, naming the capability in the spelling `nvs.toml`
 /// grants it under and, for a scoped check, the argument that fell outside the grant. It is never a
 /// `FATAL`: a denial is known before any work is done and leaves nothing behind, so a program that
-/// degrades when a capability is missing is a reasonable program (ADR 0118 § 5).
+/// degrades when a capability is missing is a reasonable program (`rule:security/denial-is-a-runtime-error`).
 pub fn require(ctx: &Ctx, cap: Cap, scope: Scope<'_>, member: &str) -> Result<(), Fault> {
     match refusal(ctx, cap, scope, member) {
         Some(message) => Err(Fault::thrown(message)),
@@ -79,8 +78,8 @@ pub(crate) fn refusal(ctx: &Ctx, cap: Cap, scope: Scope<'_>, member: &str) -> Op
 /// § 1's question as a `bool`, with no message built for the `false` side.
 ///
 /// [`require`]'s own decision, factored out for the one caller that is not a door: `Core\Cap::has`,
-/// which is [ADR 0112](/docs/adr/0112-authority-is-keyed-on-the-enclosing-namespace.md)
-/// § 6's way for a package that declared a capability *optional* to degrade instead of failing a
+/// which is `rule:security/optional-capability-degrades`
+/// 's way for a package that declared a capability *optional* to degrade instead of failing a
 /// build. Every door goes on calling `require`, because a door needs the sentence a denial prints
 /// and this answers only the yes or no.
 ///
@@ -993,7 +992,7 @@ mod tests {
         })
     }
 
-    /// ADR 0118 § 5, asked of the process door: an unconfigured context starts nothing, and the
+    /// `rule:security/denial-is-a-runtime-error`, asked of the process door: an unconfigured context starts nothing, and the
     /// message names the capability in the spelling `nvs.toml` grants it under.
     #[test]
     fn a_child_starts_only_where_process_exec_is_granted() {
@@ -1001,7 +1000,9 @@ mod tests {
         let denied = exec(&ctx, Path::new("/usr/bin/convert"), &["-version"], MEMBER)
             .expect_err("a context with no configuration grants nothing");
         let Fault::Thrown(class, message) = denied else {
-            panic!("a denial is a throw and never a fatal — ADR 0118 § 5");
+            panic!(
+                "a denial is a throw and never a fatal — `rule:security/denial-is-a-runtime-error`"
+            );
         };
         assert_eq!(class, ThrownClass::Runtime);
         assert!(
@@ -1236,8 +1237,9 @@ mod tests {
             "[io]\ntemp_root = '{}'\n",
             root.display()
         )));
-        temp_dir(&mut refused, "Core\\IO::temporaryDir")
-            .expect_err("ADR 0118 § 1 denies `fs.write` by default");
+        temp_dir(&mut refused, "Core\\IO::temporaryDir").expect_err(
+            "`rule:security/capability-question-is-grant-and-scope` denies `fs.write` by default",
+        );
         assert!(
             refused.temporary_dirs().is_empty(),
             "a call that created no directory has nothing for the sweep to delete"

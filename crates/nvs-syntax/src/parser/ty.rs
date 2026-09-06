@@ -2,7 +2,7 @@
 //! parses through.
 //!
 //! The whole of it: nested `array<T>`, DNF unions and intersections, the
-//! `?T` sugar, `tainted`/`secret` qualifiers (ADR 0024 § 1, ADR 0033 § 1), ADR
+//! `?T` sugar, `tainted`/`secret` qualifiers (`rule:security/tainted-qualifier`, `rule:security/secret-qualifier`), ADR
 //! 0036 § 3's inline `{name: T}` shape, `rule:types/literal-types`'s literal and enum-case
 //! atoms, and `decimal` (`rule:types/decimal`). A `>>` closing two nested generics is
 //! split back into two `>` closes here rather than in the lexer — see
@@ -337,7 +337,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                         | TypeAtom::SecretTaintedString
                         | TypeAtom::SecretTaintedBytes,
                     ) => {
-                        // ADR 0033 § 1: `secret` and `tainted` compose, but
+                        // `rule:security/secret-qualifier`: `secret` and `tainted` compose, but
                         // only `secret` first — `inner` already built a
                         // `Secret*` atom, meaning the source spelled `secret`
                         // before this `tainted`, i.e. wrote the rejected
@@ -350,7 +350,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                             .with_primary(span, "wrong qualifier order")
                             .with_help(
                                 "write `secret tainted string`/`secret tainted bytes` \
-                                 (ADR 0033 § 1)",
+                                 (`rule:security/secret-qualifier`)",
                             ),
                         );
                         return Type {
@@ -365,7 +365,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                                 "`tainted` only qualifies `string`/`bytes`",
                             )
                             .with_primary(span, "not a scalar `tainted` can qualify")
-                            .with_help("write `tainted string` or `tainted bytes` (ADR 0024 § 1)"),
+                            .with_help("write `tainted string` or `tainted bytes` (`rule:security/tainted-qualifier`)"),
                         );
                         return Type {
                             kind: inner.kind,
@@ -394,7 +394,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                                 "`secret` only qualifies `string`/`bytes`",
                             )
                             .with_primary(span, "not a scalar `secret` can qualify")
-                            .with_help("write `secret string` or `secret bytes` (ADR 0033 § 1)"),
+                            .with_help("write `secret string` or `secret bytes` (`rule:security/secret-qualifier`)"),
                         );
                         return Type {
                             kind: inner.kind,

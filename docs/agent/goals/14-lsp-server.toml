@@ -167,7 +167,7 @@ args = ["test", "-p", "nvs-lsp"]
 tests = [
   "a_secret_literal_and_a_secret_interpolation_slot_are_answered",
   "a_plain_and_a_tainted_literal_are_not",
-  # ADR 0101: a value must not flash on screen while its literal is being typed.
+  # `rule:security/redaction-ranges-come-from-the-server`: a value must not flash on screen while its literal is being typed.
   "an_untypable_expression_whose_binding_is_secret_is_answered_anyway",
 ]
 

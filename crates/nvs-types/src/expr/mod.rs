@@ -22,13 +22,13 @@
 //! | [`args`] | a call's arguments, its options bag, its type arguments |
 //! | [`assign`] | `rule:types/unions-and-mixed`'s assignability, and the positions applying it |
 //! | [`calls`] | which member a call resolves to; `rule:types/callable-is-a-closure`'s `callable` |
-//! | [`isolate`] | ADR 0006's `spawn script` and `await`, and what each types as |
+//! | [`isolate`] | `rule:security/isolate-shares-nothing`'s `spawn script` and `await`, and what each types as |
 //! | [`iteration`] | `rule:iteration/two-interfaces`'s `foreach` sources and `yield` forms |
 //! | [`literals`] | how a literal takes its type from its position |
 //! | [`members`] | a property, class constant or enum case, and who diagnoses it |
 //! | [`operators`] | `rule:types/arithmetic`'s result table and the refusals layered on it |
 //! | [`presence`] | `rule:classes/unset-is-refused-on-a-property`'s `isset(...)`, and what its operands may be |
-//! | [`quals`] | ADR 0024's `tainted`, ADR 0033's `secret`, and their sinks |
+//! | [`quals`] | `rule:security/tainted-qualifier`'s `tainted`, `rule:security/secret-qualifier`'s `secret`, and their sinks |
 //!
 //! Two fallbacks are deliberate and belong to no module. A method/static call
 //! not statically resolvable to a known signature — an unresolved receiver, a
@@ -86,8 +86,8 @@ pub(crate) use self::{
     quals::{reject_secret_attribute_constant, reject_secret_output},
 };
 
-/// Whether `ty` carries [ADR 0033](/docs/adr/0033-secret-qualifier-for-confidential-values.md)
-/// § 1's `secret` qualifier — the one thing outside this crate a *declared*
+/// Whether `ty` carries `rule:security/secret-qualifier`
+/// 's `secret` qualifier — the one thing outside this crate a *declared*
 /// type is asked, and asked at the one end that knows.
 ///
 /// `rule:errors/record-transformations`'s redaction row is two halves of one rule about one record,
@@ -779,7 +779,7 @@ pub(crate) fn infer(
             }
             env.interner.never()
         }
-        // ADR 0006's two constructs, both of which carry a rule of their own:
+        // `rule:security/isolate-shares-nothing`'s two constructs, both of which carry a rule of their own:
         // what each is typed as, and why the handle and the result are
         // answered by opposite mechanisms. [`isolate`] owns it.
         ExprKind::SpawnScript { path, options } => {

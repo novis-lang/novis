@@ -1,5 +1,5 @@
 --TEST--
-Every `Core\Uuid` draw is canonical, distinct and round-trips through `parse`; `tryParse` agrees with `parse` on every spelling; and a refusal quotes the operand it refused, bounded — spec § 11, `rule:core-api/shape-rules` R4, ADR 0088
+Every `Core\Uuid` draw is canonical, distinct and round-trips through `parse`; `tryParse` agrees with `parse` on every spelling; and a refusal quotes the operand it refused, bounded — spec § 11, `rule:core-api/shape-rules` R4, `rule:security/sink-predicate`
 --FILE--
 <?nvs
 // A drawn UUID cannot be asserted, so the two generators are pinned by
@@ -80,7 +80,7 @@ foreach ($spellings as string $text) {
 echo "agree ", $agree, " of ", Core\Arr::count($spellings), ", accepted ", $accepted, "\n";
 
 // The refused operand is the one value in this member a caller sizes, and the
-// message is written to a log — ADR 0088's wider rule — so the quote is
+// message is written to a log — `rule:security/sink-predicate`'s wider rule — so the quote is
 // bounded at 48 characters. The boundary is asserted on both sides and built
 // with `Core\Str::repeat` rather than pasted: 48 is quoted whole, so the
 // closing quote follows the last character, and 49 is cut to 48 with an

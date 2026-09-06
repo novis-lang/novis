@@ -4,7 +4,7 @@
 <?nvs
 // `rule:errors/on-uncaught-throw`'s load-bearing sentence is that tier 2 gets "the **real
 // `Throwable` object**, not copied data": this is the request's own root, not
-// an ADR 0006 isolate boundary that has to copy across. A ladder that rebuilt
+// an `rule:security/isolate-shares-nothing` isolate boundary that has to copy across. A ladder that rebuilt
 // the exception — or that handed over a keyed array the way § 1's `LimitReport`
 // is one — answers every other question here identically and fails on the one
 // line below that asks about identity.

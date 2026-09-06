@@ -2,7 +2,7 @@
 //!
 //! The table is [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md)
 //! § 1's, unchanged, and the bidi rule is
-//! [ADR 0087](/docs/adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md)'s
+//! `rule:security/bidi-predicate`'s
 //! predicate called rather than restated. What `rule:errors/diagnostic-record` adds is *where* they
 //! run: on the way into the record, not on the way out of a rendering, so all
 //! three renderings inherit one answer and none may weaken it.
@@ -34,10 +34,10 @@ const REPLACEMENT: char = '\u{FFFD}';
 /// point as `�`, and every **unterminated** directional control as `�`.
 ///
 /// A balanced directional control passes through — it is legitimate text, and
-/// ADR 0087's whole point is that banning the characters outright breaks
+/// `rule:security/bidi-predicate`'s whole point is that banning the characters outright breaks
 /// Arabic and Hebrew.
 ///
-/// The whole string is one span for ADR 0087's purposes, which is that ADR's
+/// The whole string is one span for `rule:security/bidi-predicate`'s purposes, which is that ADR's
 /// *"what a span is, is the caller's decision"*: a record's text node is one
 /// value, so a scope it opens has the whole of that value to close in.
 ///
@@ -87,7 +87,7 @@ fn needs_substitution(c: char) -> bool {
 /// through.
 ///
 /// The bidi row is not here: it is a property of the *span*, not of the
-/// character, so [`substitute`] applies it from ADR 0087's predicate.
+/// character, so [`substitute`] applies it from `rule:security/bidi-predicate`'s predicate.
 fn substituted(c: char) -> Option<char> {
     match c {
         // Legitimate text layout, and no terminal parses either as an
@@ -125,7 +125,7 @@ mod tests {
         assert_eq!(substitute("a\nb\tc"), "a\nb\tc");
     }
 
-    /// ADR 0087's predicate, not a ban: a balanced scope is legitimate text.
+    /// `rule:security/bidi-predicate`'s predicate, not a ban: a balanced scope is legitimate text.
     #[test]
     fn a_balanced_directional_control_passes_through() {
         let text = "\u{2066}user_id\u{2069}";

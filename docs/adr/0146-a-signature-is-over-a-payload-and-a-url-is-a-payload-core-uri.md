@@ -13,7 +13,7 @@
   § 4 — the API gains `urlSigned` and `signedRoute`.
 
 > **In short:** signing gets one general member — **`Core\Signature::sign`/`::verify` over a payload
-> map**, [ADR 0060](0060-application-security-protocols.md)'s fifth and final roster entry — and two
+> map**, `rule:security/protocol-roster`'s fifth and final roster entry — and two
 > doors onto it where people will actually look: **`$uri->sign`/`$uri->verifySignature`**, and
 > `Core\Router`'s pair for the one case a path cannot express. The whole failure class other languages
 > carry comes from inventing a canonical form for the signature alone; Novis does not invent one.

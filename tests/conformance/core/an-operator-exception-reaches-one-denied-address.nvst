@@ -1,5 +1,5 @@
 --TEST--
-`net.internal` excepts the one address it names from ADR 0058 § 3's denied table and nothing else — ADR 0058 §§ 2-3
+`net.internal` excepts the one address it names from `rule:security/net-address-policy`'s denied table and nothing else — ADR 0058 §§ 2-3
 --FILE--
 <?nvs
 // § 3's operator half, which is the other side of

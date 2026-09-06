@@ -1,8 +1,8 @@
 --TEST--
-`Core\Response::text` is not a sink, so a tainted body is accepted where an unclassified `string` parameter would refuse it -- ADR 0088 §§ 2, 4
+`Core\Response::text` is not a sink, so a tainted body is accepted where an unclassified `string` parameter would refuse it -- `rule:security/unclassified-parameter-refuses-tainted` and `rule:security/response-body-is-one-typed-member`
 --FILE--
 <?nvs
-// ADR 0088 § 2: an unclassified `string` parameter refuses a tainted argument.
+// `rule:security/unclassified-parameter-refuses-tainted`: an unclassified `string` parameter refuses a tainted argument.
 // § 4's table classifies `text`'s body contagious instead, and ADR 0074 is why
 // it may -- `nosniff` is on with nothing configured, so a `text/plain` body is
 // never re-parsed as HTML by a browser.

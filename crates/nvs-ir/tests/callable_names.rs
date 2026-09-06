@@ -144,7 +144,7 @@ fn an_fn_literal_records_no_parameter_names_at_all() {
     // tell "no names recorded" from "names recorded, and they are these" — and
     // it does that by asking the descriptor for the field by name. A literal
     // that grew a `fn#names` field would have its capture read as a parameter
-    // list by every reader of ADR 0006's binding.
+    // list by every reader of `rule:security/isolate-shares-nothing`'s binding.
     let program = compile(
         "<?nvs
 string $room = \"lobby\";

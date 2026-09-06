@@ -1,5 +1,5 @@
 --TEST--
-Core\IO::read and Core\IO::write refuse every spelling of a path with no grant behind it — counted over a sweep of relative, dotted, nested and parent-walking forms rather than read off one line, so a door that resolved one spelling into an allowance still fails here — ADR 0118 §§ 1-2
+Core\IO::read and Core\IO::write refuse every spelling of a path with no grant behind it — counted over a sweep of relative, dotted, nested and parent-walking forms rather than read off one line, so a door that resolved one spelling into an allowance still fails here — `rule:security/capability-question-is-grant-and-scope` and `rule:security/capability-check-at-the-door`
 --FILE--
 <?nvs
 // A refusal asserted one path at a time is a refusal a member can pass by
@@ -9,7 +9,7 @@ Core\IO::read and Core\IO::write refuse every spelling of a path with no grant b
 // through moves a number here whatever it printed for the others.
 //
 // The forms are the ones a path arrives in: bare, dot-prefixed, nested, and one
-// walking out through `..`, which is the spelling ADR 0118 § 4's canonicalise-
+// walking out through `..`, which is the spelling `rule:security/path-scope-canonicalise-then-prefix`'s canonicalise-
 // then-prefix rule exists for once a root *is* granted.
 array<string> $paths = [
     "notes.txt",

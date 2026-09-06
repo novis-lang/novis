@@ -13,7 +13,7 @@ Two of `json_encode`'s fifteen `JSON_*` flags have no Novis spelling because the
 
 // A solidus is an ordinary character, in a value and in a key alike, and the
 // sequence PHP's habit is actually about — `</` — gets no special treatment
-// either. HTML is a sink with its own escaping (ADR 0024 § 3), and a document
+// either. HTML is a sink with its own escaping (`rule:security/launderers-are-sink-named`), and a document
 // that has to survive a `<script>` element is escaped by that sink rather than
 // by the JSON writer having a second mode.
 echo Core\Json::encode("https://example.com/a?b=c"), "\n";

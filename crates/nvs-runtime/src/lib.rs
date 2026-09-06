@@ -206,7 +206,7 @@
 //!    is a gap any more.** `Ctx::yielder`/`Ctx::set_yielder` landed with M5's
 //!    scheduler and a helper suspends through them, which is the shape ADR
 //!    0002 § *Consequences* commits to. The arena is not missing but decided
-//!    against: ADR 0116 § 1 rejected a region per isolate, and [`object`]'s
+//!    against: `rule:security/arena-is-an-ownership-root` rejected a region per isolate, and [`object`]'s
 //!    per-context live list plus [`object::sweep`] are what took its place.
 //! 4. **No custom panic hook is installed.** `rule:errors/helper-abi` wants the
 //!    panic message routed to the request log with its request id. The request
@@ -231,7 +231,7 @@
 //!    takes only a message.
 //! 7. **A cycle is reclaimed at teardown, not while the request runs.** Every
 //!    object links into its context's live list, and dropping the context
-//!    sweeps whatever the root drain left there — ADR 0116 § 2, with
+//!    sweeps whatever the root drain left there — `rule:security/isolate-teardown-is-a-drain-then-a-sweep`, with
 //!    [`object::sweep`] as the mechanism and that module's docs as its home.
 //!    One shape is still owed a collector: **a long-running CLI script that
 //!    builds cycles between teardowns** holds them until its context ends,

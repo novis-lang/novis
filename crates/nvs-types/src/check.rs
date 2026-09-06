@@ -89,8 +89,8 @@ pub fn check_program(
 }
 
 /// [`check_program`] with the deployment's `[capabilities]` block in front of
-/// it — [ADR 0118](/docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)
-/// § 1's grants, as the machine that is compiling reads them.
+/// it — `rule:security/capability-question-is-grant-and-scope`
+/// 's grants, as the machine that is compiling reads them.
 ///
 /// **`None` is "no configuration was read", and it is not an empty grant
 /// set.** A capability check made against an absent configuration would refuse
@@ -608,7 +608,7 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     }
     let return_ty = lower_optional_type(m.return_type.as_ref(), ctx, env);
 
-    // ADR 0088 § 4's sixth row is a fact about one body, so what answers it is
+    // `rule:security/response-body-is-one-typed-member`'s sixth row is a fact about one body, so what answers it is
     // installed here and put back at every exit below — `crate::response`'s
     // module doc owns which bodies it arms and why a method's is the reach.
     let entering = crate::response::entering_body(m, ctx, env);

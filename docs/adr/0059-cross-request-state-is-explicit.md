@@ -9,7 +9,7 @@
   "memory is attributable to a request": cache memory is charged to a **core**, with its own cap.
 - **Amended by:** 0075, 0083, 0084, 0112, 0142
 
-> **In short:** APCu's cross-process shared segment is closed by [ADR 0052](0052-closed-doors.md) § 3, and
+> **In short:** APCu's cross-process shared segment is closed by `rule:security/no-cross-request-state`, and
 > what replaces it is a **per-core in-process cache** — one copy per core, no coherence between them. That
 > spends memory, and this ADR says how much, in the form `rule:programs/memory-priority`
 > requires: **O(cores × working set)**, not O(cores × requests served). Values are **copied** across the
@@ -21,7 +21,7 @@
 ## Context
 
 - Five PHP mechanisms — `shmop`, `sysvshm`, `sysvsem`, `sysvmsg` and APCu — are one capability: a channel
-  through which one request observes another. [ADR 0052](0052-closed-doors.md) § 3 closes it as
+  through which one request observes another. `rule:security/no-cross-request-state` closes it as
   incompatible with strict shared-nothing requests, which is priority 1. That leaves a real need
   unaddressed, and this ADR addresses it rather than pretending the need was illusory.
 - The need is not one thing. "Cache a parsed config for 60 seconds" and "hold a distributed lock" look
@@ -50,11 +50,11 @@
   across machines, gated by `cache.shared`
   ([ADR 0142](0142-a-configured-store-is-authorized-by-its-configuring.md) § 1): the endpoint is one an
   operator wrote into root-owned configuration, so the grant names the store rather than a host and
-  [ADR 0058](0058-outbound-request-policy.md) § 3's address policy is not asked of it. That store may be a
+  `rule:security/net-address-policy`'s address policy is not asked of it. That store may be a
   Unix socket, which is the one transport with no address for a policy to read.
 
 The two are separate methods rather than one API with a flag, so the choice is made in the source and is
-visible in review. This is the same reasoning [ADR 0024](0024-taint-tracking-for-injection-sinks.md) § 3
+visible in review. This is the same reasoning `rule:security/launderers-are-sink-named`
 gives for refusing a generic `sanitize()`: one name covering two different guarantees invites using the
 weaker one by accident.
 
@@ -69,7 +69,7 @@ cache holds cannot live there; and a value the cache holds cannot be handed into
 reference either, or the wholesale drop would free it. The same rule means a cached value is subject to the
 same restrictions as any crossing value: a generator does not go in
 (`rule:iteration/generator-stays-in-one-isolate`), and neither does a `secret`
-([ADR 0033](0033-secret-qualifier-for-confidential-values.md)).
+(`rule:security/secret-qualifier`).
 
 The copy is a real per-`get` cost (priority 3) paid to keep the request model intact (priority 1). An
 implementation may later avoid copying immutable scalars by sharing a refcount within a core, since a core
@@ -86,7 +86,7 @@ Stated in the form `rule:programs/memory-priority` requires: the local tier cost
 the configured cap. It is explicitly **not** O(requests served); an entry's lifetime is governed by TTL and
 eviction, never by how much traffic has passed through.
 
-That multiplication is the price of the isolation ADR 0052 § 3 buys, and it is exactly the trade `rule:programs/memory-priority`
+That multiplication is the price of the isolation `rule:security/no-cross-request-state` buys, and it is exactly the trade `rule:programs/memory-priority`
 mandates: footprint is the last thing protected and is spent deliberately to buy priority 1. It is recorded
 here so it is a known number rather than a surprise in production.
 
@@ -118,7 +118,7 @@ no program ever reads it to make a decision and its values are approximate aggre
   uniformly-distributed traffic on a cold cache. Warm caches converge. This is a real throughput cost,
   paid once per core rather than per request.
 - **There is no in-process coordination primitive at all.** A program needing one pays a network round trip.
-  That floor is deliberate: an in-process one would be the channel ADR 0052 § 3 closes.
+  That floor is deliberate: an in-process one would be the channel `rule:security/no-cross-request-state` closes.
 - **The local tier is genuinely fast** — no serialization to a wire format, no socket, no syscall; a
   graph copy within one core's heap. For the parsed-config and compiled-template cases that dominate APCu's
   real usage, it is faster than APCu was.
@@ -126,7 +126,7 @@ no program ever reads it to make a decision and its values are approximate aggre
 ## Alternatives rejected
 
 - **A shared segment across cores, with locking.** Restores APCu's hit rate and coherence. Rejected by
-  [ADR 0052](0052-closed-doors.md) § 3: it is the cross-request channel shared-nothing exists to remove,
+  `rule:security/no-cross-request-state`: it is the cross-request channel shared-nothing exists to remove,
   and locking makes one request's failure able to stall or corrupt another's view.
 - **A single API with a `coherent: true` flag** instead of two methods. Terser and easier to switch between
   tiers. Rejected: the default would be chosen once and copied thereafter, and the failure mode of choosing

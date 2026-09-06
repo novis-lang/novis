@@ -29,7 +29,7 @@ class Sweep {
     }
 
     // A row is read back with `as string` rather than echoed, so the sink is
-    // not in the path at all: ADR 0088 § 5 renders a carrier as the bytes it
+    // not in the path at all: `rule:security/capture-answers-the-carrier` renders a carrier as the bytes it
     // already holds, and those bytes are what `set` was given. A case that
     // echoed the row instead would pass for a `Text` that carried a raw `ESC`,
     // because `echo` would substitute it on the way out.
@@ -58,7 +58,7 @@ class Sweep {
                 // Agreement, over every row: the region, the raw path and
                 // `Core\Cli::escape` are one table asked three ways, and a
                 // launderer that grew apart from its sink is the failure
-                // ADR 0024 § 3 exists to prevent.
+                // `rule:security/launderers-are-sink-named` exists to prevent.
                 if ($back == Core\Cli::escape($raw)) {
                     $agrees = $agrees + 1;
                 }

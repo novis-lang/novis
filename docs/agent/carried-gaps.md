@@ -42,7 +42,7 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 | Gap | Owner | Where the detail lives |
 |---|---|---|
 | `nvs check` builds no grants, so `rule:core-classes/db-literal-query-checking`'s host diagnostic fires for nobody | 21 | `crates/nvs-types/src/intrinsics.rs` gap 6 |
-| A cycle whose only closing edge is inside an `array<T>` survives `object::sweep` | 21 | `crates/nvs-runtime/src/object.rs` § *The five walks*, ADR 0116 § 2 |
+| A cycle whose only closing edge is inside an `array<T>` survives `object::sweep` | 21 | `crates/nvs-runtime/src/object.rs` § *The five walks*, `rule:security/isolate-teardown-is-a-drain-then-a-sweep` |
 | `Core\Db::stream`/`streamAs`, `Connection::close`, § 18's three readonly properties | 21 | `crates/nvs-stdlib/src/db/mod.rs` gap 5 |
 | `{timeout?: Duration}` is in both spec signatures and in neither registry row | 21 | `crates/nvs-stdlib/src/db/mod.rs` gap 6 |
 | `scope = "fleet"` parses, boots and is not armed | 21 | `crates/nvs-server/src/schedule.rs` § *What is not armed*, ADR 0073 § 3 |
@@ -79,7 +79,7 @@ gap is struck, not renamed.
   `docs/spec/02-php-migration.md` points a migrating program at and which no entry on the chain builds.
   `Core\Process::run` is registered and is the whole of what there is.
   `crates/nvs-stdlib/tests/migration-members-outstanding.txt`.
-- **[ADR 0116](../adr/0116-an-isolates-arena-is-an-ownership-root.md)'s optional in-flight cycle
+- **`rule:security/arena-is-an-ownership-root`'s optional in-flight cycle
   collector**, for a long-running CLI script that builds cycles *between* teardowns. That ADR's
   *Consequences* says outright that it "remains open"; goal 21's item 7 closes the *leak* at teardown
   and does not build the collector. This is an **open decision, not an unclosed gap**, and it stays

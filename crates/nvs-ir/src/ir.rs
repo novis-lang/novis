@@ -94,7 +94,7 @@ pub struct Class {
     /// byte per slot per descriptor at run time — paid once per compiled
     /// unit, not per request (ADR 0017's cache).
     pub field_reprs: Vec<Ty>,
-    /// Whether each field slot's *declared* type carries ADR 0033 § 1's
+    /// Whether each field slot's *declared* type carries `rule:security/secret-qualifier`'s
     /// `secret` qualifier, in [`Self::fields`]' own order — or **empty**,
     /// which means "nothing told this class", never "no slot is `secret`".
     ///
@@ -118,8 +118,8 @@ pub struct Class {
     ///
     /// A straight copy of `nvs_types::layout::ClassLayout::public_fields`,
     /// which owns why the bit is carried rather than recomputed:
-    /// [ADR 0019](/docs/adr/0019-reflection-and-ast-parsing-are-core-features.md)
-    /// § 2 makes a reflective read face the check ordinary code faces, and the
+    /// `rule:security/reflection-enforces-visibility`
+    /// makes a reflective read face the check ordinary code faces, and the
     /// keyword that decides it exists nowhere below the front end.
     /// `nvs-codegen` hands it to
     /// `nvs_runtime::ClassTable::set_public_fields`, and `nvs_stdlib::reflect`
@@ -1899,7 +1899,7 @@ pub enum Helper {
     /// [`Self::EchoStr`]'s sink over an operand that has **not** been converted
     /// to [`crate::ty::Ty::Str`] first — `echo`'s row for a
     /// [`crate::ty::Ty::Object`] or [`crate::ty::Ty::Tagged`] operand, which are
-    /// the two static types ADR 0088 § 5's sink carrier can arrive under.
+    /// the two static types `rule:security/capture-answers-the-carrier`'s sink carrier can arrive under.
     ///
     /// [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 1
     /// puts exactly one raw path in the language and § 2 makes it a *type*,
@@ -2181,8 +2181,8 @@ pub enum Helper {
     ValueIndexOptionalGet,
     /// `a == b` over two operands at least one of which the checker typed
     /// `secret` —
-    /// [ADR 0033](/docs/adr/0033-secret-qualifier-for-confidential-values.md)
-    /// § 5. The comparison is **constant-time in the contents**: it reads
+    /// `rule:security/secret-comparison-is-constant-time`
+    /// . The comparison is **constant-time in the contents**: it reads
     /// every byte of two equal-length operands whatever they hold, so an
     /// attacker holding one side cannot recover the other a byte at a time by
     /// timing the answer. Lengths are not hidden — a mismatch answers `false`
@@ -2195,13 +2195,13 @@ pub enum Helper {
     ///
     /// The qualifier is invisible at this level by design: a `secret string`
     /// erases to [`crate::ty::Ty::Str`] and a `secret bytes` to
-    /// [`crate::ty::Ty::Bytes`], because ADR 0033 § 1 spends no representation
+    /// [`crate::ty::Ty::Bytes`], because `rule:security/secret-qualifier` spends no representation
     /// on the bit. So the *lowering* cannot re-derive the choice of helper
     /// from its operand types, and does not try: the checker records
     /// `nvs_types::expr_table::ExprInfo::SecretEquality` at the comparison and
     /// `lower_binary` reads it back.
     ///
-    /// Costed in ADR 0033 § 5: ≈10 ns against ≈2 ns for the short-circuiting
+    /// Costed in `rule:security/secret-comparison-is-constant-time`: ≈10 ns against ≈2 ns for the short-circuiting
     /// row, so **≈+8 ns per comparison** — priority 1 bought with priority 3,
     /// which is the ordering AGENTS.md states.
     SecretEq,

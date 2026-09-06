@@ -1,16 +1,16 @@
-//! `Core\Jwt` — [ADR 0060](/docs/adr/0060-application-security-protocols.md)
-//! § 1's fourth roster entry, and the one whose historical failures are all
+//! `Core\Jwt` — `rule:security/protocol-roster`
+//! 's fourth roster entry, and the one whose historical failures are all
 //! failures of *choice*: an algorithm chosen by the token, an expiry chosen by
 //! a flag, a verdict chosen by a falsy return.
 //!
-//! ADR 0060 places the class and § 4 states the three rules. What belongs here
+//! `rule:security/protocol-roster` places the class and § 4 states the three rules. What belongs here
 //! is why each of them ends up as a property of a signature rather than as a
 //! check inside a body, what a claim is on the way in and on the way out, and
 //! what this entry deliberately refuses to carry.
 //!
 //! # The algorithm comes from the key, and there is one of it
 //!
-//! ADR 0060 § 4's first bullet asks that `alg` be "checked against the key's
+//! `rule:security/algorithm-comes-from-the-key`'s first bullet asks that `alg` be "checked against the key's
 //! algorithm and rejected on mismatch; never consulted to select one". The
 //! strongest way to hold that is to have nothing to select *from*, so
 //! [`ALG`] is the only algorithm this class knows: HMAC-SHA-256 through
@@ -41,7 +41,7 @@
 //!
 //! `nbf` is not written and not checked. It is a *third* clock rule to reason
 //! about for the one case `exp` does not already cover — a token minted early
-//! — and ADR 0060 § 4 names only expiry. A program that needs it can put a
+//! — and `rule:security/algorithm-comes-from-the-key` names only expiry. A program that needs it can put a
 //! claim of its own in and compare it.
 //!
 //! # Verification returns claims or throws
@@ -65,7 +65,7 @@
 //!
 //! # A claim is text, and that is what this entry spends
 //!
-//! [`nvs_core_jwt_verify`] answers `array<tainted string>` — ADR 0060 § 5's
+//! [`nvs_core_jwt_verify`] answers `array<tainted string>` — `rule:security/verification-does-not-launder`'s
 //! qualifier, spelled in the row itself as
 //! [`crate::registry::CoreTy::TaintedStr`] rather than left to a
 //! `Qual::Contagious` that would only have tainted the claims when the *token*
@@ -102,7 +102,7 @@
 //!
 //! The signature comparison is `subtle::ConstantTimeEq` over the whole tag, on
 //! [`crate::hash`]'s reasoning, which is that module's own doc. No member here
-//! hands back a tag, a key or a signing input, which is ADR 0060 § 4's "no API
+//! hands back a tag, a key or a signing input, which is `rule:security/algorithm-comes-from-the-key`'s "no API
 //! exposes the raw value for the caller to compare themselves" for this entry.
 
 use base64::Engine as _;
@@ -120,7 +120,7 @@ const NAME: &str = r"Core\Jwt";
 ///
 /// A constant rather than a match arm because it is only ever *compared*: the
 /// module doc's own section is the home of why a `match` over this field is
-/// the thing ADR 0060 § 4 exists to prevent.
+/// the thing `rule:security/algorithm-comes-from-the-key` exists to prevent.
 const ALG: &str = "HS256";
 
 /// The header every token this class signs carries, byte for byte.
@@ -129,7 +129,7 @@ const ALG: &str = "HS256";
 /// bytes a reader of this file sees are the same bytes. `typ` is written
 /// because RFC 7519 § 5.1 recommends it and **not** checked on the way in,
 /// because RFC 9068's access tokens spell it `at+jwt` and refusing those would
-/// be this class inventing a rule ADR 0060 does not have.
+/// be this class inventing a rule `rule:security/protocol-roster` does not have.
 const HEADER: &str = r#"{"alg":"HS256","typ":"JWT"}"#;
 
 /// The shortest key HS256 accepts — RFC 7518 § 3.2's "a key of the same size
@@ -146,10 +146,10 @@ const MIN_KEY_LEN: usize = 32;
 /// The key both rows take, written once so neither can drift from the other.
 const KEY: CoreTy = CoreTy::SecretBlob(Qual::Neutral);
 
-/// One verified claim, as ADR 0060 § 5 requires it back.
+/// One verified claim, as `rule:security/verification-does-not-launder` requires it back.
 const CLAIM: CoreTy = CoreTy::TaintedStr;
 
-/// ADR 0060 § 1's fourth roster entry, as two rows.
+/// `rule:security/protocol-roster`'s fourth roster entry, as two rows.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     methods: &[
@@ -175,7 +175,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // The token is neutral on the way in and the claims are `tainted`
             // on the way out whatever it was — the module doc's *a claim is
             // text* section is the home of why that is a promise rather than a
-            // classification, and ADR 0060 § 5 is the rule.
+            // classification, and `rule:security/verification-does-not-launder` is the rule.
             params: &[CoreTy::Text(Qual::Neutral), KEY],
             defaults: &[],
             return_ty: CoreTy::Array(&CLAIM),
@@ -442,7 +442,7 @@ fn claim_text(value: &serde_json::Value) -> Option<String> {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Jwt::sign(array<string> $claims, Duration $lifetime, secret bytes $key): string`
-    /// — the write half of ADR 0060 § 1's fourth entry, replacing the
+    /// — the write half of `rule:security/protocol-roster`'s fourth entry, replacing the
     /// hand-rolled `base64_encode` + `hash_hmac` + `rtrim` triple and the
     /// several userland libraries that wrap it.
     ///
@@ -512,7 +512,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Jwt::verify(string $token, secret bytes $key): array<tainted string>`
-    /// — the read half, and ADR 0060 § 4's three rules in one body.
+    /// — the read half, and `rule:security/algorithm-comes-from-the-key`'s three rules in one body.
     ///
     /// The order is load-bearing. `alg` is compared before anything is
     /// believed, the signature is checked before the payload is looked at at
@@ -564,7 +564,7 @@ nvs_runtime::nvs_helper! {
             .ok_or_else(|| {
                 Fault::thrown(format!(
                     "{NAME}::verify(): the token carries no `exp`, and expiry is not optional \
-                     (ADR 0060 § 4). There is no flag that accepts one, because a caller who \
+                     (`rule:security/algorithm-comes-from-the-key`). There is no flag that accepts one, because a caller who \
                      wants a credential that never expires is not using JWT for what JWT is."
                 ))
             })?;
@@ -582,7 +582,7 @@ nvs_runtime::nvs_helper! {
             let text = claim_text(value).ok_or_else(|| {
                 Fault::thrown(format!(
                     "{NAME}::verify(): the claim `{name}` is not a string, a number or a \
-                     boolean, and every claim comes back as `tainted string` so that ADR 0060 \
+                     boolean, and every claim comes back as `tainted string` so that `rule:security/protocol-roster` \
                      § 5's qualifier survives to the value a program reads. A null, an object \
                      and an array are refused rather than given a text spelling nothing else \
                      reads back."
@@ -618,7 +618,7 @@ mod tests {
         format!("{input}.{signature}")
     }
 
-    /// Stage 4's JWT check — ADR 0060 § 4's first bullet, which is the whole
+    /// Stage 4's JWT check — `rule:security/algorithm-comes-from-the-key`'s first bullet, which is the whole
     /// reason this entry is on the roster: `alg` is compared against the key's
     /// algorithm and never consulted to select one.
     ///
@@ -703,7 +703,7 @@ mod tests {
     }
 
     /// Every claim comes back as text or not at all — the module doc's *a
-    /// claim is text* section, which is where ADR 0060 § 5's qualifier forces
+    /// claim is text* section, which is where `rule:security/verification-does-not-launder`'s qualifier forces
     /// the element type.
     #[test]
     fn a_claim_is_text_or_it_is_refused() {

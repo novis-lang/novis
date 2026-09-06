@@ -1,5 +1,5 @@
 --TEST--
-Core\IO::isWritable names `fs.write` and is refused at the door for a path the configuration does not cover, whether or not that path exists — the capability is a separate and earlier gate than the operating system's own answer, so a program cannot sweep a boolean across the filesystem to map its own grant — ADR 0118 §§ 1-2, spec § 14
+Core\IO::isWritable names `fs.write` and is refused at the door for a path the configuration does not cover, whether or not that path exists — the capability is a separate and earlier gate than the operating system's own answer, so a program cannot sweep a boolean across the filesystem to map its own grant — `rule:security/capability-question-is-grant-and-scope` and `rule:security/capability-check-at-the-door`, spec § 14
 --FILE--
 <?nvs
 // `fs.read` covers this directory and `fs.write` covers nothing. That splits

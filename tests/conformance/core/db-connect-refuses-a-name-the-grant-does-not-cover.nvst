@@ -1,5 +1,5 @@
 --TEST--
-Core\Db::connect asks `db.connect` about the block's name before it reads any configuration, so an ungranted name learns nothing about which blocks exist — `rule:core-classes/db-connection-is-named` and `rule:core-classes/db-capabilities`, ADR 0118 §§ 1, 5
+Core\Db::connect asks `db.connect` about the block's name before it reads any configuration, so an ungranted name learns nothing about which blocks exist — `rule:core-classes/db-connection-is-named` and `rule:core-classes/db-capabilities`, `rule:security/capability-question-is-grant-and-scope` and `rule:security/denial-is-a-runtime-error`
 --FILE--
 <?nvs
 // `db.connect` grants `main` and nothing else. Both names below are written
@@ -24,7 +24,7 @@ try {
     echo $refused->message, "\n";
 }
 
-// ADR 0118 § 5: a denial is the world refusing a call, and the program is
+// `rule:security/denial-is-a-runtime-error`: a denial is the world refusing a call, and the program is
 // still running underneath it.
 echo "still running", "\n";
 --FILE nvs.toml--

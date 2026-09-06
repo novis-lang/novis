@@ -34,7 +34,7 @@ M4's, goal 1's, goal 2's and goal 3's whole acceptance lists, **never traded.**
 
 2. **`Core\IO`, whole.** [01-core-library.md](../../spec/01-core-library.md) § 14 is the member list and
    is authoritative: whole-file, streaming write, metadata, manipulation, resolution and handles. Every
-   member is an [ADR 0024](../../adr/0024-taint-tracking-for-injection-sinks.md) **path sink** and needs
+   member is an `rule:security/tainted-qualifier` **path sink** and needs
    an `fs.read` or `fs.write` grant, which goal 3 built the gate for.
 3. **`resource` is never exposed**, and `FileMode` is an enum rather than a mode string — `rule:core-api/shape-rules` R14 and
    R11. That is what replaces `fopen`'s `"r+b"` grammar and the whole `fread`/`fgets`/`fseek`/`feof`
@@ -49,7 +49,7 @@ M4's, goal 1's, goal 2's and goal 3's whole acceptance lists, **never traded.**
    mid-stream removes the partial file.** Goal 6's uploads are its second caller and this is where it is
    built.
 6. **No stream wrappers, no `php://`, no `phar://`, no user-registered protocols** —
-   [ADR 0052](../../adr/0052-closed-doors.md). There is no scheme dispatch anywhere in the filesystem or
+   `rule:security/closed-doors`. There is no scheme dispatch anywhere in the filesystem or
    stream abstractions, and the refusal is by construction rather than by a blocklist.
 7. **`Core\Env`**, and the standard streams `IO::stdin()`/`stdout()`/`stderr()`.
 33. **`Core\Hash::ofFile(string $path, Digest $digest): bytes` — the constant-memory file digest.** A
@@ -90,8 +90,8 @@ M4's, goal 1's, goal 2's and goal 3's whole acceptance lists, **never traded.**
     `bcrypt`, `aes-gcm`. `Core\Password` rides them. `Core\Digest`'s roster is goal 1 item 16 and is not
     redone here; this item's hashing half is the migration rows for `hash_algos`'s names over it.
 13. **`Core\Secret::reveal()`**, which with the password-hashing helpers is one of exactly two ways a value
-    legitimately loses `secret` — [ADR 0033](../../adr/0033-secret-qualifier-for-confidential-values.md).
-14. **[ADR 0060](../../adr/0060-application-security-protocols.md)'s closed roster** — signed cookies,
+    legitimately loses `secret` — `rule:security/secret-qualifier`.
+14. **`rule:security/protocol-roster`'s closed roster** — signed cookies,
     CSRF, TOTP, JWT — and § 4's rule that they are **correct by construction, not by careful use**. § 5 is
     the one most often got wrong: a verified signature does **not** launder. A JWT whose signature checks
     out still carries `tainted` claims.
@@ -182,7 +182,7 @@ M4's, goal 1's, goal 2's and goal 3's whole acceptance lists, **never traded.**
 
 ## Stage 9 — the launderers and the framework's privileged half
 
-27. **`Core\Html::escape`/`Markup` and the `Core\Taint` launderers** — ADR 0024. Every other stage in this
+27. **`Core\Html::escape`/`Markup` and the `Core\Taint` launderers** — `rule:security/tainted-qualifier`. Every other stage in this
     goal produces `tainted` values; this is the stage that says how one stops being one.
 28. **The privileged half of the framework**, each entry placed by `rule:core-api/tier-placement`'s own six tests rather than by
     a new rule — `rule:programs/framework-core-half`: `Core\Validate` (the
@@ -204,7 +204,7 @@ M4's, goal 1's, goal 2's and goal 3's whole acceptance lists, **never traded.**
 ## Stage 11 — the teardown sweep
 
 Added 2026-09-01 by the user's decision, after review found that
-[ADR 0116](../../adr/0116-an-isolates-arena-is-an-ownership-root.md) § 2's drain frees only what the
+`rule:security/isolate-teardown-is-a-drain-then-a-sweep`'s drain frees only what the
 refcounts say is dead: a cyclic object graph survived request and isolate teardown for the life of the
 process — in the server, a leak growing with requests served. The § 2 sweep closes it. The in-flight
 collector for a long-running CLI script that builds cycles *between* teardowns stays a separate, open
@@ -260,7 +260,7 @@ observe-only. Nothing here reopens `rule:classes/no-magic-methods` — a flat pe
 ## Stage 13 — the bcrypt read-path
 
 Added 2026-09-01 by the user's decision:
-[ADR 0129](../../adr/0129-password-verify-reads-a-stored-bcrypt-hash.md) — PHP's `PASSWORD_DEFAULT` was
+`rule:security/bcrypt-read-roster` — PHP's `PASSWORD_DEFAULT` was
 never Argon2, so a migrating application's user table is a bcrypt column, and until now
 `Core\Password::verify` threw at it. The ADR is the whole contract: § 1's two-shape read roster, § 2's
 unchanged write side, § 3's always-`true` `needsRehash`, § 4's cost ceiling of 17, § 6's surviving
@@ -271,7 +271,7 @@ refusals.
     under ADR 0051 § 4 and owes the `[workspace.dependencies]` comment, `cargo deny check` and `python
     tools/gen-attribution.py`. A stored cost past 17 is refused before any work, in `MAX_M_COST`'s
     shape; `needsRehash` reads a bcrypt hash rather than throwing at it and answers `true` for every
-    tag. The module doc's refusal section is rewritten to defer to ADR 0129 § 6 as the roster's home,
+    tag. The module doc's refusal section is rewritten to defer to `rule:security/an-unreadable-stored-hash-throws` as the roster's home,
     [docs/reference/core/Password.md](../../reference/core/Password.md) gains the migration paragraph,
     and the landed refusal case
     `tests/conformance/core/password-refuses-a-stored-value-that-is-not-a-hash-it-wrote.nvst` passes
@@ -302,10 +302,10 @@ there by the switch that left it and folded forward at every switch since.
 - **`Core\Cache::local` and `Core\RateLimit::shed` need no capability, and each declares that as a
   `None` row in `registry::CAPABILITIES`.** `rule:core-api/two-cache-tiers` is the decision behind both: their state is a
   map in the calling core's own thread, so nothing leaves the process, no name is resolved and no file
-  is opened, and ADR 0118 § 1 has no door to put a check at. What is left to bound is footprint, which
+  is opened, and `rule:security/capability-question-is-grant-and-scope` has no door to put a check at. What is left to bound is footprint, which
   ADR 0059 § 3's `nvs.toml` cap bounds and a boolean grant would not. Their siblings `shared()` and
   `consume` declare `net.connect`, which is what makes the two classes capability-bearing at all. `rule:testing/capability-closure-test` is the home of why this is a row rather than an entry on an allowlist.
-- **A verified signature does not launder.** ADR 0060 § 5. This one is stated here because it reads like
+- **A verified signature does not launder.** `rule:security/verification-does-not-launder`. This one is stated here because it reads like
   an oversight and is a decision.
 - **An unreachable store throws; it never decides *allowed*.** `rule:core-classes/ratelimit-unreachable-store-throws`. The failure mode is the
   application's to choose, in the file that knows whether the limit is a quota or a lock.

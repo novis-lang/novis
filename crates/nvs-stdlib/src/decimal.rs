@@ -5,7 +5,7 @@
 //! to even, at the widest scale the result admits, fixed in the language and
 //! not configurable, because an ambient precision read by unrelated later code
 //! is the shape `rule:statements/static-is-a-member-modifier` and
-//! [ADR 0052](/docs/adr/0052-closed-doors.md) § 3 both close. What
+//! `rule:security/no-cross-request-state` both close. What
 //! this class adds is the two questions that policy cannot answer:
 //!
 //! * **"this division must not lose anything"** — `divExact`, which throws

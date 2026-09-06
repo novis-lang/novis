@@ -6,8 +6,8 @@
 //! specifies the answers and `crates/nvs-stdlib/src/cli.rs` is the surface that
 //! hands them to a program. What lives here is the *reaching*: an `ioctl` on
 //! Unix, two console calls on Windows, and the environment variables that
-//! decide colour. [ADR 0118](/docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)
-//! § 2 is why the split is at this crate's edge rather than inside `Core\Cli` —
+//! decide colour. `rule:security/capability-check-at-the-door`
+//! is why the split is at this crate's edge rather than inside `Core\Cli` —
 //! a `Core` member may not reach the operating system directly, and
 //! `crates/nvs-stdlib/tests/capability.rs` holds that shut by name.
 //!

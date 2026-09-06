@@ -28,7 +28,7 @@
 > `spawn script` child already are, with its own memory, CPU and time budget, sharing nothing but compiled
 > code. It is opened the way a script is spawned: `Core\Socket::upgrade('sockets/chat.nvs', args: …)`
 > takes **`spawn script`'s operand — a file, or a static method** — never a closure, so
-> [ADR 0006](0006-isolated-script-execution.md)'s existing rules for the entry, grants, limits,
+> `rule:security/isolate-shares-nothing`'s existing rules for the entry, grants, limits,
 > arguments and path checking are reused whole and nothing crosses the boundary except values copied by
 > [0023](0023-clone-serialize-and-cross-boundary-copy.md)'s graph copy. Inside, code is **an ordinary
 > loop** — `while (var $msg = $conn->receive()) { … }` — because suspension has no colour, so there is no
@@ -106,7 +106,7 @@ public static function chat(string $room): void {
 Naming a method instead of a file, `Core\Socket::upgrade(Chat::run(...), args: {room: $room, userId:
 $user->id})` opens the connection as `Chat::run(room: …, userId: …)`, with the same copy in between.
 
-- **The target is `spawn script`'s operand**, under the rule [ADR 0006](0006-isolated-script-execution.md)
+- **The target is `spawn script`'s operand**, under the rule `rule:security/isolate-shares-nothing`
   fixes: a file path, resolved and root-checked exactly as `spawn script`'s is, or a static method —
   `Chat::run(...)`, called with `args:` bound to its parameters by name — decided syntactically at the
   call site. It is never a closure: a capture would carry state across a boundary that exists to prevent

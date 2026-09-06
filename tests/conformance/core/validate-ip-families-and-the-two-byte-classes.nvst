@@ -74,7 +74,7 @@ echo "cross ",
 // that it is two bytes. `U+202E` and `U+200D` are `Cf`, not `Cc`, and are
 // therefore printable here: this member is **not** a spoofing check, and the
 // module doc owns why answering that question under this name would be the
-// false confidence ADR 0024 exists to prevent.
+// false confidence `rule:security/tainted-qualifier` exists to prevent.
 echo "c1 ",
      (Core\Validate::isAscii("\u{85}") ? "y" : "n"),
      (Core\Validate::isPrintable("\u{85}") ? "y" : "n"),

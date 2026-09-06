@@ -53,7 +53,7 @@
 | **Core** | Tier 0. Compiled into every `nvs` binary, reachable under the `Core` namespace, no build flag. |
 | **Native** | Tier 2. Statically linked subsystem in the default distribution; gated at runtime by an [ADR 0005](0005-config-changeability.md) capability, removable at build time by a Cargo feature. |
 | **Ext** | Tier 1. A sandboxed `.nvsx` wasm component, first-party or third-party. |
-| **Dropped** | Not implemented at any tier. Structural closures live in [ADR 0052](0052-closed-doors.md); the rest are named in § 3 with their replacement. |
+| **Dropped** | Not implemented at any tier. Structural closures live in `rule:security/closed-doors`; the rest are named in § 3 with their replacement. |
 | **Answered** | The problem is removed by Novis's architecture; there is nothing to port. |
 
 ### 2. The six tests, applied in order
@@ -67,8 +67,8 @@
    writing the client natively with extra steps, so the placement is Native or nothing. § 3's Ext list was
    wrong on six entries for exactly this reason before it was corrected.
 2. **Is it an injection sink or a launderer?** SQL text, HTML output, headers, filesystem paths, argv, logs
-   ([ADR 0024](0024-taint-tracking-for-injection-sinks.md),
-   [0033](0033-secret-qualifier-for-confidential-values.md)). A launderer is **always** Core: ADR 0024 § 3
+   (`rule:security/tainted-qualifier`,
+   [0033](0033-secret-qualifier-for-confidential-values.md)). A launderer is **always** Core: `rule:security/launderers-are-sink-named`
    is explicit that only a `Core` function whose contract names one sink may remove a qualifier.
 3. **Does it wait on the outside world?** Sockets, files, child processes, timers. Forces a capability
    grant, and — together with test 1 — usually forces Native.
@@ -92,7 +92,7 @@
 ([ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md)). `Core\Session`. `Core\Encoding`
 (`iconv`, over `encoding_rs`, sited at the `bytes`/`string` boundary where conversion is naturally
 failable). `Core\Xml`, one API replacing six extensions, and `Core\Html`, whose escaper and sanitizer are
-ADR 0024 launderers and whose WHATWG parser shares `Core\Xml`'s tree
+`rule:security/tainted-qualifier` launderers and whose WHATWG parser shares `Core\Xml`'s tree
 (`rule:core-classes/html-parsing`). `Core\Uri` (PHP 8.5's `uri`). `Core\Mime` (`fileinfo`, by magic bytes rather than
 libmagic's rule interpreter). `Core\Compress` (`zlib`, plus brotli and zstd — Tier 0 for the same
 reason `Core\Zip` is, that a decompression bomb is *policy* and policy must be non-optional; the built-in
@@ -116,7 +116,7 @@ this section already uses for the Redis backend behind `Core\Cache`.
 (`rule:programs/framework-core-half`, which carries the per-entry table): `Core\Validate` by
 test 2 — it is *the* launderer, so § 2's rule that only Core may remove a qualifier makes it the one member
 that could never be a package; `Core\Password` by tests 1 and 2, as a `Core\Crypto` primitive over a
-`secret` and not an addition to [ADR 0060](0060-application-security-protocols.md)'s closed protocol
+`secret` and not an addition to `rule:security/protocol-roster`'s closed protocol
 roster; `Core\Queue` by test 1 ([ADR 0084](0084-durable-background-jobs.md));
 `Core\Socket`, `Core\Sse` and `Core\Topic` by tests 1 and 3
 ([ADR 0083](0083-persistent-connections-are-isolates.md)); and `Core\Api`'s emitter by test 1, since it
@@ -148,7 +148,7 @@ separate decisions, and only the second is security-relevant.
 
 **Native but unscheduled**, placed here so the tier is decided even though no milestone owns it: `ldap`, by
 test 1 — a bound directory session is state across calls — and, if it ever lands, by test 2 as well, since
-LDAP filter injection is a sink and ADR 0024 § 3 puts its escaper in `Core`. A directory client is the one
+LDAP filter injection is a sink and `rule:security/launderers-are-sink-named` puts its escaper in `Core`. A directory client is the one
 low-usage entry with a genuine argument, because Active Directory authentication is near-universal in the
 one segment that has it at all. `mongodb` is recorded the same way and for the same reason — Native if
 ever, never Ext — with no commitment beyond that: its query surface resembles `Core\Db`'s in nothing, so it
@@ -186,14 +186,14 @@ the third-party channel this section already named, not a queue of our own work 
 
 **Dropped, with a replacement.** The procedural `mysqli`/`pgsql`/`sqlite3` APIs, by test 6 — one database
 API. `filter`: its `filter_input` half dies with `rule:statements/no-host-populated-variables`'s superglobals, and its
-*sanitizing* filters are half-escaping that produces the false confidence ADR 0024 exists to prevent, so
+*sanitizing* filters are half-escaping that produces the false confidence `rule:security/tainted-qualifier` exists to prevent, so
 only the genuine validators survive, as `Core\Validate`. `gettext` and `setlocale`, because they mutate
 **process-global** C state, which is unsound in a thread-per-core runtime and would leak across requests —
 translation is ICU MessageFormat with locale as an explicit argument, and **Novis has no ambient locale at
 all**. `pcntl`, whose `fork()` is a correctness hazard in a threaded process and whose use cases are already
-served by `spawn worker` ([ADR 0006](0006-isolated-script-execution.md)) and coroutines, leaving only a
+served by `spawn worker` (`rule:security/isolate-shares-nothing`) and coroutines, leaving only a
 narrow `Core\Signal` for graceful shutdown. `imap`, which PHP itself demoted in 8.4. `phar`, replaced by
-[ADR 0048](0048-portable-single-file-executables.md) and closed off in ADR 0052 along with the stream
+[ADR 0048](0048-portable-single-file-executables.md) and closed off in `rule:security/closed-doors` along with the stream
 wrapper it rides on. `calendar`. `gmp` as such, replaced by `Core\BigInt` over `num-bigint` rather than the
 C, LGPL GMP.
 
@@ -255,7 +255,7 @@ tier is therefore visible at the use site.
 - **The stdlib is smaller than PHP's and covers more.** Six XML extensions become one class; `mbstring` and
   `iconv` collapse into `Core\Str` plus a boundary conversion; two database APIs become one. Against that,
   Core gains things PHP leaves to userland precisely because getting them wrong is a security bug — an HTTP
-  client, SMTP, cache, CSV, UUID, a test surface, and [ADR 0060](0060-application-security-protocols.md)'s
+  client, SMTP, cache, CSV, UUID, a test surface, and `rule:security/protocol-roster`'s
   protocol roster.
 - **Internationalization stops being coupled to runtime releases.** CLDR ships roughly twice a year, and
   PHP's ICU version is pinned to whatever the distribution built against — a chronic operational complaint.
@@ -288,7 +288,7 @@ tier is therefore visible at the use site.
   historically turns an upload into arbitrary code execution — in-process with every in-flight request, and
   it makes the unsandboxed dependency set unbounded.
 - **A minimal core with everything else an extension**, in the `pip` or `npm` shape. Rejected on priorities
-  1 and 4 together: a launderer or an injection sink cannot be third-party (ADR 0024 § 3), and leaving
+  1 and 4 together: a launderer or an injection sink cannot be third-party (`rule:security/launderers-are-sink-named`), and leaving
   HTTP, JSON, crypto and dates to the ecosystem produces five incompatible implementations of each, which
   is the state of affairs PHP's own userland demonstrates.
 - **Keep "deviations argued individually" for C dependencies.** Maximum flexibility. Rejected: a growing

@@ -7,12 +7,12 @@
 //!
 //! The four constructors are here because they are the same question asked of
 //! a *tree* of contexts.
-//! [ADR 0006](/docs/adr/0006-isolated-script-execution.md) gives a tree one
+//! `rule:security/isolate-shares-nothing` gives a tree one
 //! ceiling to divide, so [`Ctx::child`], [`Ctx::isolate`],
 //! [`Ctx::method_isolate`] and [`Ctx::handler_isolate`] each decide what the
 //! new context shares with its root and what it starts fresh — and the statics
 //! are the largest thing it does *not* share. They are also the one thing the
-//! fourth has to arm for itself, ADR 0006's method entry being the only child
+//! fourth has to arm for itself, `rule:security/isolate-shares-nothing`'s method entry being the only child
 //! that runs its parent's unit.
 
 use super::*;
@@ -156,7 +156,7 @@ impl Ctx {
     /// method entry works.** Arming a context and being able to arm a *child*
     /// of it for the same unit are one operation rather than two things to keep
     /// in step: [`Self::method_isolate`] re-materializes these same recipes for
-    /// [ADR 0006](/docs/adr/0006-isolated-script-execution.md)'s
+    /// `rule:security/isolate-shares-nothing`'s
     /// `Class::method` isolate, whose code is the parent's unit's and so has no
     /// path a resolver could compile. Cost is one `Rc` bump per arming, against
     /// a list `nvs_codegen::Unit` already owns.
@@ -234,7 +234,7 @@ impl Ctx {
     /// test reading its own dumps back rather than a property of the request.
     ///
     /// **The configuration crosses including the parent's overlay**, exactly as
-    /// it does for [`Self::isolate`] and for that constructor's reason: ADR 0006's
+    /// it does for [`Self::isolate`] and for that constructor's reason: `rule:security/isolate-shares-nothing`'s
     /// table calls the overlay "derived, never shared: a copy of the parent's
     /// *effective* config, which the spawn may narrow", so a child starts from
     /// the values in force where it was spawned rather than from the file. The
@@ -301,7 +301,7 @@ impl Ctx {
     /// [ADR 0116](/docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
     /// § 4: an isolate's arena is an ownership root of its own, so its
     /// static-property base is **its own** rather than an alias of this
-    /// request's. That single difference is the whole of ADR 0006's "globals,
+    /// request's. That single difference is the whole of `rule:security/isolate-shares-nothing`'s "globals,
     /// class statics and runtime-defined constants are fresh", and it is why
     /// this constructor is safe where [`Ctx::child`] is `unsafe`: nothing in
     /// the returned context points into this one, so there is no
@@ -315,7 +315,7 @@ impl Ctx {
     /// A child whose entry is a *method* has no second unit and therefore no
     /// second `install_in`, so it is built by [`Self::method_isolate`] instead.
     ///
-    /// What crosses is what ADR 0006's table calls request-wide and immutable:
+    /// What crosses is what `rule:security/isolate-shares-nothing`'s table calls request-wide and immutable:
     /// the debug flags, the origin, the runtime error class table (compiled
     /// code, shared by design) and the deadline word, since a budget is
     /// accounted at the root of the request tree and never per isolate. The
@@ -326,7 +326,7 @@ impl Ctx {
     /// `output: 'inherit'` differ in nothing else.
     ///
     /// **No ceiling crosses, and that is what makes the budget the tree's.**
-    /// ADR 0006's table charges a child's memory and a child's output to the
+    /// `rule:security/isolate-shares-nothing`'s table charges a child's memory and a child's output to the
     /// root, and both counters are the thread's ([`crate::budget`]) with the
     /// child's own zero point taken here by [`Self::new`]: a child reads back
     /// its own share, the root's base predates every child so its reading holds
@@ -348,7 +348,7 @@ impl Ctx {
         isolate.origin = self.origin.clone();
         // The configuration **including the parent's overlay**, so a child
         // starts from the values in force where it was spawned rather than from
-        // the file. That is the direction ADR 0006's table wants: a parent that
+        // the file. That is the direction `rule:security/isolate-shares-nothing`'s table wants: a parent that
         // narrowed a limit for itself has narrowed it for the tree beneath it,
         // and a child re-reading the snapshot would silently widen it back.
         isolate.config = self.config.clone();
@@ -373,7 +373,7 @@ impl Ctx {
         isolate
     }
 
-    /// [`Self::isolate`] for [ADR 0006](/docs/adr/0006-isolated-script-execution.md)'s
+    /// [`Self::isolate`] for `rule:security/isolate-shares-nothing`'s
     /// **method entry** — a child running a `static` method of the unit *this*
     /// context is already running, rather than another file.
     ///
@@ -382,7 +382,7 @@ impl Ctx {
     /// is the *parent's* unit's, so the child unit's own `install_in` — which is
     /// what arms a path entry, from inside the resolver's program — has nothing
     /// to run and no unit to run it from. Everything else about the child is
-    /// unchanged, including that the store is **fresh**: ADR 0006 keeps class
+    /// unchanged, including that the store is **fresh**: `rule:security/isolate-shares-nothing` keeps class
     /// statics unshared whichever form the entry took, and re-materializing the
     /// recipes rather than aliasing the parent's slots is that rule.
     ///
@@ -431,10 +431,10 @@ impl Ctx {
     /// A context for `rule:errors/handler-script`'s **tier-3 handler** — [`Self::isolate`] with the failing request's
     /// budget left behind.
     ///
-    /// § 3's one deliberate exception to [ADR 0006](/docs/adr/0006-isolated-script-execution.md):
+    /// § 3's one deliberate exception to `rule:security/isolate-shares-nothing`:
     /// an ordinary isolate spends the tree's budget, which is exactly wrong for
     /// the one isolate whose job is to report that the tree ran out of it.
-    /// Everything ADR 0006 calls request-wide still crosses — the sibling above
+    /// Everything `rule:security/isolate-shares-nothing` calls request-wide still crosses — the sibling above
     /// is the one home of that list — and three things part from it:
     ///
     /// - **Its own deadline word**, not the tree's. The parent's word is set
@@ -512,8 +512,8 @@ impl Ctx {
     ///
     /// This is where [`crate::script::Program`]'s "the argument is
     /// transferred" lands. A program is handed one reference and has to put it
-    /// somewhere [ADR 0116](/docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
-    /// § 2's wholesale release will reach; this context *is* that ownership
+    /// somewhere `rule:security/isolate-teardown-is-a-drain-then-a-sweep`
+    /// 's wholesale release will reach; this context *is* that ownership
     /// root, so this is the one place with both the reference and the lifetime
     /// in hand. Calling it twice releases what it replaces, and a context that
     /// is never handed one holds `null` and releases nothing.
@@ -549,7 +549,7 @@ impl Ctx {
 mod tests {
     use super::*;
 
-    /// ADR 0006's "child output against the root's `max_output`", as the two
+    /// `rule:security/isolate-shares-nothing`'s "child output against the root's `max_output`", as the two
     /// readings that sentence implies: a child re-bases at `Ctx::new` and so
     /// reads back only its own bytes, while the root's base predates the child
     /// and its reading holds both. The ceiling that stops the tree is the
@@ -599,7 +599,7 @@ mod tests {
         assert_eq!(ctx.statics_len(), 3);
     }
 
-    /// ADR 0006's method entry: the child runs the *parent's* unit, so the
+    /// `rule:security/isolate-shares-nothing`'s method entry: the child runs the *parent's* unit, so the
     /// recipes the parent was armed with are what arm it — fresh slots at the
     /// parent's own numbering, and no resolver in the path.
     #[test]
@@ -619,7 +619,7 @@ mod tests {
         assert_ne!(
             child.statics_base(),
             parent.statics_base(),
-            "fresh, not aliased: ADR 0006 keeps class statics unshared"
+            "fresh, not aliased: `rule:security/isolate-shares-nothing` keeps class statics unshared"
         );
         // A plain isolate is the other file's, and stays empty until that
         // file's own unit arms it.
@@ -637,7 +637,7 @@ mod tests {
         assert_eq!(bare.method_isolate(OutputSink::Sink).statics_len(), 0);
     }
 
-    /// A stand-in for the compiled `static` method an ADR 0006 method entry
+    /// A stand-in for the compiled `static` method an `rule:security/isolate-shares-nothing` method entry
     /// names: it answers with how many static slots the context it was called
     /// on holds, which is the one thing such a child has to have been given
     /// before its first statement runs.
@@ -716,7 +716,7 @@ mod tests {
         );
 
         // A label naming a class this unit does not declare is `None` rather
-        // than a throw, which is what lets a spawn report ADR 0006's failure as
+        // than a throw, which is what lets a spawn report `rule:security/isolate-shares-nothing`'s failure as
         // a value.
         assert!(
             crate::call_static(&mut child, "Ledger::monthly", &[])
@@ -725,7 +725,7 @@ mod tests {
         );
     }
 
-    /// ADR 0006's "one ceiling to divide": the flag is the tree's own word, so
+    /// `rule:security/isolate-shares-nothing`'s "one ceiling to divide": the flag is the tree's own word, so
     /// the store reaches a child built before the timer fired. A copy answered
     /// the other order correctly and this one not at all, which is why the
     /// child here is spawned first.

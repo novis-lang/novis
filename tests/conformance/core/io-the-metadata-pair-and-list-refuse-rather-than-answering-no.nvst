@@ -1,5 +1,5 @@
 --TEST--
-With nothing granted, `Core\IO::isFile`, `::isDir`, `::list` and `::canonicalize` throw naming `fs.read` rather than answering the empty answer each of them has — `false`, `false`, no entries and no resolution — counted over a sweep of spellings so that a door letting one form through moves a number here — ADR 0118 §§ 1-2, spec § 14
+With nothing granted, `Core\IO::isFile`, `::isDir`, `::list` and `::canonicalize` throw naming `fs.read` rather than answering the empty answer each of them has — `false`, `false`, no entries and no resolution — counted over a sweep of spellings so that a door letting one form through moves a number here — `rule:security/capability-question-is-grant-and-scope` and `rule:security/capability-check-at-the-door`, spec § 14
 --FILE--
 <?nvs
 // Three of these four members have a *plausible negative answer*, which is what

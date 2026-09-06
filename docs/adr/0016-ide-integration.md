@@ -76,7 +76,7 @@ A standard `vscode-languageclient` extension:
   `nvs/redactions` — the client draws a decoration and decides nothing, per *Decision § 1*. `tainted` gets
   no default decoration at all, for a reason that is this ADR's own split rather than a preference: the
   server knows which is which and the client would have to guess.
-  [ADR 0101](0101-secret-is-redacted-in-the-editor-and-the-range-comes-from-the-server.md) owns the rule,
+  `rule:security/redaction-ranges-come-from-the-server` owns the rule,
   the reveal, and the list of leak surfaces VS Code gives no way to close.
 
 **The concrete contribution roster for all of the above is [ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md)

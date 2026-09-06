@@ -1,5 +1,5 @@
 --TEST--
-Core\IO::move asks `fs.write` for the path it takes away, so the exact pair of paths Core\IO::copy is granted for is refused for a move — the difference between the two doors, asserted as one comparison rather than two separate refusals — ADR 0118 §§ 1-2, spec § 14
+Core\IO::move asks `fs.write` for the path it takes away, so the exact pair of paths Core\IO::copy is granted for is refused for a move — the difference between the two doors, asserted as one comparison rather than two separate refusals — `rule:security/capability-question-is-grant-and-scope` and `rule:security/capability-check-at-the-door`, spec § 14
 --FILE--
 <?nvs
 // One source, one destination, two members. `source` is readable and not

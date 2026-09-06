@@ -63,7 +63,7 @@ retired = "2026-09-05"
 # a gap a shipped feature already carries, written down in the module that owns it, and claimed by
 # no entry on this chain: the `db.open` wildcard `rule:core-classes/db-capabilities` writes and nothing reads, `nvs
 # check` never building the grants its own § 10 diagnostic needs, a cycle closed through an array
-# surviving ADR 0116 § 2's sweep, ADR 0076 § 6's four log-record fields, ADR 0073 § 3's fleet
+# surviving `rule:security/isolate-teardown-is-a-drain-then-a-sweep`'s sweep, ADR 0076 § 6's four log-record fields, ADR 0073 § 3's fleet
 # lease, spec § 18's `stream`/`streamAs`, the two rules that were waiting on a diagnostic band
 # that has since opened, and the CLDR rosters that throw. Its stage 2 is the keystone and the
 # reason it is first: an outstanding key gains an owner column and the test fails when that owner
@@ -182,7 +182,7 @@ handoff = "docs/agent/goals/13-surface.handoff.md"
 milestone = "M1"
 preflight = "docker"
 
-# `crates/nvs-lsp`: nine standard requests, one of Novis's own (ADR 0101's `nvs/redactions`) and two code
+# `crates/nvs-lsp`: nine standard requests, one of Novis's own (`rule:security/redaction-ranges-come-from-the-server`'s `nvs/redactions`) and two code
 # actions, over `lsp-server` and `lsp-types` with no async runtime. Its stage 3 builds the `.lspt` case
 # and `nvs lsp-test` BEFORE any handler, because this is the first thing the loop verifies that no
 # program prints.
@@ -232,7 +232,7 @@ preflight = "docker"
 
 # ADR 0140's one converter from `array<mixed>` to a declared shape, and the two `Core\Request` members
 # over it -- which is what stops a request reader's answer being `mixed`. Last because its stage 2 is
-# type-surface work (`rule:types/object-top`'s optional field, ADR 0024's qualifier over a shape) and every goal before
+# type-surface work (`rule:types/object-top`'s optional field, `rule:security/tainted-qualifier`'s qualifier over a shape) and every goal before
 # it writes shapes whose spelling this one widens; running it earlier would mean writing them twice. Its
 # stages 4-5 are proven over goal 16's `.nvst` request sections and goal 17's builder, so both have to
 # exist first.
@@ -359,7 +359,7 @@ preflight = "docker"
 # The first entry since goal 20 that adds a surface rather than closing one, which is why it sits
 # here: goals 21-28 only close, and this is the last place a new surface can land before the
 # dossier stops adding them entirely. `rule:core-api/signing-is-over-a-payload` is the design and it is finished --
-# `Core\Signature` as ADR 0060's fifth and final roster entry, plus the two doors onto it that
+# `Core\Signature` as `rule:security/protocol-roster`'s fifth and final roster entry, plus the two doors onto it that
 # people will actually find, `$uri->sign` and `Core\Router`'s pair. It goes after goal 28 for a
 # second, mechanical reason: `{keys, until}` is an options bag whose `until` is a required key
 # holding a nullable value, and telling an omitted key from a written `null` is precisely what

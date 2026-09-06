@@ -172,7 +172,7 @@ fn rewrite(table: &mut toml::value::Table, name: &str, key: &str, value: &str) {
     }
 }
 
-/// ADR 0067 § 13's pool, resolved: every bound a number, and nothing left to decide at acquire time.
+/// `rule:security/db-pool-reset-is-a-boundary`'s pool, resolved: every bound a number, and nothing left to decide at acquire time.
 ///
 /// Held by value and `Copy`, because the acquire path reads it and a pool is per core: five words
 /// beside a connection costs less than the pointer chase that would save four of them.
@@ -346,7 +346,7 @@ pub fn pool_for(
     })
 }
 
-/// The bounds in force for a connection — [`pool_for`] with ADR 0067 § 13's **unscoped**
+/// The bounds in force for a connection — [`pool_for`] with `rule:security/db-pool-reset-is-a-boundary`'s **unscoped**
 /// `pool = false` in front of it, which is where that directive is read and the only place it is.
 ///
 /// `block` is the name of the `[db.<name>]` block whose bounds are asked for, and `None` for a

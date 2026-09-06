@@ -1241,8 +1241,8 @@ crate::nvs_helper! {
 crate::nvs_helper! {
     /// `nvs_ir::Helper::SecretEq` — `==` where the checker typed at least one
     /// operand `secret`, which
-    /// [ADR 0033](/docs/adr/0033-secret-qualifier-for-confidential-values.md)
-    /// § 5 makes a **constant-time** comparison rather than the
+    /// `rule:security/secret-comparison-is-constant-time`
+    /// makes a **constant-time** comparison rather than the
     /// short-circuiting one `nvs_str_eq` performs for every other
     /// `string`/`bytes` pair.
     ///
@@ -1261,7 +1261,7 @@ crate::nvs_helper! {
     /// comparison being shared.
     ///
     /// Takes a `string` **or** a `bytes` on either side — the two tags share
-    /// one allocation, and ADR 0033 § 1 puts the qualifier on both bases. The
+    /// one allocation, and `rule:security/secret-qualifier` puts the qualifier on both bases. The
     /// row is total, so this carries no error edge; `!=` is this helper under
     /// an `nvs_ir::UnOp::Not`, the arrangement [`nvs_numeric_eq`] uses.
     fn nvs_secret_eq(_ctx, args: [2]) {
@@ -1716,7 +1716,7 @@ pub fn value_to_string(value: Value) -> Result<Value, Fault> {
         // letting an implicit `.` or `echo` do it silently would be exactly
         // the substitution that ADR exists to remove.
         Some(Tag::Bytes) => Err(refused("a `bytes` value")),
-        // ADR 0088 § 5's carrier is the one object that renders, and it renders
+        // `rule:security/capture-answers-the-carrier`'s carrier is the one object that renders, and it renders
         // as exactly the bytes it carries: they have *already* been through the
         // sink, so anything else here would put them through it twice. This is
         // not `rule:classes/no-magic-methods`'s `Stringable` and does not re-open it — a carrier is

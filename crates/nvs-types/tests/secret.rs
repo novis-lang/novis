@@ -1,4 +1,4 @@
-//! ADR 0033's `secret` qualifier, independent of and composable with `tainted`.
+//! `rule:security/secret-qualifier`'s `secret` qualifier, independent of and composable with `tainted`.
 //!
 //! Moved out of `nvs_types::check`'s inline `mod tests`; every test keeps its
 //! own name and body. See `tests/common/mod.rs` for the shared fixtures.
@@ -66,7 +66,7 @@ fn a_secret_tainted_operand_poisons_both_axes_through_concatenation() {
 
 #[test]
 fn a_checked_conversion_strips_secret_the_same_way_it_strips_tainted() {
-    // ADR 0033 § 2's known, accepted gap: "shape-proof implies safe"
+    // `rule:security/secret-propagation`'s known, accepted gap: "shape-proof implies safe"
     // never actually justified stripping `secret`, but the rule is kept
     // for consistency with `tainted` anyway.
     let diags = check_in_method(
@@ -140,7 +140,7 @@ fn a_secret_value_passed_to_a_subclass_of_throwable_is_diagnosed() {
 
 #[test]
 fn a_secret_value_is_refused_at_the_boundary_unless_revealed() {
-    // ADR 0033 § 4's `serialize()`-and-`spawn` bullet, at the carrier that
+    // `rule:security/secret-sinks-refuse`'s `serialize()`-and-`spawn` bullet, at the carrier that
     // compiles today. `Core\Serialize::encode` declares `mixed`, which a
     // `secret string` satisfies, so this is a call-site rule and the written
     // argument is where it is reported.
@@ -187,7 +187,7 @@ fn a_secret_value_reaching_the_boundary_inside_a_concatenation_is_refused() {
 
 #[test]
 fn a_secret_operand_at_log_write_fields_is_refused_despite_the_open_type() {
-    // ADR 0033 § 4's log bullet, and the one sink whose parameter type is
+    // `rule:security/secret-sinks-refuse`'s log bullet, and the one sink whose parameter type is
     // deliberately not the thing that refuses: `fields` stays `array<mixed>`,
     // which a `secret string` element satisfies, so nothing below the call
     // site can tell. Both halves of the bullet are here — the bag that carries

@@ -1,5 +1,5 @@
 --TEST--
-Core\IO::isReadable and ::isWritable answer the operating system's question about a file and a directory that are there, and answer `false` rather than throwing for a name that is not — the bound named on both sides, beside the `exists` that agrees about the same absent name — spec § 14, ADR 0118 § 2
+Core\IO::isReadable and ::isWritable answer the operating system's question about a file and a directory that are there, and answer `false` rather than throwing for a name that is not — the bound named on both sides, beside the `exists` that agrees about the same absent name — spec § 14, `rule:security/capability-check-at-the-door`
 --FILE--
 <?nvs
 // Both members are guards rather than gates: what they answer is a snapshot of

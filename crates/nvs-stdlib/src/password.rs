@@ -5,7 +5,7 @@
 //! `rule:core-api/tier-roster` places
 //! this class in `Core` by tests 1 and 2 — "as a `Core\Crypto` primitive over a
 //! `secret`" — rather than in
-//! [ADR 0060](/docs/adr/0060-application-security-protocols.md)'s
+//! `rule:security/protocol-roster`'s
 //! closed protocol roster. What belongs here is the parameter choice, the
 //! salt's provenance, what `needsRehash` compares, and the two places this
 //! module refuses a stored hash the C `password_verify` would have answered
@@ -60,7 +60,7 @@
 //!
 //! # The read roster has two entries, and only one of them is ever written
 //!
-//! [ADR 0129](/docs/adr/0129-password-verify-reads-a-stored-bcrypt-hash.md)
+//! `rule:security/bcrypt-read-roster`
 //! is the whole contract, and its § 1 is the roster: [`nvs_core_password_verify`]
 //! reads the Argon2id PHC string [`nvs_core_password_hash`] writes, and a
 //! bcrypt hash under `$2y$`, `$2a$` or `$2b$` — one algorithm under three tags,
@@ -105,14 +105,14 @@
 //! ever finds out.
 //!
 //! Neither message quotes the hash. A stored hash is credential-adjacent, and
-//! ADR 0033's whole subject is values that must not reach a log — so the
+//! `rule:security/secret-qualifier`'s whole subject is values that must not reach a log — so the
 //! message names the member and what was wrong with the shape, and never the
 //! bytes.
 //!
 //! This section is the *mechanism*. Which stored values are inside the roster
 //! and which are outside it is
-//! [ADR 0129](/docs/adr/0129-password-verify-reads-a-stored-bcrypt-hash.md)
-//! § 6, and that is the one home of the boundary: the roster has two entries
+//! `rule:security/an-unreadable-stored-hash-throws`
+//! , and that is the one home of the boundary: the roster has two entries
 //! instead of one, and the property that a wrong column wakes an operator is
 //! unchanged by that.
 //!
@@ -129,7 +129,7 @@
 //!
 //! A bcrypt row is the same lever with a different unit: its cost is the base-2
 //! log of the round count, so it buys CPU time where `m` bought memory, and it
-//! is the same `UPDATE` away. [`MAX_BCRYPT_COST`] is that ceiling, ADR 0129 § 4's
+//! is the same `UPDATE` away. [`MAX_BCRYPT_COST`] is that ceiling, `rule:security/bcrypt-cost-ceiling`'s
 //! seventeen — far above the 10 to 13 real PHP deployments write, far below
 //! 31's minutes of CPU — and it is read out of the stored string and refused
 //! before a single round runs.
@@ -172,14 +172,14 @@ const MAX_M_COST: u32 = 1024 * 1024;
 /// The salt length in bytes, `password_hash`'s own `RECOMMENDED_SALT_LEN`.
 const SALT_LEN: usize = 16;
 
-/// ADR 0129 § 1's read roster, second entry: the three tags PHP writes a bcrypt
+/// `rule:security/bcrypt-read-roster`'s read roster, second entry: the three tags PHP writes a bcrypt
 /// hash under, all one algorithm. `$2x$` is deliberately absent — the module
 /// doc's *read roster* section is why — and the list grows by amending that
 /// ADR section, never by accepting what a parser happens to read.
 const BCRYPT_TAGS: [&str; 3] = ["$2y$", "$2a$", "$2b$"];
 
-/// The largest bcrypt cost [`nvs_core_password_verify`] will run — ADR 0129
-/// § 4's seventeen, and [`MAX_M_COST`]'s counterpart for the other entry in the
+/// The largest bcrypt cost [`nvs_core_password_verify`] will run — `rule:security/bcrypt-cost-ceiling`
+/// 's seventeen, and [`MAX_M_COST`]'s counterpart for the other entry in the
 /// roster.
 const MAX_BCRYPT_COST: u32 = 17;
 
@@ -345,7 +345,7 @@ fn text_of<'a>(args: &'a [Value], slot: usize, member: &str) -> Result<&'a str, 
 /// The `LogicError` the module doc's *a stored hash that will not parse throws*
 /// section specifies — which never quotes the bytes.
 ///
-/// One sentence for both entries of ADR 0129 § 1's roster: a value outside it
+/// One sentence for both entries of `rule:security/bcrypt-read-roster`'s roster: a value outside it
 /// is the same storage bug whichever shape it failed to be, and two messages
 /// would ask the operator reading one to work out which parser rejected it.
 fn unreadable(member: &str) -> Fault {
@@ -364,7 +364,7 @@ fn parsed(stored: &str, member: &str) -> Result<PasswordHash, Fault> {
     PasswordHash::new(stored).map_err(|_| unreadable(member))
 }
 
-/// The cost `stored` carries, for a stored value inside ADR 0129 § 1's bcrypt
+/// The cost `stored` carries, for a stored value inside `rule:security/bcrypt-read-roster`'s bcrypt
 /// half of the roster — and `None` for one that is not in it at all, which is
 /// the PHC path's to read or to refuse.
 ///
@@ -438,7 +438,7 @@ nvs_runtime::nvs_helper! {
         let password = text_of(args, 0, "verify")?;
         let stored = text_of(args, 1, "verify")?;
 
-        // ADR 0129 § 1's second entry, read before the PHC parser sees the
+        // `rule:security/bcrypt-read-roster`'s second entry, read before the PHC parser sees the
         // string: a bcrypt hash is not a PHC one, and the tag is what says so.
         if let Some(cost) = bcrypt_cost(stored) {
             // § 4's ceiling, and the whole of "before any work" — the rounds
@@ -517,7 +517,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_password_needs_rehash(_ctx, args: [1]) {
         let stored = text_of(args, 0, "needsRehash")?;
 
-        // ADR 0129 § 3: a bcrypt row is read rather than thrown at, and every
+        // `rule:security/needs-rehash-answers-weaker`: a bcrypt row is read rather than thrown at, and every
         // one of them has fallen behind — a different algorithm is weaker by
         // this member's own rule, so the answer needs no comparison. No cost
         // ceiling here: this member runs no rounds, and a row `verify` will
@@ -575,7 +575,7 @@ mod tests {
         }
     }
 
-    /// ADR 0129 § 1's second roster entry, end to end at the unit: the column a
+    /// `rule:security/bcrypt-read-roster`'s second roster entry, end to end at the unit: the column a
     /// migrating application arrives with verifies, and the wrong password
     /// answers `false` rather than throwing — the whole point being that a
     /// legacy row is a *readable* hash and not a storage bug.
@@ -594,7 +594,7 @@ mod tests {
         );
     }
 
-    /// ADR 0129 § 3: every tag in § 1's roster has fallen behind, because a
+    /// `rule:security/needs-rehash-answers-weaker`: every tag in § 1's roster has fallen behind, because a
     /// different algorithm is weaker by this member's own rule. Asserted over
     /// the whole roster rather than one tag, so a member that grew a comparison
     /// for one spelling fails here.
@@ -614,7 +614,7 @@ mod tests {
         );
     }
 
-    /// ADR 0129 § 4's ceiling, in [`MAX_M_COST`]'s shape: the cost is data out
+    /// `rule:security/bcrypt-cost-ceiling`'s ceiling, in [`MAX_M_COST`]'s shape: the cost is data out
     /// of the store and `2^cost` rounds is the denial of service, so it is read
     /// and refused before a single round runs. Both sides of the bound are
     /// named — 17 is work this class does, 18 is work it will not.
@@ -649,7 +649,7 @@ mod tests {
         );
     }
 
-    /// ADR 0129 § 6: the roster has two entries and everything else still
+    /// `rule:security/an-unreadable-stored-hash-throws`: the roster has two entries and everything else still
     /// throws. `$2x$` is a bcrypt tag this class will not read — it exists to
     /// be bug-compatible with `crypt_blowfish`'s sign-extension overflow — and
     /// a PHC string naming another algorithm is the same storage bug one layer

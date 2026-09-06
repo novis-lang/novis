@@ -1,5 +1,5 @@
 --TEST--
-Core\Csrf::issue binds a token to any session identifier a program can hold — empty, non-ASCII, long — Core\Csrf::verify accepts each against its own and none against another, and the token's length is a stated function of the session's — ADR 0060 § 1
+Core\Csrf::issue binds a token to any session identifier a program can hold — empty, non-ASCII, long — Core\Csrf::verify accepts each against its own and none against another, and the token's length is a stated function of the session's — `rule:security/protocol-roster`
 --FILE--
 <?nvs
 // Invariance over a sweep, asserted by counting. A binding that worked for

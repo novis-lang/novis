@@ -1,8 +1,8 @@
 --TEST--
-A contagious Core parameter accepts a tainted argument and carries the qualifier into the answer, while a neutral one accepts the same argument and answers plain -- ADR 0088 §§ 1-2
+A contagious Core parameter accepts a tainted argument and carries the qualifier into the answer, while a neutral one accepts the same argument and answers plain -- `rule:security/sink-predicate` and `rule:security/unclassified-parameter-refuses-tainted`
 --FILE--
 <?nvs
-// ADR 0088 § 2: an unclassified `string` parameter refuses a tainted
+// `rule:security/unclassified-parameter-refuses-tainted`: an unclassified `string` parameter refuses a tainted
 // argument, so the two marks that *accept* are what this case pins.
 // `Core\Str::join`'s separator is contagious -- its bytes decide which slice
 // comes back -- so the answer carries whatever qualifier the argument had.

@@ -15,7 +15,7 @@
 > it cannot be settled at compile time alone, because the dangerous part is what a hostname *resolves to*
 > at request time. So it gets both layers. **Compile time:** an outbound URL parameter refuses `tainted`,
 > and the only way through is `Core\Http::allowUrl`, a sink-named launderer in
-> [ADR 0024](0024-taint-tracking-for-injection-sinks.md) § 3's existing shape. **Run time:** the
+> `rule:security/launderers-are-sink-named`'s existing shape. **Run time:** the
 > `net.connect` capability carries an **address policy** — loopback, private and link-local ranges denied by
 > default — enforced on every connection, including ones built from hardcoded URLs. The launderer resolves,
 > checks, and **pins** the address, and the connection is made to the pinned address, which is what closes
@@ -24,7 +24,7 @@
 
 ## Context
 
-- [ADR 0024](0024-taint-tracking-for-injection-sinks.md) treats every injection class as a language-level
+- `rule:security/tainted-qualifier` treats every injection class as a language-level
   concern, and names SQL, HTML, headers, paths and argv. SSRF is the one major class it does not name, and
   it is the one most likely to convert a minor bug into a total compromise: `http://169.254.169.254/` is
   the cloud instance-metadata endpoint, and reaching it turns "this feature fetches a URL the user gave us"
@@ -64,7 +64,7 @@ approved**. It throws — naming which check failed — rather than returning a 
 The `Target` return is the load-bearing part. A launderer that returned a plain `string` would leave a gap
 between the check and the connection in which a second DNS resolution could return a different address —
 the classic rebinding attack. Because the connection is made to the address inside the `Target`, there is
-no second resolution to poison. This is the first ADR 0024 launderer whose output is a value rather than a
+no second resolution to poison. This is the first `rule:security/tainted-qualifier` launderer whose output is a value rather than a
 plain string, and that is why.
 
 ### 3. Run time: the capability carries an address policy
@@ -128,7 +128,7 @@ redirect chain and every retry attempt are covered by one `deadline`
 `Core\Http\Client`, `Core\Net`, `Core\Db::open`'s target, and any socket a host import hands to a Tier 1
 extension are all subject to the same policy, enforced at the point the connection is made — the exception
 in § 3 being a config-named database endpoint, which the operator has already approved by writing it. An extension cannot be granted a socket that
-escapes it, which matters because [ADR 0055](0055-extension-qualifier-declarations.md) permits an extension
+escapes it, which matters because `rule:security/extension-manifest-only-tightens` permits an extension
 to be an I/O source and `rule:core-api/tier-placement` places several network clients at
 Tier 1.
 
@@ -138,7 +138,7 @@ Tier 1.
   documents the decision. That is the intended shape: not forbidden, but not accidental either.
 - **Existing PHP code will not port silently.** Any `file_get_contents($userUrl)` or
   `curl_setopt(CURLOPT_URL, $userUrl)` becomes a compile-time diagnostic under
-  [ADR 0052](0052-closed-doors.md) § 2 and this ADR together. `nvs convert` (M11) emits the two-line form
+  `rule:security/a-path-is-not-a-url` and this ADR together. `nvs convert` (M11) emits the two-line form
   with the launderer, rather than a direct translation.
 - **A deployment that legitimately calls internal services must say so.** This is real configuration work
   that PHP does not require, and it is the point: the difference between an intended internal call and an
@@ -159,7 +159,7 @@ Tier 1.
 - **Compile-time only** — refuse `tainted` and have the launderer validate the URL's shape. Rejected: shape
   validation cannot stop `http://169.254.169.254/`, which is well-formed. The actual attack goes straight
   through.
-- **A launderer returning a plain `string`.** Fits ADR 0024 § 3's existing shape exactly, with no new value
+- **A launderer returning a plain `string`.** Fits `rule:security/launderers-are-sink-named`'s existing shape exactly, with no new value
   type. Rejected: it reintroduces the check-then-connect gap, which is the specific thing that makes SSRF
   defenses fail in practice.
 - **Leave it to the application, with documentation.** No new mechanism. Rejected: every application

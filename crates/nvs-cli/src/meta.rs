@@ -191,7 +191,7 @@ fn member_json(member: &CoreMethod, kind: &str) -> Value {
 /// `defaults` aligns to the *end* of the positional list, exactly as a
 /// user-declared method's trailing defaults do, so the first `n - d`
 /// parameters are required. A variadic tail carries no default and says
-/// `variadic` instead. A parameter whose type carries an ADR 0088 § 2
+/// `variadic` instead. A parameter whose type carries an `rule:security/unclassified-parameter-refuses-tainted`
 /// classification names it as `qualifier`; one that carries none — every
 /// non-text type, and the unclassified `string`/`bytes` spellings, which
 /// refuse a tainted argument — has no key.
@@ -294,7 +294,7 @@ fn ty_string(ty: &CoreTy) -> String {
         CoreTy::Uint => "uint".into(),
         CoreTy::Float => "float".into(),
         CoreTy::Decimal => "decimal".into(),
-        // ADR 0006's entry is a `string` in the spec's column: the method form
+        // `rule:security/isolate-shares-nothing`'s entry is a `string` in the spec's column: the method form
         // it also accepts is a *written shape* rather than a second type, so
         // spelling it as a union here would document a `callable` variable as
         // accepted where `nvs_types::expr::isolate` refuses one.

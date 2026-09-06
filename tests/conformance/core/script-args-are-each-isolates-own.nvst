@@ -1,7 +1,7 @@
 --TEST--
 An isolate's argument is its own and is not ambient: two children spawned with different values disagree, a grandchild spawned with no `args:` reads `null` while its parent still reads what it was given, and a second read answers the same value — `rule:core-classes/script-args`, ADR 0006 § *Decision*
 --FILE nvs.toml--
-# ADR 0118 § 2: `spawn script` goes through a door that asks for
+# `rule:security/capability-check-at-the-door`: `spawn script` goes through a door that asks for
 # `script.spawn` first, and deny-by-default means a case with no
 # configuration cannot spawn at all. It is granted for the whole tree, which
 # is what lets the child below spawn a child of its own.

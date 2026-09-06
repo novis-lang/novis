@@ -9,7 +9,7 @@ var $captured = Core\Out::capture(fn (): void => {
     echo "b";
 });
 
-// ADR 0088 § 5: the return is the *carrier* of the sink in force — `Cli\Text`
+// `rule:security/capture-answers-the-carrier`: the return is the *carrier* of the sink in force — `Cli\Text`
 // outside an HTTP request — so re-emitting it is a visible `echo`, and the
 // bytes are written as they came out of the sink rather than through it twice.
 echo $captured, "\n";

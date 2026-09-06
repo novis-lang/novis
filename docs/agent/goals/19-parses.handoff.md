@@ -52,9 +52,9 @@ changes** — its rows at `:139` and `:148` already are the contract.
   `Parses` class is `{"type": "string"}` and `Core\Uuid` keeps `format: uuid` as a documentation hint
   over it), the reference pages, and the diagnostic corpus.
 - **One question settled in stage 2 rather than deferred**: whether a plain `string` argument assigns to
-  a `tainted string` parameter. If it does not, `parse`'s parameter takes ADR 0088 § 2's
+  a `tainted string` parameter. If it does not, `parse`'s parameter takes `rule:security/unclassified-parameter-refuses-tainted`'s
   `Qual::Contagious` admission instead, which is what every `Core` member in this position already uses.
-  Decided-and-recorded in ADR 0024's body, never `BLOCKED`.
+  Decided-and-recorded in `rule:security/tainted-qualifier`'s body, never `BLOCKED`.
 - **When this goal's last check goes green the driver takes goal 20** — ADR 0142's Unix sockets — and
   then goal 50, the dossier, which appends everything after it. `docs/agent/goals/chain.toml` is the
   schedule and this does not restate it.

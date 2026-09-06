@@ -240,7 +240,7 @@ pub enum Output {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Entry {
     /// A `.nvs` file the resolver compiled — [`crate::script::resolve`]'s
-    /// answer, and the form that has been here since ADR 0006 landed.
+    /// answer, and the form that has been here since `rule:security/isolate-shares-nothing` landed.
     #[default]
     Path,
     /// A `static` method of the unit the parent is already running, reached
@@ -257,7 +257,7 @@ pub struct Failure {
     /// failure was not a throw at all.
     pub class: String,
     /// The message, rendered on the child's side. Copying the exception
-    /// *object* across is what ADR 0006 rejected.
+    /// *object* across is what `rule:security/isolate-shares-nothing` rejected.
     pub message: String,
 }
 
@@ -284,8 +284,8 @@ pub struct Completion {
     /// handed the bytes to the parent's own stream.
     pub output: Vec<u8>,
     /// What the child declared [`Self::output`] to *be* —
-    /// [ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
-    /// § 4's `Content-Type`, or `None` where nothing declared one.
+    /// `rule:security/response-body-is-one-typed-member`
+    /// 's `Content-Type`, or `None` where nothing declared one.
     ///
     /// Beside the output rather than inside it, and on a `Completion` rather
     /// than on an HTTP type, because this is the one channel out of a finished
@@ -357,7 +357,7 @@ impl Completion {
 ///
 /// **Dropping one without joining it is legal and is not a leak**: the child is
 /// a task under the caller's own task, so it dies with it
-/// ([ADR 0006](/docs/adr/0006-isolated-script-execution.md)'s "the
+/// (`rule:security/isolate-shares-nothing`'s "the
 /// isolate is a child task"). What it costs is that the child's answer is
 /// discarded rather than crossing, which is exactly what a program that spawned
 /// and never awaited asked for.
@@ -519,8 +519,8 @@ pub trait Host: std::fmt::Debug {
     /// this ends — the graph copy takes it on the success path, and the `Err`
     /// path releases it. `ctx` is the parent's, and is borrowed only for the
     /// length of the call: the isolate's own ownership root is built here
-    /// ([ADR 0116](/docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
-    /// § 2) and is nothing the parent can reach. `entry` says which of ADR
+    /// (`rule:security/isolate-teardown-is-a-drain-then-a-sweep`
+    /// ) and is nothing the parent can reach. `entry` says which of ADR
     /// 0006's two forms the spawn named, which is the one fact about the child
     /// only this side holds — see [`Entry`].
     ///
@@ -528,7 +528,7 @@ pub trait Host: std::fmt::Debug {
     ///
     /// [`GraphError`] when the **argument** has no meaning on the other side.
     /// No child is started in that case, which is what makes it the parent's
-    /// fault to raise rather than ADR 0006's failure-is-a-value; the refusal on
+    /// fault to raise rather than `rule:security/isolate-shares-nothing`'s failure-is-a-value; the refusal on
     /// the way *back* is an `ok = false` instead, and `nvs-host`'s `isolate`
     /// module owns that asymmetry.
     fn start_isolate(

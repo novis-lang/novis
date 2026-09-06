@@ -39,8 +39,8 @@ pub(crate) const NAME: &str = "Core\\Attributes";
 const T: CoreTy = CoreTy::Written("T");
 
 /// `$member` — the optional declaration name both members take, carrying
-/// [ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
-/// § 2's classification.
+/// `rule:security/unclassified-parameter-refuses-tainted`
+/// 's classification.
 ///
 /// [`Qual::Neutral`] by the first bullet of [`Qual`]'s own rule, which is where
 /// that rule is written: neither member's answer can carry a byte of either

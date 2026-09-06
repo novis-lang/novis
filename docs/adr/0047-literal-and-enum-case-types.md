@@ -156,8 +156,8 @@ Mode::Read|Mode::Write $m = someMode as Mode::Read|Mode::Write;    // throws if 
 ```
 
 A `tainted` or `secret` value reaching either conversion needs the same laundering
-([ADR 0024](0024-taint-tracking-for-injection-sinks.md)) or `Core\Secret::reveal()`
-([ADR 0033](0033-secret-qualifier-for-confidential-values.md)) it would need to leave `mixed` for any other
+(`rule:security/tainted-qualifier`) or `Core\Secret::reveal()`
+(`rule:security/secret-qualifier`) it would need to leave `mixed` for any other
 typed binding — neither qualifier gets a new rule here.
 
 ### 5. Zero additional runtime representation

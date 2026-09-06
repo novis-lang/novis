@@ -34,7 +34,7 @@
   a real application does instead, which left the largest single adoption barrier undocumented.
 - **The runtime half cannot be kept, and does not need to be.** A registered loader stack is process-global
   mutable state (`rule:statements/static-is-a-member-modifier`) driving a load of arbitrary code
-  ([ADR 0052](0052-closed-doors.md) § 4), and it reopens the closed `require` graph that
+  (`rule:security/no-eval`), and it reopens the closed `require` graph that
   [ADR 0048](0048-portable-single-file-executables.md) § 3 depends on. What survives is the declarative
   subset — a prefix→directories map — which is what Composer's
   `psr-4` key already is and what essentially every project uses it for.
@@ -45,7 +45,7 @@
 - **A module-based framework needs one thing static resolution structurally cannot give.** With
   `./ADB/src`, `./FOO/src` and `./Framework/src` as sibling modules, a framework boots modules it never
   names — in PHP, `foreach ($modules as $c) { new $c(); }` over a list the autoloader made loadable. `new $c`
-  does not exist here and cannot ([ADR 0052](0052-closed-doors.md) § 4). Autoloading alone does not fix
+  does not exist here and cannot (`rule:security/no-eval`). Autoloading alone does not fix
   this: a file is read only when a name in it is referenced, and nothing references `ADB\Module`.
 - **Where the map lives is a real constraint, not a detail.** A config file under a document root is
   web-reachable; a walk-up search finds the wrong root when many project trees share one framework
@@ -136,7 +136,7 @@ program implementing `T`, **sorted by fully-qualified name** so the order does n
 enumeration. Each such class needs a no-argument constructor; a diagnostic names any that does not, and
 dependencies arrive through the interface's own methods instead. Because it expands to ordinary `new`
 expressions evaluated at the call site, the instances are per-request like every other object and nothing
-crosses an isolate boundary ([ADR 0006](0006-isolated-script-execution.md)).
+crosses an isolate boundary (`rule:security/isolate-shares-nothing`).
 
 ```php
 <?nvs
@@ -226,7 +226,7 @@ changes, because it is the only moment a running host's set of units does. What 
 program and one BLAKE3 combine per resolution — `rule:programs/memory-priority`'s ledger, stated
 here because that ADR asks for it to be stated.
 
-**Plain `string`, never `secret`** ([ADR 0033](0033-secret-qualifier-for-confidential-values.md)). Every
+**Plain `string`, never `secret`** (`rule:security/secret-qualifier`). Every
 use of the id is an echo — a cache-busting URL segment, a response header, the field that tells one
 deployment's log lines from another's — and `secret` refuses an echo by design, so qualifying it would
 make the member useless for the things it exists for. It does tell a reader that a deployment's code
@@ -272,7 +272,7 @@ answer at all.
   Bounded and rate-capped (§ 5), but it is a genuinely new dependency kind, which is why the query is
   opt-in rather than ambient.
 - Classes cannot be loaded from a database, a generated file, or anywhere but the filesystem at compile
-  time — already true by [ADR 0052](0052-closed-doors.md) § 4, restated here because this is where PHP
+  time — already true by `rule:security/no-eval`, restated here because this is where PHP
   developers will look for it.
 
 ## Alternatives rejected

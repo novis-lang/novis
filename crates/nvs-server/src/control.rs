@@ -14,10 +14,9 @@
 //!
 //! **No control operation runs Novis code, ever**, which is § 3's own sentence and the reason the
 //! roster is an enum rather than a route table: a control surface that could dispatch is
-//! [ADR 0052] § 4's `eval` door with a different name on it. There is no path from here into the
+//! `rule:security/no-eval`'s `eval` door with a different name on it. There is no path from here into the
 //! compiler, and there is deliberately nothing to add one to.
 //!
-//! [ADR 0052]: /docs/adr/0052-closed-doors.md
 //! [ADR 0078]: /docs/adr/0078-config-reload-and-control-socket.md
 //! [ADR 0103]: /docs/adr/0103-configuration-is-a-tree-of-files.md
 
@@ -300,7 +299,7 @@ mod tests {
         for target in [
             "/config",     // § 3 reserves it; this surface does not answer it yet
             "/shutdown",   // the operation an operator would most expect a control socket to have
-            "/eval",       // ADR 0052 § 4's door, under the name it would arrive as
+            "/eval",       // `rule:security/no-eval`'s door, under the name it would arrive as
             "/",           // the root, which names nothing
             "/reload/",    // not a spelling of the operation: the target is compared whole
             "/reload?now", // a control operation takes no parameters

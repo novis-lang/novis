@@ -10,7 +10,7 @@
 - **Amends:** [0024](0024-taint-tracking-for-injection-sinks.md) — § 4's `Core\Process` bullet ("M8+, behind
   the capability gate already named in the plan … an executable path and an argv array, each element
   requiring the plain type … no shell-interpolation form at all") is superseded by this ADR's full design.
-  The rule itself is unchanged; this ADR is the stdlib design ADR 0024's own *Revisiting* section named as
+  The rule itself is unchanged; this ADR is the stdlib design `rule:security/tainted-qualifier`'s own *Revisiting* section named as
   due at M8, now spelled out concretely enough for `nvs-runtime` to build.
 - **Amended by:** none.
 
@@ -52,7 +52,7 @@
   ([CVE-2024-27980](https://nvd.nist.gov/vuln/detail/CVE-2024-27980)) and Rust's fix
   ([CVE-2024-24576](https://blog.rust-lang.org/2024/04/09/cve-2024-24576.html)) both patched their quoting
   after the fact; this ADR chooses to never be in that position by refusing the target class outright.
-- [ADR 0024](0024-taint-tracking-for-injection-sinks.md) § 4 already fixed the load-bearing part of this
+- `rule:security/sink-predicate` already fixed the load-bearing part of this
   decision — plain-typed executable path and argv, no shell-interpolation form — and named the rest as stdlib
   design due at M8. This ADR is that follow-up, not a reopening.
 
@@ -75,8 +75,8 @@ the process, suspends the calling coroutine until it exits (see § 5 — this ne
 and returns a `ProcessResult` carrying the exit code, captured stdout, and captured stderr. Covers PHP's
 `exec`/`system`/`shell_exec`/backticks in one call each.
 
-- **`$path` and every element of `$argv` are plain `string`** — [ADR 0024](0024-taint-tracking-for-injection-sinks.md)
-  § 4's existing rule, unchanged. A `tainted` value needs an ordinary checked conversion or an explicit
+- **`$path` and every element of `$argv` are plain `string`** — `rule:security/sink-predicate`
+  's existing rule, unchanged. A `tainted` value needs an ordinary checked conversion or an explicit
   launderer first, exactly like any other sink.
 - **Captured stdout/stderr are `bytes`, never `string`** — `rule:types/bytes`'s UTF-8
   guarantee cannot be assumed of an arbitrary child process's output. A caller who knows the output is text
@@ -116,7 +116,7 @@ class ProcessOptions
 - `$env`, when given, **replaces** the child's environment entirely rather than merging with the parent's —
   explicit-replace is simpler to reason about than merge semantics, and matches Rust's `env_clear()`+`envs()`
   shape. Every key and value is plain `string`; a `secret string` value (an API key held in a property) needs
-  `Core\Secret::reveal()` first, the same existing escape hatch [ADR 0033](0033-secret-qualifier-for-confidential-values.md)
+  `Core\Secret::reveal()` first, the same existing escape hatch `rule:security/secret-qualifier`
   already defines — no new mechanism for a new sink.
 - `$timeout` reuses the existing safepoint-driven cancellation mechanism
   ([ADR 0005](0005-config-changeability.md)'s `[limits] wall_time`, the same poll that already cancels a
@@ -196,7 +196,7 @@ on shell grammar `nvs convert` does not (and, per § 1, Novis never will) interp
   all.
 - **`nvs convert` gains another non-mechanical gap**, in the family `rule:types/bytes`,
   `rule:classes/two-copy-depths`, and
-  [ADR 0024](0024-taint-tracking-for-injection-sinks.md) already carry: every ported call site in § 7's table
+  `rule:security/tainted-qualifier` already carry: every ported call site in § 7's table
   needs a human to supply path/argv, not a mechanical rewrite.
 - **Memory**, per `rule:programs/memory-priority`'s discipline of naming the spend: one suspended
   coroutine stack per in-flight `run()`/`spawn()` wait (already-paid-for per the project-start coroutine
@@ -208,7 +208,7 @@ on shell grammar `nvs convert` does not (and, per § 1, Novis never will) interp
 - **A `proc_open`-shaped single function with a `$useShell` boolean.** Rejected: a flag that looks like an
   ordinary parameter and silently switches a call site between "argv, safe" and "shell string, escaping is
   your problem" is exactly the shape that invites "I'll just pass `true` real quick" — the same reasoning
-  [ADR 0024](0024-taint-tracking-for-injection-sinks.md) already used to reject a generic `sanitize()`.
+  `rule:security/tainted-qualifier` already used to reject a generic `sanitize()`.
 - **An explicit but present shell-invoking method** (`Core\Process::runViaShell(string $command)`).
   Considered and rejected: even a clearly-named, separately-documented method is still a convenience Novis
   would be handing out for the one operation this ADR exists to make deliberately inconvenient. A caller who

@@ -1,8 +1,8 @@
 --TEST--
-`Core\Reflect\ClassInfo::call` runs a `public` method and refuses a `private` one, with a wrong class and a misspelling told apart from neither — ADR 0019 § 2
+`Core\Reflect\ClassInfo::call` runs a `public` method and refuses a `private` one, with a wrong class and a misspelling told apart from neither — `rule:security/reflection-enforces-visibility`
 --FILE--
 <?nvs
-// ADR 0019 § 2: *acting* on a member runs the check ordinary code at the call
+// `rule:security/reflection-enforces-visibility`: *acting* on a member runs the check ordinary code at the call
 // site would run, and there is no `setAccessible` to lift it with. `call` does
 // not restate that rule anywhere — it hands the call to the same path an
 // ordinary call through an erased receiver takes — so what this pins is that

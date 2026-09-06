@@ -9,7 +9,7 @@
 use super::*;
 
 /// A connection out of this core's pool under `lease`'s key, reset and ready to
-/// run a statement — ADR 0067 § 13's acquire, where the reset is the gate.
+/// run a statement — `rule:security/db-pool-reset-is-a-boundary`'s acquire, where the reset is the gate.
 ///
 /// The lease is what the caller already holds a `max` slot on, and drawing
 /// against it is how § 13's ceiling counts a warm connection the same as a
@@ -74,7 +74,7 @@ pub(super) fn warm_connection(lease: &nvs_runtime::pool::Lease) -> Option<nvs_db
     }
 }
 
-/// Waits for a slot under `ticket`'s key — ADR 0067 § 13's `acquire` — or
+/// Waits for a slot under `ticket`'s key — `rule:security/db-pool-reset-is-a-boundary`'s `acquire` — or
 /// throws because the wait ran out.
 ///
 /// Reached only once `nvs_runtime::pool::admit` has already said the key is
@@ -292,7 +292,7 @@ pub(super) fn filed_connection<'a>(
         })
 }
 
-/// ADR 0067 § 13's bounds for a connection a *program* described: the
+/// `rule:security/db-pool-reset-is-a-boundary`'s bounds for a connection a *program* described: the
 /// `[db.<name>.pool]` table of the block whose settings hash is `memo` when a
 /// deployment wrote one, and [`PoolBounds::DEFAULT`] when it did not.
 ///
@@ -450,7 +450,7 @@ mod tests {
         )
     }
 
-    /// ADR 0067 § 13's bounds for a connection a *program* described, which is
+    /// `rule:security/db-pool-reset-is-a-boundary`'s bounds for a connection a *program* described, which is
     /// the half the ADR left to be found: `connect` looks its block up by the
     /// name an operator wrote, and `open` has only § 2's settings hash.
     ///

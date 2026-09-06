@@ -1,7 +1,7 @@
 //! `Core\Script\Handle` — what `spawn script` hands back, and the one `Core`
 //! class registered so that a program can name a value it may not touch.
 //!
-//! [ADR 0006](/docs/adr/0006-isolated-script-execution.md)'s spawn
+//! `rule:security/isolate-shares-nothing`'s spawn
 //! is an expression, so its answer needs a type, and `await` is the only thing
 //! a program may do with that answer. `crates/nvs-types/src/expr/isolate.rs`'s
 //! module doc is the one home of *why* this is a `Core` class rather than a
@@ -80,7 +80,7 @@
 //! # `args()` answers `mixed`, and `null` for a script nobody spawned
 //!
 //! `rule:core-classes/script-args` is what
-//! replaced ADR 0006's `$_ARGS` with a method call, and its body states the
+//! replaced `rule:security/isolate-shares-nothing`'s `$_ARGS` with a method call, and its body states the
 //! return type this module implements: **`mixed`**, not an array of anything.
 //! `spawn script`'s `args:` is checked against no expected type at all —
 //! `nvs_types::expr::isolate`'s `check_spawn_script` says why, and it is
@@ -361,7 +361,7 @@ pub const SPAWN_METHOD_SYMBOL: &str = "nvs_core_script_spawn_method";
 /// The symbol `await <handle>` lowers to.
 pub const AWAIT_SYMBOL: &str = "nvs_core_script_await";
 
-/// ADR 0006's `ScriptResult`, as a descriptor name — see
+/// `rule:security/isolate-shares-nothing`'s `ScriptResult`, as a descriptor name — see
 /// [`crate::instance::SHAPE_ROSTER`], whose fields are in **sorted** order
 /// because that is the slot order `nvs_types::ty::Ty::Shape` canonicalizes to.
 pub(crate) const RESULT_SHAPE: &str = r"Core\Script\Result";
@@ -500,7 +500,7 @@ fn slot_of(args: &[Value], index: usize, member: &str) -> Result<Value, Fault> {
 
 /// Decodes the `output:` option, which arrives as the string the program wrote.
 ///
-/// Refused rather than defaulted for an unknown spelling: ADR 0006 names two
+/// Refused rather than defaulted for an unknown spelling: `rule:security/isolate-shares-nothing` names two
 /// and a third would silently pick one of them, which is the failure mode a
 /// misspelled `'inherait'` is most likely to be. A `LogicError` and not a
 /// fatal, because the program supplied the value and can be written to handle
@@ -542,8 +542,8 @@ nvs_runtime::nvs_helper! {
     /// existed. What the boundary turns into a value is only what the *child*
     /// produced.
     ///
-    /// **`script.spawn` is checked inside `resolve`**, not here — ADR 0118
-    /// § 2. A spawn the parent was never allowed to attempt therefore never
+    /// **`script.spawn` is checked inside `resolve`**, not here — `rule:security/capability-check-at-the-door`
+    /// . A spawn the parent was never allowed to attempt therefore never
     /// reaches a child at all, which is what makes it a value on *this* side
     /// while a child that fails on its own is an `ok = false` on the other.
     fn nvs_core_script_spawn(ctx, args: [3]) {
@@ -567,7 +567,7 @@ nvs_runtime::nvs_helper! {
                 Fault::thrown_as(ThrownClass::Runtime, format!("`spawn script '{path}'`: {message}"))
             }
             // Already a whole sentence naming the capability and the path —
-            // ADR 0118 § 5 — so it is thrown as written rather than wrapped in
+            // `rule:security/denial-is-a-runtime-error` — so it is thrown as written rather than wrapped in
             // this member's own framing, which would say `spawn script` twice.
             ResolveError::Denied(message) => Fault::thrown_as(ThrownClass::Runtime, message),
         })?;
@@ -616,7 +616,7 @@ nvs_runtime::nvs_helper! {
 /// `site` is the whole spelling a refusal names — `spawn script Chat::run` for
 /// the construct, `Core\Socket::upgrade` for
 /// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 2's
-/// door — because the rule is ADR 0006's and the two entry forms it governs
+/// door — because the rule is `rule:security/isolate-shares-nothing`'s and the two entry forms it governs
 /// are written at three sites now. `crate::socket` is the other caller and the
 /// one home of why a connection asks this question here rather than in the
 /// child.
@@ -721,7 +721,7 @@ nvs_runtime::nvs_helper! {
     /// [`bound_arguments`] then reads the values out in declaration order
     /// inside the child, where the copy is, and `nvs_runtime::call_static_bound`
     /// judges each against the slot it is about to fill. The map still crosses
-    /// whole and `Core\Script::args()` still answers it, which is ADR 0006's
+    /// whole and `Core\Script::args()` still answers it, which is `rule:security/isolate-shares-nothing`'s
     /// accessor rule for both forms.
     fn nvs_core_script_spawn_method(ctx, args: [4]) {
         // Unreachable from source: the lowering emits this as a `ConstStr`, so
@@ -760,7 +760,7 @@ nvs_runtime::nvs_helper! {
         if let Err(message) = entry_names_agree(&format!("spawn script {label}"), &names, args[1]) {
             return Err(Fault::thrown_as(ThrownClass::Logic, message));
         }
-        // ADR 0118 § 2's door for this form. The path form's is inside
+        // `rule:security/capability-check-at-the-door`'s door for this form. The path form's is inside
         // `resolve`, which is the effect there; here the effect is the call
         // below and there is no intermediate to hang it on.
         nvs_runtime::capability::require(ctx, Cap::ScriptSpawn, Scope::Unscoped, "`spawn script`")?;
@@ -787,7 +787,7 @@ nvs_runtime::nvs_helper! {
                 }
                 // The judgement `call_static_bound` makes on this frame's
                 // behalf — an argument whose tag the parameter does not admit,
-                // ADR 0006's "typed at the boundary". There is no frame above
+                // `rule:security/isolate-shares-nothing`'s "typed at the boundary". There is no frame above
                 // it inside the child, so it is recorded as the isolate's
                 // pending throw and reaches the parent as § *Failure is a
                 // value*'s `ok = false` rather than as a status nothing wrote.
@@ -836,7 +836,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `await <handle>` — waits for the isolate the handle names and answers
-    /// ADR 0006's `ScriptResult`.
+    /// `rule:security/isolate-shares-nothing`'s `ScriptResult`.
     ///
     /// The receiver is **borrowed**, like every other `Core` argument: what is
     /// consumed is the table entry, not the handle object, so a handle awaited
@@ -947,7 +947,7 @@ fn result_of(completion: Completion) -> Value {
         ok,
         value,
         output,
-        // ADR 0088 § 4's declaration is a *response's*, and `ScriptResult` is
+        // `rule:security/response-body-is-one-typed-member`'s declaration is a *response's*, and `ScriptResult` is
         // not one: a `spawn script` answers with what the child wrote, and
         // what that output was declared to be is read by the connection that
         // is answering a peer or by nobody at all.

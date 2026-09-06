@@ -209,7 +209,7 @@ pub struct Route {
     rank: Vec<u8>,
 }
 
-/// ADR 0096 § 4's four verbs — the ones a CSRF check covers — spelled as the
+/// `rule:security/csrf-is-on-by-default`'s four verbs — the ones a CSRF check covers — spelled as the
 /// `Core\Http\Method` cases a row's [`Route::verb`] is written in.
 ///
 /// A second reading of that section's list; `nvs_types::routes::UNSAFE_VERBS`
@@ -242,7 +242,7 @@ impl Route {
         let path = path.into();
         let segments = segments_of(&path);
         let rank = segments.iter().map(Seg::rank).collect();
-        // ADR 0096 § 4's default, derived rather than passed: on for the four
+        // `rule:security/csrf-is-on-by-default`'s default, derived rather than passed: on for the four
         // unsafe verbs and off for every other, so a table built by hand is
         // fail-closed by construction. § 1a's opt-out is the rare half and is
         // [`Self::without_csrf`].
@@ -273,7 +273,7 @@ impl Route {
         self
     }
 
-    /// ADR 0096 § 4's answer for this row: whether a request that matched it is
+    /// `rule:security/csrf-is-on-by-default`'s answer for this row: whether a request that matched it is
     /// CSRF-checked.
     ///
     /// The verb's half and § 1a's opt-out already folded together, because a
@@ -312,8 +312,8 @@ impl Route {
     }
 
     /// `rule:attributes/access-is-a-required-sibling`'s access decision as the name it resolved to, which
-    /// [ADR 0102](/docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
-    /// § 8 leaves to whoever dispatches. `None` only for a program that was
+    /// `rule:security/access-is-checked-for-presence-not-meaning`
+    /// leaves to whoever dispatches. `None` only for a program that was
     /// already refused.
     #[must_use]
     pub fn access(&self) -> Option<&str> {

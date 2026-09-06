@@ -22,7 +22,7 @@
 //! # Why the validation is here and not above
 //!
 //! An identifier is **validated, never delimited**
-//! ([ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md); DDL has no
+//! (`rule:security/tainted-qualifier`; DDL has no
 //! parameters to bind a name through), and
 //! [`is_bare_identifier`] is that judgement's one home — `Core\Db::quoteIdentifier`
 //! calls it rather than restating it. Everything else a construction can get

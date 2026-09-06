@@ -187,7 +187,7 @@ impl Host for SchedulerHost {
         output: Output,
         entry: Entry,
     ) -> Result<Box<dyn Running>, GraphError> {
-        // The whole implementation: `crate::isolate` is ADR 0006's boundary and
+        // The whole implementation: `crate::isolate` is `rule:security/isolate-shares-nothing`'s boundary and
         // decides everything about it, and what this seam adds is only that a
         // `Core` member can reach it without naming this crate. There is no
         // group here and no `Bounds` — an isolate is one child, and what bounds

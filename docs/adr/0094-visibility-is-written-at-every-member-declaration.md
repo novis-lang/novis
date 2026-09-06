@@ -43,7 +43,7 @@
 - **The default is a security default, not a style one.** An inferred `public` is the mechanism by which an
   internal helper becomes public API by omission — priority 1 and 2 in AGENTS.md's ordering, not priority 4.
   The author who forgot the keyword is exactly the author who did not decide.
-- **Two accepted ADRs already assume the level was written.** [ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md) § 2
+- **Two accepted ADRs already assume the level was written.** `rule:security/reflection-enforces-visibility`
   exposes a member's declared visibility through `Core\Reflect`, and
   `rule:classes/no-magic-methods` annotates every property in a debug dump with it.
   With a default, both report a level no one typed.

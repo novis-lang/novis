@@ -1,15 +1,15 @@
-//! `Core\Csrf` — [ADR 0060](/docs/adr/0060-application-security-protocols.md)
-//! § 1's second roster entry: a token bound to one session, and a comparison
+//! `Core\Csrf` — `rule:security/protocol-roster`
+//! 's second roster entry: a token bound to one session, and a comparison
 //! that is the only thing a caller can do with it.
 //!
-//! ADR 0060 places the class; what belongs here is why the session arrives as
+//! `rule:security/protocol-roster` places the class; what belongs here is why the session arrives as
 //! an argument, why there is no member answering the expected token, why the
 //! construction is [`crate::crypto`]'s third caller rather than an HMAC of its
 //! own, and what the domain tag in the plaintext is for.
 //!
 //! # The comparison is the only exposed operation
 //!
-//! ADR 0060 § 1 asks for the tokens to be "compared in constant time, with the
+//! `rule:security/protocol-roster` asks for the tokens to be "compared in constant time, with the
 //! comparison being the only exposed operation so a caller cannot write `==`".
 //! That is a statement about the *roster*, not about an implementation
 //! detail: there are two members, [`issue`] answers a token and [`verify`]
@@ -21,7 +21,7 @@
 //! sealed under its own nonce, so two calls to [`issue`] for the same session
 //! answer two different strings, and a caller who nevertheless compares one
 //! token with another gets `false` from a pair that are both valid. The failure
-//! mode ADR 0060 § 4 wants unrepresentable is not merely undocumented here; it
+//! mode `rule:security/algorithm-comes-from-the-key` wants unrepresentable is not merely undocumented here; it
 //! visibly does not work.
 //!
 //! [`verify`] answers `false` for every way of not being this session's token —
@@ -47,11 +47,11 @@
 //! `tainted`. The answer's alphabet is base64's, which carries no injection
 //! into any sink, exactly as a hash of a `secret` is not itself `secret` — this
 //! is [`Qual::Neutral`]'s own "a hash of a secret" case rather than a hole in
-//! [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md).
+//! `rule:security/tainted-qualifier`.
 //!
 //! # One key, and why no ring
 //!
-//! [`crate::signed_cookie`] takes a key *ring* because ADR 0060 § 1 asks for
+//! [`crate::signed_cookie`] takes a key *ring* because `rule:security/protocol-roster` asks for
 //! rotation there; this entry's bullet does not, and the difference is what a
 //! rotation costs. A cookie outlives a deploy — rotating without a ring logs
 //! everyone out. A CSRF token outlives one rendered form, so rotating the key
@@ -93,7 +93,7 @@
 //! [`crate::hash`]'s reasoning, which is that module's own doc. Poly1305's tag
 //! comparison underneath is the `chacha20poly1305` crate's, also through
 //! `subtle`. No member here exposes a tag, a key or a raw sealed buffer, which
-//! is ADR 0060 § 4's "no API exposes the raw value" for this entry.
+//! is `rule:security/algorithm-comes-from-the-key`'s "no API exposes the raw value" for this entry.
 
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
@@ -120,7 +120,7 @@ const DOMAIN: &[u8] = b"nvs.csrf.v1\0";
 /// written once so neither row can drift from the other.
 const KEY: CoreTy = CoreTy::SecretBlob(Qual::Neutral);
 
-/// ADR 0060 § 1's second roster entry, as two rows.
+/// `rule:security/protocol-roster`'s second roster entry, as two rows.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     methods: &[
@@ -305,7 +305,7 @@ fn bound(session: &str) -> Vec<u8> {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Csrf::issue(string $session, secret bytes $key): string` — the
-    /// write half of ADR 0060 § 1's second entry, replacing the
+    /// write half of `rule:security/protocol-roster`'s second entry, replacing the
     /// `random_bytes` + `$_SESSION['token']` + `hash_equals` triple every PHP
     /// codebase grows its own slightly-different copy of.
     ///
@@ -357,7 +357,7 @@ nvs_runtime::nvs_helper! {
 mod tests {
     use super::*;
 
-    /// Stage 4's CSRF check — ADR 0060 § 1's second bullet, which asks for
+    /// Stage 4's CSRF check — `rule:security/protocol-roster`'s second bullet, which asks for
     /// three things in one breath: a token bound to the session that issued it,
     /// a comparison that is the only exposed operation, and no way for a caller
     /// to hold the expected value.

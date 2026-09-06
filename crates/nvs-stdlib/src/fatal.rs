@@ -216,7 +216,7 @@ mod tests {
     /// Comparing the payload bits is what makes that a check on the *ladder*
     /// rather than on a serialiser: a `Ctx::run_uncaught_handler` that built an
     /// array like § 1's `LimitReport`, or that copied the exception across the
-    /// way an ADR 0006 boundary has to, would still carry the right class and
+    /// way an `rule:security/isolate-shares-nothing` boundary has to, would still carry the right class and
     /// message and would differ here in the one respect § 2 names.
     ///
     /// Both halves are driven for real — the registration through

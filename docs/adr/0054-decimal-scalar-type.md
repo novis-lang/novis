@@ -116,7 +116,7 @@ means, `Core\Math::round($n, {precision: …})` says so at the site.
 **Division is the one place a decimal result may be inexact**, so its policy is fixed in the language and
 **not configurable**: round half to even, at the maximum scale the result admits. There is no `bcscale()`
 equivalent and never will be — ambient precision read by unrelated later code is the shape
-`rule:statements/static-is-a-member-modifier` and [ADR 0052](0052-closed-doors.md) § 3 both already close. Where
+`rule:statements/static-is-a-member-modifier` and `rule:security/no-cross-request-state` both already close. Where
 rounding is business logic rather than an artifact, it is said out loud:
 `Core\Decimal::divExact()` throws unless the quotient is exact, `Core\Decimal::divRound($scale, $mode)`
 names both, and `Core\Decimal::allocate($amount, $ratios)` splits a sum into parts that add back to it

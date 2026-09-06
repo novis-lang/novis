@@ -24,7 +24,7 @@ secret string $token = "hunter2";
 secret bytes $key = "raw-key" as bytes;
 
 // Without these two lines, every `echo` below is a compile error naming
-// ADR 0033 § 4's terminal sink.
+// `rule:security/secret-sinks-refuse`'s terminal sink.
 string $revealed = Core\Secret::reveal($token, "this command exists to print the token");
 bytes $raw = Core\Secret::revealBytes($key, "the signer takes the key as bytes");
 

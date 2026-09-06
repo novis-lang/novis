@@ -183,7 +183,7 @@ This is the section that matters most, and it inverts the assumption every mains
 - **The operator's `nvs.toml` still caps everything.** The effective set at any call site is the
   intersection of the operator's grant, the application's per-namespace grant, the package's own declaration,
   and any narrowing the enclosing isolate applied ([0006](0006-isolated-script-execution.md)). Every one of
-  those may only ever *tighten* — [ADR 0055](0055-extension-qualifier-declarations.md)'s rule for extension
+  those may only ever *tighten* — `rule:security/extension-manifest-only-tightens`'s rule for extension
   manifests, now the rule for every package.
 - **Enforcement is at compile time and costs nothing at run time.** Every declaration carries its enclosing
   namespace, so a `Core` call requiring a capability that call site's namespace does not hold is a compile
@@ -298,8 +298,8 @@ that policy is an operational document, not an ADR.
   Some users will grant everything reflexively, exactly as some users run containers as root; the design
   cannot prevent that, only make it visible and diffable. What it does prevent is authority arriving
   *without* anybody writing anything.
-- **A package can never be a launderer or a sink.** [ADR 0024](0024-taint-tracking-for-injection-sinks.md)
-  § 3 already restricts qualifier removal to `Core` members whose contract names a sink, and
+- **A package can never be a launderer or a sink.** `rule:security/launderers-are-sink-named`
+  already restricts qualifier removal to `Core` members whose contract names a sink, and
   [0051](0051-standard-library-tiers.md) test 2 keeps launderers in Core. So a package can compute over a
   `tainted` value and hand it back still `tainted`, and no third-party code can ever be the thing that
   declares data safe. This is a significant constraint on what a package can be, and it is correct.

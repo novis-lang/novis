@@ -17,7 +17,7 @@ class Render {
     // `Core\Out::capture` is what gives the `echo` spelling a value to
     // compare against the other three. The carrier it answers is the second
     // row of `registry::class_renders` — a class that renders through
-    // ADR 0088 § 5 with no `toString` member at all — so this line also pins
+    // `rule:security/capture-answers-the-carrier` with no `toString` member at all — so this line also pins
     // that the two rows still reach two different renderings.
     public static function uri(Core\Uri $u): int {
         string $direct = $u->toString();

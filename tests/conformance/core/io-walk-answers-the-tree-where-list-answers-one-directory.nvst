@@ -1,5 +1,5 @@
 --TEST--
-`Core\IO::walk` answers every entry of the tree under `$path`, each as a path relative to it, where `Core\IO::list` answers one directory as bare names — the two agree about the level they share, and the difference between them is counted rather than read off a line — spec § 14 *Manipulation*, `rule:core-api/shape-rules` R6, ADR 0118 § 2
+`Core\IO::walk` answers every entry of the tree under `$path`, each as a path relative to it, where `Core\IO::list` answers one directory as bare names — the two agree about the level they share, and the difference between them is counted rather than read off a line — spec § 14 *Manipulation*, `rule:core-api/shape-rules` R6, `rule:security/capability-check-at-the-door`
 --FILE--
 <?nvs
 // Nothing here may depend on the order the operating system reports entries in,

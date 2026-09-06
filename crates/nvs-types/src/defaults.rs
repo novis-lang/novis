@@ -315,8 +315,8 @@ pub(crate) fn eval_property_default(
 /// The declared type still decides, as it does for a literal: a case is
 /// accepted where the property declares that enum, an `int` constant widens
 /// into a `float` property under `rule:types/conversion`'s one implicit conversion, and
-/// nothing else crosses. A `secret` constant ([ADR 0033](/docs/adr/0033-secret-qualifier-for-confidential-values.md)
-/// § 1) is refused into a non-`secret` slot with its own `E_TYPE_MISMATCH`,
+/// nothing else crosses. A `secret` constant (`rule:security/secret-qualifier`
+/// ) is refused into a non-`secret` slot with its own `E_TYPE_MISMATCH`,
 /// which is what the qualifier would otherwise be laundered by: the declared
 /// type is the only thing carrying it, and a folded value has already lost it.
 /// `reported` says whether that refusal already spoke, so the caller does not
@@ -363,7 +363,7 @@ fn const_reference_default(
                 )
                 .with_primary(expr.span, "a `secret` constant in a non-`secret` slot")
                 .with_help(
-                    "declare the property `secret` too, so the qualifier ADR 0033 § 1 puts on \
+                    "declare the property `secret` too, so the qualifier `rule:security/secret-qualifier` puts on \
                      the constant still travels with the value it initializes",
                 ),
             );

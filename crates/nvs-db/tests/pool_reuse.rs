@@ -1,4 +1,4 @@
-//! [ADR 0067](/docs/adr/0067-core-db.md) § 13's pool against a real
+//! `rule:security/db-pool-reset-is-a-boundary`'s pool against a real
 //! server: two requests on one core share one connection, and it is the *same*
 //! connection rather than a second one that answers as well; with
 //! `pool = false` they share nothing, which is the same question asked of the

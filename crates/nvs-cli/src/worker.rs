@@ -35,7 +35,7 @@
 //! ## Why the grants are the run's own
 //!
 //! A claimed job is § 5's root isolate, and an isolate is reached through
-//! [ADR 0118](/docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md) § 2's
+//! `rule:security/capability-check-at-the-door`'s
 //! spawn door like any other — [`nvs_runtime::script::resolve`] asks `script.spawn` with the job's
 //! path as its scope. That question is asked of the *context*, and a worker's context is not the
 //! script's, so each one is handed the same configuration snapshot the run resolved at boot. § 5's
@@ -52,7 +52,7 @@
 //! claim's `select` and its `update` are one moment or they are nothing, and a backend without the
 //! construct that makes them one statement pays a transaction for the same property. It is
 //! `workers` connections against the deployment's `max_connections` and the operator wrote the
-//! number; [ADR 0067] § 13's pool is deliberately not involved, because a pool exists to be handed
+//! number; `rule:security/db-pool-reset-is-a-boundary`'s pool is deliberately not involved, because a pool exists to be handed
 //! between requests and this connection belongs to one task for its whole life. A turn that claims
 //! spends one isolate on top of that — its own arena and budget, sharing only the compiled unit,
 //! which [`crate::script`]'s cache holds for the run so a queue draining ten jobs off one script
@@ -78,7 +78,6 @@
 //! every attempt before the last is visible only on this worker's standard error.
 //! [`nvs_stdlib::queue::MIGRATION_POSTGRES`]'s own doc owns that decision and what a deeper array would cost.
 //!
-//! [ADR 0067]: ../../../docs/adr/0067-core-db.md
 
 use std::cell::Cell;
 use std::io;
@@ -919,7 +918,7 @@ fn open(name: &str, block: &Database) -> Option<Wire> {
 ///
 /// **Owned and three arms, where [`Dialect`] is borrowed and two.** A worker holds its connection
 /// for the whole run — the module doc's *What it spends* section owns why it is not out of
-/// ADR 0067 § 13's pool — so there has to be a value that *is* the connection, and it has one arm
+/// `rule:security/db-pool-reset-is-a-boundary`'s pool — so there has to be a value that *is* the connection, and it has one arm
 /// per driver this can open. What every statement below then branches on is the dialect, which is
 /// two, and [`Wire::dialect`] is the one place the three become it.
 ///

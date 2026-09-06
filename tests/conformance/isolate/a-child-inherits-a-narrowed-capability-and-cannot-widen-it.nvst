@@ -1,7 +1,7 @@
 --TEST--
-A `spawn script` child runs under the capability grant in force where it was spawned: it inherits the narrowing its parent's `[[app]]` block made, and neither an `[[app]]` block naming the child nor a `Core\Config::set` widens it back — ADR 0006 § *Decision*, ADR 0104 § 2, ADR 0118 §§ 1 and 5
+A `spawn script` child runs under the capability grant in force where it was spawned: it inherits the narrowing its parent's `[[app]]` block made, and neither an `[[app]]` block naming the child nor a `Core\Config::set` widens it back — ADR 0006 § *Decision*, ADR 0104 § 2, `rule:security/capability-question-is-grant-and-scope` and `rule:security/denial-is-a-runtime-error`
 --FILE nvs.toml--
-# ADR 0118 § 2: `spawn script` goes through a door that asks for
+# `rule:security/capability-check-at-the-door`: `spawn script` goes through a door that asks for
 # `script.spawn` first, and deny-by-default means a case with no configuration
 # cannot spawn at all. Granted unscoped so that the only capability this case
 # measures is `fs.read`.
@@ -45,7 +45,7 @@ echo "child read ", Core\IO::read('./data/note.txt');
 
 // Outside the parent's grant, inside the host's, and named by an `[[app]]`
 // block of the child's own — the widening, asked for in the one place a
-// configuration could still ask for it. Refused, and refused as ADR 0118 § 5's
+// configuration could still ask for it. Refused, and refused as `rule:security/denial-is-a-runtime-error`'s
 // catchable `RuntimeError` naming the capability rather than as a `FATAL`.
 try {
     echo Core\IO::read('./secret.txt');

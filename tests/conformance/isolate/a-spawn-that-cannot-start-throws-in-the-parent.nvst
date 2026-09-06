@@ -1,7 +1,7 @@
 --TEST--
 `spawn script` reports the parent's own mistakes as throws rather than as a `ScriptResult` — ADR 0006 § *Decision*, § *Failure is a value, not an exception*
 --FILE nvs.toml--
-# ADR 0118 § 2: `spawn script` goes through a door that asks for
+# `rule:security/capability-check-at-the-door`: `spawn script` goes through a door that asks for
 # `script.spawn` first, and deny-by-default means a case with no
 # configuration cannot spawn at all. Granted here so that what the case
 # asserts stays the parent's *own* mistakes — a missing child and a
@@ -10,7 +10,7 @@
 spawn = true
 --FILE--
 <?nvs
-// ADR 0006's failure-is-a-value rule is about what the *child* did. A path
+// `rule:security/isolate-shares-nothing`'s failure-is-a-value rule is about what the *child* did. A path
 // that names nothing and an `output:` spelling that is neither of the two the
 // ADR gives were both written by the parent before any child existed, so they
 // are ordinary throws here — `crates/nvs-runtime/src/script.rs`'s module doc

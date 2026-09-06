@@ -179,7 +179,7 @@ first, so the catalog is honest about sequencing rather than implying all of it 
   (`rule:classes/definite-property-initialization`); `include`/`require_once` offer "replace with
   `require`" (`rule:statements/require-is-the-only-inclusion-construct`); a `tainted`/`secret` value reaching a
   refusing sink offers the specific laundering call the diagnostic already names
-  ([ADR 0024](0024-taint-tracking-for-injection-sinks.md)/[0033](0033-secret-qualifier-for-confidential-values.md)),
+  (`rule:security/tainted-qualifier`/[0033](0033-secret-qualifier-for-confidential-values.md)),
   which includes a mis-ordered `tainted secret string` — the grammar fixes that order, so the diagnostic
   already names the fix; and a `#[Route]` missing its required `path` offers the path derived from the
   declaring class, the method name and the capture-typed parameters
@@ -263,7 +263,7 @@ first, so the catalog is honest about sequencing rather than implying all of it 
 - A live, debug-session object/value inspector built on `Core\Reflect` ([ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md)) — distinct from the static AST panel above, this needs both the stdlib
   reflection surface (M7/M8) and `nvs dap` (M10) to exist together, and a design for how a DAP `variables`
   request surfaces a reflected object graph.
-- A request-tree visualization for `spawn`/`spawn script` ([ADR 0006](0006-isolated-script-execution.md))
+- A request-tree visualization for `spawn`/`spawn script` (`rule:security/isolate-shares-nothing`)
   during a debug session — this would need `nvs dap` to expose isolate/task-tree structure through a
   custom DAP extension, which is a real protocol-design question, not just editor glue.
 

@@ -1,7 +1,7 @@
 --TEST--
 `Core\Script::args()` is the read half of `spawn script … with(args: …)`: a child sees the value its parent passed, and a child spawned without the option sees `null` — as does the root script, which nothing spawned — `rule:core-classes/script-args`, ADR 0006 § *Decision*
 --FILE nvs.toml--
-# ADR 0118 § 2: `spawn script` goes through a door that asks for
+# `rule:security/capability-check-at-the-door`: `spawn script` goes through a door that asks for
 # `script.spawn` first, and deny-by-default means a case with no
 # configuration cannot spawn at all. This grants it and nothing else.
 [capabilities.script]

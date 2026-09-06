@@ -1,10 +1,10 @@
 --TEST--
-`Core\Serialize::decode`'s operand is a taint sink whatever route the bytes arrived by — a local, a concatenation, a member's return type, an array element, a repeated cast, or taint composed with `secret` — while untainted bytes decode — ADR 0088 § 1, `rule:classes/serialize-is-a-closed-format`
+`Core\Serialize::decode`'s operand is a taint sink whatever route the bytes arrived by — a local, a concatenation, a member's return type, an array element, a repeated cast, or taint composed with `secret` — while untainted bytes decode — `rule:security/sink-predicate`, `rule:classes/serialize-is-a-closed-format`
 --FILE--
 <?nvs
 // `decode` names classes and rebuilds their declared properties, so an
-// attacker-chosen byte string picks which class the program is handed. ADR 0088
-// § 1 therefore declares the parameter `bytes` under `Qual::Sink`, which makes
+// attacker-chosen byte string picks which class the program is handed. `rule:security/sink-predicate`
+// therefore declares the parameter `bytes` under `Qual::Sink`, which makes
 // every refusal below an ordinary assignability failure rather than a rule of
 // the member's own — and that is the point being pinned: there is no launderer
 // in front of this sink, so nothing a caller can write in the argument position

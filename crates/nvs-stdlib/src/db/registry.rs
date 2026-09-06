@@ -257,7 +257,7 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
             name: "query",
             names: &["sql", "params"],
             params: &[
-                // § 4's Q column, and ADR 0024 § 4's whole injection story: the
+                // § 4's Q column, and `rule:security/sink-predicate`'s whole injection story: the
                 // statement text is the sink, so a `tainted` value cannot reach
                 // it at all and the bound parameters below accept one freely.
                 CoreTy::Text(Qual::Sink),

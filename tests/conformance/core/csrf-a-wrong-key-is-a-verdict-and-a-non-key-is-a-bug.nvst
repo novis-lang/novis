@@ -1,5 +1,5 @@
 --TEST--
-Core\Csrf answers `false` for a token under another key and throws a LogicError for a `bytes` that was never a key — the 32-octet bound named on both sides and on both members — ADR 0060 §§ 1, 4
+Core\Csrf answers `false` for a token under another key and throws a LogicError for a `bytes` that was never a key — the 32-octet bound named on both sides and on both members — `rule:security/protocol-roster` and `rule:security/algorithm-comes-from-the-key`
 --FILE--
 <?nvs
 // A bound asserted on both sides, over the two error rows both reference cards

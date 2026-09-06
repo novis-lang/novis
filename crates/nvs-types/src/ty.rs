@@ -45,19 +45,19 @@ pub enum Ty {
     String,
     /// `bytes` — `rule:types/bytes`.
     Bytes,
-    /// `tainted string` — ADR 0024 § 1.
+    /// `tainted string` — `rule:security/tainted-qualifier`.
     TaintedString,
-    /// `tainted bytes` — ADR 0024 § 1.
+    /// `tainted bytes` — `rule:security/tainted-qualifier`.
     TaintedBytes,
-    /// `secret string` — ADR 0033 § 1. Independent of `tainted`: a value can
+    /// `secret string` — `rule:security/secret-qualifier`. Independent of `tainted`: a value can
     /// carry either qualifier, both, or neither.
     SecretString,
-    /// `secret bytes` — ADR 0033 § 1, the `Bytes` counterpart of
+    /// `secret bytes` — `rule:security/secret-qualifier`, the `Bytes` counterpart of
     /// [`Self::SecretString`].
     SecretBytes,
-    /// `secret tainted string` — ADR 0033 § 1: both qualifiers composed.
+    /// `secret tainted string` — `rule:security/secret-qualifier`: both qualifiers composed.
     SecretTaintedString,
-    /// `secret tainted bytes` — ADR 0033 § 1, the `Bytes` counterpart of
+    /// `secret tainted bytes` — `rule:security/secret-qualifier`, the `Bytes` counterpart of
     /// [`Self::SecretTaintedString`].
     SecretTaintedBytes,
     /// `array<T>`. A bare `array` is `Array` of the interned `Mixed` id —

@@ -1,5 +1,5 @@
 --TEST--
-Core\IO::append and a Core\IO\FileMode::Append handle write to the same end, found at each write rather than remembered — two writers interleaved over one file, and a seek in the middle, land their bytes in call order — spec § 14, ADR 0118 § 2
+Core\IO::append and a Core\IO\FileMode::Append handle write to the same end, found at each write rather than remembered — two writers interleaved over one file, and a seek in the middle, land their bytes in call order — spec § 14, `rule:security/capability-check-at-the-door`
 --FILE--
 <?nvs
 // One file, two writers, alternating. If either of them had found the end once

@@ -1,8 +1,8 @@
-# ADR 0088 — A sink is a parameter that becomes an instruction, and an unclassified one refuses
+# `rule:security/sink-predicate` — A sink is a parameter that becomes an instruction, and an unclassified one refuses
 
 - **Status:** Accepted
 - **Date:** 2026-08-25
-- **Scope:** the predicate that decides whether a `Core` parameter is an [ADR 0024](0024-taint-tracking-for-injection-sinks.md)
+- **Scope:** the predicate that decides whether a `Core` parameter is an `rule:security/tainted-qualifier`
   sink; the fail-closed default for a `string`/`bytes` parameter nobody classified, and where that
   classification is declared; which sink `echo` writes to in every execution context Novis has; the typed
   `Core\Response` body members that replace `write`; and the carrier type a captured sink yields. Not in
@@ -25,7 +25,7 @@
   the sink's carrier.
 - **Amended by:** 0092
 
-> **In short:** [ADR 0024](0024-taint-tracking-for-injection-sinks.md) § 4 lists five sinks, and a list is a
+> **In short:** `rule:security/sink-predicate` lists five sinks, and a list is a
 > deny-list wearing a type system's clothes: a `Core` member nobody thought about accepts tainted data
 > silently. That is not hypothetical — `Core\Str::format`'s `$template` is unmarked today, so a tainted
 > `printf` template compiles, while `Core\Regex`'s pattern one section away is correctly a sink. This ADR

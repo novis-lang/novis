@@ -223,7 +223,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             let brace = self.peek().span;
             // The braced form is refused and then parsed anyway — the block's
             // declarations are still the ones the author wrote, so this file
-            // reports what is wrong inside them in the same run. ADR 0112 keys
+            // reports what is wrong inside them in the same run. `rule:security/authority-is-the-enclosing-namespace` keys
             // authority on the enclosing namespace, and a file that is two
             // namespaces has an authority that depends on the line number.
             self.diags.report(

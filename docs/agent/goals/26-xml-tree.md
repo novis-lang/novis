@@ -68,7 +68,7 @@ Goal 25's whole acceptance list, carried in verbatim by `tools/goal-switch.py`. 
 
 ## Stage 5 — `Core\Html::sanitize`, which is why the tree matters
 
-1. **`sanitize` is an [ADR 0024](../../adr/0024-taint-tracking-for-injection-sinks.md) launderer**, and
+1. **`sanitize` is an `rule:security/tainted-qualifier` launderer**, and
    it is the *second* one on this class — `escape` is the auto-applied one. It parses with stage 4's
    parser, walks stage 2's tree against a closed allowlist of elements and attributes, and serialises.
 2. **An allowlist, never a denylist**, and it is closed rather than configurable. A sanitizer whose

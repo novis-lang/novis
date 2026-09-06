@@ -533,7 +533,7 @@ mod tests {
             nvs_runtime::capability::exec(&ctx, Path::new("./say.bat.gz"), &[], RUN_MEMBER)
                 .expect_err("nothing is at that path");
         let Fault::Thrown(class, message) = missing else {
-            panic!("a failed spawn is catchable too — ADR 0118 § 5");
+            panic!("a failed spawn is catchable too — `rule:security/denial-is-a-runtime-error`");
         };
         assert_eq!(
             class,

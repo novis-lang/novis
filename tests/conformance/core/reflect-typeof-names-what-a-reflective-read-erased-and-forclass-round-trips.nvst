@@ -8,7 +8,7 @@ class Point {
     private int $scratch = 0;
 }
 
-// ADR 0019 § 2's read erases the property's declared type to `mixed`, and this
+// `rule:security/reflection-enforces-visibility`'s read erases the property's declared type to `mixed`, and this
 // is what puts it back — the answer is about the slot's value, so two
 // properties of one object answer differently through the same member.
 var $point = new Point();

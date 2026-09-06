@@ -335,7 +335,7 @@ fn parameter(param: &RouteParam) -> Value {
 /// §§ 3 and 5) that have an unambiguous JSON Schema, and nothing else is
 /// guessed at. `tainted string` renders as `string` because the qualifier is a
 /// fact about the compiler's tracking, not about the wire
-/// ([ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)).
+/// (`rule:security/tainted-qualifier`).
 ///
 /// `allowed` is [`RouteParam::allowed`], and it *joins* the type mapping rather
 /// than replacing it: `enum` constrains a value, it does not describe one. A

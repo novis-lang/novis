@@ -1,10 +1,10 @@
-//! ADR 0006's two constructs — `spawn script … with(…)` and `await` — and what
+//! `rule:security/isolate-shares-nothing`'s two constructs — `spawn script … with(…)` and `await` — and what
 //! each is typed as.
 //!
 //! Both arms compile, and so do both entry forms: `nvs_ir::lower`'s
 //! `lower_spawn_script` and `lower_await` are the two `CoreCall`s they become.
 //! What still refuses here is narrower and is named where it is reported —
-//! three of ADR 0006's five options (`E0777`), and an operand that is neither
+//! three of `rule:security/isolate-shares-nothing`'s five options (`E0777`), and an operand that is neither
 //! a path nor a static method (`E0802`). [`check_entry`] owns the operand rule
 //! itself, and the one thing it does not yet ask.
 //!
@@ -13,8 +13,8 @@
 //! row that marks a parameter
 //! [`CoreTy::Entry`](nvs_stdlib::registry::CoreTy::Entry) reaches
 //! [`entry_operand`] through [`check_core_isolate_call`] and gets the same
-//! three outcomes with the construct's own name in them — as does ADR 0033
-//! § 4's refusal over what crosses beside it. That is why this module is the
+//! three outcomes with the construct's own name in them — as does `rule:security/secret-sinks-refuse`
+//! 's refusal over what crosses beside it. That is why this module is the
 //! home of two rules whose second caller is a member call rather than a
 //! construct.
 //!
@@ -31,7 +31,7 @@
 //! # The handle is a `Core` class and the result is a shape
 //!
 //! `$job = spawn script …;` and `$result = await $job;` are the two halves of
-//! ADR 0006's § *Decision*, and they are answered by opposite mechanisms. One
+//! `rule:security/isolate-shares-nothing`'s § *Decision*, and they are answered by opposite mechanisms. One
 //! fact decides both: **a `Core` instance has no property a program can reach**
 //! — [`CoreTy::Instance`](nvs_stdlib::registry::CoreTy::Instance) is a class
 //! whose members are called, and `CoreClass::slots` is a layout helper bodies
@@ -60,7 +60,7 @@
 //! ```
 //!
 //! One field per member of `nvs_host::Completion`, which is the native half
-//! of the same value and the reason the field set is this and not ADR 0006's
+//! of the same value and the reason the field set is this and not `rule:security/isolate-shares-nothing`'s
 //! full table: `code`, `trace` and a limit breach's `error->limit` are named by
 //! § *Failure is a value, not an exception* and are **item 22's**, together
 //! with the top-level `return` contract that fills `value`. `rule:testing/debug-probes`'s
@@ -69,7 +69,7 @@
 //! invisible to every call site that does not read it.
 //!
 //! `error` is nullable because the native half makes it `Some` exactly when
-//! `ok` is false, which costs ADR 0006's own `$result->error->message` a `?->`
+//! `ok` is false, which costs `rule:security/isolate-shares-nothing`'s own `$result->error->message` a `?->`
 //! or a narrowing until the checker can read one off the `ok` test. That is the
 //! honest type and the alternative is a shape whose fields are empty strings on
 //! the success path, which is the state PHP's `errno`/`error_get_last` pair
@@ -114,7 +114,7 @@ use crate::{Ctx, Env};
 use super::assign::{is_assignable, report_mismatch};
 use super::{check_expr, reject_secret_crossing};
 
-/// `spawn script <path> with(<options>)` — ADR 0006's isolate spawn.
+/// `spawn script <path> with(<options>)` — `rule:security/isolate-shares-nothing`'s isolate spawn.
 ///
 /// Two checks that do not know about each other: [`check_entry`] on the
 /// operand, and one pass over the options. The answer is [`script_handle`] on
@@ -151,7 +151,7 @@ pub(crate) fn check_spawn_script(
                     )
                     .with_primary(opt.span, "this option would be accepted and ignored")
                     .with_help(
-                        "ADR 0006 specifies all five options and this compiler enforces \
+                        "`rule:security/isolate-shares-nothing` specifies all five options and this compiler enforces \
                          `args:` and `output:`. Refusing the other three is deliberate: a \
                          `grants:` narrowing that were silently dropped would hand the \
                          child the parent's authority",
@@ -161,7 +161,7 @@ pub(crate) fn check_spawn_script(
             }
         };
         let ty = check_expr(&opt.value, expected, live, scope, ctx, env);
-        // ADR 0033 § 4's second carrier. The bullet refuses a `secret` value at
+        // `rule:security/secret-sinks-refuse`'s second carrier. The bullet refuses a `secret` value at
         // the graph copy "for both its callers alike", so this is the same
         // refusal `Core\Serialize::encode` reports and not a spawn-specific
         // rule — `super::quals::reject_secret_crossing` owns the sentence, and
@@ -277,9 +277,9 @@ fn entry_operand(path: &Expr, ty: TypeId, form: &str, env: &mut Env<'_>) {
 /// `nvs-stdlib` holds the marked rows to static ones rather than this function
 /// growing a second call site for a member that does not exist.
 ///
-/// **Two rules, because such a call is two things.** The entry takes ADR 0006's
+/// **Two rules, because such a call is two things.** The entry takes `rule:security/isolate-shares-nothing`'s
 /// operand rule, [`entry_operand`]'s. Every *other* argument is what crosses
-/// into the child, so it takes ADR 0033 § 4's refusal at the graph copy —
+/// into the child, so it takes `rule:security/secret-sinks-refuse`'s refusal at the graph copy —
 /// [`reject_secret_crossing`], the same one `spawn script`'s `args:` reaches
 /// from [`check_spawn_script`], with only the clause naming the carrier
 /// differing. The mark identifies the member for both: an isolate opener is
@@ -424,7 +424,7 @@ pub(crate) fn script_handle(env: &mut Env<'_>) -> TypeId {
         .class(QName::parse(nvs_stdlib::script::HANDLE_NAME))
 }
 
-/// ADR 0006's `ScriptResult`, interned: the shape this module's doc decides on,
+/// `rule:security/isolate-shares-nothing`'s `ScriptResult`, interned: the shape this module's doc decides on,
 /// with one field per member of the native `Completion` that fills it.
 pub(crate) fn script_result(env: &mut Env<'_>) -> TypeId {
     let bool_ty = env.interner.bool_ty();

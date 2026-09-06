@@ -1,8 +1,8 @@
 --TEST--
-A value bound beside the statement is stored and compared as data, exactly as SQLite3Stmt::bindValue binds one — the quote, the comment opener and the NULL included — `rule:core-classes/db-one-api` and `rule:core-classes/db-parameters`, ADR 0024 § 4
+A value bound beside the statement is stored and compared as data, exactly as SQLite3Stmt::bindValue binds one — the quote, the comment opener and the NULL included — `rule:core-classes/db-one-api` and `rule:core-classes/db-parameters`, `rule:security/sink-predicate`
 --FILE--
 <?nvs
-// ADR 0024 § 4's rule is that the statement text refuses `tainted` while the
+// `rule:security/sink-predicate`'s rule is that the statement text refuses `tainted` while the
 // bound values accept it freely, and § 1 says why there is no escaper to reach
 // for instead. What that buys is observable without any taint at all: a value
 // that reads as SQL is stored verbatim and compared verbatim, which is what

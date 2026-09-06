@@ -1,5 +1,5 @@
 --TEST--
-`echo` replaces every control byte of a computed escape sequence with a visible glyph, and `Core\Cli::escape` answers the same bytes as the sink it launders for — ADR 0086 § 1, ADR 0024 § 3
+`echo` replaces every control byte of a computed escape sequence with a visible glyph, and `Core\Cli::escape` answers the same bytes as the sink it launders for — ADR 0086 § 1, `rule:security/launderers-are-sink-named`
 --FILE--
 <?nvs
 // ADR 0086 § 1: standard output is a sink, and a control byte is replaced by
@@ -20,7 +20,7 @@ string $attack = $esc . "]0;owned" . $bel;
 // them is untouched: this is not an escaper of visible text.
 echo $attack, "\n";
 
-// § 1's named launderer is the same table reached as a value. ADR 0024 § 3
+// § 1's named launderer is the same table reached as a value. `rule:security/launderers-are-sink-named`
 // requires a launderer to name one sink; this one names the terminal, and the
 // property that would otherwise drift silently is that it answers exactly what
 // that sink writes.

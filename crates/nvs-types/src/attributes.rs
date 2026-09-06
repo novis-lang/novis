@@ -21,8 +21,8 @@
 //! attribute's name resolves in the ordinary namespace/`use` scope, and an
 //! unresolvable one is the ordinary `E0303` rather than a refusal of its own.
 //!
-//! One consequence of § 2 is checked from here but owned elsewhere: ADR 0033
-//! § 4's fifth sink — a `secret` class constant reaching a payload — is
+//! One consequence of § 2 is checked from here but owned elsewhere: `rule:security/secret-sinks-refuse`
+//! 's fifth sink — a `secret` class constant reaching a payload — is
 //! `crate::expr::quals`', where every other sink already lives.
 //! [`check_value`] calls it at each value it reaches, that walk being the one
 //! place every payload value passes.
@@ -349,7 +349,7 @@ fn report_not_a_shape(name: &Name, what: &str, env: &mut Env<'_>) {
 /// [`check_attribute`] the literal is worth checking against a shape.
 fn check_value(expr: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>) -> bool {
     if is_constant(expr) {
-        // ADR 0033 § 4's fifth sink, asked of every value this walk reaches
+        // `rule:security/secret-sinks-refuse`'s fifth sink, asked of every value this walk reaches
         // and not only of a payload's top level: a `secret` constant nested
         // inside an array or an object literal is folded into the same
         // constant pool. It answers for a `Class::CONST` and for nothing

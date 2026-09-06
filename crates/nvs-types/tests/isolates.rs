@@ -1,4 +1,4 @@
-//! ADR 0006's `spawn script` and `await`: what each is typed as, and which of
+//! `rule:security/isolate-shares-nothing`'s `spawn script` and `await`: what each is typed as, and which of
 //! the five `with(...)` options this compiler will accept.
 //!
 //! `nvs_types::expr::isolate`'s module doc is the home of the decision these
@@ -188,7 +188,7 @@ fn an_upgrade_refuses_a_callable_variable_as_its_entry() {
 
 /// The entry interns as `mixed` so that the method form is not a mismatch
 /// (`CoreTy::Entry`), which is exactly the lowering that could have dropped
-/// ADR 0088 § 1's sink with it: a path whose content becomes the instruction
+/// `rule:security/sink-predicate`'s sink with it: a path whose content becomes the instruction
 /// "execute this file" is the one argument a `tainted` value may never fill.
 /// The comparison is `check_entry`'s own and reports the ordinary mismatch a
 /// sink does.
@@ -217,7 +217,7 @@ fn an_upgrade_refuses_an_entry_that_is_neither_shape() {
     );
 }
 
-/// The other half of what a member that opens an isolate is: ADR 0033 § 4
+/// The other half of what a member that opens an isolate is: `rule:security/secret-sinks-refuse`
 /// refuses a `secret` **at the graph copy**, for both its callers alike, so an
 /// `args:` that crosses into a connection isolate refuses one exactly where
 /// `spawn script`'s `args:` does. A member with an entry parameter is what

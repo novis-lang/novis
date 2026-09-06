@@ -151,7 +151,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // length-prefixed value on the wire and there is no injection to
             // prevent; and a `secret` one is refused, because every mark but
             // `Qual::Reveal` refuses `secret` and writing a signing key into a
-            // store with a lifetime is the durable exposure ADR 0033 exists to
+            // store with a lifetime is the durable exposure `rule:security/secret-qualifier` exists to
             // close. Nothing of the key reaches the answer, which is what makes
             // the mark neutral rather than contagious.
             params: &[

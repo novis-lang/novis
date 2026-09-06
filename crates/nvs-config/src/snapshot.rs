@@ -182,7 +182,7 @@ impl Snapshot {
             );
         }
         snapshot.retype()?;
-        // [ADR 0118] § 4's grant side, canonicalized once and here rather than per check, for the
+        // `rule:security/path-scope-canonicalise-then-prefix`'s grant side, canonicalized once and here rather than per check, for the
         // reason an `[[app]]` key is canonicalized at this same point: a root still spelled the way
         // the operator typed it is a comparison against the wrong thing.
         //

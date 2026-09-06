@@ -1,8 +1,8 @@
 --TEST--
-`Core\Response::bytes` names the last content type a header field can carry and the first one it cannot, and refuses with nothing written -- ADR 0088 §§ 1, 4 and ADR 0074
+`Core\Response::bytes` names the last content type a header field can carry and the first one it cannot, and refuses with nothing written -- `rule:security/sink-predicate` and `rule:security/response-body-is-one-typed-member` and ADR 0074
 --FILE--
 <?nvs
-// ADR 0088 § 1: the content type is a sink, because it is the one string here
+// `rule:security/sink-predicate`: the content type is a sink, because it is the one string here
 // that becomes an *instruction* to the peer about how to read the rest. So the
 // bound is asserted on both sides -- a member that stopped one byte early
 // would print plausibly against either half alone.

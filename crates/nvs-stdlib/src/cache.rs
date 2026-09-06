@@ -1,5 +1,5 @@
 //! `Core\Cache` — [ADR 0059](/docs/adr/0059-cross-request-state-is-explicit.md)'s
-//! sanctioned exception to ADR 0052 § 3's closed door on cross-request state,
+//! sanctioned exception to `rule:security/no-cross-request-state`'s closed door on cross-request state,
 //! as two members that hand back a store and the two operations on one.
 //!
 //! § 1's two tiers are two members rather than one API with a flag, so the
@@ -37,12 +37,12 @@
 //!
 //! # Decision: the local tier needs no grant, and § 1's open question is closed
 //!
-//! [ADR 0112](/docs/adr/0112-authority-is-keyed-on-the-enclosing-namespace.md)
-//! § 8 listed `Core\Cache::local()` as the one capability-bearing member with no
+//! `rule:security/capability-roster-is-closed`
+//! listed `Core\Cache::local()` as the one capability-bearing member with no
 //! grant named for it, and left the naming to ADR 0059. The answer written into
 //! that ADR's § 1 is that there is **no grant**, because
-//! [ADR 0118](/docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)
-//! § 1 checks a capability at the door to an *effect* and this tier has no
+//! `rule:security/capability-question-is-grant-and-scope`
+//! checks a capability at the door to an *effect* and this tier has no
 //! door: nothing leaves the process, no name is resolved and no file is opened.
 //! What is left to bound is footprint, and § 3's `nvs.toml` cap is the
 //! instrument for a bound — a boolean grant would not be one. The shared tier
@@ -216,7 +216,7 @@ pub(crate) const STORE: CoreClass = CoreClass {
             name: "put",
             names: &["key", "value"],
             // The key is `Qual::Neutral` and the value is unclassified, and the
-            // difference is ADR 0088 § 2's. Not a byte of the key reaches any
+            // difference is `rule:security/unclassified-parameter-refuses-tainted`'s. Not a byte of the key reaches any
             // answer, so a `tainted` one is admitted — a cache key derived from
             // a request is ordinary, and the key is data rather than an
             // instruction (§ 7). The *value* is refused, because `mixed` has
@@ -1062,7 +1062,7 @@ mod tests {
     /// `Ctx::memory_used` is the per-request reading, and that module doc says
     /// how the two relate — so a second core writing the same key raises its own
     /// by the same amount. That is § 3's O(cores × working set) measured rather
-    /// than restated, and it is the price ADR 0052 § 3's isolation is bought
+    /// than restated, and it is the price `rule:security/no-cross-request-state`'s isolation is bought
     /// with.
     #[test]
     fn the_local_tiers_memory_is_charged_to_the_core_and_capped() {

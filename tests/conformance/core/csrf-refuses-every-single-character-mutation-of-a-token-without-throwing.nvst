@@ -1,5 +1,5 @@
 --TEST--
-Core\Csrf::verify refuses every single-character mutation of a token — substituted inside base64's alphabet, substituted outside it, or deleted — at every position of every region, and none of the three sweeps throws — ADR 0060 §§ 1, 4
+Core\Csrf::verify refuses every single-character mutation of a token — substituted inside base64's alphabet, substituted outside it, or deleted — at every position of every region, and none of the three sweeps throws — `rule:security/protocol-roster` and `rule:security/algorithm-comes-from-the-key`
 --FILE--
 <?nvs
 // Invariance over a sweep, counted. A token is a nonce, a sealed binding and a
@@ -17,7 +17,7 @@ int $width = Core\Str::length($token) as int;
 
 // Three mutations at each position: one that keeps the string decodable, one
 // that does not, and one that shortens it. The first is the tag check's
-// question, the second is the decode's, and ADR 0060 § 1 wants one answer to
+// question, the second is the decode's, and `rule:security/protocol-roster` wants one answer to
 // both — a member that distinguished them would tell a forger which half of
 // the guess landed.
 int $inAlphabet = 0;

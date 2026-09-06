@@ -1,5 +1,5 @@
 --TEST--
-What a peer sent arrives `tainted`, so it reaches no sink without laundering while `Core\Socket`'s own two sends still forward it — ADR 0083 § 3, ADR 0024 § 3
+What a peer sent arrives `tainted`, so it reaches no sink without laundering while `Core\Socket`'s own two sends still forward it — ADR 0083 § 3, `rule:security/launderers-are-sink-named`
 --FILE--
 <?nvs
 // § 3 marks a received frame's payload `tainted`: it is untrusted input off a
@@ -11,7 +11,7 @@ What a peer sent arrives `tainted`, so it reaches no sink without laundering whi
 // Forwarding it is accepted -- a frame is not an instruction on this side of
 // the wire, so both sends classify their payload neutrally and § 3's own loop
 // can hand back what the peer sent. Reaching a path with it is refused,
-// because a path *is* an instruction (ADR 0088 § 1), and the expression is the
+// because a path *is* an instruction (`rule:security/sink-predicate`), and the expression is the
 // same one in both places.
 class Chat {
     public static function relay(Core\Socket $conn, Core\Socket\Message $msg): void {

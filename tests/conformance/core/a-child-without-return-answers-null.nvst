@@ -1,7 +1,7 @@
 --TEST--
 A child that runs to its end without a top-level `return` hands its parent back `null`, while a `require` of that very same file is still `1` — ADR 0006 § *Decision*, against `rule:statements/a-require-expression-is-mixed`
 --FILE nvs.toml--
-# ADR 0118 § 2: `spawn script` goes through a door that asks for
+# `rule:security/capability-check-at-the-door`: `spawn script` goes through a door that asks for
 # `script.spawn` first, and deny-by-default means a case with no
 # configuration cannot spawn at all. This grants it and nothing else.
 [capabilities.script]

@@ -1,15 +1,15 @@
 --TEST--
-`Core\Html::escape` replaces a directional control left open at the end of the text with `U+FFFD`, while a balanced pair passes through untouched — `rule:core-classes/html-auto-escape`, ADR 0087
+`Core\Html::escape` replaces a directional control left open at the end of the text with `U+FFFD`, while a balanced pair passes through untouched — `rule:core-classes/html-auto-escape`, `rule:security/bidi-predicate`
 --FILE--
 <?nvs
 // `rule:core-classes/html-auto-escape`'s last bullet, which is the row a reader does not expect on an
 // escaper: escaping `<`, `>`, `&` and the quotes says nothing about display
 // *order*, so a payload that reverses the rendering of everything after it
-// survives the escape intact. ADR 0087 owns the predicate; this member is its
+// survives the escape intact. `rule:security/bidi-predicate` owns the predicate; this member is its
 // third caller, after the lexer's source spans and the terminal sink.
 
 // Balanced — RLE opens a scope and PDF closes it inside the same value. This
-// is legitimate mixed-direction text, and ADR 0087's whole position is that
+// is legitimate mixed-direction text, and `rule:security/bidi-predicate`'s whole position is that
 // banning the code points outright breaks Arabic and Hebrew.
 string $balanced = "left \u{202B}right\u{202C} left again";
 echo Core\Html::toSource(Core\Html::escape($balanced), "comparing the escape against its input") == $balanced

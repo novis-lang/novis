@@ -1,5 +1,5 @@
 --TEST--
-Core\Jwt::sign and Core\Jwt::verify agree over a sweep of claim shapes — an empty bag, JSON text held as one claim, non-ASCII in a name and a value, the integer bounds and a 2048-character claim all come back as the claim that went in, counted — ADR 0060 §§ 1, 4, 5
+Core\Jwt::sign and Core\Jwt::verify agree over a sweep of claim shapes — an empty bag, JSON text held as one claim, non-ASCII in a name and a value, the integer bounds and a 2048-character claim all come back as the claim that went in, counted — `rule:security/protocol-roster`, `rule:security/algorithm-comes-from-the-key` and `rule:security/verification-does-not-launder`
 --FILE--
 <?nvs
 // Agreement, counted. `sign` assembles the payload as text by hand so the
@@ -64,7 +64,7 @@ echo $identical, " of ", $claimsIn, " claims are the claim that went in", "\n";
 
 // The long one reported as a length rather than as a boolean, so a truncation
 // says what it truncated to. Nothing here echoes a claim: they come back
-// `tainted` (ADR 0060 § 5), and `Core\Str::length` is the neutral member that
+// `tainted` (`rule:security/verification-does-not-launder`), and `Core\Str::length` is the neutral member that
 // answers about one without carrying a byte of it.
 array<tainted string> $blob = Core\Jwt::verify(Core\Jwt::sign(["blob" => $long], 15m, $key), $key);
 echo "the ", Core\Str::length($long), "-character claim comes back ", Core\Str::length($blob["blob"]), " long", "\n";

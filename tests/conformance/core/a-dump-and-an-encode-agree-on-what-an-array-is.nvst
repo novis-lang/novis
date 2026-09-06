@@ -12,7 +12,7 @@ Core\Debug::render, Core\Json::encode and Core\Arr::isList read one array's keys
 // they *agreed*, so a member that grew its own reading of the keys fails here
 // while its own line still looks perfectly plausible.
 class Shape {
-    // A `Core\Cli\Text` converts to `string` (ADR 0088 § 5's carrier), which
+    // A `Core\Cli\Text` converts to `string` (`rule:security/capture-answers-the-carrier`'s carrier), which
     // is what lets the rendering be *asked a question* rather than only shown.
     // Every subject below holds `int` values, so the only quotation mark a
     // rendering can contain came from a key — that is the whole plaintext

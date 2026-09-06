@@ -728,7 +728,7 @@ pub fn lower_program(
                 // `secret` bit off the same join.
                 field_reprs,
                 secret_fields,
-                // ADR 0019 § 2's visibility bit, copied across with the slot
+                // `rule:security/reflection-enforces-visibility`'s visibility bit, copied across with the slot
                 // order it is aligned to — `nvs_types::layout` decided it where
                 // the declaration's keyword still exists.
                 public_fields: layout.public_fields.clone(),
@@ -1806,7 +1806,7 @@ impl<'a> Lowering<'a> {
             fields,
             field_reprs: reprs,
             // A shape literal's field type is *inferred* from its initializer
-            // rather than declared, and ADR 0033 § 1 puts the qualifier on a
+            // rather than declared, and `rule:security/secret-qualifier` puts the qualifier on a
             // declaration — so no slot here is `secret`, and a `{token:
             // $secret}` literal is `nvs_stdlib::debug`'s own known gap rather
             // than a bit this could set.
@@ -3018,7 +3018,7 @@ pub(crate) fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Opti
         CheckedTy::Void => Ty::Void,
         CheckedTy::String => Ty::Str,
         CheckedTy::Bytes => Ty::Bytes,
-        // ADR 0024 § 1 and ADR 0033 § 1: `tainted` and `secret` are two
+        // `rule:security/tainted-qualifier` and `rule:security/secret-qualifier`: `tainted` and `secret` are two
         // independent bits on the *checker's* type and add **zero** runtime
         // representation, exactly as `rule:types/literal-types`'s literal types do above. So
         // all six qualified atoms erase to the base they share a tag and an
@@ -3027,7 +3027,7 @@ pub(crate) fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Opti
         //
         // What that costs is one thing, and it is paid for: a lowering
         // decision that genuinely depends on a qualifier cannot read it back
-        // here. ADR 0033 § 5's constant-time `==` is the only such decision,
+        // here. `rule:security/secret-comparison-is-constant-time`'s constant-time `==` is the only such decision,
         // and the checker records it at the comparison instead
         // (`nvs_types::expr_table::ExprInfo::SecretEquality`).
         CheckedTy::TaintedString | CheckedTy::SecretString | CheckedTy::SecretTaintedString => {

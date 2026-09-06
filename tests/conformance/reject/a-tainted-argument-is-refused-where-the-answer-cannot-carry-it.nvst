@@ -1,5 +1,5 @@
 --TEST--
-a contagious parameter still refuses a tainted argument when its answer is an instance, a `mixed` or an `array<mixed>` — the half of the admission that is deliberately conservative, agreed across four classes — ADR 0088 § 2
+a contagious parameter still refuses a tainted argument when its answer is an instance, a `mixed` or an `array<mixed>` — the half of the admission that is deliberately conservative, agreed across four classes — `rule:security/unclassified-parameter-refuses-tainted`
 --FILE--
 <?nvs
 // `nvs_types::expr::quals::admits_tainted_argument`'s doc comment owns why:

@@ -77,7 +77,7 @@ pub trait Answering: std::fmt::Debug {
     /// The message a refusal is worded with — a program that would not compile,
     /// a child that could not be started. A child that *ran* and threw is not
     /// an error here: it is a [`Completion`] with `ok` false, which is
-    /// [ADR 0006](/docs/adr/0006-isolated-script-execution.md)'s failure-is-a-value
+    /// `rule:security/isolate-shares-nothing`'s failure-is-a-value
     /// and is what a test asserting a handler's own error path reads.
     fn answer(&self, ctx: &mut Ctx, inbound: Box<Inbound>) -> Result<Completion, String>;
 }

@@ -21,7 +21,7 @@ declares; `Core\Regex` binds the engine `rule:core-classes/regex-two-tiers`
 picks, and `Core\Time`'s `format`/`parse` (CLDR patterns), `Core\Time\Duration::parse` and
 `Core\Str::format` land as `rule:expressions/intrinsic-literals` intrinsics with the
 compile-time half wired into `nvs-types` — and, per
-[ADR 0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md) § 6, all three grammars are
+`rule:security/every-grammar-is-a-sink`, all three grammars are
 `tainted` **sinks** alongside `Core\Regex`'s pattern. **`nvs-stdlib`'s member registry gains a per-parameter
 qualifier classification here**, with an unclassified `string`/`bytes` parameter refusing `tainted` and that
 crate's own test suite failing on any member that ships without one (§ 2 of the same ADR); the pass that

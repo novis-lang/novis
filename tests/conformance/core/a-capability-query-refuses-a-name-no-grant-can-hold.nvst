@@ -1,8 +1,8 @@
 --TEST--
-A written `Core\Cap::has` naming something outside the roster is refused while compiling, because `false` is what a merely ungranted capability answers too — ADR 0112 §§ 6, 8
+A written `Core\Cap::has` naming something outside the roster is refused while compiling, because `false` is what a merely ungranted capability answers too — `rule:security/optional-capability-degrades` and `rule:security/capability-roster-is-closed`
 --FILE--
 <?nvs
-// ADR 0112 § 8's roster is closed, and the two spellings below are the two
+// `rule:security/capability-roster-is-closed`'s roster is closed, and the two spellings below are the two
 // ways a misspelling arrives: a capability that does not exist, and a name
 // spelled the way a neighbouring system spells it. Both would answer `false`
 // on every deployment, which is exactly what a real capability nobody granted

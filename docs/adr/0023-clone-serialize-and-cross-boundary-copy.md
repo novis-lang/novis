@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-08-21
 - **Scope:** `clone`, `serialize()`/`unserialize()`, and the deep-copy rule already governing the
-  `spawn`/`spawn worker`/`spawn script` boundary ([ADR 0006](0006-isolated-script-execution.md)); the
+  `spawn`/`spawn worker`/`spawn script` boundary (`rule:security/isolate-shares-nothing`); the
   explicit rejection of `__clone`, `__serialize`, `__unserialize`, `__sleep` and `__wakeup` as customization
   hooks for any of it.
 - **Amends:** [ADR 0006](0006-isolated-script-execution.md) § *Values cross by copy* — that section's
@@ -17,7 +17,7 @@
 > object's own declared storage one level deep, and any object reachable through it — directly or via an
 > array/collection property — keeps pointing at the same shared instance as the original, exactly as PHP's
 > `clone` already behaves. **The graph copy** is a second, stronger operation — recursive, cycle-safe, and
-> heap-crossing — that already existed informally as [ADR 0006](0006-isolated-script-execution.md)'s
+> heap-crossing — that already existed informally as `rule:security/isolate-shares-nothing`'s
 > "values cross by copy" rule; this ADR gives it one formal definition and a second caller:
 > **`serialize()`/`unserialize()`** now share the identical operation with the `spawn`/`spawn worker`/
 > `spawn script` boundary, externalized to bytes instead of moved directly between two live arenas. Neither
@@ -31,12 +31,11 @@
 - PHP gives objects two independent notions of "copy": `clone` (shallow, same-heap, `__clone()` hook);
   `serialize`/`unserialize` (recursive over the whole reachable graph, cycle-safe, to bytes and back, with
   `__sleep`/`__wakeup`/`__serialize`/`__unserialize` hooks); and a value crossing `spawn worker`/
-  `spawn script`, already fixed hookless by [ADR 0006](0006-isolated-script-execution.md) as the same
+  `spawn script`, already fixed hookless by `rule:security/isolate-shares-nothing` as the same
   recursive, cycle-safe graph copy, arena-to-arena.
 - The `spawn` row already exists under a different name ("deep-copied, or moved when refcount is 1" — ADR
   0006 § *Values cross by copy*) and is the same walk as `serialize()`, aimed at a different carrier (a live
-  arena vs. bytes) — defining it twice would repeat the "two implementations to keep correct" problem ADR
-  0006 already declined.
+  arena vs. bytes) — defining it twice would repeat the "two implementations to keep correct" problem `rule:security/isolate-shares-nothing` already declined.
 - `clone` does **not** fold into that operation: PHP's shallow-clone is often the point (cloning a tree node
   shouldn't deep-copy what it references), and forcing it deep would silently break ported PHP classes
   relying on shallow-copy-by-default.
@@ -60,7 +59,7 @@ exactly PHP's existing rule for what "one level" means:
   points to.
   A property holding a host handle — a `Core\IO\File`, a `Core\Process\Child` — is an object like any other
   and is shared, not duplicated. `clone` never crosses a heap, so
-  [ADR 0006](0006-isolated-script-execution.md)'s handle-refusal rule does not apply: nothing is asked to
+  `rule:security/isolate-shares-nothing`'s handle-refusal rule does not apply: nothing is asked to
   leave the arena it is already in.
 - `readonly` properties are written by the copy the same privileged path an ordinary constructor and
   `Core\Reflect` already use, never through ordinary property assignment — so `clone` is not treated as a
@@ -86,7 +85,7 @@ sharing no mutable heap state with its source.
 - **Graph, not tree.** Shared substructure inside the source stays shared inside the copy (two properties
   pointing at the same nested object still point at the same *new* shared object on the other side, not two
   independent copies of it), and a cycle (`$a->self = $a`) terminates instead of recursing forever — the
-  exact guarantee [ADR 0006](0006-isolated-script-execution.md) already stated for values crossing
+  exact guarantee `rule:security/isolate-shares-nothing` already stated for values crossing
   `spawn`/`spawn worker`.
 - **Refuses what has no meaning on the other side.** A closure (captures a heap and a scope), an `inout`
   binding (an alias into a specific frame), or an object holding a host handle is refused with a diagnostic
@@ -94,7 +93,7 @@ sharing no mutable heap state with its source.
   `rule:types/declaration` already notes this is mostly a **compile-time** rejection at the
   copy site given declared types; a `mixed`-typed value carrying one of these is where the runtime check in
   this paragraph is still needed.
-- **Refuses an unresolvable class**, the same rule [ADR 0006](0006-isolated-script-execution.md) already
+- **Refuses an unresolvable class**, the same rule `rule:security/isolate-shares-nothing` already
   fixed for the isolate boundary: an object whose class the receiving side does not have is a diagnostic
   naming the class, never a stub.
 - **Never runs a constructor.** The copy is built by direct assignment into the new instance's storage —
@@ -107,9 +106,9 @@ sharing no mutable heap state with its source.
 **Two carriers, one operation:**
 
 - **Live, arena-to-arena** — the existing `spawn`/`spawn worker`/`spawn script` boundary
-  ([ADR 0006](0006-isolated-script-execution.md)): the graph copy moves directly from the source arena into
+  (`rule:security/isolate-shares-nothing`): the graph copy moves directly from the source arena into
   the destination arena (or is moved rather than copied when the refcount is 1), with no intervening byte
-  representation. This ADR changes no behavior here — it names the mechanism ADR 0006 already specified.
+  representation. This ADR changes no behavior here — it names the mechanism `rule:security/isolate-shares-nothing` already specified.
 - **Externalized, to bytes and back** — spelled `Core\Serialize::encode($x): bytes`, which runs the same
   graph copy and encodes the result into Novis's own binary format, and `Core\Serialize::decode($b): mixed`,
   which decodes it back into a live value by running the identical operation in reverse. They are class
@@ -132,7 +131,7 @@ is versioned and self-describing enough to be checked before any object is built
   never coerced, never filled with a type default. This is what keeps § 4 true: `unserialize()` cannot hand
   back a partially-initialized object, because the one case it does not refuse is the one where every
   declared property has a recorded value.
-- **`decode` is an [ADR 0024](0024-taint-tracking-for-injection-sinks.md) `tainted` sink**, and no
+- **`decode` is an `rule:security/tainted-qualifier` `tainted` sink**, and no
   launderer exists for it. The rules above close the code-execution class, but not type confusion: a
   payload that reconstructs a `User` with `isAdmin: true` bypasses the constructor while satisfying every
   check in this section. Bytes the program itself produced and stored carry no qualifier and decode
@@ -175,7 +174,7 @@ No amendment to `rule:classes/definite-property-initialization` is needed; this 
 **Positive**
 
 - One recursive graph-copy definition, not three (`serialize`, `spawn worker`, `spawn script`) — matching
-  [ADR 0006](0006-isolated-script-execution.md)'s own reasoning for not inventing a second value-crossing
+  `rule:security/isolate-shares-nothing`'s own reasoning for not inventing a second value-crossing
   design when one already existed.
 - PHP's `unserialize()` object-injection/gadget-chain exploitation class is closed by construction: no hook
   ever fires during reconstruction, so there is no method call for attacker-controlled property values to
@@ -195,7 +194,7 @@ No amendment to `rule:classes/definite-property-initialization` is needed; this 
 - **`unserialize()` cannot read another system's PHP-format bytes**, or bytes from a differently-versioned
   Novis build whose class shape has since changed. `nvs convert` gains a real gap here: a script reading
   externally-produced serialized PHP data needs a human rewrite, not a mechanical one.
-- **Two copy depths remain two things to learn** — the same "confusion risk" [ADR 0006](0006-isolated-script-execution.md)
+- **Two copy depths remain two things to learn** — the same "confusion risk" `rule:security/isolate-shares-nothing`
   already flagged for `require` vs. `spawn script`; this ADR's diagnostics and docs should say, next to each
   other, which one `clone` gives and which one `serialize`/the isolate boundary gives.
 
@@ -271,6 +270,6 @@ object still point at one object on the other side; a closure, an `inout` bindin
 object inside the value is refused naming the value and its path; a payload without the format marker, or
 naming a class the receiving side cannot resolve, or whose recorded property set does not match the class's
 current declaration, is refused rather than partially accepted; and a `tainted` payload is refused at the
-`decode` site ([ADR 0024](0024-taint-tracking-for-injection-sinks.md) § 4). The isolate-boundary suite and
+`decode` site (`rule:security/sink-predicate`). The isolate-boundary suite and
 this one **share** those fixtures rather than duplicating them, which is *2*'s "one operation, two
 carriers" asserted rather than described.

@@ -1,5 +1,5 @@
 --TEST--
-a bare relative path is resolved against the current directory before it is compared to a grant, so `.` covers the file a program is about to create — ADR 0118 §§ 1-2
+a bare relative path is resolved against the current directory before it is compared to a grant, so `.` covers the file a program is about to create — `rule:security/capability-question-is-grant-and-scope` and `rule:security/capability-check-at-the-door`
 --FILE--
 <?nvs
 // A bare name has no parent to canonicalise -- `Path::parent` of `missing.txt`

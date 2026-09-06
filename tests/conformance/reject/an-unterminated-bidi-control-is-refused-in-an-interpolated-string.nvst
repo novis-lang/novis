@@ -1,5 +1,5 @@
 --TEST--
-a directional scope opened in a double-quoted literal beside an interpolation is a compile error — ADR 0087 §§ 1-2
+a directional scope opened in a double-quoted literal beside an interpolation is a compile error — `rule:security/bidi-predicate` and `rule:security/bidi-boundaries`
 --FILE--
 <?nvs
 string $name = "ada";

@@ -159,7 +159,7 @@ SECTION_CITE_RE = re.compile(r"§§?\s*(\d+[a-z]?)")
 
 #: A `§ N` cites *another* ADR only when that ADR is named right in front of it -- `[0067] § 13`,
 #: `ADR 0072 § 6`, `[0104]'s § 3`. Anything else between the two is prose, and prose means the `§`
-#: belongs to the ADR doing the writing: 0044 § 199 says "[ADR 0024] ... already carry: every
+#: belongs to the ADR doing the writing: 0044 § 199 says "`rule:security/tainted-qualifier` ... already carry: every
 #: ported call site in § 7's table", and that § 7 is 0044's own. A window wide enough to reach
 #: across a clause reads every one of those as a cross-reference and reports it as dangling.
 #: `E0122` is a diagnostic code, so a digit run preceded by a letter never counts; `2026` is a

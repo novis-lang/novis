@@ -152,8 +152,8 @@ parsed value cannot disagree with the parse the way a separate predicate can.
 ### 4. Qualifiers are untouched
 
 `tainted string as ?int` is `?tainted int`, and `secret` behaves the same way.
-[ADR 0024](0024-taint-tracking-for-injection-sinks.md) and
-[ADR 0033](0033-secret-qualifier-for-confidential-values.md) are orthogonal to the result's nullability,
+`rule:security/tainted-qualifier` and
+`rule:security/secret-qualifier` are orthogonal to the result's nullability,
 and **`as ?T` is never a launderer** — laundering is only ever the narrow, sink-named `Core` functions
 those ADRs name.
 

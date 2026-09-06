@@ -430,7 +430,7 @@ fn tainted_qualifies_string_and_bytes() {
 
 #[test]
 fn tainted_qualifier_parses_in_every_declaration_slot() {
-    // Parameter and return type (ADR 0024 § 1).
+    // Parameter and return type (`rule:security/tainted-qualifier`).
     let s = parse_stmt_ok(
         "class C { \
              public function f(tainted string $s): tainted bytes { return $s as bytes; } \
@@ -498,7 +498,7 @@ fn tainted_rejects_a_non_scalar_operand() {
 
 #[test]
 fn secret_qualifies_string_and_bytes_independently_of_tainted() {
-    // ADR 0033 § 1: `secret` and `tainted` are independent bits — a value
+    // `rule:security/secret-qualifier`: `secret` and `tainted` are independent bits — a value
     // can be `secret string`/`secret bytes` alone, or composed with
     // `tainted` (only in that order).
     let e = parse_ok("$m as secret string");
@@ -536,7 +536,7 @@ fn secret_qualifies_string_and_bytes_independently_of_tainted() {
 fn secret_qualifier_parses_in_every_declaration_slot() {
     // Mirrors `tainted_qualifier_parses_in_every_declaration_slot` —
     // parameter, return type, property, local declaration, `foreach`
-    // binding (ADR 0033 § 1).
+    // binding (`rule:security/secret-qualifier`).
     let s = parse_stmt_ok(
         "class C { \
              public function f(secret string $s): secret bytes { return $s as bytes; } \
@@ -600,7 +600,7 @@ fn secret_rejects_a_non_scalar_operand() {
 
 #[test]
 fn tainted_secret_wrong_order_is_diagnosed() {
-    // ADR 0033 § 1: `secret` must be spelled before `tainted` — the
+    // `rule:security/secret-qualifier`: `secret` must be spelled before `tainted` — the
     // reverse order is a diagnostic, not a second valid spelling.
     let (_, diags) = parse_with_diags("$m as tainted secret string");
     assert!(

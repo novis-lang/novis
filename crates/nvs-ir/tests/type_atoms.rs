@@ -73,7 +73,7 @@ const ATOMS: &[&str] = &[
     "decimal",
     "string",
     "bytes",
-    // ADR 0024 and ADR 0033's qualifiers, which add no representation and so
+    // `rule:security/tainted-qualifier` and `rule:security/secret-qualifier`'s qualifiers, which add no representation and so
     // are the one place this table is asserting a *negative*.
     "tainted string",
     "secret string",
@@ -449,7 +449,7 @@ const LOWERS_IN_A_BODY: &[&str] = &[
     "echo \"x\", \"\\n\";",
     "array<int> $l = [1]; unset($l[\"0\"]);",
     "array<int> $p = [1, 2]; [int $a, int $b] = $p;",
-    // ADR 0006's two constructs, which lower to one `InstKind::CoreCall` each.
+    // `rule:security/isolate-shares-nothing`'s two constructs, which lower to one `InstKind::CoreCall` each.
     "spawn script \"cfg.nvs\";",
     "var $h = spawn script \"cfg.nvs\"; var $r = await $h;",
 ];
@@ -460,7 +460,7 @@ const LOWERS_IN_A_BODY: &[&str] = &[
 /// — so these belong in the same table as the rows above, on the far side of
 /// the same claim.
 const REFUSED_IN_A_BODY: &[&str] = &[
-    // ADR 0006's spawn with an option this compiler parses and does not
+    // `rule:security/isolate-shares-nothing`'s spawn with an option this compiler parses and does not
     // enforce (`E0777`) — the construct itself lowers, one table up.
     "spawn script \"cfg.nvs\" with(grants: 7);",
     // The three PHP statement forms the AST still carries a variant for

@@ -1,8 +1,8 @@
 --TEST--
-`executeMany`'s one statement is a sink and its sets are not, so an untrusted value reaches every execution of a batch only through a placeholder — ADR 0024 § 4, `rule:core-classes/db-one-api` and `rule:core-classes/db-statement-members`
+`executeMany`'s one statement is a sink and its sets are not, so an untrusted value reaches every execution of a batch only through a placeholder — `rule:security/sink-predicate`, `rule:core-classes/db-one-api` and `rule:core-classes/db-statement-members`
 --FILE--
 <?nvs
-// The batch has one statement text and many sets, so ADR 0024 § 4's sink is
+// The batch has one statement text and many sets, so `rule:security/sink-predicate`'s sink is
 // per *batch* rather than per execution: a text assembled from outside would
 // not be one bad query, it would be the same bad query run once per set.
 tainted string $outside = "ada";

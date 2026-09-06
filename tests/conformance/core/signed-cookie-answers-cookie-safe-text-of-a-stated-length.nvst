@@ -1,5 +1,5 @@
 --TEST--
-Core\SignedCookie::seal answers unpadded URL-safe base64 whose length is a stated function of the payload's, differs on every call, and round-trips characters a Set-Cookie header would otherwise need escaped — ADR 0060 § 1
+Core\SignedCookie::seal answers unpadded URL-safe base64 whose length is a stated function of the payload's, differs on every call, and round-trips characters a Set-Cookie header would otherwise need escaped — `rule:security/protocol-roster`
 --FILE--
 <?nvs
 // Invariance over a sweep. A cookie's *size* is the one property an

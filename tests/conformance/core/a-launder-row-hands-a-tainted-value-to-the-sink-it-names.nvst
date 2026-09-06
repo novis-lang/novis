@@ -1,11 +1,11 @@
 --TEST--
-each `Qual::Launder` row answers a plain `string` for a tainted argument and its answer is accepted by the sink its doc comment names, while the contagious row beside it keeps the qualifier — ADR 0088 §§ 1-2
+each `Qual::Launder` row answers a plain `string` for a tainted argument and its answer is accepted by the sink its doc comment names, while the contagious row beside it keeps the qualifier — `rule:security/sink-predicate` and `rule:security/unclassified-parameter-refuses-tainted`
 --FILE--
 <?nvs
 // A sink refuses a tainted argument outright
 // (tests/conformance/reject/every-grammar-sink-refuses-a-tainted-argument.nvst),
-// so laundering is the only route from an untrusted value to one, and ADR 0088
-// § 1 requires each laundering row to name the sink it launders for. This file
+// so laundering is the only route from an untrusted value to one, and `rule:security/sink-predicate`
+// requires each laundering row to name the sink it launders for. This file
 // walks the route end to end: the escape happens, the answer is plain, and the
 // sink the row named accepts it.
 tainted string $t = "a.b c";

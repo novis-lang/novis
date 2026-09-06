@@ -616,7 +616,7 @@ impl<'a> Lowering<'a> {
         env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
-        // The whole expression, rather than its three parts: ADR 0033 § 5's
+        // The whole expression, rather than its three parts: `rule:security/secret-comparison-is-constant-time`'s
         // arm below needs the *comparison's* own span to read back what the
         // checker recorded there, and taking the span as a fourth parameter
         // beside the parts it already implies is what pushed this signature
@@ -885,12 +885,12 @@ impl<'a> Lowering<'a> {
                 },
             );
         }
-        // ADR 0033 § 5: `==` over a pair at least one side of which is
+        // `rule:security/secret-comparison-is-constant-time`: `==` over a pair at least one side of which is
         // `secret` is a constant-time comparison, so that a program comparing
         // its own session token or signature with the language's one equality
         // operator is not a timing oracle. The qualifier is already gone by
         // here — `erase_checked_ty` spends no representation on it, which is
-        // ADR 0033 § 1's promise — so the choice cannot be re-derived from
+        // `rule:security/secret-qualifier`'s promise — so the choice cannot be re-derived from
         // `lty`/`rty`, and is read back from what the checker recorded at this
         // comparison instead. See `Helper::SecretEq`.
         //

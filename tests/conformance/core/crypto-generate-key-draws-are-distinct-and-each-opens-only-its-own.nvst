@@ -19,7 +19,7 @@ foreach (Core\Arr::range(1, 8) as int $draw) {
 }
 
 // A drawn key is the length `seal` accepts, asserted the only way a `secret`
-// admits: `Core\Bytes::length` refuses one (ADR 0033), so the width is read
+// admits: `Core\Bytes::length` refuses one (`rule:security/secret-qualifier`), so the width is read
 // back through the members that have a bound on it —
 // `crypto-names-the-key-length-bound-on-both-sides.nvst` is where that bound
 // is named, and a draw of any other width would be a `LogicError` here.

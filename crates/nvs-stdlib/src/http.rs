@@ -17,7 +17,7 @@
 //! approved**, and the connection is made to the address inside it. There is no second resolution
 //! for an attacker to poison, and a retry reuses the same `Target` rather than asking again
 //! ([ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md) § 6). ADR 0058 § 2 calls
-//! this the first ADR 0024 launderer whose output is a value rather than a plain string; it is the
+//! this the first `rule:security/tainted-qualifier` launderer whose output is a value rather than a plain string; it is the
 //! reason the roster has one.
 //!
 //! # `Core\Http\Target` has no members, on purpose
@@ -32,7 +32,7 @@
 //! # Two halves of one policy, and only one of them is here
 //!
 //! The **address** policy is `nvs_config::capability::denied_by_default` and the door that applies
-//! it is `nvs_runtime::capability::pin_host` — ADR 0058 § 5 puts it in the capability rather than
+//! it is `nvs_runtime::capability::pin_host` — `rule:security/the-policy-lives-in-the-capability` puts it in the capability rather than
 //! in the client precisely so that `Core\Net` and `Core\Db::open` are governed by the same table,
 //! and a copy of it in this module would be the second writer that agrees until it does not.
 //!
@@ -44,8 +44,8 @@
 //! # The client's five rows, and the one shape behind all of them
 //!
 //! [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md) § 5 gives every request
-//! member the same two parameters: the URL, and one trailing [`OPTIONS`] bag. The URL is ADR 0058
-//! § 1's sink — `string | Core\Http\Target`, **both unqualified**, so a `tainted` operand is a
+//! member the same two parameters: the URL, and one trailing [`OPTIONS`] bag. The URL is `rule:security/outbound-url-is-a-sink`
+//! 's sink — `string | Core\Http\Target`, **both unqualified**, so a `tainted` operand is a
 //! diagnostic and [`allowUrl`](CLASS) is the only way past it. A `Target` argument was pinned by
 //! the launderer that built it and is not pinned again; a plain `string` — the form § 1 keeps for a
 //! URL the program itself authored — goes through the same four questions [`pin`] asks for
@@ -81,7 +81,7 @@
 //!
 //! **`text()` answers a `tainted string`.** A reply is bytes another host chose, and pinning says
 //! where they came from and nothing about what is in them, so a body is input in exactly the sense
-//! [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md) § 1 means — its
+//! `rule:security/tainted-qualifier` means — its
 //! roster names these readers for that reason. `status()` is an `int` and carries no qualifier,
 //! because there is nothing in three digits for a sink to misread.
 //!
@@ -315,7 +315,7 @@ pub(crate) const RETRY_ATTEMPTS_OPTION: &str = "retryAttempts";
 /// See [`RETRY_ATTEMPTS_OPTION`].
 pub(crate) const RETRY_KEY_OPTION: &str = "retryIdempotencyKey";
 
-/// ADR 0058 § 1's outbound sink, as the one parameter every request member
+/// `rule:security/outbound-url-is-a-sink`'s outbound sink, as the one parameter every request member
 /// takes: a URL the program itself authored, or a [`TARGET`] the launderer
 /// already approved.
 ///
@@ -352,7 +352,7 @@ const OPTIONS: &[CoreOption] = &[
         default: Const::Null,
     },
     // Unqualified for the URL's reason and by the same mechanism: a header value
-    // is copied verbatim into the request this member makes, and until ADR 0088's
+    // is copied verbatim into the request this member makes, and until `rule:security/sink-predicate`'s
     // classification is read at the call it is assignability that refuses
     // `array<tainted string>` here.
     CoreOption {
@@ -413,7 +413,7 @@ const DEFAULT_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 /// is only reachable once a program has opted into retrying at all.
 const DEFAULT_BACKOFF: Duration = Duration::from_millis(100);
 
-/// ADR 0074 § 5's request members, over ADR 0058 § 1's sink.
+/// ADR 0074 § 5's request members, over `rule:security/outbound-url-is-a-sink`'s sink.
 ///
 /// Five rows and one shape: the verb is the member's own name, which is what
 /// makes § 7's idempotency question answerable while compiling. `patch`,
@@ -1033,8 +1033,8 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Http\Response::text(): tainted string` — ADR 0074 § 6, ADR 0024
-    /// § 1.
+    /// `Core\Http\Response::text(): tainted string` — ADR 0074 § 6, `rule:security/tainted-qualifier`
+    /// .
     ///
     /// The slot is handed straight back with a reference taken, since the
     /// transport decoded once already; `crate::instance::slot` borrows, and a
@@ -1100,7 +1100,7 @@ mod tests {
         assert_eq!(BODY_SLOT, RESPONSE.slot("body"));
     }
 
-    /// ADR 0058 § 5, asserted as **agreement** rather than as a value: the
+    /// `rule:security/the-policy-lives-in-the-capability`, asserted as **agreement** rather than as a value: the
     /// address policy is the capability's, and this module holds no copy of it.
     /// The launderer and `nvs_runtime::capability::pin_host` are asked about the
     /// same host on the same two deployments, and what is pinned is that they
@@ -1157,7 +1157,7 @@ mod tests {
         let refused = super::pin(&mut ungranted, URL, MEMBER)
             .expect_err("a context with no configuration grants nothing");
         let Fault::Thrown(class, message) = refused else {
-            panic!("a capability refusal is catchable — ADR 0118 § 5");
+            panic!("a capability refusal is catchable — `rule:security/denial-is-a-runtime-error`");
         };
         assert_eq!(class, ThrownClass::Runtime);
         assert!(
@@ -1166,7 +1166,7 @@ mod tests {
         );
     }
 
-    /// ADR 0058 § 3's other half, which a thrown `Fault` on its own does not
+    /// `rule:security/net-address-policy`'s other half, which a thrown `Fault` on its own does not
     /// pin: the refusal lands **before the socket**. A listener is bound on the
     /// address the URL names, and the assertion is that it was never accepted —
     /// a client that connected first and asked the policy afterwards throws the

@@ -258,7 +258,7 @@ fn a_literal_patterns_tier_is_settled_while_checking() {
 
 #[test]
 fn a_regex_pattern_argument_refuses_a_tainted_operand() {
-    // ADR 0056 § 4 over ADR 0024 § 3. A pattern is a sink because an
+    // `rule:security/regex-pattern-is-a-sink` over `rule:security/launderers-are-sink-named`. A pattern is a sink because an
     // attacker-authored one is two vectors at once: a denial-of-service one,
     // and a logic-injection one that turns a validation check into an
     // approval by matching everything. § 4 states outright that there is no
@@ -291,7 +291,7 @@ fn a_regex_pattern_argument_refuses_a_tainted_operand() {
     // § 4's second sentence, and the half a refusal alone would get wrong: the
     // *subject* may be tainted. `matches` answers a `bool`, which carries no
     // byte of its subject, while `replace` is contagious and hands the
-    // qualifier on — ADR 0024 § 2's rule that a substring matched out of a
+    // qualifier on — `rule:security/taint-propagation`'s rule that a substring matched out of a
     // tainted subject is tainted, spelled as the mark on the row.
     let subject = check_call(
         "    tainted string $s = \"input\" as tainted string;\n    \
@@ -306,7 +306,7 @@ fn a_regex_pattern_argument_refuses_a_tainted_operand() {
     // And the one route that does exist, which is not an exception to § 4:
     // `quote` escapes every metacharacter, so what comes back is a pattern
     // matching the tainted text *literally* rather than a pattern the tainted
-    // text authored. That is ADR 0024 § 3's sink-named launderer exactly, and
+    // text authored. That is `rule:security/launderers-are-sink-named`'s sink-named launderer exactly, and
     // it is why `Core\Taint::assertTrusted` is not the only way out.
     let quoted = check_call(
         "    tainted string $t = \"a.b\" as tainted string;\n    \
@@ -421,7 +421,7 @@ fn a_nullable_argument_is_not_refused_against_a_numeric_conversion() {
 
 #[test]
 fn a_tainted_value_at_a_query_text_parameter_is_a_diagnostic() {
-    // ADR 0024 § 4 is the whole injection story for `rule:core-classes/db-one-api`, and this is its
+    // `rule:security/sink-predicate` is the whole injection story for `rule:core-classes/db-one-api`, and this is its
     // first half: the statement text is the sink, so a `tainted` value cannot
     // reach it at all. There is no escaping function to reach for after the
     // refusal — § 1 says an escaper would be a second, weaker answer to a

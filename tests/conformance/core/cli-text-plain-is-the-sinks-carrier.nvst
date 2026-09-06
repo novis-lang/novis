@@ -12,7 +12,7 @@ echo Core\Cli\Text::plain($raw), "\n";
 // § 1: the same bytes reaching the sink as a plain `string` are substituted
 // there instead, and `Core\Cli::escape` is that same table asked for a value.
 // All three have to agree; a launderer that grew apart from its sink is the
-// failure ADR 0024 § 3 exists to prevent.
+// failure `rule:security/launderers-are-sink-named` exists to prevent.
 echo $raw, "\n";
 echo Core\Cli::escape($raw), "\n";
 --EXPECT--

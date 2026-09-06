@@ -66,11 +66,11 @@
 //! dependents are `nvs-runtime` — `rule:errors/log-write`'s tier-4 floor, which renders an uncaught `Throwable` through
 //! [`json::line`] — and `nvs-stdlib`, whose `Core\Log::write` is the same
 //! render reached from the other caller. Its only dependency is `serde_json`.
-//! It used to depend on `nvs-syntax` for [ADR 0087](/docs/adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md)'s
+//! It used to depend on `nvs-syntax` for `rule:security/bidi-predicate`'s
 //! bidi predicate, and `nvs-syntax` depends on `nvs-diagnostics`, so the floor
 //! becoming a dependent would have closed a cycle. The predicate **moved** down
 //! into [`bidi`] instead and `nvs-syntax` reads it from below — a move, not a
-//! copy, so ADR 0087's "one rule, three callers" is one implementation still.
+//! copy, so `rule:security/bidi-predicate`'s "one rule, three callers" is one implementation still.
 //! `nvs check` rendering from `nvs-diagnostics` is the third producer and needs
 //! nothing further: that edge is already the way round it has to run.
 //!
@@ -345,7 +345,7 @@ pub enum Node {
         parameters: usize,
     },
     /// Stands where a `secret`-typed value would have been — `rule:errors/record-transformations`,
-    /// [ADR 0033](/docs/adr/0033-secret-qualifier-for-confidential-values.md) § 4.
+    /// `rule:security/secret-sinks-refuse`.
     Redacted,
     /// Stands where content was cut, naming what and how much.
     Elided(Elision),
@@ -434,8 +434,8 @@ pub struct Envelope {
     pub ts: Option<String>,
     /// § 2's level.
     pub level: Level,
-    /// A plain `string`, never a qualified one — [ADR 0033](/docs/adr/0033-secret-qualifier-for-confidential-values.md)
-    /// § 4's `Throwable`-message rule, on the same argument.
+    /// A plain `string`, never a qualified one — `rule:security/secret-sinks-refuse`
+    /// 's `Throwable`-message rule, on the same argument.
     pub message: Option<Rendered>,
     /// The request this record belongs to.
     pub request_id: Option<String>,

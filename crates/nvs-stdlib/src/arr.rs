@@ -1932,7 +1932,7 @@ const SET_ON_DOC: EnumDoc = EnumDoc {
 /// writes at every member taking or producing a key.
 ///
 /// **Element positions only**, which is why its `string` arm stays the
-/// unclassified [`CoreTy::Str`]: ADR 0088 § 2 classifies a *parameter*, and
+/// unclassified [`CoreTy::Str`]: `rule:security/unclassified-parameter-refuses-tainted` classifies a *parameter*, and
 /// `every_member_parameter_carries_a_qualifier_classification` walks a row's
 /// `params` and its options bag but not through a [`CoreTy::Array`]. A key
 /// written at a parameter position takes [`ARRAY_KEY_NEUTRAL`] or

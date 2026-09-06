@@ -641,15 +641,15 @@ pub enum ExprInfo {
     },
     /// `$a == $b` — or `!=` — where at least one operand is statically
     /// `secret`, keyed by the *comparison's* own span.
-    /// [ADR 0033](/docs/adr/0033-secret-qualifier-for-confidential-values.md)
-    /// § 5: that pair lowers to a constant-time comparison rather than the
+    /// `rule:security/secret-comparison-is-constant-time`
+    /// : that pair lowers to a constant-time comparison rather than the
     /// short-circuiting one every other operand pair uses.
     ///
     /// Carries nothing, because there is nothing to carry: the question
     /// `nvs-ir` asks is a single bit, and it cannot ask it for itself.
     /// [`crate::ty::Ty`]'s qualifier lives in the checker's type and
     /// `nvs_ir::ty::Ty` has no room for it — a `secret string` and a `string`
-    /// are one representation, which is exactly what ADR 0033 § 1 promises
+    /// are one representation, which is exactly what `rule:security/secret-qualifier` promises
     /// and why the erasure is right. So the *presence of this entry* is the
     /// whole message, the way [`Self::EnumCase`] carries a value the AST
     /// alone does not hold.
@@ -832,7 +832,7 @@ pub enum ExprInfo {
     /// into one `InstKind::ArrayNew` — exactly the instructions the array
     /// literal a program could have written by hand lowers to, which is what
     /// makes the instances per-request like any other object
-    /// ([ADR 0006](/docs/adr/0006-isolated-script-execution.md)).
+    /// (`rule:security/isolate-shares-nothing`).
     ///
     /// Recorded *instead of* [`ExprInfo::Call`] for the same span, for
     /// [`crate::retrieval`]'s reason: one span carries one entry, and

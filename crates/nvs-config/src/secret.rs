@@ -43,7 +43,7 @@
 //!
 //! **The value stays out of every message this module writes.** A refusal names the file, the key
 //! and the shape of the problem — empty, whitespace-only, oversized, not UTF-8 — and never a byte
-//! of the content, which is [ADR 0033]'s type-level meaning applied one layer below the language.
+//! of the content, which is `rule:security/secret-qualifier`'s type-level meaning applied one layer below the language.
 //! `password_file` is left set after the value is materialized for the same reason: § 9's dump
 //! renders the value `<secret>` and names the file it came from, and it can only do that if the
 //! file is still recorded.
@@ -63,7 +63,6 @@
 //! [`SECRETS`] against the named blocks the tree has — at boot and again at each `nvs ctl reload`.
 //! Nothing here runs per request.
 //!
-//! [ADR 0033]: ../../../docs/adr/0033-secret-qualifier-for-confidential-values.md
 //! [ADR 0067]: ../../../docs/adr/0067-core-db.md
 //! [ADR 0103]: ../../../docs/adr/0103-configuration-is-a-tree-of-files.md
 

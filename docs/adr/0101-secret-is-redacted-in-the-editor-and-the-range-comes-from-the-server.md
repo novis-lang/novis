@@ -1,9 +1,9 @@
-# ADR 0101 — A `secret` value is concealed in the editor by default, the range comes from the server, and `tainted` gets no default decoration at all
+# `rule:security/redaction-ranges-come-from-the-server` — A `secret` value is concealed in the editor by default, the range comes from the server, and `tainted` gets no default decoration at all
 
 - **Status:** Accepted
 - **Date:** 2026-08-26
-- **Scope:** what the VS Code extension does with [ADR 0024](0024-taint-tracking-for-injection-sinks.md)'s
-  `tainted` and [ADR 0033](0033-secret-qualifier-for-confidential-values.md)'s `secret` beyond colour — the
+- **Scope:** what the VS Code extension does with `rule:security/tainted-qualifier`'s
+  `tainted` and `rule:security/secret-qualifier`'s `secret` beyond colour — the
   `nvs/redactions` request that carries the ranges, which spans are concealed and which are deliberately
   not, how a reveal works and how long it lasts, the extension's own surfaces that must inherit the
   redaction, and the leak surfaces VS Code gives no way to close. It does **not** decide colour or token
@@ -40,14 +40,14 @@
 ## Context
 
 - The editor is the one place a `secret` value is displayed in full by design. Every *program* sink
-  [ADR 0033](0033-secret-qualifier-for-confidential-values.md) § 4 names is already closed at compile time
+  `rule:security/secret-sinks-refuse` names is already closed at compile time
   and `rule:errors/diagnostic-record` already makes the redaction a node kind
   that all three diagnostic renderings inherit — so the remaining exposure is not a program behaviour at
   all. It is a person's screen while they are being watched.
 - **Novis can be exact here where nothing else can.** Every shipping tool that hides secrets in an editor
   guesses — by filename (`.env`), by regex, by entropy. `nvs-lsp` does not have to guess: `secret` is a
   type-checker fact, computed by `nvs_types::expr::quals::is_secret`, and it propagates through
-  concatenation and interpolation under [ADR 0033](0033-secret-qualifier-for-confidential-values.md) § 2. A
+  concatenation and interpolation under `rule:security/secret-propagation`. A
   value derived from a credential is concealed for the same reason the credential is, with no heuristic in
   the loop. This is the whole reason the feature is worth building rather than telling users to install one
   of the guessing extensions.
@@ -142,7 +142,7 @@ So `nvs.taint.mark` is a setting with three values and `off` is the default:
 |---|---|
 | `off` | nothing — the token modifier alone, styled by the theme (default) |
 | `declaration` | a glyph after each declaration whose type carries `tainted` |
-| `sink` | `declaration`, plus each argument position where a `tainted` value reaches a member classified as a sink under [ADR 0088](0088-a-sink-is-an-instruction-and-the-default-refuses.md) § 1 |
+| `sink` | `declaration`, plus each argument position where a `tainted` value reaches a member classified as a sink under `rule:security/sink-predicate` |
 
 The glyph is a **themed codicon**, not an emoji: `contentText` renders an emoji at the mercy of the host's
 installed fonts, and a security-adjacent marker that renders as a replacement box on one platform is worse
@@ -166,7 +166,7 @@ Two of the extension's own renderings would otherwise print the plaintext the ed
   [ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 7's `nvs ast --json` schema includes each
   node's own scalar fields, which for a string literal is its text — so the panel would render a secret
   the buffer behind it is blurring. A literal node whose static type carries `secret` emits the same fixed
-  placeholder [ADR 0033](0033-secret-qualifier-for-confidential-values.md) § 4 gives a dumped property, in
+  placeholder `rule:security/secret-sinks-refuse` gives a dumped property, in
   the JSON itself rather than in the panel, so the CLI's `--json` and the webview cannot disagree.
 
 ### 6. PhpStorm draws nothing at this milestone
@@ -202,7 +202,7 @@ feature is not sold as something it is not.
 
 **Positive**
 
-- The one exposure [ADR 0033](0033-secret-qualifier-for-confidential-values.md) left open — a developer's
+- The one exposure `rule:security/secret-qualifier` left open — a developer's
   own screen — is closed by default, with an exactness no filename or entropy heuristic can reach, because
   the qualifier is already a checked fact and already propagates.
 - The qualifier becomes visible where it is learned. A developer sees concatenation carry `secret` into a
@@ -234,7 +234,7 @@ feature is not sold as something it is not.
 - **`nvs.taint.mark` is a setting nobody may ever change from `off`**, which is a contribution that costs
   documentation and a test for a feature that ships inert. Accepted because *Decision § 4*'s alternative is
   overriding a user's theme by default, and because the `sink` value has real teaching worth once
-  [ADR 0088](0088-a-sink-is-an-instruction-and-the-default-refuses.md)'s classification exists on the
+  `rule:security/sink-predicate`'s classification exists on the
   `nvs-stdlib` member rows, which it does not yet.
 
 ## Alternatives rejected
@@ -274,10 +274,10 @@ feature is not sold as something it is not.
   (the type is `secret`, the expression is a literal token), so the rule is cheap; what is not settled is
   whether it is right, since a test fixture, an example and a `.nvst` case all legitimately spell one. Due
   with whatever milestone designs `Core`'s credential-handling surface, alongside
-  [ADR 0033](0033-secret-qualifier-for-confidential-values.md) *Revisiting*'s own open `Core\Secret` roster.
+  `rule:security/secret-qualifier` *Revisiting*'s own open `Core\Secret` roster.
 - **The PhpStorm side of *Decision § 6***, when that plugin is built at M10.
 - **Whether `nvs.taint.mark`'s `sink` value earns its place**, once
-  [ADR 0088](0088-a-sink-is-an-instruction-and-the-default-refuses.md)'s classification exists on the
+  `rule:security/sink-predicate`'s classification exists on the
   `nvs-stdlib` member rows. If it does not, the setting narrows to two values rather than growing a third.
 - **Whether the diff view's "before" side can be redacted at all** — it needs a type answer for a document
   revision the server never analysed, which is a different question from anything in the M4B request set and

@@ -13,17 +13,17 @@
 //! type list it shares with a capture, and § 6's `$params` key that names
 //! neither one nor the other — the refusal the marker exists to make writable.
 //!
-//! ADR 0096's `#[Access]` is asserted here from all three ends: the payload —
+//! `rule:security/access-is-checked-for-presence-not-meaning`'s `#[Access]` is asserted here from all three ends: the payload —
 //! the decision is required, and it is a name rather than a value, wherever the
 //! attribute is attached — § 1's *presence* rule, and § 1a's one-per-method
 //! rule. Because presence is landed, every fixture above goes through
 //! `with_access`, which supplies the one line those fixtures do not vary.
 //!
 //! The decision itself is asserted on the row rather than only as a refusal:
-//! ADR 0102 § 8 leaves enforcement to the dispatcher, so what the row carries
+//! `rule:security/access-is-checked-for-presence-not-meaning` leaves enforcement to the dispatcher, so what the row carries
 //! is the name the declaration resolved to.
 //!
-//! ADR 0096 is asserted here whole: § 1's presence rule, § 1a's payload and
+//! `rule:security/access-is-checked-for-presence-not-meaning` is asserted here whole: § 1's presence rule, § 1a's payload and
 //! one-per-method rules, and § 4's opt-out held to a method that has something
 //! to opt out of.
 
@@ -966,7 +966,7 @@ fn a_second_access_on_one_method_is_refused_naming_both() {
 
 #[test]
 fn the_access_decision_rides_on_the_row_as_the_name_it_resolves_to() {
-    // ADR 0102 § 8 puts enforcement in the dispatcher, so the decision the
+    // `rule:security/access-is-checked-for-presence-not-meaning` puts enforcement in the dispatcher, so the decision the
     // compiler guarantees was *written* has to reach it — on the row, the way
     // `query` does, because by the time anything dispatches, the attribute is
     // in a file this walk has long moved past.

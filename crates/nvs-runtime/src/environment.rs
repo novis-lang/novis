@@ -5,7 +5,7 @@
 //! exactly the reason [`crate::terminal`]'s module doc gives about the terminal:
 //! **a door that asks nothing is not a door**, and filing one as a capability
 //! would make the roster of real doors harder to read.
-//! [ADR 0012](/docs/adr/0012-no-superglobals.md) § 7 is where that is
+//! `rule:security/request-state-throws-in-an-isolate` is where that is
 //! decided — environment variables are "process-wide facts already governed by
 //! the existing capability/config-overlay machinery", not per-request secrets —
 //! and `nvs_stdlib::env`'s module doc carries the rest of the argument, since
@@ -17,8 +17,8 @@
 //! `std::env::var` in that crate's sources outright, and it is right to: a
 //! member that reaches the operating system through its own spelling is a
 //! member that could have forgotten to ask. So the effect lives here, where
-//! [ADR 0118](/docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)
-//! § 2 puts every other one, and the fact that this particular door opens for
+//! `rule:security/capability-check-at-the-door`
+//! puts every other one, and the fact that this particular door opens for
 //! everyone is a property of *this file* rather than a judgement each caller
 //! re-makes.
 //!

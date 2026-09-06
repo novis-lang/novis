@@ -105,7 +105,7 @@
 //! implementations, [`pg`] has its opening and its statement path: the socket,
 //! § 3's in-band upgrade, the SASL exchange, and the extended-query state
 //! machine that walks [`State`]'s four values over one flushed round trip, and
-//! ADR 0067 § 13's reset — six commands pipelined into a second round trip, with
+//! `rule:security/db-pool-reset-is-a-boundary`'s reset — six commands pipelined into a second round trip, with
 //! `PgConn::reset` taking `self` by value so a reset that failed cannot hand a
 //! connection back. [`sql`] is the shared half of the statement path, plain
 //! data with no wire in it because every driver makes the same two decisions:
@@ -148,7 +148,7 @@
 //! its extended protocol pays nothing extra for a prepare and so exercises the
 //! design rather than the driver's own quirks.
 //!
-//! **The anchor seam ADR 0132 § 3 anticipated exists**, so a handshake against
+//! **The anchor seam `rule:security/one-tls-client` anticipated exists**, so a handshake against
 //! `tests/db/compose.yaml`'s PostgreSQL completes: `NvsTls::over_bundle`
 //! verifies against a named PEM bundle alone, `[db.<name>] tls_ca_file` is
 //! where a program names one, and [`matrix`]'s `NVS_DB_MATRIX_CA` is where

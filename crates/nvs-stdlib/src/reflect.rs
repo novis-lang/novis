@@ -759,7 +759,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Reflect\ClassInfo::properties(): array<string>` — ADR 0019 § 2's
+    /// `Core\Reflect\ClassInfo::properties(): array<string>` — `rule:security/reflection-enforces-visibility`'s
     /// visibility-respecting walk, answered off the slot the description was
     /// built with.
     fn nvs_core_reflect_class_info_properties(_ctx, args: [1]) {
@@ -826,7 +826,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Reflect\ClassInfo::set(mixed $object, string $name, mixed $value): void`
-    /// — [`nvs_core_reflect_class_info_get`]'s write half, and ADR 0019 § 2's
+    /// — [`nvs_core_reflect_class_info_get`]'s write half, and `rule:security/reflection-enforces-visibility`'s
     /// rule for the direction that changes something.
     ///
     /// The four refusals above it are `get`'s four, in `get`'s order and for
@@ -884,7 +884,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Reflect\ClassInfo::call(mixed $object, string $name, array<mixed> $arguments): mixed`
-    /// — ADR 0019 § 2's rule that *acting* on a member faces the ordinary
+    /// — `rule:security/reflection-enforces-visibility`'s rule that *acting* on a member faces the ordinary
     /// check, for the member that acts hardest.
     ///
     /// **No visibility rule is written here.** § 2 says a reflective call
@@ -1005,7 +1005,7 @@ mod tests {
         (ctx, subject)
     }
 
-    /// ADR 0019 § 2's headline rule, asked as an **agreement** rather than as a
+    /// `rule:security/reflection-enforces-visibility`'s headline rule, asked as an **agreement** rather than as a
     /// sentence: a reflective call to a `private` method and an ordinary
     /// out-of-class call to the same method have to fail *the same way*, so
     /// this asks both and compares the two refusals to each other. A `call`
@@ -1191,7 +1191,7 @@ mod tests {
         }
     }
 
-    /// ADR 0019 § 2's rule for the direction that changes something, asked as
+    /// `rule:security/reflection-enforces-visibility`'s rule for the direction that changes something, asked as
     /// an **agreement** for the reason its sibling above is: a reflective write
     /// and an ordinary one have to reach the same `PropertyObserver`, so this
     /// puts the same value through both doors and compares what the observer

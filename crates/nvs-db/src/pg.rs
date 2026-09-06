@@ -20,7 +20,7 @@
 //!    silently connecting in the clear when the server says so is the exact
 //!    behaviour that rule exists to remove.
 //! 2. **The handshake**, `NvsTls::over` on the same `NvsTcp`. One TLS client in
-//!    this tree, one answer to whose certificates it believes (ADR 0132 § 3).
+//!    this tree, one answer to whose certificates it believes (`rule:security/one-tls-client`).
 //! 3. **SASL**, and only SASL. A server that asks for a cleartext or an MD5
 //!    password is refused rather than answered: those are the two exchanges
 //!    that put the password itself, or a hash trivially replayable against the
@@ -742,7 +742,7 @@ impl PgConn {
         roll_back(&mut self.wire, &self.state, &self.depth)
     }
 
-    /// ADR 0067 § 13's reset, and the connection back only if it worked.
+    /// `rule:security/db-pool-reset-is-a-boundary`'s reset, and the connection back only if it worked.
     ///
     /// **`self` by value is the enforcement**, not a convenience. § 13 makes the
     /// reset a security boundary: a connection that cannot be proven clean is
@@ -1736,7 +1736,7 @@ impl PgColumn {
     ///
     /// The `tainted` half of `tainted string` is nowhere in this signature and
     /// is not missing.
-    /// [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)'s
+    /// `rule:security/tainted-qualifier`'s
     /// qualifier is a property of the *type* a row is read at, declared in
     /// `nvs-stdlib`'s registry rows; there is no runtime bit for it, and a
     /// driver could not set one if there were.
@@ -3029,7 +3029,7 @@ fn execute_many<S: Read + Write>(
     Ok(affected)
 }
 
-/// ADR 0067 § 13's PostgreSQL reset, in the order that section lists it.
+/// `rule:security/db-pool-reset-is-a-boundary`'s PostgreSQL reset, in the order that section lists it.
 ///
 /// `DISCARD TEMP` is the server's own spelling of § 13's "drop the session's
 /// temporary schema", and the reason it is that rather than `DISCARD ALL` is the
@@ -3969,7 +3969,7 @@ mod tests {
         );
     }
 
-    /// The upgrade request is exactly ADR 0132 § 3's eight bytes, and `S` is
+    /// The upgrade request is exactly `rule:security/one-tls-client`'s eight bytes, and `S` is
     /// the answer that continues. Asserted on the bytes rather than on the
     /// outcome, because those eight are the only plaintext a connection ever
     /// carries and a wrong request code reads as a plain startup message.
@@ -5415,7 +5415,7 @@ mod tests {
         message(b'Z', b"I")
     }
 
-    /// ADR 0067 § 13's list, in its order, in **one** flush — six commands for
+    /// `rule:security/db-pool-reset-is-a-boundary`'s list, in its order, in **one** flush — six commands for
     /// one round trip, which is what makes an unconditional reset affordable.
     /// The two exclusions are asserted by name because they are the section's
     /// own: `DISCARD ALL` would run `DEALLOCATE ALL` and throw away the
@@ -5581,7 +5581,7 @@ mod tests {
         assert_eq!(state.get(), State::Idle);
     }
 
-    /// ADR 0067 § 13's "a connection that cannot be proven clean is closed": a
+    /// `rule:security/db-pool-reset-is-a-boundary`'s "a connection that cannot be proven clean is closed": a
     /// refused reset hands the caller an error and **no connection**, so there
     /// is nothing left that could rejoin the pool carrying one request's
     /// session state into the next one's.

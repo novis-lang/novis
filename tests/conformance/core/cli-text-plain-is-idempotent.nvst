@@ -5,7 +5,7 @@
 // § 1's table is idempotent: a Control Picture is not a control byte, so a
 // second pass changes nothing. That is what lets `Core\Out::capture`'s already
 // neutralized bytes and `plain`'s answer be the same kind of value without
-// either of them double-escaping the other — the second escape ADR 0088 § 5
+// either of them double-escaping the other — the second escape `rule:security/capture-answers-the-carrier`
 // exists to prevent.
 var $raw = Core\Str::fromCodePoint(27) . "]0;title" . Core\Str::fromCodePoint(7);
 echo Core\Cli\Text::plain($raw), "\n";

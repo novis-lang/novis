@@ -105,7 +105,7 @@ JIT cannot fold away because it is genuinely dynamic; an entry in a table
 [0006](0006-isolated-script-execution.md) must build fresh per isolate and walk on teardown; a value that
 must be excluded from the boundary-crossing rules because it belongs to no frame. `spawn script` already
 promises "fresh globals and statics" — with this decision that means class statics only, one table with one
-lifetime, and the second reset path ADR 0006 calls a bug does not get written.
+lifetime, and the second reset path `rule:security/isolate-shares-nothing` calls a bug does not get written.
 
 **It hides state from the signature.** Priority 4 is simplicity of the language surface first: a function
 whose result depends on how many times it has been called, with nothing at the call site or in the signature

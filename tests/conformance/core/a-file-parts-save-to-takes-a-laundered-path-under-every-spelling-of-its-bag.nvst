@@ -1,5 +1,5 @@
 --TEST--
-`Core\Request\Part::saveTo` accepts a laundered destination under every spelling of its bag and still refuses the claimed one, so naming an option is not a way through the sink — ADR 0105 §§ 2 and 4, ADR 0024 § 1
+`Core\Request\Part::saveTo` accepts a laundered destination under every spelling of its bag and still refuses the claimed one, so naming an option is not a way through the sink — ADR 0105 §§ 2 and 4, `rule:security/tainted-qualifier`
 --FILE--
 <?nvs
 // The accepting side of the boundary the case beside this one refuses at, which

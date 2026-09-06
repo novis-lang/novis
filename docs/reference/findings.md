@@ -28,7 +28,7 @@ in that goal. An item's owner is the row it sits in.
 | Code — lowering and library gaps | P1, P4, D1, D7, D8, D10, D12, D16, D17, D21, D22, D23, D27, D33, D35, U21, M1 | item 34 |
 | Docs in the tree — cards, help texts, module docs, reference chapters | M10, D2, D3, D4, D6, D9, D20, D29, U13, M2, M3, M4, M6, M7, and § *Facts worth keeping* | item 35 |
 | Planned, and unchanged by this pass | U7, U8, U9 (goal 3 items 11, 12, 17 — 11 and 17 widened to say so), U16 and D31 (goal 4), D11 (goal 6 item 19b), D28 (goal 3 stage 5) | the goal named |
-| Closed — the binary is right and the doc now says so | U10 (ADR 0103 § 6 states the `run`/`check`/`dump` exemption), U17 (`rule:types/grammar`: a bare `array` is `array<mixed>`), D13 (ADR 0006: capture is the default), D18 (`rule:types/erased-member-access`), D19 (`rule:types/enum-case-type`: `as` is the only narrowing), D26 (`divergences.md`), D32 (a validator does not launder) | — |
+| Closed — the binary is right and the doc now says so | U10 (ADR 0103 § 6 states the `run`/`check`/`dump` exemption), U17 (`rule:types/grammar`: a bare `array` is `array<mixed>`), D13 (`rule:security/isolate-shares-nothing`: capture is the default), D18 (`rule:types/erased-member-access`), D19 (`rule:types/enum-case-type`: `as` is the only narrowing), D26 (`divergences.md`), D32 (a validator does not launder) | — |
 
 ## Panics and aborts (P)
 
@@ -121,18 +121,18 @@ in that goal. An item's owner is the row it sits in.
       `E0786` refuses the bodiless method where it is declared.
 - [x] **U4** `secret` is refused only by a `Throwable` message (E0422), `Core\Debug` (E0724) and any
       unclassified `string`/`bytes` `Core` parameter (E0401). `echo $pw;`, `"{$pw}"` interpolation
-      and `Core\Json::encode($pw)` all print the value — ADR 0033 § 4 lists output among the sinks.
+      and `Core\Json::encode($pw)` all print the value — `rule:security/secret-sinks-refuse` lists output among the sinks.
       *probes2 `secret_echo`; types-probes* `E0790` refuses the operand at `echo` and `print`, which
       covers the interpolation because the qualifier spreads to the composed literal, and `E0791`
       refuses `Core\Json::encode`, walking the argument's type so a declared `array<secret string>`
       is refused with the bare value. A written `["token" => $pw]` still reaches neither: an array
-      literal with no expectation infers `array<mixed>`, which is ADR 0033's unmodelled container
+      literal with no expectation infers `array<mixed>`, which is `rule:security/secret-qualifier`'s unmodelled container
       axis and is fixed at the literal rather than at either sink.
 - [x] **U5** `Core\Secret::reveal` does not exist (E0405), yet the E0422/E0724 help texts tell the
       user to call it. No member returns `tainted` or `secret`; a value is qualified only where a
       declaration spells it. *types-probes* `Core\Secret` is registered —
       `crates/nvs-stdlib/src/secret.rs`'s `reveal` and `revealBytes`, the only rows that write
-      `Qual::Reveal`, brought forward from goal 4 because every ADR 0033 § 4 refusal's help text
+      `Qual::Reveal`, brought forward from goal 4 because every `rule:security/secret-sinks-refuse` refusal's help text
       already named the call. The mark admits a `secret` argument and the answer drops the
       qualifier by not declaring it; `tainted` still crosses, so `reveal` launders one axis only.
 - [x] **U6** `#[Command]` accepts an instance method and an `int` return — ADR 0086 § 6 says static and
@@ -266,7 +266,7 @@ in that goal. An item's owner is the row it sits in.
       this finding: nothing in the tree declares what a named scheme *is*, so the document names schemes
       it does not define.
 - [ ] **D11** `spawn script Class::method(...)` as the operand is refused (`E0401: expected string,
-      found callable`); spec § 2 and ADR 0006 describe it as available. *refp/spawn/method.nvs*
+      found callable`); spec § 2 and `rule:security/isolate-shares-nothing` describe it as available. *refp/spawn/method.nvs*
 - [x] **D12** `spawn script … with(args: …)` is accepted but there is no reader: `Core\Script::args()`
       is E0405, and the parser's own hint (`$_ARGS` → `Core\Script::args()`) names it. *refp/spawn/args.nvs*
       `Core\Script` is a registered class now and `args()` is its one row. It answers `mixed` rather

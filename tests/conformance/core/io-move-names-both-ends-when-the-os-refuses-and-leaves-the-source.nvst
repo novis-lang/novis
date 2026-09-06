@@ -1,5 +1,5 @@
 --TEST--
-A Core\IO::move the operating system refuses throws an IOError naming both ends of the attempt and leaves the source exactly where it was — over a destination directory that is not there and a source that is not there — spec § 14, ADR 0118 § 2
+A Core\IO::move the operating system refuses throws an IOError naming both ends of the attempt and leaves the source exactly where it was — over a destination directory that is not there and a source that is not there — spec § 14, `rule:security/capability-check-at-the-door`
 --FILE--
 <?nvs
 // The two ways a granted move fails, and one claim about each: nothing is lost,

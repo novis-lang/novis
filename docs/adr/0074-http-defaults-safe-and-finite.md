@@ -41,11 +41,11 @@
 ## Context
 
 - Novis already removes whole classes of bug by making the safe thing the only representable thing — SQL
-  injection ([ADR 0024](0024-taint-tracking-for-injection-sinks.md)), SSRF
+  injection (`rule:security/tainted-qualifier`), SSRF
   ([ADR 0058](0058-outbound-request-policy.md)), shell injection
   (`rule:core-classes/process-is-argv-only`), ReDoS
   (`rule:core-classes/regex-two-tiers`), `alg: none`
-  ([ADR 0060](0060-application-security-protocols.md)). Response headers and outbound timeouts are the two
+  (`rule:security/protocol-roster`). Response headers and outbound timeouts are the two
   places left where the *default* is what hurts, and where every application re-solves the same problem
   with the same middleware copied from the same blog post.
 - **Inbound, the numbers are not close.** A scan of any large sample of production sites finds a minority

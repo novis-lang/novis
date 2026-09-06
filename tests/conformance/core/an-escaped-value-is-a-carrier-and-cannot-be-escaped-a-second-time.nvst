@@ -2,7 +2,7 @@
 `Core\Html::escape` answers a carrier, so the eager-escape habit needs `toSource` written at the site and produces the same document either way — ADR 0133 §§ 1, 2
 --FILE--
 <?nvs
-// ADR 0133 § 1's predicate, seen from the program rather than from the
+// `rule:security/launderer-answers-a-carrier`'s predicate, seen from the program rather than from the
 // registry: the HTML sink escapes on its own and escaping is not idempotent,
 // so an escaped value that were a plain `string` would be escaped a second
 // time by a sink that could not tell it from text. The carrier is what makes

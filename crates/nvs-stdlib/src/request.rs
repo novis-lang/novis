@@ -37,7 +37,7 @@
 //! # There is no request here, and that is a throw
 //!
 //! Every member refuses when the context is answering no request —
-//! [ADR 0012](/docs/adr/0012-no-superglobals.md) § 7's rule, which that
+//! `rule:security/request-state-throws-in-an-isolate`'s rule, which that
 //! ADR argues over a *spawned isolate* and which reaches the same conclusion
 //! one step wider. A CLI program, a scheduled script, a job worker and a
 //! `#[Test]` method are all running with nothing inbound, and an empty string
@@ -169,7 +169,7 @@
 //!
 //! **The `tainted` qualifier does not survive `mixed`.** `path` is a
 //! `tainted string` and the checker holds it to
-//! [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)'s
+//! `rule:security/tainted-qualifier`'s
 //! sinks; `query` answers `mixed`, because § 9's bracket convention makes a
 //! value a `string` *or* a nested array, and `nvs_types` has no `tainted
 //! array<T>` — the qualifier axes are defined over `string` and `bytes`. So a
@@ -836,7 +836,7 @@ const PART_ORDINAL: usize = 3;
 /// `filename` and `contentType` are what § 2 marks, and `name` is marked here
 /// as well: a field name arrives off the same wire, from a peer that is under
 /// no obligation to send back the names the form declared, and
-/// [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)'s
+/// `rule:security/tainted-qualifier`'s
 /// rule is over untrusted *input* rather than over a list of fields. Leaving it
 /// plain would have made the part's own name the one launderer on the class —
 /// reachable by using it as a path or an identifier — which is the direction
@@ -1403,7 +1403,7 @@ fn urlencoded_form(ctx: &mut Ctx, reading: Reading) -> Result<NvsArray, Fault> {
     crate::uri::parse_query(held, "post", crate::uri::Values::Text)
 }
 
-/// The request this context is answering, or ADR 0012 § 7's refusal.
+/// The request this context is answering, or `rule:security/request-state-throws-in-an-isolate`'s refusal.
 ///
 /// One function rather than three copies of the same `let else`, because what
 /// the three members share is not the message but the *rule*: the module doc
@@ -4531,7 +4531,7 @@ mod tests {
     /// which is what `saveTo` needs and no other member of this module does.
     ///
     /// The grant is everywhere rather than under a root, for
-    /// `crate::io::tests::writing`'s reason: ADR 0118's own suite is where the
+    /// `crate::io::tests::writing`'s reason: `rule:security/capability-check-at-the-door`'s own suite is where the
     /// grant decides anything, and a root here would only add a way for these
     /// cases to fail for a reason they are not about.
     fn saving(body: Chunks) -> Ctx {

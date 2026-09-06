@@ -189,7 +189,7 @@ memoize_on = ["crates/nvs-db", "crates/nvs-stdlib/src/queue.rs", "tests/db"]
 # Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 0 -- ADR 0133's carrier rule, accepted 2026-09-02, after M4 reported `Core\Html` done. It is
+# Stage 0 -- `rule:security/launderer-answers-a-carrier`'s carrier rule, accepted 2026-09-02, after M4 reported `Core\Html` done. It is
 # FIRST in this file because the run order inside a class is this file's order: an escaper that answers a
 # plain `string` is escaped a second time by `rule:core-classes/html-auto-escape`'s sink, and every `Core\Html` case written
 # before the return type changes is written against the wrong rule. Item 1 in loop-goal.md.
@@ -1211,7 +1211,7 @@ args = ["test", "-p", "nvs-stdlib"]
 tests = [
   # Item 33 -- `rule:errors/diagnostic-record`'s one record and its renderings. The record's own doc comment says why this
   # half cannot be a case: `--EXPECT-ERROR--` is how the runner is told a case should *fail*, so a
-  # suite has no way to read standard error off a successful run. ADR 0033's redaction row, which
+  # suite has no way to read standard error off a successful run. `rule:security/secret-qualifier`'s redaction row, which
   # that ADR's Verification section defers to M4 by name, is a case and is listed below.
   "a_dump_writes_to_the_diagnostic_channel_and_not_to_the_output",
 ]
@@ -1642,7 +1642,7 @@ tests = [
   # Item 10 -- the FLOOR, not the median. A median rises by writing more cases for members that already
   # have some, which is the metric a corpus grows around rather than into.
   "every_core_class_has_a_conformance_floor_of_three",
-  # Item 12 -- ADR 0088 § 2. An unclassified `string`/`bytes` parameter refuses `tainted`, and this test
+  # Item 12 -- `rule:security/unclassified-parameter-refuses-tainted`. An unclassified `string`/`bytes` parameter refuses `tainted`, and this test
   # is the "fails on any member that ships without one" half.
   "every_member_parameter_carries_a_qualifier_classification",
   # Item 11 -- every `Fault::thrown` site is caught by a case, or carries a comment saying no program
@@ -1861,7 +1861,7 @@ args = ["test", "-p", "nvs-types"]
 tests = [
   # 01-core-library.md § 13: decode is a `tainted` sink, and the danger is type confusion, not RCE.
   "serialize_decode_refuses_a_tainted_operand",
-  # ADR 0033 -- one check on the same walk, both carriers.
+  # `rule:security/secret-qualifier` -- one check on the same walk, both carriers.
   "a_secret_value_is_refused_at_the_boundary_unless_revealed",
 ]
 
@@ -1872,7 +1872,7 @@ file = "examples/serialize.nvs"
 want = ["round-trip ok", "cycle ok", "refused: not our format", "refused: shape changed"]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 6 -- ADR 0006's isolate. A task with a heap boundary, which is what Stage 2 built.
+# Stage 6 -- `rule:security/isolate-shares-nothing`'s isolate. A task with a heap boundary, which is what Stage 2 built.
 # ---------------------------------------------------------------------------------------------------
 [[check]]
 kind = "cargo-named"
@@ -2333,7 +2333,7 @@ tests = [
   # Item 5 -- `rule:core-classes/io-write-stream`, and goal 6's uploads are its second caller.
   "write_stream_defaults_to_no_overwrite",
   "a_write_stream_that_fails_midway_removes_the_partial_file",
-  # ADR 0052 -- by construction, not by a blocklist.
+  # `rule:security/closed-doors` -- by construction, not by a blocklist.
   "no_member_dispatches_on_a_uri_scheme",
 ]
 
@@ -2428,9 +2428,9 @@ stage = "1 floor"
 name = "nvs-types (secret, and what a signature does not do)"
 args = ["test", "-p", "nvs-types"]
 tests = [
-  # ADR 0033 -- exactly two ways a value loses `secret`.
+  # `rule:security/secret-qualifier` -- exactly two ways a value loses `secret`.
   "reveal_and_the_password_helpers_are_the_only_launderers_of_secret",
-  # ADR 0060 § 5 -- reads like an oversight and is a decision.
+  # `rule:security/verification-does-not-launder` -- reads like an oversight and is a decision.
   "a_verified_signature_does_not_launder_its_claims",
 ]
 
@@ -2464,7 +2464,7 @@ stage = "1 floor"
 name = "nvs-stdlib (the client and the socket)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
-  # ADR 0058 § 5 -- the policy lives in the capability, which is what makes it enforceable.
+  # `rule:security/the-policy-lives-in-the-capability` -- the policy lives in the capability, which is what makes it enforceable.
   "the_address_policy_is_read_from_the_capability_and_not_from_the_client",
   "a_denied_address_range_fails_before_a_connection_is_made",
   # § 4.
@@ -2733,7 +2733,7 @@ argv = ["python", "tools/check-migration.py", "--min", "74"]
 want = ["inventory:", "classified:"]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 11 -- the teardown sweep, added 2026-09-01 by the user's decision. ADR 0116 § 2's drain frees
+# Stage 11 -- the teardown sweep, added 2026-09-01 by the user's decision. `rule:security/isolate-teardown-is-a-drain-then-a-sweep`'s drain frees
 # only what the refcounts say is dead, so a cyclic object graph survived request and isolate teardown
 # for the life of the process -- in the server, a leak growing with requests served. Items 36-37 in
 # loop-goal.md. Every test and fixture named below must EXIST and pass; writing one is how the loop
@@ -2807,7 +2807,7 @@ file = "examples/onexit.nvs"
 want = ["work done", "onExit: Normal 0", "second hook"]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 13 -- the bcrypt read-path, added 2026-09-01 by the user's decision. ADR 0129: verify and
+# Stage 13 -- the bcrypt read-path, added 2026-09-01 by the user's decision. `rule:security/bcrypt-read-roster`: verify and
 # needsRehash read a PHP-stored bcrypt hash ($2y$/$2a$/$2b$, never $2x$) -- verify verifies it,
 # needsRehash answers true for every one -- while hash still writes only Argon2id; a stored cost past
 # 17 is refused before any work, and everything outside the roster keeps throwing. Item 40 in
@@ -2820,17 +2820,17 @@ stage = "1 floor"
 name = "nvs-stdlib (the bcrypt read roster)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
-  # ADR 0129 § 1 -- a hash PHP wrote verifies, and the wrong password answers false rather than throwing.
+  # `rule:security/bcrypt-read-roster` -- a hash PHP wrote verifies, and the wrong password answers false rather than throwing.
   "a_php_stored_bcrypt_hash_verifies_and_the_wrong_password_does_not",
-  # ADR 0129 § 3 -- every tag in the roster is marked for rehash; the upgrade loop is the migration path.
+  # `rule:security/needs-rehash-answers-weaker` -- every tag in the roster is marked for rehash; the upgrade loop is the migration path.
   "needs_rehash_answers_true_for_every_bcrypt_tag",
-  # ADR 0129 § 4 -- the cost ceiling, refused before any work, in MAX_M_COST's shape.
+  # `rule:security/bcrypt-cost-ceiling` -- the cost ceiling, refused before any work, in MAX_M_COST's shape.
   "a_bcrypt_cost_past_the_ceiling_is_refused_before_any_work",
-  # ADR 0129 § 6 -- $2x$ and a foreign PHC algorithm still throw, and the message quotes no bytes.
+  # `rule:security/an-unreadable-stored-hash-throws` -- $2x$ and a foreign PHC algorithm still throw, and the message quotes no bytes.
   "a_2x_hash_and_a_foreign_phc_string_still_throw",
 ]
 
-# The end-to-end half: ADR 0129 § 3's upgrade loop over a bcrypt row -- verify, needsRehash, hash,
+# The end-to-end half: `rule:security/needs-rehash-answers-weaker`'s upgrade loop over a bcrypt row -- verify, needsRehash, hash,
 # verify again -- beside the landed refusal case, which must pass unchanged.
 [[check]]
 kind = "nvs-suite"
@@ -3157,7 +3157,7 @@ tests = [
   "mixed_placeholder_styles_on_a_literal_are_a_diagnostic",
   "an_open_host_matching_no_grant_is_a_diagnostic",
   "a_two_statement_literal_query_is_a_diagnostic",
-  # ADR 0024's own M8 item -- the pair that has to be checked together.
+  # `rule:security/tainted-qualifier`'s own M8 item -- the pair that has to be checked together.
   "a_tainted_value_at_a_query_text_parameter_is_a_diagnostic",
   "the_same_tainted_value_at_a_bound_parameter_compiles",
   "a_tainted_settings_host_is_a_diagnostic_naming_assert_trusted",
@@ -3238,7 +3238,7 @@ cases = [
   "tests/conformance/core/db-a-sqlite-transaction-nests-as-a-savepoint.nvst",
   "tests/conformance/core/db-a-roll-back-survives-a-catch-of-throwable.nvst",
   "tests/conformance/core/db-a-typed-row-throws-naming-the-column.nvst",
-  # ADR 0024 § 4's pair, the binding half included.
+  # `rule:security/sink-predicate`'s pair, the binding half included.
   "tests/conformance/core/db-query-refuses-a-tainted-statement-and-binds-one-freely.nvst",
   # `rule:core-api/shape-arms-are-disjoint`'s arm selection, of which a `host` written under `Driver::Sqlite` is the refusing half.
   "tests/conformance/core/db-settings-are-checked-against-the-one-arm-they-select.nvst",
@@ -3358,7 +3358,7 @@ tests = [
 ]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 4 -- the response, and the sink binding. ADR 0088 § 4's five typed members, and § 3's table.
+# Stage 4 -- the response, and the sink binding. `rule:security/response-body-is-one-typed-member`'s five typed members, and § 3's table.
 # ---------------------------------------------------------------------------------------------------
 [[check]]
 kind = "cargo-named"
@@ -3561,7 +3561,7 @@ stage = "1 floor"
 file = "examples/upload.nvs"
 # A program leg answers no request, so a body's own facts -- how many parts, what a field was
 # called, what a file claimed to be named -- cannot be among these: `Core\Request::files()` refuses
-# where nothing is inbound (ADR 0012 § 7), and that refusal is the first line here. The end-to-end
+# where nothing is inbound (`rule:security/request-state-throws-in-an-isolate`), and that refusal is the first line here. The end-to-end
 # half is the two `ADR 0105 §§ 1-3` checks above, which is where a real multipart body has
 # somewhere to arrive from. What this leg pins is the surface a handler writes -- the walk, the
 # launderer, `saveTo` -- plus § 4's `writeStream`, which a program *can* run.
@@ -3576,7 +3576,7 @@ file = "examples/session.nvs"
 # server fact, and the cross-request half is the two names in the `nvs-stdlib (session, and the tier it
 # may not use)` check above, which is ADR 0059 § 4's rule and where `Core\Session` itself is still open
 # work. What a program leg can pin is the carrier a session id rides on, and that is what this fixture
-# runs: ADR 0060 § 1's ring is ordered, so a cookie sealed under the old key still opens across a
+# runs: `rule:security/protocol-roster`'s ring is ordered, so a cookie sealed under the old key still opens across a
 # rotation and is a forgery once that key is off the tail.
 want = ["opened", "forgery refused", "opens across a rotation", "retired key refused"]
 
@@ -3662,13 +3662,13 @@ tests = ["the_deferred_queue_is_bounded_by_max_concurrent"]
 # ---------------------------------------------------------------------------------------------------
 # Stage 6b -- persistent connections. ADR 0083 whole: a connection is a ROOT isolate opened by a request
 # that then ends, `receive()` is the one wait over the peer and its topics, and `Core\Topic` closes a
-# slow subscriber rather than blocking a publisher. The entry rule is ADR 0006's and lands first at
+# slow subscriber rather than blocking a publisher. The entry rule is `rule:security/isolate-shares-nothing`'s and lands first at
 # `spawn script`, which is why the first check here is not in nvs-server.
 # ---------------------------------------------------------------------------------------------------
 [[check]]
 kind = "cargo-named"
 stage = "1 floor"
-name = "nvs-cli (ADR 0006 -- an isolate's entry is a path or a static method)"
+name = "nvs-cli (`rule:security/isolate-shares-nothing` -- an isolate's entry is a path or a static method)"
 args = ["test", "-p", "nvs-cli"]
 tests = [
   "spawn_script_runs_a_static_method_reference_in_a_fresh_isolate",
@@ -3959,7 +3959,7 @@ tests = [
   "a_client_disconnect_leaves_no_isolate_behind",
 ]
 
-# ADR 0116 § 2's teardown sweep, under load -- item 31, added 2026-09-01. The whole memory story in one
+# `rule:security/isolate-teardown-is-a-drain-then-a-sweep`'s teardown sweep, under load -- item 31, added 2026-09-01. The whole memory story in one
 # assertion: a request's cycles die with the request, so live bytes track in-flight work, never traffic.
 # Filed `-p nvs-host` and not `-p nvs-server`, corrected 2026-09-05: a request IS the isolate, and the
 # arena whose teardown this asserts is `nvs_host::isolate`'s child -- but the cycle has to be built by

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Socket::upgrade` accepts ADR 0006's second entry spelling — a static method reference — and it reaches the same body the path form does rather than any compile question — ADR 0083 §§ 1-2
+`Core\Socket::upgrade` accepts `rule:security/isolate-shares-nothing`'s second entry spelling — a static method reference — and it reaches the same body the path form does rather than any compile question — ADR 0083 §§ 1-2
 --FILE--
 <?nvs
 // ADR 0083 § 2 makes the operand `spawn script`'s, and ADR 0006 § *Decision*

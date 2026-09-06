@@ -59,7 +59,7 @@
 //! for: the expensive setup runs once, and what a test can reach is its own
 //! graph. The verdict crosses the other way as data — [`Outcome`] is decided
 //! on the child's stack, off the child's own ledger, and filed into a cell the
-//! child's program captured, because ADR 0006's `Completion` carries a value,
+//! child's program captured, because `rule:security/isolate-shares-nothing`'s `Completion` carries a value,
 //! bytes and a failure and none of those is a ledger.
 //!
 //! # The runner owns the test's task tree
@@ -509,7 +509,7 @@ impl nvs_runtime::inproc::Answering for UnderTest {
         // The same program `crate::script::program_over` builds for a `spawn
         // script`, over this run's own unit instead of a resolved one: the
         // child's statics and its error class are armed from inside, because
-        // ADR 0006's isolate shares compiled code and nothing else.
+        // `rule:security/isolate-shares-nothing`'s isolate shares compiled code and nothing else.
         let program: nvs_runtime::script::Program =
             Box::new(move |ctx: &mut nvs_runtime::Ctx, _args| {
                 unit.install_in(ctx);
@@ -2066,7 +2066,7 @@ mod tests {
         name: &str,
         filter: Option<&str>,
     ) -> Vec<(String, &'static str, Vec<String>)> {
-        // Granting, because one fixture below spawns and ADR 0118 § 1 denies by
+        // Granting, because one fixture below spawns and `rule:security/capability-question-is-grant-and-scope` denies by
         // default — `crate::script::granting_ctx` owns why that helper exists.
         verdicts_on(&fixture(name), crate::script::granting_ctx(), filter)
     }

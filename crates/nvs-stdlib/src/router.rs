@@ -24,8 +24,8 @@
 //! # What the cases are, and what the order buys
 //!
 //! [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md) § 7
-//! names eight verbs and [ADR 0096](/docs/adr/0096-a-route-without-a-declared-access-decision-does-not-compile.md)
-//! § 4 names four of them as the ones CSRF enforcement covers. Those four are
+//! names eight verbs and `rule:security/csrf-is-on-by-default`
+//! names four of them as the ones CSRF enforcement covers. Those four are
 //! this enum's contiguous *tail*, the same arrangement — and for the same
 //! reason — as `crate::hash`'s private `STRONG`: a rule over a set of cases becomes a
 //! bound rather than a match arm nobody remembers to extend.
@@ -81,7 +81,7 @@ pub(crate) const METHOD_NAME: &str = r"Core\Http\Method";
 
 /// ADR 0077 § 1's `Core\Http\Method` — the eight verbs
 /// [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md) § 7
-/// names, safe ones first so that ADR 0096 § 4's CSRF set is the contiguous
+/// names, safe ones first so that `rule:security/csrf-is-on-by-default`'s CSRF set is the contiguous
 /// tail from `Post` on.
 ///
 /// The integers are each case's own constant, written out rather than
@@ -575,7 +575,7 @@ fn segment_text(value: Value, member: &str, key: &str) -> Result<String, Fault> 
     })?;
     // A post-condition of `value_to_string` rather than a boundary, and so
     // unreachable from source with no diagnostic to name: every `Ok` arm of it
-    // builds a `Value::str`, ADR 0088 § 5's carrier arm included, so this is a
+    // builds a `Value::str`, `rule:security/capture-answers-the-carrier`'s carrier arm included, so this is a
     // `Tag::Str` or it is the `Err` the `?` above already took — the same
     // judgement `crate::uri::scalar_text` records at its own copy of this pair.
     let owned = text

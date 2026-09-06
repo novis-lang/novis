@@ -1,5 +1,5 @@
 --TEST--
-`Core\Request\Part::filename` is the client's claim about a file on its own machine, so it reaches no path sink until `Core\IO::within` launders it — ADR 0105 § 2, ADR 0024 § 1, ADR 0097 § 2
+`Core\Request\Part::filename` is the client's claim about a file on its own machine, so it reaches no path sink until `Core\IO::within` launders it — ADR 0105 § 2, `rule:security/tainted-qualifier`, ADR 0097 § 2
 --FILE--
 <?nvs
 // The boundary this pins is the one PHP crossed: `move_uploaded_file` took a

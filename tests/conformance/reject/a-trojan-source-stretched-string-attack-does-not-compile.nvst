@@ -1,5 +1,5 @@
 --TEST--
-the Trojan Source paper's stretched-string pattern, transliterated to Novis, does not compile — ADR 0087 § 1
+the Trojan Source paper's stretched-string pattern, transliterated to Novis, does not compile — `rule:security/bidi-predicate`
 --FILE--
 <?nvs
 string $accessLevel = "user⁧ // trusted";

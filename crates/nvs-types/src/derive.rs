@@ -431,7 +431,7 @@ fn codec_ty(declared: TypeId, env: &Env<'_>) -> Erased {
         Ty::Int => (CodecTy::Int, None, None, None),
         Ty::Uint => (CodecTy::Uint, None, None, None),
         Ty::Float => (CodecTy::Float, None, None, None),
-        // A `tainted` string is still a string on the wire; ADR 0071 § 6 makes
+        // A `tainted` string is still a string on the wire; `rule:security/derived-codec-qualifiers` makes
         // the qualifier a call-site question, not a decoder one.
         Ty::String | Ty::TaintedString => (CodecTy::Str, None, None, None),
         Ty::Mixed => (CodecTy::Mixed, None, None, None),
@@ -1102,7 +1102,7 @@ fn codec_field(
         return FieldOutcome::Refused;
     }
     let declared = crate::lower::lower_optional_type(p.ty, ctx, env);
-    // ADR 0071 § 6: ADR 0033's refusal, moved from wherever the value reached
+    // `rule:security/derived-codec-qualifiers`: `rule:security/secret-qualifier`'s refusal, moved from wherever the value reached
     // the encoder to the declaration that put it on the wire contract.
     if is_secret(declared, env) {
         env.diags.report(
@@ -1112,7 +1112,7 @@ fn codec_field(
             )
             .with_primary(p.name, "a `secret` value has no wire form")
             .with_help(format!(
-                "ADR 0071 § 6: encoding was already an ADR 0033 sink — write `{skip}` to leave \
+                "`rule:security/derived-codec-qualifiers`: encoding was already an `rule:security/secret-qualifier` sink — write `{skip}` to leave \
                  it off the contract in writing"
             )),
         );
@@ -1219,7 +1219,7 @@ fn check_constructor_parameter(
     Some(index)
 }
 
-/// Whether `ty` carries ADR 0033's `secret` qualifier.
+/// Whether `ty` carries `rule:security/secret-qualifier`'s `secret` qualifier.
 fn is_secret(ty: TypeId, env: &Env<'_>) -> bool {
     matches!(
         env.interner.get(ty),

@@ -168,7 +168,7 @@ const NORMAL_FORM_DOC: EnumDoc = EnumDoc {
 /// `CLASSES` lists this const; that list grows one line per *class*, never one
 /// per member.
 ///
-/// # ADR 0088 § 2's classification, over this class
+/// # `rule:security/unclassified-parameter-refuses-tainted`'s classification, over this class
 ///
 /// [`Qual`]'s own docs hold the rule every class is classified by. Applied
 /// here it lands three ways, and the third is the only one that is not

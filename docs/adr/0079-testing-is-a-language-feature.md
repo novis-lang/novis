@@ -261,7 +261,7 @@ FAILED  AuthTest::itMintsAToken
   values differ
   actual:   <secret string, 43 bytes>
   expected: <secret string, 40 bytes>
-  note: both operands are `secret`; ADR 0033 forbids rendering them. Compare a
+  note: both operands are `secret`; `rule:security/secret-qualifier` forbids rendering them. Compare a
         derived value instead, e.g. Core\Hash::of($token, Digest::Sha256).
 ```
 

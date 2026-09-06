@@ -4,7 +4,7 @@
 //!
 //! # The installer is a sink
 //!
-//! [ADR 0088] defines a sink as a parameter whose content becomes an
+//! `rule:security/sink-predicate` defines a sink as a parameter whose content becomes an
 //! instruction rather than data, and § 2 of 0093 calls the trailing argv here
 //! the sharpest case in the project: the command runs elevated, and what it
 //! stores is executed by a privileged account at every boot until somebody
@@ -60,7 +60,6 @@
 //! module can be asked about rather than a comment.
 //!
 //! [ADR 0093]: /docs/adr/0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md
-//! [ADR 0088]: /docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -877,7 +876,7 @@ mod tests {
         let refusal = plan(&asked, &host()).expect_err("password");
         assert_eq!(coded(&refusal), code::E_SERVICE_PASSWORD_ON_A_COMMAND_LINE);
         // The value itself is never echoed back — it is `secret` for its whole
-        // life under ADR 0033, and a diagnostic quoting it would put it in a
+        // life under `rule:security/secret-qualifier`, and a diagnostic quoting it would put it in a
         // second place.
         assert!(!refusal.message.contains("hunter2"));
 

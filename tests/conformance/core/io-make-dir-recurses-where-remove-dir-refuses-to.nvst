@@ -1,5 +1,5 @@
 --TEST--
-Core\IO::makeDir creates a whole chain in one call while Core\IO::removeDir takes one empty level at a time — the asymmetry is deliberate, and it is counted here rather than asserted of either member alone — spec § 14, ADR 0118 § 2
+Core\IO::makeDir creates a whole chain in one call while Core\IO::removeDir takes one empty level at a time — the asymmetry is deliberate, and it is counted here rather than asserted of either member alone — spec § 14, `rule:security/capability-check-at-the-door`
 --FILE--
 <?nvs
 // The pair reads like an inconsistency until the reason is named, so it is

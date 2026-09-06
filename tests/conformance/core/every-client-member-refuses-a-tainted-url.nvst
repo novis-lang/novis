@@ -2,7 +2,7 @@
 Every `Core\Http\Client` member refuses a `tainted` URL and accepts what the launderer answers, so `Core\Http::allowUrl` is the only way one reaches the outbound door — ADR 0058 §§ 1-2
 --FILE--
 <?nvs
-// ADR 0058 § 1 makes the URL parameter of every outbound member a sink: the
+// `rule:security/outbound-url-is-a-sink` makes the URL parameter of every outbound member a sink: the
 // declared type is `string | Core\Http\Target`, both halves unqualified, so a
 // value that came from outside the process is refused by the type itself and
 // not by a check a member could forget.

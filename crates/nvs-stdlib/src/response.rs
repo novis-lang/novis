@@ -5,8 +5,8 @@
 //! # What is here, and what is not
 //!
 //! Three of
-//! [ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
-//! § 4's five body members: `text`, `json` and `bytes`. The other two — `html`,
+//! `rule:security/response-body-is-one-typed-member`
+//! 's five body members: `text`, `json` and `bytes`. The other two — `html`,
 //! whose parameter is a carrier this class cannot take until `Core\Html\Markup`
 //! is spellable in a registry row, and `sendFile`, whose path is § 1's sink
 //! over a file the server resolves — are known gaps of this module rather than
@@ -212,7 +212,7 @@ const STATUS_MIN: u16 = 100;
 /// [`spellable`] takes for a media type, at the same layer.
 const STATUS_MAX: u16 = 599;
 
-/// The one header name `setHeader` refuses — ADR 0088 § 4's, owned by whichever
+/// The one header name `setHeader` refuses — `rule:security/response-body-is-one-typed-member`'s, owned by whichever
 /// body member wrote the body. The module doc owns why it is refused rather
 /// than admitted as one more override.
 const CONTENT_TYPE_HEADER: &str = "Content-Type";
@@ -771,7 +771,7 @@ pub(crate) fn nameable(name: &str) -> bool {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Response::text(string $body): void` — ADR 0088 § 4's third row.
+    /// `Core\Response::text(string $body): void` — `rule:security/response-body-is-one-typed-member`'s third row.
     ///
     /// Two effects and no third: the bytes go to this request's output, and
     /// the media type is declared on its context. The module doc owns why
@@ -808,7 +808,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// One effect and no second: the code is declared on this request's
     /// context, and nothing is written. That is the whole difference between
-    /// this member and the four above it, and it is why ADR 0088 § 4's sixth
+    /// this member and the four above it, and it is why `rule:security/response-body-is-one-typed-member`'s sixth
     /// row does not reach here — `nvs_types::response`'s roster of five body
     /// members is what `E0801` refuses beside an `echo`, and a status is not a
     /// body. A handler that `echo`es and sets a status is ordinary.
@@ -1322,7 +1322,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Response::json(mixed $value): void` — ADR 0088 § 4's second row.
+    /// `Core\Response::json(mixed $value): void` — `rule:security/response-body-is-one-typed-member`'s second row.
     ///
     /// The same encoder `Core\Json::encode` is, reached through the same
     /// [`crate::json::Encodable`] rather than through a second walk: one
@@ -1412,7 +1412,7 @@ mod tests {
     use nvs_runtime::{Ctx, NvsStr, OutputSink, Value, call};
 
     /// One body member's whole effect on the response *head*, which is the one
-    /// word ADR 0088 § 4 puts there: the media type it declared, read back off
+    /// word `rule:security/response-body-is-one-typed-member` puts there: the media type it declared, read back off
     /// the context the isolate's finish path takes it from.
     ///
     /// A fresh context per call, because the claim is that each member declares
@@ -1440,7 +1440,7 @@ mod tests {
         }
     }
 
-    /// ADR 0088 § 4's table, asserted as a table: each landed body member owns
+    /// `rule:security/response-body-is-one-typed-member`'s table, asserted as a table: each landed body member owns
     /// one body shape and sets **its own** `Content-Type`, which is the whole
     /// argument for five members rather than one `write`.
     ///

@@ -68,13 +68,13 @@ discovered.
 ### 4. The pattern is a sink; the subject is not
 
 `Core\Regex`'s **pattern** parameter requires the plain, unqualified `string`
-([ADR 0024](0024-taint-tracking-for-injection-sinks.md) § 4). A user-supplied pattern is both a
+(`rule:security/sink-predicate`). A user-supplied pattern is both a
 denial-of-service vector and a logic-injection vector — a pattern controlled by an attacker can be made to
 match anything, which turns a validation check into an approval. There is no laundering function for it,
 because there is no meaningful way to make an arbitrary attacker-authored pattern safe; a program that
 genuinely needs one uses `Core\Taint::assertTrusted` and says why.
 
-The **subject** may be tainted, and ADR 0024 § 2's contagion applies unchanged: a substring matched out of
+The **subject** may be tainted, and `rule:security/taint-propagation`'s contagion applies unchanged: a substring matched out of
 a tainted subject is tainted.
 
 ### 5. Syntax: PCRE-compatible where the engines allow, diagnosed where they do not

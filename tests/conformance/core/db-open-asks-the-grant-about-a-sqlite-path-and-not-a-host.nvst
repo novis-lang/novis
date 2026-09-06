@@ -20,7 +20,7 @@ try {
     echo $refused->message, "\n";
 }
 
-// ADR 0118 § 5: a denial is the world refusing a call, not the program dying.
+// `rule:security/denial-is-a-runtime-error`: a denial is the world refusing a call, not the program dying.
 echo "still running", "\n";
 --FILE nvs.toml--
 # A grant written for the four drivers that have a host. Nothing here is a path

@@ -118,14 +118,14 @@ Core\RateLimit\Decision — readonly allowed: bool, limit: uint, remaining: uint
 
 - **`$key` accepts `tainted`.** A tenant id, an account id or an API key id *is* user-derived data, and
   requiring a launderer would be pure friction with no security benefit — the identical reasoning
-  [ADR 0024](0024-taint-tracking-for-injection-sinks.md) § 4 gives for `Core\Db`'s bound-parameter argument.
+  `rule:security/sink-predicate` gives for `Core\Db`'s bound-parameter argument.
   There is no injection to prevent: the shared store's protocol is length-prefixed, so a key is one opaque
   value and cannot reshape a command.
 - **Both members are neutral** ([docs/spec/01-core-library.md](../spec/01-core-library.md)'s qualifier
   column): a `Decision` is a bool, two counts and a duration, and carries nothing from the key.
 - **`secret` is refused at the key.** A signing key or a password is not an identifier, and using one as a
   rate-limit key writes it into a store with a TTL — which is exactly the durable exposure
-  [ADR 0033](0033-secret-qualifier-for-confidential-values.md) exists to close. The fix is to key on a hash
+  `rule:security/secret-qualifier` exists to close. The fix is to key on a hash
   of it, which `Core\Hash::of` already provides and which is *neutral* by that ADR's own rule.
 
 ### 4. What is deliberately absent
@@ -270,7 +270,7 @@ implementation of somebody else's specification, and it is a few dozen lines wit
 - **M8:** an unreachable shared store makes `consume` throw `IOError` and never return a `Decision`;
   `shed` is unaffected by the store being down at all.
 - **M8:** a `tainted` key compiles; a `secret` key is a compile-time diagnostic naming
-  [ADR 0033](0033-secret-qualifier-for-confidential-values.md); the returned `Decision` is unqualified
+  `rule:security/secret-qualifier`; the returned `Decision` is unqualified
   (a `neutral` member, asserted by the same spec-column check M4S already runs).
 - **M8:** the shared tier's script is atomic under concurrent access from several connections — a thousand
   concurrent `consume` calls against a limit of ten admit exactly ten.

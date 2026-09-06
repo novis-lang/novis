@@ -61,7 +61,7 @@
 //!
 //! # What these members do with a qualifier
 //!
-//! ADR 0088 § 2's classification, and the one judgement in it worth writing
+//! `rule:security/unclassified-parameter-refuses-tainted`'s classification, and the one judgement in it worth writing
 //! down: **`normalize` is not a launderer.** It is the member most likely to be
 //! read as one — resolving `..` is exactly what stops a path climbing out of a
 //! directory, so it *looks* like the thing that makes a `tainted` path safe —

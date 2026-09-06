@@ -89,7 +89,7 @@ easiest to give.
 **A parsed tree is inert. There is no path from an AST value back into execution.** `eval` does not exist in
 Novis and stays rejected outright — a string has no stable identity, no cache key, and no
 capability-grantable path (see [the spec](../spec/00-overview.md) § 2, and
-[ADR 0006](0006-isolated-script-execution.md) *Alternatives rejected*). `Core\Ast::parse()` does not weaken
+`rule:security/isolate-shares-nothing` *Alternatives rejected*). `Core\Ast::parse()` does not weaken
 that: it hands back a value a program can walk, print, or rewrite into a new source string to hand to a
 human or a file — never a way to run what it describes. Shipping `Core\Ast` is therefore not "`eval` under a
 different name"; it is the same rejection restated for a second time this project needed it stated.
@@ -154,7 +154,7 @@ as `Core\Json::decode()` on one.
 - **Return the AST as `array<mixed>`** (PHP's `ast` extension/`token_get_all()` shape). Rejected per § 3: the
   exact `mixed`-shaped shortcut `rule:types/declaration` closes everywhere else.
 - **A `Core\Ast::eval()`-style convenience.** Never seriously considered: `eval` with extra ceremony, already
-  rejected by [ADR 0006](0006-isolated-script-execution.md) for reasons that apply unchanged to a tree.
+  rejected by `rule:security/isolate-shares-nothing` for reasons that apply unchanged to a tree.
 
 ## Revisiting
 

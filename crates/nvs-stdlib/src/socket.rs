@@ -5,7 +5,7 @@
 //! its own arena, its own `[limits]` budget, its own grants, and none of the
 //! upgrading request's heap. § 2 makes opening one `spawn script`-shaped, so
 //! the operand here is that construct's operand under exactly
-//! [ADR 0006](/docs/adr/0006-isolated-script-execution.md)'s rule — a path, or
+//! `rule:security/isolate-shares-nothing`'s rule — a path, or
 //! a static method written `Chat::run(...)`, and never a closure.
 //!
 //! # What is here, and what is not
@@ -41,7 +41,7 @@
 //! There is no [`crate::registry::CAPABILITIES`] row, and that is a statement
 //! about where the grant is asked rather than about the member: the entry path
 //! reaches the operating system through `nvs_runtime::script::resolve`, which
-//! is ADR 0118 § 2's own door for `script.spawn` and asks the question with the
+//! is `rule:security/capability-check-at-the-door`'s own door for `script.spawn` and asks the question with the
 //! path as its scope, and the sibling construct's helper — `crate::script`'s
 //! `nvs_core_script_spawn` — declares none for that same reason. Nothing here
 //! names an operating-system spelling of its own, which is what
@@ -73,7 +73,7 @@
 //! crossed — and it is prepared here, inside the request, because all three
 //! things that can refuse belong to the request:
 //!
-//! - **The capability.** ADR 0006's `script.spawn` grant, and the root check
+//! - **The capability.** `rule:security/isolate-shares-nothing`'s `script.spawn` grant, and the root check
 //!   under it, are asked against the request's own configuration overlay, so a
 //!   request that narrowed its grants cannot upgrade into a connection holding
 //!   the ones it gave up — § 1's "narrowed from the request's, never widened".
@@ -132,7 +132,7 @@
 //! program, a `spawn script` child, a request the server could offer no
 //! upgrade for — has no slot to write into and this member throws, for the
 //! reason `Core\Request::method()` throws there
-//! ([ADR 0012](/docs/adr/0012-no-superglobals.md) § 7). And the server holds
+//! (`rule:security/request-state-throws-in-an-isolate`). And the server holds
 //! the other half of that slot, so § 1's ordering is what the code can express
 //! rather than what it must remember: the request is joined, its context is
 //! dropped and its arena with it, and only then is there a caller left holding
@@ -229,8 +229,8 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // carries that ADR's whole rule to a call site: a path or a static
             // method written `Chat::run(...)`, and never a `callable` in a
             // variable. It classifies as a sink for the reason a path always does
-            // — its content becomes the instruction "execute this file", ADR 0088
-            // § 1's definition, and
+            // — its content becomes the instruction "execute this file", `rule:security/sink-predicate`
+            // 's definition, and
             // [ADR 0097](/docs/adr/0097-development-server-and-proxied-origin.md)
             // § 2 is the same rule written for the server, a filesystem path never
             // derived from a URL at request time. `args` takes no expected type at
@@ -275,7 +275,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             name: "send",
             names: &["frame"],
             // [`Qual::Neutral`] because a frame is not an instruction on this
-            // side of the wire — ADR 0088 § 1's test — and because `send`
+            // side of the wire — `rule:security/sink-predicate`'s test — and because `send`
             // answers `void`, so there is no result for the argument's
             // qualifier to reach.
             params: &[CoreTy::Text(Qual::Neutral)],
@@ -594,14 +594,14 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 ///
 /// `args` is the **parent's** `args:` map, judged here rather than in the
 /// child for `crate::script`'s `entry_names_agree` reason: this frame is the
-/// call ADR 0006 names as where a named-argument mismatch is reported, and it
+/// call `rule:security/isolate-shares-nothing` names as where a named-argument mismatch is reported, and it
 /// is the last one that still has a `catch` above it. It is *only* judged —
 /// what crosses is the caller's own copy, made after this returns.
 ///
 /// # Errors
 ///
 /// Everything [`nvs_runtime::script::resolve`] refuses, in `spawn script`'s own
-/// wording with `member` in front of it; ADR 0006's named-argument mismatch for
+/// wording with `member` in front of it; `rule:security/isolate-shares-nothing`'s named-argument mismatch for
 /// a method entry; and a `callable` recording no parameter names, which the
 /// checker refuses at every spelling that could produce one.
 pub(crate) fn entry_program(
@@ -621,7 +621,7 @@ pub(crate) fn entry_program(
     let Some(path) = entry.as_text() else {
         return method_program(ctx, entry, args, member);
     };
-    // ADR 0118 § 2's door is inside `resolve` and not here, exactly as it is
+    // `rule:security/capability-check-at-the-door`'s door is inside `resolve` and not here, exactly as it is
     // for the sibling construct: a `Program` is what a spawn was after, so the
     // function that produces one is the effect the grant guards.
     // No case can reach this — see above — and
@@ -640,8 +640,8 @@ pub(crate) fn entry_program(
             ThrownClass::Runtime,
             format!("`{member}('{path}')`: {message}"),
         ),
-        // Already a whole sentence naming the capability and the path (ADR 0118
-        // § 5), so it is thrown as written rather than framed twice.
+        // Already a whole sentence naming the capability and the path (`rule:security/denial-is-a-runtime-error`
+        // ), so it is thrown as written rather than framed twice.
         ResolveError::Denied(message) => Fault::thrown_as(ThrownClass::Runtime, message),
     })
 }
@@ -689,7 +689,7 @@ impl Drop for HeldCallable {
 /// that handle exists.
 ///
 /// The child is armed with a **fresh** store materialized from those recipes,
-/// never the parent's slots, so ADR 0006's unshared class statics hold whichever
+/// never the parent's slots, so `rule:security/isolate-shares-nothing`'s unshared class statics hold whichever
 /// form named the entry — the same rule `method_isolate` keeps for a `spawn
 /// script`.
 ///
@@ -702,7 +702,7 @@ impl Drop for HeldCallable {
 ///
 /// # Errors
 ///
-/// A `callable` recording no parameter names at all, and ADR 0006's
+/// A `callable` recording no parameter names at all, and `rule:security/isolate-shares-nothing`'s
 /// named-argument mismatch between the target's parameters and `args`.
 fn method_program(ctx: &Ctx, entry: Value, args: Value, member: &str) -> Result<Program, Fault> {
     // `None` is a closure with no `fn#names` field, which is an `fn` literal:
@@ -712,7 +712,7 @@ fn method_program(ctx: &Ctx, entry: Value, args: Value, member: &str) -> Result<
     // recoverable and a wrong `FATAL` ends the request.
     let Some(names) = nvs_runtime::closure_param_names(entry)? else {
         return Err(Fault::thrown(format!(
-            "`{member}` was handed a `callable` that records no parameter names, so ADR 0006's \
+            "`{member}` was handed a `callable` that records no parameter names, so `rule:security/isolate-shares-nothing`'s \
              `args:` binding has nothing to bind by. Name a static method — `Chat::run(...)` — \
              or the file the connection runs"
         )));
@@ -743,7 +743,7 @@ fn method_program(ctx: &Ctx, entry: Value, args: Value, member: &str) -> Result<
         match nvs_runtime::call_closure(child, held.0, &bound) {
             Ok(value) => value,
             // The judgement `call_closure` makes on this frame's behalf — an
-            // argument whose tag the parameter does not admit, ADR 0006's
+            // argument whose tag the parameter does not admit, `rule:security/isolate-shares-nothing`'s
             // "typed at the boundary". There is no frame above it inside the
             // connection, so it is recorded as the isolate's pending throw.
             Err(Fault::Thrown(class, message)) => {
@@ -1423,7 +1423,7 @@ mod tests {
         install(&REFUSING)
     }
 
-    /// A context granting `script.spawn` for everything, because ADR 0118 § 2's
+    /// A context granting `script.spawn` for everything, because `rule:security/capability-check-at-the-door`'s
     /// door is inside `resolve` and a bare context grants nothing — every case
     /// below is about the slot rather than about the grant.
     fn granting() -> Ctx {
@@ -1456,7 +1456,7 @@ mod tests {
 
     /// The object `nvs_ir::lower`'s `lower_callable_ref` builds for a written
     /// `Chat::run(...)`: the two reserved fields every closure carries, plus
-    /// the third only a first-class callable has — ADR 0006's parameter names,
+    /// the third only a first-class callable has — `rule:security/isolate-shares-nothing`'s parameter names,
     /// comma-joined in declaration order.
     ///
     /// Built by hand rather than compiled, because there is no compiler on this
@@ -1623,7 +1623,7 @@ mod tests {
     }
 
     /// A path the resolver will not answer for is a **throw in the request**,
-    /// never an upgrade that fails later: ADR 0006's boundary turns only what
+    /// never an upgrade that fails later: `rule:security/isolate-shares-nothing`'s boundary turns only what
     /// the *child* produced into a value, and there is no child here yet.
     ///
     /// Both of the seam's ways of not answering are asked, because they are two

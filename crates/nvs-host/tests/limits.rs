@@ -511,7 +511,7 @@ fn a_fatal_handler_runs_inside_its_reserved_time_slice() {
 /// `docs/plan/m8.md`'s *Verify*, `rule:errors/handler-script`: the tier-3 handler runs charged to the engine's own
 /// reserve, and still runs when the request reporting itself is at its own ceiling.
 ///
-/// Asserted on the **context**, because that is where the exception to ADR 0006 lives and where a
+/// Asserted on the **context**, because that is where the exception to `rule:security/isolate-shares-nothing` lives and where a
 /// regression would land: `Ctx::handler_isolate` is what parts from `Ctx::isolate`, and running a
 /// real `.nvs` through `ladder::escalate` would assert the same three fields through a compiler, a
 /// capability and a path resolver, none of which is what this case is about.
@@ -662,7 +662,7 @@ impl nvs_runtime::script::Resolver for ResolvesToTheProbe {
 ///
 /// The sibling above asks [`Ctx::handler_isolate`] for the three fields it parts from
 /// `Ctx::isolate` on. This one asks the **ladder**, end to end and from a request that has already
-/// breached: `nvs_host::ladder::escalate` reading `[log] handler`, passing ADR 0118 § 2's spawn
+/// breached: `nvs_host::ladder::escalate` reading `[log] handler`, passing `rule:security/capability-check-at-the-door`'s spawn
 /// door, resolving the path, running the program under `Charge::EngineReserve` and answering
 /// `true` — which is its contract for "the handler reported, so tier 4 owes nothing".
 ///
@@ -829,7 +829,7 @@ fn a_recursive_spawn_is_reported_as_max_script_depth_and_not_as_memory() {
 /// before the timer fired, which is the order a copied flag would have failed. Output is the memory
 /// arrangement one field along — `nvs_runtime::budget`'s output count is per thread too and
 /// `Ctx::new` re-bases it too — so it is built in the same loop and asked with the same two
-/// readings, which is ADR 0006's "child output against the root's `max_output`".
+/// readings, which is `rule:security/isolate-shares-nothing`'s "child output against the root's `max_output`".
 ///
 /// The safepoint at the end can only ever answer for memory, because that is the branch the poll
 /// reaches first. So the output branch of that same poll is pinned below on a context over one

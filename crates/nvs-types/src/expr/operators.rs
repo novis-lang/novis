@@ -333,7 +333,7 @@ pub(crate) fn binary_result(
         return mixed;
     }
     match op {
-        // ADR 0024 § 2 / ADR 0033 § 2: concatenating a qualified operand with
+        // `rule:security/taint-propagation` / `rule:security/secret-propagation`: concatenating a qualified operand with
         // an unqualified one poisons the result on that axis, the same
         // "poisoned" shape `rule:types/declaration` already uses for mixed-type arithmetic —
         // `tainted` and `secret` poison independently of each other.
@@ -371,7 +371,7 @@ pub(crate) fn binary_result(
         }
         BinaryOp::Eq | BinaryOp::NotEq => {
             reject_disjoint_equality(lhs, rhs, span, env);
-            // ADR 0033 § 5: two `secret` operands compare in constant time.
+            // `rule:security/secret-comparison-is-constant-time`: two `secret` operands compare in constant time.
             // Nothing about the *result* changes — it is a `bool` either way —
             // so this records the fact for `nvs-ir` rather than returning a
             // different type. It has to be recorded here because the qualifier
@@ -532,7 +532,7 @@ fn equality_domain(ty: &Ty) -> Option<EqDomain<'_>> {
         Ty::Bool | Ty::True | Ty::False => EqDomain::Bool,
         Ty::Int | Ty::Uint | Ty::Float | Ty::Decimal => EqDomain::Numeric,
         // A qualifier is a fact about where a value has been, never about
-        // which values it can hold (ADR 0024 § 2 / ADR 0033 § 2), so all four
+        // which values it can hold (`rule:security/taint-propagation` / `rule:security/secret-propagation`), so all four
         // spellings of each base are one domain.
         Ty::String | Ty::TaintedString | Ty::SecretString | Ty::SecretTaintedString => {
             EqDomain::Str
@@ -1798,7 +1798,7 @@ fn reject_unconvertible(from: TypeId, to: TypeId, span: Span, env: &mut Env<'_>)
 ///   receives, are the two spellings `rule:types/erased-member-access` leaves standing. Both erase
 ///   to one pointer representation, so the conversion runs nothing and the
 ///   check happens at the member access instead (`InstKind::SlotGet`).
-/// * **A `Core`-owned class**, which decides for itself: ADR 0024's
+/// * **A `Core`-owned class**, which decides for itself: `rule:security/tainted-qualifier`'s
 ///   `as Core\Html\Markup` is a source-literal `string` and has its own
 ///   diagnostic (`E_MARKUP_REQUIRES_LITERAL`, in [`crate::expr::quals`])
 ///   saying so. Exempted from the disjointness question exactly as
@@ -2166,7 +2166,7 @@ fn conversion_row_exists(from: ConvKind, to: ConvKind) -> bool {
         // `rule:types/conversion`'s O(n) element row.
         (Array, Array) => true,
         // Two spellings of one representation — a literal type and its base,
-        // `secret bytes` and `bytes`. `rule:types/literal-types` and ADR 0033 § 1 both make
+        // `secret bytes` and `bytes`. `rule:types/literal-types` and `rule:security/secret-qualifier` both make
         // these free, and the qualifier rule that runs after this one
         // ([`super::quals`]) is what decides the result's own qualifiers. The
         // `bool` and `string` pairs are already true two rows up, so naming
@@ -2481,12 +2481,12 @@ pub(crate) fn require_stringable(ty: TypeId, span: Span, env: &mut Env<'_>) {
 /// type exists. What this refuses is every *other* route to the same bytes.
 /// § 2's own example is the one that matters: `"Hello " . $m` would flatten the
 /// carrier into a `string`, which the HTML sink then escapes, and the program
-/// ships `&amp;amp;` — the bug ADR 0133 removes, with `.` spelling it instead
+/// ships `&amp;amp;` — the bug `rule:security/launderer-answers-a-carrier` removes, with `.` spelling it instead
 /// of `escape`. § 3 refuses `as string` for the same reason in one keystroke
 /// fewer.
 ///
 /// **`Core\Cli\Text` is deliberately not refused here**, and the asymmetry is
-/// ADR 0133 § 1's table rather than an oversight: the terminal's escape is
+/// `rule:security/launderer-answers-a-carrier`'s table rather than an oversight: the terminal's escape is
 /// *idempotent*, so a `Text` flattened into a `string` and re-neutralized by
 /// the sink comes out as the same bytes. The hazard is the second application
 /// changing the output, and one sink over it does not.
@@ -2529,7 +2529,7 @@ pub(crate) fn reject_carrier_as_text(ty: TypeId, span: Span, env: &mut Env<'_>) 
 /// signature table exactly as a declared one does — `nvs-ir` asks
 /// `core_symbol_of` which of the two calls to emit, and that is the only place
 /// the difference is visible. The one rendering class that records nothing is
-/// ADR 0088 § 5's sink carrier: it has no `toString` member to resolve, so
+/// `rule:security/capture-answers-the-carrier`'s sink carrier: it has no `toString` member to resolve, so
 /// `resolve_method` answers `None` and the value renders through
 /// `nvs_runtime::stringify` on its runtime class instead.
 ///

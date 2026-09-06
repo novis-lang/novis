@@ -23,7 +23,7 @@ echo "still ", $db->driver() == Core\Db\Driver::Sqlite ? "sqlite" : "something e
 // condition.
 echo "open before close: ", $db->isOpen() ? "yes" : "no", "\n";
 
-// ADR 0067 § 13's release, reached early: the connection goes back to this
+// `rule:security/db-pool-reset-is-a-boundary`'s release, reached early: the connection goes back to this
 // core's pool here instead of at the end of the request.
 $db->close();
 

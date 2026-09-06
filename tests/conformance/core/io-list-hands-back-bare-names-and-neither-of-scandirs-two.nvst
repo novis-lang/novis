@@ -1,5 +1,5 @@
 --TEST--
-`Core\IO::list` answers one bare name per entry — never a path, and never `.` or `..` — asserted by counting the whole listing from both ends rather than by reading a line off it — spec § 14 *Manipulation*, ADR 0118 § 2
+`Core\IO::list` answers one bare name per entry — never a path, and never `.` or `..` — asserted by counting the whole listing from both ends rather than by reading a line off it — spec § 14 *Manipulation*, `rule:security/capability-check-at-the-door`
 --FILE--
 <?nvs
 // The listing's order is the operating system's, so nothing here may depend on

@@ -126,7 +126,7 @@ pub const CONSTRAINT_SLOT: usize = KIND_SLOT + 3;
 ///
 /// § 8 lets the text ride the throw where it lets no bound value ride it: the
 /// SQL is developer-authored and the values are the request's, which is
-/// [ADR 0033](/docs/adr/0033-secret-qualifier-for-confidential-values.md)'s
+/// `rule:security/secret-qualifier`'s
 /// line and not a judgement made here. It is `?string` because a refusal is not
 /// always *of* a statement a caller spelled — § 7's `BEGIN`, `COMMIT` and
 /// `SAVEPOINT` are this runtime's own text — and an unwritten slot already

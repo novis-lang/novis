@@ -1,5 +1,5 @@
 --TEST--
-The one thing the front end accepts and nothing below it enforces is refused at its own site — a `spawn script` option is `E0777` (ADR 0006, goal 3) — while `require` is whole in both of `rule:statements/require-is-the-only-inclusion-construct`'s forms and reports nothing at either
+The one thing the front end accepts and nothing below it enforces is refused at its own site — a `spawn script` option is `E0777` (`rule:security/isolate-shares-nothing`, goal 3) — while `require` is whole in both of `rule:statements/require-is-the-only-inclusion-construct`'s forms and reports nothing at either
 --FILE--
 <?nvs
 // `rule:statements/a-require-expression-is-mixed`'s value form runs now: the site calls the target file's own
@@ -16,7 +16,7 @@ echo $c as string;
 require "cfg.nvs";
 echo Cfg::name();
 
-// ADR 0006's spawn itself lowers now (`E0703` is retired). What is still
+// `rule:security/isolate-shares-nothing`'s spawn itself lowers now (`E0703` is retired). What is still
 // refused is an option this compiler parses and does not enforce: a `grants:`
 // narrowing accepted and dropped would hand the child the parent's authority,
 // so it is refused where it is written rather than ignored.
@@ -35,6 +35,6 @@ error[E0777]: `spawn script`'s `grants:` is not enforced yet
    |
 20 | spawn script "cfg.nvs" with(grants: 7);
    |                             ^^^^^^^^^ this option would be accepted and ignored
-   = help: ADR 0006 specifies all five options and this compiler enforces `args:` and `output:`. Refusing the other three is deliberate: a `grants:` narrowing that were silently dropped would hand the child the parent's authority
+   = help: `rule:security/isolate-shares-nothing` specifies all five options and this compiler enforces `args:` and `output:`. Refusing the other three is deliberate: a `grants:` narrowing that were silently dropped would hand the child the parent's authority
 
 error: aborting due to 1 error

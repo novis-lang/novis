@@ -2,7 +2,7 @@
 //! thread-local, one trait, and one operation nothing below the compiler can
 //! perform for itself.
 //!
-//! [ADR 0006](/docs/adr/0006-isolated-script-execution.md)'s isolate
+//! `rule:security/isolate-shares-nothing`'s isolate
 //! runs *another file*, and `nvs_host::Isolate` is that boundary in code. What
 //! it deliberately cannot do is turn the written path into something to call:
 //! resolving a path means the front end, `nvs-ir`, `nvs-codegen` and the unit
@@ -28,12 +28,12 @@
 //! # What crosses, and who owns it afterwards
 //!
 //! A [`Program`] is a boxed closure, so the unit behind it is the resolver's to
-//! keep alive and its own to share: ADR 0006's "an isolate shares immutable
+//! keep alive and its own to share: `rule:security/isolate-shares-nothing`'s "an isolate shares immutable
 //! compiled code" is a property of *that* cache, not of this seam. What the
 //! seam fixes is only the shape both ends agree on, and the argument's
 //! ownership, which [`Program`]'s own doc states in full.
 //!
-//! # Why ADR 0006's *other* entry form never reaches this seam
+//! # Why `rule:security/isolate-shares-nothing`'s *other* entry form never reaches this seam
 //!
 //! [ADR 0006](/docs/adr/0006-isolated-script-execution.md) § *Decision* gives
 //! `spawn script` two operands: a path, and a `Class::method(...)` reference.
@@ -70,7 +70,7 @@
 //! code.
 //!
 //! **The capability question is asked, and it is asked unscoped.**
-//! [`resolve`] below is ADR 0118 § 2's door for a path, and `script.spawn`'s
+//! [`resolve`] below is `rule:security/capability-check-at-the-door`'s door for a path, and `script.spawn`'s
 //! grant names filesystem roots ([ADR 0006](/docs/adr/0006-isolated-script-execution.md)
 //! § *Executing code is its own capability*). A method has no path to
 //! canonicalise and prefix-check, but the grant still decides whether this
@@ -118,7 +118,7 @@ pub type Program = Box<dyn FnOnce(&mut Ctx, Value) -> Value>;
 /// Why a path did not become a [`Program`].
 ///
 /// Two variants because the two mean different things to the isolate that
-/// asked. Neither is a [`crate::Thrown`]: ADR 0006's failure-is-a-value rule
+/// asked. Neither is a [`crate::Thrown`]: `rule:security/isolate-shares-nothing`'s failure-is-a-value rule
 /// starts at the boundary, and this is one step before it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ResolveError {
@@ -130,8 +130,8 @@ pub enum ResolveError {
     /// does not compile. Already rendered for a person to read.
     Refused(String),
     /// The configuration does not grant `script.spawn` for this path —
-    /// [ADR 0118](/docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)
-    /// § 5's message, written by `crate::capability` and carried out through
+    /// `rule:security/denial-is-a-runtime-error`
+    /// 's message, written by `crate::capability` and carried out through
     /// here rather than re-worded, so every denial reads the same whichever
     /// door produced it.
     ///
@@ -258,8 +258,8 @@ pub fn scoped<R>(resolver: &(dyn Resolver + 'static), run: impl FnOnce() -> R) -
 /// there is exactly one thing anybody does with a resolver, and every way of
 /// not getting a program is a [`ResolveError`] variant.
 ///
-/// **This is [ADR 0118](/docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)
-/// § 2's spawn door**, and it takes a `ctx` for no other reason. The check is
+/// **This is `rule:security/capability-check-at-the-door`
+/// 's spawn door**, and it takes a `ctx` for no other reason. The check is
 /// here rather than in the lowered helper that calls it because this function
 /// *is* the effect: a `Program` is the thing a spawn was after, and there is no
 /// second way to obtain one, so a caller that skipped the check would have
@@ -345,7 +345,7 @@ mod tests {
     /// `[capabilities.script] spawn = true`.
     ///
     /// Every test below except [`a_spawn_target_is_refused_before_a_resolver_is_asked`]
-    /// is about the *resolver seam* and not about ADR 0118's check, so each
+    /// is about the *resolver seam* and not about `rule:security/capability-check-at-the-door`'s check, so each
     /// one clears the door first; a bare `Ctx` grants nothing and would make
     /// them all assert the denial instead of the routing they are for.
     fn granting() -> Ctx {
@@ -363,7 +363,7 @@ mod tests {
 
     #[test]
     fn a_spawn_target_is_refused_before_a_resolver_is_asked() {
-        // ADR 0118 § 2: the check is inside the door, so a context granting
+        // `rule:security/capability-check-at-the-door`: the check is inside the door, so a context granting
         // nothing is refused with the resolver that *would* have answered
         // installed and untouched — the denial names the capability rather
         // than the path failing to compile.

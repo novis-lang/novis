@@ -71,7 +71,7 @@ impl Ctx {
     /// two neighbours: those are read once by the finish path and are gone, and
     /// this is read as many times as the program asks. `Core\Request`'s members
     /// are the only readers, and each of them turns `None` into
-    /// [ADR 0012](/docs/adr/0012-no-superglobals.md) § 7's throw.
+    /// `rule:security/request-state-throws-in-an-isolate`'s throw.
     #[must_use]
     pub fn inbound(&self) -> Option<&Inbound> {
         self.inbound.as_deref()
@@ -132,7 +132,7 @@ pub enum Scheme {
 /// lets it exist in a crate that has never heard of HTTP.
 ///
 /// **Everything on it is `tainted`** in the sense
-/// [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)
+/// `rule:security/tainted-qualifier`
 /// means: it is what a client sent. The qualifier itself is a *type*, so it is
 /// carried by the registry rows of the members that read this and not by any
 /// field here — there is no representation of a qualifier at runtime.
@@ -750,7 +750,7 @@ impl Inbound {
 pub struct Upgrade {
     /// What the connection's isolate runs: the resolver's program for a path
     /// entry, or the closure `nvs_stdlib::socket` built over an already-crossed
-    /// callable for a static method one. Both of ADR 0006's two entry forms
+    /// callable for a static method one. Both of `rule:security/isolate-shares-nothing`'s two entry forms
     /// arrive here as one thing, which is what makes them one isolate.
     program: crate::script::Program,
     /// The argument, on this side of the boundary already — the copy the request

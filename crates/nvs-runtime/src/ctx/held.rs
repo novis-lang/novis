@@ -40,7 +40,7 @@ pub trait HeldConnection: std::fmt::Debug + std::any::Any {
 
     /// The same downcast, owning — what a caller taking a connection out of
     /// [`crate::pool`] needs, because
-    /// [ADR 0067](/docs/adr/0067-core-db.md) § 13's reset consumes the
+    /// `rule:security/db-pool-reset-is-a-boundary`'s reset consumes the
     /// connection so that a failed one cannot be handed back.
     ///
     /// No default body: it would have to coerce `Self` to `dyn Any`, which a
@@ -49,7 +49,7 @@ pub trait HeldConnection: std::fmt::Debug + std::any::Any {
     fn into_any(self: Box<Self>) -> Box<dyn std::any::Any>;
 
     /// Whether this connection may rejoin the core's pool at teardown —
-    /// [ADR 0067](/docs/adr/0067-core-db.md) § 13's release gate, asked
+    /// `rule:security/db-pool-reset-is-a-boundary`'s release gate, asked
     /// of the driver because only the driver knows where its wire is.
     ///
     /// **The default is `false`**, which is § 13's "a driver with no reset
@@ -254,7 +254,7 @@ impl Ctx {
     /// that ends a connection's life before the request's.
     ///
     /// It is the teardown loop in [`Ctx::drop`] for exactly one entry, and
-    /// deliberately the same two lines: ADR 0067 § 13's release is where a
+    /// deliberately the same two lines: `rule:security/db-pool-reset-is-a-boundary`'s release is where a
     /// leased connection goes, and an unleased one — an embedder's — is
     /// dropped. A `close` therefore returns a connection to this core's pool
     /// *earlier* than the request would have, which is the whole reason a

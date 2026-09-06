@@ -856,7 +856,7 @@ impl<'a> Lowering<'a> {
             Ty::Object => match self.lower_to_string_call(expr, v, env, *cur) {
                 Some(s) => (s, false),
                 // No resolved `toString`: an erased `object` (`rule:types/erased-member-access`), or
-                // a `Core`-owned class, which is where ADR 0088 § 5's sink
+                // a `Core`-owned class, which is where `rule:security/capture-answers-the-carrier`'s sink
                 // carrier arrives. Both are decided by the value's *runtime*
                 // class rather than its static one, so this is the same
                 // dispatched conversion a `Ty::Tagged` operand takes —
@@ -920,7 +920,7 @@ impl<'a> Lowering<'a> {
     /// `toString` on its *runtime* class. The checker records a target wherever
     /// the operand's static type names a class to resolve against, so a missing
     /// one means it named none — an erased `object` (`rule:types/erased-member-access`) or a union
-    /// — or that it named ADR 0088 § 5's sink carrier, the one rendering class
+    /// — or that it named `rule:security/capture-answers-the-carrier`'s sink carrier, the one rendering class
     /// with no `toString` member at all, whose bytes `nvs_runtime::stringify`
     /// hands back as they are.
     ///
@@ -2957,7 +2957,7 @@ impl<'a> Lowering<'a> {
         let (path_v, path_ty) = match &method {
             // A constant, not the operand: a first-class-callable reference
             // lowered as an expression would build a `callable` value, which is
-            // the one thing ADR 0006 refuses to let cross a boundary. The label
+            // the one thing `rule:security/isolate-shares-nothing` refuses to let cross a boundary. The label
             // is `nvs_runtime::call_static`'s own spelling.
             Some((label, _)) => self.emit(*cur, Ty::Str, InstKind::ConstStr(label.clone())),
             None => self.lower_expr(path, Some(Ty::Str), env, cur),

@@ -2,7 +2,7 @@
 `Core\Response::redirect` is two declarations and no byte of body, and its status argument is optional -- spec § 15
 --FILE--
 <?nvs
-// Like `setStatus` and `setHeader`, and unlike ADR 0088 § 4's five body
+// Like `setStatus` and `setHeader`, and unlike `rule:security/response-body-is-one-typed-member`'s five body
 // members: a redirect declares and writes nothing. That is why `E0801` does
 // not reach it, and why an `echo` beside one is the ordinary spelling rather
 // than two writers disagreeing about what the body is.

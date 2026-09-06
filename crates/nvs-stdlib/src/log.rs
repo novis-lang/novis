@@ -67,7 +67,7 @@
 //! With no target configured the two callers keep the split they have always
 //! had, and it is by *whose* record it is. A `Core\Log::write` is something the
 //! program chose to say, so it is output —
-//! [`Ctx::write_output`](nvs_runtime::Ctx::write_output), where ADR 0088 § 5's
+//! [`Ctx::write_output`](nvs_runtime::Ctx::write_output), where `rule:security/capture-answers-the-carrier`'s
 //! sink rules apply and `Core\Out::capture` around one captures it, which is
 //! exactly what `rule:errors/renderings` asks of every rendering. A record the engine
 //! writes about a program that has already stopped is not the program's output

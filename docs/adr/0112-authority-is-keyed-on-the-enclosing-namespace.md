@@ -1,4 +1,4 @@
-# ADR 0112 — Authority is keyed on the enclosing namespace, and an optional capability degrades where a required one refuses
+# `rule:security/authority-is-the-enclosing-namespace` — Authority is keyed on the enclosing namespace, and an optional capability degrades where a required one refuses
 
 - **Status:** Accepted
 - **Date:** 2026-08-29

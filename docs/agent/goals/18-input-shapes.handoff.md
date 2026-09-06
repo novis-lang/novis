@@ -25,7 +25,7 @@ and a qualifier cannot reach it. Stage 2 fixes both, and stages 3 and 4 are then
       so reuse that representation rather than inventing a second. Parser: `{name?: T}` in
       `crates/nvs-syntax/src/parser/ty.rs`. `{a?: T}` and `{a: ?T}` stay **different types** — key may be
       absent, versus key present holding `null`.
-- [ ] **`tainted {…}` desugars at parse time** — ADR 0024 § 1's grammar widened to admit a shape.
+- [ ] **`tainted {…}` desugars at parse time** — `rule:security/tainted-qualifier`'s grammar widened to admit a shape.
       Taint is variants, not an axis (`Ty::TaintedString` and friends, `ty.rs:48-62`), so the qualifier
       rewrites each text-carrying field to its tainted variant transitively and is gone before the
       checker. A shape naming no text-carrying field is a diagnostic, not a no-op.
@@ -43,9 +43,9 @@ and a qualifier cannot reach it. Stage 2 fixes both, and stages 3 and 4 are then
   — and it must not open a public `post(): array<mixed>`.
 - Stage 5 is the fixture, the reference pages and stage 2's diagnostic corpus.
 - **One inherited question, settled in stage 2 rather than deferred**: goal 16 specifies
-  `Core\Request::json(): tainted mixed`, which ADR 0024 § 1's grammar admits no more than it admits
+  `Core\Request::json(): tainted mixed`, which `rule:security/tainted-qualifier`'s grammar admits no more than it admits
   `tainted {…}`. Either the widening covers `mixed` too or goal 16's signature is corrected to what the
-  grammar allows. Decided-and-recorded in ADR 0024's body, never `BLOCKED`.
+  grammar allows. Decided-and-recorded in `rule:security/tainted-qualifier`'s body, never `BLOCKED`.
 - **When this goal's last check goes green the driver switches to goal 19** — ADR 0141's `Parses`, which
   opens the route-capture and command-argument roster to any class declaring it can be built from text.
   This goal's whole list becomes its floor.

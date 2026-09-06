@@ -19,7 +19,7 @@
 > inline HTML emitted verbatim, exactly like PHP. `require` shares
 > everything with the calling frame and `spawn script` shares nothing but compiled code — the two are
 > defined next to each other below so the difference cannot be missed the way
-> [ADR 0006](../adr/0006-isolated-script-execution.md) predicts it will be. Every declaration slot `rule:types/declaration`
+> `rule:security/isolate-shares-nothing` predicts it will be. Every declaration slot `rule:types/declaration`
 > requires gets exactly one syntax: the type comes first, the same position PHP already uses for a parameter
 > — `int $n = 0;`, `foreach ($rows as string $k => array<int> $row)`,
 > `[int $a, string $b] = $pair;`, `type Row = array<string, int|string>;`. The conversion operator's
@@ -57,7 +57,7 @@ there is nothing to accept or reject.
 ## 2. Running another file: `require`, `eval`, and `spawn script`
 
 Two PHP-shaped ways to bring in code plus one Novis-only addition, and they isolate three different amounts.
-Defined here side by side because [ADR 0006](../adr/0006-isolated-script-execution.md) names exactly this
+Defined here side by side because `rule:security/isolate-shares-nothing` names exactly this
 confusion as the mistake worth heading off. `rule:statements/require-is-the-only-inclusion-construct`
 collapses PHP's four same-frame inclusion keywords to this one: `include`, `include_once`, and
 `require_once` all parse (so the diagnostic can name the replacement) and are then rejected.
@@ -65,8 +65,8 @@ collapses PHP's four same-frame inclusion keywords to this one: `include`, `incl
 | construct | isolation | resolution | status |
 |---|---|---|---|
 | `require 'path.nvs';` | **none** — same frame's globals, same statics, same output, same heap | statically resolved where the path is a literal (M2); a dynamic path falls back to a runtime resolve | kept, PHP semantics — throws on a missing/unparseable file, and runs every time control reaches it |
-| `eval($source)` | n/a — there is no such construct | n/a | **rejected**, no diagnostic-with-replacement needed beyond *there is no `eval`*: a string has no stable identity, no cache key, and no path a `script.spawn` grant could name. [ADR 0052](../adr/0052-closed-doors.md) § 4 holds the full rejection and the four analyses `eval` would make unsound at once; see also [ADR 0006](../adr/0006-isolated-script-execution.md), *Alternatives rejected* |
-| `spawn script 'path.nvs' with(…)` | **full** — fresh arena, fresh globals/statics, own config overlay, sharing only immutable compiled code | the path is an arbitrary `string` expression, canonicalised and prefix-checked against `script.spawn`'s granted roots at run time (M6); the operand may instead be a static method — `Class::method(...)`, called with `args:` bound to its parameters by name — decided at the spawn site ([ADR 0006](../adr/0006-isolated-script-execution.md)) | new construct, grammar fixed below |
+| `eval($source)` | n/a — there is no such construct | n/a | **rejected**, no diagnostic-with-replacement needed beyond *there is no `eval`*: a string has no stable identity, no cache key, and no path a `script.spawn` grant could name. `rule:security/no-eval` holds the full rejection and the four analyses `eval` would make unsound at once; see also [ADR 0006](../adr/0006-isolated-script-execution.md), *Alternatives rejected* |
+| `spawn script 'path.nvs' with(…)` | **full** — fresh arena, fresh globals/statics, own config overlay, sharing only immutable compiled code | the path is an arbitrary `string` expression, canonicalised and prefix-checked against `script.spawn`'s granted roots at run time (M6); the operand may instead be a static method — `Class::method(...)`, called with `args:` bound to its parameters by name — decided at the spawn site (`rule:security/isolate-shares-nothing`) | new construct, grammar fixed below |
 
 The rule of thumb the diagnostics should teach: **`require` runs code in this frame; `spawn script` runs a
 file as if it were its own request.** A "why can't the required/spawned code see my variable" question
@@ -123,7 +123,7 @@ evaluated once, at the spawn site, before the child isolate is created. A static
 `Class::method(...)` reference — names a function in an already-compiled unit as the entry instead, and
 the isolate calls it with `args:`'s entries as named arguments; the choice is made syntactically at the
 spawn site, and an `fn` literal or a `callable`-typed variable is refused there with a diagnostic naming
-the method form, all per [ADR 0006](../adr/0006-isolated-script-execution.md). `with(…)` reuses PHP's existing named-argument grammar verbatim —
+the method form, all per `rule:security/isolate-shares-nothing`. `with(…)` reuses PHP's existing named-argument grammar verbatim —
 no new call-argument syntax was needed for it. Every key in *spawn-option* is optional; `spawn script
 'jobs/report.nvs';` with no `with(…)` clause at all is legal and spawns with inherited grants, no argument,
 and the parent's remaining budget.

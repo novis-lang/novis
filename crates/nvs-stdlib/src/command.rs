@@ -67,7 +67,7 @@
 //! **The name every script registers against is the program's**, which is the
 //! one fact the table does not carry: [`nvs_runtime::Ctx::program_name`] owns
 //! which name that is for each way a program can be started, and why
-//! `nvs-stdlib` is handed it rather than reading `argv[0]` (ADR 0118 § 2).
+//! `nvs-stdlib` is handed it rather than reading `argv[0]` (`rule:security/capability-check-at-the-door`).
 //!
 //! # Known gaps
 //!

@@ -1,5 +1,5 @@
 --TEST--
-`Core\IO::canonicalize` answers one resolution for every spelling of one file and is a fixed point over its own answer — the agreement `Core\Path::normalize` cannot reach — and it throws for a name that is not there, where `Core\IO::exists` answers `false` — spec § 14 *Resolution*, ADR 0024 § 3
+`Core\IO::canonicalize` answers one resolution for every spelling of one file and is a fixed point over its own answer — the agreement `Core\Path::normalize` cannot reach — and it throws for a name that is not there, where `Core\IO::exists` answers `false` — spec § 14 *Resolution*, `rule:security/launderers-are-sink-named`
 --FILE--
 <?nvs
 // Agreement, not a value: the resolved path is the operating system's own
@@ -62,7 +62,7 @@ try {
 // It resolves and it does not *prove*. A name that leaves the base resolves
 // perfectly well -- it is a real file, and this member has no base to hold it
 // against -- while `within` is the member that refuses it. Reaching for the
-// resolver when the question was containment is the mistake ADR 0024 § 3
+// resolver when the question was containment is the mistake `rule:security/launderers-are-sink-named`
 // exists to prevent, and this pair is what that mistake looks like.
 string $escape = Core\IO::canonicalize("tree/nested/../../outside.txt");
 if ($escape == Core\IO::canonicalize("outside.txt")) {

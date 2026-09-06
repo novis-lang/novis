@@ -4,7 +4,7 @@
 //! § 5 makes an SSE connection "the same model without `receive`": the isolate
 //! is § 1's root one — its own arena, its own `[limits]` budget, its own grants
 //! — and the operand is § 2's, under
-//! [ADR 0006](/docs/adr/0006-isolated-script-execution.md)'s rule. So
+//! `rule:security/isolate-shares-nothing`'s rule. So
 //! everything behind the door is [`crate::socket`]'s, shared outright and
 //! documented there once: why the member *prepares* an isolate the connection
 //! starts, why all three refusals belong to the request, why it answers `void`,
@@ -51,7 +51,7 @@
 //! would have to answer with in place of the handler's own response — an event
 //! stream prepared today opens a root isolate with nothing wired to a body.
 //! The method entry form throws for [`crate::socket`]'s reason, unchanged: a
-//! `callable` carries no parameter names and ADR 0006 binds `args:` by name.
+//! `callable` carries no parameter names and `rule:security/isolate-shares-nothing` binds `args:` by name.
 
 use nvs_runtime::{Fault, ThrownClass, Upgrade, Value, copy_graph};
 
@@ -224,7 +224,7 @@ mod tests {
         install(&FIXED)
     }
 
-    /// A context granting `script.spawn` for everything, because ADR 0118 § 2's
+    /// A context granting `script.spawn` for everything, because `rule:security/capability-check-at-the-door`'s
     /// door is inside `resolve` and a bare context grants nothing — every case
     /// below is about the cell rather than about the grant.
     fn granting() -> Ctx {

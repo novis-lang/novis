@@ -95,7 +95,7 @@
 //! Deliberately out of scope so far, left for a follow-up (see
 //! `docs/agent/handoff.md` for the ordering):
 //!
-//! - ADR 0024 (`tainted` propagation/laundering), `rule:types/callable-is-a-closure` (`callable`
+//! - `rule:security/tainted-qualifier` (`tainted` propagation/laundering), `rule:types/callable-is-a-closure` (`callable`
 //!   value-shape checking) and ADR 0033 §§ 2-4 (`secret`, the same shape on
 //!   an independent axis — its § 1 grammar landed in M1) are all now done —
 //!   as is § 5's constant-time `==`, whose share of the work is this crate's
@@ -108,7 +108,7 @@
 //!   concatenation/interpolation poison their result on each axis
 //!   independently, a checked `as uint`/`int`/`float`/`bool`/enum-backing-type
 //!   conversion launders both qualifiers for free (a known, ADR-accepted gap
-//!   for `secret` specifically — see ADR 0033 § 2), `bytes`/`string` preserve
+//!   for `secret` specifically — see `rule:security/secret-propagation`), `bytes`/`string` preserve
 //!   both qualifiers across either direction (including the identity-shaped
 //!   `as string`, which must not silently launder either one), and `as
 //!   Core\Html\Markup` accepts only a literal string token and separately
@@ -122,14 +122,14 @@
 //!   `$obj(...)` is refused for any resolved-class `$obj`, and first-class
 //!   callable syntax (`$obj->method(...)`, `Foo::bar(...)`) now types as
 //!   `callable` rather than the referenced method's own return type. **Known
-//!   gaps within these three ADRs:** the sink list in ADR 0024 § 4
+//!   gaps within these three ADRs:** the sink list in `rule:security/sink-predicate`
 //!   (`Core\Db`, `Core\Process`, `Core\Http`, `Core\Fs`) has no code to
 //!   refuse anything at yet, since none of those `Core` classes are declared
 //!   stdlib until M7/M8 — a plain-typed parameter on a user-declared method
 //!   already acts as an equivalent sink today, via the ordinary `tainted
 //!   string` vs `string` assignability rule; § 5's auto-escape default and
 //!   `Markup + Markup` composition wait on `Core\Html` actually existing.
-//!   ADR 0033's own remaining sinks — `Core\Log`'s call-site inspection (M8)
+//!   `rule:security/secret-qualifier`'s own remaining sinks — `Core\Log`'s call-site inspection (M8)
 //!   and `var_dump`/`print_r`'s redaction (M4) — are deferred by that ADR's
 //!   own *Verification* section, as is `serialize()`/the `spawn worker`
 //!   boundary refusal (M5). An exception class *does* have a declared member
@@ -515,7 +515,7 @@ pub(crate) struct Env<'a> {
     /// A span rather than a parameter threaded through `check_expr` for
     /// [`Self::write_target_levels`]'s reason.
     pub coalesce_guarded: FxHashSet<Span>,
-    /// ADR 0088 § 4's sixth row, as the body being checked has answered it so
+    /// `rule:security/response-body-is-one-typed-member`'s sixth row, as the body being checked has answered it so
     /// far: what has already written this response's body.
     ///
     /// Installed and put back per method body by [`crate::check`], exactly as

@@ -1,14 +1,14 @@
 --TEST--
-A `spawn script` isolate reads no listener of its parent's, `rule:testing/in-process-request`'s address being the isolate's own — ADR 0006
+A `spawn script` isolate reads no listener of its parent's, `rule:testing/in-process-request`'s address being the isolate's own — `rule:security/isolate-shares-nothing`
 --FILE nvs.toml--
-# ADR 0118 § 2: `spawn script` goes through a door that asks for
+# `rule:security/capability-check-at-the-door`: `spawn script` goes through a door that asks for
 # `script.spawn` first, and deny-by-default means a case with no
 # configuration cannot spawn at all. This grants it and nothing else.
 [capabilities.script]
 spawn = true
 --FILE child.nvs--
 <?nvs
-// ADR 0006's isolate shares compiled code and nothing else, and § 18's address
+// `rule:security/isolate-shares-nothing`'s isolate shares compiled code and nothing else, and § 18's address
 // is context rather than code — so a child never inherits one however its
 // parent came by it.
 echo "child=", Core\Debug::render(Core\Test::serverUrl()), "\n";

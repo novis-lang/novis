@@ -1,8 +1,8 @@
 --TEST--
-Core\SignedCookie::seal signs with the newest key and ::open verifies against the whole ring, with one refusal for a tampered cookie and one for a retired key — ADR 0060 §§ 1 and 4
+Core\SignedCookie::seal signs with the newest key and ::open verifies against the whole ring, with one refusal for a tampered cookie and one for a retired key — `rule:security/protocol-roster` and `rule:security/algorithm-comes-from-the-key`
 --FILE--
 <?nvs
-// ADR 0060 § 1 asks for key rotation in five words: "verify against several
+// `rule:security/protocol-roster` asks for key rotation in five words: "verify against several
 // keys, sign with the newest". Which end of the list *newest* means is the
 // whole of what a program can get wrong, so it is pinned here from source.
 // `crates/nvs-stdlib/src/signed_cookie.rs` is the home of why it is the front.

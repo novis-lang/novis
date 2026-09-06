@@ -7,7 +7,7 @@ Goal 28's whole list is this goal's Stage 1 floor.
 
 The design is finished and is not this goal's to re-open:
 `rule:core-api/signing-is-over-a-payload` holds all of
-it, ADR 0060's roster already reads five, and ADR 0077 § 4 already lists `urlSigned`/`signedRoute`. The
+it, `rule:security/protocol-roster`'s roster already reads five, and ADR 0077 § 4 already lists `urlSigned`/`signedRoute`. The
 spec is already written against nothing — `docs/spec/01-core-library.md` § 12 carries `$uri->sign` and
 `$uri->verifySignature`, § 16 carries `Core\Signature` — and both outstanding-key files name **29** as
 the owner of those three rows.
@@ -29,7 +29,7 @@ construction under it, and the registry rows.
       to lift: `array<secret bytes>`, newest at `[0]`, sign under `$keys[0]` alone. Two ring walks in
       the crate means one of them is wrong.
 - [ ] **The two rows** — `crates/nvs-stdlib/src/registry.rs`, with `sign`'s payload contagious, the
-      ring neutral, and `verify` answering a **`tainted`** map (ADR 0060 § 5; `SignedCookie`'s
+      ring neutral, and `verify` answering a **`tainted`** map (`rule:security/verification-does-not-launder`; `SignedCookie`'s
       laundering exemption does not reach here, and `rule:core-classes/signature` says why).
 - [ ] **`{keys, until}` as a declared shape** — `crates/nvs-types/src/core_lib.rs`, `rule:core-api/shape-parameter`'s `CoreTy`
       arm. `until` is a **required key holding a nullable value**: `{until: null}` compiles and

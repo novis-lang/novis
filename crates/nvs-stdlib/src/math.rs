@@ -1322,7 +1322,7 @@ const LOG_OPTIONS: &[CoreOption] = &[CoreOption {
 /// and *neutral* is right for the class — but `format` answers a `string` that
 /// contains these two options **verbatim**, which is the first bullet of
 /// [`Qual`]'s rule failing on its own terms. The registry is the home of the
-/// classification (ADR 0088 § 2) and the spec renders it, so the cell was
+/// classification (`rule:security/unclassified-parameter-refuses-tainted`) and the spec renders it, so the cell was
 /// corrected rather than the mark.
 const FORMAT_OPTIONS: &[CoreOption] = &[
     CoreOption {

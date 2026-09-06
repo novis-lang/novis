@@ -161,7 +161,7 @@ DRIVERS: tuple[Driver, ...] = (
     # any filesystem is a copy of it.
     Driver("mssql", "mssql", 1433, None, "MSSQL_SA_PASSWORD", None, user="sa",
            anchor="/certs/ca.crt"),
-    # The one driver with no wire at all (ADR 0132 § 3): a file this tool makes and removes.
+    # The one driver with no wire at all (`rule:security/one-tls-client`): a file this tool makes and removes.
     Driver("sqlite", None, None, note="a scratch file, no container"),
 )
 

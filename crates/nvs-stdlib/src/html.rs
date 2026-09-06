@@ -1,5 +1,5 @@
-//! `Core\Html` — [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)
-//! § 3's narrow, sink-named launderer, over the sink § 5 makes out of HTML
+//! `Core\Html` — `rule:security/launderers-are-sink-named`
+//! 's narrow, sink-named launderer, over the sink § 5 makes out of HTML
 //! text.
 //!
 //! § 3 writes `Core\Html::escape(tainted string): Core\Html\Markup` out as
@@ -12,8 +12,8 @@
 //!
 //! # Why the answer is a carrier and not a `string`
 //!
-//! [ADR 0133](/docs/adr/0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md)
-//! § 1 asks two questions of every launderer and this is the one member on the
+//! `rule:security/launderer-answers-a-carrier`
+//! asks two questions of every launderer and this is the one member on the
 //! roster that answers yes to both: the HTML sink launders on its own, so a
 //! second application is one the source does not show, and escaping is not
 //! idempotent, so that second application changes the output — `&` becomes
@@ -46,11 +46,11 @@
 //! [`MARKUP`] is registered *and* reachable: `rule:core-classes/html-auto-escape`'s three ways to
 //! obtain one are all here — [`MARKUP_SYMBOL`] for `as Markup` on a source
 //! literal, [`MARKUP_CONCAT_SYMBOL`] for `Markup + Markup`, and the escape
-//! itself, which ADR 0133 § 1 turned from the first two's poor relation into
+//! itself, which `rule:security/launderer-answers-a-carrier` turned from the first two's poor relation into
 //! the ordinary one. What still waits is the sink's **automatic** lift — every
 //! non-`Markup` interpolation into an HTML response escaped and wrapped with
 //! no call written at the site — and it waits on that response existing, which
-//! is the same wait `Core\Request` is on. The *predicate* ADR 0133 § 1 reads
+//! is the same wait `Core\Request` is on. The *predicate* `rule:security/launderer-answers-a-carrier` reads
 //! does not wait on it: § 5 already decided the sink launders on its own, and
 //! the return type is written against that decision rather than against what
 //! is on disk.
@@ -83,7 +83,7 @@
 //! this member: escaping the five characters says nothing about *display
 //! order*, so a payload that reverses the rendering of the text after it
 //! survives the escape untouched.
-//! [ADR 0087](/docs/adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md)
+//! `rule:security/bidi-predicate`
 //! owns the predicate, and this is its third caller — the lexer refuses a
 //! source span, the terminal sink substitutes, and this sink substitutes too.
 //! What it is *not* is [`nvs_render::text::substitute`]: that function is
@@ -93,14 +93,14 @@
 //! predicate directly and leaves the C0 rows to the sink that wants them.
 //!
 //! A *balanced* control passes through: mixed-direction text is what those
-//! code points are for, and ADR 0087's whole position is that banning them
+//! code points are for, and `rule:security/bidi-predicate`'s whole position is that banning them
 //! breaks Arabic and Hebrew.
 
 use nvs_runtime::{Fault, NvsStr, Tag, Value};
 
 use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
 
-/// ADR 0024 § 3's launderer for the HTML sink, and `rule:core-classes/html-to-source`'s one way back
+/// `rule:security/launderers-are-sink-named`'s launderer for the HTML sink, and `rule:core-classes/html-to-source`'s one way back
 /// out of the carrier it answers.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: r"Core\Html",
@@ -294,8 +294,8 @@ fn text<'a>(value: &'a Value, subject: &str) -> Result<&'a str, Fault> {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Html::escape(tainted string $text): Core\Html\Markup` — ADR 0024
-    /// § 3's launderer for the sink § 5 describes, replacing
+    /// `Core\Html::escape(tainted string $text): Core\Html\Markup` — `rule:security/launderers-are-sink-named`
+    /// 's launderer for the sink § 5 describes, replacing
     /// `htmlspecialchars`.
     ///
     /// Removing the qualifier is the *registry row's* job, not this body's:
@@ -303,8 +303,8 @@ nvs_runtime::nvs_helper! {
     /// reads is [`Qual::Launder`] on the parameter and `CoreTy::Instance` on
     /// the answer. What runs here is the transformation that makes that
     /// judgement true, plus the lift into [`MARKUP`] that
-    /// [ADR 0133](/docs/adr/0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md)
-    /// § 1 requires of it: the HTML sink launders on its own and its transform
+    /// `rule:security/launderer-answers-a-carrier`
+    /// requires of it: the HTML sink launders on its own and its transform
     /// is not idempotent, so an answer the sink could not tell from unescaped
     /// text is one it would escape a second time.
     ///
@@ -321,7 +321,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// **What the carrier itself spends:** one object allocation per call,
     /// charged to the request exactly as [`nvs_core_html_markup`]'s lift is.
-    /// That is the price ADR 0133 § 1 names and it is paid on every escape,
+    /// That is the price `rule:security/launderer-answers-a-carrier` names and it is paid on every escape,
     /// including the unchanged one — the alternative is a `string` answer the
     /// sink escapes again, which costs a second scan *and* a wrong document.
     fn nvs_core_html_escape(_ctx, args: [1]) {
@@ -547,7 +547,7 @@ mod tests {
         );
     }
 
-    /// ADR 0024 § 3, asked of the registry rather than of the body: `escape`
+    /// `rule:security/launderers-are-sink-named`, asked of the registry rather than of the body: `escape`
     /// launders, its answer is unqualified, and the qualifier it removes is
     /// `tainted` and not the other axis.
     ///
@@ -576,10 +576,10 @@ mod tests {
         );
         assert!(
             matches!(escape.return_ty, CoreTy::Instance(name) if name == MARKUP_NAME),
-            "`escape` answers an unqualified `Core\\Html\\Markup` — ADR 0133 § 1"
+            "`escape` answers an unqualified `Core\\Html\\Markup` — `rule:security/launderer-answers-a-carrier`"
         );
 
-        // `Reveal` is the other axis and a different decision: ADR 0060 § 5's
+        // `Reveal` is the other axis and a different decision: `rule:security/verification-does-not-launder`'s
         // "a verified signature does not launder" is the same shape one axis
         // over, and `Qual`'s own docs close that roster at two classes. A
         // launderer for HTML that also revealed a `secret` would be laundering
@@ -611,7 +611,7 @@ mod tests {
         assert_eq!(
             html_launderers,
             vec!["escape"],
-            "ADR 0024 § 3's launderer for the HTML sink is one member and is named for it"
+            "`rule:security/launderers-are-sink-named`'s launderer for the HTML sink is one member and is named for it"
         );
     }
 
@@ -658,7 +658,7 @@ mod tests {
         );
     }
 
-    /// ADR 0133 § 1's predicate, asked of **every** launderer in the registry
+    /// `rule:security/launderer-answers-a-carrier`'s predicate, asked of **every** launderer in the registry
     /// rather than of this one — the claim is a set, exactly as
     /// [`html_escape_launders_for_the_html_sink_and_for_no_other`]'s is.
     ///
@@ -696,7 +696,7 @@ mod tests {
     /// decision is actually being made.
     #[test]
     fn every_launderer_for_an_auto_escaping_sink_answers_a_carrier() {
-        // ADR 0133 § 1's table, as `(member, does it answer a carrier)`. A
+        // `rule:security/launderer-answers-a-carrier`'s table, as `(member, does it answer a carrier)`. A
         // `true` row is a sink that both auto-launders and is non-idempotent.
         const PLACED: &[(&str, bool)] = &[
             (r"Core\Cli::escape", false),
@@ -738,7 +738,7 @@ mod tests {
             .collect();
         assert_eq!(
             roster, placed,
-            "every launderer is placed against ADR 0133 § 1's two conditions, \
+            "every launderer is placed against `rule:security/launderer-answers-a-carrier`'s two conditions, \
              and answers a carrier exactly when both hold"
         );
     }

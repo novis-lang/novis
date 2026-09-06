@@ -2,7 +2,7 @@
 `Core\Response::text` writes its argument to the request's output with nothing escaped or substituted, because the media type it declares is not HTML -- ADR 0088 §§ 3-4
 --FILE--
 <?nvs
-// ADR 0088 § 4: `text` owns one body shape and sets `text/plain` for it, so
+// `rule:security/response-body-is-one-typed-member`: `text` owns one body shape and sets `text/plain` for it, so
 // the bytes are the argument's own. Markup in the argument is markup in the
 // body -- an escape here would be the HTML sink's rule applied to a body that
 // declared it is not HTML.

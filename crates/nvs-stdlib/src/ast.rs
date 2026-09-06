@@ -26,7 +26,7 @@
 //! borrow of the source. So there is no handle for a later member to accept
 //! and no descriptor for one to look up: `eval` stays absent by having nothing
 //! to be spelled with, which is the same argument
-//! [ADR 0052](/docs/adr/0052-closed-doors.md) makes for the other
+//! `rule:security/closed-doors` makes for the other
 //! three doors.
 //!
 //! The cost is that a node cannot answer its own source text, which a
@@ -56,8 +56,8 @@
 //!    a check rather than a report (docs/adr/tooling-parity.md, the Deptrac
 //!    row).
 //! 3. § 3's `Core\Ast::parseFile` is not here. It reads a path, so it is a
-//!    capability-bearing member ([ADR 0118](/docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)
-//!    § 3's `fs.read`) rather than a second spelling of this one, and the
+//!    capability-bearing member (`rule:security/capability-declaration-is-one-table`
+//!    's `fs.read`) rather than a second spelling of this one, and the
 //!    `Core\IO` door it goes through is where that check already lives.
 
 use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, ThrownClass, Value};

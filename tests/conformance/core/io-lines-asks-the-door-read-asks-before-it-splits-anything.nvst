@@ -1,5 +1,5 @@
 --TEST--
-Core\IO::lines refuses an ungranted path exactly as ::read does, naming `fs.read` for the same path, counted over a sweep of a file that is on disk, a name nothing could be at and a directory — and the `foreach` never begins, so a file's line count is no more learnable without the grant than its contents are — ADR 0118 §§ 1-2, spec § 14
+Core\IO::lines refuses an ungranted path exactly as ::read does, naming `fs.read` for the same path, counted over a sweep of a file that is on disk, a name nothing could be at and a directory — and the `foreach` never begins, so a file's line count is no more learnable without the grant than its contents are — `rule:security/capability-question-is-grant-and-scope` and `rule:security/capability-check-at-the-door`, spec § 14
 --FILE--
 <?nvs
 // `lines` performs the whole read behind one door and only then splits, so the

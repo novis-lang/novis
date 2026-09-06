@@ -79,7 +79,7 @@ Goal 7's whole acceptance list — the parity program and the temp sweep, never 
   member, carrying the formula and the reason it *cannot* be a compile-time-folded constant — folding the
   id into any unit as a literal would change that unit's bytes, hence its content hash, hence the id it
   just folded. Circularity, not preference.
-- **Plain `string`, never `secret`** ([ADR 0033](../../adr/0033-secret-qualifier-for-confidential-values.md)):
+- **Plain `string`, never `secret`** (`rule:security/secret-qualifier`):
   every use of the id — URLs, headers, logs — is an echo, which `secret` refuses by design. The
   fingerprinting caveat (deploy timing, nothing else) is recorded in the registry card, not enforced.
 - **Computed at program resolution and at the hot-reload swap, never per call and never lazily** — a

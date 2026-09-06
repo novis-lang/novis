@@ -1,7 +1,7 @@
 //! `Core\IO` — the first `Core` class that reaches the operating system, and
 //! so the first one written entirely behind
-//! [ADR 0118](/docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)
-//! §§ 2-3's doors.
+//! `rule:security/capability-check-at-the-door` and `rule:security/capability-declaration-is-one-table`
+//! 's doors.
 //!
 //! **There is no capability check in this file, and that is the design.** Every
 //! body below calls a door in `nvs_runtime::capability`, which
@@ -21,7 +21,7 @@
 //! against the canonical spelling.
 //!
 //! **Every path parameter in this class is a `Qual::Sink`, and `within` is the
-//! one launderer that gets past them.** ADR 0088 § 1's table classifies a
+//! one launderer that gets past them.** `rule:security/sink-predicate`'s table classifies a
 //! filesystem path component as an instruction — `..` and the separators
 //! *direct the resolver* — so spec § 14's opening sentence, which calls every
 //! member of this class a path sink, is that predicate applied rather than a
@@ -85,8 +85,8 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "read",
             names: &["path"],
-            // A sink in the path, like every other path in this class: ADR 0088
-            // § 1 classifies a path component as an instruction, because `..`
+            // A sink in the path, like every other path in this class: `rule:security/sink-predicate`
+            // classifies a path component as an instruction, because `..`
             // and the separators direct the resolver. The module doc above owns
             // why the whole class carries the mark together, and `within` is
             // the row that makes it usable.
@@ -99,7 +99,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "write",
             names: &["path", "content"],
-            // The path is a sink and `$content` is not: ADR 0088 § 1's table
+            // The path is a sink and `$content` is not: `rule:security/sink-predicate`'s table
             // puts a file's *contents* on the data side, so bytes that arrived
             // from outside may be written to a path this program chose.
             params: &[CoreTy::Text(Qual::Sink), CoreTy::Text(Qual::Neutral)],
@@ -112,7 +112,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             name: "append",
             names: &["path", "content"],
             // `write`'s pair exactly, and for its reason: the path directs a
-            // resolver and the content does not, so ADR 0088 § 1's table marks
+            // resolver and the content does not, so `rule:security/sink-predicate`'s table marks
             // the first and leaves the second alone.
             params: &[CoreTy::Text(Qual::Sink), CoreTy::Text(Qual::Neutral)],
             defaults: &[],
@@ -314,7 +314,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // `within` below is the row that removes a qualifier, and the two
             // sitting next to each other is the whole reason this comment is
             // here — reaching for the resolver when the question was
-            // containment is the mistake ADR 0024 § 3 exists to prevent.
+            // containment is the mistake `rule:security/launderers-are-sink-named` exists to prevent.
             params: &[CoreTy::Text(Qual::Sink)],
             defaults: &[],
             return_ty: CoreTy::Text(Qual::Neutral),
@@ -327,7 +327,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // The class's one laundering row, and the two marks are different
             // on purpose. `$base` is a path this program chose, so it is a
             // sink like every other; `$path` is the untrusted half the member
-            // exists to accept, and ADR 0024 § 3 makes a launderer's answer the
+            // exists to accept, and `rule:security/launderers-are-sink-named` makes a launderer's answer the
             // plain, unqualified type.
             params: &[CoreTy::Text(Qual::Sink), CoreTy::Text(Qual::Launder)],
             defaults: &[],
@@ -3256,7 +3256,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// **It resolves and it does not prove.** `within` is the launderer and
     /// this is not, which is why the row's parameter is a sink and its answer
-    /// is an ordinary `string` rather than ADR 0024 § 3's plain one. Reaching
+    /// is an ordinary `string` rather than `rule:security/launderers-are-sink-named`'s plain one. Reaching
     /// for this member when the question was containment is the mistake that
     /// ADR exists to prevent, and the two rows sit next to each other in the
     /// registry so that the difference is read rather than remembered.
@@ -3337,8 +3337,8 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\IO::within(string $base, tainted string $path): string` — ADR 0024
-    /// § 3's path-traversal launderer, and the one member of this class that
+    /// `Core\IO::within(string $base, tainted string $path): string` — `rule:security/launderers-are-sink-named`
+    /// 's path-traversal launderer, and the one member of this class that
     /// removes a qualifier rather than refusing one.
     ///
     /// **It resolves and *then* proves.** That order is the whole member.
@@ -3386,7 +3386,7 @@ mod tests {
     /// A context granting `fs.write` everywhere and nothing else.
     ///
     /// Everywhere rather than under a root because what these cases assert is
-    /// on the far side of the door: ADR 0118's own suite
+    /// on the far side of the door: `rule:security/capability-check-at-the-door`'s own suite
     /// (`crates/nvs-stdlib/tests/capability.rs`) is where the grant decides
     /// anything, and a root here would only add a way for them to fail for a
     /// reason they are not about.

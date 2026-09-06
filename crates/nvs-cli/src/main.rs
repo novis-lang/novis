@@ -205,7 +205,7 @@ enum Command {
     /// Serve a `.nvs`/`.php` file over HTTP, on one core, until stopped.
     ///
     /// ADR 0097's development server and proxied origin. The file is compiled
-    /// before the socket is bound and every request runs it as ADR 0006's
+    /// before the socket is bound and every request runs it as `rule:security/isolate-shares-nothing`'s
     /// isolate; § 4's mount table is the slice that replaces the argument with
     /// a set of entry points, and `serve`'s module doc owns why one path on the
     /// command line is already § 2's rule rather than an exception to it.
@@ -766,7 +766,7 @@ fn front_end(path: &std::path::Path) -> Result<Checked, ExitCode> {
 ///
 /// **`nvs check` is the caller that asks, and `nvs run` is deliberately not.**
 /// § 10 is titled for `check` and means it: at run time the refusal is
-/// `nvs_runtime::capability::require`'s, and ADR 0118 § 5 makes that a denial the
+/// `nvs_runtime::capability::require`'s, and `rule:security/denial-is-a-runtime-error` makes that a denial the
 /// program is still running underneath and may catch. Hoisting it into `run`
 /// would turn a catchable denial into a refusal to start, which is a different
 /// language rather than an earlier answer — `tests/conformance/core/
@@ -1259,7 +1259,7 @@ fn run_run(
         ctx.set_origin(&origin);
     }
     // The workers get their own handle on the same tree, taken before it is moved onto this
-    // context: a job is an isolate resolved through ADR 0118 § 2's spawn door, that door asks the
+    // context: a job is an isolate resolved through `rule:security/capability-check-at-the-door`'s spawn door, that door asks the
     // *context* it is resolved from, and a worker's context is not the script's. `worker`'s module
     // doc owns why the deployment's own snapshot is the right answer there.
     let for_workers = queued.is_some().then(|| std::sync::Arc::clone(&snapshot));
@@ -1297,7 +1297,7 @@ fn run_run(
     // configuration tree keyed on above — the script's for `nvs run`, the
     // executable's for a bundle — and `Ctx::program_name` owns why each is the
     // right answer. Written here rather than read from `std::env` inside the
-    // member: ADR 0118 § 2 keeps `argv[0]` out of `nvs-stdlib`, and a served
+    // member: `rule:security/capability-check-at-the-door` keeps `argv[0]` out of `nvs-stdlib`, and a served
     // request has no name to give it anyway.
     ctx.set_program_name(
         config_entry
@@ -1461,7 +1461,7 @@ fn run_run(
         }
     };
     let installed = nvs_host::reactor::install(reactor);
-    // ADR 0006's isolate runs another file, and this is the only crate that can
+    // `rule:security/isolate-shares-nothing`'s isolate runs another file, and this is the only crate that can
     // turn a path into one — `script`'s module doc owns the two decisions in
     // it, and `nvs_runtime::script` owns why the edge runs this way round.
     // Installed for the whole run rather than per spawn: the unit cache behind

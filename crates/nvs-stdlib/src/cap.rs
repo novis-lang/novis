@@ -1,5 +1,5 @@
-//! `Core\Cap` — [ADR 0112](/docs/adr/0112-authority-is-keyed-on-the-enclosing-namespace.md)
-//! § 6's one member, and the whole class: does the code running here hold a
+//! `Core\Cap` — `rule:security/optional-capability-degrades`
+//! 's one member, and the whole class: does the code running here hold a
 //! capability, right now?
 //!
 //! It exists for one shape. § 6 splits what a package's manifest asks for into
@@ -13,7 +13,7 @@
 //!
 //! # It reports, and nothing here widens anything
 //!
-//! ADR 0112 § 7 is the rule this class is written under: there is **no runtime
+//! `rule:security/no-runtime-grant` is the rule this class is written under: there is **no runtime
 //! grant**, and adding one would spend the property static attribution is built
 //! on. So this member reads the effective configuration and answers a `bool`,
 //! and the door the guarded branch then reaches asks
@@ -36,7 +36,7 @@
 //! an isolate that spawned with less are both already in the answer.
 //!
 //! The first half is not narrowed yet, because there is nothing to narrow by:
-//! ADR 0112 § 1's per-namespace `[grants]` table has no representation in
+//! `rule:security/grants-are-keyed-on-a-namespace`'s per-namespace `[grants]` table has no representation in
 //! `nvs_config` — `Capabilities` is one table for the request — and § 4's
 //! `E0604` is not on disk either. Until it is, this answers the request's whole
 //! grant table, which is the **outer bound** of what any namespace inside it
@@ -50,8 +50,8 @@
 //! # The argument is a roster name, checked while compiling
 //!
 //! A misspelled capability is a branch that silently never runs, so
-//! `nvs_types::capability` refuses a *written* one that is not in ADR 0112
-//! § 8's table (`E0616`), reading [`is_capability`] rather than a copy of the
+//! `nvs_types::capability` refuses a *written* one that is not in `rule:security/capability-roster-is-closed`
+//! 's table (`E0616`), reading [`is_capability`] rather than a copy of the
 //! roster. A name that does not fold to a literal is left to run time and
 //! answers `false`: it is not a capability, so nothing holds it, and that is
 //! the one answer which cannot push a degrading branch onto the privileged
@@ -75,7 +75,7 @@ pub(crate) const NAME: &str = r"Core\Cap";
 /// The member's own name, so that [`is_query`] and the row cannot drift apart.
 const HAS: &str = "has";
 
-/// ADR 0112 § 6's one member, and there is deliberately no second.
+/// `rule:security/optional-capability-degrades`'s one member, and there is deliberately no second.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     methods: &[CoreMethod {
@@ -119,7 +119,7 @@ pub fn is_query(class: &str, member: &str) -> bool {
     class == NAME && member == HAS
 }
 
-/// Whether `name` is one of ADR 0112 § 8's roster names.
+/// Whether `name` is one of `rule:security/capability-roster-is-closed`'s roster names.
 ///
 /// The roster itself is `nvs_config::capability::Cap`, which is where a grant
 /// line is read against it too — one table, so a name that configuration
@@ -165,7 +165,7 @@ fn text<'a>(value: &'a Value, member: &str) -> Result<&'a str, Fault> {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Cap::has(string $capability): bool` — ADR 0112 § 6's query.
+    /// `Core\Cap::has(string $capability): bool` — `rule:security/optional-capability-degrades`'s query.
     ///
     /// Asked [`Scope::Unscoped`], which is the honest scope for the question
     /// the caller asked: they named a capability and no argument to place

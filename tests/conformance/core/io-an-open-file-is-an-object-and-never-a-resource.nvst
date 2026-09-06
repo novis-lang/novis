@@ -1,5 +1,5 @@
 --TEST--
-`Core\IO::open` answers a `Core\IO\File` a declared type can name, its three members carry a whole round trip, and a handle used after `close` throws rather than reading another file — spec § 14 R14, ADR 0118 § 2
+`Core\IO::open` answers a `Core\IO\File` a declared type can name, its three members carry a whole round trip, and a handle used after `close` throws rather than reading another file — spec § 14 R14, `rule:security/capability-check-at-the-door`
 --FILE--
 <?nvs
 // The declaration is the assertion. PHP's `fopen` answers a `resource`, which

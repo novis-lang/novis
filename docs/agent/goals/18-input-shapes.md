@@ -61,7 +61,7 @@ is already in the file being edited.
    types and both are legal**: the first says the key may be absent, the second that it must be present
    and may hold `null`. Collapsing them is the ambiguity goal 16 refused for an empty body, one storage
    kind along.
-2. **A qualifier over a shape, `tainted {…}`.** ADR 0024 § 1's grammar admits `'tainted'? scalar_type` and
+2. **A qualifier over a shape, `tainted {…}`.** `rule:security/tainted-qualifier`'s grammar admits `'tainted'? scalar_type` and
    nothing else; it is widened to admit a shape type, distributing to every text-carrying field
    transitively — through nested shapes and through an `array<string>` element. **This needs no new `Ty`
    variant and no qualifier axis**: taint is spelled as variants (`Ty::TaintedString`, `TaintedBytes`,
@@ -136,15 +136,15 @@ required key names the key, and a shape whose `tainted` promises nothing is refu
 - **A conversion is `as` and only `as`.** No coercion table is written for this member. If a row is
   missing, the fix is `rule:types/conversion`'s table, where every other conversion in the language already reads.
 - **This goal may open [ADR 0140] and no other new number.** Everything else is an amendment folded into
-  the existing body: `rule:types/shape-type` (the optional marker, and the two spellings it distinguishes), ADR 0024
-  § 1 (the qualifier grammar), `rule:types/arrays` (the third member at the type-argument door), `rule:core-api/shape-rules` R15's
+  the existing body: `rule:types/shape-type` (the optional marker, and the two spellings it distinguishes), `rule:security/tainted-qualifier`
+  (the qualifier grammar), `rule:types/arrays` (the third member at the type-argument door), `rule:core-api/shape-rules` R15's
   worked list, and spec §§ 6 and 15's rosters.
-- **Goal 16's `json(): tainted mixed` is settled here, not there.** ADR 0024 § 1's grammar admits that
+- **Goal 16's `json(): tainted mixed` is settled here, not there.** `rule:security/tainted-qualifier`'s grammar admits that
   spelling no more than it admits `tainted {…}`, so stage 2 either widens to cover `mixed` as well or
-  goal 16's signature is corrected to what the grammar allows. Decided-and-recorded in ADR 0024's own
+  goal 16's signature is corrected to what the grammar allows. Decided-and-recorded in `rule:security/tainted-qualifier`'s own
   body, never `BLOCKED`.
 - **What this spends**, per `rule:programs/memory-priority`'s ledger: the hydrated
   object for a request that asked for one, freed with the request, O(in-flight) and never O(requests
   served). The optional bit is one bool per shape field in an interned descriptor, O(distinct types in the
   program). `tainted {…}` costs nothing at all — it is erased before codegen with the rest of the
-  qualifier, exactly as ADR 0024 § 1 already promises.
+  qualifier, exactly as `rule:security/tainted-qualifier` already promises.

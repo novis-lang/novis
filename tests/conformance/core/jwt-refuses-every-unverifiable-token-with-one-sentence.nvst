@@ -1,9 +1,9 @@
 --TEST--
-Core\Jwt::verify refuses a swapped `alg`, a borrowed signature, an altered payload, another key and a shape that is not a JWT with a single sentence, and the algorithm is never selected from the token — ADR 0060 §§ 1, 4
+Core\Jwt::verify refuses a swapped `alg`, a borrowed signature, an altered payload, another key and a shape that is not a JWT with a single sentence, and the algorithm is never selected from the token — `rule:security/protocol-roster` and `rule:security/algorithm-comes-from-the-key`
 --FILE--
 <?nvs
 // Agreement, counted. Every library that ever accepted `alg: none` did so
-// because the header chose the verifier; ADR 0060 § 4's first bullet removes
+// because the header chose the verifier; `rule:security/algorithm-comes-from-the-key`'s first bullet removes
 // the choice, and the observable consequence is that a header swap is not a
 // *kind* of failure at all — it is indistinguishable from a truncated token.
 // So the assertion is that six different attacks produce one sentence, which

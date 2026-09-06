@@ -102,7 +102,7 @@ one walk each, **no new analysis in any of them.**
 
 ## Stage 8 — `nvs/redactions`, the one request of Novis's own
 
-[ADR 0101](../../adr/0101-secret-is-redacted-in-the-editor-and-the-range-comes-from-the-server.md) §§ 1–2:
+`rule:security/redaction-ranges-come-from-the-server` and `rule:security/redaction-covers-bytes-only`:
 a `TextDocumentIdentifier` in, a list of `{range, kind}` out, `kind` being `secretLiteral` today and an
 open string for whatever a later qualifier needs. The server computes the ranges because the alternative is
 the client deciding what a secret is, which ADR 0016 § 1 forbids.

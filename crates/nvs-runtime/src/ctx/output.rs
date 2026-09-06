@@ -107,7 +107,7 @@ pub enum OutputSink {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LogChannel {
     /// The program's own output, through [`Ctx::write_output`] and so through
-    /// ADR 0088 § 5's capture stack — `Core\Log::write`'s, because a record a
+    /// `rule:security/capture-answers-the-carrier`'s capture stack — `Core\Log::write`'s, because a record a
     /// program chose to write is something it said.
     Output,
     /// The diagnostic channel, through [`Ctx::write_diagnostic`] — the engine
@@ -138,7 +138,7 @@ impl Ctx {
     /// Whatever the sink returns. [`OutputSink::Buffer`] and
     /// [`OutputSink::Sink`] never fail.
     pub fn write_output(&mut self, bytes: &[u8]) -> io::Result<()> {
-        // ADR 0088 § 5: while a `Core\Out::capture` is in force, the innermost
+        // `rule:security/capture-answers-the-carrier`: while a `Core\Out::capture` is in force, the innermost
         // one takes the bytes and the sink below sees nothing.
         if let Some(capture) = self.captures.last_mut() {
             capture.extend_from_slice(bytes);
@@ -185,8 +185,8 @@ impl Ctx {
     /// sameness could be lost after the record's shape.
     ///
     /// **A named target wins over `Core\Out::capture`.** The record leaves
-    /// through the sink rather than through [`Self::write_output`], so ADR 0088
-    /// § 5's capture stack does not see it and `[limits] max_output` is not
+    /// through the sink rather than through [`Self::write_output`], so `rule:security/capture-answers-the-carrier`
+    /// 's capture stack does not see it and `[limits] max_output` is not
     /// charged for it. Both follow from what the directive means: an operator
     /// naming a destination is saying where the deployment's records go, and a
     /// program capturing its own output has said nothing about that. With no
@@ -476,7 +476,7 @@ impl Ctx {
         self.captures.is_empty() && matches!(self.output, OutputSink::Stdout | OutputSink::Stderr)
     }
 
-    /// Declares what this request's output *is* — ADR 0088 § 4's
+    /// Declares what this request's output *is* — `rule:security/response-body-is-one-typed-member`'s
     /// `Content-Type`, set by the body member that wrote it.
     ///
     /// Whoever declares last is what the response carries; [`Self::content_type`]
@@ -706,7 +706,7 @@ mod tests {
         assert_eq!(ctx.output_used(), 6);
     }
 
-    /// ADR 0088 § 5's "always swallows": while a capture is open the sink below
+    /// `rule:security/capture-answers-the-carrier`'s "always swallows": while a capture is open the sink below
     /// it sees nothing at all, and it sees everything again once it closes.
     #[test]
     fn a_capture_takes_the_output_and_the_sink_below_sees_none_of_it() {

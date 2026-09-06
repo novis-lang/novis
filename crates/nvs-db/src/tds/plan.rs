@@ -675,7 +675,7 @@ mod tests {
     use super::*;
     use crate::tds::testing::*;
 
-    /// ADR 0067 § 13's reset on this backend, both halves of it: the session is
+    /// `rule:security/db-pool-reset-is-a-boundary`'s reset on this backend, both halves of it: the session is
     /// reset through `sp_reset_connection` — which MS-TDS spells as a header bit
     /// rather than as a call — and § 1's cache is emptied with it, because the
     /// reset drops the server's prepared statements.

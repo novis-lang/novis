@@ -110,7 +110,7 @@ integer type**, `int` unless `: uint` is written. There is no pure enum and no s
 
 The consequence that matters most: **an enum needs no entry in `rule:statements/storage-that-outlives-a-call`'s
 storage-class table at all.** A case is baked into generated code the same way a literal `5` is; there is
-no per-isolate slot to build, no teardown, and nothing for [ADR 0006](0006-isolated-script-execution.md)'s
+no per-isolate slot to build, no teardown, and nothing for `rule:security/isolate-shares-nothing`'s
 isolate boundary to copy except the plain integer a value already carries.
 
 ### 4. The enum's name is a type, usable everywhere `rule:types/declaration` requires one
@@ -196,7 +196,7 @@ named a language to imitate rather than one to stay compatible with.
 - Untrusted input into an enum type is a reviewable, throwing conversion through the same operator every
   other conversion in `rule:types/declaration` uses — one fewer per-type API
   (`::tryFrom()`) for a reviewer or a static analyzer to know about.
-- The isolate-boundary story ([ADR 0006](0006-isolated-script-execution.md)) is trivial: an enum value is a
+- The isolate-boundary story (`rule:security/isolate-shares-nothing`) is trivial: an enum value is a
   plain scalar, copied exactly like an `int` or `uint`, with no object identity to preserve or discard across
   the boundary.
 - One property PHP's design cannot offer at all: a case that is genuinely free to inline, since it is a

@@ -1,4 +1,4 @@
-//! ADR 0067 § 13's pool bounds and § 11's `slow_query` threshold, as the boot reads them: one key in
+//! `rule:security/db-pool-reset-is-a-boundary`'s pool bounds and § 11's `slow_query` threshold, as the boot reads them: one key in
 //! two shapes, four bounds that are finite with nothing configured (ADR 0074), the three values that
 //! parse and still cannot describe a pool, and a threshold that is off until an operator writes one.
 //!

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Request::query` answers the same way for every name it is given when no request arrived, so nothing about the parameter reaches the decision -- ADR 0012 § 7, spec §§ 9, 15
+`Core\Request::query` answers the same way for every name it is given when no request arrived, so nothing about the parameter reaches the decision -- `rule:security/request-state-throws-in-an-isolate`, spec §§ 9, 15
 --FILE--
 <?nvs
 // Invariance over a sweep, counted rather than read off a line: `query` is the

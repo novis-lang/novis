@@ -122,9 +122,9 @@ One file set: `crates/nvs-stdlib/src/db/`, `crates/nvs-db/src/`, `crates/nvs-con
     read them from, and § 13's `pool = false` is written per block and so cannot reach an `open` at
     all. The deployment that notices is the audited one that needs every connection to map to one
     request: it can switch off every block an operator wrote and not the connections a program opens
-    for itself. That module says outright this is "an ADR 0067 § 13 question and not a shape this
+    for itself. That module says outright this is "an `rule:security/db-pool-reset-is-a-boundary` question and not a shape this
     module may pick on its own" — so it is answered in the standing decisions below and folded into
-    ADR 0067 § 13.
+    `rule:security/db-pool-reset-is-a-boundary`.
 11. **`{timeout?: Duration}` on `query` and `execute`**, gap 6 of the same module: the option is in
     both spec signatures and deliberately in neither registry row, because a deadline on a statement
     has to reach the socket the way `nvs_db::PgConn::connect`'s does and there is no seam for one on
@@ -210,7 +210,7 @@ One file set: `crates/nvs-stdlib/src/uri.rs`, `crates/nvs-runtime/src/routes.rs`
 ## Standing decisions
 
 - **This goal opens no new ADR number.** It may fold an amendment into
-  [ADR 0067](../../adr/0067-core-db.md) § 13 (item 10's pool bounds),
+  `rule:security/db-pool-reset-is-a-boundary` (item 10's pool bounds),
   `rule:core-classes/db-capabilities` (item 5's wildcard, if the ADR's own wording needs
   sharpening to match what lands) and `docs/spec/01-core-library.md` § 12 (item 19), and no others.
   Everything else is decided-and-recorded in the module doc that already owns the gap.
@@ -238,7 +238,7 @@ One file set: `crates/nvs-stdlib/src/uri.rs`, `crates/nvs-runtime/src/routes.rs`
   of the block whose *settings hash* the connection was opened under when there is one, and from
   `PoolBounds::DEFAULT` when there is not; `pool = false` becomes a directive an operator may write
   **unscoped** as well as per block, and unscoped it reaches every connection including a program's
-  own — which is the audited deployment's whole requirement. Folded into ADR 0067 § 13.
+  own — which is the audited deployment's whole requirement. Folded into `rule:security/db-pool-reset-is-a-boundary`.
 - **Item 12 is additive and stays additive.** A field with no value is omitted, per ADR 0076 § 6, so
   no existing record changes shape. A fixture asserts the *keys* a served request produces and the
   two-key envelope a CLI run produces; it never freezes a timestamp or an id.
@@ -257,6 +257,6 @@ One file set: `crates/nvs-stdlib/src/uri.rs`, `crates/nvs-runtime/src/routes.rs`
   the JIT bakes in, which is a subsystem rather than a gap. The eight spec §§ 16–17 classes
   (`Core\Metrics`, `Core\Net`, `Core\Os`, `Core\Signal`, `Core\Compress`, `Core\Mime`, `Core\Xml`,
   `Core\Zip`) have no owner on the chain and are **not** invented one here — stage 2 item 3 records
-  them in `docs/agent/carried-gaps.md` and they are the user's to schedule. ADR 0116's optional
+  them in `docs/agent/carried-gaps.md` and they are the user's to schedule. `rule:security/arena-is-an-ownership-root`'s optional
   in-flight cycle collector for a long-running CLI script stays an open *decision*, which that ADR's
   *Consequences* already says; item 7 is the leak, not the collector.

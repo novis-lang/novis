@@ -33,7 +33,7 @@
 > rule, so a framework can use all of this, half of it, or none. And **a matched segment's type comes from
 > the method's own parameter**, so `{id}` on `show(uint $id)` is converted during matching — which means a
 > non-numeric segment simply **does not match** (a 404, not a 500) and, because
-> [ADR 0024](0024-taint-tracking-for-injection-sinks.md) § 2 already launders a checked conversion, `$id`
+> `rule:security/taint-propagation` already launders a checked conversion, `$id`
 > arrives **unqualified** while a `string $slug` arrives `tainted`. A program with no `#[Route]` builds no
 > table, runs no scan, and pays nothing.
 
@@ -159,7 +159,7 @@ kind:
 - **A failed conversion is not a match.** `/users/abc` against `show(uint $id)` does not match that route;
   matching continues, and if nothing else matches the result is a `404`. This is the correct behaviour and
   it is what every framework has to write by hand as a `\d+` requirement on the placeholder.
-- **A converted parameter arrives unqualified.** [ADR 0024](0024-taint-tracking-for-injection-sinks.md) § 2
+- **A converted parameter arrives unqualified.** `rule:security/taint-propagation`
   already establishes that a checked conversion launders — the value provably has the shape its type claims
   — so `uint $id` is a plain `uint`, while `string $slug` and every `{name...}` capture stay
   `tainted string` because nothing about them was checked. No new sink, no new launderer, no new rule; this
@@ -216,7 +216,7 @@ Core\Router\Match — readonly name: ?string, params: {…}, method: Http\Method
   route in the table, reading a field is guarded by `name` — an ordinary discriminated read, and the reason
   a framework built on this writes one `switch` and not several.
 - **`url` is a launderer for the URL-path sink** in
-  [ADR 0024](0024-taint-tracking-for-injection-sinks.md) § 3's existing shape: it percent-encodes each
+  `rule:security/launderers-are-sink-named`'s existing shape: it percent-encodes each
   substituted value, so a `tainted` parameter produces a plain `string` path that is safe *as a path* and
   for nothing else. It also **prepends the request's mount prefix**
   ([0097](0097-development-server-and-proxied-origin.md) § 3), which is what lets one compiled table serve

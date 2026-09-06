@@ -1,5 +1,5 @@
-//! [ADR 0112](/docs/adr/0112-authority-is-keyed-on-the-enclosing-namespace.md)
-//! § 6's `Core\Cap::has`, and the one thing about it that is decided while
+//! `rule:security/optional-capability-degrades`
+//! 's `Core\Cap::has`, and the one thing about it that is decided while
 //! compiling: the name it asks about has to be a capability.
 //!
 //! The member itself runs — it reads the request's own grant table, which is
@@ -79,7 +79,7 @@ pub(crate) fn reject_unknown_capability(
         )
         .with_primary(arg.value.span, "no `nvs.toml` grant can name this")
         .with_help(format!(
-            "ADR 0112 § 8's roster is closed, and this call would answer `false` on every \
+            "`rule:security/capability-roster-is-closed`'s roster is closed, and this call would answer `false` on every \
              deployment — which is what a capability that is merely ungranted answers too, so \
              nothing at run time could tell the misspelling apart: {}",
             nvs_stdlib::cap::roster()

@@ -1,4 +1,4 @@
-//! ADR 0118 § 1's question, asked of the capability `m6.md`'s *Verify* names on its own: a
+//! `rule:security/capability-question-is-grant-and-scope`'s question, asked of the capability `m6.md`'s *Verify* names on its own: a
 //! `spawn script` whose tree never granted `script.spawn`.
 //!
 //! The check that opens this case names `-p nvs-config`, so what is asserted here is the **rule** —
@@ -136,7 +136,7 @@ fn granting(text: &str, disk: &Disk) -> Capabilities {
     caps
 }
 
-/// `spawn script` without `script.spawn` fails, in every spelling of "without" ADR 0118 § 1 denies
+/// `spawn script` without `script.spawn` fails, in every spelling of "without" `rule:security/capability-question-is-grant-and-scope` denies
 /// by default, and in the two ways a granted tree still says no to *this* target.
 ///
 /// The granted case is asserted first so that every `false` below is the absence of the grant and
@@ -266,7 +266,7 @@ fn ip(text: &str) -> std::net::IpAddr {
         .unwrap_or_else(|_| panic!("{text} is not an address"))
 }
 
-/// ADR 0058 § 3's operator exception excepts the addresses it *names* and widens nothing else — not
+/// `rule:security/net-address-policy`'s operator exception excepts the addresses it *names* and widens nothing else — not
 /// a range around one, not the table, and not a name that resolves to one.
 ///
 /// The two refusals a reader would expect to be grants are the point of the test rather than

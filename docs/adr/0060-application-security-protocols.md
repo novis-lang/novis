@@ -1,4 +1,4 @@
-# ADR 0060 — A closed roster of application-layer security protocols lives in `Core`
+# `rule:security/protocol-roster` — A closed roster of application-layer security protocols lives in `Core`
 
 - **Status:** Accepted
 - **Date:** 2026-08-23
@@ -70,8 +70,8 @@ Two reasons, and the second is structural rather than a preference.
 
 - Token verification sits on the hot path of **every authenticated request**, so a boundary crossing per
   request is a real if small cost paid universally.
-- [ADR 0055](0055-extension-qualifier-declarations.md) § 3 refuses `secret` at every extension boundary.
-  Signing keys are `secret` under [ADR 0033](0033-secret-qualifier-for-confidential-values.md), so an
+- `rule:security/extension-cannot-launder` refuses `secret` at every extension boundary.
+  Signing keys are `secret` under `rule:security/secret-qualifier`, so an
   extension-based signer would require `Core\Secret::reveal()` at every call site — turning the
   deliberately conspicuous escape hatch into boilerplate, which destroys its value as a signal. That
   outcome is worse than the surface this ADR adds.
@@ -101,7 +101,7 @@ Every entry is designed so the historical failure is **unrepresentable**, not me
 Claims returned from JWT verification are **`tainted`**. A signature proves origin, not safety for any
 sink: the payload may be authored by a third-party issuer, and even a self-issued token routinely carries
 user-supplied data. Treating verification as laundering would be exactly the false confidence
-[ADR 0024](0024-taint-tracking-for-injection-sinks.md) § 3 refuses to allow anywhere else.
+`rule:security/launderers-are-sink-named` refuses to allow anywhere else.
 
 Cookie payloads the application itself sealed are the one case where the value round-trips through our own
 AEAD unchanged, and they are returned **unqualified** — sealing is an authenticated operation over a value

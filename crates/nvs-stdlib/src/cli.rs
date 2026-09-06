@@ -17,8 +17,8 @@
 //! per call**, so two reads of `Core\Cli::width()` are the same number by
 //! construction rather than by luck. That resolution is
 //! [`nvs_runtime::terminal`] and not this module: it reaches the operating
-//! system, and [ADR 0118](/docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)
-//! § 2 says a `Core` member may not — `tests/capability.rs`'s
+//! system, and `rule:security/capability-check-at-the-door`
+//! says a `Core` member may not — `tests/capability.rs`'s
 //! `nvs_stdlib_reaches_the_os_only_through_the_gate` holds that shut by name.
 //! That module's own docs own the caching, what it spends, and why no
 //! capability gates it.
@@ -84,7 +84,7 @@
 //! `Markup + Markup` — one rule over both sink carriers rather than one each.
 //!
 //! [`nvs_core_cli_escape`] is the same table reached as a *value* rather than
-//! as an effect — ADR 0024 § 3's named launderer for this sink — and it calls
+//! as an effect — `rule:security/launderers-are-sink-named`'s named launderer for this sink — and it calls
 //! `nvs_render::text::substitute` exactly as the sink does, so the two cannot
 //! come to disagree.
 //!
@@ -130,7 +130,7 @@
 //! 1. **A served request has no words to read.** [`nvs_core_cli_arguments`]
 //!    answers whatever the launcher wrote with `Ctx::set_command_line`, and
 //!    only `nvs-cli` writes one — so the member is empty rather than wrong
-//!    inside a request, which is the answer ADR 0118 § 2 wants and not a gap
+//!    inside a request, which is the answer `rule:security/capability-check-at-the-door` wants and not a gap
 //!    this module can close from here.
 //! 2. **A `Text` cannot be plain on one stream and styled on another in the
 //!    same run.** It holds bytes, and the styling is rendered into them once —
@@ -431,7 +431,7 @@ const DISPLAY_WIDTH_DOC: MethodDoc = MethodDoc {
 /// the way out instead of demanded on the way in. The `secret` axis is
 /// untouched by that, and `Neutral` refuses one for the reason
 /// [`Qual::Reveal`]'s roster of two is closed: substituting a control byte does
-/// nothing for confidentiality (ADR 0033 § 4).
+/// nothing for confidentiality (`rule:security/secret-sinks-refuse`).
 const WRITABLE: &[CoreTy] = &[CoreTy::Text(Qual::Neutral), CoreTy::Instance(NAME)];
 
 /// `Core\Cli::write`'s trailing options — ADR 0086 § 3's
@@ -779,7 +779,7 @@ pub(crate) const LIVE: CoreClass = CoreClass {
         name: "set",
         names: &["lines"],
         // A `Cli\Text` per row rather than a `string`: the region writes to the
-        // terminal sink, and ADR 0088 § 5's carrier is what has already been
+        // terminal sink, and `rule:security/capture-answers-the-carrier`'s carrier is what has already been
         // through it. A `string` here would be a second, unsubstituted way onto
         // the screen — which is ADR 0086 § 1's whole subject.
         params: &[CoreTy::Array(&CoreTy::Instance(NAME))],
@@ -1120,7 +1120,7 @@ nvs_runtime::nvs_helper! {
     /// argument list, replacing `$argv` and `$argc`.
     ///
     /// **It reads no operating system**, which is the whole of why this member
-    /// is three lines. ADR 0118 § 2 keeps `argv` out of this crate, so the
+    /// is three lines. `rule:security/capability-check-at-the-door` keeps `argv` out of this crate, so the
     /// words arrive through `Ctx::set_command_line`, written by the launcher
     /// that started the program — `nvs-cli`'s own `main` beside
     /// `set_program_name`, whose comment owns why a served request has a
@@ -1261,8 +1261,8 @@ nvs_runtime::nvs_helper! {
     /// *ordinary output does not need this member*. What needs it is a program
     /// that wants the neutralized text **as a value** — to interpolate into a
     /// `Core\Str::format` template, to measure, or to compare — and, under
-    /// [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)
-    /// § 3, to hand a `tainted string` to something else that refuses one. That
+    /// `rule:security/launderers-are-sink-named`
+    /// , to hand a `tainted string` to something else that refuses one. That
     /// is the whole of its job, which is why it could land before `write` did:
     /// the sink is `echo`, `write` is a second spelling of it, and neither is
     /// what this member answers.
@@ -1272,14 +1272,14 @@ nvs_runtime::nvs_helper! {
     /// [`nvs_render::text::substitute`] is called rather than restated, so this
     /// member and [`nvs_runtime`]'s `echo` cannot answer differently — which is
     /// the property that would otherwise fail silently, since a launderer that
-    /// neutralizes *less* than its sink is exactly the false confidence ADR 0024
-    /// § 3 refuses a generic `sanitize()` over. That module owns the table and
-    /// its rows' reasoning; [ADR 0087](/docs/adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md)
+    /// neutralizes *less* than its sink is exactly the false confidence `rule:security/launderers-are-sink-named`
+    /// refuses a generic `sanitize()` over. That module owns the table and
+    /// its rows' reasoning; `rule:security/bidi-predicate`
     /// owns the bidi row's predicate.
     ///
     /// # Why the qualifier comes off
     ///
-    /// [`Qual::Launder`] on the parameter, per ADR 0024 § 3's rule that a
+    /// [`Qual::Launder`] on the parameter, per `rule:security/launderers-are-sink-named`'s rule that a
     /// launderer names the one sink it is safe for: this one is safe for the
     /// terminal and for nothing else. The answer is still not safe in an HTML
     /// document, in a shell argument or in a SQL identifier, and each of those
@@ -1548,7 +1548,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// The answer came from outside the program, so it is
     /// [`CoreTy::TaintedStr`] — a promise about the *value*, unconditional,
-    /// exactly as ADR 0060 § 5's verified claims are. The question's own
+    /// exactly as `rule:security/verification-does-not-launder`'s verified claims are. The question's own
     /// classification is [`Qual::Neutral`] rather than [`Qual::Sink`] because
     /// the terminal substitutes instead of refusing (§ 1) and because the
     /// answer's qualifier does not depend on the question's: a prompt built
@@ -1615,7 +1615,7 @@ nvs_runtime::nvs_helper! {
     /// `Core\Cli::confirm(string $question, {default?: bool}): bool` — § 4's
     /// second prompt, and the one whose answer is **not** `tainted`.
     ///
-    /// ADR 0024 § 2 launders a checked conversion, and a closed two-case
+    /// `rule:security/taint-propagation` launders a checked conversion, and a closed two-case
     /// answer set is exactly one: nothing of what was typed survives into the
     /// `bool`, so there is no untrusted content left for a sink to act on.
     ///
@@ -1820,7 +1820,7 @@ nvs_runtime::nvs_helper! {
 nvs_runtime::nvs_helper! {
     /// `Core\Cli::secret(string $question): secret tainted string` — § 4's
     /// fifth prompt, and the clearest demonstration of why
-    /// [ADR 0033](/docs/adr/0033-secret-qualifier-for-confidential-values.md)'s
+    /// `rule:security/secret-qualifier`'s
     /// qualifier was worth having: a password typed here structurally cannot
     /// be echoed, logged, dumped, put in a `Throwable` message or serialized,
     /// and it cost one row's return type to say so.
@@ -1928,7 +1928,7 @@ fn label_of(ctx: &mut nvs_runtime::Ctx, labels: Value, option: Value) -> Result<
 /// it as `nvs_types::CORE_CLI_TEXT_CLASS`.
 pub const NAME: &str = nvs_runtime::CARRIER_CLI_TEXT;
 
-/// Spec § 13's `Core\Cli\Text` — ADR 0088 § 5's slot, and ADR 0086 § 2's first
+/// Spec § 13's `Core\Cli\Text` — `rule:security/capture-answers-the-carrier`'s slot, and ADR 0086 § 2's first
 /// constructor over it. See the module docs for what is still owed.
 pub(crate) const TEXT: CoreClass = CoreClass {
     name: NAME,
@@ -3426,7 +3426,7 @@ mod tests {
     /// as a glyph, with the human-readable text between them untouched. Then
     /// `Core\Cli::escape` is asked the same question and has to give the *same*
     /// answer, which is the property that fails silently when a launderer and
-    /// its sink grow apart (ADR 0024 § 3). The third assertion is the one a
+    /// its sink grow apart (`rule:security/launderers-are-sink-named`). The third assertion is the one a
     /// substitution written as a deletion would pass: nothing is dropped, so
     /// the neutralized form is *longer* than what arrived and the operator sees
     /// that something was there.

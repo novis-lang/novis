@@ -1,16 +1,16 @@
-//! `Core\SignedCookie` — [ADR 0060](/docs/adr/0060-application-security-protocols.md)
-//! § 1's first roster entry: [`crate::crypto`]'s construction with a key ring
+//! `Core\SignedCookie` — `rule:security/protocol-roster`
+//! 's first roster entry: [`crate::crypto`]'s construction with a key ring
 //! over it and a cookie-safe spelling around it, and no second cipher anywhere.
 //!
-//! ADR 0060 places the class and § 2 says why the roster is closed at four;
+//! `rule:security/protocol-roster` places the class and § 2 says why the roster is closed at four;
 //! what belongs here is which end of the ring is the newest key, why `open`
-//! removes `tainted` when [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)
-//! § 3 refuses that nearly everywhere else, and why two members named `seal`
+//! removes `tainted` when `rule:security/launderers-are-sink-named`
+//! refuses that nearly everywhere else, and why two members named `seal`
 //! and `open` are not a second way to reach `Core\Crypto`'s two.
 //!
 //! # The key ring is an `array<secret bytes>`, newest first
 //!
-//! ADR 0060 § 1 asks for key rotation in five words — "verify against several
+//! `rule:security/protocol-roster` asks for key rotation in five words — "verify against several
 //! keys, sign with the newest" — and every part of the cost of getting it wrong
 //! is in which end of the list *newest* means. So it is written into the
 //! surface rather than into a comment: **`$keys[0]` is the newest**, [`seal`]
@@ -31,7 +31,7 @@
 //!
 //! # `open` launders, and it is the only cookie in the language that does
 //!
-//! [ADR 0060](/docs/adr/0060-application-security-protocols.md) § 5
+//! `rule:security/verification-does-not-launder`
 //! is emphatic that a verified signature does not launder — JWT claims come
 //! back `tainted` because a signature proves origin and not safety — and then
 //! names this one exception: a cookie payload the application itself sealed
@@ -87,7 +87,7 @@
 //! distinguishable "wrong key" would say which key of the ring a forgery was
 //! aimed at.
 //!
-//! ADR 0060 § 4's constant-time rule is satisfied by the construction rather
+//! `rule:security/algorithm-comes-from-the-key`'s constant-time rule is satisfied by the construction rather
 //! than by anything in this module: Poly1305's tag comparison is the
 //! `chacha20poly1305` crate's, done through `subtle`, and no member here
 //! exposes a tag, a key or a raw sealed buffer for a caller to compare with
@@ -111,7 +111,7 @@ const NAME: &str = r"Core\SignedCookie";
 /// and a plain `bytes` ring still widens onto it.
 const KEY: CoreTy = CoreTy::SecretBlob(Qual::Neutral);
 
-/// ADR 0060 § 1's first roster entry, as two rows.
+/// `rule:security/protocol-roster`'s first roster entry, as two rows.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     methods: &[
@@ -131,7 +131,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             name: "open",
             names: &["cookie", "keys"],
             // The cookie **launders**: the module doc's own section is the
-            // home of why this one round trip may, when ADR 0060 § 5 refuses
+            // home of why this one round trip may, when `rule:security/verification-does-not-launder` refuses
             // it for a verified signature everywhere else.
             params: &[CoreTy::Text(Qual::Launder), CoreTy::Array(&KEY)],
             defaults: &[],
@@ -301,7 +301,7 @@ fn cipher_at(
 
 nvs_runtime::nvs_helper! {
     /// `Core\SignedCookie::seal(string $value, array<secret bytes> $keys): string`
-    /// — the write half of ADR 0060 § 1's first entry, replacing the
+    /// — the write half of `rule:security/protocol-roster`'s first entry, replacing the
     /// `hash_hmac` + `base64_encode` + `hash_equals` triple every PHP codebase
     /// grows its own slightly-different copy of.
     ///
@@ -328,8 +328,8 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\SignedCookie::open(string $cookie, array<secret bytes> $keys): string`
-    /// — the read half, answering the sealed value **unqualified** per ADR 0060
-    /// § 5's one named exception.
+    /// — the read half, answering the sealed value **unqualified** per `rule:security/verification-does-not-launder`
+    /// 's one named exception.
     ///
     /// Every key is keyed before the cookie is tried against it, so a ring
     /// carrying a `bytes` that was never a key is a `LogicError` whatever the
@@ -378,7 +378,7 @@ mod tests {
 
     use super::*;
 
-    /// Stage 4's cookie check — ADR 0060 § 1's first bullet and its M8
+    /// Stage 4's cookie check — `rule:security/protocol-roster`'s first bullet and its M8
     /// verification line, which asks for three things in one breath: a round
     /// trip, a tampered cookie refused, and a cookie under a rotated-out key
     /// still opening while new ones use the newest.

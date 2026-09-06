@@ -1,9 +1,9 @@
 --TEST--
-what `Core\IO::stdin` answers is `tainted`, so it reaches this class's own path sink only through a launderer that names it — spec § 14, ADR 0024 §§ 1 and 3
+what `Core\IO::stdin` answers is `tainted`, so it reaches this class's own path sink only through a launderer that names it — spec § 14, `rule:security/tainted-qualifier` and `rule:security/launderers-are-sink-named`
 --FILE--
 <?nvs
 // The bytes are whatever the invoker attached to the program, so they are as
-// far outside its own text as a command-line word is. ADR 0088 § 1 classifies
+// far outside its own text as a command-line word is. `rule:security/sink-predicate` classifies
 // a path component as an instruction, which makes every path in this class a
 // sink -- and a sink is shut to this member's answer.
 Core\IO::write(Core\IO::stdin(), "never written\n");

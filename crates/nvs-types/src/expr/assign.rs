@@ -36,8 +36,8 @@ use super::*;
 /// class or shape is `<: object`), and § 3 with a shape target's structural
 /// check (see [`shape_satisfied`]) — the two amendments this ADR makes to
 /// `rule:types/unions-and-mixed`'s table, needing `graph`/`signatures` only to resolve a
-/// class receiver's own property types against a shape target. ADR 0024 § 2
-/// and ADR 0033 § 2 add one more: a same-base `string`/`bytes` value widens
+/// class receiver's own property types against a shape target. `rule:security/taint-propagation`
+/// and `rule:security/secret-propagation` add one more: a same-base `string`/`bytes` value widens
 /// freely on its `tainted`/`secret` axes (see the qualifier check just above
 /// [`shape_satisfied`]'s call), never narrows. `rule:types/literal-types` adds the last:
 /// `"a" → string`, `Mode::Read → Mode`, and each of those over a union, are
@@ -182,7 +182,7 @@ pub(crate) fn is_assignable(
         let (from_arg, to_arg) = (*from_arg, *to_arg);
         return is_assignable(from_arg, to_arg, interner, graph, signatures);
     }
-    // ADR 0024 § 2 / ADR 0033 § 2: `tainted` and `secret` are two independent
+    // `rule:security/taint-propagation` / `rule:security/secret-propagation`: `tainted` and `secret` are two independent
     // bits on the same `string`/`bytes` base, and each may only ever widen
     // through ordinary assignment — a plain value is always a safe
     // over-approximation of "may be tainted"/"may be secret," but never the

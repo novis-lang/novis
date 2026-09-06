@@ -170,7 +170,7 @@ pub fn call_static(ctx: &mut Ctx, label: &str, args: &[Value]) -> Result<Option<
 /// [`Fault::Thrown`] carrying [`crate::ThrownClass::Logic`] for an argument
 /// count the entry does not declare, for a native row, and for an argument
 /// whose tag the parameter does not admit — every one of them the ordinary
-/// named-argument error ADR 0006 says a bad `args:` map is, raised at the
+/// named-argument error `rule:security/isolate-shares-nothing` says a bad `args:` map is, raised at the
 /// spawn. [`Fault::Pending`] when the entry itself throws.
 pub fn call_static_bound(
     ctx: &mut Ctx,
@@ -657,7 +657,7 @@ impl Drop for RowValues {
 ///
 /// The copy is made on the **parent's** stack, before the isolate exists, and
 /// is moved into it. That is the same ordering `nvs_host::Isolate::start`
-/// gives its argument, and for the same reason ADR 0116 § 1 gives: an arena is
+/// gives its argument, and for the same reason `rule:security/arena-is-an-ownership-root` gives: an arena is
 /// an ownership root and not an address range, so where the walk runs decides
 /// nothing and who releases the result decides everything.
 #[derive(Debug, Default)]

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Process::run` is refused by a configuration that simply does not mention `process.exec`, and the message names the member and the capability an operator would have to grant — ADR 0044 § 6, ADR 0118 § 1
+`Core\Process::run` is refused by a configuration that simply does not mention `process.exec`, and the message names the member and the capability an operator would have to grant — `rule:security/process-exec-capability`, `rule:security/capability-question-is-grant-and-scope`
 --FILE--
 <?nvs
 // The configuration below is not empty and not silent about capabilities: it

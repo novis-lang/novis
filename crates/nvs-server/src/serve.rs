@@ -25,8 +25,8 @@
 //! served, plus the accepting task's own, plus — while a request is actually
 //! running on one of them — that request's isolate, which is one `Ctx` and one
 //! pooled task stack under
-//! [ADR 0116](/docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
-//! § 3's accounting. O(in-flight) at both levels: nothing is held per connection
+//! `rule:security/isolate-budget-is-the-trees`
+//! 's accounting. O(in-flight) at both levels: nothing is held per connection
 //! already closed or per request already answered.
 //!
 //! # What this module does not decide yet
@@ -179,7 +179,7 @@ impl Body for Answer {
 #[derive(Debug)]
 pub enum Reply {
     /// Run this isolate as a child of the connection, and answer with what it
-    /// echoed — § 4 steps 4 and 5, and [ADR 0088]'s table.
+    /// echoed — § 4 steps 4 and 5, and `rule:security/sink-predicate`'s table.
     ///
     /// **The second field is the connection's half of that request's body**, and
     /// it comes back out of the handler because it may not travel with the
@@ -459,7 +459,7 @@ impl Drop for Peer {
 ///
 /// `handler` is asked once per request for the [`Reply`] that request is. Where
 /// that is a program it is an
-/// [ADR 0006](/docs/adr/0006-isolated-script-execution.md) [`Isolate`] —
+/// `rule:security/isolate-shares-nothing` [`Isolate`] —
 /// the same type `spawn script` runs, and deliberately **not** a second isolation
 /// path, since M7's state-bleed suite is a parameterisation of one mechanism and
 /// would prove nothing about two of them. Where it is already a response
@@ -598,7 +598,7 @@ impl Drop for Peer {
 /// that expired under it. A cancelled task is not one of them — the drive
 /// answers `None` and this reports `Ok`, because the connection ended for a
 /// reason its caller already knows about. **A request's own failure is not one
-/// either**: ADR 0006's failure is a value, so it becomes a response instead.
+/// either**: `rule:security/isolate-shares-nothing`'s failure is a value, so it becomes a response instead.
 pub fn serve_connection<H>(
     stream: NvsTcp,
     arrival: Arrival,
@@ -1068,8 +1068,8 @@ where
 /// configuration slice's. Until there is a mode to ask, the fail-closed answer
 /// is the status and nothing else.
 /// What a response carries when nothing declared otherwise —
-/// [ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
-/// § 4's last bullet, which is what makes `rule:statements/nvs-is-the-only-open-tag`'s inline-HTML page shape
+/// `rule:security/response-body-is-one-typed-member`
+/// 's last bullet, which is what makes `rule:statements/nvs-is-the-only-open-tag`'s inline-HTML page shape
 /// work with no ceremony.
 const ECHOED: &str = "text/html; charset=utf-8";
 
@@ -1097,7 +1097,7 @@ fn answer(mut done: Completion) -> Response<Answer> {
         // declaration was about the answer it did not manage to give.
         return failed();
     }
-    // ADR 0088 § 4: the request's own body member said what these bytes are,
+    // `rule:security/response-body-is-one-typed-member`: the request's own body member said what these bytes are,
     // and an `echo` said nothing, which § 4 reads as HTML.
     let declared = done.content_type.as_deref().unwrap_or(ECHOED);
     let content_type =
@@ -1562,7 +1562,7 @@ mod tests {
         }
     }
 
-    /// ADR 0088 § 4: the body member a request used is what decides the
+    /// `rule:security/response-body-is-one-typed-member`: the body member a request used is what decides the
     /// `Content-Type`, and an `echo` that used none means HTML.
     ///
     /// This is the only place in the tree where a declaration is observable —
@@ -3863,7 +3863,7 @@ mod tests {
     ///
     /// **Memory is deliberately not a row here.** A run's arena is the one
     /// piece of state a child isolate shares by design —
-    /// [ADR 0006](/docs/adr/0006-isolated-script-execution.md)'s "spends its
+    /// `rule:security/isolate-shares-nothing`'s "spends its
     /// parent's budget" — so a row asserting a fresh reading would fail the
     /// isolate arm for obeying the ADR. What must not survive is the *finished*
     /// run's arena, and that is
@@ -4077,7 +4077,7 @@ mod tests {
 
     /// The same suite across an **isolate** boundary: the planting run is the
     /// request, and the probing run is a child [`Isolate`] it starts before it
-    /// ends — [ADR 0006](/docs/adr/0006-isolated-script-execution.md)'s
+    /// ends — `rule:security/isolate-shares-nothing`'s
     /// `spawn script`, which is the same type the door built the request from.
     ///
     /// Returns the response, whose body is the child's answer lines and
@@ -4903,7 +4903,7 @@ mod tests {
 
     /// Stage 2's item 2, and the reason it is an item rather than an
     /// assumption: a request runs as [`Isolate`] — the type `spawn script`
-    /// runs under [ADR 0006] — on a task of its own, so M7's state-bleed suite
+    /// runs under `rule:security/isolate-shares-nothing` — on a task of its own, so M7's state-bleed suite
     /// parameterises one isolation mechanism instead of proving something about
     /// two.
     ///
@@ -4914,7 +4914,6 @@ mod tests {
     /// since a connection that cannot go round its dispatcher's loop cannot
     /// read the body its own request is waiting for.
     ///
-    /// [ADR 0006]: ../../../docs/adr/0006-isolated-script-execution.md
     #[test]
     fn a_request_is_the_root_isolate_of_a_request_tree() {
         let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))

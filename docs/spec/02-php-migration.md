@@ -68,7 +68,7 @@ Novis actually has.
 
 | PHP | Outcome | Novis |
 |---|---|---|
-| `addcslashes` | dropped | a half-escaper. `Core\Html::escape`, `Core\Db`'s binding, or `Core\Regex::quote` — the sink decides, never the caller ([ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md)) |
+| `addcslashes` | dropped | a half-escaper. `Core\Html::escape`, `Core\Db`'s binding, or `Core\Regex::quote` — the sink decides, never the caller (`rule:security/tainted-qualifier`) |
 | `addslashes` | dropped | same; SQL escaping does not exist because binding is the mechanism |
 | `base64_decode` | member | `Core\Encoding::fromBase64` |
 | `base64_encode` | member | `Core\Encoding::toBase64` |
@@ -95,7 +95,7 @@ Novis actually has.
 | `get_html_translation_table` | dropped | the entity table is `Core\Html::escape`'s business, not a program's |
 | `hex2bin` | member | `Core\Encoding::fromHex` |
 | `html_entity_decode` | member | `Core\Html` — the unescaping half, named with the class in M8 |
-| `htmlentities` | member | `Core\Html::escape` — which is applied automatically at the HTML sink ([ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md)) |
+| `htmlentities` | member | `Core\Html::escape` — which is applied automatically at the HTML sink (`rule:security/tainted-qualifier`) |
 | `htmlspecialchars` | member | `Core\Html::escape` |
 | `htmlspecialchars_decode` | member | `Core\Html`, as `html_entity_decode` |
 | `iconv` | member | `Core\Encoding::decodeText` / `Core\Encoding::encodeText` |
@@ -572,10 +572,10 @@ how this runtime is built.
 | `memory_get_usage` | member | `Core\Os::memoryUsage` |
 | `memory_get_peak_usage` | dropped | `Core\Os::memoryUsage` is the current figure; a peak is only meaningful against the request's budget, which `rule:errors/escalation-ladder`'s limit report already carries when one is breached |
 | `memory_reset_peak_usage` | dropped | nothing tracks a resettable peak — a budget is per request and dies with it (`rule:errors/on-limit`) |
-| `gc_enable` | dropped | memory is refcounted and released deterministically ([ADR 0116](../adr/0116-an-isolates-arena-is-an-ownership-root.md)); there is no collector to turn on |
+| `gc_enable` | dropped | memory is refcounted and released deterministically (`rule:security/arena-is-an-ownership-root`); there is no collector to turn on |
 | `gc_disable` | dropped | same, in the other direction |
 | `gc_enabled` | dropped | same — the answer would be a constant |
-| `gc_collect_cycles` | dropped | nothing is deferred to collect. A cycle inside an isolate is retained until that isolate ends, which is the bound ADR 0116 states in place of a collector's schedule |
+| `gc_collect_cycles` | dropped | nothing is deferred to collect. A cycle inside an isolate is retained until that isolate ends, which is the bound `rule:security/arena-is-an-ownership-root` states in place of a collector's schedule |
 | `gc_mem_caches` | dropped | the allocator's per-thread caches belong to the runtime, and no program empties them |
 | `gc_status` | dropped | there is no collector to report on; a request's held bytes are `Core\Os::memoryUsage` |
 | `opcache_reset` | dropped | the compiled-unit cache is the runtime's, keyed on `env_hash` ([ADR 0078](../adr/0078-config-reload-and-control-socket.md) § 4) and revalidated by `opcache.validate` ([ADR 0017](../adr/0017-hot-reload-without-restart.md)). An operator clears it with `nvs cache clear`; a request may not invalidate what other requests are still running against |
@@ -589,7 +589,7 @@ how this runtime is built.
 | `getenv` | member | `Core\Env::get`, or `Core\Env::all` for the no-argument form; both answer with `tainted` values |
 | `putenv` | dropped | the environment is read-only, because a process-global mutation is unsound across cores (01 § 15). What PHP reached for it to change is a directive, and that is `Core\Config::set` — request-local, and gone when the request ends |
 | `extension_loaded` | dropped | an extension is an `[[extension]]` entry pinned in the configuration and resolved while compiling ([ADR 0078](../adr/0078-config-reload-and-control-socket.md) § 2); a program naming a member it does not have fails to compile, so nothing is left to test at run time |
-| `dl` | dropped | nothing is loaded into the process at run time ([ADR 0052](../adr/0052-closed-doors.md)) |
+| `dl` | dropped | nothing is loaded into the process at run time (`rule:security/closed-doors`) |
 | `php_uname` | member | `Core\Os::hostname` and the rest of `Core\Os`'s host facts — one member per fact, never one string to take apart (R11) |
 | `php_sapi_name` | dropped | there is one runtime and one execution model; `nvs run` and the server differ in what they are handed, not in an engine to name |
 | `zend_version` | dropped | there is no Zend engine. `Core\Env::VERSION` is the runtime's own version |
@@ -597,7 +597,7 @@ how this runtime is built.
 ## Files, directories and streams
 
 `Core\IO` ([01 § 14](01-core-library.md)) is the whole filesystem surface. Every member is an
-[ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md) path sink holding an `fs.read` or `fs.write`
+`rule:security/tainted-qualifier` path sink holding an `fs.read` or `fs.write`
 capability, failure throws rather than returning `false`, and `resource` is never exposed — an open file is
 a `Core\IO\File` object (R14), whose methods are written `$file->read` below because they are reached
 through the handle `Core\IO::open` hands back.
@@ -605,7 +605,7 @@ through the handle `Core\IO::open` hands back.
 Three of PHP's habits do not survive the crossing. A **mode string** is an enum (`IO\FileMode`), because
 `"r+b"` is a grammar rather than an argument (R11). A **stat array** is one member per question, because an
 array whose keys depend on what produced it cannot be typed. And a **scheme prefix is not dispatch**:
-[ADR 0052](../adr/0052-closed-doors.md) § 2 closes the wrapper registry, which is why the `stream_*` rows
+`rule:security/a-path-is-not-a-url` closes the wrapper registry, which is why the `stream_*` rows
 below are the largest block of `dropped` in this file with no rewrite offered. That is deliberate. What the
 mechanism actually bought — polymorphism over "things you can read bytes from" — is an ordinary
 `Iterable<bytes>` here (`rule:iteration/two-interfaces`), so a filter, a bucket and a
@@ -615,7 +615,7 @@ context have nothing left to be.
 
 | PHP | Outcome | Novis |
 |---|---|---|
-| `file_get_contents` | member | `Core\IO::read` for bytes, `Core\IO::readText` where the file is text in a known charset. A URL is not a path ([ADR 0052](../adr/0052-closed-doors.md) § 2); fetching one is `Core\Http\Client` |
+| `file_get_contents` | member | `Core\IO::read` for bytes, `Core\IO::readText` where the file is text in a known charset. A URL is not a path (`rule:security/a-path-is-not-a-url`); fetching one is `Core\Http\Client` |
 | `file_put_contents` | member | `Core\IO::write`, or `Core\IO::append` for what the `FILE_APPEND` flag meant — an option is never a bitmask (R11) |
 | `file` | member | `Core\IO::lines`, which is lazy where PHP's array is not; the whole-array shape is what `Core\Arr` does to it afterwards |
 | `readfile` | member | `Core\IO::read` and then `Core\Cli::write` or a `Core\Response` body. Reading and writing are two members, never one that does both to two different places |
@@ -717,7 +717,7 @@ context have nothing left to be.
 ### Streams: wrappers, filters, contexts and buckets
 
 Every row here is `dropped` with **no replacement offered**, which no other block in this file does at this
-scale. [ADR 0052](../adr/0052-closed-doors.md) § 2 refuses dispatch on the textual content of a path, and
+scale. `rule:security/a-path-is-not-a-url` refuses dispatch on the textual content of a path, and
 these functions exist only to extend that dispatch: `phar://` metadata unserializing on any path operation,
 `php://filter` chains turning a file read into code execution, `data://` and `http://` turning every local
 inclusion bug into a remote one. There is no opt-in and no reduced form.
@@ -778,7 +778,7 @@ inclusion bug into a remote one. There is no opt-in and no reduced form.
 | `stream_socket_shutdown` | member | `Core\Net` |
 | `stream_socket_enable_crypto` | dropped | a connection is TLS from the moment it is made or it is not TLS at all. Where a protocol requires STARTTLS the client does it — `Core\Mail`'s does — and no program flips a live plaintext socket |
 | `fsockopen` | member | `Core\Net`, which replaces `socket_*`, `stream_socket_*` and `fsockopen`: three PHP APIs for one job |
-| `pfsockopen` | member | `Core\Net`; the **persistent** half is dropped, because a connection outliving its request is cross-request state ([ADR 0052](../adr/0052-closed-doors.md) § 3) |
+| `pfsockopen` | member | `Core\Net`; the **persistent** half is dropped, because a connection outliving its request is cross-request state (`rule:security/no-cross-request-state`) |
 
 ## Hashing, passwords and identifiers
 
@@ -797,7 +797,7 @@ of the known hole named above rather than rows this section is missing. What is 
 | `hash` | member | `Core\Hash::of`, whose second argument is a `Digest` case rather than an algorithm name (R11) — a misspelling is a compile error and not a runtime `false` |
 | `hash_algos` | dropped | the roster *is* the `Digest` enum, which the compiler already holds. A list built at run time exists to be searched for a name, which is the failure this removes |
 | `hash_hmac_algos` | dropped | `StrongDigest` is that list, and `Core\Hash::hmac` declares it (`rule:types/literal-types`) |
-| `hash_hmac` | member | `Core\Hash::hmac`, whose key is `secret bytes` ([ADR 0033](../adr/0033-secret-qualifier-for-confidential-values.md)) and whose digest cannot be a broken one |
+| `hash_hmac` | member | `Core\Hash::hmac`, whose key is `secret bytes` (`rule:security/secret-qualifier`) and whose digest cannot be a broken one |
 | `hash_equals` | member | `Core\Hash::equals`, constant-time |
 | `hash_init` | member | `Core\Hash::stream` |
 | `hash_update` | member | `$stream->update` |
@@ -807,7 +807,7 @@ of the known hole named above rather than rows this section is missing. What is 
 | `hash_update_file` | member | the same pair |
 | `hash_update_stream` | member | `$stream->update`, given the bytes. There is no stream type to hand it, because anything that yields `bytes` already qualifies (`rule:iteration/two-interfaces`) |
 | `hash_hkdf` | member | `Core\Crypto` ([01 § 16](01-core-library.md)), where deriving a key sits beside the primitives that consume one |
-| `hash_pbkdf2` | dropped | storing a password is `Core\Password::hash`, which writes Argon2id and takes no cost parameters from the call site ([ADR 0129](../adr/0129-password-verify-reads-a-stored-bcrypt-hash.md)). Where PBKDF2 derived a key rather than stored a password, that is `Core\Crypto` |
+| `hash_pbkdf2` | dropped | storing a password is `Core\Password::hash`, which writes Argon2id and takes no cost parameters from the call site (`rule:security/bcrypt-read-roster`). Where PBKDF2 derived a key rather than stored a password, that is `Core\Crypto` |
 | `md5` | member | `Core\Hash::of` with `Digest::Md5`, which the roster keeps for interop and labels collision-broken |
 | `md5_file` | member | the same, over `Core\IO::read` |
 | `sha1` | member | `Core\Hash::of` with `Digest::Sha1` |
@@ -815,7 +815,7 @@ of the known hole named above rather than rows this section is missing. What is 
 | `crc32` | member | `Core\Hash::of` with `Digest::Crc32`. PHP's `crc32()` is CRC-32/ISO-HDLC — the `crc32b` of `hash()`, not its `crc32` — and `Digest::Crc32c` is beside it for the checksum object stores stamp |
 | `crypt` | member | `Core\Password::hash` to write and `Core\Password::verify` to read. There is no salt argument and no algorithm prefix inside a string, which is what made `crypt` silently fall back to DES for two decades |
 | `password_hash` | member | `Core\Password::hash` — Argon2id, always |
-| `password_verify` | member | `Core\Password::verify`, which also verifies a PHP-stored bcrypt hash ([ADR 0129](../adr/0129-password-verify-reads-a-stored-bcrypt-hash.md)) |
+| `password_verify` | member | `Core\Password::verify`, which also verifies a PHP-stored bcrypt hash (`rule:security/bcrypt-read-roster`) |
 | `password_needs_rehash` | member | `Core\Password::needsRehash`, which answers `true` for every bcrypt hash, so a migrated user table upgrades itself one login at a time |
 | `password_algos` | dropped | there is one algorithm and no argument that could choose another, so there is no list to enumerate |
 | `password_get_info` | dropped | the one fact a program acts on is whether the stored hash needs replacing, and that is `Core\Password::needsRehash` |
@@ -928,7 +928,7 @@ identify.
 | `get_class` | language | `$object::class`, one load off the receiver's own class descriptor (`rule:types/class-constant`). It answers the class the receiver *is*, so a variable declared as a base still reports the subclass it holds. A receiver whose type erased to `mixed` is `Core\Reflect::forObject` instead, whose description carries the name |
 | `get_called_class` | language | `static::class`. Late static binding has its own spelling, and a function that reads the calling scope is not one |
 | `get_parent_class` | member | `Core\Reflect::forObject`'s description. The test a parent name usually feeds is `instanceof`, which the compiler answers without producing a name at all |
-| `get_object_vars` | member | `Core\Reflect::forObject`, whose property walk respects the visibility the *calling site* has ([ADR 0019](../adr/0019-reflection-and-ast-parsing-are-core-features.md) § 2) rather than silently returning more when called from inside the class |
+| `get_object_vars` | member | `Core\Reflect::forObject`, whose property walk respects the visibility the *calling site* has (`rule:security/reflection-enforces-visibility`) rather than silently returning more when called from inside the class |
 | `get_mangled_object_vars` | dropped | the mangling is PHP's own encoding of `private` and `protected` into a property key (`"\0Class\0name"`). Novis reports visibility as visibility, so there is no encoded key to hand back |
 | `get_class_methods` | member | `Core\Reflect::forClass` ([01 § 13](01-core-library.md)). The walk is visibility-respecting, so what it lists is what the calling site could have called |
 | `get_class_vars` | member | `Core\Reflect::forClass`. The default-value half is the declaration's own initializer, which reflection reports rather than reconstructs |
@@ -964,7 +964,7 @@ identify.
 | `unserialize` | member | `Core\Serialize::decode`, which is a **`tainted` sink** with no launderer ([01 § 13](01-core-library.md)): bytes that arrived from outside are refused structurally, which is what closes PHP's most productive remote-code-execution class. Its `$options` allowed-class list is the workaround that rule replaces |
 | `var_dump` | member | `Core\Debug::dump`, over the one diagnostic record (`rule:errors/diagnostic-record`) |
 | `print_r` | member | `Core\Debug::render` for the string and `Core\Debug::dump` for the write. PHP's `$return` flag chose between those two, which is one member each rather than a boolean that changes a return type |
-| `var_export` | member | `Core\Debug::render`, whose rendering is one of `rule:errors/renderings`'s three over that same record. The promise that the output is valid source is not kept and is not wanted: there is no `eval` to feed it to ([ADR 0052](../adr/0052-closed-doors.md)) |
+| `var_export` | member | `Core\Debug::render`, whose rendering is one of `rule:errors/renderings`'s three over that same record. The promise that the output is valid source is not kept and is not wanted: there is no `eval` to feed it to (`rule:security/closed-doors`) |
 | `debug_zval_dump` | dropped | it prints a refcount, which is the runtime's own accounting and not a fact a program is entitled to branch on. The dumping half is `Core\Debug::dump` |
 | `debug_backtrace` | member | `$e->backtrace`, a readonly property every `Throwable` carries ([01 § 10](01-core-library.md)). A stack read where nothing failed is profiling, and that is `Core\Debug`'s probe half (`rule:testing/debug-probes`) |
 | `debug_print_backtrace` | member | the same property, handed to `Core\Debug::dump` |
@@ -997,7 +997,7 @@ than a string ([ADR 0074](../adr/0074-http-defaults-safe-and-finite.md)).
 
 | PHP | Outcome | Novis |
 |---|---|---|
-| `header` | member | three members, because it is three jobs behind one string: `Core\Response::setHeader`, `Core\Response::redirect` for the `Location:` form, and `Core\Response::setStatus` for the `HTTP/1.1 404` form. `setHeader` is a header **sink**, so a `tainted` value is refused ([ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md)) — which is response splitting closed structurally rather than by remembering to strip a newline |
+| `header` | member | three members, because it is three jobs behind one string: `Core\Response::setHeader`, `Core\Response::redirect` for the `Location:` form, and `Core\Response::setStatus` for the `HTTP/1.1 404` form. `setHeader` is a header **sink**, so a `tainted` value is refused (`rule:security/tainted-qualifier`) — which is response splitting closed structurally rather than by remembering to strip a newline |
 | `header_remove` | dropped | a header exists on a response because the handler set it, so unsetting one is not setting it. The headers a program does not write are policy's ([ADR 0074](../adr/0074-http-defaults-safe-and-finite.md)), and overriding one on a single response is `Core\Response::setHeader` |
 | `headers_list` | dropped | a read-back of what the engine was told. The handler holding the response is the one that set them |
 | `headers_sent` | dropped | there is no moment at which the headers escaped and a program must start guarding: the server writes a response the handler returned. The one ordering error it was used to avoid — writing a header after a body — is a compile error ([01 § 15](01-core-library.md)) |
@@ -1005,7 +1005,7 @@ than a string ([ADR 0074](../adr/0074-http-defaults-safe-and-finite.md)).
 | `http_response_code` | member | `Core\Response::setStatus`. Its getter half is a read-back the handler does not need, since it chose the status |
 | `setcookie` | member | `Core\Response::addCookie`, one options shape instead of eight positional arguments, defaulted from `[http.cookies]` ([ADR 0074](../adr/0074-http-defaults-safe-and-finite.md)) |
 | `setrawcookie` | dropped | it differs from `setcookie` only by skipping the URL-encoding, and encoding a cookie's value is `addCookie`'s job rather than a second function's — no operation is reachable two ways (`rule:core-api/shape-rules`) |
-| `http_get_last_response_headers` | dropped | it reports the headers of the last fetch a **stream wrapper** made — `$http_response_header` under a function name. There are no stream wrappers ([ADR 0052](../adr/0052-closed-doors.md)), and an outbound response is the value `Core\Http\Client` returns ([01 § 16](01-core-library.md)) |
+| `http_get_last_response_headers` | dropped | it reports the headers of the last fetch a **stream wrapper** made — `$http_response_header` under a function name. There are no stream wrappers (`rule:security/closed-doors`), and an outbound response is the value `Core\Http\Client` returns ([01 § 16](01-core-library.md)) |
 | `http_clear_last_response_headers` | dropped | same; there is no hidden slot to clear |
 | `request_parse_body` | member | `Core\Request`'s `body`, `query` and `files`. PHP 8.4 added this to parse a body the engine had decided not to parse; here the request is asked for what the handler needs, and an upload is a stream with exactly one way to receive it ([ADR 0105](../adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)) |
 | `session_start` | dropped | `Core\Session`'s members are the session ([01 § 15](01-core-library.md)). There is no superglobal to populate first, so there is no call that must come before the others and no failure mode where it did not |
@@ -1042,7 +1042,7 @@ its eleven readers, which are `fopen`'s roster written a second time. And an **i
 deflate, brotli and zstd, and three rules stated elsewhere collapse the table: the format is an enum case
 rather than part of a function's name (as in *Hashing* above), anything with a lifetime is an object rather
 than a `resource` (`rule:core-api/shape-rules` R14), and there are no stream wrappers
-or filters for `zlib.*` to be registered against ([ADR 0052](../adr/0052-closed-doors.md)).
+or filters for `zlib.*` to be registered against (`rule:security/closed-doors`).
 
 The rule that is this section's own is that **decompression is bounded, and the bound is not the caller's
 to forget**. A decompression bomb is policy, and policy must be non-optional — which is the whole reason
@@ -1074,7 +1074,7 @@ ceiling; PHP's `$max_length` argument, optional and defaulted to unlimited, is t
 | `gzrewind` | dropped | the same, and the honest spelling is to decode again |
 | `gzfile` | member | `Core\IO::read` for the bytes, `Core\Compress` for the decoding and `Core\Str` for the split into lines — three jobs PHP folded into one call, and the middle one is the only one that is about compression |
 | `readgzfile` | member | the same first two, with the result echoed. Nothing reads, decodes and writes to the output in one step, because each of those is a different question about what the program is allowed to do |
-| `gzpassthru` | dropped | it writes the remainder of a handle straight to the output. Output is `echo` over a value the program is holding ([ADR 0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)) |
+| `gzpassthru` | dropped | it writes the remainder of a handle straight to the output. Output is `echo` over a value the program is holding (`rule:security/sink-predicate`) |
 | `deflate_init` | member | `Core\Compress`, whose incremental half is an object rather than a context `resource` (R14) — [01 § 17](01-core-library.md) names this family as one of the three surfaces it replaces |
 | `deflate_add` | member | that object's update member. PHP's `$flush_mode` constants are the one place this API is genuinely incremental, and they stay |
 | `inflate_init` | member | the same, decompressing, under the same non-optional ceiling |
@@ -1107,7 +1107,7 @@ document names, a schema location — none is fetched, and there is no capabilit
 that turns resolution on. The reference survives as data, the way
 `rule:core-classes/spreadsheet-has-no-io`
 keeps one. This is not a safe default that was chosen carefully; it is a spelling that does not exist, and
-it is where XXE and [ADR 0052](../adr/0052-closed-doors.md)'s closed doors meet — a parser that resolved
+it is where XXE and `rule:security/closed-doors`'s closed doors meet — a parser that resolved
 would be making a request nobody wrote, through the stream wrappers that door closes and around
 [ADR 0058](../adr/0058-outbound-request-policy.md)'s rule that an outbound URL is named at a call site.
 Eight of libxml's rows below exist only to position that switch, and one of them PHP itself deprecated for
@@ -1145,11 +1145,11 @@ being a switch.
 | `libxml_use_internal_errors` | dropped | it turns parse errors into a process-global bucket instead of warnings. A malformed document throws, and there is no second mode in which it does not |
 | `libxml_get_errors` | dropped | reads that bucket |
 | `libxml_get_last_error` | dropped | reads the last entry in it |
-| `libxml_clear_errors` | dropped | empties it. Process-global state a request can leave behind is the shape [ADR 0052](../adr/0052-closed-doors.md) § 3 closes generally |
+| `libxml_clear_errors` | dropped | empties it. Process-global state a request can leave behind is the shape `rule:security/no-cross-request-state` closes generally |
 | `libxml_disable_entity_loader` | dropped | the switch that makes libxml safe, deprecated by PHP 8 for being one. There is no resolver to disable, so there is no switch to leave in the wrong position |
 | `libxml_set_external_entity_loader` | dropped | it installs the resolver the section lead says does not exist |
 | `libxml_get_external_entity_loader` | dropped | reads back what nothing installs |
-| `libxml_set_streams_context` | dropped | a stream context for fetches that do not happen, over the stream wrappers [ADR 0052](../adr/0052-closed-doors.md) closes |
+| `libxml_set_streams_context` | dropped | a stream context for fetches that do not happen, over the stream wrappers `rule:security/closed-doors` closes |
 
 The writer is the same API from the other side, and PHP spells every construct twice — a `start_`/`end_`
 pair and a `write_` shortcut. R17 keeps exactly one of each, chosen by the construct rather than by taste:
@@ -1161,7 +1161,7 @@ what makes `xmlwriter_write_raw` the one row here that is a sink question rather
 | PHP | Outcome | Novis |
 |---|---|---|
 | `xmlwriter_open_memory` | member | `Core\Xml`'s streaming writer, which produces a value rather than filling a hidden buffer a second call reads back |
-| `xmlwriter_open_uri` | dropped | writing to a URI is `Core\IO` under `fs.write` for a path, and nothing at all for a wrapper scheme ([ADR 0052](../adr/0052-closed-doors.md)). The writer produces bytes; where they go is the program's call |
+| `xmlwriter_open_uri` | dropped | writing to a URI is `Core\IO` under `fs.write` for a path, and nothing at all for a wrapper scheme (`rule:security/closed-doors`). The writer produces bytes; where they go is the program's call |
 | `xmlwriter_output_memory` | member | that value. PHP's `$flush` argument — whether reading the buffer also empties it — is the question a value does not raise |
 | `xmlwriter_flush` | dropped | the same read, spelled for the URI case as well |
 | `xmlwriter_set_indent` | member | the writer's formatting option, in the trailing options shape every `Core` member takes (R3) rather than a call that mutates the writer |
@@ -1174,8 +1174,8 @@ what makes `xmlwriter_write_raw` the one row here that is a sink question rather
 | `xmlwriter_start_element_ns` | dropped | the qualified name goes in the name argument of the row above |
 | `xmlwriter_write_element` | dropped | the shortcut for an element whose whole content is text, which the pair plus the text member already spells (R17) |
 | `xmlwriter_write_element_ns` | dropped | both reasons at once |
-| `xmlwriter_text` | member | the content member, and the writer's escape point: text written through it is escaped by construction, so an injection is not reachable by forgetting a call ([ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md)) |
-| `xmlwriter_write_raw` | dropped | it puts bytes into the document unescaped, which is the only way to make this API emit a malformed or injected document. There is no `Markup`-shaped launderer for XML, and [ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md) § 3 is why a generic one would not be added |
+| `xmlwriter_text` | member | the content member, and the writer's escape point: text written through it is escaped by construction, so an injection is not reachable by forgetting a call (`rule:security/tainted-qualifier`) |
+| `xmlwriter_write_raw` | dropped | it puts bytes into the document unescaped, which is the only way to make this API emit a malformed or injected document. There is no `Markup`-shaped launderer for XML, and `rule:security/launderers-are-sink-named` is why a generic one would not be added |
 | `xmlwriter_write_attribute` | member | the single-call rule: an attribute holds a value and cannot contain nodes |
 | `xmlwriter_start_attribute` | dropped | the pair for something that never nests, whose only purpose is to let `text` be called between the halves |
 | `xmlwriter_end_attribute` | dropped | the other half of it |
@@ -1234,7 +1234,7 @@ one row here that grows a member rather than losing one.
 | `inet_ntop` | dropped | the inverse, over bytes only a C API produces |
 | `ip2long` | dropped | IPv4-only address arithmetic, reached for as subnet containment — a question that has no answer here for half the addresses a server sees, which is precisely the shape a member takes and an `int` does not |
 | `long2ip` | dropped | the inverse, including for the negative `int` a 32-bit `ip2long` produced |
-| `net_get_interfaces` | dropped | enumerating the host's interfaces is an operator's question rather than a request's, and it is a window onto the network's shape with no capability in front of it ([ADR 0118](../adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)) |
+| `net_get_interfaces` | dropped | enumerating the host's interfaces is an operator's question rather than a request's, and it is a window onto the network's shape with no capability in front of it (`rule:security/capability-check-at-the-door`) |
 | `get_headers` | dropped | a request spelled as a string function, with no timeout, no redirect policy and no pinned address. `Core\Http\Client`, under [ADR 0074](../adr/0074-http-defaults-safe-and-finite.md)'s finite outbound |
 | `get_meta_tags` | dropped | it fetches a URL and scrapes `<meta>` out of it with a regex — two jobs, and the second is a parse: `Core\Http\Client` for the bytes, `Core\Html`'s parser for the tags (`rule:core-classes/html-parsing`) |
 | `get_browser` | dropped | it matches a `User-Agent` against a `browscap.ini` the operator is asked to keep current. The header is `Core\Request::header`; behaviour keyed on a parsed browser identity belongs to a package, not to a `Core` member over a data file that ages |
@@ -1265,7 +1265,7 @@ sets ([ADR 0064](../adr/0064-configuration-file-format.md)), never arguments a r
 | `get_exception_handler` | dropped | reads it back |
 | `error_reporting` | dropped | a severity bitmask over a warning system there is none of. What is *written* is `[log] level`, a minimum an operator sets ([ADR 0064](../adr/0064-configuration-file-format.md)), and what is *raised* is not a level at all |
 | `error_get_last` | dropped | reads the last warning out of a process-global slot |
-| `error_clear_last` | dropped | empties that slot. Global state a request can leave behind for the next one is the shape [ADR 0052](../adr/0052-closed-doors.md) § 3 closes |
+| `error_clear_last` | dropped | empties that slot. Global state a request can leave behind for the next one is the shape `rule:security/no-cross-request-state` closes |
 | `trigger_error` | member | `Core\Log::write` to say something happened, `throw` to stop. PHP folds both into one call selected by a severity argument, and they are different instructions |
 | `user_error` | dropped | `trigger_error`'s alias |
 | `error_log` | member | `Core\Log::write`. PHP's third argument turns the same call into an email or an arbitrary file path; the destination is `[log] target` and the operator's ([ADR 0064](../adr/0064-configuration-file-format.md)) |
@@ -1280,7 +1280,7 @@ sets ([ADR 0064](../adr/0064-configuration-file-format.md)), never arguments a r
 `rule:core-api/tier-roster` splits this extension in two and keeps one half.
 `Core\Validate` ([01 § 12](01-core-library.md)) is the genuine validators, each named for the format it
 checks; the *sanitizing* filters are dropped outright, because half-escaping produces exactly the false
-confidence [ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md) exists to prevent — **no
+confidence `rule:security/tainted-qualifier` exists to prevent — **no
 `Validate` member launders anything.** The `filter_input` half dies with the superglobals it reads
 (`rule:statements/no-host-populated-variables`).
 
@@ -1362,7 +1362,7 @@ deployment: a program reads the one key it needs through `Core\Config::get`, and
 | `unpack` | member | `Core\Bytes::unpack`, which names its fields the same way |
 | `parse_ini_file` | dropped | Novis's own configuration is TOML, read by the runtime rather than by the program ([ADR 0064](../adr/0064-configuration-file-format.md)); `Core\Config` is the request-local view of it. Parsing somebody else's `.ini` is an ordinary parse, and a package's |
 | `parse_ini_string` | dropped | the same over a string, with the same answer |
-| `getimagesize` | dropped | it opens a path — or a URL, over the wrappers [ADR 0052](../adr/0052-closed-doors.md) closes — and returns dimensions, a type constant and a ready-made HTML attribute string in one array. Dimensions come from the image component (`rule:core-classes/image-pixel-model`), the type from `Core\Mime` by magic bytes, and the attribute string from whoever is writing the markup |
+| `getimagesize` | dropped | it opens a path — or a URL, over the wrappers `rule:security/closed-doors` closes — and returns dimensions, a type constant and a ready-made HTML attribute string in one array. Dimensions come from the image component (`rule:core-classes/image-pixel-model`), the type from `Core\Mime` by magic bytes, and the attribute string from whoever is writing the markup |
 | `getimagesizefromstring` | dropped | the same over bytes, and the same split |
 | `image_type_to_mime_type` | dropped | maps PHP's `IMAGETYPE_*` integers to a MIME string. `Core\Mime` answers from the bytes, rather than from a constant the caller was already holding |
 | `image_type_to_extension` | dropped | the same table in the other direction. An extension is a naming convention, and names are built with `Core\Path` |
@@ -1380,7 +1380,7 @@ Two rules of `rule:core-classes/db-one-api` empty most of this extension, and ne
 each connection holds an LRU cache of server-side prepared statements, so every statement is prepared and
 none is prepared by the program. That deletes the whole `mysqli_stmt_*` family in one move — the statement
 object, the two by-reference binding calls, the attribute getters, the per-statement error readers — and
-with it the escaper, because binding is the mechanism ([ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md) § 4)
+with it the escaper, because binding is the mechanism (`rule:security/sink-predicate`)
 and § 12 refuses an escaper permanently.
 
 **A connection is named by an operator, not built by a program** (§ 2). `Core\Db::connect` resolves a
@@ -1408,14 +1408,14 @@ site left.
 | `mysqli_set_opt` | dropped | an alias of `mysqli_options` |
 | `mysqli_ssl_set` | dropped | certificate, key and CA paths for the handshake. TLS is the `tls` key of the connection's config block and `Tls::VerifyFull` over TCP with nothing configured (`rule:core-classes/db-connection-is-named`); the paths are the operator's |
 | `mysqli_close` | member | `Db\Connection`'s `->close()`, which releases one connection early. The runtime releases the rest at request teardown, and a later `Core\Db::connect` acquires a fresh one (`rule:core-classes/db-connection-is-named`) |
-| `mysqli_change_user` | dropped | re-authenticates an open connection as a different user. The pool key includes every credential ([ADR 0067](../adr/0067-core-db.md) § 13), so two users are two connections and never one connection twice |
+| `mysqli_change_user` | dropped | re-authenticates an open connection as a different user. The pool key includes every credential (`rule:security/db-pool-reset-is-a-boundary`), so two users are two connections and never one connection twice |
 | `mysqli_select_db` | dropped | switches the default database mid-session. The database is a field of the config block or of `Db\Settings`, and a program that needs two of them opens two connections |
 | `mysqli_set_charset` | dropped | a `string` is UTF-8 (`rule:types/bytes`) and the driver fixes the connection charset to match it. A charset the program can change at runtime is what made `SET NAMES` a documented way around an escaper |
 | `mysqli_character_set_name` | dropped | reads that setting back |
 | `mysqli_get_charset` | dropped | the same, as an object with the collation beside it |
-| `mysqli_real_escape_string` | dropped | binding is the mechanism ([ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md) § 4), and an escaper is refused permanently as a second, weaker answer (`rule:core-classes/db-one-api`). The one case binding cannot carry — a dynamic table or column name — is `Core\Db::quoteIdentifier` |
+| `mysqli_real_escape_string` | dropped | binding is the mechanism (`rule:security/sink-predicate`), and an escaper is refused permanently as a second, weaker answer (`rule:core-classes/db-one-api`). The one case binding cannot carry — a dynamic table or column name — is `Core\Db::quoteIdentifier` |
 | `mysqli_escape_string` | dropped | an alias of it, and the same answer |
-| `mysqli_ping` | dropped | asks whether a connection is still alive so the caller can reconnect around it. The pool answers that itself: a connection is retired at `lifetime`, and one whose reset fails is destroyed rather than handed out ([ADR 0067](../adr/0067-core-db.md) § 13) |
+| `mysqli_ping` | dropped | asks whether a connection is still alive so the caller can reconnect around it. The pool answers that itself: a connection is retired at `lifetime`, and one whose reset fails is destroyed rather than handed out (`rule:security/db-pool-reset-is-a-boundary`) |
 | `mysqli_connect_errno` | dropped | the last connect failure as a driver code, read after a call that returned `false`. A failed connect throws `Db\DbError`, carrying `kind`, `sqlState` and `driverCode` (`rule:core-classes/db-error`) |
 | `mysqli_connect_error` | dropped | the same failure as a message |
 | `mysqli_errno` | dropped | the last statement's failure as a driver code; the same answer |
@@ -1432,7 +1432,7 @@ site left.
 | `mysqli_get_client_version` | dropped | the same as an integer |
 | `mysqli_get_client_stats` | dropped | mysqlnd's own counters. What the runtime measures, it exports ([ADR 0076](../adr/0076-observability-export.md)) |
 | `mysqli_get_connection_stats` | dropped | the same counters for one connection |
-| `mysqli_get_links_stats` | dropped | the process's opened/reused link counts, which are the per-core pool's ([ADR 0067](../adr/0067-core-db.md) § 13) and are exported with the rest |
+| `mysqli_get_links_stats` | dropped | the process's opened/reused link counts, which are the per-core pool's (`rule:security/db-pool-reset-is-a-boundary`) and are exported with the rest |
 | `mysqli_thread_id` | dropped | the server's id for this connection, useful only to `KILL` it from another one |
 | `mysqli_thread_safe` | dropped | asks whether the client library was compiled thread-safe. The runtime is thread-per-core and the driver is Rust, so the question has one answer |
 | `mysqli_kill` | dropped | kills another connection by that id — an administrative statement, written as one by a user granted it |
@@ -1562,13 +1562,13 @@ with better manners.
 | PHP | Outcome | Novis |
 |---|---|---|
 | `pg_connect` | member | `Core\Db::connect`, which names a root-owned `[db.<name>]` block rather than parsing a connection string built in program source (`rule:core-classes/db-connection-is-named`). A connection assembled at request time — one database per tenant — is `Core\Db::open`, whose host is a sink with no launderer (§ 3) |
-| `pg_pconnect` | dropped | the same connect, reusing a connection the process kept from an earlier request. Pooling is the runtime's: a released connection rejoins a per-core pool only after a reset that is a security boundary, and a failed reset destroys the connection rather than handing the next request the last one's state ([ADR 0067](../adr/0067-core-db.md) § 13) |
+| `pg_pconnect` | dropped | the same connect, reusing a connection the process kept from an earlier request. Pooling is the runtime's: a released connection rejoins a per-core pool only after a reset that is a security boundary, and a failed reset destroys the connection rather than handing the next request the last one's state (`rule:security/db-pool-reset-is-a-boundary`) |
 | `pg_connect_poll` | dropped | drives an asynchronous handshake to completion by polling it. The handshake suspends the coroutine and resumes when the socket is ready, so there is no half-open connection for a program to hold |
 | `pg_close` | member | `Db\Connection`'s `->close()`, which releases one connection early. The runtime releases the rest at request teardown |
-| `pg_ping` | dropped | asks whether the connection is still alive so the caller can reconnect around it. A connection is retired at `lifetime` regardless of health and one whose reset fails is destroyed ([ADR 0067](../adr/0067-core-db.md) § 13), so a connection a request is handed is one the pool has already vouched for |
+| `pg_ping` | dropped | asks whether the connection is still alive so the caller can reconnect around it. A connection is retired at `lifetime` regardless of health and one whose reset fails is destroyed (`rule:security/db-pool-reset-is-a-boundary`), so a connection a request is handed is one the pool has already vouched for |
 | `pg_connection_status` | dropped | `CONNECTION_OK` or `CONNECTION_BAD`, for the caller to branch on after a call that returned `false`. A connection that cannot be established throws `Db\DbError` with a normalised `kind` (`rule:core-classes/db-error`) |
 | `pg_connection_busy` | dropped | whether an asynchronous query is still running on this connection. A statement is issued and awaited in one call (`rule:core-classes/db-statement-members`), so a connection the program is holding is never mid-statement |
-| `pg_connection_reset` | dropped | closes and reopens the connection behind the same handle. The reset belongs to the pool and is stated as a property — afterwards no transaction, no temporary table, no session variable, no `SET ROLE`, no advisory lock and no listener ([ADR 0067](../adr/0067-core-db.md) § 13) — rather than as something a program remembers to call |
+| `pg_connection_reset` | dropped | closes and reopens the connection behind the same handle. The reset belongs to the pool and is stated as a property — afterwards no transaction, no temporary table, no session variable, no `SET ROLE`, no advisory lock and no listener (`rule:security/db-pool-reset-is-a-boundary`) — rather than as something a program remembers to call |
 | `pg_host` | dropped | reads back the host the connection string named. The host is a key in the connection's config block, written by whoever has production access (`rule:core-classes/db-connection-is-named`), and a program that could read it could log it |
 | `pg_port` | dropped | the same for the port |
 | `pg_dbname` | dropped | the same for the database name |
@@ -1589,12 +1589,12 @@ with better manners.
 
 | PHP | Outcome | Novis |
 |---|---|---|
-| `pg_query` | member | `Core\Db\Queryable::query` for a select and `Core\Db\Queryable::execute` for a write — the split PHP leaves to the caller's own check of the result, made in the member name. The query text refuses `tainted` while bound parameters accept it freely ([ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md) § 4) |
+| `pg_query` | member | `Core\Db\Queryable::query` for a select and `Core\Db\Queryable::execute` for a write — the split PHP leaves to the caller's own check of the result, made in the member name. The query text refuses `tainted` while bound parameters accept it freely (`rule:security/sink-predicate`) |
 | `pg_exec` | member | PHP's own alias of it, and the same two members |
 | `pg_query_params` | member | the same two members. PHP needs a second spelling because `pg_query` has no parameters at all; here the SQL and the parameters arrive in one call and always bind (`rule:core-classes/db-one-api`), so the distinction has no second form to be |
 | `pg_prepare` | dropped | names a server-side prepared statement for later execution. There is no prepare step: the connection's own LRU cache is keyed by SQL text plus expansion arity, so every statement is prepared and none is prepared by the program (`rule:core-classes/db-one-api`) |
 | `pg_execute` | dropped | runs one of those by the name it was given. The SQL text is that name, and the cache is the connection's |
-| `pg_escape_string` | dropped | binding is the mechanism ([ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md) § 4), and an escaper is refused permanently as a second, weaker answer (`rule:core-classes/db-one-api`) |
+| `pg_escape_string` | dropped | binding is the mechanism (`rule:security/sink-predicate`), and an escaper is refused permanently as a second, weaker answer (`rule:core-classes/db-one-api`) |
 | `pg_escape_literal` | dropped | the same, adding the quotes. Both spellings exist so that a value can be pasted into SQL text, which is the thing the query parameter's refusal of `tainted` prevents |
 | `pg_escape_identifier` | member | `Core\Db::quoteIdentifier` — the one case binding cannot carry, a table or column name chosen at runtime |
 | `pg_escape_bytea` | dropped | encodes bytes for pasting into SQL. A `bytes` value binds like any other parameter, and a `BYTEA` column arrives as `tainted bytes` (`rule:core-classes/db-column-types`) |
@@ -1611,7 +1611,7 @@ with better manners.
 | `pg_get_result` | dropped | collects the result of whichever of those is in flight. The result is the return value of the call that issued the statement |
 | `pg_consume_input` | dropped | reads whatever the socket has so a polling loop can make progress. The loop is the scheduler's, and a Novis program never writes one |
 | `pg_flush` | dropped | pushes buffered output when a send did not fit, for that same loop |
-| `pg_socket_poll` | dropped | waits for the connection's socket to become readable or writable, with a timeout. Readiness is what the parking stream waits on, and `acquire` bounds the one wait a program can observe ([ADR 0067](../adr/0067-core-db.md) § 13) |
+| `pg_socket_poll` | dropped | waits for the connection's socket to become readable or writable, with a timeout. Readiness is what the parking stream waits on, and `acquire` bounds the one wait a program can observe (`rule:security/db-pool-reset-is-a-boundary`) |
 | `pg_cancel_query` | dropped | asks the server to abandon the query in flight. It exists because a program can hold a connection that is mid-statement; there is no point between issuing a statement and holding its result at which this could be called |
 
 ### Results and rows
@@ -1679,7 +1679,7 @@ with better manners.
 | PHP | Outcome | Novis |
 |---|---|---|
 | `pg_transaction_status` | dropped | whether the connection is inside a transaction, and whether that transaction has failed. `PDO::inTransaction` is refused permanently (`rule:core-classes/db-one-api`): a transaction is a closure, so the answer is which function you are inside, and a `Db\Transaction` parameter states it in the type (`rule:core-classes/db-transactions`) |
-| `pg_convert` | dropped | turns an associative array into SQL-ready values by checking it against the table's metadata. Values are bound, never made SQL-ready ([ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md) § 4), and building a statement out of a table name and an array is query-builder work, which is not `Core` at all (`rule:core-api/tier-placement` test 6) |
+| `pg_convert` | dropped | turns an associative array into SQL-ready values by checking it against the table's metadata. Values are bound, never made SQL-ready (`rule:security/sink-predicate`), and building a statement out of a table name and an array is query-builder work, which is not `Core` at all (`rule:core-api/tier-placement` test 6) |
 | `pg_insert` | dropped | builds and runs an `INSERT` from that array, under the same test. `Core\Db\Queryable::execute` runs the statement the program wrote |
 | `pg_update` | dropped | the same for `UPDATE`, with a second array standing in for the `WHERE` clause |
 | `pg_delete` | dropped | the same for `DELETE` |

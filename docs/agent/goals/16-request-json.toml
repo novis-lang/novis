@@ -106,7 +106,7 @@ stage = "0 catch-up"
 name = "conformance (the refusals that survive the new rule)"
 args = ["test", "tests/conformance/"]
 cases = [
-  # Still true, and true for a different reason than exclusivity: ADR 0012 § 7's "no request arrived".
+  # Still true, and true for a different reason than exclusivity: `rule:security/request-state-throws-in-an-isolate`'s "no request arrived".
   "tests/conformance/core/a-request-refuses-every-read-when-no-request-arrived.nvst",
   # Re-pointed at ADR 0139: `post` reads a body another buffering reader already held.
   "tests/conformance/core/a-request-post-reads-a-body-another-reader-held.nvst",
@@ -223,7 +223,7 @@ cases = [
   "tests/conformance/core/a-request-hydrates-its-body-into-a-declared-type.nvst",
   "tests/conformance/core/a-json-body-missing-a-declared-field-is-refused.nvst",
   "tests/conformance/core/a-json-body-past-max-depth-is-refused.nvst",
-  # ADR 0024: the body is tainted, so a `T` whose text fields are unqualified is a compile error.
+  # `rule:security/tainted-qualifier`: the body is tainted, so a `T` whose text fields are unqualified is a compile error.
   "tests/conformance/reject/a-json-body-hydrated-into-an-unqualified-type-is-refused.nvst",
 ]
 

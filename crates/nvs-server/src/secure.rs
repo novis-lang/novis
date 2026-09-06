@@ -22,7 +22,7 @@
 //! mount table's `404`, a static file's, [`crate::admit::over_capacity`]'s `503` — and what
 //! `Core\Response::setHeader` wrote is what the peer reads because it is already there.
 //! `Content-Type` is untouched for the same reason and is never in this set: a body member
-//! owns its own media type ([ADR 0088] § 4).
+//! owns its own media type (`rule:security/response-body-is-one-typed-member`).
 //!
 //! # Decision: the three details § 1 calls decisions rather than transcription
 //!
@@ -61,7 +61,6 @@
 //! and the fail-safe reading above is correct with or without it. The backlog owns that slice.
 //!
 //! [ADR 0074]: ../../../docs/adr/0074-http-defaults-safe-and-finite.md
-//! [ADR 0088]: ../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md
 //! [ADR 0097]: ../../../docs/adr/0097-development-server-and-proxied-origin.md
 
 use hyper::HeaderMap;

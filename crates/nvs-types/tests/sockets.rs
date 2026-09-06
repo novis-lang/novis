@@ -21,7 +21,7 @@ use nvs_diagnostics::code;
 ///
 /// The claim is a property of the *payload* and not of the member that answered
 /// it, so it is asserted on both sides of one value: the same expression is
-/// refused where a plain `string` is expected and accepted where ADR 0024 § 2's
+/// refused where a plain `string` is expected and accepted where `rule:security/taint-propagation`'s
 /// checked conversion has proven its shape. Reading `text()` and then narrowing
 /// away the `null` is the whole of what § 3's loop does before it uses the
 /// value, so the fixture is the shape a program actually writes.
@@ -45,7 +45,7 @@ fn a_received_frames_payload_is_tainted_until_laundered() {
         "{refused:?}"
     );
 
-    // ADR 0024 § 2's checked conversion is what laundering is spelled as
+    // `rule:security/taint-propagation`'s checked conversion is what laundering is spelled as
     // today: `as uint` already throws on a malformed shape, so a value that
     // survives it is proven safe. § 3 names `Core\Validate` as the launderer a
     // program reaches for, and that class has no text member yet
@@ -73,7 +73,7 @@ fn a_received_frames_payload_is_tainted_until_laundered() {
 /// rather than off one line: the rule is a property of `Core\Topic`'s surface,
 /// so a member that grew a neutral parameter of its own would still look right
 /// on its own row. What carries it is `Qual::Sink` on each row, which reports
-/// the ordinary mismatch a sink does — ADR 0088 § 1's classification, not a
+/// the ordinary mismatch a sink does — `rule:security/sink-predicate`'s classification, not a
 /// rule of this ADR's own.
 #[test]
 fn a_tainted_topic_name_fails_to_compile() {

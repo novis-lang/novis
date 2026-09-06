@@ -7,7 +7,7 @@ landed yet.** Goal 19's whole list is this goal's Stage 1 floor, which is the pa
 
 The design is settled and written:
 [ADR 0142](../../adr/0142-a-configured-store-is-authorized-by-its-configuring.md), six sections, with
-its cross-links already folded into ADR 0058 § 3's carve-out and `rule:core-api/two-cache-tiers`'s `shared()` row. **This
+its cross-links already folded into `rule:security/net-address-policy`'s carve-out and `rule:core-api/two-cache-tiers`'s `shared()` row. **This
 goal opens no ADR number** — a gap in 0142 is a folded edit to its body.
 
 The short of it: `Core\Cache::shared()` and `Core\RateLimit::consume` stop asking `net.connect` at a
@@ -25,7 +25,7 @@ bare path in `[db.<name>] host` — admitted only where an operator wrote it.
 - [ ] **`Cap::CacheShared` on the roster** — `crates/nvs-config/src/capability.rs:34`, spelled
       `cache.shared`, asked at `Scope::Unscoped`. Its doc comment points at `Cap::MailSend`'s reasoning
       (`:54`) rather than restating it: the endpoint an operator wrote carries the authority that
-      granted the capability, so it is pre-approved and is not asked about ADR 0058 § 3's ranges.
+      granted the capability, so it is pre-approved and is not asked about `rule:security/net-address-policy`'s ranges.
 - [ ] **The door stops asking about an address** — `open_configured`
       (`crates/nvs-stdlib/src/cache.rs:@open_configured`) asks the new grant and drops `pin_host`, so
       neither caller walks the denied-range table. Both keep their own `remedy` clause.

@@ -1103,8 +1103,8 @@ const ORDINAL_MEMBER: &str = r"Core\Cldr::ordinalCategory";
 /// It declares no capability for the reason [`crate::storage`] declares none
 /// and a stronger one: nothing here reaches outside the process at all. The
 /// answer is a function of two arguments and a table compiled into the binary,
-/// so [ADR 0118](/docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)
-/// § 1 has no door to put a check at.
+/// so `rule:security/capability-question-is-grant-and-scope`
+/// has no door to put a check at.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     methods: &[

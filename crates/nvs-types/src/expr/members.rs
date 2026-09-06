@@ -448,7 +448,7 @@ pub(crate) fn reject_non_object_clone(ty: TypeId, span: Span, env: &mut Env<'_>)
 /// `Throwable`: a type that can hold no object at all, and a class outside
 /// spec § 10's tree.
 ///
-/// The second half is what [`is_throwable_shaped`] answers for ADR 0033 § 4's
+/// The second half is what [`is_throwable_shaped`] answers for `rule:security/secret-sinks-refuse`'s
 /// constructor rule, asked here of the thrown value instead. `mixed` and
 /// `object` pass both, deliberately: the tree is what `catch` matches on at
 /// run time, and refusing a type this pass cannot decide would cost the

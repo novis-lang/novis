@@ -53,7 +53,7 @@ gets its first adversarial traffic.
    suite in Stage 9 is testing two mechanisms and proving neither.
 3. **`Core\Request` and `Core\Server`, populated from it** — `rule:statements/no-host-populated-variables`'s
    replacement for `$_GET`/`$_POST`/`$_SERVER`/`$_COOKIE`/`$_FILES`. **Every value originating outside the
-   process is `tainted`** ([ADR 0024](../../adr/0024-taint-tracking-for-injection-sinks.md)), and that is
+   process is `tainted`** (`rule:security/tainted-qualifier`), and that is
    not decoration: goal 4 built every launderer, and this is the stage that gives them something to launder.
 4. **The shapes that are rules, not fields.** `method` reports `Get` for a `HEAD` request so a `Get`-only
    route table still matches, with `isHead` carrying the truth; `clientIp` and `scheme` resolve from the
@@ -78,7 +78,7 @@ gets its first adversarial traffic.
 
 9. **`Core\Response`'s body surface is five typed members** — `html`, `json`, `text`, `bytes`, `sendFile` —
    each setting its own `Content-Type`, with `echo` the **HTML-only sixth path** and **mixing the two a
-   compile error** ([ADR 0088](../../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md) § 4).
+   compile error** (`rule:security/response-body-is-one-typed-member`).
    This is where a JSON body stops being an `echo` the auto-escape sink would corrupt.
 10. **The `echo` binding table is enforced from here** — § 3. The HTML sink is attached **by a request and
     by nothing else**, so a scheduled script's and an isolate's `echo` take the terminal sink's
@@ -136,7 +136,7 @@ suite gains connections as its third parameterisation rather than a second suite
     smuggling-class bugs live. The connection isolate is goal 2's `Isolate` with the socket moved in, and
     **the upgrading request's arena is released while the connection is open** — the memory probe in the
     ADR's *Verification*, and the claim that a connection is not a held request.
-19b. **`Core\Socket::upgrade` and the entry rule it shares with `spawn script`.** `upgrade` takes ADR 0006's
+19b. **`Core\Socket::upgrade` and the entry rule it shares with `spawn script`.** `upgrade` takes `rule:security/isolate-shares-nothing`'s
     operand — a file path, or a static method — and 0006's options as ordinary named arguments (`args:`,
     `limits:`, `grants:`, `on:`), and returning it is what performs it. The operand's method half lands
     **first at `spawn script`**: the parser, the type check that binds `args:` to the entry's parameters by
@@ -205,7 +205,7 @@ suite gains connections as its third parameterisation rather than a second suite
     are still running when the client disconnects leaves none of them behind.
 31. **Live bytes are O(in-flight) under a cycle-building load.** A soak of many thousands of requests,
     each building object cycles, holds a flat live-byte measure across the run — the server-side proof of
-    [ADR 0116](../../adr/0116-an-isolates-arena-is-an-ownership-root.md) § 2's teardown sweep, which goal
+    `rule:security/isolate-teardown-is-a-drain-then-a-sweep`'s teardown sweep, which goal
     4's stage 11 lands. Added 2026-09-01, when the drain-only teardown was found to retain cycles for the
     life of the process; numbered out of sequence because item 30 was already written as the program's
     last gate and stays it.
@@ -243,7 +243,7 @@ there by the switch that left it and folded forward at every switch since.
 - **`tungstenite` is the framing crate**, sync, over `NvsStream` with no adapter, picked under ADR 0051
   § 4's pre-authorization; owning RFC 6455 is refused for the reason owning h1 is.
 - **`receive()` selects over both sources** — ADR 0083 § 3 — and an isolate's entry is a path or a
-  static method with `args:` bound to its parameters — ADR 0006. Both are decided in those bodies; a
+  static method with `args:` bound to its parameters — `rule:security/isolate-shares-nothing`. Both are decided in those bodies; a
   session that wants a `Core\Topic::receive()`, an `fn` literal entry or a capturing closure has found the
   decision, not a gap.
 - **`Core\Session` may not use the local cache tier.** ADR 0059 § 4.
@@ -259,7 +259,7 @@ there by the switch that left it and folded forward at every switch since.
   with `--install` withheld. That is the whole of ADR 0093's *Verification* that does not require a
   privileged machine, and a session that finds the coverage thin has found this decision rather than a
   gap. Real installation is a manual gate, fired by the user on a machine they chose.
-- **Raw/unparsed body access for an arbitrary content-type is an open gap**, flagged by ADR 0024's
+- **Raw/unparsed body access for an arbitrary content-type is an open gap**, flagged by `rule:security/tainted-qualifier`'s
   *Revisiting* and narrowed by m7.md to what `body()` and `bodyStream()` do not already answer. If a
   session finds it genuinely needed, that is a decided-and-recorded call in `Core\Request`'s module doc —
   not a new ADR and not a `BLOCKED`.

@@ -62,7 +62,7 @@
 //! # `secret`, and the spelling that arrived for it
 //!
 //! § 11 writes `hmac`'s key parameter as `secret bytes $key`
-//! ([ADR 0033](/docs/adr/0033-secret-qualifier-for-confidential-values.md)),
+//! (`rule:security/secret-qualifier`),
 //! and for a long time [`crate::registry::CoreTy`] had no qualifier to carry
 //! that with — a row stated an atom, not a qualified type.
 //! [`CoreTy::SecretBlob`] is that spelling, added for [`crate::crypto`]'s key
@@ -765,7 +765,7 @@ pub(crate) fn hmac_sha1(key: &[u8], data: &[u8]) -> [u8; 20] {
 
 /// HMAC-SHA-256 of `data` under `key`, as the fixed size it always is.
 ///
-/// [`crate::jwt`] needs one algorithm and only one — ADR 0060 § 4's "the
+/// [`crate::jwt`] needs one algorithm and only one — `rule:security/algorithm-comes-from-the-key`'s "the
 /// algorithm comes from the key, never from the token" is a statement about a
 /// *closed* choice, and a member that could be handed a [`DigestKind`] would
 /// have re-opened it one call site later. So this is the strong set's entry

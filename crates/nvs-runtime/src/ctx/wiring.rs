@@ -56,7 +56,7 @@ pub struct Session {
     /// the other two. The store is `nvs-stdlib`'s — § 2's four operations are
     /// over `Core\Cache`'s wire — while the two places a program *ends* are
     /// `nvs-host`'s isolate teardown, which an HTTP request is
-    /// ([ADR 0006](/docs/adr/0006-isolated-script-execution.md)), and
+    /// (`rule:security/isolate-shares-nothing`), and
     /// `nvs run`'s root task; neither of those crates depends on `nvs-stdlib`,
     /// and `nvs-stdlib` may not depend on either. This crate is the one all of
     /// them already rest on, so the seam is inverted through it exactly as

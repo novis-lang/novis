@@ -1,4 +1,4 @@
-# ADR 0129 — `Core\Password::verify` reads a PHP-stored bcrypt hash, and `hash` never writes one
+# `rule:security/bcrypt-read-roster` — `Core\Password::verify` reads a PHP-stored bcrypt hash, and `hash` never writes one
 
 - **Status:** Accepted
 - **Date:** 2026-09-01

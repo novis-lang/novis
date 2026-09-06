@@ -99,7 +99,7 @@ pub struct MethodSig {
     /// A parallel `Vec` for [`Self::inout`]'s reason, and read through
     /// [`Self::required`] rather than scanned at each call site.
     pub defaults: Vec<Option<crate::defaults::ConstArg>>,
-    /// What the member does with each parameter's qualifier — ADR 0088 § 2's
+    /// What the member does with each parameter's qualifier — `rule:security/unclassified-parameter-refuses-tainted`'s
     /// classification, positionally, and **empty** for a signature that is not
     /// a `Core` row.
     ///
@@ -289,7 +289,7 @@ impl MethodSig {
         self.inout.get(index).copied().unwrap_or(false)
     }
 
-    /// ADR 0088 § 2's classification of the parameter an argument at `index`
+    /// `rule:security/unclassified-parameter-refuses-tainted`'s classification of the parameter an argument at `index`
     /// fills — `None` where this signature is not a `Core` row, or where that
     /// parameter's type carries no classification.
     ///
@@ -1036,7 +1036,7 @@ fn collect_members(
                         inout,
                         variadic,
                         defaults,
-                        // ADR 0088 § 2 classifies a registry row's parameters,
+                        // `rule:security/unclassified-parameter-refuses-tainted` classifies a registry row's parameters,
                         // and nothing classifies a user-declared one — see
                         // `MethodSig::param_quals`.
                         param_quals: Vec::new(),

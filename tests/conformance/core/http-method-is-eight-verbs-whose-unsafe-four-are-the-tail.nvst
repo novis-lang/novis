@@ -1,5 +1,5 @@
 --TEST--
-`Core\Http\Method` declares exactly the eight verbs ADR 0074 § 7 names, each a distinct integer constant, and the four CSRF enforcement covers are the contiguous tail — ADR 0077 § 1, ADR 0096 § 4, `rule:enums/no-class-machinery`
+`Core\Http\Method` declares exactly the eight verbs ADR 0074 § 7 names, each a distinct integer constant, and the four CSRF enforcement covers are the contiguous tail — ADR 0077 § 1, `rule:security/csrf-is-on-by-default`, `rule:enums/no-class-machinery`
 --FILE--
 <?nvs
 // The depth claim is *a bound asserted on both sides*, plus an invariance over
@@ -17,7 +17,7 @@ array<int> $safe = [
     Core\Http\Method::Trace as int,
 ];
 
-// ADR 0096 § 4's set, in the order the enum declares it. CSRF enforcement is
+// `rule:security/csrf-is-on-by-default`'s set, in the order the enum declares it. CSRF enforcement is
 // on by default for exactly these four, which is why they are a tail rather
 // than four values scattered through the roster.
 array<int> $unsafe = [

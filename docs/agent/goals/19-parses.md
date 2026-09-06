@@ -5,7 +5,7 @@ three answer it by comparing a name against the string `Core\Uuid`:
 
 - `crates/nvs-types/src/commands.rs:694`, the arm `Ty::Class(name, _) => *name == QName::parse(r"Core\Uuid")`
   inside `converts_from_string` — which its own doc comment calls "the one home for *what an argument's
-  text may become*", read by [ADR 0077](../../adr/0077-compile-time-routing.md) § 3's command arguments and § 6's
+  text may become*", read by `rule:security/route-capture-is-laundered-by-its-type`'s command arguments and § 6's
   options, and by [ADR 0102](../../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
   § 5's path captures and § 3's `#[Query]` parameters. One predicate, four surfaces, one blessed name.
 - `crates/nvs-cli/src/openapi.rs:372`, `Some(r"Core\Uuid") => json!({"type": "string", "format": "uuid"})`.
@@ -159,12 +159,12 @@ is refused at the door. Plus:
 - **`parse` takes `tainted string`, and this is not a laundering hole.** The text at every binding site
   arrived from outside the process, so the contract says so rather than letting each implementor
   discover it. The object it answers carries no taint because taint is a property of `string`/`bytes` and
-  not of a class ([ADR 0024](../../adr/0024-taint-tracking-for-injection-sinks.md) § 1) — and an
+  not of a class (`rule:security/tainted-qualifier`) — and an
   implementor storing the text in a plain `string` field is refused by the *existing* assignability rule,
   with no new rule written for it. **Safe fallback if a plain `string` argument turns out not to assign
   to a `tainted string` parameter**: declare the parameter `Qual::Contagious` under
-  [ADR 0088](../../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md) § 2, which is the admission every `Core`
-  member in this position already uses. Recorded in ADR 0024's body either way.
+  `rule:security/unclassified-parameter-refuses-tainted`, which is the admission every `Core`
+  member in this position already uses. Recorded in `rule:security/tainted-qualifier`'s body either way.
 - **The converted value at a binding site is not `tainted`** — ADR 0102 § 3's existing sentence,
   unchanged and not re-argued. It held for `Core\Uuid` because `parse` checks; it holds for a `Parses`
   class for the same reason and no other.
@@ -183,7 +183,7 @@ is refused at the door. Plus:
 - **This goal may open [ADR 0141] and no other new number.** Everything else is an amendment folded into
   the existing body: `rule:classes/comparable` (the roster gains a third global interface, on the precedent it set),
   `rule:expressions/try-parse` (the `tryParse` shape is now a contract and its three conditions are what the interface
-  encodes), ADR 0077 § 3 and ADR 0102 §§ 3 and 5 (the type roster's last entry becomes a predicate), and
+  encodes), `rule:security/route-capture-is-laundered-by-its-type` and ADR 0102 §§ 3 and 5 (the type roster's last entry becomes a predicate), and
   novis.md's two prose rosters.
 - **What this spends**, per `rule:programs/memory-priority`'s ledger: nothing at run
   time that the roster did not already spend. A capture's conversion was a match arm and stays one; the

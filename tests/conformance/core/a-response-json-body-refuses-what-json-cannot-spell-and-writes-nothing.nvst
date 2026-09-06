@@ -1,5 +1,5 @@
 --TEST--
-`Core\Response::json` throws on a value JSON cannot spell and leaves the body untouched, because a refusal that has already written half a document is not a refusal -- ADR 0088 § 4, spec § 10
+`Core\Response::json` throws on a value JSON cannot spell and leaves the body untouched, because a refusal that has already written half a document is not a refusal -- `rule:security/response-body-is-one-typed-member`, spec § 10
 --FILE--
 <?nvs
 // The boundary this member stops at is `Core\Json::encode`'s own, reached
@@ -13,7 +13,7 @@ try {
 }
 
 // Nothing was written on the way to that throw. Asserted through a capture,
-// which is ADR 0088 § 5's redirection of the same output a body member writes
+// which is `rule:security/capture-answers-the-carrier`'s redirection of the same output a body member writes
 // to -- a member that serialized into the body and then discovered the value
 // was unencodable would show up here as a partial document.
 var $written = Core\Out::capture(fn (): void => {

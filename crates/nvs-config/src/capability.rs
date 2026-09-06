@@ -1,4 +1,4 @@
-//! [ADR 0118] § 1's capability question: a grant, a scope, and the `bool` the two of them answer.
+//! `rule:security/capability-question-is-grant-and-scope`'s capability question: a grant, a scope, and the `bool` the two of them answer.
 //!
 //! This module is the whole decision procedure and it is **pure** — a [`Capabilities`], a [`Cap`], an
 //! argument, a `bool`. It takes no context, throws nothing, and reports nothing, so it is testable
@@ -41,7 +41,6 @@
 //!   `evil-tenants.internal` case, which is the whole reason this is not `ends_with` — is refused.
 //!   Registering that name is the cheapest attack there is against a suffix check.
 //!
-//! [ADR 0118]: ../../../docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md
 
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -52,7 +51,7 @@ use crate::tree::{Capabilities, Setting};
 /// One capability, by the name `nvs.toml` grants it under.
 ///
 /// The roster is closed: a member needing something not in it has no `Cap` to pass, which is
-/// [ADR 0118](/docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)'s last
+/// `rule:security/capability-check-at-the-door`'s last
 /// consequence — a capability the configuration cannot express fails visibly at the door rather than
 /// quietly at a review.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -91,7 +90,7 @@ pub enum Cap {
     /// Named by block and never by host, which is [`DbConnect`](Self::DbConnect)'s shape and ADR
     /// 0067 § 3's reasoning: the endpoint an operator wrote into root-owned configuration carries
     /// the authority that granted this capability, so it is pre-approved and is not additionally
-    /// asked about ADR 0058 § 3's denied ranges — where every ordinary relay lives.
+    /// asked about `rule:security/net-address-policy`'s denied ranges — where every ordinary relay lives.
     MailSend,
 }
 
@@ -109,7 +108,7 @@ pub enum Scope<'a> {
     Name(&'a str),
 }
 
-/// The address ranges [ADR 0058](/docs/adr/0058-outbound-request-policy.md) § 3 denies
+/// The address ranges `rule:security/net-address-policy` denies
 /// before any grant is consulted, named so a refusal can say which one it was.
 ///
 /// **Here rather than in the client**, which is § 5: `Core\Http`, `Core\Net`, `Core\Db::open`'s
@@ -165,8 +164,8 @@ pub fn denied_by_default(address: std::net::IpAddr) -> Option<&'static str> {
 /// An IPv4-mapped IPv6 address as the address it maps to, and every other address unchanged.
 ///
 /// The same machine is reachable under two spellings, so both the table above and the exception
-/// list below read an address through this rather than as a sixteenth of the v6 space — ADR 0058
-/// § 3 names the mapped forms explicitly because omitting them is how this check is usually
+/// list below read an address through this rather than as a sixteenth of the v6 space — `rule:security/net-address-policy`
+/// names the mapped forms explicitly because omitting them is how this check is usually
 /// defeated, and an exception matched in one spelling and denied in the other would be the same
 /// hole from the other side.
 fn unmapped(address: std::net::IpAddr) -> std::net::IpAddr {
@@ -401,7 +400,7 @@ impl Capabilities {
         }
     }
 
-    /// [ADR 0058](/docs/adr/0058-outbound-request-policy.md) § 3's question, asked of a
+    /// `rule:security/net-address-policy`'s question, asked of a
     /// **resolved address** rather than of a name: which denied range this address is in, or `None`
     /// when nothing refuses it.
     ///

@@ -1,4 +1,4 @@
-//! [ADR 0087](/docs/adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md)'s
+//! `rule:security/bidi-predicate`'s
 //! predicate: a bidirectional control that opens a directional scope and never
 //! closes it inside the span that opened it.
 //!
@@ -13,7 +13,7 @@
 //! and § 5 routes the bidi transformation through this predicate — so with
 //! `nvs-runtime` a dependent, `nvs-render` → `nvs-syntax` → `nvs-diagnostics`
 //! would have closed a cycle. The module moved down whole rather than being
-//! copied, so ADR 0087's one rule is still one implementation and `nvs-syntax`
+//! copied, so `rule:security/bidi-predicate`'s one rule is still one implementation and `nvs-syntax`
 //! now reads it from below. The crate docs' § *Where this sits* is the home of
 //! that reasoning.
 //!

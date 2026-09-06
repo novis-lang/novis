@@ -1,9 +1,9 @@
 --TEST--
-Core\SignedCookie::open takes a tainted cookie and answers a plain string, while Core\Jwt::verify answers tainted claims for a token signed under the same key one line earlier — the two halves of the one rule that a verified signature does not launder — ADR 0060 § 5, ADR 0024 § 3
+Core\SignedCookie::open takes a tainted cookie and answers a plain string, while Core\Jwt::verify answers tainted claims for a token signed under the same key one line earlier — the two halves of the one rule that a verified signature does not launder — `rule:security/verification-does-not-launder`, `rule:security/launderers-are-sink-named`
 --FILE--
 <?nvs
 // The agreement shape, over a rule whose entire content is that two members of
-// the same closed roster answer differently. ADR 0060 § 5 says a verified
+// the same closed roster answer differently. `rule:security/verification-does-not-launder` says a verified
 // signature does not launder — a JWT's claims come back `tainted` because a
 // signature proves origin and not safety — and then names exactly one
 // exception: a payload the application itself sealed comes back unqualified,
@@ -43,7 +43,7 @@ tainted string $role = $claims["role"];
 
 // So the rule is legible as code rather than as a comment: the pattern sink
 // refuses a tainted argument outright, and which of these two values needs
-// `Core\Regex::quote` in front of it is the whole of ADR 0060 § 5. The cookie
+// `Core\Regex::quote` in front of it is the whole of `rule:security/verification-does-not-launder`. The cookie
 // payload goes straight in.
 Core\Regex\Pattern $direct = Core\Regex::compile($payload);
 echo Core\Regex::matches("id=42; role=admin", $direct) ? "y" : "n", "\n";

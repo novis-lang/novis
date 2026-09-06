@@ -50,8 +50,8 @@
 > its own, so its lookup takes the owning class's `constructor` reference plus the property's name as a
 > `string` — the one place this design accepts a name string instead of a fully static reference, and
 > `nvs check` closes most of that gap by validating a literal name string against the target's real declared
-> members at compile time, the same call-site-literal-inspection [ADR 0033](0033-secret-qualifier-for-confidential-values.md)
-> §4 already uses for its `Core\Log` sink check.
+> members at compile time, the same call-site-literal-inspection `rule:security/secret-sinks-refuse`
+> already uses for its `Core\Log` sink check.
 
 ## Context
 
@@ -163,7 +163,7 @@ Two consequences fall out of this for free, not as separate rules:
 - **No `tainted` or `secret` value can reach an attribute payload.** `tainted` has no compile-time-constant
   source at all (`rule:statements/no-host-populated-variables` — every ambient source is a `Core` accessor call), so
   this needs no rule; `secret` *can* qualify a class constant, so this ADR adds "an attribute payload
-  position" as [ADR 0033](0033-secret-qualifier-for-confidential-values.md)'s fifth refusing sink, alongside
+  position" as `rule:security/secret-qualifier`'s fifth refusing sink, alongside
   HTML output, `Core\Log`, debug dumps, and serialize/isolate-crossing — a value retained process-lifetime in
   a constant pool is exactly the kind of durable exposure that list already exists to close off.
 
@@ -207,7 +207,7 @@ to ask for.
 
 A literal `$member` string is validated against the target's real declared parameters/properties by
 `nvs check` at the call site — the same literal-inspection technique
-[ADR 0033](0033-secret-qualifier-for-confidential-values.md) §4 already uses to catch a `secret` value
+`rule:security/secret-sinks-refuse` already uses to catch a `secret` value
 reaching `Core\Log::write()` despite that call's open parameter type. Only a genuinely computed (non-literal)
 `$member` expression falls back to a runtime empty result if it names nothing real — see *Consequences*.
 
@@ -321,8 +321,8 @@ compile that reports a diagnostic runs nothing after it.
   fails when the grammar grows a shape nobody decided belongs in a constant pool.
   `tests/conformance/reject/a-secret-class-constant-cannot-reach-an-attribute-payload.nvst` is *2*'s one
   interaction with a qualifier: a class constant is a compile-time constant, so it is the only way a
-  `secret` value could reach a payload at all, and it is [ADR 0033](0033-secret-qualifier-for-confidential-values.md)
-  § 4's fifth sink (`E0727`) rather than a rule of this ADR's.
+  `secret` value could reach a payload at all, and it is `rule:security/secret-sinks-refuse`
+  's fifth sink (`E0727`) rather than a rule of this ADR's.
 - **Repeatable, with no arity checking at attach time** (*3*), asserted by *counting* rather than off a
   line: two `#[{column: ...}]` attaches answer `all<{column: string}>` with both, in attach order, and two
   `#[Route]` attaches are what make `get<Route>` the `E0728` the refusal case pins.

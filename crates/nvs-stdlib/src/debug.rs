@@ -33,8 +33,8 @@
 //!
 //! `render` answers the carrier of the sink in force — `Core\Cli\Text` today —
 //! so a dump can be *embedded* rather than written, by
-//! [ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
-//! § 5's rule verbatim. Because it answers a carrier, `echo Core\Debug::render($x)`
+//! `rule:security/capture-answers-the-carrier`
+//! 's rule verbatim. Because it answers a carrier, `echo Core\Debug::render($x)`
 //! is singly escaped: those bytes have already been through the record's own
 //! transformations, and the carrier is what stops the next `echo` escaping
 //! them again.
@@ -58,7 +58,7 @@
 //!    `secret`-typed *property* is a [`Node::Redacted`](nvs_render::Node::Redacted),
 //!    read off `nvs_runtime::ClassDesc::field_is_secret` — but neither end
 //!    reaches a `secret` value held in an `array<T>` element or in an `rule:types/object-top`
-//!    shape literal's field. Both are ADR 0033's unmodelled container axis
+//!    shape literal's field. Both are `rule:security/secret-qualifier`'s unmodelled container axis
 //!    rather than a hole here: the element type of an array of `secret string`
 //!    is not something the qualifier composes onto today, and a shape field's
 //!    type is *inferred* from its initializer rather than declared, so there
@@ -194,7 +194,7 @@ nvs_runtime::nvs_helper! {
     /// `Core\Debug::render(mixed $value): Core\Cli\Text` — the same record,
     /// answered as the sink's carrier instead of written.
     ///
-    /// ADR 0088 § 5's rule verbatim: bytes that have been through a sink
+    /// `rule:security/capture-answers-the-carrier`'s rule verbatim: bytes that have been through a sink
     /// cannot be handed back as a `string` without the next `echo` escaping
     /// them a second time, so this answers what `Core\Out::capture` answers.
     fn nvs_core_debug_render(_ctx, args: [1]) {

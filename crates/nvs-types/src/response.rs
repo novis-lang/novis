@@ -1,5 +1,5 @@
-//! [ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
-//! § 4's sixth row: one response has one body writer.
+//! `rule:security/response-body-is-one-typed-member`
+//! 's sixth row: one response has one body writer.
 //!
 //! § 4 replaces `Core\Response::write` with five typed members, each owning one
 //! body shape and setting its own `Content-Type`, and then makes "`echo` and a
@@ -55,7 +55,7 @@ use nvs_syntax::ast::MethodMember;
 
 use crate::{Ctx, Env};
 
-/// ADR 0088 § 4's five body members, by the name a call spells.
+/// `rule:security/response-body-is-one-typed-member`'s five body members, by the name a call spells.
 ///
 /// The table's rows, in its order. `html` and `sendFile` are not in
 /// `nvs_stdlib::registry` yet — the first waits on `Core\Html\Markup` being
@@ -105,8 +105,8 @@ pub(crate) fn entering_body(m: &MethodMember, ctx: &Ctx<'_>, env: &Env<'_>) -> B
 /// An `echo` statement in the body being checked.
 ///
 /// Called from [`crate::locals::check_stmt`]'s `Echo` arm with the statement's
-/// own span, which is what the label points at: the operand is where ADR 0033
-/// § 4's secret refusal points, because there the *value* is the mistake, and
+/// own span, which is what the label points at: the operand is where `rule:security/secret-sinks-refuse`
+/// 's secret refusal points, because there the *value* is the mistake, and
 /// here the writer is.
 pub(crate) fn note_echo(span: Span, env: &mut Env<'_>) {
     if !env.body_writers.armed || env.body_writers.reported {
@@ -123,7 +123,7 @@ pub(crate) fn note_echo(span: Span, env: &mut Env<'_>) {
 ///
 /// Called from [`crate::expr::calls::infer_static_call`] for every static call
 /// whose class side resolved, rather than only for `Core` ones: the class test
-/// is one comparison and keeping it here is what makes ADR 0088 § 4's roster
+/// is one comparison and keeping it here is what makes `rule:security/response-body-is-one-typed-member`'s roster
 /// readable in one place.
 pub(crate) fn note_body_member(qname: &QName, member: &str, span: Span, env: &mut Env<'_>) {
     if !env.body_writers.armed || env.body_writers.reported || !is_body_member(qname, member) {

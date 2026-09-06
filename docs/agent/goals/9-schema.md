@@ -172,7 +172,7 @@ behaviour-preserving refactor with a frozen expected output rather than a rewrit
   SQLite is most useful.
 - **An identifier is validated, never delimited**, by the judgement `Core\Db::quoteIdentifier` already
   states at [crates/nvs-stdlib/src/db/open.rs:1022](../../../crates/nvs-stdlib/src/db/open.rs). A second answer to
-  that question is the thing [ADR 0024](../../adr/0024-taint-tracking-for-injection-sinks.md) refuses.
+  that question is the thing `rule:security/tainted-qualifier` refuses.
 - **Ambiguity about a seam resolves toward `nvs-db`**: the vocabulary, the emitters, the introspectors and
   the diff are all sans-io and belong beside `Dialect`, per
   `rule:core-classes/db-drivers-are-an-enum`. `nvs-stdlib` holds

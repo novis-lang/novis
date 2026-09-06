@@ -55,7 +55,7 @@ frame accordingly. This is the safe reading of the two, and the only one the che
 a shared variable scope would need one flow-sensitive definite-assignment analysis spanning a graph whose
 shape a `require` inside an `if` decides at run time. It is *not* PHP's behaviour, where an included file
 does see the includer's locals; a program that relied on that passes what it means as a constructor argument
-or a static, and the divergence is [ADR 0006](0006-isolated-script-execution.md)'s isolation question only
+or a static, and the divergence is `rule:security/isolate-shares-nothing`'s isolation question only
 in the sense that both are about what crosses a boundary — nothing here is isolated, because the
 declarations are shared and the file runs in the caller's own process, request and capability set.
 

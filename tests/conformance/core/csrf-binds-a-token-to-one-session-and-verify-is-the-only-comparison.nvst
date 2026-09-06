@@ -1,5 +1,5 @@
 --TEST--
-Core\Csrf::issue answers a token bound to one session and one key, Core\Csrf::verify is the only comparison the class exposes, and every way of not being this session's token is the same `false` — ADR 0060 §§ 1, 4
+Core\Csrf::issue answers a token bound to one session and one key, Core\Csrf::verify is the only comparison the class exposes, and every way of not being this session's token is the same `false` — `rule:security/protocol-roster` and `rule:security/algorithm-comes-from-the-key`
 --FILE--
 <?nvs
 // Agreement. `Core\Csrf` has exactly two members and the interesting property

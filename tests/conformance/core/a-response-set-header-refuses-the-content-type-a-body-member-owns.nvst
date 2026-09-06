@@ -1,5 +1,5 @@
 --TEST--
-`Core\Response::setHeader` refuses the one header a body member owns, in every case its name can be spelled -- spec § 15 and ADR 0088 § 4
+`Core\Response::setHeader` refuses the one header a body member owns, in every case its name can be spelled -- spec § 15 and `rule:security/response-body-is-one-typed-member`
 --FILE--
 <?nvs
 // Agreement, not four separate answers: a field name is case-insensitive, so a

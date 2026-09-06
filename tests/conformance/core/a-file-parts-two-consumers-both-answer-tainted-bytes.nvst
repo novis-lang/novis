@@ -1,12 +1,12 @@
 --TEST--
-`Core\Request\Part::content` and `::readAll` both answer `tainted bytes`, so a plain `bytes` binding refuses either — the mark is on the octets and not on which way they were read — ADR 0024 § 1, ADR 0105 § 3, spec § 15
+`Core\Request\Part::content` and `::readAll` both answer `tainted bytes`, so a plain `bytes` binding refuses either — the mark is on the octets and not on which way they were read — `rule:security/tainted-qualifier`, ADR 0105 § 3, spec § 15
 --FILE--
 <?nvs
 // Agreement, asked of the two ways § 3 gives for reaching one upload's bytes.
 // What decides the qualifier is that the bytes came off a connection, and
 // nothing about whether the program held them a chunk at a time or all at
 // once -- so a consumer that dropped the mark would be a launderer reachable
-// by choosing the other reading, which is the direction ADR 0024 § 1 does not
+// by choosing the other reading, which is the direction `rule:security/tainted-qualifier` does not
 // trade.
 //
 // No runtime assertion can show it: a plain value is assignable into a

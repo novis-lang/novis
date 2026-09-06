@@ -1,5 +1,5 @@
 --TEST--
-`Core\Env::all` is name-ordered and agrees with `get` on every name it holds — spec § 15, ADR 0024 § 1
+`Core\Env::all` is name-ordered and agrees with `get` on every name it holds — spec § 15, `rule:security/tainted-qualifier`
 --ENV--
 NVS_CASE_C=third
 NVS_CASE_A=first
@@ -14,7 +14,7 @@ var $all = Core\Env::all();
 // **Name order, whatever order the environment was built in.** The section
 // above writes C, A, B; the sweep answers A, B, C on every platform, which is
 // what makes an answer this wide printable at all. The accumulator is
-// `tainted` because each value is: ADR 0024 § 1 says the environment is
+// `tainted` because each value is: `rule:security/tainted-qualifier` says the environment is
 // outside the program's own text, so nothing here launders and the qualifier
 // reaches the end of the concatenation.
 tainted string $ours = "";

@@ -77,7 +77,7 @@
 //! publisher or with any other subscriber, which is § 4's rule and is one copy
 //! per subscriber; and it is what **refuses** a value with no meaning on the
 //! other side — a resource, or a `secret`, which
-//! [ADR 0033](/docs/adr/0033-secret-qualifier-for-confidential-values.md) says
+//! `rule:security/secret-qualifier` says
 //! may never be published.
 //!
 //! A refusal that only happened once somebody had joined would be a rule that
@@ -199,7 +199,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             names: &["topic", "value"],
             // The name is a sink for `subscribe`'s reason. The value is not
             // one: a `tainted` payload crosses and stays `tainted` where it
-            // arrives (ADR 0024), and what may not cross at all is refused by
+            // arrives (`rule:security/tainted-qualifier`), and what may not cross at all is refused by
             // the copy rather than by the signature.
             params: &[CoreTy::Text(Qual::Sink), CoreTy::Mixed],
             defaults: &[],
@@ -452,7 +452,7 @@ fn subscribers_of(topic: &str) -> Vec<Rc<Inbox>> {
 /// # Errors
 ///
 /// A `LogicError` naming what has no meaning on the other side of a copy
-/// boundary: a resource, or a `secret`, which ADR 0033 says may never be
+/// boundary: a resource, or a `secret`, which `rule:security/secret-qualifier` says may never be
 /// published.
 fn cross(value: Value) -> Result<Value, Fault> {
     copy_graph(retained(value)).map_err(|refused| {

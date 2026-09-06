@@ -117,7 +117,7 @@ that could turn tracing on for itself in production would gain a reconnaissance 
 and timing that priority 1 does not trade away.
 
 `debug.trace`/`debug.profile` are a **separate** grant from `fs.write`, mirroring
-[ADR 0006](0006-isolated-script-execution.md)'s `script.spawn`/`fs.read` split ("being able to read a file is
+`rule:security/isolate-shares-nothing`'s `script.spawn`/`fs.read` split ("being able to read a file is
 not permission to run it"): being able to write an ordinary file is not permission to persist a continuous
 log of every call's arguments, which can carry request data a coverage-only deployment never needed to grant
 access to.
@@ -151,15 +151,15 @@ nvs run script.nvs --profile=out.callgrind
 
 ### Crossing an isolate boundary
 
-A `spawn script`/`spawn worker` child ([ADR 0006](0006-isolated-script-execution.md)) starts with the
+A `spawn script`/`spawn worker` child (`rule:security/isolate-shares-nothing`) starts with the
 parent's *current* debug-flags word, derived the same way its config overlay already is — "a copy of the
-parent's effective config" — and can only narrow it further, the identical rule [ADR 0006](0006-isolated-script-execution.md)
+parent's effective config" — and can only narrow it further, the identical rule `rule:security/isolate-shares-nothing`
 already states for capabilities ("nothing widens... an isolate is a new place that rule applies, not an
 exception to it"). The child's own coverage/trace/profile data does not merge into the parent's live state —
 that would require the mutable cross-arena sharing the whole architecture exists to avoid — and instead comes
 back as data on the result, the same way a child's failure already does: `ScriptResult` gains
 `coverage`/`trace`/`profile` fields, populated only when the corresponding flag was active, crossing by the
-same copy-out rule `value`/`error`/`usage` already use. [ADR 0006](0006-isolated-script-execution.md) named
+same copy-out rule `value`/`error`/`usage` already use. `rule:security/isolate-shares-nothing` named
 its `ScriptResult` shape provisional pending M5; this fills in that detail rather than amending a decided one.
 
 ### Relationship to production telemetry
@@ -192,7 +192,7 @@ clock reading. That distinction is the point: a count of statements is **bit-ide
 operating systems and architectures**, where a time is not, so it is a number CI can gate on.
 
 `bytes` costs no new instrument. Memory must already be attributable to a request under an enforceable cap
-(`rule:programs/memory-priority`, [ADR 0006](0006-isolated-script-execution.md)); this reads that
+(`rule:programs/memory-priority`, `rule:security/isolate-shares-nothing`); this reads that
 accounting rather than adding a second one. No per-`Core`-member cost table exists or will: a hand-written
 claim about what a native member costs would be a number with no guard test, which
 [README.md](README.md) § *Measured numbers* forbids.
@@ -231,12 +231,12 @@ CI wall-clock proportional to the added axes and nothing at all at run time.
   project already has configured; a profile opens in KCachegrind/Webgrind unmodified. Zero new client
   tooling to write for v1.
 - `Core\Debug`'s shape means `nvs convert` has a close-to-mechanical rewrite for `xdebug_*` calls in ported
-  test suites, the same payoff [ADR 0006](0006-isolated-script-execution.md) notes for `spawn script`
+  test suites, the same payoff `rule:security/isolate-shares-nothing` notes for `spawn script`
   against `exec('php …')`.
 - Reuses the `System`/`Runtime`/`RuntimeTighten` model wholesale for `[debug] mode`, and the
   capability-grant model wholesale for `debug.trace`/`debug.profile` — no new changeability class, no new
   grant shape, just two more entries in registries [ADR 0005](0005-config-changeability.md) and
-  [ADR 0006](0006-isolated-script-execution.md) already defined.
+  `rule:security/isolate-shares-nothing` already defined.
 
 **Negative**
 
@@ -272,7 +272,7 @@ CI wall-clock proportional to the added axes and nothing at all at run time.
   [ADR 0017](0017-hot-reload-without-restart.md) gives for `opcache.validate`: observability of a request's
   own internals isn't a request-local decision.
 - **Merging a spawned isolate's coverage/trace data live into its parent's.** Rejected: requires mutable
-  state crossing the arena boundary that [ADR 0006](0006-isolated-script-execution.md)'s isolation exists to
+  state crossing the arena boundary that `rule:security/isolate-shares-nothing`'s isolation exists to
   prevent; returning it as `ScriptResult` data costs nothing structurally new.
 
 ## Revisiting
@@ -299,6 +299,6 @@ Verification, in the order it becomes possible:
   produces a Clover file a real coverage dashboard parses without modification; `nvs run --profile=out.callgrind`
   produces a file KCachegrind/Webgrind opens and attributes time to the right Novis functions; `debug.trace`
   refuses a sink path outside its granted roots, including via `..`, the same test shape
-  [ADR 0006](0006-isolated-script-execution.md) already runs for `script.spawn`; a production-shaped
+  `rule:security/isolate-shares-nothing` already runs for `script.spawn`; a production-shaped
   `nvs.toml` (`[debug] mode = []`) makes every `Core\Debug::start*()` call a no-op regardless of what the
   request's own code asks for.

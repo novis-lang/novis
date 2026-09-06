@@ -1,9 +1,9 @@
-# ADR 0033 — `secret`: a second compile-time qualifier for confidential values, composable with `tainted`
+# `rule:security/secret-qualifier` — `secret`: a second compile-time qualifier for confidential values, composable with `tainted`
 
 - **Status:** Accepted
 - **Date:** 2026-08-21
 - **Scope:** a `secret` compile-time qualifier on `string`/`bytes`, independent of and composable with
-  [ADR 0024](0024-taint-tracking-for-injection-sinks.md)'s `tainted`; how it enters, propagates, and is
+  `rule:security/tainted-qualifier`'s `tainted`; how it enters, propagates, and is
   removed; the sinks that refuse a `secret` value (HTML/response output, terminal output, `Core\Log`,
   debug-dump output, `Throwable` messages, `serialize()`/the isolate-crossing boundary, and — per
   `rule:attributes/inert-metadata` — an attribute payload position); the redaction
@@ -62,7 +62,7 @@
 
 ## Context
 
-- `tainted` ([ADR 0024](0024-taint-tracking-for-injection-sinks.md)) answers "is this value's shape safe for
+- `tainted` (`rule:security/tainted-qualifier`) answers "is this value's shape safe for
   a sink," not "is this value confidential" — an API key can be perfectly well-shaped and still catastrophic
   to leak, while a username can be safe to display yet still attacker-controlled. Neither qualifier covers
   the other's case; a submitted password is both at once.
@@ -100,7 +100,7 @@ comes first** — this is the only accepted order, the same "exactly one canonic
 the required order, not a second valid spelling of the same type. Like `tainted`, this needs a reserved
 keyword in the lexer and a new grammar production in `nvs-syntax`'s type grammar — landing after M1's own
 fuzz/corpus verification was already reported done, the same situation
-[ADR 0024](0024-taint-tracking-for-injection-sinks.md)'s *Consequences* flagged for `tainted` itself, so this
+`rule:security/tainted-qualifier`'s *Consequences* flagged for `tainted` itself, so this
 is a second instance of an already-accepted cost, not a new kind of one.
 
 Unlike `tainted`, **nothing in Novis grants `secret` ambiently.** `rule:statements/no-host-populated-variables`'s five
@@ -124,8 +124,8 @@ program is spelled by a developer on a declaration.
 ### 2. Propagation: `secret` poisons; a checked conversion launders it, same as `tainted`
 
 Any operation combining a `secret` operand with a non-`secret` one — concatenation, interpolation, a string
-function — produces a `secret` result, the identical poisoning shape [ADR 0024](0024-taint-tracking-for-injection-sinks.md)
-§ 2 already defines for `tainted`, applied to this axis independently (a `secret tainted string` interpolated
+function — produces a `secret` result, the identical poisoning shape `rule:security/taint-propagation`
+ already defines for `tainted`, applied to this axis independently (a `secret tainted string` interpolated
 with a plain `string` stays `secret tainted string`; poisoning tracks each axis on its own).
 
 A successful checked `as` conversion (`as uint`, `as int`, `as float`, `as bool`, an enum's backing type)
@@ -139,7 +139,7 @@ same as they preserve `tainted`.
 `Core\Secret::reveal(secret string, string $reason): string` (and a `bytes` overload) is the one narrow
 escape hatch, modeled directly on `Core\Taint::assertTrusted` — forbidden by default, rare, greppable, and
 carrying a written reason at the call site. There is deliberately no generic `unwrap()`/`expose()`: the same
-"a catch-all invites false confidence" reasoning [ADR 0024](0024-taint-tracking-for-injection-sinks.md) § 3
+"a catch-all invites false confidence" reasoning `rule:security/launderers-are-sink-named`
 already gives for laundering functions.
 
 A second, more common removal path is a **purpose-built function that consumes a `secret` value and returns
@@ -178,7 +178,7 @@ the same trust `Core\Html::escape()`'s author already carries for `tainted`.
   [ADR 0086](0086-core-cli-terminal-is-a-sink.md) § 4 already takes on the way in: `Core\Cli::secret()`
   reads a password with terminal echo *disabled*, so treating the same terminal as a free destination
   would have the two directions disagree.
-- **`Core\Log`** — the opposite default from `tainted`, which ADR 0024 § 4 explicitly wants logged. A
+- **`Core\Log`** — the opposite default from `tainted`, which `rule:security/sink-predicate` explicitly wants logged. A
   `secret`-qualified value passed at a `Core\Log::write()` call site — including inside a `fields` array
   literal, whose declared parameter type stays `array<string, mixed>` by design — is refused by `nvs check`
   inspecting that call site's argument expressions, not by the parameter's declared type (see *Context* for
@@ -196,7 +196,7 @@ the same trust `Core\Html::escape()`'s author already carries for `tainted`.
   overridable one" distinction every prior magic-method closure in this project already draws.
 - **`Throwable` messages** — a `Throwable`'s message parameter (constructor argument, and anywhere a message
   is later composed) requires the plain, unqualified type, the same "sink requires plain type" shape
-  [ADR 0024](0024-taint-tracking-for-injection-sinks.md) § 4 already uses for `Core\Db`'s query text and
+  `rule:security/sink-predicate` already uses for `Core\Db`'s query text and
   `Core\Http`'s header setter. A `secret` value can't be concatenated or interpolated into an exception
   message without `Core\Secret::reveal()` first — closing the common real-world leak of a credential ending
   up in a stack trace or an error page.
@@ -241,7 +241,7 @@ comparison helper rather than the short-circuiting one every other operand pair 
 spelled: `rule:expressions/one-equality-operator` makes `==` the only
 equality operator, this qualifier is already known at the comparison, and the lowering picks the helper.
 
-The gap this closes is narrow and real. [ADR 0060](0060-application-security-protocols.md) guarantees
+The gap this closes is narrow and real. `rule:security/protocol-roster` guarantees
 constant-time comparison **inside its own closed protocol roster** — CSRF tokens, TOTP — and
 `Core\Hash::equals` is available to anyone who knows to reach for it. A program comparing its own session
 token, API key or signature with `==` sits outside both, is a timing oracle, and receives no diagnostic
@@ -266,7 +266,7 @@ operator for everything — and it makes the qualifier awkward for a thing progr
   axis instead of being conflated into one, or left to code review.
 - The most common real-world credential leaks (an error page embedding a DB password, a log line capturing
   an API key, a debug dump showing a session secret) become compile errors at the exact call sites developers
-  already write, mirroring [ADR 0024](0024-taint-tracking-for-injection-sinks.md)'s own headline benefit for
+  already write, mirroring `rule:security/tainted-qualifier`'s own headline benefit for
   injection.
 - `secret` and `tainted` compose for the case that actually matters most in practice — a submitted password —
   without needing a third combined concept.
@@ -275,7 +275,7 @@ operator for everything — and it makes the qualifier awkward for a thing progr
 
 - **A second grammar addition to `nvs-syntax` after M1 was already reported feature-complete, and a second
   time the milestone's own verification needs revisiting before it can be called done against this ADR's
-  scope** — the same cost [ADR 0024](0024-taint-tracking-for-injection-sinks.md)'s *Consequences* already
+  scope** — the same cost `rule:security/tainted-qualifier`'s *Consequences* already
   paid once for `tainted`, paid again here.
 - **The `Core\Log` sink needs call-site argument inspection, not a parameter-type refusal** — a checker
   mechanism strictly more complex than anything `tainted` required, because `tainted` was never designed to
@@ -340,11 +340,11 @@ operator for everything — and it makes the qualifier awkward for a thing progr
 - **Which built-in `Core` accessors, if any, should return `secret` by convention** — a future
   `Core\Env`/config class distinguishing `get()` from a `secret()`-returning accessor, or a `Core\Db` column
   type hint — is real stdlib design, deferred to whichever milestone designs that class's real API, the same
-  deferral `rule:statements/no-host-populated-variables` and [ADR 0024](0024-taint-tracking-for-injection-sinks.md)
+  deferral `rule:statements/no-host-populated-variables` and `rule:security/tainted-qualifier`
   already used for their own accessor rosters.
 - **The exact `Core\Secret` function roster** (`reveal`, a password-hashing helper, whatever else stdlib
   design turns up) is illustrative only here, due at whichever milestone builds `Core`'s credential-handling
-  surface — the same status [ADR 0024](0024-taint-tracking-for-injection-sinks.md)'s laundering roster
+  surface — the same status `rule:security/tainted-qualifier`'s laundering roster
   already carries.
 
 Verification, in the order it becomes possible:

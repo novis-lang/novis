@@ -191,7 +191,7 @@ const COM_QUERY: u8 = 0x03;
 /// `COM_QUIT`, the goodbye a destroyed connection writes.
 const COM_QUIT: u8 = 0x01;
 
-/// `COM_RESET_CONNECTION`, ADR 0067 § 13's reset for this backend.
+/// `COM_RESET_CONNECTION`, `rule:security/db-pool-reset-is-a-boundary`'s reset for this backend.
 const COM_RESET_CONNECTION: u8 = 0x1F;
 
 /// `COM_STMT_PREPARE` — `rule:core-classes/db-one-api`'s first round trip.
@@ -3957,7 +3957,7 @@ mod tests {
         assert_eq!(cache.len(), 1);
     }
 
-    /// ADR 0067 § 13's asymmetry: `COM_RESET_CONNECTION` drops the server's
+    /// `rule:security/db-pool-reset-is-a-boundary`'s asymmetry: `COM_RESET_CONNECTION` drops the server's
     /// prepared statements, so the reset empties the cache with them.
     ///
     /// This is the one place the two drivers deliberately disagree. § 13 has

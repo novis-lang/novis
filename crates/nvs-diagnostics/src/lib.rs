@@ -82,8 +82,8 @@ pub mod code {
     pub const E_BAD_DURATION_LITERAL: Code = Code::new("E0007");
     /// A bidirectional control that opens a directional scope and never closes
     /// it inside the source span that opened it, per
-    /// [ADR 0087](/docs/adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md)
-    /// § 2 — a comment, a string literal or an inline-HTML run, and each line
+    /// `rule:security/bidi-boundaries`
+    /// — a comment, a string literal or an inline-HTML run, and each line
     /// of a multi-line one. There is no suppression.
     pub const E_UNBALANCED_BIDI: Code = Code::new("E0008");
     /// An `<?nvs` open tag in a file that opens with `#!` and is therefore
@@ -115,7 +115,7 @@ pub mod code {
     pub const E_TOO_DEEPLY_NESTED: Code = Code::new("E0108");
     /// `tainted` applied to anything other than `string`/`bytes` — the
     /// qualifier's grammar restricts it to those two scalars; see
-    /// ADR 0024 § 1.
+    /// `rule:security/tainted-qualifier`.
     pub const E_TAINTED_NON_SCALAR: Code = Code::new("E0109");
     /// A class/interface/trait/enum/enum-case/namespace-segment name is not
     /// `PascalCase` — `rule:core-api/identifier-casing`'s casing table.
@@ -141,11 +141,11 @@ pub mod code {
     /// `secret` applied to anything other than `string`/`bytes` — the
     /// qualifier's grammar restricts it to those two scalars, the same
     /// restriction `E_TAINTED_NON_SCALAR` enforces for `tainted`; see
-    /// ADR 0033 § 1.
+    /// `rule:security/secret-qualifier`.
     pub const E_SECRET_NON_SCALAR: Code = Code::new("E0115");
     /// `tainted secret string`/`tainted secret bytes`: `secret` and `tainted`
     /// compose, but only in the order `secret` before `tainted` — see
-    /// ADR 0033 § 1.
+    /// `rule:security/secret-qualifier`.
     pub const E_SECRET_TAINTED_ORDER: Code = Code::new("E0116");
     /// A `{name: value, ...}` object literal written where `{` already
     /// commits to a block — an expression-bodied `fn() => {...}`, or a bare
@@ -419,7 +419,7 @@ pub mod code {
     /// See `docs/adr/README.md` § *Decisions taken at project start*.
     pub const E_TRY_WITHOUT_CLAUSE: Code = Code::new("E0242");
     /// The braced `namespace X { … }` form, and with it a file holding two
-    /// namespaces. [ADR 0112](/docs/adr/0112-authority-is-keyed-on-the-enclosing-namespace.md)
+    /// namespaces. `rule:security/authority-is-the-enclosing-namespace`
     /// keys authority on the enclosing namespace, so a file that is two
     /// namespaces is a file whose authority is a function of the line number.
     /// The rewrite is one file per namespace, declared `namespace X;`.
@@ -633,12 +633,12 @@ pub mod code {
     /// A `secret`-qualified value reaching a `Core\Html\Markup`-building
     /// conversion — refused even though the equivalent `tainted`-only value
     /// would (once `Core\Html` exists) be auto-escaped instead: escaping
-    /// neutralizes injection risk, not confidentiality. See ADR 0033 § 4.
+    /// neutralizes injection risk, not confidentiality. See `rule:security/secret-sinks-refuse`.
     pub const E_SECRET_MARKUP_UNSUPPORTED: Code = Code::new("E0421");
     /// A `secret`-qualified value passed as a `Throwable`-shaped class's
     /// constructor message argument — closing the common leak of a
-    /// credential ending up in a stack trace or an error page. See ADR 0033
-    /// § 4.
+    /// credential ending up in a stack trace or an error page. See `rule:security/secret-sinks-refuse`
+    /// .
     pub const E_SECRET_THROWABLE_MESSAGE: Code = Code::new("E0422");
     /// The `parent` type atom (`parent $x`, a parameter/property/return
     /// position — distinct from `new parent(...)`, which silently falls back
@@ -870,8 +870,8 @@ pub mod code {
     /// declaration for a promoted parameter, so a divergence is always written
     /// by hand and always a mistake.
     pub const E_DERIVE_FIELD_TYPE_MISMATCH: Code = Code::new("E0461");
-    /// A `secret` property on a class carrying `#[Json\Derive]`. ADR 0071 § 6
-    /// moves ADR 0033's refusal from wherever the value reached the encoder to
+    /// A `secret` property on a class carrying `#[Json\Derive]`. `rule:security/derived-codec-qualifiers`
+    /// moves `rule:security/secret-qualifier`'s refusal from wherever the value reached the encoder to
     /// the declaration that put it on the wire contract.
     pub const E_DERIVE_SECRET_FIELD: Code = Code::new("E0462");
     /// A `lateinit` property on a class carrying `#[Json\Derive]`. `rule:core-classes/derive-field-list`: `lateinit` (`rule:classes/lateinit`) is by definition not constructor-assigned,
@@ -1368,7 +1368,7 @@ pub mod code {
     pub const E_UNSPELLED_LOG_FORMAT: Code = Code::new("E0615");
 
     /// A written `Core\Cap::has("…")` naming something that is not a capability
-    /// — ADR 0112 § 8's roster is closed, and § 6's whole point is that the
+    /// — `rule:security/capability-roster-is-closed`'s roster is closed, and § 6's whole point is that the
     /// answer decides which branch a package takes. A misspelling folds to
     /// `false` and so reads as *not granted*, which is the same answer the
     /// correct spelling gives on a deployment that granted nothing: the branch
@@ -1636,7 +1636,7 @@ pub mod code {
     ///
     /// ADR 0093 § 2's fifth row: a command line is readable by other users on
     /// the box, so the value is prompted for instead and is `secret` in
-    /// [ADR 0033](/docs/adr/0033-secret-qualifier-for-confidential-values.md)'s
+    /// `rule:security/secret-qualifier`'s
     /// sense for its whole life. The option exists in order to be refused by
     /// name — a bare "unrecognized argument" would read as a spelling mistake
     /// and send the operator looking for the right flag.
@@ -2060,7 +2060,7 @@ pub mod code {
     /// the binding is refused instead of being given the conversion.
     pub const E_FOREACH_KEY_TY: Code = Code::new("E0723");
 
-    /// ADR 0033 § 4's debug-dump sink, as
+    /// `rule:security/secret-sinks-refuse`'s debug-dump sink, as
     /// `rule:errors/record-transformations`'s redaction row states it: a `secret`-qualified value written at a
     /// `Core\Debug::dump`/`render` call site is refused where it is written.
     ///
@@ -2101,8 +2101,8 @@ pub mod code {
     /// shape.
     pub const E_ATTRIBUTE_NAME_NOT_A_SHAPE: Code = Code::new("E0726");
     /// A `secret`-qualified class constant reaches an attribute payload —
-    /// [ADR 0033](/docs/adr/0033-secret-qualifier-for-confidential-values.md)
-    /// § 4's attribute-payload sink, the one that exists *because* of
+    /// `rule:security/secret-sinks-refuse`
+    /// 's attribute-payload sink, the one that exists *because* of
     /// `rule:attributes/payload-is-a-compile-time-constant`: a payload holds only compile-time constants, and a class constant
     /// is one of them, so the qualifier's own storage class is the only way a
     /// `secret` value could get in there at all.
@@ -2379,7 +2379,7 @@ pub mod code {
     /// ADR 0086 § 6's third compile error. A matched value's type comes from
     /// the parameter and the argument arrives as text, so a parameter no text
     /// can be converted into is an option that could never be given — and § 6
-    /// takes ADR 0077 § 3's conversion roster unchanged, which is why an
+    /// takes `rule:security/route-capture-is-laundered-by-its-type`'s conversion roster unchanged, which is why an
     /// `array<int>`, a shape or a class other than `Core\Uuid` is refused here
     /// while an enum, a literal union and `bool` are not.
     ///
@@ -2403,7 +2403,7 @@ pub mod code {
 
     /// Two `#[Route]`s declare the same verb and the same path shape.
     ///
-    /// ADR 0077 § 3's duplicate-route error. § 2 matches by *shape*, so
+    /// `rule:security/route-capture-is-laundered-by-its-type`'s duplicate-route error. § 2 matches by *shape*, so
     /// `/users/{id}` and `/users/{userId}` are one route however they are
     /// spelled, and the same path under a different verb is not a duplicate at
     /// all. A question about the whole enumeration rather than about one
@@ -2413,7 +2413,7 @@ pub mod code {
 
     /// Two `#[Route]`s claim the same `name`.
     ///
-    /// ADR 0077 § 3's second table-wide error, and the one § 4 rests on:
+    /// `rule:security/route-capture-is-laundered-by-its-type`'s second table-wide error, and the one § 4 rests on:
     /// `Core\Router::url` reverses the table by name, so a name that means two
     /// routes is a link with no answer. Reported at the second declaration,
     /// like [`E_DUPLICATE_ROUTE`], and at the `name:` field rather than at the
@@ -2436,7 +2436,7 @@ pub mod code {
 
     /// A `{name}` capture names no parameter of the method it is attached to.
     ///
-    /// ADR 0077 § 3's first compile error. A capture's value arrives *as* the
+    /// `rule:security/route-capture-is-laundered-by-its-type`'s first compile error. A capture's value arrives *as* the
     /// parameter it is named after, so a capture with no parameter is a value
     /// with nowhere to go; the comparison is exact, per
     /// `rule:core-api/identifier-casing`, so
@@ -2447,7 +2447,7 @@ pub mod code {
     /// A capture's parameter is declared at a type no path segment converts
     /// to.
     ///
-    /// ADR 0077 § 3's second compile error, over the roster
+    /// `rule:security/route-capture-is-laundered-by-its-type`'s second compile error, over the roster
     /// `nvs_types::commands::converts_from_string` holds for both this and
     /// ADR 0086 § 6's `#[Option]` — one list, read twice. A `{name...}` is
     /// the one capture that roster does not answer for: § 3 hands a catch-all
@@ -2573,14 +2573,14 @@ pub mod code {
     /// `rule:attributes/access-payload`'s last rule. `rule:attributes/repeatable` makes every attribute repeatable and leaves the ambiguity to
     /// retrieval, which is exactly what cannot happen here: two decisions are
     /// two readings — every one of them, or any one of them — and choosing
-    /// between them silently is the failure ADR 0096 § 3 exists to prevent.
+    /// between them silently is the failure `rule:security/access-is-checked-for-presence-not-meaning` exists to prevent.
     /// Reported at the second, naming the first, because the first is the one
     /// an author reading the error is deciding whether to keep.
     pub const E_ACCESS_REPEATED: Code = Code::new("E0763");
 
     /// A `csrf: false` beside a method whose every `#[Route]` names a safe verb.
     ///
-    /// ADR 0096 § 4's opt-out, held to the thing it opts out of: CSRF is on by
+    /// `rule:security/csrf-is-on-by-default`'s opt-out, held to the thing it opts out of: CSRF is on by
     /// default for `Post`, `Put`, `Patch` and `Delete` and for no other verb, so
     /// beside a method declaring none of those the field turns nothing off.
     /// Refused rather than ignored because a field that reads as a security
@@ -2739,7 +2739,7 @@ pub mod code {
     // `E0776` is retired and is never reused: it was `await`'s half of the
     // pair `E0703` was `spawn script`'s, and both lower now.
     /// `spawn script … with(limits: …)`, `with(grants: …)` or `with(on: …)` —
-    /// an ADR 0006 option this compiler parses and does not yet enforce.
+    /// an `rule:security/isolate-shares-nothing` option this compiler parses and does not yet enforce.
     ///
     /// Refused rather than ignored, and that is the whole of the decision: a
     /// `grants:` narrowing that is silently dropped hands the child the
@@ -2860,7 +2860,7 @@ pub mod code {
 
     /// A `secret`-qualified value written by `echo` or `print`.
     ///
-    /// ADR 0033 § 4's terminal-output sink, at the two statements that reach
+    /// `rule:security/secret-sinks-refuse`'s terminal-output sink, at the two statements that reach
     /// it without a member in between. It is refused **with no carrier
     /// bypass** — the value is being displayed to a person rather than used,
     /// and neutralizing a control byte does nothing for confidentiality —
@@ -2879,7 +2879,7 @@ pub mod code {
 
     /// A `secret`-qualified value reaching `Core\Json::encode`.
     ///
-    /// ADR 0033 § 4's serialiser bullet: an encoded document is on its way to
+    /// `rule:security/secret-sinks-refuse`'s serialiser bullet: an encoded document is on its way to
     /// a response, a log or a queue, and none of those is the credential
     /// being *used*. Refused at the call site for
     /// [`E_SECRET_DEBUG_ARGUMENT`]'s reason — `encode` declares `mixed`, so
@@ -2964,8 +2964,8 @@ pub mod code {
 
     /// A `secret`-qualified value reaching `Core\Log::write`.
     ///
-    /// ADR 0033 § 4's log bullet, which is the *opposite* default from
-    /// `tainted`: ADR 0024 § 4 explicitly wants untrusted input logged, and a
+    /// `rule:security/secret-sinks-refuse`'s log bullet, which is the *opposite* default from
+    /// `tainted`: `rule:security/sink-predicate` explicitly wants untrusted input logged, and a
     /// credential is the one thing a record must not carry. Refused at the
     /// call site for [`E_SECRET_ENCODED`]'s reason and one more of its own —
     /// `fields` is declared `array<mixed>` **by design**, so the parameter
@@ -2984,7 +2984,7 @@ pub mod code {
     ///
     /// `rule:attributes/structural-retrieval`'s last paragraph: a written `$member` is checked against
     /// the target's real declarations at the call site, the same
-    /// literal-inspection ADR 0033 § 4's sinks make. Only a *computed*
+    /// literal-inspection `rule:security/secret-sinks-refuse`'s sinks make. Only a *computed*
     /// `$member` falls back to the empty result § 4's *Consequences* fixes,
     /// because there is no literal left to check.
     ///
@@ -3039,8 +3039,8 @@ pub mod code {
     // the first of the `callable`-signature refusals, which have not landed,
     // and a number another decision has already named is not reissued here.
     /// `echo` and a `Core\Response` body member writing one response body —
-    /// [ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
-    /// § 4's sixth row.
+    /// `rule:security/response-body-is-one-typed-member`
+    /// 's sixth row.
     ///
     /// The two disagree about the body's type and its `Content-Type`, and
     /// letting the last one win is how a JSON endpoint acquires an HTML

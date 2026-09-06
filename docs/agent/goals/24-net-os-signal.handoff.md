@@ -26,7 +26,7 @@ this goal extends — the name collision is the trap worth knowing before openin
       ("it has no caller until `Core\Net` lands"). This goal is that caller. `net.listen` is separate
       and neither widens `net.connect`.
 - [ ] **TCP over `NvsTcp`/`NvsListener`** (`net.rs:227`, `:313`) — a program-supplied host still walks
-      ADR 0058 § 3's denied-range table through `pin_host`; goal 20's carve-out was for *configured*
+      `rule:security/net-address-policy`'s denied-range table through `pin_host`; goal 20's carve-out was for *configured*
       stores and does not reach a program's own `connect`.
 - [ ] **UDP is the one addition to `nvs-host`** — there is no datagram type in that crate. `NvsUdp`
       over `mio::net::UdpSocket`, shaped like `NvsStream` so it parks rather than blocking the core.

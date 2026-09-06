@@ -94,7 +94,7 @@
 //!
 //! `toBase32` writes RFC 4648 § 6's alphabet **upper case and unpadded**,
 //! which is how an `otpauth:` secret is written — TOTP
-//! ([ADR 0060](/docs/adr/0060-application-security-protocols.md))
+//! (`rule:security/protocol-roster`)
 //! being the consumer § 7's row names, since PHP has nothing here to replace.
 //!
 //! `fromBase32` then reads **either case, and padding that is either canonical
@@ -926,7 +926,7 @@ const fn nibble(digit: u8) -> Option<u8> {
 /// The operand of a failed `fromHex` is text that arrived from somewhere, so
 /// it is the one value here whose size a caller chooses. A message reaches a
 /// log, and quoting it whole would let a request pick how many bytes that log
-/// gains — [ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
+/// gains — `rule:security/sink-predicate`
 /// is the wider rule.
 const SHOWN_CHARS: usize = 32;
 
@@ -1138,7 +1138,7 @@ nvs_runtime::nvs_helper! {
 nvs_runtime::nvs_helper! {
     /// `Core\Encoding::toBase32(bytes $b): string` — replacing nothing in PHP,
     /// and needed by TOTP
-    /// ([ADR 0060](/docs/adr/0060-application-security-protocols.md)).
+    /// (`rule:security/protocol-roster`).
     ///
     /// RFC 4648 § 6's alphabet, **upper case and unpadded** — the form an
     /// `otpauth:` secret is written in. Total: every octet sequence has a

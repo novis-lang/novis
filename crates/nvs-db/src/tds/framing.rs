@@ -25,7 +25,7 @@ pub enum PacketType {
     /// bind nothing, never for a caller's SQL.
     SqlBatch,
     /// A procedure call, which is what a prepared statement's execution is on
-    /// this backend, and what ADR 0067 § 13's `sp_reset_connection` is.
+    /// this backend, and what `rule:security/db-pool-reset-is-a-boundary`'s `sp_reset_connection` is.
     Rpc,
     /// A server's answer to either of the above: the token stream.
     TabularResult,
@@ -91,7 +91,7 @@ impl Status {
     /// discards it. Sent with [`Status::EOM`] as the tail of a cancelled
     /// message.
     pub const IGNORE: Status = Status(0x02);
-    /// ADR 0067 § 13's reset, as a bit rather than as a statement: the batch or
+    /// `rule:security/db-pool-reset-is-a-boundary`'s reset, as a bit rather than as a statement: the batch or
     /// procedure call carrying it resets the session before it runs, which is
     /// `sp_reset_connection` said in the header rather than asked for by name.
     /// It rides the **first** packet of that message — see [`Codec::encode`].

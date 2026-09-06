@@ -140,7 +140,7 @@ One file set: a new `crates/nvs-cli/src/doc.rs`, `crates/nvs-cli/src/main.rs`.
   *Diagnostics* names the *bands* — parser `E01xx` for an unknown tag and an unattached run, name
   resolution `E03xx` for the two checks and for `--strict-docs` — deliberately without numbers, because
   another agent claims a code from the same directory.
-- **The bidi check is reused, never duplicated** ([ADR 0087](../../adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md)):
+- **The bidi check is reused, never duplicated** (`rule:security/bidi-predicate`):
   the lexer already checks every comment span, so `nvs doc` and `nvs meta --json` emit text that has
   already been accepted and neither grows a check of its own.
 - **`SyntaxIndex` is not built here.** It is M4B's, it has no consumer in this goal, and building it

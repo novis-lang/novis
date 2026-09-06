@@ -4,8 +4,8 @@
 //! `capture(callable $fn, {through?: callable}): Core\Cli\Text` runs `$fn` with
 //! this request's sink redirected into a buffer, and answers what it wrote.
 //! Three properties of that sentence are the design, and each is
-//! [ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
-//! § 5's or the spec's rather than this file's:
+//! `rule:security/capture-answers-the-carrier`
+//! 's or the spec's rather than this file's:
 //!
 //! * **Scoped to a closure, so it nests by call nesting.** `ob_start` and
 //!   `ob_get_clean` are two members of a *global* stack that can be started in
@@ -18,7 +18,7 @@
 //!   `ob_start($callback)`'s invisible pass-through has no equivalent: re-
 //!   emitting is a visible `echo Core\Out::capture(…)`, and `{through:}`
 //!   transforms the captured value rather than deciding whether it escapes.
-//! * **It answers the carrier, not a `string`.** ADR 0088 § 5: those bytes have
+//! * **It answers the carrier, not a `string`.** `rule:security/capture-answers-the-carrier`: those bytes have
 //!   already been through the sink, so handing them back as text would let the
 //!   next `echo` escape them twice. [`crate::cli`] is the carrier and owns what
 //!   one is.
@@ -148,7 +148,7 @@ nvs_runtime::nvs_helper! {
             Err(fault) => return Err(fault),
         }
         let text = crate::cli::built(Value::str(NvsStr::new(&captured)));
-        // ADR 0088 § 5's `{through:}` — the transform takes and answers the
+        // `rule:security/capture-answers-the-carrier`'s `{through:}` — the transform takes and answers the
         // same carrier, so the reference in `text` is transferred into the
         // call and whatever comes back is what this member answers.
         if matches!(args[1].tag(), Some(Tag::Null) | None) {

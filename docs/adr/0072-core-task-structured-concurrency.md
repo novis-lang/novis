@@ -48,7 +48,7 @@
 - **Structured concurrency is the property worth buying, and it is a property of the *call*, not of a scope
   object.** Kotlin's `coroutineScope`, Swift's `withTaskGroup` and Trio's nursery all give an open-ended
   block you add tasks to. That is more general and it is more to learn, and Novis already has the same
-  guarantee at a coarser grain — [ADR 0006](0006-isolated-script-execution.md)'s "a task tree dies with its
+  guarantee at a coarser grain — `rule:security/isolate-shares-nothing`'s "a task tree dies with its
   parent — no orphans". A call that cannot return while its children run gives the identical guarantee with
   no new concept.
 - The genuinely new question is **work that outlives the response**. Every real application has some: a
@@ -93,7 +93,7 @@ container untypeable and got one rejected during the session this ADR came out o
   what would remove this restriction, and that ADR's *Revisiting* is where this case is counted with the
   others.
 - The closures run as ordinary tasks on the calling core unless a body itself spawns elsewhere; each is a
-  child of the calling task, so [ADR 0006](0006-isolated-script-execution.md)'s tree accounting applies with
+  child of the calling task, so `rule:security/isolate-shares-nothing`'s tree accounting applies with
   nothing added.
 - `all` over a shape with one field is legal and pointless; nothing special-cases it.
 
@@ -216,7 +216,7 @@ connection does. `[limits] wall_time` is what the client waited for and no longe
   in a durable queue the application runs. The documentation says this in the first paragraph, not in a
   footnote.
 
-This is the case [ADR 0006](0006-isolated-script-execution.md)'s *Revisiting* gestured at and it is
+This is the case `rule:security/isolate-shares-nothing`'s *Revisiting* gestured at and it is
 **not** the one that ADR left open. That one asks what budget a fire-and-forget isolate spends **after its
 parent is gone**; here the parent is not gone, which is precisely why this one is affordable and that one
 is still open.
@@ -292,7 +292,7 @@ is bounded, and it is O(in-flight deferred trees) rather than O(requests served)
   to build a DI container around. The restriction in § 1 is the honest cost of not doing that.
 - **Letting the first throw propagate without waiting for siblings to cancel.** Returns faster and is what
   a naive implementation does. Rejected: it leaves work running that nobody is holding a handle to, which is
-  the orphan class [ADR 0006](0006-isolated-script-execution.md)'s tree accounting exists to make
+  the orphan class `rule:security/isolate-shares-nothing`'s tree accounting exists to make
   impossible, and it can leave a transaction's row locks held past the `catch`.
 - **Making cancellation a catchable `Throwable`.** Familiar, and lets `finally` clean up. Rejected on
   `rule:errors/escalation-ladder`'s reasoning: it runs unbudgeted user code inside a failure,
@@ -319,7 +319,7 @@ is bounded, and it is O(in-flight deferred trees) rather than O(requests served)
 - **Typed `callable` signatures** (`rule:types/grammar`) remove § 1's `fn`-literal
   restriction and are now blocking three separate features.
 - **An isolate that outlives its parent tree** stays exactly as open as
-  [ADR 0006](0006-isolated-script-execution.md) left it. § 6 is not a step toward it.
+  `rule:security/isolate-shares-nothing` left it. § 6 is not a step toward it.
 
 ## Verification
 
@@ -333,7 +333,7 @@ is bounded, and it is O(in-flight deferred trees) rather than O(requests served)
   throw appears in `Core\Log`, not swallowed.
 - **M5:** a `deadline` fires with children blocked, the call throws `TimeoutError`, and a task-leak check
   after it shows zero live children — the same shape as
-  [ADR 0006](0006-isolated-script-execution.md)'s existing "a cancelled parent leaves no orphan".
+  `rule:security/isolate-shares-nothing`'s existing "a cancelled parent leaves no orphan".
 - **M5:** a cancelled task's `catch` and cleanup blocks do not execute, while its arena is released and its
   refcounts drop to zero — the second half checked under `valgrind --leak-check=full` per AGENTS.md.
 - **M7:** `afterResponse` work runs after the response is fully written, is charged to the same tree

@@ -1,5 +1,5 @@
 --TEST--
-Every name `Core\IO::list` hands back is one `Core\IO::within` admits against the directory it was listed from, and each resolves under that directory's own `Core\IO::canonicalize` — the three members agreeing over a whole listing rather than each answering plausibly on its own line — spec § 14 *Manipulation* and *Resolution*, ADR 0024 § 3
+Every name `Core\IO::list` hands back is one `Core\IO::within` admits against the directory it was listed from, and each resolves under that directory's own `Core\IO::canonicalize` — the three members agreeing over a whole listing rather than each answering plausibly on its own line — spec § 14 *Manipulation* and *Resolution*, `rule:security/launderers-are-sink-named`
 --FILE--
 <?nvs
 // An agreement case: one question asked of every member that shares a rule. On

@@ -23,7 +23,7 @@ echo "count=", Core\Arr::count($first), "\n";
 
 // It expands to an array literal of `new` expressions *at the call site*, so a
 // second call runs the constructors a second time: nothing is cached, and the
-// instances are per-request like any other object (ADR 0006).
+// instances are per-request like any other object (`rule:security/isolate-shares-nothing`).
 var $second = Core\Program::implementing<App\Module>();
 echo "count=", Core\Arr::count($second), "\n";
 --FILE modules/Module.nvs--

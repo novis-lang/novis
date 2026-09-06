@@ -200,8 +200,8 @@
 //! and whatever the root drain leaves on that list at teardown is exactly the
 //! cyclic garbage. [`sweep`] dismantles it through the same worklist, so
 //! native teardown runs there too rather than the memory being abandoned.
-//! [ADR 0116](/docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
-//! § 2 is the decision; this module is the mechanism.
+//! `rule:security/isolate-teardown-is-a-drain-then-a-sweep`
+//! is the decision; this module is the mechanism.
 //!
 //! What it spends, as [AGENTS.md](/AGENTS.md) requires: **two pointers
 //! per live object** — 16 bytes, charged to the request that allocated it —
@@ -213,7 +213,7 @@
 //! **The crossing relinks, and the relink is structural.**
 //! [`crate::graph`]'s `Live` carrier is the one place in the runtime an
 //! allocation changes owners — its adopt-at-refcount-1 move is what makes a
-//! crossing a pointer handoff rather than a rebuild (ADR 0116 § 5) — so
+//! crossing a pointer handoff rather than a rebuild (`rule:security/isolate-values-cross-by-copy`) — so
 //! [`relink_to_current`] is called from inside that one implementation and from
 //! no call site, because then there is no call site to get it wrong. An object
 //! left on the source list is one the source's teardown sweep may take apart
@@ -362,7 +362,7 @@ pub struct ClassDesc {
     /// [`ClassTable::set_field_tags`]. **Cost:** one byte-sized `Option<Tag>`
     /// per field per class, once per process, not per instance.
     field_tags: Vec<Option<Tag>>,
-    /// Whether each field slot's *declared* type carries ADR 0033 § 1's
+    /// Whether each field slot's *declared* type carries `rule:security/secret-qualifier`'s
     /// `secret` qualifier, in slot order. **Empty** for a class nothing has
     /// told, on [`Self::field_tags`]' own terms, and an empty list reads as
     /// "no slot is `secret`" rather than as "unknown" — see
@@ -384,8 +384,8 @@ pub struct ClassDesc {
     /// [`ClassDesc::field_is_public`] for why that direction is the safe one.
     ///
     /// This is the property half of
-    /// [ADR 0019](/docs/adr/0019-reflection-and-ast-parsing-are-core-features.md)
-    /// § 2 — a reflective read faces the check ordinary code at that site
+    /// `rule:security/reflection-enforces-visibility`
+    /// — a reflective read faces the check ordinary code at that site
     /// faces — and it is carried rather than computed for the reason nothing
     /// below the checker could compute it: visibility is a keyword on a
     /// declaration, and a `private int $n` is byte-identical to a `public int
@@ -770,7 +770,7 @@ impl ClassDesc {
         self.field_tags.get(index).copied().flatten()
     }
 
-    /// Whether slot `index`'s declared type carries ADR 0033 § 1's `secret`
+    /// Whether slot `index`'s declared type carries `rule:security/secret-qualifier`'s `secret`
     /// qualifier — `rule:errors/record-transformations`'s redaction row, asked of an instance because
     /// that is all a dump has.
     ///
@@ -787,8 +787,8 @@ impl ClassDesc {
         self.secret_fields.get(index).copied().unwrap_or(false)
     }
 
-    /// Whether slot `index` is readable from outside this class — ADR 0019
-    /// § 2's visibility check, asked of an instance because that is all a
+    /// Whether slot `index` is readable from outside this class — `rule:security/reflection-enforces-visibility`
+    /// 's visibility check, asked of an instance because that is all a
     /// reflective walk has.
     ///
     /// `false` for a slot nothing told this class about, which is the opposite
@@ -1131,7 +1131,7 @@ impl ClassTable {
     ///
     /// If `id` does not belong to this table, or if `public` is not one entry
     /// per slot — a length disagreement would answer one property's visibility
-    /// with another's, which opens the member ADR 0019 § 2 exists to keep shut.
+    /// with another's, which opens the member `rule:security/reflection-enforces-visibility` exists to keep shut.
     pub fn set_public_fields(&mut self, id: ClassId, public: Vec<bool>) {
         let desc = self
             .classes
@@ -1382,8 +1382,8 @@ pub struct ObjHeader {
 
 /// Every object one [`Ctx`] has allocated and not yet dismantled, as the
 /// intrusive doubly-linked list
-/// [ADR 0116](/docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
-/// § 2's teardown sweep walks.
+/// `rule:security/isolate-teardown-is-a-drain-then-a-sweep`
+/// 's teardown sweep walks.
 ///
 /// **Its own allocation, held by the context through an `Rc`**, rather than a
 /// field of [`Ctx`]: an object links itself in from [`nvs_object_new`] while a
@@ -1600,8 +1600,8 @@ unsafe fn assert_linked_where_it_says(object: *mut ObjHeader) {
 }
 
 /// Dismantles what the root drain left on `list` and could not free —
-/// [ADR 0116](/docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
-/// § 2's cyclic garbage.
+/// `rule:security/isolate-teardown-is-a-drain-then-a-sweep`
+/// 's cyclic garbage.
 ///
 /// # Why this is not simply "everything still on the list"
 ///
@@ -1660,7 +1660,7 @@ unsafe fn assert_linked_where_it_says(object: *mut ObjHeader) {
 ///
 /// **What it spends:** one `Vec` and one `HashMap` sized by the number of live
 /// objects, at teardown only, plus one pass over their field slots per walk.
-/// Teardown is already O(live values) by ADR 0116 § 2, and nothing on the
+/// Teardown is already O(live values) by `rule:security/isolate-teardown-is-a-drain-then-a-sweep`, and nothing on the
 /// request path pays any of this.
 pub(crate) fn sweep(list: &LiveList) {
     let members = list.members();
@@ -3281,7 +3281,7 @@ fn read_erased_property_hinted(receiver: Value, name: &str, hint: usize) -> crat
 /// over it — the whole of what [`nvs_object_slot_set`] does, written here so
 /// that a *reflective* write reaches the same code rather than a second copy of
 /// its rules. `nvs_stdlib::reflect`'s `Core\Reflect\ClassInfo::set` is the
-/// other caller, and ADR 0019 § 2's "fails the same way an ordinary write
+/// other caller, and `rule:security/reflection-enforces-visibility`'s "fails the same way an ordinary write
 /// would" is why it is a caller rather than a reimplementation — the same
 /// reading `crate::dispatch::call_erased_method` already carries for the call
 /// half.

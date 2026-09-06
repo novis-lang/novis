@@ -5,7 +5,7 @@ sockets/chat.nvs
 --FILE--
 <?nvs
 // The entry's content becomes the instruction "execute this file", which is
-// ADR 0088 § 1's definition of a sink, and ADR 0097 § 2 is the same rule
+// `rule:security/sink-predicate`'s definition of a sink, and ADR 0097 § 2 is the same rule
 // written for the server: a filesystem path is never *constructed* at request
 // time, only selected from a set enumerated before the request arrived. An
 // upgrade is a request-time call, so a word that arrived from outside is shut

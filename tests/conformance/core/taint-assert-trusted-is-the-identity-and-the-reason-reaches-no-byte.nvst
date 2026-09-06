@@ -1,5 +1,5 @@
 --TEST--
-`Core\Taint::assertTrusted` answers its operand byte for byte, takes a reason that is not required to be a literal, and is legal on a value that was never tainted — ADR 0024 § 3
+`Core\Taint::assertTrusted` answers its operand byte for byte, takes a reason that is not required to be a literal, and is legal on a value that was never tainted — `rule:security/launderers-are-sink-named`
 --FILE--
 <?nvs
 // § 3 asks for a written reason and for nothing to be done to the value: the

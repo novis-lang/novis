@@ -1,8 +1,8 @@
 --TEST--
-a balanced directional scope in a string literal compiles and survives byte for byte — ADR 0087 § 1
+a balanced directional scope in a string literal compiles and survives byte for byte — `rule:security/bidi-predicate`
 --FILE--
 <?nvs
-// ADR 0087 § 1: only an *unterminated* scope is rejected. Legitimate
+// `rule:security/bidi-predicate`: only an *unterminated* scope is rejected. Legitimate
 // mixed-direction text isolates its Latin run and closes the isolate, which is
 // what makes rejecting the rest affordable — this case is the one that fails if
 // the rule is ever widened to a blanket ban on the eleven code points.

@@ -362,12 +362,11 @@ pub enum What {
     /// Step 3: this exact file's bytes, under `[server] static`. Never a
     /// directory and never a `.nvs`.
     Static(PathBuf),
-    /// Steps 4 and 5: this file, run as [ADR 0006]'s isolate. Step 4 is the
+    /// Steps 4 and 5: this file, run as `rule:security/isolate-shares-nothing`'s isolate. Step 4 is the
     /// remainder itself under `dispatch = "path"`, step 5 is the mount's entry,
     /// and both are a path the table or the disk answered for rather than one
     /// assembled from request bytes.
     ///
-    /// [ADR 0006]: ../../../docs/adr/0006-isolated-script-execution.md
     Run(PathBuf),
 }
 

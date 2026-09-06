@@ -1,5 +1,5 @@
 --TEST--
-Core\IO::stat and ::modifiedAt name the bound absence puts them on, both sides of it: each answers for a directory that is there and throws IOError for a name that is not, where ::exists answers `false` for the same name — a missing file has no metadata, and inventing a zero or an epoch would be indistinguishable from a real one — spec § 14, ADR 0118 § 2
+Core\IO::stat and ::modifiedAt name the bound absence puts them on, both sides of it: each answers for a directory that is there and throws IOError for a name that is not, where ::exists answers `false` for the same name — a missing file has no metadata, and inventing a zero or an epoch would be indistinguishable from a real one — spec § 14, `rule:security/capability-check-at-the-door`
 --FILE--
 <?nvs
 // The accepted side first, on the kind of path that is easiest to get wrong:

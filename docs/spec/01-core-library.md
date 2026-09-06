@@ -32,7 +32,7 @@ The **Replaces** column names the PHP built-ins an entry subsumes. It is one of 
 (M11) is generated from and the only place that can answer "did we drop something real": this file states
 what Novis *has*, and that one accounts for every PHP name Novis does not.
 
-**Qualifier** is the [ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md)/[0033](../adr/0033-secret-qualifier-for-confidential-values.md)
+**Qualifier** is the `rule:security/tainted-qualifier`/[0033](../adr/0033-secret-qualifier-for-confidential-values.md)
 classification, and every member has one:
 
 | Mark | Meaning |
@@ -45,7 +45,7 @@ classification, and every member has one:
 A blank cell here means *contagious was chosen*, never *nobody looked*: the classification is declared per
 parameter in `nvs-stdlib`'s member registry, an unclassified `string`/`bytes` parameter **refuses** a
 tainted argument, and a member that ships with one fails that crate's own test suite
-([ADR 0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md) § 2). Which parameters are
+(`rule:security/unclassified-parameter-refuses-tainted`). Which parameters are
 sinks follows from that ADR's § 1 predicate — *the content becomes an instruction something executes,
 rather than data something returns or frames* — of which one corollary is that all four
 [R11](../adr/0063-core-api-conventions.md) grammars are sinks.
@@ -190,7 +190,7 @@ precision and `%1$s` positional syntax, minus everything that reads ambient stat
 mode string, so R11 does not reach it; the same is true of `Core\Regex`'s patterns, `Core\Bytes::pack`'s
 format and CLDR date patterns, and those four are the only ones in the library. **All four are `tainted`
 sinks**, because a grammar is an instruction rather than data
-([ADR 0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md) §§ 1, 6): a tainted `format`
+(`rule:security/sink-predicate` and `rule:security/every-grammar-is-a-sink`): a tainted `format`
 template hands an attacker `%2$s` and `%999999999d`. The *arguments* stay contagious, and none of the four
 gets a launderer except `Regex::quote` — a grammar is written by the program, so the fix at a rejected call
 site is a literal, which `rule:expressions/intrinsic-literals` already folds.
@@ -608,7 +608,7 @@ no magic hook and no structural encoding of public properties
 (`rule:types/object-top`) is the one instance that needs neither, encoding as a
 JSON object keyed by its field names — it has no declaration to carry a codec, and
 [ADR 0071 § 7](../adr/0071-derived-codecs.md) owns why that is not the same rule. A `secret` value cannot be encoded at all
-([ADR 0033](../adr/0033-secret-qualifier-for-confidential-values.md)).
+(`rule:security/secret-qualifier`).
 
 Both halves are generated from a class's own declared properties by the opt-in `#[Json\Derive]`
 attribute, whose rules — the field list, the `#[Json\Field(name?, skip?)]` override, and the one throw
@@ -637,7 +637,7 @@ honestly fail (`rule:types/bytes`).
 | `toBase64` / `fromBase64` | `toBase64(bytes $b): string` / `fromBase64(string $s): bytes` | `base64_encode`, `base64_decode` | |
 | `toBase64Url` / `fromBase64Url` | `toBase64Url(bytes $b): string` / `fromBase64Url(string $s): bytes` | `strtr(base64_encode(…))` idiom | |
 | `toHex` / `fromHex` | `toHex(bytes $b): string` / `fromHex(string $s): bytes` | `bin2hex`, `hex2bin`, `unpack("H*")` | |
-| `toBase32` / `fromBase32` | `toBase32(bytes $b): string` / `fromBase32(string $s): bytes` | nothing — needed by TOTP ([ADR 0060](../adr/0060-application-security-protocols.md)) | |
+| `toBase32` / `fromBase32` | `toBase32(bytes $b): string` / `fromBase32(string $s): bytes` | nothing — needed by TOTP (`rule:security/protocol-roster`) | |
 
 `quoted_printable_encode`/`_decode` and `convert_uuencode`/`_decode` are dropped; quoted-printable survives
 only inside `Core\Mail`, which is the one thing that ever needed it.
@@ -754,7 +754,7 @@ at once rather than the first, each located by a dotted path (`"address.city"`, 
 its column name ([ADR 0071 § 5](../adr/0071-derived-codecs.md)). It is empty on any error that has no field
 list to report. There is no `getCode()`: an `int` code with no declared meaning is what a user-defined
 subclass with a typed property does properly. `Throwable`'s message is a `secret` sink
-([ADR 0033](../adr/0033-secret-qualifier-for-confidential-values.md)). Resource-limit reports are **not**
+(`rule:security/secret-qualifier`). Resource-limit reports are **not**
 `Throwable` at all and never reach a `catch` (`rule:errors/escalation-ladder`).
 `RecursionError` is not a counter-example to that: `rule:errors/on-limit` puts a **soft** depth above the call-stack
 limit precisely so a recursive-descent parser over untrusted-depth input can degrade, and the limit itself —
@@ -943,7 +943,7 @@ value, as PHP does.
 
 `Core\Validate` is what survives of `filter`: the genuine validators only. Its *sanitizing* filters are
 dropped, because half-escaping produces exactly the false confidence
-[ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md) exists to prevent — **no `Validate` member
+`rule:security/tainted-qualifier` exists to prevent — **no `Validate` member
 launders anything.**
 
 `isEmail`, `isIp(string $s, {version?: 4|6})`, `isMac`, `isDomain`, `isAscii`, `isPrintable` — all
@@ -1032,7 +1032,7 @@ before M8 — see *Milestones* above for which and why.
 
 ## 14. `Core\IO`
 
-Every member is an [ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md) **path sink** and requires
+Every member is an `rule:security/tainted-qualifier` **path sink** and requires
 an `fs.read` or `fs.write` capability. `resource` is never exposed — an open file is a `Core\IO\File`
 object (R14).
 
@@ -1068,12 +1068,12 @@ object (R14).
   `Core\Cli::write`, and a raw handle onto either would be a hole in it.
 
 No stream wrappers, no `php://`, no `phar://`, no user-registered protocols
-([ADR 0052](../adr/0052-closed-doors.md)).
+(`rule:security/closed-doors`).
 
 ## 15. Request-facing: `Core\Server`, `Core\Request`, `Core\Response`, `Core\Session`, `Core\Env`, `Core\Cap`, `Core\Cli`
 
 These replace PHP's superglobals (`rule:statements/no-host-populated-variables`); every value they return that
-originates outside the process is `tainted` ([ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md)).
+originates outside the process is `tainted` (`rule:security/tainted-qualifier`).
 
 - `Core\Request`: `method`, `path`, `query`, `post`, `body`, `bodyStream`, `header`, `headers`, `cookie`,
   `files`, `clientIp`, `scheme`, `host`, `mount`, `route`, `isHead` — replacing `$_GET`, `$_POST`, `$_FILES`,
@@ -1110,7 +1110,7 @@ originates outside the process is `tainted` ([ADR 0024](../adr/0024-taint-tracki
   own `Content-Type`**, replacing a single `write`: `json` serializes the value itself so a tainted one is
   safe, `text` accepts tainted because `nosniff` is on by default, and `bytes`' content type is a sink.
   `echo` is the sixth, HTML-only path, and mixing it with any of the five on one response is a compile
-  error ([ADR 0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md) § 4).
+  error (`rule:security/response-body-is-one-typed-member`).
 - `Core\Server`: the request's own environment — replacing `$_SERVER` — plus `traceId(): string`, which is
   present on every request whether or not the trace is sampled and is Novis's only request identifier
   ([ADR 0076](../adr/0076-observability-export.md)), and `isDraining(): bool`, true once graceful shutdown
@@ -1130,7 +1130,7 @@ originates outside the process is `tainted` ([ADR 0024](../adr/0024-taint-tracki
   holds a capability at this point in the request — the grant table narrowed by anything the request or an
   enclosing isolate already dropped. It is how a package that declared a capability *optional* degrades
   instead of failing a build, so the argument is a roster name and an unknown one is a compile error
-  ([ADR 0112](../adr/0112-authority-is-keyed-on-the-enclosing-namespace.md) §§ 6, 8). It grants nothing and
+  (`rule:security/optional-capability-degrades` and `rule:security/capability-roster-is-closed`). It grants nothing and
   needs no capability of its own; there is no `Core\Cap::drop`, because dropping a capability is
   `Core\Config::set` and stays there.
 - `Core\Cli`: the terminal surface, owned by [ADR 0086](../adr/0086-core-cli-terminal-is-a-sink.md) —
@@ -1170,7 +1170,7 @@ originates outside the process is `tainted` ([ADR 0024](../adr/0024-taint-tracki
 
 | Class | Surface | Note |
 |---|---|---|
-| `Core\Html` | `escape` (the auto-applied launderer), `sanitize`, `Markup`, and the WHATWG HTML parser — never-failing, producing `Core\Xml`'s tree: one node family, two front doors | [ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md) owns both launderers; the parser and the shared tree are `rule:core-classes/html-parsing` |
+| `Core\Html` | `escape` (the auto-applied launderer), `sanitize`, `Markup`, and the WHATWG HTML parser — never-failing, producing `Core\Xml`'s tree: one node family, two front doors | `rule:security/tainted-qualifier` owns both launderers; the parser and the shared tree are `rule:core-classes/html-parsing` |
 | `Core\Xml` | one API replacing DOM, SimpleXML, XMLReader, XMLWriter, `xml_parser_*` and XSLTProcessor. Its **tree** API and its **streaming** reader/writer are different jobs, not twins — the tree materialises, the stream does not, and no operation is available through both | the one place in this file where two shapes of the same subsystem coexist, stated explicitly so it is not read as an exception to R17. The tree is also what `Core\Html`'s parser produces (`rule:core-classes/html-parsing`), and lands with it |
 | `Core\Compress` | gzip, deflate, brotli, zstd — one API replacing `gzopen` handles, `deflate_init` contexts and `zlib.*` stream filters | |
 | `Core\Zip` | Core rather than an extension because `../` entries, symlink entries and decompression bombs are *policy*, and policy must be non-optional | [ADR 0051 § 3](../adr/0051-standard-library-tiers.md) |
@@ -1193,7 +1193,7 @@ in a root-owned `[db.<name>]` block ([ADR 0064](../adr/0064-configuration-file-f
 | `quoteIdentifier` | `quoteIdentifier(tainted string $name): string` | `mysqli_real_escape_string` on a table/column name | **launder** (identifier) |
 
 `PDO::quote`, `mysqli_real_escape_string` and `pg_escape_string` have **no equivalent**: binding is the
-mechanism ([ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md) § 4).
+mechanism (`rule:security/sink-predicate`).
 
 ### `Core\Db\Queryable` — the interface both a connection and a transaction satisfy
 
@@ -1279,7 +1279,7 @@ Two `Throwable`s join § 10's tree, both under `Core\Db`:
 
 - `DbError extends RuntimeError` — readonly `kind: ErrorKind`, `sqlState: ?string`, `driverCode: ?int`,
   `constraint: ?string`, `sql: ?string`. Bound parameter values never appear on it
-  ([ADR 0033](../adr/0033-secret-qualifier-for-confidential-values.md)).
+  (`rule:security/secret-qualifier`).
 - `RolledBack extends RuntimeError` — readonly `reason: string`; thrown by `Transaction::rollBack` and
   propagated out of the owning `transaction()` call.
 
@@ -1334,5 +1334,5 @@ process loses the work.
 | Exception classes in the stdlib | 13 SPL + 8 `Error` | 9 |
 
 The reduction is entirely in restatements. The library covers strictly more than PHP's: an HTTP client,
-SMTP, cache, CSV, UUID, a test surface, [ADR 0060](../adr/0060-application-security-protocols.md)'s
+SMTP, cache, CSV, UUID, a test surface, `rule:security/protocol-roster`'s
 protocol roster, and typed date arithmetic are all things PHP leaves to userland.

@@ -1,9 +1,9 @@
 --TEST--
-`Core\Bytes::pack` and `Core\Bytes::unpack` share one format grammar and one sink, so a tainted format is refused where the call is written by every route it can arrive by, while the same grammar written plain packs and unpacks — ADR 0088 §§ 1-2, `rule:core-api/shape-rules` R11
+`Core\Bytes::pack` and `Core\Bytes::unpack` share one format grammar and one sink, so a tainted format is refused where the call is written by every route it can arrive by, while the same grammar written plain packs and unpacks — `rule:security/sink-predicate` and `rule:security/unclassified-parameter-refuses-tainted`, `rule:core-api/shape-rules` R11
 --FILE--
 <?nvs
 // `rule:core-api/shape-rules` R11 names a `Core\Bytes::pack` format one of four grammars, and
-// ADR 0088 § 1's corollary makes each of them a `Qual::Sink` wherever it is
+// `rule:security/sink-predicate`'s corollary makes each of them a `Qual::Sink` wherever it is
 // declared: these bytes become the instruction deciding how many octets are
 // read and how they are widened, so a caller who chooses them chooses the
 // read. Both rows spell the parameter `CoreTy::Text(Qual::Sink)`

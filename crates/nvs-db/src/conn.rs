@@ -345,7 +345,7 @@ impl State {
     /// per-core pool.
     ///
     /// This is the security-relevant one. A [`State::Poisoned`] connection is
-    /// **closed, never reset**: ADR 0067 § 13 makes the reset a boundary
+    /// **closed, never reset**: `rule:security/db-pool-reset-is-a-boundary` makes the reset a boundary
     /// because a connection carrying one request's state into another's is a
     /// cross-tenant leak, and a `RESET ALL` written into the middle of an
     /// unfinished message is not a reset — it is a fragment of one request's
@@ -621,7 +621,7 @@ impl std::fmt::Display for ServerError {
 impl std::error::Error for ServerError {}
 
 /// A PostgreSQL connection: `postgres-protocol`'s codec plus the extended-query
-/// state machine, the SASL handshake and ADR 0067 § 13's reset, written here.
+/// state machine, the SASL handshake and `rule:security/db-pool-reset-is-a-boundary`'s reset, written here.
 ///
 /// The reset is deliberately **not** `DISCARD ALL`, which would deallocate the
 /// prepared statements the statement cache exists to preserve.
@@ -630,7 +630,7 @@ pub struct PgConn {
     /// The stream and the bytes read off it that are not yet a whole message,
     /// once [`crate::pg::PgConn::connect`] has upgraded it.
     ///
-    /// ADR 0132 § 3's in-band upgrade means the `SSLRequest` and its one-byte
+    /// `rule:security/one-tls-client`'s in-band upgrade means the `SSLRequest` and its one-byte
     /// answer are the only plaintext this connection ever carries, so there is
     /// no variant here for "not yet encrypted": a connection that did not
     /// upgrade was never built.
@@ -890,7 +890,7 @@ pub struct SqliteConn {
 /// [`PgConn`] carries a TLS session because its driver landed first, and the
 /// other four are one byte only until theirs do. Nothing holds these in an
 /// array either: a `Connection` is one live object per pooled connection, which
-/// at ADR 0067 § 13's ceiling of 16 a core is kilobytes.
+/// at `rule:security/db-pool-reset-is-a-boundary`'s ceiling of 16 a core is kilobytes.
 #[derive(Debug)]
 #[allow(clippy::large_enum_variant)]
 pub enum Connection {
@@ -1012,7 +1012,7 @@ impl nvs_runtime::HeldConnection for Connection {
         self
     }
 
-    /// ADR 0067 § 13's release gate is [`Connection::is_poolable`], which is
+    /// `rule:security/db-pool-reset-is-a-boundary`'s release gate is [`Connection::is_poolable`], which is
     /// this connection's own wire state and nothing else — the trait method
     /// exists because `nvs-runtime` learns when a request ends and cannot name
     /// this type to ask.
@@ -1054,7 +1054,7 @@ mod tests {
     /// gate lets into the pool.
     ///
     /// SQLite's variant because it is the one this crate can *always* build
-    /// without a server: ADR 0132 § 3 gives it no bytes on any wire, so it is
+    /// without a server: `rule:security/one-tls-client` gives it no bytes on any wire, so it is
     /// the one connection type that will never grow a stream a unit test cannot
     /// open. The pool reads the variant no more than it reads the wire — it
     /// asks `is_poolable` and stores the box — so which variant this is says
@@ -1070,7 +1070,7 @@ mod tests {
         }))
     }
 
-    /// ADR 0067 § 13's first two bullets: the pool is **per core**, and its key
+    /// `rule:security/db-pool-reset-is-a-boundary`'s first two bullets: the pool is **per core**, and its key
     /// is § 2's — the block *name* for `connect`, a hash of every settings
     /// field for `open` — so two config blocks are two pools and two database
     /// users never share a connection.

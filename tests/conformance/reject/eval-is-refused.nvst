@@ -1,5 +1,5 @@
 --TEST--
-`eval` is one of the four closed doors, refused at parse time with no opt-in — ADR 0052 § 4
+`eval` is one of the four closed doors, refused at parse time with no opt-in — `rule:security/no-eval`
 --FILE--
 <?nvs
 class Runner {

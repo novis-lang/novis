@@ -80,7 +80,7 @@ impl Ctx {
     /// This request's share of the thread's count, taken against
     /// [`Self::output_base`] — so a root's reading holds every isolate spawned
     /// beneath it and each isolate's holds only its own, which is
-    /// [ADR 0006](/docs/adr/0006-isolated-script-execution.md)'s
+    /// `rule:security/isolate-shares-nothing`'s
     /// "child output against the root's `max_output`" and the same arrangement
     /// [`Self::memory_used`] already has.
     #[must_use]

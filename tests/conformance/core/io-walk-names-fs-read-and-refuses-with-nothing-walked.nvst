@@ -1,5 +1,5 @@
 --TEST--
-`Core\IO::walk` names `fs.read` and is refused at the door for a directory the configuration does not cover — the refusal arrives instead of the value and not partway through a loop over it, so a program cannot count what it was not allowed to read — ADR 0118 §§ 1-2, spec § 14
+`Core\IO::walk` names `fs.read` and is refused at the door for a directory the configuration does not cover — the refusal arrives instead of the value and not partway through a loop over it, so a program cannot count what it was not allowed to read — `rule:security/capability-question-is-grant-and-scope` and `rule:security/capability-check-at-the-door`, spec § 14
 --FILE--
 <?nvs
 // `fs.read` covers `open` and nothing else, so one member answers for one

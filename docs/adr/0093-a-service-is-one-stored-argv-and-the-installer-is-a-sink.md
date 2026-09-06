@@ -18,7 +18,7 @@
 
 > **In short:** `nvs service install <name> [options] -- <args…>` registers this binary with the platform's
 > service manager and stores everything after `--` verbatim as the argv the service runs, which is what
-> makes every parameter `nvs` accepts passable. **The installer is an [ADR 0088](0088-a-sink-is-an-instruction-and-the-default-refuses.md)
+> makes every parameter `nvs` accepts passable. **The installer is an `rule:security/sink-predicate`
 > sink** — it writes a command line a privileged account executes at every boot — so it fails closed: a
 > closed allowlist of hostable subcommands (`serve`, `run`), no relative paths, no install whose output
 > would go nowhere, no password on a command line, and the binary path always quoted. On **Windows** it

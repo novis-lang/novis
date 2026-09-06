@@ -192,7 +192,7 @@ mod bus;
 mod bytes;
 mod cache;
 // `pub` for the two predicates `nvs_types::capability` reads — the class's own
-// spelling and ADR 0112 § 8's roster — so that the checker's refusal holds no
+// spelling and `rule:security/capability-roster-is-closed`'s roster — so that the checker's refusal holds no
 // copy of either. `cldr` is `pub` for the same reason one grammar over.
 pub mod cap;
 mod channel;
@@ -321,7 +321,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         // names on purpose — `router::link`'s own docs own why one member has
         // two entry points.
         .chain(router::link::SYMBOLS)
-        // ADR 0006's two constructs, which are syntax rather than members and
+        // `rule:security/isolate-shares-nothing`'s two constructs, which are syntax rather than members and
         // so have no row to be found through — `script`'s own module doc owns
         // why a `spawn script`/`await` symbol may not be callable by name.
         .chain([
@@ -463,7 +463,7 @@ mod tests {
                 // to `Core\Router::url`/`::urlAbsolute` and to no row of their
                 // own — see `router::link`.
                 + router::link::SYMBOLS.len()
-                // ADR 0006's `spawn script` — in its two entry forms, which
+                // `rule:security/isolate-shares-nothing`'s `spawn script` — in its two entry forms, which
                 // are two symbols and one construct — and `await`, `rule:core-classes/html-auto-escape`'s `as Markup` and `Markup + Markup`, and ADR 0086 § 2's
                 // `Text + Text`: six symbols behind five constructs, each
                 // syntax rather than a call, so none of them has a row

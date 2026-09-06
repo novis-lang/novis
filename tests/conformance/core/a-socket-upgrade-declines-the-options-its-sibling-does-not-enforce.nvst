@@ -1,5 +1,5 @@
 --TEST--
-`Core\Socket::upgrade` declares no `grants:`, so a narrowing it could not enforce is refused rather than accepted and dropped — ADR 0083 § 2, ADR 0006
+`Core\Socket::upgrade` declares no `grants:`, so a narrowing it could not enforce is refused rather than accepted and dropped — ADR 0083 § 2, `rule:security/isolate-shares-nothing`
 --FILE--
 <?nvs
 // ADR 0083 § 2 lists four options and calls them 0006's. Three of the four --

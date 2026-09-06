@@ -28,7 +28,7 @@ what the ledger names.
       `a_body_is_claimed_by_the_member_that_read_it_and_refused_to_the_other`
       (`crates/nvs-stdlib/src/request.rs`, near `claim_body` at `:1032`) and
       `body_stream_is_exclusive_with_body_and_with_files` keep their questions and change their answers.
-      `a-request-refuses-every-read-when-no-request-arrived.nvst` is untouched — it is ADR 0012 § 7's
+      `a-request-refuses-every-read-when-no-request-arrived.nvst` is untouched — it is `rule:security/request-state-throws-in-an-isolate`'s
       rule, not the exclusivity one.
 - [ ] **Stage 2a: the five sections** — `--GET--`, `--POST--`, `--POST_RAW--`, `--COOKIE--`, `--HEADERS--`
       in `crates/nvs-test/src/lib.rs:20`'s table and `case.rs`'s parse, spelled as `.phpt` spells them.

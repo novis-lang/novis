@@ -146,7 +146,7 @@ depend on it. It is `nvs-render`, and it exists: M4 created it with the model, t
 module's own doc comment already anticipates this, naming "the same layout engine to emit LSP-shaped data"
 as a requirement it was built for. `nvs-runtime` depends on no `nvs-*` crate today, so the model cannot
 live in `nvs-diagnostics` and the dependency runs the other way — which is also why `nvs-render`'s own one
-dependency, ADR 0087's bidi predicate in `nvs-syntax`, is a **temporary** direction: that crate's module
+dependency, `rule:security/bidi-predicate`'s bidi predicate in `nvs-syntax`, is a **temporary** direction: that crate's module
 doc owns the move that inverts it once `nvs-runtime` or `nvs-diagnostics` becomes a dependent.
 
 ### 2. `Log\Level` is five cases, with a fixed syslog mapping

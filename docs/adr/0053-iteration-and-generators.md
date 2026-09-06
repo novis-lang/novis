@@ -156,7 +156,7 @@ resuming one in another isolate that is meaningful. `clone` on a generator is li
 - **Keep `ArrayAccess`.** Better PHP familiarity and nicer-reading collection code. Rejected on
   consistency: Novis has already paid the migration cost of removing implicit property dispatch, and keeping
   implicit subscript dispatch would leave the language inconsistent about the same question. It also
-  interacts badly with [ADR 0024](0024-taint-tracking-for-injection-sinks.md) — whether `$obj[$k]` yields a
+  interacts badly with `rule:security/tainted-qualifier` — whether `$obj[$k]` yields a
   tainted value would depend on an implementation the call site cannot see.
 - **`Iterator` with a single `next(): ?T`.** One method instead of two. Rejected: it makes `Iterator<?T>`
   unrepresentable, and silently ending a sequence at the first `null` element is precisely the class of

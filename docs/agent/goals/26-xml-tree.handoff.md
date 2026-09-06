@@ -39,7 +39,7 @@ wrong, so the fold into `rule:core-classes/html-parsing`'s body is stage 0's wor
   **never-failing**: tag soup produces a document, because a parser that can throw makes sanitizing
   untrusted markup conditional on the attacker's cooperation. It is an entry on `Core\Html`, never a
   mode of `Core\Xml` (§ 1).
-- **Stage 5 (`sanitize`)** is the second ADR 0024 launderer on `Core\Html` — parse, walk a **closed**
+- **Stage 5 (`sanitize`)** is the second `rule:security/tainted-qualifier` launderer on `Core\Html` — parse, walk a **closed**
   allowlist, serialise. The acceptance property is mXSS: parse-sanitize-serialise-reparse reaches a
   fixed point. It also strikes the last of the eight keys, so
   `spec-classes-part-two-outstanding.txt` holds none and spec §§ 16–17 is registered whole.

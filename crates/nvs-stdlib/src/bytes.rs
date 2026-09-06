@@ -52,7 +52,7 @@
 //!   it. An out-of-range index throws, which is `Core\Str::at`'s answer and
 //!   `rule:core-api/shape-rules` R4/R5's: absence would have to be spelled `?uint` in the type.
 //!   **That `uint` answer is why `at` is the one member here classified
-//!   against the shape of its return type.** ADR 0088 § 2's rule — written out
+//!   against the shape of its return type.** `rule:security/unclassified-parameter-refuses-tainted`'s rule — written out
 //!   on [`crate::registry::Qual`] — makes a member `Neutral` when its answer
 //!   carries no byte of any argument, and every other `uint`-returning member
 //!   in this class and in `Core\Str` is one: a length, a position, an
@@ -1454,7 +1454,7 @@ nvs_runtime::nvs_helper! {
     /// against the argument list at compile time rather than at the call —
     /// exactly as `Core\Str::format`'s template still owes; and it is a
     /// **sink**
-    /// ([ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)),
+    /// (`rule:security/sink-predicate`),
     /// which is that ADR's registry-wide item — no member row anywhere carries
     /// a qualifier classification yet, so half of one here would be a lie
     /// about what is enforced.

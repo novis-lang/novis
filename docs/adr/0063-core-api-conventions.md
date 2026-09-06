@@ -140,7 +140,7 @@ notice the twelfth one nobody thought about, which is how `ctype_*`, `iterator_t
    `array_walk_recursive`, which restate `foreach` once R3 removes the mutation; `array_pad`'s negative-size
    mode and the string-cast comparison inside `array_unique`/`array_diff`/`array_intersect`;
    `strip_tags`, `addslashes`,
-   `htmlentities` and the rest of the half-escapers ([ADR 0024](0024-taint-tracking-for-injection-sinks.md)
+   `htmlentities` and the rest of the half-escapers (`rule:security/tainted-qualifier`
    exists to prevent the false confidence they create); `settype`/`gettype`/`strval`/`intval`
    (`rule:types/no-legacy-cast`: `as` is the only conversion spelling); `soundex`,
    `metaphone`, `similar_text`, `str_word_count` (ASCII-only algorithms that are wrong on UTF-8);
@@ -171,11 +171,11 @@ Each was a live design question; each is now a rule the spec file applies.
   duration in config or on a command line — is `Duration::parse`, whose grammar is
   `rule:types/duration-literal`'s literal grammar, shares its implementation, throws on anything
   else, and therefore launders a `tainted` argument in exactly the sense
-  [ADR 0024](0024-taint-tracking-for-injection-sinks.md) § 3 defines. "Next monday" is not something a
+  `rule:security/launderers-are-sink-named` defines. "Next monday" is not something a
   config file supplies, which is why the runtime path needs no more than a duration.
 - **`Core\Path` is pure; `Core\IO` touches the disk.** Path algebra (`basename`, `dirname`, `extension`,
   `join`, `isAbsolute`) needs no capability and is constant-foldable. Everything that reads or writes —
-  including `realpath`, which is `IO::canonicalize` — needs an `fs.*` capability and is an ADR 0024 sink.
+  including `realpath`, which is `IO::canonicalize` — needs an `fs.*` capability and is an `rule:security/tainted-qualifier` sink.
   PHP conflates the two, which hides the boundary that matters.
 - **Output capture is scoped.** `Core\Out::capture(fn, {through?})` runs a closure, returns what it echoed
   and optionally transforms it on the way out; nesting is call nesting, and there is no globally installed
@@ -203,7 +203,7 @@ Each was a live design question; each is now a rule the spec file applies.
   `#[Json\Derive]` is not that, so it generates both halves from the class's declared properties
   (`rule:core-classes/derive-attribute`), and a `secret` property is refused there at the declaration rather
   than silently omitted from `toJson()`
-  ([ADR 0033](0033-secret-qualifier-for-confidential-values.md)).
+  (`rule:security/secret-qualifier`).
 - **No lazy pipeline API yet.** A `Core\Seq` over `Iterable` would be a second spelling of `map`/`filter`/
   `reduce`, which `rule:core-api/tier-placement` test 6 argues against, and the question is much
   better informed once generators actually run. Deferred past M5; streaming today is `foreach` over an
@@ -214,8 +214,8 @@ Each was a live design question; each is now a rule the spec file applies.
 A `Core` member's entry in the spec file states whether it is a **sink** (refuses `tainted`/`secret`), a
 **launderer** (removes a qualifier, its contract naming the sink it launders for), **contagious** (a
 qualified argument produces a qualified result), or **neutral**. This is a column of the signature, not a
-footnote: [ADR 0024](0024-taint-tracking-for-injection-sinks.md) § 3 and
-[ADR 0055](0055-extension-qualifier-declarations.md) both rest on that classification being total, and a
+footnote: `rule:security/launderers-are-sink-named` and
+`rule:security/extension-manifest-only-tightens` both rest on that classification being total, and a
 member added without one is an incomplete member.
 
 ## Consequences

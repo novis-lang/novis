@@ -1,4 +1,4 @@
-//! ADR 0024's `tainted` and ADR 0033's `secret`: one representation, two
+//! `rule:security/tainted-qualifier`'s `tainted` and `rule:security/secret-qualifier`'s `secret`: one representation, two
 //! independent axes, and the sinks that refuse them.
 //!
 //! The two are implemented together because they share one representation
@@ -11,7 +11,7 @@
 //! conversion to `uint`/`int`/`float`/`bool`/an enum's backing type launders
 //! both qualifiers for free, since none of those targets carry either to begin
 //! with (a known, ADR-accepted gap for `secret`: unlike `tainted`,
-//! "shape-proof implies safe" doesn't actually transfer — see ADR 0033 § 2's
+//! "shape-proof implies safe" doesn't actually transfer — see `rule:security/secret-propagation`'s
 //! own *Alternatives rejected*), while `bytes`/`string` (including the
 //! identity-shaped `tainted string as string`/`secret string as string`, which
 //! would otherwise be a silent bypass) keep both qualifiers across either
@@ -25,7 +25,7 @@
 //! is `rule:core-classes/html-auto-escape`'s one M2-scoped rule: `as Core\Html\Markup` accepts only a
 //! literal string token, `tainted` or not — the rest of § 5 (auto-escaping,
 //! `Markup + Markup`) waits on `Core\Html` actually existing.
-//! [`reject_secret_markup_conversion`] is ADR 0033 § 4's sibling, giving a
+//! [`reject_secret_markup_conversion`] is `rule:security/secret-sinks-refuse`'s sibling, giving a
 //! `secret` operand there its own specific diagnostic ahead of the generic one
 //! (escaping doesn't restore confidentiality, so `secret` gets no auto-escape
 //! carve-out even once one exists for `tainted`). And
@@ -38,7 +38,7 @@
 //! conversion, because the member they reach declares an open type and the
 //! call site is the last place the qualifier is visible:
 //! [`reject_secret_debug_argument`], [`reject_secret_attribute_constant`],
-//! [`reject_secret_boundary_argument`] — ADR 0033 § 4's `serialize()`-and-
+//! [`reject_secret_boundary_argument`] — `rule:security/secret-sinks-refuse`'s `serialize()`-and-
 //! `spawn` bullet, which is one check for both of `rule:classes/graph-copy`'s carriers —
 //! [`reject_secret_published_argument`], which is `rule:core-classes/topic`'s bus reaching
 //! that same graph copy through a third carrier,
@@ -61,9 +61,9 @@
 use super::*;
 use nvs_stdlib::registry::Qual;
 
-/// Whether `ty` carries ADR 0024 § 1's `tainted` qualifier — on its own
+/// Whether `ty` carries `rule:security/tainted-qualifier`'s `tainted` qualifier — on its own
 /// (`tainted string`/`tainted bytes`) or composed with `secret`
-/// (`secret tainted string`/`secret tainted bytes`, ADR 0033 § 1). The one
+/// (`secret tainted string`/`secret tainted bytes`, `rule:security/secret-qualifier`). The one
 /// question every taint propagation/laundering rule in this module reduces
 /// to.
 pub(crate) fn is_tainted(ty: TypeId, interner: &TypeInterner) -> bool {
@@ -79,7 +79,7 @@ pub(crate) fn is_tainted(ty: TypeId, interner: &TypeInterner) -> bool {
 /// [`is_tainted`] asks about one atom, which is the right question for a
 /// conversion, an operator and an assignment, because each of those already
 /// walks a composite structurally. An *argument* is the one position where it
-/// is the wrong question: ADR 0088 § 2's admission hands a whole argument to
+/// is the wrong question: `rule:security/unclassified-parameter-refuses-tainted`'s admission hands a whole argument to
 /// [`untainted`], so the contagion that admission implies has to be read with
 /// the same reach [`untainted`] and [`tainted_result`] have. A
 /// [`Qual::Contagious`] parameter handed a `string|tainted string` — which is
@@ -105,7 +105,7 @@ pub(crate) fn carries_tainted(ty: TypeId, interner: &TypeInterner) -> bool {
     }
 }
 
-/// Whether `ty` carries ADR 0033 § 1's `secret` qualifier — on its own or
+/// Whether `ty` carries `rule:security/secret-qualifier`'s `secret` qualifier — on its own or
 /// composed with `tainted`. The `secret`-axis counterpart of [`is_tainted`];
 /// the two are independent bits, so a caller checking one never implies
 /// anything about the other.
@@ -153,7 +153,7 @@ pub(crate) fn qualified_scalar(
 /// The same type with the `tainted` bit cleared, and everything else — the
 /// `secret` axis, the base — left exactly as it was.
 ///
-/// ADR 0088 § 2's admission is a **narrowing** of one qualifier at one kind of
+/// `rule:security/unclassified-parameter-refuses-tainted`'s admission is a **narrowing** of one qualifier at one kind of
 /// position, and it is spelled as clearing the bit on the *argument* before
 /// [`is_assignable`] sees it rather than as widening the parameter's declared
 /// type. That is what keeps the diagnostic honest: the parameter is what a
@@ -252,10 +252,10 @@ pub(crate) fn tainted_result(ty: TypeId, interner: &mut TypeInterner) -> TypeId 
     }
 }
 
-/// ADR 0088 § 2's admission as one question: does a parameter the registry
+/// `rule:security/unclassified-parameter-refuses-tainted`'s admission as one question: does a parameter the registry
 /// classified `qual` accept an argument carrying `tainted`?
 ///
-/// * A [`Qual::Sink`] never does — that is the whole of ADR 0088 § 1 — and
+/// * A [`Qual::Sink`] never does — that is the whole of `rule:security/sink-predicate` — and
 ///   neither does an unclassified parameter, which is § 2's flipped default
 ///   and every parameter of a signature that is not a `Core` row
 ///   ([`MethodSig::param_quals`]).
@@ -280,7 +280,7 @@ pub(crate) fn tainted_result(ty: TypeId, interner: &mut TypeInterner) -> TypeId 
 ///
 /// Only the `tainted` axis is decided here. `secret` is refused at every mark
 /// but one: whether a `Neutral` parameter launders `secret` is a laundering
-/// decision ADR 0088 owes an answer to, and being over-strict costs a refusal
+/// decision `rule:security/sink-predicate` owes an answer to, and being over-strict costs a refusal
 /// rather than a leak. [`Qual::Reveal`] is the one mark that answers
 /// differently — `rule:core-classes/secret-reveal`'s named escape hatch, written by
 /// `nvs_stdlib::secret`'s rows and `nvs_stdlib::password`'s two and by no
@@ -321,11 +321,11 @@ pub(crate) fn admits_secret_argument(qual: Option<Qual>) -> bool {
     matches!(qual, Some(Qual::Reveal))
 }
 
-/// ADR 0024 § 2 / ADR 0033 § 2: what an `as` conversion's result carries on
+/// `rule:security/taint-propagation` / `rule:security/secret-propagation`: what an `as` conversion's result carries on
 /// the `tainted`/`secret` axes. A checked conversion that already throws on
 /// a malformed shape — `uint`, `int`, `float`, `bool`, an enum's backing
 /// type — removes both qualifiers on success for free, since none of those
-/// targets carry either to begin with (ADR 0033 § 2's known, accepted gap:
+/// targets carry either to begin with (`rule:security/secret-propagation`'s known, accepted gap:
 /// this strips `secret` too, even though "shape-proof implies safety" only
 /// ever justified it for `tainted`). Otherwise `to` is itself one of the
 /// eight `string`/`bytes` atoms, and `from`'s qualifiers cross into it
@@ -351,19 +351,19 @@ pub(crate) fn apply_qualifier_conversion_rule(
     qualified_scalar(to_is_bytes, to_tainted, to_secret, interner)
 }
 
-/// ADR 0033 § 4: a `secret`-qualified value converted `as Core\Html\Markup`
+/// `rule:security/secret-sinks-refuse`: a `secret`-qualified value converted `as Core\Html\Markup`
 /// is refused with a diagnostic naming the qualifier specifically, ahead of
 /// [`reject_non_literal_markup_conversion`]'s generic "must be a literal"
 /// one — escaping (this ADR's whole reason for diverging from `tainted`'s
 /// auto-escape default) neutralizes injection risk, not exposure, so it is
 /// the wrong tool here regardless of how the value was produced. In
 /// practice a `secret` value is never a literal token to begin with (nothing
-/// grants `secret` ambiently — ADR 0033 § 1 — so it only ever reaches this
+/// grants `secret` ambiently — `rule:security/secret-qualifier` — so it only ever reaches this
 /// point through a declared binding), meaning the generic literal check
 /// alone would already refuse it; this exists to give that refusal its own,
 /// more specific reason. Scoped to a conversion whose target actually
 /// resolves to `Core\Html\Markup`, same as its sibling; the inline
-/// `<?= expr ?>`/templating-helper interpolation position ADR 0033 § 4 also
+/// `<?= expr ?>`/templating-helper interpolation position `rule:security/secret-sinks-refuse` also
 /// names waits on `Core\Html` actually existing (see the crate docs' known
 /// gaps).
 pub(crate) fn reject_secret_markup_conversion(
@@ -449,7 +449,7 @@ pub(crate) fn is_throwable_shaped(qname: &QName, graph: &ClassGraph) -> bool {
     *qname == root || nvs_hir::implements_interface(qname, &root, graph)
 }
 
-/// ADR 0033 § 4: a `Throwable`-shaped class's constructor message argument
+/// `rule:security/secret-sinks-refuse`: a `Throwable`-shaped class's constructor message argument
 /// (its first positional argument) refuses a `secret`-qualified value —
 /// closing the common real-world leak of a credential ending up in a stack
 /// trace or an error page, the same "sink requires the plain type" shape ADR
@@ -485,7 +485,7 @@ pub(crate) fn reject_secret_throwable_message(
     );
 }
 
-/// ADR 0033 § 4's debug-dump sink at its *call-site* half, which is how
+/// `rule:security/secret-sinks-refuse`'s debug-dump sink at its *call-site* half, which is how
 /// `rule:errors/record-transformations`'s redaction row states it: a property whose declared type carries
 /// `secret` becomes a Redacted node, and a `secret` value handed straight to
 /// the dump is refused by `nvs check`. The two halves are one rule about one
@@ -511,7 +511,7 @@ pub(crate) fn reject_secret_throwable_message(
 /// reach and neither is a gap in this rule: a `...$xs` spread hands over a
 /// subject whose *element* type carries the qualifier, and a `secret` value
 /// stored in a property or an array element reaches the walk rather than the
-/// site — the first is ADR 0033's unmodelled container axis, the second is
+/// site — the first is `rule:security/secret-qualifier`'s unmodelled container axis, the second is
 /// the Redacted node this row's other half owns.
 pub(crate) fn reject_secret_debug_argument(
     qname: &QName,
@@ -549,10 +549,10 @@ pub(crate) fn reject_secret_debug_argument(
     }
 }
 
-/// Whether `ty` carries ADR 0033 § 1's `secret` anywhere a serialiser would
+/// Whether `ty` carries `rule:security/secret-qualifier`'s `secret` anywhere a serialiser would
 /// walk to: on the type itself, or on an element, a field or a member of the
 /// composites a written value takes. [`is_secret`] answers the atom; this
-/// answers the whole value, which is what ADR 0033 § 4's serialiser bullet
+/// answers the whole value, which is what `rule:security/secret-sinks-refuse`'s serialiser bullet
 /// asks for — "a `secret` anywhere in the value it walks".
 ///
 /// It stops at a class, deliberately: a `secret`-typed *property* of an
@@ -577,7 +577,7 @@ pub(crate) fn contains_secret(ty: TypeId, interner: &TypeInterner) -> bool {
     }
 }
 
-/// ADR 0033 § 4's serialiser sink: `Core\Json::encode` refuses a `secret`
+/// `rule:security/secret-sinks-refuse`'s serialiser sink: `Core\Json::encode` refuses a `secret`
 /// anywhere in the value it is handed.
 ///
 /// A call-site rule rather than a parameter type, exactly as
@@ -594,7 +594,7 @@ pub(crate) fn contains_secret(ty: TypeId, interner: &TypeInterner) -> bool {
 /// ([`check_array_literal`](super::literals::check_array_literal) joins
 /// nothing), so the qualifier is gone before the call is looked at, and it is
 /// equally gone one statement later through a variable — which no call-site
-/// rule could recover. ADR 0033 names that gap as its own; the fix is an
+/// rule could recover. `rule:security/secret-qualifier` names that gap as its own; the fix is an
 /// element type for a literal, not a second walk here.
 ///
 /// The way out is written at the field rather than at the call —
@@ -636,8 +636,8 @@ pub(crate) fn reject_secret_encoded_argument(
     }
 }
 
-/// ADR 0033 § 4's log sink: `Core\Log::write` refuses a `secret` in its
-/// `fields` bag — the opposite default from `tainted`, which ADR 0024 § 4
+/// `rule:security/secret-sinks-refuse`'s log sink: `Core\Log::write` refuses a `secret` in its
+/// `fields` bag — the opposite default from `tainted`, which `rule:security/sink-predicate`
 /// explicitly wants recorded.
 ///
 /// A call-site rule for [`reject_secret_encoded_argument`]'s reason and one
@@ -655,7 +655,7 @@ pub(crate) fn reject_secret_encoded_argument(
 /// an `array<mixed>` with nothing left of `$t` on it. So each element that
 /// names a binding is asked about by name instead, against the same scope the
 /// read itself used. An element that *composes* one — `"Bearer " . $t` — is
-/// past this rule, and that is the container axis ADR 0033 already owns rather
+/// past this rule, and that is the container axis `rule:security/secret-qualifier` already owns rather
 /// than a hole in this one: the fix there is an element type for a literal,
 /// and it would make this half fall out of [`contains_secret`] like the rest.
 pub(crate) fn reject_secret_logged_argument(
@@ -707,7 +707,7 @@ pub(crate) fn reject_secret_logged_argument(
 /// is an enum. Reporting there as well would be two diagnostics for one
 /// mistake, and the second would not say anything the first did not. That
 /// split — an open type checked at the site, a closed one checked by the
-/// signature — is ADR 0033 § 4's own, stated in the bullet this rule is.
+/// signature — is `rule:security/secret-sinks-refuse`'s own, stated in the bullet this rule is.
 fn is_fields_argument(index: usize, arg: &Arg, env: &Env<'_>) -> bool {
     match arg.name {
         Some(span) => span_text(env.src, span).trim_end_matches(':').trim() == "fields",
@@ -735,7 +735,7 @@ fn report_secret_logged(span: Span, env: &mut Env<'_>) {
     );
 }
 
-/// ADR 0033 § 4's terminal-output sink: `echo` and `print` refuse a
+/// `rule:security/secret-sinks-refuse`'s terminal-output sink: `echo` and `print` refuse a
 /// `secret`-qualified operand, with **no `Core\Cli\Text` bypass**. Returns
 /// whether it refused, so a caller can leave [`require_stringable`] unasked —
 /// `secret bytes` is the one operand both would answer, and confidentiality
@@ -751,7 +751,7 @@ fn report_secret_logged(span: Span, env: &mut Env<'_>) {
 /// for that: interpolation and `.` spread the qualifier to their result (see
 /// this module's own head), so `echo "Bearer $token"` arrives here as a
 /// `secret string` whose span is the whole literal. That spreading is what
-/// makes one check at the sink cover ADR 0033 § 4's *"`echo` and
+/// makes one check at the sink cover `rule:security/secret-sinks-refuse`'s *"`echo` and
 /// interpolation"* both, rather than needing a rule per composition form.
 ///
 /// The reach is wider than the word "terminal": ADR 0088 § 3 sends a
@@ -783,7 +783,7 @@ pub(crate) fn reject_secret_output(ty: TypeId, span: Span, form: &str, env: &mut
     true
 }
 
-/// ADR 0033 § 4's cross-boundary sink: a `secret`-qualified value handed to
+/// `rule:security/secret-sinks-refuse`'s cross-boundary sink: a `secret`-qualified value handed to
 /// `rule:classes/graph-copy`'s graph copy.
 ///
 /// **One check for both carriers**, which is how § 4 states the rule: the
@@ -917,12 +917,12 @@ pub(crate) fn reject_secret_published_argument(
     }
 }
 
-/// ADR 0033 § 4's fifth sink: a `secret` class constant reaching an attribute
+/// `rule:security/secret-sinks-refuse`'s fifth sink: a `secret` class constant reaching an attribute
 /// payload, reported at the value where it is written.
 ///
 /// The sink exists because of `rule:attributes/payload-is-a-compile-time-constant` rather than in spite of it. A payload admits only compile-time
 /// constants — no variable, no call, no `new` — and a class constant is one of
-/// the shapes it admits, so the storage class ADR 0033's own values live in is
+/// the shapes it admits, so the storage class `rule:security/secret-qualifier`'s own values live in is
 /// the *only* way a `secret` value could reach a payload at all. Every other
 /// spelling is already refused for being computed, which is why this is one
 /// check over one expression kind rather than a walk of its own.
@@ -961,7 +961,7 @@ pub(crate) fn reject_secret_attribute_constant(expr: &Expr, ctx: &Ctx<'_>, env: 
         )
         .with_primary(expr.span, "secret value written into metadata here")
         .with_help(
-            "ADR 0033 § 4: there is no `Core\\Secret::reveal(..., \"reason\")` way out of this \
+            "`rule:security/secret-sinks-refuse`: there is no `Core\\Secret::reveal(..., \"reason\")` way out of this \
              one, a payload admitting no call at all — a credential belongs somewhere read at \
              run time, and the attribute carries the name of where to read it from",
         ),

@@ -3,7 +3,7 @@
 //!
 //! # Why this is a module of `nvs-host` and not of `nvs-runtime`
 //!
-//! Tier 3 *is* an isolate: § 3 says "the exact mechanism ADR 0006 already
+//! Tier 3 *is* an isolate: § 3 says "the exact mechanism `rule:security/isolate-shares-nothing` already
 //! defines", so it is [`crate::isolate::Isolate`] with a different program and
 //! nothing else. That type lives here, and `nvs-runtime` is below it, so the
 //! spawn cannot live beside the record it reports. What does live beside the
@@ -31,7 +31,7 @@
 //! A handler that throws reaches whatever classified the failure that ran it,
 //! which would run the handler again. The guard is a `Cell<bool>` on the
 //! thread, and that is the right scope rather than a convenience: an isolate
-//! runs on the core that spawned it (ADR 0006), so "the ladder is already
+//! runs on the core that spawned it (`rule:security/isolate-shares-nothing`), so "the ladder is already
 //! running" and "this thread is inside a handler" are the same fact. Holding it
 //! on [`Ctx`] instead would put a cold field on the struct whose layout
 //! compiled code indexes, and would still have to be copied into the isolate's
@@ -94,7 +94,7 @@ pub fn escalate(ctx: &mut Ctx, record: &Record) -> bool {
     let Some(path) = ctx.config().and_then(|config| config.get("log.handler")) else {
         return false;
     };
-    // ADR 0118 § 2's spawn door is inside this call, so a handler outside the
+    // `rule:security/capability-check-at-the-door`'s spawn door is inside this call, so a handler outside the
     // `script.spawn` grant is refused here exactly as an ordinary `spawn
     // script` target would be. The refusal is not re-worded and not reported:
     // the floor is about to write the failure that got us here, and a second

@@ -20,7 +20,7 @@ class Dup {
     public function second(): string { return ""; }
 }
 
-// 2. ADR 0077 § 3: every capture has somewhere to arrive, and the method that
+// 2. `rule:security/route-capture-is-laundered-by-its-type`: every capture has somewhere to arrive, and the method that
 // declares no parameter at all is the shortest way to have nowhere.
 class Unbound {
     #[Core\Route(path: "/users/{id}", method: Core\Http\Method::Get, name: "unbound.show")]

@@ -1,4 +1,4 @@
-//! ADR 0024's `tainted` qualifier — propagation, laundering, and the sinks that refuse it.
+//! `rule:security/tainted-qualifier`'s `tainted` qualifier — propagation, laundering, and the sinks that refuse it.
 //!
 //! Moved out of `nvs_types::check`'s inline `mod tests`; every test keeps its
 //! own name and body. See `tests/common/mod.rs` for the shared fixtures.
@@ -8,11 +8,11 @@ mod common;
 use common::*;
 use nvs_diagnostics::code;
 
-// ADR 0024 §§ 2-3: `tainted` propagation and laundering.
+// `rule:security/taint-propagation` and `rule:security/launderers-are-sink-named`: `tainted` propagation and laundering.
 
 #[test]
 fn a_plain_string_is_assignable_into_a_tainted_typed_target() {
-    // ADR 0024 § 2: a trusted value is always a safe over-approximation
+    // `rule:security/taint-propagation`: a trusted value is always a safe over-approximation
     // of "may be tainted" — the one-directional widening this ADR adds,
     // mirrored from `mixed`'s own one-directional rule.
     let diags = check_in_method(r#"tainted string $t = "literal";"#);
@@ -54,7 +54,7 @@ fn concatenating_two_untainted_operands_stays_untainted() {
 
 #[test]
 fn a_checked_conversion_launders_a_tainted_source() {
-    // ADR 0024 § 2's own example: `as uint` already throws on a
+    // `rule:security/taint-propagation`'s own example: `as uint` already throws on a
     // malformed shape, so a value that survives it is proven safe.
     let diags = check_in_method(
         "tainted string $t = \"literal\" as tainted string;\n\
@@ -75,7 +75,7 @@ fn as_string_does_not_launder_a_tainted_source() {
     assert!(diags.iter().any(|d| d.code == Some(code::E_TYPE_MISMATCH)));
 }
 
-// ADR 0088 § 2: what a registry row's parameter classification does at a call.
+// `rule:security/unclassified-parameter-refuses-tainted`: what a registry row's parameter classification does at a call.
 // The `Sink` half is pinned by
 // `tests/conformance/reject/bytes-pack-and-unpack-refuse-a-tainted-format.nvst`
 // over five routes, so what is asserted here is the two marks that *accept*.
@@ -118,7 +118,7 @@ fn a_contagious_call_does_not_launder_its_argument() {
 
 #[test]
 fn converting_a_tainted_string_to_bytes_preserves_the_qualifier() {
-    // `rule:types/conversion`, amended by ADR 0024 § 2: `bytes`/`string` conversion
+    // `rule:types/conversion`, amended by `rule:security/taint-propagation`: `bytes`/`string` conversion
     // preserves `tainted` across either direction.
     let diags = check_in_method(
         "tainted string $t = \"literal\" as tainted string;\n\
@@ -158,7 +158,7 @@ fn converting_a_tainted_string_to_markup_is_diagnosed() {
 
 #[test]
 fn serialize_decode_refuses_a_tainted_operand() {
-    // `rule:classes/serialize-is-a-closed-format`'s last bullet and ADR 0088 § 1: `Core\Serialize::decode`'s
+    // `rule:classes/serialize-is-a-closed-format`'s last bullet and `rule:security/sink-predicate`: `Core\Serialize::decode`'s
     // parameter is `CoreTy::Blob(Qual::Sink)`, so a payload that came in off
     // the wire is refused where `Core\Json::decode`'s `Text(Qual::Sink)` is —
     // and the danger is not the same one. A JSON decode produces `mixed` a
@@ -204,7 +204,7 @@ fn converting_a_runtime_computed_untainted_string_to_markup_is_still_diagnosed()
     );
 }
 
-// ADR 0133: the escaped value is a carrier, and the two halves of that which
+// `rule:security/launderer-answers-a-carrier`: the escaped value is a carrier, and the two halves of that which
 // cannot be read off a registry row. `Core\Html::escape`'s return type is a
 // signature and `nvs-stdlib` asserts it; these are claims about the *language*
 // — what `.` admits and what `as` converts — and only this crate can make them.
@@ -216,7 +216,7 @@ fn markup_is_not_stringable_and_has_no_concat_row() {
     // row for the carrier at all, so the refusal stands whatever the target
     // type is. `.` otherwise admits a `Stringable` object, which is exactly why
     // this needs asserting: a carrier that grew a `toString` would start
-    // concatenating silently, and the eager-escape bug ADR 0133 removes would
+    // concatenating silently, and the eager-escape bug `rule:security/launderer-answers-a-carrier` removes would
     // be back with `.` spelling it instead of `escape`.
     let diags = check_in_method(
         "Core\\Html\\Markup $m = \"<b>\" as Core\\Html\\Markup;\n\

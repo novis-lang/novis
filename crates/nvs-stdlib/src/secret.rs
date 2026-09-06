@@ -1,6 +1,6 @@
 //! `Core\Secret` — `rule:core-classes/secret-reveal`'s one narrow escape hatch, and nothing else.
 //!
-//! Every refusal ADR 0033 § 4 states already tells the author to call
+//! Every refusal `rule:security/secret-sinks-refuse` states already tells the author to call
 //! `Core\Secret::reveal(..., "reason")`; this module is the class that help
 //! text names. The mark that makes it work — [`Qual::Reveal`] — has been
 //! declared in [`crate::registry`] since the refusals landed, and these are the

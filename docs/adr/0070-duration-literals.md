@@ -108,7 +108,7 @@ same value, and choosing between them is the author's, exactly as `0x10` versus 
 | Where | Form | Checked |
 |---|---|---|
 | source | `30d` | at compile time, by the lexer |
-| a run-time string | `Duration::parse($s)` | at run time; throws (R4), which makes it an [ADR 0024](0024-taint-tracking-for-injection-sinks.md) launderer |
+| a run-time string | `Duration::parse($s)` | at run time; throws (R4), which makes it an `rule:security/tainted-qualifier` launderer |
 | `nvs.toml` | `request_timeout = "30s"` | at boot, by the same parser |
 
 The three share one parser, so a grammar change cannot land in one and miss the others — the property

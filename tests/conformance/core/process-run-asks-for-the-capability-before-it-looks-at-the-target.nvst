@@ -1,5 +1,5 @@
 --TEST--
-`Core\Process::run` asks `process.exec` first and the target's kind second, so the same `.bat` file is a capability refusal outside the grant and a target-kind refusal inside it — ADR 0044 §§ 4 and 6, ADR 0118 § 3
+`Core\Process::run` asks `process.exec` first and the target's kind second, so the same `.bat` file is a capability refusal outside the grant and a target-kind refusal inside it — ADR 0044 §§ 4 and 6, `rule:security/capability-declaration-is-one-table`
 --FILE--
 <?nvs
 // Two identical files, one inside the granted root and one outside it. The

@@ -27,8 +27,8 @@
 //! exactly what they were when they were [`ConstValue::Ineligible`].
 //!
 //! The one exception is a single **bit**, and that gap is why it is here.
-//! [ADR 0033](/docs/adr/0033-secret-qualifier-for-confidential-values.md)
-//! § 4's attribute-payload sink has to know whether a constant's declared type
+//! `rule:security/secret-sinks-refuse`
+//! 's attribute-payload sink has to know whether a constant's declared type
 //! carries `secret`, and that sink runs over the written payload expression,
 //! where the class name has no resolved `QName` to ask
 //! [`crate::signatures::resolve_const`] with. So [`ConstEntry::secret`] is
@@ -86,7 +86,7 @@ pub enum ConstValue {
 }
 
 /// One class constant, as much of it as this table holds: `rule:types/constant-in-type-position`'s
-/// folded value, and beside it the one bit ADR 0033 § 4's attribute-payload
+/// folded value, and beside it the one bit `rule:security/secret-sinks-refuse`'s attribute-payload
 /// sink needs.
 ///
 /// The bit rides here rather than being asked of the constant's type at the
@@ -99,7 +99,7 @@ pub enum ConstValue {
 struct ConstEntry {
     /// What `rule:types/constant-in-type-position` folds the declaration's right-hand side to.
     value: ConstValue,
-    /// Whether the declaration's own annotation carries ADR 0033 § 1's
+    /// Whether the declaration's own annotation carries `rule:security/secret-qualifier`'s
     /// `secret`.
     secret: bool,
 }
@@ -130,8 +130,8 @@ impl ConstTable {
         self.lookup(qname, name, graph).map(|entry| &entry.value)
     }
 
-    /// Whether `qname::name`'s own declaration annotates it with ADR 0033
-    /// § 1's `secret` — the question ADR 0033 § 4's attribute-payload sink
+    /// Whether `qname::name`'s own declaration annotates it with `rule:security/secret-qualifier`
+    /// 's `secret` — the question `rule:security/secret-sinks-refuse`'s attribute-payload sink
     /// asks, and the one [`crate::expr::quals`] cannot answer from an
     /// inferred type. `false` for a name no declaration in the chain has, the
     /// undeclared name being someone else's diagnostic.
@@ -236,7 +236,7 @@ fn fold_class(decl: &ClassDecl, src: &SourceFile) -> FxHashMap<String, ConstEntr
     out
 }
 
-/// Whether a written annotation carries ADR 0033 § 1's `secret` anywhere in
+/// Whether a written annotation carries `rule:security/secret-qualifier`'s `secret` anywhere in
 /// it.
 ///
 /// Read off the **syntax** rather than off an interned type, because this pass

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Response::setStatus` puts no byte in the body, accepted or refused, which is what makes it not one of ADR 0088 § 4's five body members -- spec § 15
+`Core\Response::setStatus` puts no byte in the body, accepted or refused, which is what makes it not one of `rule:security/response-body-is-one-typed-member`'s five body members -- spec § 15
 --FILE--
 <?nvs
 // § 4's five members each write a body and declare a media type. This one

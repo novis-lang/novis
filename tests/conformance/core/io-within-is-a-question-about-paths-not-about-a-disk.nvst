@@ -1,5 +1,5 @@
 --TEST--
-Core\IO::within answers for a name nothing on disk answers for, keeps a name that only looks like an escape, and takes a base that is a prefix in the path sense without being one in the string sense — spec § 14 *Resolution*, ADR 0024 § 3
+Core\IO::within answers for a name nothing on disk answers for, keeps a name that only looks like an escape, and takes a base that is a prefix in the path sense without being one in the string sense — spec § 14 *Resolution*, `rule:security/launderers-are-sink-named`
 --FILE--
 <?nvs
 // The member resolves and then proves, so both halves have a boundary the

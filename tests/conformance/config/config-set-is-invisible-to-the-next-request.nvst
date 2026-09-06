@@ -4,7 +4,7 @@ a `Core\Config::set` is in force only for the request that made it, and the next
 # The root file, ADR 0103 § 1 step 2's `./nvs.toml`. `[limits]` is the value
 # every request here starts at, `[limits.hard]` is what makes the setter's `set`
 # land rather than be refused (ADR 0005), and the `script.spawn` grant is what
-# lets this case run more than one request at all (ADR 0118 § 2).
+# lets this case run more than one request at all (`rule:security/capability-check-at-the-door`).
 [capabilities.script]
 spawn = true
 

@@ -1,11 +1,11 @@
 --TEST--
-Every reader `Core\Request` has refuses rather than answering empty in a program that is answering no request -- ADR 0012 § 7, spec § 15, ADR 0105 § 3, ADR 0102 § 7
+Every reader `Core\Request` has refuses rather than answering empty in a program that is answering no request -- `rule:security/request-state-throws-in-an-isolate`, spec § 15, ADR 0105 § 3, ADR 0102 § 7
 --FILE--
 <?nvs
 // Agreement, asked of all thirteen readers: what decides the answer is whether a
 // request arrived, and nothing about which member was called. A conformance
 // case is a program with no request in front of it -- which is exactly the
-// situation ADR 0012 § 7 is about, and the same one a scheduled script and a
+// situation `rule:security/request-state-throws-in-an-isolate` is about, and the same one a scheduled script and a
 // job worker are in.
 uint $refused = 0;
 try {

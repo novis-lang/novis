@@ -414,7 +414,7 @@ per call, which is a heap allocation on every closure call and every native-to-o
 Per call it builds an `NvsArray` for the variadic tail, walks it back out into a `Vec`, allocates a
 `vec![false; n]`, allocates a `String` per conversion and copies a final `String` into an `NvsStr`.
 PHP's `sprintf` allocates about one. This member is being reopened anyway for
-[ADR 0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)'s qualifier
+`rule:security/sink-predicate`'s qualifier
 classification — its template is that ADR's sink — so it is cheapest done in the same pass.
 
 ### J — `Core\Arr::sort` compares without an indirection

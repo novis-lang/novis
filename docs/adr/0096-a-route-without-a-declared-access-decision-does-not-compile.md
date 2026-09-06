@@ -1,4 +1,4 @@
-# ADR 0096 — A route without a declared access decision does not compile
+# `rule:security/access-is-checked-for-presence-not-meaning` — A route without a declared access decision does not compile
 
 - **Status:** Accepted
 - **Date:** 2026-08-25

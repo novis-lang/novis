@@ -28,7 +28,7 @@
 //! # Which declaration `$target` names
 //!
 //! § 4 fixes four spellings and this pass inspects them **syntactically**,
-//! exactly as ADR 0033 § 4's sinks inspect a literal argument: the reference
+//! exactly as `rule:security/secret-sinks-refuse`'s sinks inspect a literal argument: the reference
 //! is never evaluated, so `Foo::bar(...)` here is a written name rather than a
 //! closure value. A method is its own first-class-callable reference; a class
 //! is its `constructor`'s; a parameter is its method's reference plus

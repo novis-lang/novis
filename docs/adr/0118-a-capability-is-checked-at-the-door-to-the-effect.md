@@ -1,4 +1,4 @@
-# ADR 0118 — A capability is checked at the door to the effect, and declared in one table
+# `rule:security/capability-check-at-the-door` — A capability is checked at the door to the effect, and declared in one table
 
 - **Status:** Accepted
 - **Date:** 2026-08-30

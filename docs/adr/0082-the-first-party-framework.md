@@ -77,8 +77,8 @@ In practice three of the six decide almost everything here:
 
 - **Test 1 — does it need runtime privilege?** State that outlives a request, the request lifecycle, the
   compiler's own tables. Sessions, the job queue, a persistent connection, the route table. → **Core.**
-- **Test 2 — is it an injection sink or a launderer?** [ADR 0024](0024-taint-tracking-for-injection-sinks.md)
-  § 3 permits only a `Core` member to remove a qualifier, so **every validator is Core by construction** —
+- **Test 2 — is it an injection sink or a launderer?** `rule:security/launderers-are-sink-named`
+  permits only a `Core` member to remove a qualifier, so **every validator is Core by construction** —
   a third-party package can compute over `tainted` data but can never declare it safe.
 - **Test 3 — does it wait on the outside world?** Mail transport, storage. → **Native**, capability-gated,
   with the operator naming the endpoint in root-owned config exactly as [0067](0067-core-db.md) does.
@@ -126,7 +126,7 @@ logged and granted exactly like any other. It holds what an application needs an
 | Scaffolding | The templates `nvs new` writes |
 
 **There is no view layer, because the language is one.** Inline HTML with `<?nvs`/`<?=` is already the
-template engine, [ADR 0024](0024-taint-tracking-for-injection-sinks.md)'s HTML sink already auto-escapes by
+template engine, `rule:security/tainted-qualifier`'s HTML sink already auto-escapes by
 default, and a second templating language would be a second spelling of one job — the rule
 [0051](0051-standard-library-tiers.md) test 6 applies to libraries. `Web\Response::view` renders a `.nvs`
 file and nothing more.

@@ -81,8 +81,8 @@
 //! *call-site rules* and not in checking — both intern to one type, so the
 //! exact-key check, the flatten and `E0453`/`E0454` are written once.
 
-/// [ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
-/// § 2's qualifier classification, declared **per parameter** on the
+/// `rule:security/unclassified-parameter-refuses-tainted`
+/// 's qualifier classification, declared **per parameter** on the
 /// `string`/`bytes` parameter it describes.
 ///
 /// Not to be confused with the qualifier a *value* carries: `tainted` and
@@ -114,7 +114,7 @@
 ///   laundering by influence is not something a member may do silently.
 /// * `rule:core-api/shape-rules` R11's four grammars — a regex pattern, a `printf` template, a
 ///   CLDR date pattern and a `Core\Bytes::pack` format — are [`Self::Sink`]
-///   wherever they are declared, by ADR 0088 § 1's own corollary.
+///   wherever they are declared, by `rule:security/sink-predicate`'s own corollary.
 /// * [`Self::Launder`] is the default of nothing. A member claims it, and its
 ///   doc comment names the sink it launders for.
 ///
@@ -149,8 +149,8 @@
 /// # How the `tainted` escape hatch is spelled
 ///
 /// **With [`Self::Launder`], and with no sixth variant.**
-/// [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)
-/// § 3's `Core\Taint::assertTrusted(tainted string, string $reason): string` is
+/// `rule:security/launderers-are-sink-named`
+/// 's `Core\Taint::assertTrusted(tainted string, string $reason): string` is
 /// the one launderer that names no single sink, and
 /// `rule:core-classes/db-capabilities` makes it the only way
 /// through `Settings.host`, which has no launderer of its own — so it earns a
@@ -175,8 +175,8 @@
 ///   `tainted` twin of that test being that `Core\Taint` is the only class
 ///   whose `Launder` row names no one sink.
 /// * **It answers a plain `string`, not a carrier**, by
-///   [ADR 0133](/docs/adr/0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md)
-///   § 1's predicate: the transform is the identity, so it is idempotent, and
+///   `rule:security/launderer-answers-a-carrier`
+///   's predicate: the transform is the identity, so it is idempotent, and
 ///   a value the developer has just sworn is trusted re-entering a sink is the
 ///   case that predicate exists to let pass.
 // `Hash` because `nvs_types::ty::CoreShapeField` carries one — `rule:core-api/shape-flattens-at-the-abi`'s
@@ -187,7 +187,7 @@ pub enum Qual {
     /// majority, and the blank cell in the spec's Q column.
     Contagious,
     /// This parameter's content becomes an instruction something executes, so
-    /// it **refuses** a qualified argument. ADR 0088 § 1 is the predicate.
+    /// it **refuses** a qualified argument. `rule:security/sink-predicate` is the predicate.
     Sink,
     /// The result never carries this argument's qualifier: a `bool`, a count,
     /// a hash of a secret.
@@ -241,7 +241,7 @@ pub enum CoreTy {
     /// nothing about the ABI changes for it (`nvs_runtime::decimal`).
     Decimal,
     /// `string`, **unclassified** — which in parameter position is not a
-    /// default but a state: ADR 0088 § 2 makes it refuse a `tainted` argument.
+    /// default but a state: `rule:security/unclassified-parameter-refuses-tainted` makes it refuse a `tainted` argument.
     /// A classified `string` parameter is [`Self::Text`]. In return position
     /// this is the only spelling, because a classification describes what a
     /// member does with an argument.
@@ -249,7 +249,7 @@ pub enum CoreTy {
     /// `bytes` — `rule:types/bytes`. Unclassified, exactly as [`Self::Str`] is;
     /// [`Self::Blob`] is the classified spelling.
     Bytes,
-    /// A `string` parameter carrying [`Qual`], ADR 0088 § 2's classification.
+    /// A `string` parameter carrying [`Qual`], `rule:security/unclassified-parameter-refuses-tainted`'s classification.
     ///
     /// A leaf variant rather than a wrapper around [`Self::Str`] on purpose:
     /// every walk over a [`CoreTy`] in this crate ends its `match` with a
@@ -284,8 +284,8 @@ pub enum CoreTy {
     /// in — [`Self::classification`] answers `Sink` for it regardless, because
     /// every entry is one and a row has no way to say otherwise.
     Entry,
-    /// `secret bytes` — [ADR 0033](/docs/adr/0033-secret-qualifier-for-confidential-values.md)
-    /// § 1's qualifier written into a row's own signature, unclassified, and
+    /// `secret bytes` — `rule:security/secret-qualifier`
+    /// 's qualifier written into a row's own signature, unclassified, and
     /// [`Self::SecretBlob`]'s twin exactly as [`Self::Bytes`] is
     /// [`Self::Blob`]'s.
     ///
@@ -312,10 +312,10 @@ pub enum CoreTy {
     /// A `secret bytes` parameter carrying its `tainted`-axis classification —
     /// [`Self::SecretBytes`]'s twin, as [`Self::Blob`] is [`Self::Bytes`]'s.
     /// The two axes are independent, so a row that declares confidentiality
-    /// still owes ADR 0088 § 2's separate answer about where the value came
+    /// still owes `rule:security/unclassified-parameter-refuses-tainted`'s separate answer about where the value came
     /// from.
     SecretBlob(Qual),
-    /// `tainted string` — [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)'s
+    /// `tainted string` — `rule:security/tainted-qualifier`'s
     /// qualifier written into a row's own signature, and
     /// [`Self::SecretBytes`]'s opposite number on the other axis.
     ///
@@ -324,8 +324,8 @@ pub enum CoreTy {
     /// argument*, so the strongest thing it can produce is
     /// [`Qual::Contagious`]'s conditional — a qualified argument yields a
     /// qualified result, and a plain one yields a plain one. That is not what
-    /// [ADR 0060](/docs/adr/0060-application-security-protocols.md)
-    /// § 5 asks for. Claims out of a verified JWT are `tainted` *whatever the
+    /// `rule:security/verification-does-not-launder`
+    /// asks for. Claims out of a verified JWT are `tainted` *whatever the
     /// token's own type was*, because a signature proves origin and not safety
     /// for any sink, and a token written as a literal in a test is no safer
     /// than one off the wire. Only a spelling that says what the value **is**
@@ -352,7 +352,7 @@ pub enum CoreTy {
     /// of it, so a member that answered a plain `bytes` would be a launderer —
     /// `body()` writes [`Self::TaintedStr`] over the same octets, and two
     /// readings of one body that disagree about the mark is the one shape
-    /// [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)
+    /// `rule:security/tainted-qualifier`
     /// cannot survive. Its home in the checker is `nvs_types`' `Ty::TaintedBytes`,
     /// which already existed because the language can write the type.
     TaintedBytes,
@@ -362,9 +362,9 @@ pub enum CoreTy {
     /// [`Self::SecretBytes`] and [`Self::TaintedStr`] are the two axes
     /// separately, and this is neither's generalisation: a password typed at a
     /// prompt is confidential *and* came from outside, so
-    /// [ADR 0033](/docs/adr/0033-secret-qualifier-for-confidential-values.md)'s
+    /// `rule:security/secret-qualifier`'s
     /// five sinks refuse it and
-    /// [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)'s
+    /// `rule:security/tainted-qualifier`'s
     /// launderers are still what let it reach one. Dropping either half would
     /// be a claim the prompt cannot make —
     /// [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md)
@@ -1009,7 +1009,7 @@ pub struct CoreMethod {
 }
 
 impl CoreTy {
-    /// This type's ADR 0088 § 2 classification, or `None` for a type that
+    /// This type's `rule:security/unclassified-parameter-refuses-tainted` classification, or `None` for a type that
     /// carries none — every type that is not a `string`/`bytes` *parameter*,
     /// and the unclassified [`Self::Str`]/[`Self::Bytes`] spellings, whose
     /// `None` is the refusal rather than an omission.
@@ -1019,7 +1019,7 @@ impl CoreTy {
             Self::Text(qual) | Self::Blob(qual) | Self::SecretBlob(qual) => Some(*qual),
             // The one spelling whose classification is fixed by the variant
             // rather than written beside it: an entry's content becomes the
-            // instruction "execute this file", so ADR 0088 § 1 makes every one
+            // instruction "execute this file", so `rule:security/sink-predicate` makes every one
             // of them a sink and there is no cell for a row to say otherwise
             // in. See [`Self::Entry`].
             Self::Entry => Some(Qual::Sink),
@@ -1267,7 +1267,7 @@ pub const CLASSES: &[CoreClass] = &[
     // No spec § of its own, and here beside `Core\Path` because that is where a
     // reader looks for it: § 8's class splits a path lexically and this one
     // reaches the filesystem behind it. What it needs to do that is
-    // [`CAPABILITIES`], and ADR 0118 § 2's doors are what make it need one.
+    // [`CAPABILITIES`], and `rule:security/capability-check-at-the-door`'s doors are what make it need one.
     crate::io::CLASS,
     // What `Core\IO::lines` answers with, and the whole of spec § 14's
     // `Iterable<string>` — a name for the walk, with no member on it. Its own
@@ -1345,12 +1345,12 @@ pub const CLASSES: &[CoreClass] = &[
     // module doc is the one home for the surface and for why the queue lives
     // in the instance's own slots rather than in the host.
     crate::channel::CLASS,
-    // ADR 0006's isolate handle, and no spec § of its own either — the
+    // `rule:security/isolate-shares-nothing`'s isolate handle, and no spec § of its own either — the
     // concurrency *language* surface belongs to `docs/spec/00-overview.md` § 2,
     // which is where `spawn script`'s grammar already is. The one class here
     // with no members at all; [`crate::script`] owns why that is the point.
     crate::script::HANDLE,
-    // `rule:core-classes/script-args`'s `Core\Script::args()`, which replaced ADR 0006's `$_ARGS`
+    // `rule:core-classes/script-args`'s `Core\Script::args()`, which replaced `rule:security/isolate-shares-nothing`'s `$_ARGS`
     // — the read half of `spawn script`'s `args:` option, and a class beside
     // the handle for the same reason `Core\Time` sits beside `Core\Time\Instant`.
     crate::script::CLASS,
@@ -1365,7 +1365,7 @@ pub const CLASSES: &[CoreClass] = &[
     // nothing, and why the rest of § 13 is not here yet.
     crate::cli::CLASS,
     // § 13, and here only because § 12's `Core\Out::capture` answers with it —
-    // ADR 0088 § 5.
+    // `rule:security/capture-answers-the-carrier`.
     crate::cli::TEXT,
     // § 13's styling half — ADR 0086 § 2's two value types, which exist so that
     // the carrier above has something to wear that is not a grammar.
@@ -1395,7 +1395,7 @@ pub const CLASSES: &[CoreClass] = &[
     crate::env::CLASS,
     // § 15's other class that needs no request, and beside `Core\Env` because
     // the two ask the same operator the same kind of question: what was this
-    // process started with, and what was it allowed to do. ADR 0112 § 6 is what
+    // process started with, and what was it allowed to do. `rule:security/optional-capability-degrades` is what
     // specifies it — the member exists so that a package which declared a
     // capability *optional* has a branch to take — and [`crate::cap`]'s module
     // doc owns why reporting a grant is not widening one.
@@ -1491,7 +1491,7 @@ pub const CLASSES: &[CoreClass] = &[
     // severities and why a record reaches the output stream rather than the
     // diagnostic one.
     crate::log::CLASS,
-    // ADR 0024 § 3, and no spec § of its own, for the reason `Core\Secret` below
+    // `rule:security/launderers-are-sink-named`, and no spec § of its own, for the reason `Core\Secret` below
     // has none: a member that removes `tainted` is a rung of the qualifier's own
     // mechanism rather than a library facility. Registered immediately before
     // its twin because the two are one shape on two axes — one narrow, named,
@@ -1536,7 +1536,7 @@ pub const CLASSES: &[CoreClass] = &[
     // above closed at two. [`crate::crypto`] owns the construction and why
     // there is no cipher argument.
     crate::crypto::CLASS,
-    // ADR 0060 § 1's first roster entry, and beside `Core\Crypto` because it
+    // `rule:security/protocol-roster`'s first roster entry, and beside `Core\Crypto` because it
     // *is* `Core\Crypto` — [`crate::signed_cookie`] keys the same construction
     // through the same three helpers, with a key ring over it and a
     // cookie-safe spelling around it, so there is one AEAD in this crate and
@@ -1544,7 +1544,7 @@ pub const CLASSES: &[CoreClass] = &[
     // and why its `open` is the one verification in the language that removes
     // `tainted`.
     crate::signed_cookie::CLASS,
-    // ADR 0060 § 1's second roster entry, and the third caller of the one
+    // `rule:security/protocol-roster`'s second roster entry, and the third caller of the one
     // construction above — [`crate::csrf`] seals a domain tag and a session
     // identifier where the cookie seals a payload, so this crate still holds
     // one AEAD and not three. Its own module doc owns why the session arrives
@@ -1552,21 +1552,21 @@ pub const CLASSES: &[CoreClass] = &[
     // whole point is a missing accessor is not `rule:core-api/shape-rules` R17's "reachable two
     // ways" against the cookie above.
     crate::csrf::CLASS,
-    // ADR 0060 § 1's third roster entry, and the one class in this crate that
+    // `rule:security/protocol-roster`'s third roster entry, and the one class in this crate that
     // is *not* on the near side of the AEAD above: a one-time code is HMAC by
     // RFC 6238, and [`crate::totp`]'s own module doc is the home of why the
     // algorithm is SHA-1 when nothing else here is, why the window has no
     // widening argument, and why "no replay" is a counter the caller stores
     // rather than state this class keeps.
     crate::totp::CLASS,
-    // ADR 0060 § 1's fourth roster entry, which closes it — and the only one
+    // `rule:security/protocol-roster`'s fourth roster entry, which closes it — and the only one
     // of the four whose wire format was designed elsewhere, so [`crate::jwt`]
     // is the one class here that reads a field an attacker wrote. Its own
     // module doc is the home of why `alg` is only ever compared, why the
     // expiry is a positional `Duration` rather than a claim, and why a claim
     // comes back as `tainted string` when the cookie above launders.
     crate::jwt::CLASS,
-    // ADR 0024 § 3's own worked example of a launderer, and here rather than in
+    // `rule:security/launderers-are-sink-named`'s own worked example of a launderer, and here rather than in
     // spec § order because the class beneath it is the one this crate defers to
     // whenever a `tainted` value has to be written into a document: § 5 makes
     // HTML the sink that escapes by default, and this is what it escapes with.
@@ -1580,7 +1580,7 @@ pub const CLASSES: &[CoreClass] = &[
     // constructor.
     crate::html::MARKUP,
     // ADR 0058 § 2's launderer, which is where every outbound URL in the
-    // language has to pass through — and the first ADR 0024 launderer whose
+    // language has to pass through — and the first `rule:security/tainted-qualifier` launderer whose
     // answer is a value rather than a plain string. [`crate::http`]'s own
     // module doc is the home of why that is the whole design, and of which
     // half of the policy lives in the capability instead.
@@ -1590,8 +1590,8 @@ pub const CLASSES: &[CoreClass] = &[
     // approved address back out is the one operation that would make pinning
     // decorative.
     crate::http::TARGET,
-    // ADR 0074 § 5's request members, whose URL parameter is the sink ADR 0058
-    // § 1 makes it and whose one trailing shape has no spelling for an
+    // ADR 0074 § 5's request members, whose URL parameter is the sink `rule:security/outbound-url-is-a-sink`
+    // makes it and whose one trailing shape has no spelling for an
     // unbounded wait. Five rows over one bag: the verb is the member's own
     // name, which is what lets § 7 answer "is this retry idempotent" while
     // compiling.
@@ -1601,7 +1601,7 @@ pub const CLASSES: &[CoreClass] = &[
     // the home of that list.
     crate::http::RESPONSE,
     // ADR 0059's two tiers, as the two members that hand back a store — the
-    // sanctioned exception to ADR 0052 § 3's closed door on cross-request
+    // sanctioned exception to `rule:security/no-cross-request-state`'s closed door on cross-request
     // state, and the one place a value outlives the request that made it.
     crate::cache::CLASS,
     // What those two answer with: one class for both tiers, because a tier is a
@@ -1708,8 +1708,8 @@ pub const CLASSES: &[CoreClass] = &[
 ];
 
 /// Every member of a capability-bearing class, and which capability it needs —
-/// [ADR 0118](/docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)
-/// § 3, with `None` for a member that needs none.
+/// `rule:security/capability-declaration-is-one-table`
+/// , with `None` for a member that needs none.
 ///
 /// One table rather than a field on 346 rows, because "what can this runtime do
 /// to my machine" is a question whose whole answer should be one screen of one
@@ -1838,7 +1838,7 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     // member can exercise would be the wrong direction for a table a reviewer
     // reads to find out what this runtime can do to a machine. The enforcement
     // is `nvs_runtime::capability::open`, which asks per mode; this is the
-    // declaration, and ADR 0118 § 2 is why the two are separate.
+    // declaration, and `rule:security/capability-check-at-the-door` is why the two are separate.
     (crate::io::NAME, "open", Some(nvs_config::Cap::FsWrite)),
     // The one member of this class that opens nothing and resolves no name:
     // standard input is a descriptor the process was started holding, so ADR
@@ -1880,7 +1880,7 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     // why a handle opened `Read` may take one.
     (crate::io::FILE_NAME, "lock", None),
     (crate::io::FILE_NAME, "close", None),
-    // ADR 0044 § 6: starting a program is deny-by-default and path-scoped, the
+    // `rule:security/process-exec-capability`: starting a program is deny-by-default and path-scoped, the
     // same shape `script.spawn` already has. `Core\Process\Result`'s three
     // members need no row — the child has exited by the time one exists, and a
     // slot read performs no effect.
@@ -1914,7 +1914,7 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     // cannot has nothing to put a door on. `rule:core-api/two-cache-tiers` decided this before the
     // member was written — the local tier is a `HashMap` in the calling core's
     // own thread, so nothing leaves the process, no name is resolved and no file
-    // is opened, and ADR 0118 § 1 has no door to check at. What is left to bound
+    // is opened, and `rule:security/capability-question-is-grant-and-scope` has no door to check at. What is left to bound
     // is footprint, which ADR 0059 § 3's `nvs.toml` cap bounds and a boolean
     // grant would not: a grant would price caching anything as an authority
     // question every deployment then has to answer, and still not bound a byte.
@@ -1949,10 +1949,10 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     // asked again, because a path the operator names is still a file the
     // engine opens rather than one the program picked.
     (crate::log::NAME, "write", None),
-    // ADR 0112 § 6's query, and the fourth `None`: the member whose whole
+    // `rule:security/optional-capability-degrades`'s query, and the fourth `None`: the member whose whole
     // subject is capabilities is the one that needs none. It reads the table a
     // door would read and answers a `bool` — no name is resolved, no file is
-    // opened and nothing leaves the process, so ADR 0118 § 1 has no door to put
+    // opened and nothing leaves the process, so `rule:security/capability-question-is-grant-and-scope` has no door to put
     // a check at, exactly as `Core\Cache::local` two rows up. Requiring a grant
     // to ask about grants would also close the shape § 6 opened: a package that
     // declared `fs.write` optional would need a second capability before it
@@ -2214,7 +2214,7 @@ pub fn class(name: &str) -> Option<&'static CoreClass> {
 /// **Two rows answer yes, and they are two different rules.** A class the spec
 /// gives a `toString` renders through that member, which is `rule:classes/stringable`
 /// exactly. A **sink carrier** renders through
-/// [ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md) § 5
+/// `rule:security/capture-answers-the-carrier`
 /// instead and has no such member: it is the sink's own value type, holding
 /// bytes that have *already* been through the sink, so `nvs_runtime` renders
 /// it as precisely those bytes and asks for no member at all. That roster is
@@ -2290,7 +2290,7 @@ pub const WRITTEN_CLASS_MEMBERS: &[(&str, &str)] = &[
     (r"Core\Db\Transaction", "queryAs"),
 ];
 
-/// Which positional parameter of `class::method` is ADR 0006's isolate entry,
+/// Which positional parameter of `class::method` is `rule:security/isolate-shares-nothing`'s isolate entry,
 /// if any is — the slot `nvs_types::expr::isolate`'s `check_entry` applies its
 /// rule at.
 ///
@@ -3133,7 +3133,7 @@ mod tests {
         }
     }
 
-    /// The members that still owe ADR 0088 § 2 a classification, frozen at the
+    /// The members that still owe `rule:security/unclassified-parameter-refuses-tainted` a classification, frozen at the
     /// size the gate below landed at.
     ///
     /// **Only deletions.** A member reaches this list once, when the gate is
@@ -3154,7 +3154,7 @@ mod tests {
         ("Core\\Csv", "format"),
     ];
 
-    /// ADR 0088 § 2: every `string`/`bytes` parameter of a `Core` member
+    /// `rule:security/unclassified-parameter-refuses-tainted`: every `string`/`bytes` parameter of a `Core` member
     /// carries a qualifier classification, and a member that ships without one
     /// fails this crate's own suite rather than merely a review. The default an
     /// unclassified parameter gets is *refusal*, so a forgotten mark costs a
@@ -3172,7 +3172,7 @@ mod tests {
     /// [`CoreTy::Options`] bag — every position where the *argument* the call
     /// writes is itself a string. Under [`CoreTy::Array`] or
     /// [`CoreTy::Iterated`] the argument is a container and the string is its
-    /// element type; ADR 0088 § 2 is written about the parameter, and
+    /// element type; `rule:security/unclassified-parameter-refuses-tainted` is written about the parameter, and
     /// classifying an element type would be a claim about flow through a
     /// container that no member makes yet.
     #[test]
@@ -3522,7 +3522,7 @@ mod tests {
     /// [`CoreTy::Entry`] is checked at one call path only —
     /// `nvs_types::expr::calls`'s `infer_static_call`, where an argument's
     /// *written shape* is still visible — so the mark on an **instance** row
-    /// would be a parameter that quietly accepts the `callable` ADR 0006
+    /// would be a parameter that quietly accepts the `callable` `rule:security/isolate-shares-nothing`
     /// refuses. Nothing in the checker can see that mistake, and this roster
     /// can: the mark is legal on a static row and nowhere else.
     ///

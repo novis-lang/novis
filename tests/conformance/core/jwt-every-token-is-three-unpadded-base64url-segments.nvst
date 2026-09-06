@@ -1,5 +1,5 @@
 --TEST--
-Every token Core\Jwt::sign writes is three non-empty base64url segments with no padding and no `+` or `/`, over a sweep of keys and claim widths, and the URL alphabet is not hypothetical — ADR 0060 §§ 1, 4
+Every token Core\Jwt::sign writes is three non-empty base64url segments with no padding and no `+` or `/`, over a sweep of keys and claim widths, and the URL alphabet is not hypothetical — `rule:security/protocol-roster` and `rule:security/algorithm-comes-from-the-key`
 --FILE--
 <?nvs
 // Invariance over a sweep, counted. A JWT is carried in a URL, a header and a

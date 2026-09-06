@@ -259,7 +259,7 @@ fn a_literal_outside_the_named_set_is_a_mismatch() {
 /// § 4's first three rows, through an assignment rather than through
 /// `literal_base` directly: a literal type and a literal union widen to their
 /// base for free, and compose with everything already below that rule — a
-/// nullable base, and ADR 0024's `tainted` axis.
+/// nullable base, and `rule:security/tainted-qualifier`'s `tainted` axis.
 #[test]
 fn a_literal_type_widens_to_its_base_for_free() {
     let diags = check_in_method(concat!(

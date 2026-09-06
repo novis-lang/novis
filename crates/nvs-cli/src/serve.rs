@@ -1,5 +1,5 @@
 //! `nvs serve`: one core, one listening socket, and every request running one
-//! entry file as [ADR 0006]'s isolate.
+//! entry file as `rule:security/isolate-shares-nothing`'s isolate.
 //!
 //! [`nvs_server::serve::serve_on_this_core`] is the loop and
 //! [ADR 0138](/docs/adr/0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md)
@@ -55,11 +55,10 @@
 //!
 //! **What it spends**, per `rule:programs/memory-priority`:
 //! one compiled unit per mounted entry, held for the life of the process and
-//! shared by every request that runs it ([ADR 0006]'s "shares immutable compiled code",
+//! shared by every request that runs it (`rule:security/isolate-shares-nothing`'s "shares immutable compiled code",
 //! which is [`crate::script`]'s cache and nothing else), plus whatever the accept
 //! loop holds per connection in flight. Nothing accumulates per request answered.
 //!
-//! [ADR 0006]: ../../../docs/adr/0006-isolated-script-execution.md
 
 use std::cell::Cell;
 use std::net::SocketAddr;
@@ -296,7 +295,7 @@ pub(crate) fn run(
 
     // Every request goes through § 4's five steps, and what they chose is either
     // a file to send — `nvs_server::statics`, the same policy a configured
-    // deployment serves under — or a file to run as ADR 0006's isolate, the same
+    // deployment serves under — or a file to run as `rule:security/isolate-shares-nothing`'s isolate, the same
     // type `spawn script` runs and deliberately not a second isolation path
     // (ADR 0097's crate doc). With one mount at `/` and `dispatch = "entry"`
     // that is step 5 every time and the resolve is a cache hit on the unit
@@ -363,7 +362,7 @@ pub(crate) fn run(
                     // never saw: under `dispatch = "path"` a `.nvs` under the mount
                     // root compiles on the request that first asks for it. It is a
                     // failing program rather than a panic because a handler answers
-                    // with a reply and not with a `Result`: ADR 0006's failure is a
+                    // with a reply and not with a `Result`: `rule:security/isolate-shares-nothing`'s failure is a
                     // value, and the accept loop turns one into this request's
                     // `500`. It matches against nothing: a table is a product of
                     // the compile that did not happen.

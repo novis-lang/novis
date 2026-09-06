@@ -5,7 +5,7 @@
 //! (`isAscii`, `isPrintable`). Every one answers `bool`, takes
 //! the subject first, and **launders nothing** — that is the whole reason the
 //! sanitizing half of `filter_var` is not here, and
-//! [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)
+//! `rule:security/tainted-qualifier`
 //! is why: a member that half-escapes produces exactly the false confidence
 //! that ADR exists to prevent, so no member in this module ever returns its
 //! subject.
@@ -136,12 +136,12 @@
 //! homoglyphs, because each of those *is* printable and refusing them is a
 //! question about where the text will be rendered rather than about the text.
 //! Answering it here, under this name, would be precisely the false
-//! confidence ADR 0024 refuses — escaping at the sink is what makes a string
+//! confidence `rule:security/tainted-qualifier` refuses — escaping at the sink is what makes a string
 //! safe to display, and no member in this module launders anything.
 //!
 //! # What these members do with a qualifier
 //!
-//! That last sentence is ADR 0088 § 2's classification already, and the rows
+//! That last sentence is `rule:security/unclassified-parameter-refuses-tainted`'s classification already, and the rows
 //! say it: **all six subjects are [`Qual::Neutral`]**, because all six answer
 //! a `bool` and a `bool` carries no byte of what it was asked about. That is
 //! the `Qual` enum's own first bullet, reached without a judgement.
@@ -595,7 +595,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// **Not a spoofing check** — this module's docs own why a bidi override
     /// is printable and why refusing one here would be the false confidence
-    /// ADR 0024 exists to prevent.
+    /// `rule:security/tainted-qualifier` exists to prevent.
     ///
     /// Never throws.
     fn nvs_core_validate_is_printable(_ctx, args: [1]) {
@@ -610,21 +610,21 @@ mod tests {
     use super::*;
     use crate::registry::CLASSES;
 
-    /// ADR 0024 § 3, asked of the rows rather than of the module doc above
+    /// `rule:security/launderers-are-sink-named`, asked of the rows rather than of the module doc above
     /// that argues it: **`Core\Validate` launders nothing**, because nothing
     /// in it answers its own subject back.
     ///
     /// The class is the one `rule:core-api/tier-roster` calls "*the* launderer" — the member
     /// list PHP's `filter` shrank to once its sanitizing half was dropped —
     /// so a blanket [`Qual::Launder`] over it is the plausible reading, and it
-    /// is the false confidence ADR 0024 exists to prevent: a syntactically
+    /// is the false confidence `rule:security/tainted-qualifier` exists to prevent: a syntactically
     /// valid address is still a `tainted` one at every sink. What holds the
     /// rows to that is structural rather than a promise. All six answer a
     /// [`CoreTy::Bool`], and a verdict carries no byte of what it was asked
     /// about, so there is nothing here a qualifier could be removed *from*.
     ///
     /// Which *type* a launderer hands its subject back as is a separate
-    /// question, and ADR 0133 § 1's — `Core\Html::escape` answers a carrier
+    /// question, and `rule:security/launderer-answers-a-carrier`'s — `Core\Html::escape` answers a carrier
     /// and `Core\Regex::quote` a plain `string`. `crate::html`'s
     /// `every_launderer_for_an_auto_escaping_sink_answers_a_carrier` is that
     /// claim's home; what matters here is only that the answer is the subject.

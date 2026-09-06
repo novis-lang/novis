@@ -71,7 +71,7 @@ The set is **the same roster `Core\Reflect\ClassInfo::properties` walks** — on
 written here. `Core\Reflect` landing first is what makes that possible, and is the sequencing
 [ADR 0014](0014-property-observer.md) § *Revisiting* asked for: the visibility question is
 `ClassDesc::field_slot` plus `ClassDesc::field_is_public`, already the one shared implementation
-[ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md) § 2 demands.
+`rule:security/reflection-enforces-visibility` demands.
 
 It is its own **equality domain**
 (`rule:expressions/disjoint-comparison-refused`): two property keys are

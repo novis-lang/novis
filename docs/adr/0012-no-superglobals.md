@@ -4,7 +4,7 @@
 - **Date:** 2026-08-20
 - **Scope:** PHP's superglobal variables (`$GLOBALS`, `$_SERVER`, `$_GET`, `$_POST`, `$_COOKIE`, `$_FILES`,
   `$_REQUEST`, `$_SESSION`, `$_ENV`), the CLI SAPI's `$argv`/`$argc`, and Novis's own `$_ARGS` from
-  [ADR 0006](0006-isolated-script-execution.md); the `Core\Server`, `Core\Request`, `Core\Session`,
+  `rule:security/isolate-shares-nothing`; the `Core\Server`, `Core\Request`, `Core\Session`,
   `Core\Cli` and `Core\Script` classes; what `Core\Env` gains beyond the `EOL` constant
   `rule:classes/no-free-functions-or-constants` already gave it
 - **Amends:** [0006](0006-isolated-script-execution.md) — the spawn-script surface's `$_ARGS` becomes
@@ -37,7 +37,7 @@
 > `Core\Session` for session data (`$_SESSION`, no auto-start), `Core\Env` for environment variables
 > (`$_ENV`, joining the `EOL` constant `rule:classes/no-free-functions-or-constants` already gave it), and `Core\Cli` for the CLI SAPI's process
 > arguments (`$argv`/`$argc`). Novis's own spawn-script argument variable — `$_ARGS` from
-> [ADR 0006](0006-isolated-script-execution.md) — is the same shape of ambient variable this ADR closes, and
+> `rule:security/isolate-shares-nothing` — is the same shape of ambient variable this ADR closes, and
 > gets the same treatment: `Core\Script::args()`. Inside a spawned isolate, `Core\Request`, `Core\Server` and
 > `Core\Session` **throw** rather than silently returning empty or the parent's data — an isolation-boundary
 > violation should fail loudly, not look indistinguishable from a genuinely empty request. The exact method
@@ -84,7 +84,7 @@ replacement at all.**
 | `$_SESSION` | `Core\Session` | see *4* — no auto-start, backing store deferred |
 | `$_ENV` / `getenv()` | `Core\Env` | joins the `EOL` constant `rule:classes/no-free-functions-or-constants` already gave this class |
 | `$argv` / `$argc` | `Core\Cli` | CLI SAPI only — see *5* |
-| `$_ARGS` (Novis, [ADR 0006](0006-isolated-script-execution.md)) | `Core\Script::args()` | not a PHP superglobal, but the same shape of ambient variable — see *6* |
+| `$_ARGS` (Novis, `rule:security/isolate-shares-nothing`) | `Core\Script::args()` | not a PHP superglobal, but the same shape of ambient variable — see *6* |
 
 `Core\Server` and `Core\Request` are two classes, not one, matching the split PHP itself already draws
 between "facts about the server and the request" and "input the client sent": exactly the `rule:classes/no-free-functions-or-constants` principle of one domain class per PHP-grouping-shaped
@@ -153,7 +153,7 @@ suppress it the way it does for request state.
 
 ### 6. `Core\Script::args()` replaces `$_ARGS`, for the same reason as everything else
 
-[ADR 0006](0006-isolated-script-execution.md) introduced `$_ARGS` as "a fresh superglobal" for a spawned
+`rule:security/isolate-shares-nothing` introduced `$_ARGS` as "a fresh superglobal" for a spawned
 isolate to receive its arguments — Novis's own construct, not inherited from PHP, but the identical shape of
 ambient, undeclared variable this ADR closes for every PHP one. Consistency, not a PHP compatibility
 concern, is the reason it changes too: `Core\Script::args(): mixed` is the deep-copied value the current
@@ -162,13 +162,13 @@ root script, which nothing spawned. The type is `mixed` rather than `array<mixed
 `args:` accepts any value that can cross (`rule:classes/graph-copy`
 decides that at run time, so nothing narrows the option at the call site), and `null` rather than an empty
 array because a program that wrote `args: []` said something a program that wrote no option did not.
-[ADR 0006](0006-isolated-script-execution.md)'s provisional-syntax caveat already says the exact
+`rule:security/isolate-shares-nothing`'s provisional-syntax caveat already says the exact
 spelling is a M5 question; this ADR fixes that the spelling is a method call, not a variable, matching every
 other row in this table.
 
 ### 7. Inside a spawned isolate, request/server/session access throws
 
-[ADR 0006](0006-isolated-script-execution.md)'s "not shared with the parent" table already lists
+`rule:security/isolate-shares-nothing`'s "not shared with the parent" table already lists
 superglobals as fresh per isolate, and its M5 verify criteria already require that "a child cannot read … a
 superglobal." This ADR makes that concrete: inside a spawned isolate, `Core\Request::*`, `Core\Server::*`
 and `Core\Session::*` **throw** an isolation-boundary error rather than returning empty values. A spawned
@@ -180,7 +180,7 @@ genuinely needs facts from the request that spawned it receives them as ordinary
 `rule:classes/two-copy-depths` define. `Core\Env` and
 `Core\Cli` are not restricted this way: environment variables and process arguments are process-wide facts
 already governed by the existing capability/config-overlay machinery
-([ADR 0005](0005-config-changeability.md), [ADR 0006](0006-isolated-script-execution.md)), not per-request
+([ADR 0005](0005-config-changeability.md), `rule:security/isolate-shares-nothing`), not per-request
 secrets this ADR needs to newly wall off.
 
 ### 8. Diagnostics
@@ -225,7 +225,7 @@ own; [divergences.md](divergences.md) is the register that indexes it beside eve
 - A reviewer sees exactly which `Core` class, and therefore which trust boundary, a line depends on — the
   same traceability `rule:classes/no-free-functions-or-constants` already gives built-in
   calls, now extended to untrusted input itself.
-- The isolation boundary [ADR 0006](0006-isolated-script-execution.md) already promised for superglobals
+- The isolation boundary `rule:security/isolate-shares-nothing` already promised for superglobals
   becomes a checked, catchable error instead of a silent, easily-misread empty result.
 
 **Negative**
@@ -279,7 +279,7 @@ Verification, in the order it becomes possible:
 - **M2**: name resolution treats `Core\Server`/`Core\Request`/etc. exactly like any other `Core` domain
   class — no bare-name fallback, no special-cased "superglobal" concept anywhere in the resolver.
 - **M5**: `Core\Script::args()` is exercised by the `spawn script` conformance suite
-  [ADR 0006](0006-isolated-script-execution.md) already specifies; a spawned isolate calling
+  `rule:security/isolate-shares-nothing` already specifies; a spawned isolate calling
   `Core\Request::query()` throws, added to that milestone's isolation-boundary test list alongside "a child
   cannot read a parent variable."
 - **M7**: `Core\Server`/`Core\Request` are populated by the built-in HTTP server from a real request;

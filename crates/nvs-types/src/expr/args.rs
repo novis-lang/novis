@@ -78,7 +78,7 @@ pub(crate) fn check_args_typed(
     let mut arg_types = Vec::with_capacity(list.len());
     for (arg, &slot) in list.iter().zip(&slots) {
         let expected = declared_for(slot, &sig, env.interner);
-        // ADR 0088 § 2's admission and `rule:core-classes/secret-reveal`'s, asked at the one position
+        // `rule:security/unclassified-parameter-refuses-tainted`'s admission and `rule:core-classes/secret-reveal`'s, asked at the one position
         // that can answer either — a parameter a registry row classified. The
         // two axes are independent, so the marks are asked separately and a
         // `Qual::Reveal` parameter answers yes to both. Every other argument in
@@ -503,7 +503,7 @@ impl Admitted {
 }
 
 /// [`check_arg`] for an argument at a parameter whose classification admits a
-/// qualifier the declared type does not spell — ADR 0088 § 2's `tainted`
+/// qualifier the declared type does not spell — `rule:security/unclassified-parameter-refuses-tainted`'s `tainted`
 /// admission ([`admits_tainted_argument`]) or `rule:core-classes/secret-reveal`'s `secret` one
 /// ([`admits_secret_argument`]), each cleared only where its own mark says so.
 ///
@@ -543,7 +543,7 @@ fn check_arg_admitting_quals(
     actual
 }
 
-/// Whether this call's result carries `tainted` — ADR 0088 § 2's contagion,
+/// Whether this call's result carries `tainted` — `rule:security/unclassified-parameter-refuses-tainted`'s contagion,
 /// asked of the arguments that actually filled a [`Qual::Contagious`]
 /// parameter, or a [`Qual::Reveal`] one.
 ///
@@ -698,8 +698,8 @@ pub(crate) fn check_options_arg(
 ///
 /// **The help is attached here and not at an ordinary sink parameter**, where
 /// the same refusal has a different answer: a `tainted` value at
-/// `Core\Db::query`'s statement text is a bound parameter's job (ADR 0024
-/// § 4) and at the HTML sink it is `Core\Html::escape`'s, so naming the escape
+/// `Core\Db::query`'s statement text is a bound parameter's job (`rule:security/sink-predicate`
+/// ) and at the HTML sink it is `Core\Html::escape`'s, so naming the escape
 /// hatch there would push the wrong fix at every one of them. A shape key that
 /// *does* gain a launderer is where this grows its second case.
 fn check_shape_field(

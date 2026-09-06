@@ -476,7 +476,7 @@ fn rendered(argument: &Value) -> Result<String, Fault> {
     //
     // Both halves are a post-condition of the call above rather than a
     // boundary, and so unreachable from source with no diagnostic to name:
-    // every `Ok` arm of `value_to_string` builds a `Value::str`, ADR 0088 § 5's
+    // every `Ok` arm of `value_to_string` builds a `Value::str`, `rule:security/capture-answers-the-carrier`'s
     // carrier arm included, so this is a `Tag::Str` or it is the `Err` the `?`
     // above already took.
     let (Some(ptr), Some(text)) = (value.str_ptr(), value.as_text()) else {

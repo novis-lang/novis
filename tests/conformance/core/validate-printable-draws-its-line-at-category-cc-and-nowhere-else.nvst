@@ -15,7 +15,7 @@
 // wider reading of "control" fails: a spoofing check answers every named row in
 // the sibling case identically and parts company here.
 // `crates/nvs-stdlib/src/validate.rs`'s module doc owns why refusing a bidi
-// override would be the false confidence ADR 0024 exists to prevent.
+// override would be the false confidence `rule:security/tainted-qualifier` exists to prevent.
 final class Cp {
     // A single code point as a `string`. `Core\Str::fromCodePoint` takes a
     // `uint`, so a sweep's `int` counter is converted at the argument.

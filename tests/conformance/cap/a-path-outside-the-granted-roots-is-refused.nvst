@@ -1,5 +1,5 @@
 --TEST--
-a granted root reads while a path outside it is refused, including one that reaches outside through `..` — ADR 0118 § 1, ADR 0104 § 3
+a granted root reads while a path outside it is refused, including one that reaches outside through `..` — `rule:security/capability-question-is-grant-and-scope`, ADR 0104 § 3
 --FILE--
 <?nvs
 // Inside the granted root: this is the whole of what the grant bought.

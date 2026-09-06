@@ -39,8 +39,8 @@
 //! a cosmetic problem: on MySQL a double-quoted identifier is a string literal,
 //! so the answer would parse and mean something else.
 //!
-//! What laundering owes [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)
-//! § 4 is that the result cannot end the identifier and start something else.
+//! What laundering owes `rule:security/sink-predicate`
+//! is that the result cannot end the identifier and start something else.
 //! A strict character class — a letter or `_`, then letters, digits or `_` —
 //! guarantees that under *every* dialect at once, which no quoting scheme does:
 //! the accepted alphabet contains no quote, no backtick, no bracket, no space,
@@ -116,7 +116,7 @@
 //! # Known gaps
 //!
 //! 1. **An `open` describing an endpoint no block describes still takes the
-//!    default bounds.** The operator's half of ADR 0067 § 13 has landed for the
+//!    default bounds.** The operator's half of `rule:security/db-pool-reset-is-a-boundary` has landed for the
 //!    rest: [`settings_bounds`] reads the `[db.<name>.pool]` of the block whose
 //!    settings hash *is* this connection's — [`block_settings_key`] builds each
 //!    block's key through [`settings_key`] itself, so the pool and the memo
@@ -128,7 +128,7 @@
 //!    differs from the block in any hashed field — a written `port` where the
 //!    block left the server's default implicit — is a second key and so a
 //!    second pool, at `PoolBounds::DEFAULT`. Where bounds for a key only the
-//!    program knows would be *written* is an ADR 0067 § 13 question and not a
+//!    program knows would be *written* is an `rule:security/db-pool-reset-is-a-boundary` question and not a
 //!    shape this module may pick on its own.
 //!
 //!    `rule:core-api/shape-arms-are-disjoint`'s *exactly one arm accepts it* **is** the checker's rule —
@@ -191,8 +191,8 @@
 //!    `datetime`, `time`, `uuid`, `decimal` or `boolean` is that, and one the
 //!    declaration does not describe throws — so nothing downstream of a row
 //!    learns that SQLite has five storage classes and no date.
-//! 3. **Every driver has a reset behind it, and all five are pooled.** ADR 0067
-//!    § 13's pool is
+//! 3. **Every driver has a reset behind it, and all five are pooled.** `rule:security/db-pool-reset-is-a-boundary`
+//!    's pool is
 //!    on disk as [`nvs_runtime::pool`], a connection is *released* to it at
 //!    teardown under the ticket `Core\Db::connect` files, and
 //!    [`warm_connection`] takes one back out behind that section's reset. The

@@ -9,9 +9,9 @@
 //!
 //! # It is not a capability door, and that is decided rather than skipped
 //!
-//! [ADR 0118](/docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)
-//! § 2 puts a check at the door to an effect, and reading the environment is
-//! not one: ADR 0012 § 7 says outright that `Core\Env` and `Core\Cli` are
+//! `rule:security/capability-check-at-the-door`
+//! puts a check at the door to an effect, and reading the environment is
+//! not one: `rule:security/request-state-throws-in-an-isolate` says outright that `Core\Env` and `Core\Cli` are
 //! "process-wide facts already governed by the existing capability/config-overlay
 //! machinery", not per-request secrets to wall off. The operator who launched
 //! the process chose its environment in the same breath as its `nvs.toml`, so a
@@ -20,14 +20,14 @@
 //! conclusion from the other side, for the four variables `Core\Cli` reads and
 //! never hands back.
 //!
-//! What does the protecting is [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)
-//! § 1's qualifier: every value here is `tainted`, because the environment is
+//! What does the protecting is `rule:security/tainted-qualifier`
+//! 's qualifier: every value here is `tainted`, because the environment is
 //! outside the program's own text, so a variable holding a URL still has to
 //! reach `Core\Http::allowUrl` and one holding a table name still has to reach
 //! `Core\Db::quoteIdentifier`.
 //!
 //! The **name** is a [`Qual::Sink`] and so refuses a `tainted` argument, on
-//! ADR 0088 § 1's predicate: its content is an instruction naming what the
+//! `rule:security/sink-predicate`'s predicate: its content is an instruction naming what the
 //! runtime must hand back, and a program that let a request choose would hand
 //! out the whole environment one query string at a time — the deployment's
 //! database password included. It is `Core\IO`'s rule for a path, reached by
@@ -46,7 +46,7 @@
 //!
 //! The read itself is [`nvs_runtime::environment`] and not this crate's own
 //! spelling, because `nvs_stdlib_reaches_the_os_only_through_the_gate` forbids
-//! one here — ADR 0118 § 2 puts every effect behind a door in `nvs_runtime`,
+//! one here — `rule:security/capability-check-at-the-door` puts every effect behind a door in `nvs_runtime`,
 //! and that module's doc owns why this particular door asks nothing.
 //!
 //! # A value that is not text throws, and `all` skips it instead

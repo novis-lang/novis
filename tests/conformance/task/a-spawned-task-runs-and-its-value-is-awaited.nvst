@@ -1,7 +1,7 @@
 --TEST--
 A spawned child's own `return` is the value the parent reads off the awaited result, one handle at a time and in whatever order the parent awaits them — ADR 0006 § *Failure is a value, not an exception*, ADR 0072 § 4
 --FILE nvs.toml--
-# ADR 0118 § 2: `spawn script` goes through a door that asks for
+# `rule:security/capability-check-at-the-door`: `spawn script` goes through a door that asks for
 # `script.spawn` first, and deny-by-default means a case with no
 # configuration cannot spawn at all. This grants it and nothing else.
 [capabilities.script]
@@ -26,7 +26,7 @@ return ["sum" => $total, "count" => 10];
 return "namer";
 --FILE--
 <?nvs
-// ADR 0006's result shape has four fields and this case is the one no other
+// `rule:security/isolate-shares-nothing`'s result shape has four fields and this case is the one no other
 // isolate case reads: `value`. `ok`, `output` and `error` are pinned by
 // tests/conformance/isolate/, and what is left is the ordinary success path —
 // a child that ran, returned, and handed its answer back.
@@ -50,7 +50,7 @@ echo "value=", $named->value as string, "\n";
 var $added = await $sum;
 echo "ok=", $added->ok ? "true" : "false", "\n";
 
-// `value` is `mixed` — ADR 0006 cannot know a child's return type statically —
+// `value` is `mixed` — `rule:security/isolate-shares-nothing` cannot know a child's return type statically —
 // so reading a structured answer costs the cast that every `mixed` read costs
 // (`rule:types/grammar`). 1+2+…+10 = 55.
 var $answer = $added->value as array<int>;

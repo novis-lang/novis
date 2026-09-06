@@ -176,7 +176,7 @@ not an example to read for inspiration.
     rather than a case; a `thrown` is a boundary a case can catch and echo. The two in
     `crates/nvs-stdlib/src/csv.rs:512` and `crates/nvs-stdlib/src/test.rs:692` are the second kind.
 12. **The per-parameter qualifier classification is complete.**
-    [ADR 0088](../../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md) § 2: an unclassified
+    `rule:security/unclassified-parameter-refuses-tainted`: an unclassified
     `string`/`bytes` parameter refuses `tainted`, and `nvs-stdlib`'s own suite fails on any member that
     ships without a classification. m4s.md calls this "part of building §§ 1–12 rather than a separate
     slice" — it is listed here because the members are built and the pass is what is left.

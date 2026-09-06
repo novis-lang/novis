@@ -1,5 +1,5 @@
 --TEST--
-Core\Totp::code answers six digits, Core\Totp::check answers the step it belonged to, and the step it answered refuses that same code the second time — with no argument anywhere that widens the window — ADR 0060 §§ 1, 4
+Core\Totp::code answers six digits, Core\Totp::check answers the step it belonged to, and the step it answered refuses that same code the second time — with no argument anywhere that widens the window — `rule:security/protocol-roster` and `rule:security/algorithm-comes-from-the-key`
 --FILE--
 <?nvs
 // Agreement. `Core\Totp` has two members and the property worth pinning is

@@ -1,4 +1,4 @@
-# ADR 0024 — Untrusted input is a distinct type; injection sinks demand laundering
+# `rule:security/tainted-qualifier` — Untrusted input is a distinct type; injection sinks demand laundering
 
 - **Status:** Accepted
 - **Date:** 2026-08-21
@@ -115,8 +115,8 @@ generic `sanitize()` or `clean()`: a value safe for HTML text is not safe for a 
 catch-all invites exactly the false confidence this ADR exists to prevent.
 
 **Which of those two return types a launderer takes is a predicate, not a per-member choice**, and
-[ADR 0133](0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md)
-§ 1 owns it: the answer is the sink's **carrier type** when that sink launders automatically *and* the
+`rule:security/launderer-answers-a-carrier`
+ owns it: the answer is the sink's **carrier type** when that sink launders automatically *and* the
 transform is not idempotent, and the plain unqualified type otherwise. Only § 5's HTML sink meets both
 today, which is why `escape` answers a `Markup` and every other launderer on the roster answers a
 `string`. A laundered `string` that re-entered an auto-escaping sink would be escaped a second time with
@@ -131,7 +131,7 @@ and carries a written reason at the call site, never a silent cast.
 ### 4. Sinks that refuse a tainted value
 
 **What makes something a sink is a predicate, not this list.**
-[ADR 0088](0088-a-sink-is-an-instruction-and-the-default-refuses.md) § 1 owns it — *a parameter is a sink
+`rule:security/sink-predicate` owns it — *a parameter is a sink
 when its content becomes an instruction that a parser executes, rather than data that a parser returns or
 that a serializer frames* — and § 2 of that ADR makes an **unclassified** `string`/`bytes` parameter on a
 `Core` member refuse a tainted argument, so a member nobody classified fails closed instead of accepting
@@ -202,7 +202,7 @@ default does not follow: § 4's other sinks still refuse rather than transform.
   that may take a runtime-computed string, which is why it must rebuild the document from a known-good
   grammar rather than filter what looks dangerous. `Core\Html::toSource(Markup, string $reason): string` is
   the one way back out, on § 3's escape-hatch terms; there is no `Markup as string`. All of this is
-  [ADR 0133](0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md).
+  `rule:security/launderer-answers-a-carrier`.
 - Interpolating any **non-`Markup`** value — tainted or not — into a `Markup`-building position (the
   existing inline-HTML `<?= expr ?>` slot from M1's dual-mode lexer, or a future templating helper)
   auto-escapes it via `Core\Html::escape()` and lifts the result to `Markup`. This is the sink's *only*
@@ -217,7 +217,7 @@ default does not follow: § 4's other sinks still refuse rather than transform.
   the default is the terminal rather than this one, is
   [ADR 0088](0088-a-sink-is-an-instruction-and-the-default-refuses.md) §§ 3–4.
 - `Core\Html::escape` additionally **neutralizes an unterminated bidirectional control**, substituting
-  `�` — [ADR 0087](0087-unbalanced-bidi-is-rejected-at-every-boundary.md) owns that predicate and its two
+  `�` — `rule:security/bidi-predicate` owns that predicate and its two
   other callers. Escaping `<`, `>`, `&` and quotes does nothing about display order, so without this row a
   bidi payload survives the auto-escape sink intact. A *balanced* control is legitimate mixed-direction
   text and passes through.
@@ -240,7 +240,7 @@ default does not follow: § 4's other sinks still refuse rather than transform.
 - **A genuinely new type-checker feature, and — because § 1 requires `tainted` to be a spellable qualifier,
   not just an internal fact — a small addition to M1's grammar after that milestone's parser was already
   reported feature-complete.** `nvs-syntax` needs one new reserved keyword and one new production before M1's
-  own verification (the fuzz run and the PHP-corpus parse) can be called done against ADR 0024's full scope,
+  own verification (the fuzz run and the PHP-corpus parse) can be called done against `rule:security/tainted-qualifier`'s full scope,
   and M2's type checker then needs the qualifier axis, its poisoning propagation, and the checked-conversion
   laundering rule before M7's `Core\Request` can return anything meaningful. Caught before M1's verification
   pass ran, so it costs an addition, not a rework of anything already fuzzed or corpus-tested.

@@ -1,5 +1,5 @@
-//! `Core\Taint` — [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)
-//! § 3's one narrow escape hatch, and nothing else.
+//! `Core\Taint` — `rule:security/launderers-are-sink-named`
+//! 's one narrow escape hatch, and nothing else.
 //!
 //! The `tainted` twin of `crate::secret`, and deliberately the same shape: one
 //! call, written where the judgement is made, carrying a reason for the next
@@ -35,7 +35,7 @@
 //! # One axis, and the two hatches compose in one order
 //!
 //! [`Qual::Launder`] refuses a `secret` argument — `admits_secret_argument` is
-//! `Qual::Reveal`'s alone, and ADR 0088's over-strictness there costs a refusal
+//! `Qual::Reveal`'s alone, and `rule:security/sink-predicate`'s over-strictness there costs a refusal
 //! rather than a leak. So a `secret tainted string` does not reach this member
 //! at all: it passes `Core\Secret::reveal` first, whose answer is still
 //! `tainted`, and this member second. The reverse order does not compile, and
@@ -51,7 +51,7 @@
 
 use crate::registry::{CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc, Qual};
 
-/// ADR 0024 § 3's escape hatch, and the one launderer that names no single sink.
+/// `rule:security/launderers-are-sink-named`'s escape hatch, and the one launderer that names no single sink.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: r"Core\Taint",
     methods: &[CoreMethod {

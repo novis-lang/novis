@@ -66,8 +66,8 @@
 //!    shape Novis is built for, with a diagnostic about a missing file.
 //! 3. **Reading the platform store is a filesystem and registry reach** on a
 //!    path with no request behind it, which
-//!    [ADR 0118](/docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)
-//!    § 1 would then owe a door and an answer for. A constant in the binary
+//!    `rule:security/capability-question-is-grant-and-scope`
+//!    would then owe a door and an answer for. A constant in the binary
 //!    owes neither.
 //!
 //! What this gives up is the private CA — an internal PKI, or a corporate
@@ -187,7 +187,7 @@ impl<T: Read + Write> NvsTls<T> {
     /// `bundle` is a PEM file of certificates, already resolved and
     /// trust-checked by whoever read the configuration — this function opens
     /// the path it is given and asks no questions about where it came from,
-    /// which is what keeps ADR 0118 § 1's door on the config reader rather than
+    /// which is what keeps `rule:security/capability-question-is-grant-and-scope`'s door on the config reader rather than
     /// here. `nvs_config::db` is that reader today.
     ///
     /// # Errors
