@@ -2,59 +2,53 @@
 
 ## State
 
-**Goal 9 stage 3's emitters are on disk.** `crates/nvs-db/src/ddl.rs` writes a `CREATE TABLE` — with
-its primary key, its unique constraints and its indexes — in all four dialects, keyed on
-`nvs_db::Dialect` and never on a driver. Four named tests are green:
-`every_construct_in_the_vocabulary_emits_in_all_four_dialects`,
-`the_emitters_follow_dialect_rather_than_driver`,
-`mysql_declares_an_index_inside_its_create_table_having_no_if_not_exists` and
-`mysql_gives_an_indexed_text_column_a_prefix_length`. The module's own doc owns every design call it
-made — why MySQL writes `BIT(1)` and not `BOOLEAN`, why an index is inside its table on that one
-backend, and the four round-trips that are lossy and are § 5's input rather than this module's bug.
+**Goal 9 stage 3 is complete** — all six of its `cargo-named` checks are green.
+`crates/nvs-db/src/plan.rs` is ADR 0145 §§ 6-8's vocabulary and holds no SQL: `Grade` (ordered, so
+§ 6's grade-up rule is `Grade::up_to`), `Change` (the closed set a diff may produce), `Step` and
+`Plan`. `crates/nvs-db/src/ddl.rs:495`'s `step` is the only place a `Step` is built, because § 6 puts
+the grade in the dialect emitter. Both modules' own doc comments own every design call they made —
+the after-shape convention on `Change`, why `Plan::first_refused` reads only the runnable steps, and
+the six known gaps that are § 5's input rather than a bug.
 
-**Stage 3 is two thirds done.** What `ddl.rs` has no word for yet is `ALTER`, and with it the plan,
-the step, the three grades and the reason a step carries — the group below.
+**`examples/schema.nvs` is still the driver's reported failure, and that is the ordinary state** until
+stage 6 lands the `Core\Db\Schema` member — see the playbook bullet for the `cargo-named` checks it
+masks. `nvs.toml` still owes it an `[[app]]` with `connect = ["schema"]`, the `db.schema` grant and a
+`[db.schema]` SQLite block.
 
-**`examples/schema.nvs` is on disk and does not compile yet, on purpose.** It is stage 6's target, and
-**the driver will name it every session until stage 6 lands; that is the ordinary state, not a
-regression** — see the playbook bullet for what it masks (every `cargo-named` check of this goal, since
-program checks run first). `nvs.toml` still owes it an `[[app]]` entry with `connect = ["schema"]`, the
-`db.schema` grant and a `[db.schema]` SQLite block; that file is one snapshot every fixture loads, so
-it goes in with the capability at stage 6 rather than earlier.
-
-**A `[context]` gap:** the pack printed ADR 0145 § 8 alone. The next group needs §§ 5, 6 and 7 as well
-— add them to `[context] adrs` in `docs/agent/loop-goal.toml`, because `orient.py` slices a section
-live and naming them here does not make it print them.
+**The `[context]` manifest gap is closed in the tree, not just reported**: `adrs` now names
+`0145 §4`, `0145 §5` and `0145 §9` — the three sections stages 4, 5 and 6 need — and `modules` gained
+`ddl.rs` and `plan.rs`. §§ 6-8 are deliberately *not* listed: they are landed, and their rules now
+live in `plan.rs`'s module doc, which the map prints.
 
 ## Next group
 
-**Stage 3.3, the plan as a document** — one file set: `crates/nvs-db/src/ddl.rs` and a new
-`crates/nvs-db/src/plan.rs` beside it. Both slices need ADR 0145 §§ 6 and 7 read first; § 8 is already
-implemented by the file you are extending.
+**Stage 4, the catalog readers** — one file set: a new `crates/nvs-db/src/catalog.rs` beside the
+emitters, and `crates/nvs-db/src/schema.rs` for the read direction. All three slices are ADR 0145 § 4,
+which the pack now prints. Nothing here needs a server: the queries are text and the assembly is over
+rows, so both halves are unit-testable exactly as `ddl.rs` is.
 
-- [ ] **`ALTER TABLE`, and a step that carries its own SQL** — goal stage 3.3, ADR 0145 §§ 6 and 8.
-      `every_step_carries_terminated_executable_sql_including_the_ones_apply_refuses`: a step exposes
-      its grade, the reason for that grade, and complete terminated SQL *including* the steps the
-      applier refuses, because the plan is what a DBA pastes. Anchors:
-      `crates/nvs-db/src/ddl.rs:100` (`create_table`, whose `Vec<String>` of terminated statements is
-      the shape a step's SQL already takes), `crates/nvs-db/src/ddl.rs:169` (`column_type`, which an
-      `ADD COLUMN` reuses whole), `crates/nvs-db/src/ddl.rs:408` (`literal`),
-      `crates/nvs-db/src/sql.rs:72` (`Dialect`).
-- [ ] **SQLite's create-copy-drop-rename rebuild**, graded `Destructive` unconditionally — the goal's
-      § *Standing decisions* pre-authorizes it, ADR 0145 § 8.
-      `sqlite_rebuilds_the_table_for_an_alter_it_cannot_express`: SQLite's `ALTER TABLE` adds, renames
-      and drops a column and essentially nothing else, so everything else is a data copy. Anchors:
-      `crates/nvs-db/src/ddl.rs:100` (`create_table` — the rebuild's second statement *is* a
-      `CREATE TABLE` of the new shape), `crates/nvs-db/src/ddl.rs:385` (`rowid_identity`, which the
-      copy has to preserve), `crates/nvs-db/src/schema.rs:483` (`Table`).
+- [ ] **The catalog query per dialect** — `postgres_reads_pg_catalog_and_the_others_read_information_schema`.
+      One function returning the SQL that reads a database's tables, columns and indexes, keyed on
+      `Dialect` and never on `Driver`, as the emitters already are. Anchors:
+      `crates/nvs-db/src/sql.rs:72` (`Dialect`), `crates/nvs-db/src/ddl.rs:199` (`column_type`, the
+      write direction these have to read back), `crates/nvs-db/src/schema.rs:851`
+      (`ScalarType::from_spelling`).
+- [ ] **The rows become one `Schema` value** — `every_driver_introspects_into_the_same_schema_value_shape`.
+      An *agreement* test over all five: the same catalog rows assemble into the same value whichever
+      driver produced them. Anchors: `crates/nvs-db/src/schema.rs:253` (`ScalarType::describes`),
+      `crates/nvs-db/src/schema.rs:851`, `crates/nvs-db/src/ddl.rs:199`.
+- [ ] **SQLite reads neither catalog** — `sqlite_reads_sqlite_master_and_its_pragmas`. `sqlite_master`
+      plus `pragma table_info` and `pragma index_list`, which answer in columns nothing else does.
+      Anchors: `crates/nvs-db/src/sqlite.rs:423` (`column_type`), `crates/nvs-db/src/schema.rs:851`.
 
 ## Backlog
 
-- Stage 4's five introspectors, answering the same value the builder produces — ADR 0145 § 4.
-- `nvs.toml` owes `examples/schema.nvs` its `[[app]]` block, at stage 6 — this handoff's § State.
-- The four lossy round-trips are stage 5's normalization input, not a bug — `crates/nvs-db/src/ddl.rs`
-  module doc, *Known gaps* 1.
-- `Table` enforces that an identity is *in* the primary key, not that it is the whole of one; SQLite's
-  rowid form needs the stronger rule — `crates/nvs-db/src/ddl.rs` module doc, *Known gaps* 3.
-- SQL Server cannot index an unbounded text column at all; the step is emitted and § 5's grading is
-  where it becomes a refusal — same doc, *Known gaps* 2.
+- `nvs schema dump --connection main` must print `nvs_jobs` and `nvs_dead_jobs` — stage 4's second
+  check, `docs/agent/loop-goal.toml:4529`; `crates/nvs-cli/src/queue.rs` is where it is wired in.
+- Stage 5's diff over normalized values, and the empty-plan property — ADR 0145 § 5.
+- Stage 6: the `Core\Db\Schema` rows, the `db.schema` capability, and `nvs.toml`'s `[[app]]` entry —
+  ADR 0145 § 9, and the driver's standing failure.
+- A SQL Server default is a separately named constraint and no `Change` carries the name, so a
+  default change there is not emitted — `ddl.rs`'s known gap 4, and stage 4 is what can supply it.
+- A SQLite unique constraint added after the fact is an index, where one written into a `CREATE TABLE`
+  leaves an `sqlite_autoindex_…` — `ddl.rs`'s known gap 5, and § 5's input.

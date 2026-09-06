@@ -81,6 +81,9 @@ modules = [
   "crates/nvs-db/src/schema.rs",
   # `Dialect` is already four values for five drivers, and the emitters follow it rather than `Driver`.
   "crates/nvs-db/src/sql.rs",
+  # The four emitters themselves, and §§ 6-8's grades, steps and plan beside them.
+  "crates/nvs-db/src/ddl.rs",
+  "crates/nvs-db/src/plan.rs",
   # What a connection is, and the `Driver` the grade table is keyed on beside its server version.
   "crates/nvs-db/src/conn.rs",
   # The four hand-written MIGRATION_* lists stage 7 retires, and the guard test over them.
@@ -98,8 +101,10 @@ rules = ["0067", "0084", "0024", "0051", "0082", "0132", "0063", "0117", "0005"]
 
 # 0067 whole -- its Revisiting item is what this goal closes, and its § 9 type map is the vocabulary
 # read in the other direction. 0084 § 2 for the schema this goal takes over. 0082 § 7 for the design
-# that stays blocked.
-adrs = ["0067", "0084", "0082"]
+# that stays blocked. Then 0145's own three still-unbuilt sections: § 4 and § 5 are stages 4 and 5,
+# and § 9 is the capability stage 6 adds. §§ 6-8 are landed and their rules are now stated in
+# crates/nvs-db/src/plan.rs's module doc, which the map prints -- do not add them back.
+adrs = ["0067", "0084", "0082", "0145 §4", "0145 §5", "0145 §9"]
 
 shapes = ["A `Core` member — the five edits", "An ADR", "A `.nvst` test case", "A commit message"]
 
