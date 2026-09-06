@@ -71,6 +71,11 @@ files = [
 modules = [
   # The owned root and the fs.write check: `temp_dir` moves off `std::env::temp_dir()` here.
   "crates/nvs-runtime/src/capability.rs",
+  # This goal's own module — the end-of-script sweep and the walk both § 4 doors share — beside the two
+  # queues § 3 orders it behind.
+  "crates/nvs-runtime/src/sweep.rs",
+  "crates/nvs-runtime/src/deferred.rs",
+  "crates/nvs-runtime/src/ctx/hooks.rs",
   # `temporaryDir`'s helper and its registry card, rewritten per 0117 when the sweep lands.
   "crates/nvs-stdlib/src/io.rs",
   "crates/nvs-stdlib/src/registry.rs",
