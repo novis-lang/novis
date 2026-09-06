@@ -32,7 +32,9 @@ whole basis of the guarantee that already-planned goals keep working, and it is 
 unit A3 rather than an afterthought. Nothing moves before it exists.
 
 A lost `ADR NNNN § N` is not a loss when the topic map says that section became a rule and the pack
-now carries that rule. Anything else lost is a failure.
+now carries that rule -- nor is the record's own `docs/adr/NNNN-*.md` path, which a link-spelled
+citation carries into the pack and which the rewrite consumes along with the rest of the citation.
+Anything else lost is a failure.
 
 rules-py:examples
 """
@@ -66,6 +68,15 @@ PLAN = ROOT / "docs" / "agent" / "docs-migration.md"
 #: An `ADR 0007 § 2` citation in any of its spellings, bare or inside a markdown link.
 ADR_CITE = re.compile(r"(?:ADR\s+)?(\d{4})(?:\s*§+\s*([0-9]+[a-z]?(?:\s*,\s*[0-9]+[a-z]?)*))?")
 ADR_BARE = re.compile(r"ADR\s+(\d{4})(?:\s*§+\s*([0-9]+[a-z]?))?")
+#: `carried_items`' view of a citation, which has to agree with `cite`'s (in
+#: `plan_citation_rewrites`) or the loss test measures different units than the rewriter moves.
+#: `[ADR 0084](../adr/0084-durable-background-jobs.md) § 2` is ONE citation, of `0084 §2`; reading
+#: it as a bare `0084` because a link sits between the record and its `§` sends check 3's exemption
+#: to the topic owning the whole record -- `concurrency` -- instead of the one owning § 2 --
+#: `core-classes`. The rewrite is then correct and reported as a loss anyway, which is what rolled
+#: B12 back. `ADR_BARE` itself is deliberately left alone: it keys the A3 snapshot's citation
+#: inventory, which is frozen, and check 1 counts against those keys.
+ADR_CARRIED = re.compile(r"ADR\s+(\d{4})(?:\]\([^)]*\))?(?:\s*§+\s*([0-9]+[a-z]?))?")
 ADR_LINK = re.compile(r"\]\((?:[./]*docs/adr/|)(\d{4})-[a-z0-9-]+\.md")
 
 SCAN_GLOBS = ("crates/**/*.rs", "docs/**/*.md", "docs/**/*.toml", "tests/**/*.nvst", "tools/**/*.py")
@@ -211,7 +222,7 @@ def carried_items(pack: str) -> set[str]:
     """
     items: set[str] = set()
     for line in pack.splitlines():
-        for match in ADR_BARE.finditer(line):
+        for match in ADR_CARRIED.finditer(line):
             items.add(f"adr:{match.group(1)} §{match.group(2)}" if match.group(2) else f"adr:{match.group(1)}")
         for match in rulebook.CITATION.finditer(line):
             items.add(f"rule:{match.group(1)}")
@@ -449,8 +460,19 @@ def gate(quick: bool = False) -> GateResult:
             _, now = run([sys.executable, "tools/orient.py", "--goal", str(toml.relative_to(ROOT))])
             after = carried_items(now)
             for item in sorted(before - after):
+                anchor = None
                 if item.startswith("adr:"):
                     anchor = item[4:]
+                elif item.startswith("path:"):
+                    # A record cited as a markdown link puts its own file path into the pack, and a
+                    # rewrite that turns the citation into a rule token takes the URL with it -- the
+                    # whole citation matches or none of it does, which is what the possessive group
+                    # in `cite` buys. So the path goes for exactly the reason the `adr:` item beside
+                    # it goes, and earns the same exemption. Without this the gate refuses every
+                    # topic whose records are linked rather than merely named, which is most of them.
+                    link = re.match(r"path:docs/adr/(\d{4})-", item)
+                    anchor = link.group(1) if link else None
+                if anchor is not None:
                     topic = mapping.get(anchor)
                     # Accounted for when the section became a rule and the pack carries that topic.
                     if topic and any(a.startswith(f"rule:{topic}/") for a in after):
