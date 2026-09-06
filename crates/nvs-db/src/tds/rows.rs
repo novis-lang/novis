@@ -213,7 +213,9 @@ impl<S: Read + Write> TdsRows<'_, S> {
                     // § 7's descriptor, which the next request has to carry —
                     // [`EnvChange::Transaction`] owns what a missed one costs.
                     Some(Token::Env(EnvChange::Transaction { to })) => self.wire.set_descriptor(to),
-                    Some(Token::Info(_) | Token::Env(_) | Token::ReturnStatus(_)) => {}
+                    Some(
+                        Token::Info(_) | Token::Env(_) | Token::ReturnStatus(_) | Token::Order,
+                    ) => {}
                     Some(Token::ReturnValue(returned)) => self.returned = Some(returned),
                     Some(Token::Error(message)) => {
                         if refusal.is_none() {
@@ -725,7 +727,7 @@ impl<S: Read + Write> TdsRows<'_, S> {
                 // own answer is read: a `BEGIN TRANSACTION` has no result set,
                 // so its `ENVCHANGE` arrives before the `DONE` here.
                 Some(Token::Env(EnvChange::Transaction { to })) => self.wire.set_descriptor(to),
-                Some(Token::Info(_) | Token::Env(_) | Token::ReturnStatus(_)) => {}
+                Some(Token::Info(_) | Token::Env(_) | Token::ReturnStatus(_) | Token::Order) => {}
                 Some(Token::ReturnValue(returned)) => self.returned = Some(returned),
                 Some(Token::Error(message)) => {
                     if refusal.is_none() {

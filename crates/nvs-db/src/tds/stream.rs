@@ -43,6 +43,9 @@ impl<'a> Tokens<'a> {
     /// `InvalidData` for a token this driver does not read yet — naming the
     /// byte, since that is the whole of what a reader can say about it — and
     /// for any token whose fields run past the end of the message.
+    ///
+    /// [`TOKEN_ORDER`] is read for its extent alone and answers
+    /// [`Token::Order`], which every caller ignores.
     pub fn next_token(&mut self) -> io::Result<Option<Token>> {
         let Some(&kind) = self.payload.get(self.at) else {
             return Ok(None);
@@ -57,6 +60,14 @@ impl<'a> Tokens<'a> {
             TOKEN_COL_METADATA => Token::Columns(self.columns()?),
             TOKEN_RETURN_STATUS => Token::ReturnStatus(self.signed("RETURNSTATUS")?),
             TOKEN_RETURN_VALUE => Token::ReturnValue(self.return_value()?),
+            TOKEN_ORDER => {
+                // Positioned by its own length rather than read column by
+                // column, which is [`Tokens::bounded`]'s whole reason: nothing
+                // here wants the ordinals, and the length is the one field that
+                // says where the rows begin.
+                self.at = self.bounded("ORDER")?;
+                Token::Order
+            }
             TOKEN_DONE | TOKEN_DONE_PROC | TOKEN_DONE_IN_PROC => {
                 Token::Done(self.done(kind == TOKEN_DONE_IN_PROC)?)
             }
@@ -692,6 +703,7 @@ pub fn login<S: Read + Write>(wire: &mut Wire<S>, target: &TdsTarget<'_>) -> io:
             | Token::Columns(_)
             | Token::ReturnStatus(_)
             | Token::ReturnValue(_)
+            | Token::Order
             | Token::Done(_) => {}
         }
     }

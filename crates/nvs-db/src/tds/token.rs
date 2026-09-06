@@ -46,6 +46,15 @@ pub(super) const TOKEN_RETURN_STATUS: u8 = 0x79;
 /// the handle the server allocated for the statement arrives in one of these,
 /// and the statement cache's key maps to it.
 pub(super) const TOKEN_RETURN_VALUE: u8 = 0xAC;
+/// `ORDER`: which columns the result set that follows is ordered by.
+///
+/// Sent for any statement carrying an `ORDER BY`, which every catalog query in
+/// [`crate::catalog`] does — so a reader that refused it could not introspect a
+/// SQL Server database at all. Read to **step over**: the ordinals it carries
+/// say what the query already said, and nothing above this module asks a result
+/// set what it was sorted by. That is why it produces no [`Token`] rather than a
+/// variant every caller would match and ignore.
+pub(super) const TOKEN_ORDER: u8 = 0xA9;
 /// `DONE`: the end of one statement's answer.
 pub(super) const TOKEN_DONE: u8 = 0xFD;
 /// `DONEPROC`: `DONE` for a stored procedure, which § 13's `sp_reset_connection`
@@ -293,6 +302,13 @@ pub enum Token {
     ReturnStatus(i32),
     /// One of a procedure's output parameters came back.
     ReturnValue(ReturnValue),
+    /// The result set that follows is ordered — [`TOKEN_ORDER`] owns why
+    /// nothing reads which columns it is ordered by.
+    ///
+    /// A variant carrying nothing rather than no variant at all: the walk has
+    /// to *stop* on this token, because what follows it is a row, and a row is
+    /// the one token [`Tokens`] cannot step over.
+    Order,
     /// A statement's answer ended.
     Done(Done),
 }
@@ -582,11 +598,41 @@ mod tests {
         let refused = tokens(&lying).expect_err("a token cannot be longer than its message");
         assert_eq!(refused.kind(), io::ErrorKind::InvalidData);
 
-        let refused = tokens(&[0xA9, 0, 0]).expect_err("ORDER is a token nothing here reads");
+        let refused = tokens(&[0x60, 0, 0]).expect_err("no TDS token is 0x60");
         assert!(
-            refused.to_string().contains("0xA9"),
+            refused.to_string().contains("0x60"),
             "an unread token names the byte, which is the whole of what it can say"
         );
+    }
+
+    /// `ORDER` carries nothing a caller reads, and the walk resumes at the byte
+    /// after its ordinals.
+    ///
+    /// Its extent comes from its own length field, so a reader that assumed a
+    /// fixed one would land inside the next token and refuse an ordinary
+    /// answer. Every catalog query orders its rows, so this is the token
+    /// between `COLMETADATA` and the first row of every introspection on this
+    /// backend — and the walk has to stop on it rather than swallow it, because
+    /// what follows is a row and [`Tokens`] cannot step over one.
+    #[test]
+    fn an_order_token_carries_nothing_and_the_walk_resumes_after_it() {
+        // Two ordinals, four bytes: the shape an `ORDER BY` over two columns
+        // arrives in.
+        let mut payload = vec![TOKEN_ORDER, 4, 0, 1, 0, 2, 0];
+        payload.extend_from_slice(&done());
+        let read = tokens(&payload).expect("an ordered result set is an ordinary answer");
+        assert_eq!(read.len(), 2, "the walk lost a token: {read:?}");
+        assert_eq!(read[0], Token::Order);
+        assert!(
+            matches!(read[1], Token::Done(_)),
+            "the walk resumed inside the ordinals: {read:?}"
+        );
+
+        // A length that promises more than the message holds is refused with
+        // the message every other token's is, rather than silently ending the
+        // walk.
+        let refused = tokens(&[TOKEN_ORDER, 8, 0, 1, 0]).expect_err("the ordinals are not there");
+        assert_eq!(refused.kind(), io::ErrorKind::InvalidData);
     }
 
     /// The packet size arrives as digits, and a server that wrote something
