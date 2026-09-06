@@ -2883,6 +2883,19 @@ is why" — is this file.
   fine.** `nvs-cli` is a binary crate: its unit tests live in the `nvs` bin target, so a filtered
   run is `cargo test -p nvs-cli --bin nvs <filter>` and the bare `cargo test -p nvs-cli` picks them
   up along with the integration tests beside them. The same is true of every binary-only crate here.
+- **A wall-clock regression in `nvs run` can sit entirely outside the code that caused it, and one
+  `Instant::now()` per phase in a *release* build is what says so.** Wiring ADR 0042's artifact
+  cache took `tools/bench.py --warm-start`'s figure from 3.9 ms of Novis work to 21.6 ms and
+  failed the goal's own 6 ms check — and none of it was § 3's read path, which cost 0.5 ms for
+  load, descriptors, relocate and bind together. It was `nvs_config::trust::check` on the cache
+  directory at 10 ms a call, twice per run, because `cache::from_config` is called once for the
+  compile and once more for `script::Compiler`'s resolver. Four rounds of timing `nvs run` from
+  the outside — cache on against off, a configured directory against the default, a wiped cache
+  against a warm one — narrowed it to "somewhere in the cache path" and no further, and one of
+  them lied outright, because a `file_cache_dir` under the repo is a directory § 5 refuses and
+  that run had no cache at all. A throwaway `eprintln` per phase and one two-minute
+  `cargo build --release -p nvs-cli` printed the answer in a single run. Reach for the
+  instrumented build before the third external measurement.
 
 ## Writing a test case
 

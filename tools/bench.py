@@ -82,8 +82,8 @@ inside the measurement rather than pre-compiled away.
 "what does the CLI cost me before it has done anything", which is M6's own acceptance figure. It is
 one engine, one script -- the baseline case -- and no comparison, so it runs whether or not PHP,
 Python or Bun is installed. What makes it *warm* is the process `measure()` already discards: by
-the timed reps the binary, its libraries and the script are in the OS page cache. `warm_start()`
-owns why that is the whole of "warm" today.
+the timed reps the binary, its libraries and the script are in the OS page cache, and the artifact
+that run published is on disk for ADR 0042 § 3 to load. `warm_start()` owns both halves.
 
 What `--max-work-ms` budgets is the total **less** `nvs --version`, because most of the total is
 the operating system creating a process and not Novis at all. `warm_start()` owns that argument
@@ -352,14 +352,13 @@ def warm_start(binary: Path, reps: int, max_work_ms: float | None) -> int:
     is the same binary, the same loader work and the same page cache, so what the subtraction
     leaves is config load, compile and run and nothing else.
 
-    `measure()` throws its first process away, and that discarded run is the whole of what "warm"
-    means here: every timed rep starts with the binary, its libraries and the script already in the
-    OS page cache. It is deliberately not more than that. The compile pipeline stores no artifact
-    yet -- `crates/nvs-cli/src/cache.rs`'s *Known gaps* owns why -- so no rep reaches `Cache::load`
-    and this figure does not measure
-    [ADR 0042](../docs/adr/0042-on-disk-artifact-cache-format.md) § 3's read path at all. It is the
-    floor that path has to beat, measured now so the number the cache is judged against exists
-    before the cache has a caller.
+    `measure()` throws its first process away, and that discarded run is what makes this warm in
+    both senses. The binary, its libraries and the script are in the OS page cache for every timed
+    rep; and the discarded run published the artifact
+    [ADR 0042](../docs/adr/0042-on-disk-artifact-cache-format.md) § 3 then has each timed rep load,
+    so the figure covers the read path -- verify, place, relocate, protect, bind -- and not a
+    compile. A cache directory § 5 refuses is the one case where it does not: every rep compiles
+    then, which is the shape a regression here takes rather than an error anyone sees.
     """
     source = CASE_DIR / f"{BASELINE}.nvs"
     if not source.exists():
@@ -380,7 +379,7 @@ def warm_start(binary: Path, reps: int, max_work_ms: float | None) -> int:
     print(f"  start floor {fmt(floor['min_ms'])} ms   nvs --version, the OS creating a process")
     print(f"  total       {fmt(total['min_ms'])} ms   median {fmt(total['median_ms'])} ms")
     print(f"  novis work  {fmt(work_ms)} ms   the total less that floor")
-    print("  no rep reaches Cache::load, since nothing stores an artifact yet")
+    print("  each rep is an ADR 0042 warm hit; the discarded warm-up published the artifact")
     if max_work_ms is None:
         return 0
     within = work_ms <= max_work_ms
