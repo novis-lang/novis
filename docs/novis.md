@@ -163,6 +163,8 @@ Conventions the whole file uses:
 | [`Core\Db\Column`](#core-core-db-column) |  |
 | [`Core\Db\InList`](#core-core-db-inlist) |  |
 | [`Core\Db\Schema`](#core-core-db-schema) |  |
+| [`Core\Db\Plan`](#core-core-db-plan) |  |
+| [`Core\Db\Plan\Step`](#core-core-db-plan-step) |  |
 | [`Core\Queue`](#core-core-queue) |  |
 | [`Core\Queue\Id`](#core-core-queue-id) |  |
 | [`Core\Queue\Stats`](#core-core-queue-stats) |  |
@@ -19256,12 +19258,15 @@ Keywords:
 <a id="core-core-db-schema"></a>
 ### `Core\Db\Schema`
 
-Keywords: fromArray, toArray
+Keywords: fromArray, toArray, planAgainst, applySafe, applyIncludingRisky
 
 | Member | Signature |
 |---|---|
 | [`Core\Db\Schema::fromArray`](#core-core-db-schema-fromarray) | `fromArray(array<mixed> $array): Core\Db\Schema` |
 | [`Core\Db\Schema->toArray`](#core-core-db-schema-toarray) | `toArray(): array<mixed>` |
+| [`Core\Db\Schema->planAgainst`](#core-core-db-schema-planagainst) | `planAgainst(Core\Db\Connection $connection): Core\Db\Plan` |
+| [`Core\Db\Schema->applySafe`](#core-core-db-schema-applysafe) | `applySafe(Core\Db\Connection $connection): void` |
+| [`Core\Db\Schema->applyIncludingRisky`](#core-core-db-schema-applyincludingrisky) | `applyIncludingRisky(Core\Db\Connection $connection): void` |
 
 <a id="core-core-db-schema-fromarray"></a>
 #### `Core\Db\Schema::fromArray`
@@ -19290,6 +19295,133 @@ $schema->toArray(): array<mixed>
 The schema in its canonical array form — what a program saves to a file, hands to `Core\Json::encode`, or compares against another schema.
 
 **Returns** `array<mixed>` — The array `fromArray` would read back as the same schema. Tables come in name order and columns in the order they were declared, since a `create table` reproduces it; constraints and indexes come in name order, since nothing observable depends on the order they were added in.
+
+<a id="core-core-db-schema-planagainst"></a>
+#### `Core\Db\Schema->planAgainst`
+
+```nvs skip
+$schema->planAgainst(Core\Db\Connection $connection): Core\Db\Plan
+```
+
+Reads the database this connection reaches and answers every difference between it and this schema, in the order the differences must be closed. A plan is a document: nothing is changed by computing one, and an empty plan is what convergence looks like.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$connection` | `Core\Db\Connection` | The database to compare against. Planning is an ordinary read and needs only the `db.connect` this connection was opened with. |
+
+**Returns** `Core\Db\Plan` — The plan, whose `steps()` are graded `Safe`, `Locking` or `Destructive` and each carry the complete SQL that makes them. A table or column the database has and this schema does not is a **report**: it is in the plan, with the SQL that would remove it, and no `apply` will ever run it.
+
+**Throws** `LogicError` — The database holds a type, a default or an identifier the schema vocabulary cannot name, so no plan against it would be total.
+
+<a id="core-core-db-schema-applysafe"></a>
+#### `Core\Db\Schema->applySafe`
+
+```nvs skip
+$schema->applySafe(Core\Db\Connection $connection): void
+```
+
+Plans against this connection and runs the plan, provided every step it would run is graded `Safe`. Needs the `db.schema` capability for the connection's block: issuing DDL is a privileged act and reaching the database is not enough on its own.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$connection` | `Core\Db\Connection` | The database to converge. Its `[db.<name>]` block is the name `db.schema` is granted for, so a connection from `Core\Db::open` cannot be applied to. |
+
+**Returns** `void` — Nothing. The database matches the schema afterwards, apart from what the schema does not declare — which is reported and left alone.
+
+**Throws** `LogicError` — The plan holds a step that is not `Safe`, named in the message; the connection has no block to grant `db.schema` for; or `planAgainst`'s own refusal.; `RuntimeError` — The `db.schema` capability is not granted for this connection's block.
+
+<a id="core-core-db-schema-applyincludingrisky"></a>
+#### `Core\Db\Schema->applyIncludingRisky`
+
+```nvs skip
+$schema->applyIncludingRisky(Core\Db\Connection $connection): void
+```
+
+`applySafe`, without the grade check: runs every step of the plan including the ones that can hold a long lock, rewrite a table or fail on rows that already exist. Named so that a reviewer reading the call site sees the claim being made.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$connection` | `Core\Db\Connection` | The database to converge, as `applySafe` takes it and under the same `db.schema` grant. |
+
+**Returns** `void` — Nothing. A reported drop is still not run — accepting risk is not accepting data loss, and the SQL for one is on the step for a program that wants it.
+
+**Throws** `LogicError` — The connection has no block to grant `db.schema` for, or `planAgainst`'s own refusal.; `RuntimeError` — The `db.schema` capability is not granted for this connection's block.
+
+<a id="core-core-db-plan"></a>
+### `Core\Db\Plan`
+
+Keywords: steps
+
+| Member | Signature |
+|---|---|
+| [`Core\Db\Plan->steps`](#core-core-db-plan-steps) | `steps(): array<Core\Db\Plan\Step>` |
+
+<a id="core-core-db-plan-steps"></a>
+#### `Core\Db\Plan->steps`
+
+```nvs skip
+$plan->steps(): array<Core\Db\Plan\Step>
+```
+
+Every step of the plan, in the order they must run, reports included.
+
+**Returns** `array<Core\Db\Plan\Step>` — The steps. An empty array is convergence: the database already matches the schema. A step whose `isRefused()` is `true` is one no `apply` will run.
+
+<a id="core-core-db-plan-step"></a>
+### `Core\Db\Plan\Step`
+
+Keywords: grade, reason, sql, isRefused
+
+| Member | Signature |
+|---|---|
+| [`Core\Db\Plan\Step->grade`](#core-core-db-plan-step-grade) | `grade(): Core\Db\Plan\Grade` |
+| [`Core\Db\Plan\Step->reason`](#core-core-db-plan-step-reason) | `reason(): string` |
+| [`Core\Db\Plan\Step->sql`](#core-core-db-plan-step-sql) | `sql(): string` |
+| [`Core\Db\Plan\Step->isRefused`](#core-core-db-plan-step-isrefused) | `isRefused(): bool` |
+
+<a id="core-core-db-plan-step-grade"></a>
+#### `Core\Db\Plan\Step->grade`
+
+```nvs skip
+$step->grade(): Core\Db\Plan\Grade
+```
+
+What this step can cost, at worst.
+
+**Returns** `Core\Db\Plan\Grade` — `Safe`, `Locking` or `Destructive`. A grade is the worst case rather than the likely one: an emitter with no rule for a case grades up, because over-reporting risk costs a confirmation and under-reporting it costs an outage.
+
+<a id="core-core-db-plan-step-reason"></a>
+#### `Core\Db\Plan\Step->reason`
+
+```nvs skip
+$step->reason(): string
+```
+
+Why the step is graded the way it is, in one sentence an operator reads.
+
+**Returns** `string` — The sentence, written by the emitter that produced the SQL — so it names the backend's own reason, such as a rewrite this server performs and another does not.
+
+<a id="core-core-db-plan-step-sql"></a>
+#### `Core\Db\Plan\Step->sql`
+
+```nvs skip
+$step->sql(): string
+```
+
+The complete, terminated, dialect-correct SQL this step is. Never elided, including for a step no `apply` will run: a deployment whose application credentials cannot issue DDL hands the plan to a DBA, and a summary would be useless there.
+
+**Returns** `string` — The statements, newline-joined. Most steps are one statement and can be handed straight to `Core\Db::execute`; SQLite's table rebuild is four, which is an operator's to paste rather than a program's to run.
+
+<a id="core-core-db-plan-step-isrefused"></a>
+#### `Core\Db\Plan\Step->isRefused`
+
+```nvs skip
+$step->isRefused(): bool
+```
+
+Whether this step is a report — a table, column or key the database has and the schema does not name.
+
+**Returns** `bool` — `true` for a step no `apply` will ever run. Absence never destroys, because a database an application shares with a queue, a reporting view and whatever an operator put there is the ordinary case. A program that does want the drop runs this step's own `sql()`.
 
 <a id="core-core-queue"></a>
 ### `Core\Queue`
@@ -19796,6 +19928,17 @@ Why the server refused a statement, normalised across the drivers so that a prog
 | `Core\Db\ErrorKind::Syntax` | The statement is not something the server will run: a syntax error, an undefined table, a type it cannot resolve. |
 | `Core\Db\ErrorKind::Permission` | The role may not do this. |
 | `Core\Db\ErrorKind::Other` | Anything the driver's own table does not name, including a condition one backend has and the others do not. It is also what a `Core\Db\DbError` constructed by hand carries, no server having classified it. |
+
+<a id="enum-core-db-plan-grade"></a>
+#### `Core\Db\Plan\Grade`
+
+What one step of a schema plan can cost at worst, so that a deployment can run the half it is willing to run unattended.
+
+| Case | Meaning |
+|---|---|
+| `Core\Db\Plan\Grade::Safe` | Cannot lose data, cannot fail on rows that already exist, and cannot hold a long lock. |
+| `Core\Db\Plan\Grade::Locking` | Cannot lose data, but can fail on existing rows or block writes for a long time — a unique key over data that already collides, `NOT NULL` on a populated column, a type change that rewrites the table. |
+| `Core\Db\Plan\Grade::Destructive` | Can lose data. Every drop is here, and so is SQLite's create-copy-drop-rename rebuild, which is a data copy however it is spelled. |
 
 <a id="enum-core-queue-state"></a>
 #### `Core\Queue\State`
