@@ -19,7 +19,7 @@
     },
     "A5": {
       "status": "in-flight",
-      "note": "map proposed for 960 anchors; 99 UNASSIGNED. awaiting the user's review before phase B opens."
+      "note": "resolved 2026-09-06: all 960 anchors carry a topic, 0 UNASSIGNED. 99 judged by hand; 310 heuristic misfires corrected (substring matches, and one record shattered across five topics). awaiting the user's sign-off on the contested calls before phase B opens."
     }
   },
   "snapshot": "2026-09-06"
