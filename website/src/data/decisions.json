@@ -6,6 +6,12 @@
       "blurb": "Who the language is for, what it refuses to be, and the ground the rest stands on: how errors travel, what a running script is, what ships in the box.",
       "entries": [
         {
+          "adr": "0080",
+          "headline": "Novis is built for web applications of every kind",
+          "body": "Novis's main goal is to serve web applications — any of them, whatever they do or whatever you want them to do. It ships with a rich feature set built right into the core, so you don't have to go looking for outside packages to get your everyday work done. We looked at what modern web applications and businesses actually demand today, and built that in from the start. Oh, and you can build nice command-line-only applications too, just so you know.",
+          "url": "/docs/adr/0080/"
+        },
+        {
           "adr": "0002",
           "headline": "Errors travel home on every call’s return value",
           "body": "When something throws, the failure is handed back as a value that each call checks and passes on, rather than by tearing the stack apart the way most languages do. The machine code Novis generates carries no tables for the operating system to unwind, so this is the only way it could work. It also means a crash deep inside the runtime becomes one failed request instead of a dead server.",
@@ -28,12 +34,6 @@
           "headline": "Four doors stay shut, and they are the ones attackers use",
           "body": "Novis will never call into C libraries directly, never treat a file path as a hidden network address, never let two requests share memory, and never run a piece of text as code. Each was a large part of what made PHP deployments breakable, and closing them is also what lets the compiler promise anything at all about where data goes. Work that genuinely needs one of them goes through a sandboxed extension instead.",
           "url": "/docs/adr/0052/"
-        },
-        {
-          "adr": "0080",
-          "headline": "Novis is built for web applications of every kind",
-          "body": "Novis exists to serve web applications — any of them, whatever they do and whoever wrote the code they run. The safety rules are how the language is built rather than a description of who should use it: the mistakes they catch are overwhelmingly an application's own. That the same rules also make it unusually safe to run code you did not write is a real benefit, and not the pitch. Command-line programs are a welcome side effect of the same runtime, never a goal.",
-          "url": "/docs/adr/0080/"
         }
       ]
     },

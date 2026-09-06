@@ -77,6 +77,11 @@ else. An entry that reads as marketing copy makes the forty around it less belie
 decisions about building Novis rather than using it — real decisions, kept for the record, in a group
 a reader can skip whole.
 
+**Leave `pin` alone unless you are placing the entry that frames a group.** It floats one entry above
+decision order, for the case where what a group is *about* would otherwise sit in the middle of it.
+One per group, and the tool refuses a second — a group that needs two framing entries is a group
+that has been drawn wrong.
+
 ## What the tool decides, so you do not have to
 
 `--check` enforces: no cross-reference of any kind in the prose, no decision cited by number,

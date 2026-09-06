@@ -13,6 +13,14 @@ the exact wording -- lives in [the decision records](adr/README.md).
 
 Who the language is for, what it refuses to be, and the ground the rest stands on: how errors travel, what a running script is, what ships in the box.
 
+**Novis is built for web applications of every kind**
+
+Novis's main goal is to serve web applications — any of them, whatever they do or whatever you want
+them to do. It ships with a rich feature set built right into the core, so you don't have to go
+looking for outside packages to get your everyday work done. We looked at what modern web
+applications and businesses actually demand today, and built that in from the start. Oh, and you can
+build nice command-line-only applications too, just so you know.
+
 **Errors travel home on every call’s return value**
 
 When something throws, the failure is handed back as a value that each call checks and passes on,
@@ -42,14 +50,6 @@ address, never let two requests share memory, and never run a piece of text as c
 large part of what made PHP deployments breakable, and closing them is also what lets the compiler
 promise anything at all about where data goes. Work that genuinely needs one of them goes through a
 sandboxed extension instead.
-
-**Novis is built for web applications of every kind**
-
-Novis exists to serve web applications — any of them, whatever they do and whoever wrote the code
-they run. The safety rules are how the language is built rather than a description of who should use
-it: the mistakes they catch are overwhelmingly an application's own. That the same rules also make
-it unusually safe to run code you did not write is a real benefit, and not the pitch. Command-line
-programs are a welcome side effect of the same runtime, never a goal.
 
 ## Types and values
 

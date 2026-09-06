@@ -63,6 +63,12 @@ reader is looking for, not a restatement of the ADR set's own structure -- the c
 `docs/adr/README.md`'s table, which is a different question ("which file owns this topic") with a
 different answer. `--groups` prints the list and what belongs in each; `--check` refuses an entry
 naming a group that is not on it.
+
+Inside a group, entries run in the order they were decided, with one exception: `pin = true` floats
+a single entry to the top. It is for the entry that *frames* the group rather than continuing it —
+what the language is for belongs above the decisions that follow from it, and decision order would
+bury it in the middle. **At most one per group**, checked, because a second pin is the beginning of
+hand-sorting a hundred and thirty-nine entries and there is no honest place to stop after that.
 """
 
 import argparse
@@ -231,6 +237,7 @@ def load_entries(path: str = SOURCE) -> dict:
         e = dict(e)
         e["body"] = " ".join(str(e.get("body", "")).split())
         e["headline"] = " ".join(str(e.get("headline", "")).split())
+        e["pin"] = bool(e.get("pin", False))
         out[str(e.get("adr", "")).zfill(4)] = e
     return out
 
@@ -252,6 +259,9 @@ def dump_entries(entries: dict) -> str:
         "#",
         "# `digest` is stamped by the tool. Write `adr`, `group`, `headline` and `body`,",
         "# and let `python tools/decisions.py --apply` fill in the rest.",
+        "#",
+        "# `pin = true` floats one entry to the top of its group, ahead of decision order, for the",
+        "# one that frames what the group is about. At most one per group.",
         "",
     ]
     for num in sorted(entries):
@@ -259,6 +269,8 @@ def dump_entries(entries: dict) -> str:
         out.append("[[entry]]")
         out.append(f"adr      = '{num}'")
         out.append(f"group    = '{e['group']}'")
+        if e.get("pin"):
+            out.append("pin      = true")
         out.append(f"digest   = '{e['digest']}'")
         out.append(f"headline = {toml_string(e['headline'])}")
         body = textwrap.fill(e["body"], width=96, break_long_words=False, break_on_hyphens=False)
@@ -320,6 +332,12 @@ def check(entries: dict, adrs: dict) -> dict:
         for f in prose_findings(num, e):
             add("prose", f)
 
+    for gid in GROUP_IDS:
+        pinned = [n for n in sorted(entries)
+                  if entries[n].get("group") == gid and entries[n].get("pin")]
+        if len(pinned) > 1:
+            add("pin", f"{gid}: {', '.join(pinned)} are all pinned — a group is framed once")
+
     if entries:
         for path, text in ((RENDER_MD, render_md(entries, adrs)),
                            (RENDER_JSON, render_json(entries, adrs))):
@@ -334,12 +352,15 @@ def check(entries: dict, adrs: dict) -> dict:
 
 
 def grouped(entries: dict, adrs: dict) -> list[tuple]:
-    """(group tuple, entries in decision order). A group with nothing in it is dropped."""
+    """(group tuple, entries in decision order, pinned one first). Empty groups are dropped."""
     out = []
     for gid, heading, blurb in GROUPS:
-        rows = [entries[n] for n in sorted(entries) if entries[n].get("group") == gid]
-        if rows:
-            out.append(((gid, heading, blurb), rows))
+        nums = [n for n in sorted(entries) if entries[n].get("group") == gid]
+        # `sorted` is stable, so the pinned entry moves to the front and everything behind it keeps
+        # the order it was decided in.
+        nums.sort(key=lambda n: not entries[n].get("pin", False))
+        if nums:
+            out.append(((gid, heading, blurb), [entries[n] for n in nums]))
     return out
 
 
@@ -452,6 +473,7 @@ def cmd_apply(path: str, entries: dict, adrs: dict, dry_run: bool) -> int:
         merged[num] = {
             "adr": num,
             "group": e.get("group", ""),
+            "pin": bool(e.get("pin", False)),
             "digest": digest_of(adrs[num]),
             "headline": e.get("headline", ""),
             "body": e.get("body", ""),
@@ -459,7 +481,7 @@ def cmd_apply(path: str, entries: dict, adrs: dict, dry_run: bool) -> int:
         touched.append(num)
 
     findings = check(merged, adrs)
-    blocking = {k: v for k, v in findings.items() if k in ("group", "prose", "orphan")}
+    blocking = {k: v for k, v in findings.items() if k in ("group", "pin", "prose", "orphan")}
     if blocking:
         print(f"refused — {sum(len(v) for v in blocking.values())} finding(s), nothing written:\n")
         report(blocking)
@@ -498,10 +520,11 @@ def report(found: dict) -> None:
         "stale": "the decision moved since the summary was written",
         "orphan": "summarizes a decision that is not there",
         "group": "not in a group the tool knows",
+        "pin": "more than one entry pinned to the top of a group",
         "prose": "breaks a rule the summary is held to",
         "render": "a generated file is behind the source",
     }
-    for kind in ("missing", "stale", "orphan", "group", "prose", "render"):
+    for kind in ("missing", "stale", "orphan", "group", "pin", "prose", "render"):
         rows = found.get(kind)
         if not rows:
             continue
