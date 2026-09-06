@@ -75,12 +75,18 @@ this stage, not its ceiling.
       work is file-disjoint by construction — three of the four proofs are attributed by a path derived
       from the feature's id — so `dossier.py --partition` cuts a group into worker briefs and refuses
       when two lanes would write the same path, and every generated goal's prose § *Running this goal
-      wide* drives it. `FANOUT_WORKERS` is 8, derived from a serial tail of 25–35 minutes against a
-      session floor of 71,941 tokens and a subagent's 12,600 (both measured over the 68 sessions in
-      `.loop/logs` on 2026-09-05). **That tail is an estimate until a goal has actually run wide**, and
-      you are the session that can price it: fan one group out, put the real numbers in the report, and
-      move `FANOUT_WORKERS` only if they say so. The two things it cannot make safe are named in
-      `tools/dossier.py` § *Running one group's features at once* and neither is optional.
+      wide* drives it. `FANOUT_WORKERS` is 8 and its docstring carries the derivation: a serial tail
+      of 14.9 minutes per goal, against a session floor of 71,941 tokens and a subagent's 12,600, all
+      measured over the 68 sessions in `.loop/logs` on 2026-09-05. Modelled over the emitter's real
+      goal sizes that puts the whole program at **106 hours and 416 sessions serially against 34
+      hours and 98 fanned out** — 3.1x, of which 1.4x is the smaller floor and 2.2x is the
+      concurrency — and **$3,349 against $891**. **One input is an estimate and everything above
+      rests on it**: 16 tool calls to close one feature's four proofs, which nothing on disk can
+      price because no dossier goal has run. You are the session that can. Fan one group out, put
+      the real per-feature figure in the report, and move `FANOUT_WORKERS` only if it says so —
+      width is already flat there, 79% of the ceiling at six lanes and 80% at eight, so a wrong
+      estimate moves the schedule and not the constant. What it cannot make safe is named in
+      `tools/dossier.py` § *Running one group's features at once* and none of it is optional.
 - [ ] **The acceptance sweep grows, the pack does not.** Each generated goal adds one
       `dossier.py --verify --group` check to the floor, so the last goal's sweep runs ~330 checks where
       today's runs 239. That cost is **wall clock, not context** — the checks are read by `loop.py` and
@@ -108,7 +114,9 @@ whole point. The user decided this on 2026-09-04 knowing the size.
 **`--per-goal` stays at 18** unless what you read in stage 3 says otherwise. It is a batch size, not a
 slice budget: a session takes what fits under the 200k ceiling and the next one continues, exactly as
 everywhere else. Changing it changes every file name, so decide once, in this session, and say why in
-the commit.
+the commit. Modelled on 2026-09-05 it is also where the ceiling puts it: at 18 the fan-out's parent
+peaks at 186k of the 200k, and 27 would save three hours of a 34-hour program while peaking at 203k.
+Nine costs eleven hours and buys nothing.
 
 **No ADR slot.** ADR 0134 is the decision and it is already written. The one thing this goal *did* decide
 is recorded in `docs/agent/commands.md` § the dossier: the emitter may now be fired by a session, because

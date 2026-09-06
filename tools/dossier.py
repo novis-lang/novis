@@ -213,13 +213,21 @@ RESERVED = ("crates/", "tools/", "docs/perf/", "docs/agent/", "docs/adr/", "fuzz
 
 #: How many workers a fan-out runs. Deliberately not `machine.jobs()`: a worker is an agent waiting
 #: on an API, not a process waiting on a core, and the only machine-bound thing it does is bless an
-#: example's `.out` in milliseconds. The number comes from the serial tail instead. Measured on
-#: 2026-09-05 over 68 loop sessions: a session's startup floor is 71,941 tokens against a
-#: subagent's 12,600, and the sweeps are free (`--gate` 2.6s, 17 examples in 0.1s), so what a goal
-#: cannot parallelise -- orient, the batch fix, `--record-perf`, `verify.py`, the wrap -- is 25-35
-#: of its 60-110 minutes. Against a tail that size 4 workers buy 2.2x, 6 buy 2.6x, 8 buy 2.8x and
-#: 12 buy 3.1x of a 3.8x ceiling: eight is 90% of everything there is, and past it the tail is the
-#: thing to attack rather than the width. `--workers N` and `NVS_DOSSIER_WORKERS` override it.
+#: example's `.out` in milliseconds. The number comes from the **serial tail** instead -- what a
+#: goal spends whatever its width -- which is 14.9 minutes per goal and 24 hours over the 98 of
+#: them. Its parts, all but the last measured on 2026-09-05: 7.9 min of a session's 34 fixed head
+#: and tail calls, 2.1 min of `verify.py`, 1.9 min launching the workers, 0.9 min of this tool's
+#: own commands, 0.7 min of `--record-perf`, and the batch fix. The sweeps do not appear because
+#: they are free (`--gate` 2.6s, seventeen examples in 0.1s).
+#:
+#: Against a tail that size, over the emitter's real goal sizes and a feature costing 16 calls,
+#: width buys: 2 lanes 2.17x the serial program, 3 -> 2.60x, 4 -> 2.79x, 6 -> 3.09x, 8 -> 3.13x,
+#: 12 -> 3.19x, 18 -> 3.14x. **Six is 79% of everything width can give and eight is 80%**, and 18
+#: is slower than 12 because each lane costs the parent a launch call whether or not it shortens a
+#: wave. Eight, and the tail is what to attack next -- more than half of it is the session's own
+#: fixed cost, which only fewer, larger goals would touch, and `--per-goal 27` already puts the
+#: parent's window over the 200k ceiling to save three hours. One input is an estimate and it is
+#: the 16: no dossier goal has run yet. `--workers N` and `NVS_DOSSIER_WORKERS` override this.
 FANOUT_WORKERS = 8
 
 #: What each kind of feature owes. `tests` counts proofs from either side -- a `.nvst` case or a
