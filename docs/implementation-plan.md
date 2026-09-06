@@ -60,7 +60,7 @@
 > **ADR 0093 refuses**: `E0630`-`E0634`; `nvs service unit` prints § 5's. **ADR 0017 is guarded**:
 > `never` never `stat`s, one window is one check, a swap publishes, § 3a picks `validate`, 10k cold
 > compile once. **`Core\Cldr` is whole**: 24 rule shapes, CLDR's ordinals, and the eight letters.
-> Conformance 1559, differential 275, migration 100%; valgrind green, arrays too. Serve: 2.78x
+> Conformance 1561, differential 276, migration 100%; valgrind green, arrays too. Serve: 2.78x
 > php-cgi.
 >
 > **Blocking:** Nothing waiting on a decision — every design call goals 1–6 reach is pre-authorized

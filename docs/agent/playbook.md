@@ -2842,6 +2842,21 @@ is why" — is this file.
   byte-identical can have caused it, and `--dump-asm` settles that quickly — a class descriptor and
   every runtime helper reach the code as `load_ext_name`, which is `movabs` and an `Abs8` under
   `is_pic = false`, so neither is the relocation that overflowed.
+- **`cargo test -p nvs-cli --lib` is `error: no library targets found in package`, and the unit
+  tests it was meant to run are all in the bin target.** `nvs-cli` has no `lib.rs` — `main.rs` is
+  the only target — so a module's own `#[cfg(test)] mod tests` runs under
+  `cargo test -p nvs-cli --bin nvs <filter>`, and `tests/meta.rs`/`tests/openapi.rs` drive the
+  built binary instead of linking to anything. The same call with no `--lib`/`--bin` works but
+  builds and runs both, which is the slow way to iterate on one module.
+- **When the question is "what does this backend actually emit", a throwaway `#[test]` that prints
+  it costs one build and settles it; guessing costs a design.** ADR 0042 § 3's loader turns on the
+  relocation kinds `nvs_codegen::compile_object` produces, and the plausible answer — ELF-style
+  `PltRelative` to helpers, needing a stub for anything over 2 GB away — is not what this host
+  does: a COFF object routes *every* external reference through a `.rdata$.refptr` cell of its own,
+  so the only two kinds present are `Relative`/32 and `Absolute`/64, both with **implicit** addends
+  that live in the field and must be added to `Relocation::addend()` rather than replacing it. A
+  loader written from the guess would have been wrong twice over. Delete the probe once it has
+  answered; what it found belongs in the module doc.
 
 ## Writing a test case
 
