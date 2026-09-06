@@ -159,8 +159,8 @@ spellings rejected, and the reasoning.
   ([0107](0107-by-reference-parameters-are-spelled-inout-at-both-ends.md)).
 - `::class` answers the class the value **is**, which is folded only where the compiler already
   knows it ([0144](0144-class-answers-the-class-a-value-is-so-static-class-and-obj.md)).
-- An optional field of a `Core` options bag or shape parameter may be nullable, and where it is, a
-  written `null` means *remove* and an omitted key means *leave alone*
+- An optional field of a `Core` options bag or shape parameter may be nullable, and wherever a `Core`
+  member admits a written `null` it means *remove*, while an omitted key means *leave alone*
   ([0147](0147-an-options-bag-tells-an-omitted-key-from-a-written-null.md)).
 
 ## Security and isolation

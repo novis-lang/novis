@@ -102,6 +102,9 @@ tests = [
   "there_is_no_empty_string_means_remove_rule_anywhere_in_with",
   "a_nullable_option_omits_as_unset_and_a_non_nullable_one_omits_as_null",
   "a_null_written_into_a_non_nullable_option_is_still_refused",
+  "with_query_parameter_sets_one_pair_and_leaves_every_other_alone",
+  "a_null_value_removes_one_pair_and_the_last_one_leaves_no_query_at_all",
+  "a_query_parameter_round_trips_an_array_value_through_the_bracket_convention",
 ]
 
 [[check]]

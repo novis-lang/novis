@@ -41,11 +41,23 @@ implements** — read it first. The design is settled; a session takes it rather
    reports as distinct from `null`. Five places restate the invariant this replaces and must read as
    ADR 0147 does when the stage closes: `registry.rs`'s `CoreField` and `CoreTy::Union` docs and their
    two tests, `core_lib.rs`'s `shape_fills`, `uri.rs`'s `written`, and `value.rs`'s `Tag::Unset`.
-2. **`Core\Queue`'s `limits` and `grants` are declared** — § 1's `{…}` parameters, the exact shape the
+2. **`Core\Uri` gains `queryParameter` and `withQueryParameter`** — ADR 0147 § 5's second level.
+   `queryParameter(string $name): mixed` and `withQueryParameter(string $name, mixed $value): Uri`,
+   both composing `parseQuery`, `buildQuery` and `with` rather than adding a mechanism, so a query
+   string gains no second canonicalization. A `null` value removes the pair, which `buildQuery`
+   already does; a value may itself be an `array<mixed>`, so the bracket convention needs no second
+   spelling; and removing the last parameter leaves **no** query rather than a bare `?`. This is the
+   one item in the goal that *adds* a spec row rather than editing one, so note what that costs:
+   `crates/nvs-stdlib/tests/spec_registry_coverage.rs` treats a spec row with no registry entry as the
+   regression it exists to catch, so § 12's two new rows, the registry entries, the conformance cases
+   and the `docs/reference/core/Uri.md` example are **one edit**. `spec-members-outstanding.txt` gains
+   nothing — that file's exception is for a member blocked on something unbuilt, and these two need
+   only members that already ship.
+3. **`Core\Queue`'s `limits` and `grants` are declared** — § 1's `{…}` parameters, the exact shape the
    registry could not spell. The gap notes this is the same blocker `Core\Db::open` waits on and that
    "the two lift together"; goal 21 owns the `Core\Db` half, so this stage takes the other and the two
    are checked against each other.
-3. **`Core\Queue`'s `$args` refuses a `secret`.** § 1 asks for it and `CoreTy::Mixed` carries no
+4. **`Core\Queue`'s `$args` refuses a `secret`.** § 1 asks for it and `CoreTy::Mixed` carries no
    qualifier, so the refusal needed a spelling rather than a line. A durable row is an output and
    [ADR 0033](../../adr/0033-secret-qualifier-for-confidential-values.md)'s sinks are the shape of the
    answer: a queued job's arguments are written to a database and read back by another process, which

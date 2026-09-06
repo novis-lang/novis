@@ -5,10 +5,12 @@
 - **Scope:** how a `Core` member's trailing options bag ([0063](0063-core-api-conventions.md) R2) and a
   fixed-key shape parameter ([0135](0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md))
   let a call site say *"leave this alone"* and *"clear this"* as two different things; what an omitted
-  **nullable** field materializes at the ABI; and what a member is then allowed to read that
-  distinction as. Not in scope: which members adopt it, which is each member's own row in
-  [docs/spec/01-core-library.md](../spec/01-core-library.md); a **user-declared** function's optional
-  parameter, which is unchanged and § 3 says why; and the derived-codec table in
+  **nullable** field materializes at the ABI; what a member is then allowed to read that distinction
+  as; and the three members on `Core\Uri` that spend it first, § 5. Not in scope: which *other*
+  members adopt it, which is each member's own row in
+  [docs/spec/01-core-library.md](../spec/01-core-library.md) — that file stays the home of every
+  signature, and a row lands there with its implementation, never ahead of one; a **user-declared**
+  function's optional parameter, which is unchanged and § 3 says why; and the derived-codec table in
   [0071](0071-derived-codecs.md) § 4, which already separates the two questions for a decoded payload
   and needs nothing from this.
 - **Depends on:** [0063](0063-core-api-conventions.md), whose R2 bag is the surface this changes;
@@ -36,9 +38,12 @@
 > [ADR 0135](0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md) § 3's flattening —
 > one argument per field, no runtime shape, no new calling convention — survives untouched. A
 > **non**-nullable field is completely unaffected and every existing member lowers byte for byte as
-> it does today. The semantic half is as fixed as the mechanical one: where a bag admits `null`, it
-> means *clear this component* and it is never a second operation a member invented, so a reader who
-> has seen one such field has seen all of them. `Core\Uri::with` is the first to spend it.
+> it does today. The semantic half is as fixed as the mechanical one: **wherever a `Core` member
+> admits a written `null` — a bag field or an ordinary argument — it means *remove***, never a second
+> operation a member invented, so a reader who has seen one has seen all of them. `Core\Uri` spends it
+> first and at two levels: `with` clears a component, and the pair `queryParameter` /
+> `withQueryParameter` edits one query parameter by name, which `with` cannot do because a bag's keys
+> are declared and a parameter's name is chosen at run time.
 
 ## Context
 
@@ -134,21 +139,30 @@ observe — and that is a language-surface decision this one does not open. A `C
 code that can be held to reading three states by a test; a user's function body cannot be, and giving
 it a state it has no way to name would be the observable marker § 3 above refuses.
 
-### 4. Where a bag admits `null`, `null` means remove — and never a second thing
+### 4. Where a `Core` member admits a written `null`, it means remove — and never a second thing
 
 The mechanical half without the semantic half would buy one bug for another: a bag whose `null` means
 *clear* on one member and *reset to the default* on the next, or *use the server's value* on a third,
 is a table a caller has to memorize per member. So the meaning is fixed with the mechanism.
 
-- **A written `null` means the component, option or setting is not present in the result.** *Clear*,
-  *remove*, *none*. It never means "restore a default", never selects an alternative behaviour, and is
-  never a flag under another name.
+The rule is stated over a `Core` member's written `null` rather than over a bag field, because **the
+position the `null` arrives in is incidental to what it means**. §§ 1-3 are what make a *bag field*
+able to carry one at all; an ordinary argument could always carry one, and where it does the meaning
+is the same. `Core\Uri::buildQuery` is the case that already behaved this way before this ADR existed
+— a pair whose value is `null` is dropped rather than written, which is `http_build_query`'s
+behaviour and the only one that round-trips, since a query string cannot spell an absent value. That
+is this rule arrived at independently, which is the best evidence it is the right one; it is stated
+here so the next member does not have to rediscover it.
+
+- **A written `null` means the component, option, parameter or setting is not present in the result.**
+  *Clear*, *remove*, *none*. It never means "restore a default", never selects an alternative
+  behaviour, and is never a flag under another name.
 - **An omitted key means the receiver's existing value is carried through unchanged**, which is what it
   already means everywhere.
-- **A field is made nullable only where removal is a thing the member can actually do.** A member with
+- **An input is made nullable only where removal is a thing the member can actually do.** A member with
   no removal to offer keeps its non-nullable field, and writing `null` into it stays the compile error
   it is today. This is the rule's teeth: the nullability in the signature *is* the announcement that
-  the field can be cleared, so a caller reads it off the type rather than off prose.
+  the thing can be cleared, so a caller reads it off the type rather than off prose.
 - **`""` is never a removal spelling**, on any member. It is a legal value of most of these fields and
   is already distinguishable — an empty query is not an absent one — so overloading it would reinstate
   exactly the in-band sentinel this decision removes.
@@ -156,7 +170,7 @@ is a table a caller has to memorize per member. So the meaning is fixed with the
 Folded into [ADR 0063](0063-core-api-conventions.md) R2 as the bag's own rule, since R2 is where a
 reader looking for what a bag may contain arrives.
 
-### 5. `Core\Uri::with` is the first member to spend it
+### 5. `Core\Uri` is the first class to spend it, and it does so at two levels
 
 **Three of its six fields become nullable — `port`, `query` and `fragment`** — and a written `null`
 removes the component:
@@ -187,6 +201,43 @@ naming the component that moved.
 
 `userInfo` is unaffected by all of this and stays off the bag entirely, as it is today: `with` may
 neither add nor drop a credential.
+
+**A query parameter is the second level, and it gets a pair of its own.** A URL's components are fixed
+and few; its query parameters are dynamic and many, and `with({query: …})` can only replace the whole
+string — so editing one parameter is a `parseQuery`, an array write and a `buildQuery` at every call
+site that does it, which is where this area's two real bugs come from: concatenating `&k=v` onto a
+query that already carries `k`, and forgetting to encode. Two members close it, and
+`Core\Uri::with` cannot: a bag's keys are declared in the registry and a parameter name is chosen at
+run time.
+
+```
+$uri->queryParameter(string $name): mixed
+$uri->withQueryParameter(string $name, mixed $value): Uri
+```
+
+They add **no mechanism**. Both compose `parseQuery`, `buildQuery` and `with` — all three already
+specified, implemented and tested — so a query string gains no second canonicalization for one of them
+to drift from, which is the whole of what
+[ADR 0146](0146-a-signature-is-over-a-payload-and-a-url-is-a-payload-core-uri.md) found every
+framework in this space getting wrong. Four things they settle:
+
+- **A `null` value removes the parameter**, which is § 4's rule and, for this member, is inherited
+  rather than added: `buildQuery` already drops a null pair, for the reason § 4 quotes.
+- **They are singular and by name, matching `Core\Request::query(string $name)`** — the same operation
+  on the same bracket convention, from the other side of the request. `Request` carries `query`,
+  `cookie` and `post` that way, so this is the one side of it `Core\Uri` was missing. `query()` is
+  already the raw-string reader here, so the `query` prefix is what disambiguates, and R7 spells the
+  word out rather than writing `Param`.
+- **The bracket convention comes free**, because the value may itself be an `array<mixed>`:
+  `withQueryParameter("tag", ["a", "b"])` writes `tag[]=a&tag[]=b`, and `queryParameter("tag")` reads
+  that back as the same list.
+- **Removing the last parameter leaves no query at all**, not a bare `?`. Each of the three states
+  keeps exactly one spelling: a query with pairs is these members, an empty query is
+  `with({query: ""})`, and no query is `with({query: null})`.
+
+There is no plural `withQueryParameters` and no `withoutQueryParameter`. Setting several is this
+member twice or the `parseQuery`/`buildQuery` pair that already exists, and removing is `null` — a
+third and fourth spelling would each be R15's *two behaviours need two names* read backwards.
 
 ## Consequences
 
