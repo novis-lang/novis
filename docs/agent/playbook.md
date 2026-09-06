@@ -2095,6 +2095,16 @@ is why" — is this file.
   then adding the dependency really would put the test one layer above its rule, and inverting it
   puts the test exactly on it. `nvs-cli` names both sides, which is not a coincidence and is the
   same reason it is `Fires`'s only implementor.
+- **A bare ADR number in `[context] adrs` prints the *In short* and nothing else**, so a manifest
+  reading `adrs = ["0042"]` under a comment saying *0042 whole* is a goal whose every session
+  re-slices by hand the sections its work lives in. `orient.py`'s `run_adrs` calls `slice_head` when
+  the entry carries no `§` and `slice_section` only when it does — `tools/orient.py:791`. The tell is
+  in the pack itself: the heading it prints reads `(In short)` where a section would read `§2`. The
+  neighbouring bullet says to fix the manifest in the session that finds the gap; this one says what
+  to write — one entry per section (`"0042 §2"`, `"0042 §3"`) *beside* the bare number, never the
+  bare number alone. The same field's other failure is loud rather than silent and had stood just as
+  long: `"0017 §2"` warned *renamed or renumbered* in every pack, because ADR 0017 has no numbered
+  sections at all — its `## Decision` is one unnumbered block, so no `§` selector could ever match it.
 
 ## Running things
 

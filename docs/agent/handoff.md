@@ -2,51 +2,58 @@
 
 ## State
 
-**Goal 22 stage 2 is complete: all five of its named checks are green.** `nvs-codegen` now has one
-lowering walk and two `Module`s. `emit.rs` names no concrete module at all — `emit_function` and
-`Emitter.module` take `&mut dyn Module` (`crates/nvs-codegen/src/emit.rs:137`,
-`crates/nvs-codegen/src/emit.rs:362`), and the file's own `# One walk, two Module`s` section is the
-home for why dynamic dispatch is affordable here.
+**ADR 0042 §§ 2-3 now state the amendment in their own bodies**, which is what stage 2 had earned.
+§ 2 says the payload is one host-format relocatable object per unit — what
+`nvs_codegen::compile_object` writes, defining this unit's own functions and leaving every runtime
+helper and every `nvs_class_desc_*` undefined — and § 3 says a reader maps it `MAP_PRIVATE` and
+writable, verifies, relocates, and only then `mprotect`s. Folded with them, so that nothing in the
+ADR still describes a page dump: the *In short*, both *Investigation* bullets, one *Consequences*
+bullet, one *Alternatives rejected* bullet, and `crates/nvs-cli/src/cache.rs`'s *Known gaps*, which
+now points at those two sections instead of carrying the amendment itself.
 
-`Jit` is now `UnitBuilder<M>` (`crates/nvs-codegen/src/lib.rs:529`), because it is no longer only a
-JIT: `UnitBuilder<JITModule>::new`/`finish` is the in-process backend and
-`UnitBuilder<ObjectModule>::for_object`/`finish_object` writes ADR 0042 § 2's relocatable object,
-while `compile_all`, `compile_function` and every table are shared code on `impl<M: Module>`.
-`pub fn compile_object(&Program) -> Vec<u8>` (`crates/nvs-codegen/src/lib.rs:489`) is the entry point
-stage 3 will read from. `host_isa(is_pic)` (`crates/nvs-codegen/src/lib.rs:1045`) is the single home
-for the ISA and its flags; `is_pic` is the only one the two backends disagree about, and the object
-gets no symbol table of any kind — that is what leaves every helper and every `nvs_class_desc_*`
-undefined.
+`nvs_codegen::class_desc_symbol` is `pub` (`crates/nvs-codegen/src/lib.rs:1799`): the loader that
+resolves a descriptor relocation is in another crate and must derive the identical name.
+`crates/nvs-cli/src/cache.rs`'s `a_published_artifact_is_the_object_the_compiler_wrote` compiles a
+program through this binary's own front end, stores `compile_object`'s bytes, reads them back and
+finds `nvs_class_desc_Widget` *undefined* in the artifact — `object` is a new dev-dependency of
+`nvs-cli` for that read. Stage 3's six named tests are all still unwritten; nothing is blocked.
 
-Five unit tests in `src/lib.rs`'s `mod tests` carry stage 2, sharing one `BOTH_BACKENDS` fixture
-list. `cranelift-object` and a `read`-only `object` dev-dependency are the only new crates; the lock
-gained one package. Nothing is blocked.
+Two facts the loader slice needs and no doc holds yet: every function is declared `Linkage::Local`
+(`crates/nvs-codegen/src/lib.rs:1421`) as `nvs<index>_<sanitize(name)>`, so the entry frame is a
+*static* symbol derived from `ENTRY_SCRIPT_LABEL` and a loader finds it by walking the symbol table
+rather than by asking for an export; and `nvs_runtime::symbols()` / `nvs_stdlib::symbols()` are the
+name-to-address tables the JIT resolves helpers through (`crates/nvs-codegen/src/lib.rs:1285`), both
+of which `nvs-cli` already depends on.
 
 ## Next group
 
-**Stage 3: the warm hit, and the ADR fold stage 2 has now earned.** One file set —
-`docs/adr/0042-on-disk-artifact-cache-format.md`, `crates/nvs-cli/src/cache.rs`,
-`crates/nvs-codegen/src/lib.rs`.
+**Stage 3: the relocating read path.** One file set — `crates/nvs-cli/src/cache.rs`,
+`crates/nvs-cli/Cargo.toml`, `crates/nvs-cli/src/main.rs`.
 
-- [ ] **Fold the amendment into ADR 0042 §§ 2-3's own bodies** — the goal's standing decision says
-      this goal opens no ADR number and folds into these two sections. § 2 must state that the
-      payload is what `nvs_codegen::compile_object` writes — a host-format relocatable object whose
-      undefined symbols are the runtime helpers and `nvs_class_desc_*` — and § 3 that a reader
-      relocates a private writable mapping before `mprotect`, which is the amendment
-      `crates/nvs-cli/src/cache.rs`'s *Known gaps* still owes.
-      `docs/adr/0042-on-disk-artifact-cache-format.md:113` and
-      `docs/adr/0042-on-disk-artifact-cache-format.md:124`.
-- [ ] **`class_desc_symbol` becomes `pub`, and `cache.rs`'s writer stores a real payload** — the
-      loader resolving a descriptor relocation lives in another crate and derives the same name.
-      `crates/nvs-codegen/src/lib.rs:1623`, `crates/nvs-cli/src/cache.rs:147`.
-- [ ] **Stage 3's read path**, `-p nvs-cli`: map private writable, relocate, then make the pages
-      executable, and a failed verification is a miss and never an error. Six named tests, the first
-      being `a_warm_hit_maps_private_writable_relocates_then_makes_the_pages_executable`
-      (`docs/agent/loop-goal.toml:4273`). `crates/nvs-cli/src/cache.rs:115`,
-      `crates/nvs-cli/src/cache.rs:259`, `crates/nvs-cli/src/cache.rs:970`.
-
-The orientation pack sliced only ADR 0042's *In short*; the group above needs its §§ 2-3, so add
-`0042` §§ 2 and 3 to `[context] adrs` in `docs/agent/loop-goal.toml`.
+- [ ] **The loader: a `Verified` becomes executable pages.** `memmap2::MmapOptions::map_copy` is
+      § 3's private writable mapping and `MmapMut::make_exec` its one-way transition;
+      `object::File::parse` over the payload gives the sections, symbols and relocations, so `object`
+      is promoted from a dev-dependency to a dependency. Resolve a helper through
+      `nvs_runtime::symbols()`/`nvs_stdlib::symbols()` and an `nvs_class_desc_*` through this
+      process's own descriptors — `crates/nvs-codegen/src/lib.rs:1399` is where the JIT publishes
+      exactly that map. **Decide the >2 GB question first** (see the backlog): a PC-relative call from
+      a mapped artifact to a helper in this image is the one relocation that can be unrepresentable,
+      and the answer is either a stub table this loader emits or a placement constraint on the
+      mapping. `crates/nvs-cli/src/cache.rs:246`, `crates/nvs-cli/src/cache.rs:417`.
+- [ ] **The five tests that need only the loader**, `-p nvs-cli`, named by
+      `docs/agent/loop-goal.toml:4271`:
+      `a_warm_hit_maps_private_writable_relocates_then_makes_the_pages_executable`,
+      `a_payload_whose_checksum_fails_is_a_miss_and_not_an_error`,
+      `a_payload_written_by_a_different_toolchain_is_a_miss`,
+      `an_absent_or_unwritable_cache_directory_is_a_miss_and_the_run_succeeds`. The last three are
+      close to `a_tampered_artifact_is_rejected`'s ground but must be their own functions — the check
+      matches names. `crates/nvs-cli/src/cache.rs:1066`, `crates/nvs-cli/src/cache.rs:1023`.
+- [ ] **The wiring, and the two tests that need it**:
+      `a_second_run_of_the_same_program_does_not_compile_it` and
+      `an_edited_source_file_is_a_miss_on_the_next_run`. `nvs run` compiles at
+      `crates/nvs-cli/src/main.rs:1128` with the key's inputs already in hand at
+      `crates/nvs-cli/src/main.rs:1097`; `nvs_config::cache::{content_hash, artifact_key}` is the
+      key, and `#![allow(dead_code)]` at `crates/nvs-cli/src/cache.rs:135` comes off when this lands.
 
 ## Backlog
 
@@ -54,8 +61,8 @@ The orientation pack sliced only ADR 0042's *In short*; the group above needs it
   names the margin, `docs/agent/loop-goal.toml:4293`.
 - A JIT call between two functions of one unit is colocated, so it is PC-relative and
   `cranelift-jit` *panics* if the two land over 2 GB apart — seen once under the 10k-concurrent
-  compile test, playbook § *Running things*. Nothing owns this yet; ADR 0042's loader will have to
-  answer the same question for a mapped artifact.
+  compile test, playbook § *Running things*. The loader above has to answer the same question for a
+  mapped artifact, and nothing owns it yet.
 - `UnitBuilder<ObjectModule>` binds no method tables: a `MethodRow` holds a code address and there is
-  none until a loader places one — `finish_object`'s own doc comment says so, and stage 3 is where it
-  becomes a question.
+  none until a loader places one — `finish_object`'s own doc comment says so, and the loader slice is
+  where it becomes a question.
