@@ -2861,10 +2861,10 @@ is why" — is this file.
 - **`cargo test -p nvs-cli --lib` is `error: no library targets found in package`, and the unit
   tests it was meant to run are all in the bin target.** `nvs-cli` has no `lib.rs` — `main.rs` is
   the only target — so a module's own `#[cfg(test)] mod tests` runs under
-  `cargo test -p nvs-cli --bin nvs <filter>`, and `tests/meta.rs`/`tests/openapi.rs` drive the
-  built binary instead of linking to anything. The same call with no `--lib`/`--bin` works but
-  builds and runs both, which is the slow way to iterate on one module. The same is true of every
-  binary-only crate here.
+  `cargo test -p nvs-cli --bin nvs <filter>`, and
+  `crates/nvs-cli/tests/meta.rs`/`crates/nvs-cli/tests/openapi.rs` drive the built binary instead
+  of linking to anything. The same call with no `--lib`/`--bin` works but builds and runs both,
+  which is the slow way to iterate on one module. The same is true of every binary-only crate here.
 - **When the question is "what does this backend actually emit", a throwaway `#[test]` that prints
   it costs one build and settles it; guessing costs a design.** ADR 0042 § 3's loader turns on the
   relocation kinds `nvs_codegen::compile_object` produces, and the plausible answer — ELF-style
@@ -8424,7 +8424,7 @@ sibling in the same namespace unqualified.
   flag list out of `UnitBuilder::new` into `host_isa(is_pic)` and the test stayed green only because
   the tuple's *spelling* survived the move. Rewriting the row as `("enable_probestack", probes)` — or
   splitting the list per backend — compiles, runs, and silently unpins the stack-clash guarantee.
-  Grep `tests/backend_policy.rs` for the flag before touching that list.
+  Grep `crates/nvs-codegen/tests/backend_policy.rs` for the flag before touching that list.
 
 ## Divergences and refusals already pinned
 
