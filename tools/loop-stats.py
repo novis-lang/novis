@@ -465,8 +465,13 @@ def render_attribution(sessions):
     print("                     missing their file:line anchors, so every session re-derives them.")
 
     delegated = [(s["log"], a) for s in sessions for a in s["subagents"]]
+    # The two buckets a subagent is allowed to take: finding where something is, and reading a
+    # file the session will not edit. Everything else -- the item's own anchors, the code being
+    # changed, the verification -- must be read by the session that writes the handoff.
+    searching = merged.get("discovery", 0) + merged.get("source", 0)
+    spawned = len({log for log, _ in delegated})
+    print("\n== DELEGATED  (subagent transcripts captured beside the session's own)")
     if delegated:
-        print("\n== DELEGATED  (subagent transcripts captured beside the session's own)")
         print(f"\n{'session':<32}{'agent':<26}{'calls':>7}{'peak ctx':>11}")
         for log, a in delegated:
             print(f"{log:<32}{a['agent']:<26}{a['calls']:>7}{a['peak_ctx']:>11,}")
@@ -477,10 +482,19 @@ def render_attribution(sessions):
         )
     else:
         print(
-            "\n== DELEGATED\n\n   Nothing. Either no session spawned a subagent, or these logs predate\n"
+            "\n   Nothing. Either no session spawned a subagent, or these logs predate\n"
             "   tools/loop.py capturing them -- the two look identical from here, which is why\n"
             "   the capture exists."
         )
+    print(
+        f"\n   {spawned} of {len(sessions)} session(s) delegated anything, against "
+        f"{searching:,} B ({searching / 3.6:,.0f} tok, {searching / total:.0%} of what was\n"
+        f"   fetched) charged to their own windows by discovery and source reads. That is the\n"
+        "   ceiling on what delegation could ever have moved, not a target: a subagent is for a\n"
+        "   search over files this session will NOT open, and its startup floor makes a narrow\n"
+        "   one a loss. The half of it that is the item's own anchors was never delegable.\n"
+        "   docs/agent/session-prompt.md is where the rule and the safety boundary live."
+    )
 
 
 CALIBRATION = ROOT / "tools" / "data" / "calibration.json"

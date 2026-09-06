@@ -57,12 +57,24 @@ has read well before its window is full. `orient.py` starts you under 20k of it.
   the traps. A rule's chapter body is the rule and a decision record is frozen reasoning; for another
   record section, slice it and name it in the handoff for `[context] adrs`.
 - **Read with `peek.py`, not one probe at a time.** `python tools/peek.py A.rs:120-160 B.rs:@symbol
-  C.md:"## 4" "crates/**/*.rs:re:pat"` takes as many targets as you have questions, and `--locate
-  <symbol> ...` returns `file:line` anchors alone.
+  rule:types/conversion C.md:"## 4" "crates/**/*.rs:re:pat"` takes as many targets as you have
+  questions, and `--locate <symbol> ...` returns `file:line` anchors alone. A `rule:` citation is a
+  target: paste the token and get the fragment, which is the rule.
 - **Delegate a read-heavy search to a subagent, and keep its answer rather than its reading.** Its
   reads are charged to its own window. Send one for "where is X, and what are its anchors" over files
-  you will not otherwise open. A subagent searches and never writes: not code, not decisions, not a
-  file you are about to edit — the handoff must rest on what you actually read.
+  you will not otherwise open. One measured run: 1 session in 39 delegated anything, while discovery
+  and source reads took 53% of everything fetched — `python tools/loop-stats.py --attribute` is that
+  number now.
+- **What is safe to delegate, and what is not.** Safe: *where is X*, *how many of Y are there*, *what
+  spelling does the corpus use*, over a tree you are not editing. Not safe, ever: writing anything;
+  reading a file you are about to edit; deciding a design question; judging whether a check passed;
+  the wrap. The handoff and the code must rest on what **you** read — a subagent's summary is a
+  pointer to verify, not evidence to commit. The one carve-out in this repository is
+  `dossier.py --partition`, which is a different protocol and says so.
+- **When you have two or three independent searches, send them in one message.** They then run
+  concurrently and cost you one round trip instead of three, which is the wall-clock half of the win;
+  the context half you get either way. Independent means neither one's prompt depends on the other's
+  answer — otherwise they are sequential and sending them together just guesses.
 - **A delegated search gets the question, the place to look and the answer's shape — never the
   project.** It starts with its own copy of `AGENTS.md`. Ask for `file.rs:NN` anchors and one line
   each, never excerpts. The whole prompt:
@@ -70,7 +82,9 @@ has read well before its window is full. `orient.py` starts you under 20k of it.
       Search only under crates/nvs-stdlib/src. Find every CoreMethod row whose return type is
       CoreTy::Instance. Return one line each: `file.rs:NN  Class::member  -> instance name`.
       No excerpts, no commentary. If you find none, say so.
-- **`python tools/verify.py` once, for the whole group.**
+- **`python tools/verify.py` once, for the whole group** — and `--start` it *before* you write the
+  wrap, so the build runs while you write. That is the one piece of parallelism that is free every
+  single session, and step 3 above is where it belongs.
 
 `python tools/loop-stats.py` measures all of this from `.loop/logs/`, and `--attribute` says which reads
 put a session where it landed.
