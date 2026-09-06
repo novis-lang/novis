@@ -406,10 +406,29 @@ def covers(pathspec: str, path: str) -> bool:
     return path == spec or path.startswith(spec + "/") or fnmatch.fnmatch(path, spec)
 
 
+#: Files no session writes by hand and every session can leave dirty: `verify.py` regenerates
+#: them in place, on purpose, so the tree follows the registry without a session remembering to.
+#: They are derived from what the session's own commits changed, so they belong to this session
+#: whatever it named -- and because nothing in the wrap *writes* them, `written_paths` cannot see
+#: them and the sweep below would leave them for a hand-rolled `git add` that never comes.
+#:
+#: This is the one leak that survived `uncommitted_writes`: a session adding a `Core` member ran
+#: `verify.py`, which rewrote `docs/novis.md`, and ended with the file dirty. The next session
+#: inherited it, and an INTERRUPTED session left it behind for good.
+GENERATED = ("docs/novis.md",)
+
+
+def dirty_generated() -> list[str]:
+    """Which of `GENERATED` the tree has actually changed, in `git`'s own spelling."""
+    out = _checked(["git", "status", "--porcelain", "--", *GENERATED]).stdout
+    return [ln[3:].strip() for ln in out.split("\n") if ln.strip()]
+
+
 def uncommitted_writes(sections: list[Section]) -> list[str]:
-    """What this wrap writes that none of its `## commit:` sections would carry."""
+    """What this wrap writes -- or `verify.py` wrote under it -- that no `## commit:` carries."""
     specs = [spec for s in sections if s.kind == "commit" for spec in s.arg.split()]
-    return [p for p in written_paths(sections) if not any(covers(spec, p) for spec in specs)]
+    owed = list(written_paths(sections)) + dirty_generated()
+    return [p for p in owed if not any(covers(spec, p) for spec in specs)]
 
 
 def validate(sections: list[Section]) -> list[str]:
