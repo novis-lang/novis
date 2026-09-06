@@ -6080,6 +6080,17 @@ is why" — is this file.
   lines, find each column's own clause, strip the dialect's identity spelling, and assert *presence*
   against `Column::default_value().is_some()`. That is strictly stronger than the count it replaces,
   which passes unchanged when two columns swap their defaults.
+- **A `#[cfg(test)] mod tests` can already hold a `type` alias for the struct your slice is about to
+  add, and `use super::*` lets the alias win.** `catalog.rs`'s tests carried
+  `type ColumnRow = (String, String, i64, …)` as a placeholder for ADR 0145 § 4's row shape; adding
+  the real `pub struct ColumnRow` above it failed as `expected struct, variant or union type, found
+  (String, …)` pointing at the *new* code, so a name collision reads as a mistake in the struct
+  rather than as a shadow, and the type in the message is the alias's expansion rather than
+  anything you wrote. One `grep -n '<TypeName>' <file>` before naming a type after something the
+  file's own tests already name. When the alias was a placeholder for exactly this — as it was here
+  — delete it and move the test's `.0`/`.1` accesses onto the fields rather than renaming either
+  side: two vocabularies for one row is what the tree does not keep, and the positional accesses
+  are the half a later slice would otherwise have to rewrite anyway.
 
 ## Splitting a file that got too big
 
