@@ -21,7 +21,8 @@
 > collision or a hand-placed file. The payload is a relocatable object rather than an image of finished
 > pages, so a reader hashes it where the page cache put it, copies its sections into a private mapping of
 > its own at the alignment they run at, resolves its undefined
-> symbols against this process's own helper and class-descriptor addresses, and only then calls `mprotect`
+> symbols against this process's own helper addresses and against class descriptors it builds from the
+> same source's IR — a warm hit skips codegen, not the front end — and only then calls `mprotect`
 > to make *those* pages executable — the existing W^X discipline, extended one step
 > earlier. A writer compiles to a temp file, `fsync`s it, and does one atomic rename onto the final,
 > content-addressed path; if that path already exists, the writer's own copy is simply discarded, never
@@ -140,6 +141,24 @@ lands, and § 3 is what makes it runnable. A change to that convention — which
 undefined, or what a reader must do with them — is a `format_version` bump, so an older file becomes a
 plain miss rather than one some reader relocates under yesterday's rules.
 
+**And it carries no class metadata at all, which is what makes those undefined `nvs_class_desc_*` names
+resolvable in a process that compiled nothing.** A descriptor is built by the *loading* process out of the
+lowered IR, exactly as a cold compile builds one: `nvs-codegen`'s `Classes::build` reads
+`nvs_ir::ir::Program`'s classes and nothing else, and every part of a `nvs_runtime::ClassDesc` except its
+method table's code addresses comes from that walk. So **what a warm hit skips is codegen, not the front
+end** — it parses, checks and lowers the same source, and only the Cranelift walk and the pages it would
+have produced come off the disk instead. § 3's `resolve` is then asked for the address of a descriptor
+this process has just allocated, and those descriptors are the same objects, in the same order, that a
+cold compile of the same source would have allocated: the key covers the source's content *and* the
+toolchain, so a hit is by construction a run whose IR is identical to the one the payload was emitted
+from. The same identity is what lets a loader name a function it needs — `nvs<index>_<sanitized label>`,
+indexed by position in that shared `nvs_ir::Program` — and `nvs-codegen`'s `is_function_symbol` is the one
+home of recognising one, as `class_desc_symbol` is of spelling a descriptor's.
+
+**What this costs is named rather than hidden**: a warm hit pays parse, check and lower in full, and only
+codegen is saved. Whether that is a cache worth having is a measurement, not an argument — § *Verification*'s
+warm-versus-cold margin is the one that takes it, and § *Revisiting* says what would reopen this.
+
 ### 3. Reading: verify fully before a single page becomes executable
 
 `mmap` the file read-only (never starting from `PROT_EXEC`). Check
@@ -159,6 +178,17 @@ mapping. Only after that do its pages get `mprotect`'d to
 `PROT_READ | PROT_EXEC`, extending the W^X discipline the JIT's own freshly-compiled pages already follow
 one step earlier in the pipeline: a mapping is writable or executable, never both at once, and the
 transition runs one way.
+
+**The descriptors bracket that sequence: build, place, relocate, protect, then bind.** A `ClassDesc`'s
+method rows hold *code* addresses, which do not exist until the payload has been placed; a relocation
+needs *descriptor* addresses, which exist as soon as the IR has been walked (§ 2). So the dependency is
+not a cycle and nothing here needs a fixup pass: build every descriptor from the lowered IR first,
+relocate against them, `mprotect`, and only then fill each row's `code` from the payload's own defined
+function symbols — writing into the descriptors, never back into the pages, which is why binding can
+follow protection rather than racing it. That last step is the loader's counterpart to the JIT's
+`bind_method_tables`; it runs at the same point in the sequence and for the same reason, the first moment
+a compiled function has an address at all, and it skips a `(method, declaring class)` pair the payload
+does not define on exactly that pass's terms rather than making it an error.
 
 **The pages that run are the reader's, not the file's**, and § 2's payload is why. A relocatable object's
 sections are laid out for a linker to place: their offsets are correct relative to the object's own start
@@ -292,6 +322,13 @@ re-litigated further here since M9 has not started.
 - **A directory-level `fsync` on every write, for crash durability.** Rejected: the failure this would guard
   against — losing an entry on a crash before it reaches disk — degrades to an ordinary cache miss on the
   next run, not a correctness or security defect, so the extra sync buys nothing this design needs.
+- **Carrying the unit's class descriptors in the payload, so a warm hit could skip the front end too.**
+  Rejected on two counts, both outlasting this milestone. It serialises a runtime type — a
+  `nvs_runtime::ClassDesc` holds `String`s, two codec field lists and pointers to other descriptors — so
+  every future field of that type becomes a `format_version` bump plus a second, write-only spelling of a
+  structure the compiler already builds from the IR. And what it buys is only the front end, which a miss
+  pays anyway and which § 2 shows is not needed to make the payload runnable. Reopening it is a
+  measurement's job, not a design's; see § *Revisiting*.
 - **Treating the payload checksum as sufficient protection against a hostile cache directory.** Explicitly
   rejected as a *claim* — see §5. A checksum proves content integrity, never authorial trust; only a
   permission/ownership check closes that gap, and this ADR states that distinction rather than leaving it
@@ -304,6 +341,11 @@ re-litigated further here since M9 has not started.
   already left for push-based invalidation: a distribution question, not a concurrency-safety one, and it
   should extend this design (the content-addressed key already makes a shared store *safe* to read from
   multiple hosts) rather than replace it.
+- **Carrying class metadata in the payload** is reopened by one number and only that number: the share of
+  a warm `nvs run`'s work that the front end still accounts for, as § *Verification*'s warm-versus-cold
+  measurement reports it. § 2 spends the front end to keep a runtime type out of the file format; if that
+  share ever dominates the saving, the answer is a `format_version` that carries the *IR's* class list —
+  the compiler's own structure, versioned with the file — and never `ClassDesc` itself.
 - **Exact default values** for `opcache.file_cache_max_size` and the GC probability/divisor pair are left to
   whoever implements M6, the same way ADR 0018 left exact Clover/lcov shape to its implementer.
 - **Per-ancestor-directory ownership walking** (checking not just the cache directory itself but every
@@ -323,5 +365,8 @@ Verification, to land with M6 since the mechanism does not exist before it:
   refused at startup.
 - Warm-cache `nvs run` startup meets M6's own verification bullet for it, unchanged by this ADR beyond
   actually specifying the mechanism that bullet was implicitly assuming.
+- A warm hit beats the cold compile it replaces, by a margin the measurement itself names — the one number
+  § 2's front-end cost is judged by, and the one § *Revisiting* would reopen the file format over. A cache
+  that does not beat compiling is a cache to delete.
 - Cache size stays within its configured cap (plus the accepted hysteresis window) under a sustained stream
   of distinct-content compiles, with the sweep itself never observed on the request-serving/CLI-hot path.
