@@ -405,7 +405,7 @@ Windows event log, the first place an administrator looks. The event-log source 
 install and removed at uninstall, and `uninstall` leaves nothing behind: no registry key, no source, no
 unit file, no granted ACL.
 
-<sub>See also [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly), [`packaging/a-service-runs-as-a-virtual-account`](packaging.md#packaging-a-service-runs-as-a-virtual-account). Decided in [0093](../adr/0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md), [0078](../adr/0078-config-reload-and-control-socket.md).</sub>
+<sub>See also [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly), [`packaging/a-service-runs-as-a-virtual-account`](packaging.md#packaging-a-service-runs-as-a-virtual-account), [`http-server/the-residue-is-one-named-fault-class`](http-server.md#http-server-the-residue-is-one-named-fault-class). Decided in [0093](../adr/0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md), [0078](../adr/0078-config-reload-and-control-socket.md).</sub>
 
 <a id="packaging-the-unit-is-printed-and-install-is-the-opt-in"></a>
 
@@ -581,7 +581,7 @@ What the entry contains, how it is verified before it becomes executable, and wh
 extension set ([`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key)) are unchanged by how its bytes
 arrive; only the read path is.
 
-<sub>See also [`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-artifact-is-verified-whole-before-a-page-is-executable`](packaging.md#packaging-an-artifact-is-verified-whole-before-a-page-is-executable). Decided in [0106](../adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md), [0042](../adr/0042-on-disk-artifact-cache-format.md).</sub>
+<sub>See also [`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-artifact-is-verified-whole-before-a-page-is-executable`](packaging.md#packaging-an-artifact-is-verified-whole-before-a-page-is-executable), [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers). Decided in [0106](../adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md), [0042](../adr/0042-on-disk-artifact-cache-format.md).</sub>
 
 <a id="packaging-an-artifact-is-one-immutable-content-addressed-file"></a>
 

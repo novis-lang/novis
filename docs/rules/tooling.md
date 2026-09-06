@@ -29,7 +29,7 @@ observer ordinary code at that site would face, and there is no `setAccessible(t
 into execution, because `eval` does not exist. Neither touches the filesystem, the network or another
 process, so neither needs a capability grant ([`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability)).
 
-<sub>See also [`core-classes/reflect`](core-classes.md#core-classes-reflect), [`core-classes/ast-is-inert`](core-classes.md#core-classes-ast-is-inert), [`security/reflection-enforces-visibility`](security.md#security-reflection-enforces-visibility), [`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability), [`enums/reflection`](enums.md#enums-reflection). Decided in [0019](../adr/0019-reflection-and-ast-parsing-are-core-features.md).</sub>
+<sub>See also [`core-classes/reflect`](core-classes.md#core-classes-reflect), [`core-classes/ast-is-inert`](core-classes.md#core-classes-ast-is-inert), [`security/reflection-enforces-visibility`](security.md#security-reflection-enforces-visibility), [`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability), [`enums/reflection`](enums.md#enums-reflection), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0019](../adr/0019-reflection-and-ast-parsing-are-core-features.md).</sub>
 
 <a id="tooling-terminal-output-is-a-sink"></a>
 
@@ -767,7 +767,7 @@ Windows with no edit; Windows gains no kernel shebang support, and its distribut
 single-file executable. This is one lexer branch at offset 0: no parser rule, HIR shape or runtime
 behaviour changes.
 
-<sub>See also [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag), [`statements/exit-is-the-only-termination-keyword`](statements.md#statements-exit-is-the-only-termination-keyword), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host). Decided in [0100](../adr/0100-against-python-nvs-claims-the-tool-that-gets-handed-over.md), [0049](../adr/0049-single-open-tag-and-single-exit-keyword.md), [0099](../adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md), [0095](../adr/0095-ambiguous-input-is-refused-never-repaired.md).</sub>
+<sub>See also [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag), [`statements/exit-is-the-only-termination-keyword`](statements.md#statements-exit-is-the-only-termination-keyword), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree). Decided in [0100](../adr/0100-against-python-nvs-claims-the-tool-that-gets-handed-over.md), [0049](../adr/0049-single-open-tag-and-single-exit-keyword.md), [0099](../adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md), [0095](../adr/0095-ambiguous-input-is-refused-never-repaired.md).</sub>
 
 <a id="tooling-no-repl"></a>
 
@@ -855,7 +855,7 @@ Changing any of these rules later is a real diff across every already-formatted 
 change, so the rule set is stable once it ships. The formatter reads the lossless tree, never the strict
 parse that drops comments — a walk over the strict tree would delete every comment in the file.
 
-<sub>See also [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per), [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-is-idempotent`](tooling.md#tooling-fmt-is-idempotent), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`core-api/casing-has-no-suppression`](core-api.md#core-api-casing-has-no-suppression). Decided in [0039](../adr/0039-canonical-code-formatting.md).</sub>
+<sub>See also [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per), [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-is-idempotent`](tooling.md#tooling-fmt-is-idempotent), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`core-api/casing-has-no-suppression`](core-api.md#core-api-casing-has-no-suppression), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree). Decided in [0039](../adr/0039-canonical-code-formatting.md).</sub>
 
 <a id="tooling-fmt-base-style-is-per"></a>
 
@@ -1007,7 +1007,7 @@ different bytes, because those line breaks are kept. A formatter whose output de
 would have to choose every line break itself, which is exactly the width-fitting printer this design
 declines to build. What converges is one file, run twice — never two semantically identical files.
 
-<sub>See also [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-check-writes-nothing`](tooling.md#tooling-fmt-check-writes-nothing). Decided in [0039](../adr/0039-canonical-code-formatting.md).</sub>
+<sub>See also [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-check-writes-nothing`](tooling.md#tooling-fmt-check-writes-nothing), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients). Decided in [0039](../adr/0039-canonical-code-formatting.md).</sub>
 
 <a id="tooling-fmt-is-never-a-diagnostic"></a>
 
@@ -1034,7 +1034,7 @@ never has to tell "laid out differently" from "semantically wrong". A separate `
 declined for the same reason — a third rule table beside the formatter's and the converter's, which no one
 has asked for.
 
-<sub>See also [`tooling/fmt-check-writes-nothing`](tooling.md#tooling-fmt-check-writes-nothing), [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes). Decided in [0039](../adr/0039-canonical-code-formatting.md).</sub>
+<sub>See also [`tooling/fmt-check-writes-nothing`](tooling.md#tooling-fmt-check-writes-nothing), [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients). Decided in [0039](../adr/0039-canonical-code-formatting.md).</sub>
 
 <a id="tooling-fmt-check-writes-nothing"></a>
 
@@ -1076,7 +1076,7 @@ single-file walk — that rename is an editor's workspace-wide code action. A du
 can be nothing else, which is why they and only they are here. Normalizing PHP's case-insensitive
 reserved words is the converter's job, where the input is known to be PHP.
 
-<sub>See also [`types/duration-literal`](types.md#types-duration-literal), [`classes/reserved-spellings-are-lower-case`](classes.md#classes-reserved-spellings-are-lower-case), [`core-api/casing-checks-the-leading-character`](core-api.md#core-api-casing-checks-the-leading-character), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes). Decided in [0039](../adr/0039-canonical-code-formatting.md).</sub>
+<sub>See also [`types/duration-literal`](types.md#types-duration-literal), [`classes/reserved-spellings-are-lower-case`](classes.md#classes-reserved-spellings-are-lower-case), [`core-api/casing-checks-the-leading-character`](core-api.md#core-api-casing-checks-the-leading-character), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0039](../adr/0039-canonical-code-formatting.md).</sub>
 
 <a id="tooling-fmt-never-reorders-members"></a>
 
@@ -1158,7 +1158,7 @@ one variant test per line comment in the lexer, and nothing on any request path.
 to HTML crosses the bidi boundary the lexer already checks for every comment span
 ([`security/bidi-boundaries`](security.md#security-bidi-boundaries)), and reuses that check rather than growing a second one.
 
-<sub>See also [`tooling/doc-comment-attaches-to-the-next-declaration`](tooling.md#tooling-doc-comment-attaches-to-the-next-declaration), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`core-api/reference-card`](core-api.md#core-api-reference-card), [`security/bidi-boundaries`](security.md#security-bidi-boundaries), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name). Decided in [0137](../adr/0137-a-doc-comment-is-three-slashes-and-two-tags.md).</sub>
+<sub>See also [`tooling/doc-comment-attaches-to-the-next-declaration`](tooling.md#tooling-doc-comment-attaches-to-the-next-declaration), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`core-api/reference-card`](core-api.md#core-api-reference-card), [`security/bidi-boundaries`](security.md#security-bidi-boundaries), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case). Decided in [0137](../adr/0137-a-doc-comment-is-three-slashes-and-two-tags.md).</sub>
 
 <a id="tooling-doc-comment-attaches-to-the-next-declaration"></a>
 
@@ -1267,7 +1267,7 @@ shape is the registry's and is unchanged by this; the user half is this rule's.
 The no-argument form must emit byte-identical output before and after the argument exists: the seam is
 one input added to one document, never a fork.
 
-<sub>See also [`tooling/meta-json`](tooling.md#tooling-meta-json), [`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example). Decided in [0137](../adr/0137-a-doc-comment-is-three-slashes-and-two-tags.md), [0117](../adr/0117-an-implemented-core-member-documents-itself-in-the-registry.md).</sub>
+<sub>See also [`tooling/meta-json`](tooling.md#tooling-meta-json), [`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case). Decided in [0137](../adr/0137-a-doc-comment-is-three-slashes-and-two-tags.md), [0117](../adr/0117-an-implemented-core-member-documents-itself-in-the-registry.md).</sub>
 
 <a id="tooling-nvs-doc-renders-and-decides-nothing"></a>
 

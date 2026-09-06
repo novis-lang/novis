@@ -272,7 +272,8 @@
       "seeAlso": [
         "config/a-reload-names-what-it-could-not-apply",
         "concurrency/a-drain-closes-a-connection-cleanly",
-        "packaging/a-service-runs-as-a-virtual-account"
+        "packaging/a-service-runs-as-a-virtual-account",
+        "http-server/the-residue-is-one-named-fault-class"
       ],
       "guardedBy": []
     },
@@ -392,7 +393,8 @@
       "seeAlso": [
         "errors/panics-bypass-user-code",
         "config/the-extension-set-is-in-every-unit-key",
-        "packaging/an-artifact-is-verified-whole-before-a-page-is-executable"
+        "packaging/an-artifact-is-verified-whole-before-a-page-is-executable",
+        "http-server/a-requests-blast-radius-is-bounded-at-four-tiers"
       ],
       "guardedBy": []
     },

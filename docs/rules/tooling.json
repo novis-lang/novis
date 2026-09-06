@@ -16,7 +16,8 @@
         "core-classes/ast-is-inert",
         "security/reflection-enforces-visibility",
         "security/reflection-needs-no-capability",
-        "enums/reflection"
+        "enums/reflection",
+        "ide/every-feature-is-staged-behind-its-dependency"
       ],
       "guardedBy": [
         "tests/conformance/core/core-ast-parse-answers-the-compilers-own-tree.nvst",
@@ -576,7 +577,8 @@
         "statements/nvs-is-the-only-open-tag",
         "statements/exit-is-the-only-termination-keyword",
         "errors/ambiguous-input-refused",
-        "packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host"
+        "packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host",
+        "ide/one-grammar-one-tree"
       ],
       "guardedBy": [
         "tests/conformance/core/a-shebang-line-opens-code.nvst"
@@ -643,7 +645,10 @@
         "tooling/fmt-is-idempotent",
         "tooling/fmt-is-never-a-diagnostic",
         "core-api/identifier-casing",
-        "core-api/casing-has-no-suppression"
+        "core-api/casing-has-no-suppression",
+        "ide/one-server-two-thin-clients",
+        "ide/the-tree-survives-a-syntax-error",
+        "ide/one-grammar-one-tree"
       ],
       "guardedBy": []
     },
@@ -749,7 +754,8 @@
       ],
       "seeAlso": [
         "tooling/fmt-never-reflows",
-        "tooling/fmt-check-writes-nothing"
+        "tooling/fmt-check-writes-nothing",
+        "ide/one-server-two-thin-clients"
       ],
       "guardedBy": []
     },
@@ -766,7 +772,9 @@
         "tooling/fmt-is-one-canonical-style",
         "core-api/identifier-casing",
         "security/secret-qualifier",
-        "tooling/convert-one-table-two-modes"
+        "tooling/convert-one-table-two-modes",
+        "ide/every-feature-is-staged-behind-its-dependency",
+        "ide/one-server-two-thin-clients"
       ],
       "guardedBy": []
     },
@@ -797,7 +805,8 @@
         "classes/reserved-spellings-are-lower-case",
         "core-api/casing-checks-the-leading-character",
         "tooling/fmt-is-never-a-diagnostic",
-        "tooling/convert-one-table-two-modes"
+        "tooling/convert-one-table-two-modes",
+        "ide/every-feature-is-staged-behind-its-dependency"
       ],
       "guardedBy": []
     },
@@ -852,7 +861,9 @@
         "tooling/doc-comment-tags-are-see-and-example",
         "core-api/reference-card",
         "security/bidi-boundaries",
-        "statements/nothing-gets-a-second-name"
+        "statements/nothing-gets-a-second-name",
+        "ide/one-grammar-one-tree",
+        "ide/an-lsp-answer-is-frozen-as-an-lspt-case"
       ],
       "guardedBy": []
     },
@@ -915,7 +926,8 @@
       "seeAlso": [
         "tooling/meta-json",
         "tooling/one-json-several-renderers",
-        "tooling/doc-comment-tags-are-see-and-example"
+        "tooling/doc-comment-tags-are-see-and-example",
+        "ide/an-lsp-answer-is-frozen-as-an-lspt-case"
       ],
       "guardedBy": []
     },
