@@ -1,5 +1,5 @@
 --TEST--
-`Core\Task::map` and `Core\Task::all` are two jobs, not two spellings of one: a shape literal is not an `array` and an array literal is not a written-out shape — ADR 0072 §§ 1, 2
+`Core\Task::map` and `Core\Task::all` are two jobs, not two spellings of one: a shape literal is not an `array` and an array literal is not a written-out shape — `rule:concurrency/all-answers-a-typed-shape` and `rule:concurrency/map-preserves-keys-and-order`
 --FILE--
 <?nvs
 // § 2: "a shape literal cannot express *one per element of a runtime array*

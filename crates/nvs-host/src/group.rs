@@ -10,7 +10,7 @@
 //! # 1. What a child gets for a `Ctx`
 //!
 //! [`crate::spawn_child`] takes an **owned** context, and
-//! [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md) § 1's
+//! `rule:concurrency/all-answers-a-typed-shape`'s
 //! children *share the request*. Those two only meet one way:
 //! [`Ctx::child`](nvs_runtime::Ctx::child) builds a fresh context that **aliases
 //! the request's static-property base** and owns everything else itself. The
@@ -209,7 +209,7 @@ enum Ending {
     Threw,
     /// The deadline passed before the last child returned.
     TimedOut,
-    /// The **calling** task was cancelled while it waited here — ADR 0072 § 4's
+    /// The **calling** task was cancelled while it waited here — `rule:concurrency/nothing-is-still-running-when-a-call-returns`'s
     /// last row. It is an ending like the other two rather than an unwind
     /// through the call, because the call is standing on a helper frame and no
     /// unwind may cross one; `crate::scheduler`'s `Resume` owns that decision.
@@ -305,7 +305,7 @@ impl Child {
             group.thrown = Some(thrown);
             return;
         }
-        // ADR 0072 § 4: the second throw propagates nowhere and is never
+        // `rule:concurrency/nothing-is-still-running-when-a-call-returns`: the second throw propagates nowhere and is never
         // swallowed. The module doc owns why this channel and not `Core\Log`.
         let message = format!("uncaught in a cancelled sibling: {}\n", thrown.message());
         drop(group);
@@ -333,7 +333,7 @@ impl Drop for Child {
     }
 }
 
-/// The module doc's four-step sequence, which is ADR 0072 § 4.
+/// The module doc's four-step sequence, which is `rule:concurrency/nothing-is-still-running-when-a-call-returns`.
 fn run_as_children(ctx: &mut Ctx, jobs: Vec<Job>, bounds: Bounds, wake: Rc<Wake>) -> Outcome {
     let count = jobs.len();
     let group = Rc::new(RefCell::new(Group {
@@ -615,7 +615,7 @@ mod tests {
     }
 
     /// The result is in **job** order even when the children finish in another
-    /// one, which is ADR 0072 § 2's "preserving the input's keys and order"
+    /// one, which is `rule:concurrency/map-preserves-keys-and-order`'s "preserving the input's keys and order"
     /// one level below the member that promises it.
     #[test]
     fn the_answers_come_back_in_job_order_and_not_completion_order() {

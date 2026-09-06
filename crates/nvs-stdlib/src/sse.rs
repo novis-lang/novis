@@ -1,5 +1,5 @@
-//! `Core\Sse` — [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md)
-//! § 5's event stream, as the signature a program writes.
+//! `Core\Sse` — `rule:concurrency/two-doors-one-isolate`
+//! 's event stream, as the signature a program writes.
 //!
 //! § 5 makes an SSE connection "the same model without `receive`": the isolate
 //! is § 1's root one — its own arena, its own `[limits]` budget, its own grants
@@ -58,7 +58,7 @@ use nvs_runtime::{Fault, ThrownClass, Upgrade, Value, copy_graph};
 use crate::registry::{Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc};
 use crate::socket::{entry_program, release_crossed, retained};
 
-/// `Core\Sse`'s registry rows — ADR 0083 § 5's `upgrade`, and so far nothing
+/// `Core\Sse`'s registry rows — `rule:concurrency/two-doors-one-isolate`'s `upgrade`, and so far nothing
 /// else. See [`crate::registry::CLASSES`].
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: r"Core\Sse",
@@ -66,7 +66,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         name: "upgrade",
         names: &["entry", "args"],
         // The same two marks the sibling row carries, and for the same reasons:
-        // [`CoreTy::Entry`] is ADR 0083 § 2's operand rule — a path or a static
+        // [`CoreTy::Entry`] is `rule:concurrency/an-upgrade-is-spawn-shaped`'s operand rule — a path or a static
         // method written `Feed::run(...)`, never a `callable` in a variable —
         // and `args` takes no expected type because `rule:classes/graph-copy`'s walk decides
         // what may cross at run time. `crate::socket`'s row is where those two
@@ -139,8 +139,8 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Sse::upgrade(string $entry, mixed $args = null): void` — ADR 0083
-    /// § 5's event stream, prepared here and started by the connection.
+    /// `Core\Sse::upgrade(string $entry, mixed $args = null): void` — `rule:concurrency/two-doors-one-isolate`
+    /// 's event stream, prepared here and started by the connection.
     ///
     /// The sibling body, with one line different, and that line is the module
     /// doc's subject: the cell asked for is the one every served request has.

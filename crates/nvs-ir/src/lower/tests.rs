@@ -3974,7 +3974,7 @@ fn a_spawn_lowers_to_a_task_on_the_current_core() {
 /// A generator's `yield` cuts its frame in two and spills every local
 /// live across the cut (`lower::generator`), because the frame has to be
 /// abandoned and rebuilt. An `await` does none of that — the task
-/// suspends on a stack of its own (`nvs_host`'s coroutines, ADR 0115 § 4)
+/// suspends on a stack of its own (`nvs_host`'s coroutines, `rule:concurrency/a-task-stack-is-reserved-wide-and-pooled`)
 /// and resumes with the completion in hand — so the handle is read, the
 /// call is made and the result is used in one straight run of
 /// instructions, with the statements either side of it in the same block.

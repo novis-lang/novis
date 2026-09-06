@@ -1,6 +1,6 @@
 //! [ADR 0139](/docs/adr/0139-a-session-is-a-record-its-store-issued.md) § 3's
 //! `[session] backend`: the two stores a session record may live in, and the boot-time refusal of
-//! the one [ADR 0059](/docs/adr/0059-cross-request-state-is-explicit.md) § 4 removed.
+//! the one `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent` removed.
 //!
 //! **This module is what § 4's "enforced rather than documented" means.** That section says
 //! `Core\Session`'s configurable backends do not include the local tier, which is a claim about a
@@ -27,7 +27,7 @@ use crate::tree::Config;
 
 /// One of ADR 0139 § 3's two stores, as written.
 ///
-/// The type carries no `Local` variant and must not gain one: what makes ADR 0059 § 4 enforced is
+/// The type carries no `Local` variant and must not gain one: what makes `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent` enforced is
 /// that there is no value of this type meaning the per-core tier, so no later reader can select it
 /// however carelessly it matches. A backend added here is a third store that answers § 2's four
 /// operations, and the local tier cannot answer them — `load` on the core that never wrote is the
@@ -78,7 +78,7 @@ const REFUSED: &str = "local";
 ///
 /// # Errors
 ///
-/// `E0626` for the local tier, naming ADR 0059 § 4 and the file the key was written in; the same
+/// `E0626` for the local tier, naming `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent` and the file the key was written in; the same
 /// code with a plainer note for a word that names nothing at all.
 pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), Diagnostic> {
     let Some(session) = config.session.as_ref() else {
@@ -97,7 +97,7 @@ pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(
         .collect::<Vec<_>>()
         .join(" or ");
     let note = if written == REFUSED {
-        "ADR 0059 § 4: a session read on one core and written on another must see one value, and \
+        "`rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent`: a session read on one core and written on another must see one value, and \
          the local tier is per-core — a session kept there is forgotten at a rate set by which \
          core accepted the request, which is an authentication bug wearing a cache's clothes"
             .to_owned()

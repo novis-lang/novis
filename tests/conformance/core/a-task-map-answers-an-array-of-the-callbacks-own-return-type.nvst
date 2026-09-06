@@ -1,5 +1,5 @@
 --TEST--
-`Core\Task::map` answers an `array<U>` whose `U` is the callback's own declared return type, so nothing at the use site is `mixed` — ADR 0072 § 2
+`Core\Task::map` answers an `array<U>` whose `U` is the callback's own declared return type, so nothing at the use site is `mixed` — `rule:concurrency/map-preserves-keys-and-order`
 --FILE--
 <?nvs
 // § 2's signature is `map(array<T>, callable, {limit?, deadline?}): array<U>`,

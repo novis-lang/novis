@@ -1,5 +1,5 @@
 --TEST--
-the local tier forgets an older entry rather than failing the write that crossed `[cache.local] max_size` — ADR 0059 §§ 1 and 3
+the local tier forgets an older entry rather than failing the write that crossed `[cache.local] max_size` — `rule:core-api/two-cache-tiers` and `rule:concurrency/cache-memory-is-charged-to-the-core`
 --FILE--
 <?nvs
 // § 3 caps this tier and says exceeding the cap **evicts** rather than failing

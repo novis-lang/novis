@@ -62,8 +62,8 @@
 //! A task parked on a channel is torn down like any other: it is already
 //! standing on a safepoint, so [`Scheduler::run`]'s sweep over the parked set
 //! force-unwinds it where it is. That unwind runs native `Drop` and no script
-//! code, which is [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)
-//! § 5, and it is the whole mechanism by which a channel does not accumulate
+//! code, which is `rule:concurrency/cancellation-runs-no-user-code`
+//! , and it is the whole mechanism by which a channel does not accumulate
 //! the wakes of dead tasks: a registration is an RAII guard living on the
 //! waiting task's own stack, so whatever ends the wait — a wake, a
 //! disconnection, or a cancellation — removes it.

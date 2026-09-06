@@ -1,5 +1,5 @@
 --TEST--
-A sibling's throw cancels the rest of the group, and a cancelled task's `catch` and the statements after it never run: the throw propagates as itself with nothing of the group still running — ADR 0072 §§ 4, 5
+A sibling's throw cancels the rest of the group, and a cancelled task's `catch` and the statements after it never run: the throw propagates as itself with nothing of the group still running — `rule:concurrency/nothing-is-still-running-when-a-call-returns` and `rule:concurrency/cancellation-runs-no-user-code`
 --FILE--
 <?nvs
 // § 4's "one child throws" row, and § 5's rule about what a cancelled child may

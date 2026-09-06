@@ -14,7 +14,7 @@
 //! inbound HTTP request. This is that type; what differs between the two is the
 //! [`Program`] handed in and the [`Output`] asked for, not the boundary.
 //!
-//! [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 1's
+//! `rule:concurrency/a-connection-is-a-root-isolate`'s
 //! WebSocket connection is the third caller and needs nothing added here
 //! either: it is [`Isolate::start`] from the *connection's* context, with a
 //! [`Program`] the upgrading request prepared and handed over before it ended,
@@ -54,7 +54,7 @@
 //! with. A child standing on a [`nvs_runtime::HelperFrame`] may not be unwound
 //! there, so it is *told*, answers with [`Ctx::cancel`] and returns — [`finish`]
 //! sees [`Ctx::cancelled`] and classifies it, which is the route that keeps
-//! what the child echoed before the safepoint. Both are ADR 0072 § 5, and
+//! what the child echoed before the safepoint. Both are `rule:concurrency/cancellation-runs-no-user-code`, and
 //! neither runs a line of the child's own code on the way out.
 //!
 //! § 2's *unresolvable class* is asked of the answer and not of the argument,
@@ -197,8 +197,8 @@ impl Isolate {
         self
     }
 
-    /// Offers [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md)
-    /// § 1's upgrade slot to the request this isolate answers, so that
+    /// Offers `rule:concurrency/a-connection-is-a-root-isolate`
+    /// 's upgrade slot to the request this isolate answers, so that
     /// `Core\Socket::upgrade` inside it has somewhere to leave the connection
     /// isolate it prepared.
     ///
@@ -223,8 +223,8 @@ impl Isolate {
         self
     }
 
-    /// Offers [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md)
-    /// § 5's SSE cell to the request this isolate answers, so that
+    /// Offers `rule:concurrency/two-doors-one-isolate`
+    /// 's SSE cell to the request this isolate answers, so that
     /// `Core\Sse::upgrade` inside it has somewhere to leave the connection
     /// isolate it prepared.
     ///
@@ -247,8 +247,8 @@ impl Isolate {
         self
     }
 
-    /// Moves [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md)
-    /// § 1's socket into the isolate this builds.
+    /// Moves `rule:concurrency/a-connection-is-a-root-isolate`
+    /// 's socket into the isolate this builds.
     ///
     /// **The opposite direction from the two above**, and that is the whole of
     /// what separates a connection isolate from the request that asked for one.
@@ -293,8 +293,8 @@ impl Isolate {
     /// isolate's own ownership root, run it as a child task, copy the answer out
     /// **before** that root is released, and release it. Control does not return
     /// while the child is still running, exactly as it does not for a group
-    /// ([ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)
-    /// § 4).
+    /// (`rule:concurrency/nothing-is-still-running-when-a-call-returns`
+    /// ).
     ///
     /// # Errors
     ///
@@ -415,7 +415,7 @@ impl Isolate {
         if let Some(inbound) = inbound {
             isolate_ctx.set_inbound(inbound);
         }
-        // ADR 0083 § 1's socket, on the same context and for the same reason:
+        // `rule:concurrency/a-connection-is-a-root-isolate`'s socket, on the same context and for the same reason:
         // it is what this isolate *is*, so it is there before the program's
         // first statement rather than reached back for. [`Isolate::over_socket`]
         // owns why nothing but a connection's own isolate has one.
@@ -514,7 +514,7 @@ impl Started {
             }
             if resumed.cancelled() && !cancelling {
                 // This task was cancelled while it waited. The child dies with
-                // it, and the loop keeps parking until it has — ADR 0072 § 4's
+                // it, and the loop keeps parking until it has — `rule:concurrency/nothing-is-still-running-when-a-call-returns`'s
                 // "control does not leave the call with work still running"
                 // holds through a cancellation too.
                 cancelling = true;
@@ -622,7 +622,7 @@ fn start_as_task(
         let ended = ended;
         let answer = program(child, args);
         let completion = finish(child, answer, receiving.as_ref());
-        // ADR 0083 § 1: a connection isolate's end **is** the connection's end,
+        // `rule:concurrency/a-connection-is-a-root-isolate`: a connection isolate's end **is** the connection's end,
         // and § 7 asks for a defined code rather than the reset a dropped
         // descriptor gives. This is the one place that holds both halves — the
         // socket is a field of this child's context and the answer it ended
@@ -658,7 +658,7 @@ fn start_as_task(
                 nvs_runtime::Closing::Faulted
             });
         }
-        // ADR 0072 § 6's condition, read off the answer this isolate just
+        // `rule:concurrency/after-response-outlives-the-connection`'s condition, read off the answer this isolate just
         // produced: a program that threw, exited or was torn down runs none of
         // its after-response work, and `nvs_runtime::deferred`'s module doc
         // owns why those registrations are released unrun instead.
@@ -688,7 +688,7 @@ fn start_as_task(
             // and what it does with it either finishes or parks on the socket.
             let resumed = suspend_current(Waiting::Yielded);
             if resumed.cancelled() {
-                // ADR 0072 § 5: no user code runs on the way out of a
+                // `rule:concurrency/cancellation-runs-no-user-code`: no user code runs on the way out of a
                 // cancellation, and the registrations are released with the
                 // context a few lines from here.
                 return;
@@ -723,7 +723,7 @@ fn run_here(
 ) -> Completion {
     let answer = program(&mut isolate_ctx, args);
     let completion = finish(&mut isolate_ctx, answer, receiving.as_ref());
-    // ADR 0072 § 6, on the host that has no response and no scheduler either:
+    // `rule:concurrency/after-response-outlives-the-connection`, on the host that has no response and no scheduler either:
     // the isolate's own frame has returned and its answer is in hand, which is
     // the same trigger the task above reads. There is nothing to detach from —
     // this ran on the caller's own stack — and nothing waiting behind it, so
@@ -819,7 +819,7 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
     }
     if cancelled {
         // Not the child's own failure: its parent died or a deadline landed,
-        // and ADR 0072 § 5 means nothing of the child's runs on the way out.
+        // and `rule:concurrency/cancellation-runs-no-user-code` means nothing of the child's runs on the way out.
         release(answer);
         let mut completion = cancelled_completion();
         completion.output = output;
@@ -1447,7 +1447,7 @@ mod tests {
         );
     }
 
-    /// ADR 0072 §§ 4 and 5 from the *parent's* side: the task parked in
+    /// `rule:concurrency/nothing-is-still-running-when-a-call-returns` and `rule:concurrency/cancellation-runs-no-user-code` from the *parent's* side: the task parked in
     /// [`Started::join`] is cancelled, and the boundary owes three things
     /// afterwards — the child's task is out of the tree, the join did not
     /// return while the child was still running, and what the child was holding
@@ -1565,7 +1565,7 @@ mod tests {
         assert!(done.error.is_some(), "the failure is a value");
     }
 
-    /// ADR 0072 § 5 from the *child's* side. A child that is running rather
+    /// `rule:concurrency/cancellation-runs-no-user-code` from the *child's* side. A child that is running rather
     /// than parked is not unwound out of anybody's frame: it is told, and it
     /// dies at the next safepoint it reaches, having run nothing of its own on
     /// the way out. `scheduler`'s module doc § *The task tree, and what
@@ -1720,7 +1720,7 @@ mod tests {
         );
     }
 
-    /// ADR 0072 § 4 on the one path a join never reaches: a caller that will
+    /// `rule:concurrency/nothing-is-still-running-when-a-call-returns` on the one path a join never reaches: a caller that will
     /// **not** await the child still may not leave with it running.
     /// [`Running::abandon`] is that path — the server's request future takes it
     /// when `hyper` drops the service out from under a request — and it owes

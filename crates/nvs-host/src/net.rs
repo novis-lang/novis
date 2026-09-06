@@ -2,8 +2,8 @@
 //! instead of blocking it, over TCP or over a Unix-domain socket — and
 //! [`NvsListener`], the accepting half that parks on the same four functions.
 //!
-//! [ADR 0115](/docs/adr/0115-the-reactor-reports-readiness-and-a-stream-that-would-block-parks.md)
-//! § 3 is this module's specification, and its one sentence is the whole shape:
+//! `rule:concurrency/try-the-syscall-then-park`
+//! is this module's specification, and its one sentence is the whole shape:
 //! **issue the syscall; on success return; on `WouldBlock` register, suspend,
 //! and loop.** Optimistic and not pessimistic, because the first read of an
 //! accepted connection almost always finds the request bytes already there —
@@ -56,7 +56,7 @@
 //! wait in this module is bounded by it: parking files it with the core's
 //! [`Timers`](crate::timer::Timers) beside the reactor registration, and the
 //! blocking path off a core hands it to its own poll as a timeout. Coming back
-//! out, **the clock decides and never the wake** — ADR 0115 § 2 rule 2 means a
+//! out, **the clock decides and never the wake** — `rule:concurrency/the-parking-contract` rule 2 means a
 //! resume may be some other descriptor this task holds, and a poll that
 //! returned because its timeout expired is the same `Ok(())` as one that
 //! returned with an event. Past the deadline a caller gets
@@ -400,7 +400,7 @@ impl NvsListener {
 
     /// Accepts the next connection, parking the task while there is none.
     ///
-    /// ADR 0115 § 3 in the order everything here takes it: try the syscall, and
+    /// `rule:concurrency/try-the-syscall-then-park` in the order everything here takes it: try the syscall, and
     /// only on `WouldBlock` register and suspend. A listener with a full
     /// backlog therefore accepts a burst without touching the reactor once.
     ///
@@ -430,7 +430,7 @@ impl NvsListener {
     ///
     /// The half a `poll` may call, and [`NvsStream::poll_read`]'s doc is why the
     /// difference matters. The arming happens *here* rather than in whatever
-    /// adapter is driving the poll — ADR 0115 rule 1 — so the wake has somewhere
+    /// adapter is driving the poll — `rule:concurrency/the-reactor-reports-readiness` rule 1 — so the wake has somewhere
     /// to be recorded before there is anything to record.
     ///
     /// # Errors
@@ -612,7 +612,7 @@ impl Connecting for mio::net::UnixStream {
 ///
 /// Being sound rather than merely usual matters because [`suspend_current`] can
 /// return for a reason that is not this stream — the reactor's tokens are task
-/// ids, so any other descriptor this task holds wakes it here too (ADR 0115 § 2
+/// ids, so any other descriptor this task holds wakes it here too (`rule:concurrency/the-parking-contract`
 /// rule 2). A completion test that is only right when the wake was ours would
 /// hand back an unconnected stream on that path.
 fn finish_connecting<S: Connecting>(stream: &mut NvsStream<S>) -> io::Result<()> {
@@ -735,8 +735,8 @@ impl<S: Source> NvsStream<S> {
     /// `WouldBlock` arm the reactor and answer `Pending` rather than suspend.
     ///
     /// This is the half a `poll` may call, and the difference is the whole of
-    /// [ADR 0138](/docs/adr/0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md)
-    /// § 4's rejected alternative. Suspending *inside* a poll parks the
+    /// `rule:concurrency/a-wake-never-moves-a-task`
+    /// 's rejected alternative. Suspending *inside* a poll parks the
     /// coroutine with the future's borrow still held and the drive that owns
     /// the waker never reached, so the readiness that ends the park resumes a
     /// stack that is standing in the middle of `hyper` rather than in the loop
@@ -744,11 +744,10 @@ impl<S: Source> NvsStream<S> {
     /// [`crate::block_on()`], which parks on its own stack with its permission
     /// installed — one park per drive, not one per byte.
     ///
-    /// The registration is armed *before* the answer, which is [ADR 0115]'s
+    /// The registration is armed *before* the answer, which is `rule:concurrency/the-reactor-reports-readiness`'s
     /// rule 1 in the shape a poll can keep it: the wake has somewhere to be
     /// recorded before there is anything to record.
     ///
-    /// [ADR 0115]: ../../../docs/adr/0115-the-reactor-reports-readiness-and-a-stream-that-would-block-parks.md
     ///
     /// # Errors
     ///
@@ -935,7 +934,7 @@ impl<S: Source> Drop for NvsStream<S> {
 }
 
 impl<S: Source + Read> Read for NvsStream<S> {
-    /// ADR 0115 § 3, in order: try, return, and only then park.
+    /// `rule:concurrency/try-the-syscall-then-park`, in order: try, return, and only then park.
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         loop {
             match self.inner.read(buf) {
@@ -1263,7 +1262,7 @@ mod tests {
         );
     }
 
-    /// ADR 0115 rule 1, in the shape a poll can keep it: the registration is
+    /// `rule:concurrency/the-reactor-reports-readiness` rule 1, in the shape a poll can keep it: the registration is
     /// filed *before* the `Pending`, so the wake has somewhere to be recorded.
     #[test]
     fn an_accept_with_nothing_to_accept_arms_before_it_answers_pending() {
@@ -1556,7 +1555,7 @@ mod tests {
         );
     }
 
-    /// ADR 0115 § 3's first half, asserted from the core's side rather than the
+    /// `rule:concurrency/try-the-syscall-then-park`'s first half, asserted from the core's side rather than the
     /// caller's: the read is driven with `Scheduler::run` alone and no reactor
     /// poll after it, so what the assertions describe is a core that came back.
     /// A blocking read would never have returned from that call at all.
@@ -1735,7 +1734,7 @@ mod tests {
         assert_eq!(report.finished, 1);
     }
 
-    /// ADR 0115 § 3's claim in the strongest form there is: the stream is a
+    /// `rule:concurrency/try-the-syscall-then-park`'s claim in the strongest form there is: the stream is a
     /// plain `Read`/`Write`, so a protocol implementation that has never heard
     /// of this crate runs over it unchanged. TLS is the witness worth having.
     /// It reads and writes inside a single call; a record is a length-prefixed

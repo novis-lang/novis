@@ -538,7 +538,7 @@ fn integer(read: &nvs_db::MySqlScalar<'_>) -> Option<i64> {
     }
 }
 
-/// Runs one claimed job as ADR 0084 § 5's root isolate: its own arena, its own budget, sharing only
+/// Runs one claimed job as `rule:concurrency/a-job-runs-as-a-root-isolate`'s root isolate: its own arena, its own budget, sharing only
 /// compiled code, answering with what the attempt threw — or `None`, which is the attempt
 /// [`report`] writes back as `Succeeded`.
 ///
@@ -633,7 +633,7 @@ fn refusal(message: String) -> nvs_host::Failure {
     }
 }
 
-/// ADR 0084 § 6's write-back: the row the claim took, told what the attempt did.
+/// `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`'s write-back: the row the claim took, told what the attempt did.
 ///
 /// **Three branches and one lease.** An attempt that returned is `Succeeded`; one that failed with
 /// attempts still to come is armed for the next on § 6's ladder; one that failed on the job's last

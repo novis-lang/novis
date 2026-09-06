@@ -1,5 +1,5 @@
 --TEST--
-`cancel` answers whether this call is what took the job out of the queue, rather than the state it left behind — ADR 0084 §§ 1 and 4
+`cancel` answers whether this call is what took the job out of the queue, rather than the state it left behind — `rule:concurrency/queue-four-members` and `rule:concurrency/claiming-is-one-statement`
 --FILE--
 <?nvs
 // Cancelling is a race the caller can lose, and losing it is the ordinary

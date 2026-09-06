@@ -1,4 +1,4 @@
-//! `Core\Task` — [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)'s
+//! `Core\Task` — `rule:concurrency/one-scheduler`'s
 //! structured concurrency: two members that hand their host a group, and a
 //! third that hands the request one closure to run once it is over.
 //!
@@ -184,7 +184,7 @@ const DEADLINE_DOC: ParamDoc = ParamDoc {
     shape: &[],
 };
 
-/// ADR 0072 § 4's table, as the two rows a card names — the same on both
+/// `rule:concurrency/nothing-is-still-running-when-a-call-returns`'s table, as the two rows a card names — the same on both
 /// members, because [`run_group`] is.
 const GROUP_ERRORS: &[ErrorDoc] = &[
     ErrorDoc {
@@ -430,7 +430,7 @@ fn run_group(
 // ============================================================================
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Task::all({...}, {limit?, deadline?}): S` — ADR 0072 § 1's fixed,
+    /// `Core\Task::all({...}, {limit?, deadline?}): S` — `rule:concurrency/all-answers-a-typed-shape`'s fixed,
     /// heterogeneous set.
     ///
     /// The argument is an `rule:types/object-top` shape value, which is an ordinary object
@@ -470,7 +470,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Task::map(array<T> $items, callable $fn, {limit?, deadline?}): array<U>`
-    /// — ADR 0072 § 2's homogeneous case.
+    /// — `rule:concurrency/map-preserves-keys-and-order`'s homogeneous case.
     ///
     /// The keys and the order are the subject's, "regardless of completion
     /// order" (§ 2): the jobs are built in the subject's own slot order, the
@@ -550,8 +550,8 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Task::afterResponse(callable $fn, {deadline?}): void` — ADR 0072
-    /// § 6's deferred work.
+    /// `Core\Task::afterResponse(callable $fn, {deadline?}): void` — `rule:concurrency/after-response-outlives-the-connection`
+    /// 's deferred work.
     ///
     /// The registration is the whole body, and the two things it does that a
     /// caller could not are the retain and the cap. `nvs_runtime::deferred` is

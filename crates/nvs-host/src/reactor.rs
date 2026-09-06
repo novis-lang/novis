@@ -1,6 +1,6 @@
 //! Readiness for one core: `mio` underneath, [`TaskId`] on top.
 //!
-//! [ADR 0115](/docs/adr/0115-the-reactor-reports-readiness-and-a-stream-that-would-block-parks.md)
+//! `rule:concurrency/the-reactor-reports-readiness`
 //! is this module's specification — § 1 for why the mechanism is readiness on
 //! all three platforms and why a poller is not the async runtime the goal's
 //! standing decisions forbid, § 2 for the five-rule parking contract this file
@@ -346,7 +346,7 @@ impl Reactor {
     /// Registers `source` so that readiness on it wakes `id`.
     ///
     /// Call this **before** parking the task, never after: see this module's
-    /// docs, and ADR 0115 § 2 rule 1.
+    /// docs, and `rule:concurrency/the-parking-contract` rule 1.
     ///
     /// # Errors
     ///
@@ -415,7 +415,7 @@ impl Reactor {
     /// Drops every registration this reactor holds for a task that has ended,
     /// reporting whether there was one.
     ///
-    /// ADR 0115 § 2 rule 3, and the caller is whoever takes a
+    /// `rule:concurrency/the-parking-contract` rule 3, and the caller is whoever takes a
     /// [`Finished`](crate::Finished) — [`run_until_idle`] does it on every
     /// turn. A later wake for a retired id is already harmless; the table entry
     /// is what would otherwise outlive its request.
@@ -565,7 +565,7 @@ impl Reactor {
     /// Collects readiness once and wakes what it names, reporting how many
     /// tasks moved back to the run queue.
     ///
-    /// This is ADR 0115 § 2 rule 4's three states in one place: it polls with a
+    /// This is `rule:concurrency/the-parking-contract` rule 4's three states in one place: it polls with a
     /// zero timeout while `sched` has work ready, blocks when nothing is ready
     /// and something parked can still be woken, and returns `0` without a
     /// syscall when there is nothing to wait for — including the case where

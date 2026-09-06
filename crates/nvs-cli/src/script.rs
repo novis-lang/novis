@@ -74,7 +74,7 @@
 //! request.
 //!
 //! This is also the mechanism
-//! [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 7's
+//! `rule:concurrency/connection-bounds-are-finite`'s
 //! second bullet is a statement about. The swap is a write to the *table*: a
 //! [`Program`] already handed out owns its unit's pages through its own `Rc`,
 //! so a connection isolate runs to completion on the code it began with while
@@ -848,7 +848,7 @@ mod tests {
 
     #[test]
     fn an_open_connection_keeps_its_compiled_unit_across_an_edit() {
-        // ADR 0083 § 7's second bullet, first half — asserted at the cache the
+        // `rule:concurrency/connection-bounds-are-finite`'s second bullet, first half — asserted at the cache the
         // bullet is a statement about. A connection isolate's hold on its code
         // *is* the [`Program`] a resolve handed it (`nvs_host::Isolate` runs
         // one), and `nvs serve` resolves per request through this compiler, so

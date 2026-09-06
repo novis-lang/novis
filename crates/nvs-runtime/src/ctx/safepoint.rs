@@ -119,8 +119,8 @@ impl Ctx {
     /// because a stack standing on an `extern "C"` helper frame is one no
     /// forced unwind may cross — [`crate::HelperFrame`] owns that. What the
     /// member owes then is
-    /// [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)
-    /// § 5's teardown: no `catch`, no cleanup, no user code at all.
+    /// `rule:concurrency/cancellation-runs-no-user-code`
+    /// 's teardown: no `catch`, no cleanup, no user code at all.
     ///
     /// That is already exactly what [`SafepointFlags::CANCEL`] means, so this
     /// sets the flag and asks [`nvs_safepoint`] for the answer rather than

@@ -1,5 +1,5 @@
 --TEST--
-A cache key is the bytes the program handed over — keys differing by one byte, by case, by a space, by a combining mark or by their last character are separate entries, and two spellings of the same bytes are one — ADR 0059 § 2
+A cache key is the bytes the program handed over — keys differing by one byte, by case, by a space, by a combining mark or by their last character are separate entries, and two spellings of the same bytes are one — `rule:concurrency/a-cached-value-is-copied-across-the-boundary`
 --FILE--
 <?nvs
 // § 2 fixes what happens to the *value* — the graph copy, in both directions —

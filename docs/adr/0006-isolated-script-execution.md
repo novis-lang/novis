@@ -318,7 +318,7 @@ Reopen if a use case needs an isolate to **outlive its parent** — a fire-and-f
 survives the response. That is a different feature with different lifetime and accounting rules (whose
 budget does it spend after its parent is gone?), and it should not be smuggled in by relaxing the tree
 accounting here. It is **not** what
-[ADR 0072](0072-core-task-structured-concurrency.md) § 6's `afterResponse` does: there the *connection*
+`rule:concurrency/after-response-outlives-the-connection`'s `afterResponse` does: there the *connection*
 ends and the request tree does not, so the work still spends the tree's budget under the rule above, which
 is exactly why that case was affordable and this one is still open. The same applies to *persistent*
 isolates reused across requests: attractive for warm state, and it directly contradicts strict

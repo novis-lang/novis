@@ -1,5 +1,5 @@
 --TEST--
-Forty values through a `Core\Task\Channel` at seven capacities — including the two on either side of a bound the producer never reaches — deliver one identical stream, counted rather than read off a line — ADR 0072 § 4's "nothing still running" over `nvs_stdlib::channel`
+Forty values through a `Core\Task\Channel` at seven capacities — including the two on either side of a bound the producer never reaches — deliver one identical stream, counted rather than read off a line — `rule:concurrency/nothing-is-still-running-when-a-call-returns`'s "nothing still running" over `nvs_stdlib::channel`
 --FILE--
 <?nvs
 // Invariance over a sweep, and the sweep is the point: capacity is the one
@@ -31,7 +31,7 @@ foreach ($caps as uint $capacity) {
     Runs::$last = 0;
     Runs::$ordered = true;
 
-    // Both halves are children of this call, so ADR 0072 § 4's promise is what
+    // Both halves are children of this call, so `rule:concurrency/nothing-is-still-running-when-a-call-returns`'s promise is what
     // makes the counters final by the time the `if` below reads them: `all`
     // does not return with the producer or the consumer still running.
     Core\Task::all({

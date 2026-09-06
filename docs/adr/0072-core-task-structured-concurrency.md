@@ -1,4 +1,4 @@
-# ADR 0072 — `Core\Task`: concurrency is a call that returns with nothing still running
+# `rule:concurrency/one-scheduler` — `Core\Task`: concurrency is a call that returns with nothing still running
 
 - **Status:** Accepted
 - **Date:** 2026-08-24

@@ -209,7 +209,7 @@ nvs_runtime::nvs_helper! {
 ///
 /// **Separate from the member because it has a second caller, and that caller is a
 /// property rather than a convenience.** [`crate::queue`]'s `push` has to run on the
-/// connection this request already holds under this name, because ADR 0084 § 3's
+/// connection this request already holds under this name, because `rule:concurrency/enqueue-commits-with-your-write`'s
 /// transactional enqueue *is* "the same connection". A second implementation would be
 /// a second pool key, a second memo and a second reset — three places for § 13's
 /// bounds to drift apart, and one silent way to lose § 3.

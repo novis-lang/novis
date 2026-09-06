@@ -103,7 +103,7 @@ pub struct Config {
     pub mail: BTreeMap<String, MailEndpoint>,
     /// `[storage.<name>]` — one named object-storage disk per sub-table (`rule:programs/framework-core-half`).
     pub storage: BTreeMap<String, StorageDisk>,
-    /// `[deferred]` — the after-response executor's bounds (ADR 0072 § 7).
+    /// `[deferred]` — the after-response executor's bounds (`rule:concurrency/deferred-is-bounded-by-two-directives`).
     pub deferred: Option<Deferred>,
     /// `[[schedule]]` — scheduled work, which is configuration and not an API (ADR 0073).
     pub schedule: Vec<Schedule>,
@@ -745,7 +745,7 @@ pub struct DatabasePool {
     pub acquire: Option<Setting>,
 }
 
-/// `[deferred]` — ADR 0072 § 7's two bounds on after-response work.
+/// `[deferred]` — `rule:concurrency/deferred-is-bounded-by-two-directives`'s two bounds on after-response work.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Deferred {
@@ -900,7 +900,7 @@ pub struct Cache {
     /// `System` **and** `Boot` — one of the four directives ADR 0078 § 2 names as needing a restart,
     /// because moving it re-creates the runtime's mapping of every cached unit.
     pub dir: Option<String>,
-    /// `[cache.local]` — ADR 0059 § 3's bound on the per-core tier, for the reason `shared` below
+    /// `[cache.local]` — `rule:concurrency/cache-memory-is-charged-to-the-core`'s bound on the per-core tier, for the reason `shared` below
     /// sits here: `Core\Cache` is one class, and its two tiers are looked for under its own name.
     pub local: Option<CacheLocal>,
     /// `[cache.shared]` — `rule:core-api/two-cache-tiers`'s coherent tier, which is a *store* and not this block's
@@ -912,7 +912,7 @@ pub struct Cache {
 
 /// `[cache.local]` — what bounds the tier `Core\Cache::local()` hands back.
 ///
-/// One key, because ADR 0059 § 3 leaves exactly one thing to configure about a store that is a map
+/// One key, because `rule:concurrency/cache-memory-is-charged-to-the-core` leaves exactly one thing to configure about a store that is a map
 /// in the calling core's own memory: it has no address, no credential and no timeout, and § 1 gives
 /// it no coherence to tune. What it has is a footprint, charged to the core rather than to any
 /// request, which is why the key is `System`-class per `crate::directive`'s `cache.local` row.
@@ -956,7 +956,7 @@ pub struct CacheShared {
 #[serde(default, deny_unknown_fields)]
 pub struct Session {
     /// `shared` or `db`. The local cache tier is deliberately unspellable here and writing it is
-    /// `E0626` — `crate::session::Backend` is the roster and ADR 0059 § 4 is the reason.
+    /// `E0626` — `crate::session::Backend` is the roster and `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent` is the reason.
     pub backend: Option<String>,
     /// How long an untouched record survives, written onto the entry so the store expires it.
     /// Omitted, the two hours `nvs_stdlib::session` ships, which is that module's to state because

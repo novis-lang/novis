@@ -1,5 +1,5 @@
 --TEST--
-`Core\Session::start` on the `shared` backend reaches the one store `[cache.shared]` names, and says so when there is none -- ADR 0139 §§ 2, 3, ADR 0059 § 4
+`Core\Session::start` on the `shared` backend reaches the one store `[cache.shared]` names, and says so when there is none -- ADR 0139 §§ 2, 3, `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent`
 --FILE--
 <?nvs
 // The tree below chooses a store — so the refusal of the neighbouring case, the
@@ -30,7 +30,7 @@ if (Core\Str::contains($said, "[session] backend")) {
     echo "and the block that is written is not what it complained about\n";
 }
 
-// The refusal is the store's absence and not the record's: ADR 0059 § 4 refuses
+// The refusal is the store's absence and not the record's: `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent` refuses
 // `Core\Session` the per-core tier, so there is no local store for this to have
 // quietly fallen back to, and a fallback is what a second call would reveal.
 uint $again = 0;

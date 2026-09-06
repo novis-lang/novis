@@ -4,7 +4,7 @@
 //! Plus [`Host::sleep`], which is the one thing a member can want from a core
 //! that is not a group; § 3 below owns why it is the exception.
 //!
-//! [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md) § 1's
+//! `rule:concurrency/all-answers-a-typed-shape`'s
 //! `Core\Task::all` runs its fields as children of the calling task, and that
 //! task lives on `nvs-host`'s scheduler. A `Core` member is a `nvs-stdlib`
 //! helper. Nothing joined those two before this module, and the three decisions
@@ -54,7 +54,7 @@
 //! It is deliberately **not** `spawn` / `wait` / `cancel` for `nvs-stdlib` to
 //! sequence, and that is the decision worth the most here.
 //!
-//! ADR 0072 § 4's guarantee — "control does not leave the call with work still
+//! `rule:concurrency/nothing-is-still-running-when-a-call-returns`'s guarantee — "control does not leave the call with work still
 //! running" — is a property of the *sequence*, not of any one call in it. A
 //! seam handing out task ids makes keeping it the caller's diligence again,
 //! which is the exact failure `nvs_host::spawn_child` already refuses on the
@@ -123,7 +123,7 @@ use crate::value::Value;
 /// never reached.
 pub type Job = Box<dyn FnOnce(&mut Ctx) -> Value>;
 
-/// [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md) § 3's
+/// `rule:concurrency/limit-and-deadline-are-the-only-bounds`'s
 /// `{limit?: uint, deadline?: Duration}`, decoded.
 ///
 /// `None` is that section's "unbounded" in both fields, which is why neither is
@@ -139,8 +139,8 @@ pub struct Bounds {
     pub deadline: Option<Duration>,
 }
 
-/// How a group ended — [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)
-/// § 4's table, and the module docs own why its last row is a variant here
+/// How a group ended — `rule:concurrency/nothing-is-still-running-when-a-call-returns`
+/// 's table, and the module docs own why its last row is a variant here
 /// rather than an unwind.
 ///
 /// Every variant is reached with **nothing still running**. That is the whole
@@ -167,7 +167,7 @@ pub enum Outcome {
     /// class.
     TimedOut,
     /// The **calling** task was cancelled, every child was cancelled, and the
-    /// call waited — ADR 0072 § 4's last row.
+    /// call waited — `rule:concurrency/nothing-is-still-running-when-a-call-returns`'s last row.
     ///
     /// A return rather than an unwind because the caller is standing on an
     /// `extern "C"` frame no unwind may cross ([`crate::HelperFrame`]); the
@@ -185,7 +185,7 @@ pub enum Outcome {
 /// instead, and this is what the resume says. The member's answer to
 /// [`Woken::Cancelled`] is [`crate::SafepointFlags::CANCEL`] and an ordinary
 /// return: the next safepoint poll is then
-/// [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md) § 5's
+/// `rule:concurrency/cancellation-runs-no-user-code`'s
 /// teardown, and because it is a poll rather than a throw, no `catch` sees it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Woken {
@@ -377,8 +377,8 @@ pub trait Running: std::fmt::Debug {
     /// The question a caller that may not suspend has to be able to ask, and
     /// the whole of why it exists: a `Future` polled by somebody else's loop —
     /// the built-in server's service, driven by `hyper` under
-    /// [ADR 0138](/docs/adr/0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md)
-    /// § 1 — answers `Pending` while this is `false` and calls
+    /// `rule:concurrency/one-future-per-connection`
+    /// — answers `Pending` while this is `false` and calls
     /// [`Running::join`] only once it is `true`, at which point that call has
     /// nothing left to wait for and does not park. A caller with no such
     /// constraint never asks: `join` is the whole of `await`.
@@ -396,8 +396,8 @@ pub trait Running: std::fmt::Debug {
     /// request may be dropped by the loop polling it while its isolate is still
     /// going, and letting that drop return with the child running would leave
     /// work outside anything that can be proven finished — which is exactly
-    /// what [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)
-    /// § 4 refuses. So this cancels and then waits, as `join` does for a
+    /// what `rule:concurrency/nothing-is-still-running-when-a-call-returns`
+    /// refuses. So this cancels and then waits, as `join` does for a
     /// cancelled parent, and discards whatever the child had produced: nobody
     /// is left to read an answer.
     ///

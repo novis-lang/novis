@@ -59,7 +59,7 @@
 //!
 //! # Decision: the local tier is unreachable from here, structurally
 //!
-//! [ADR 0059](/docs/adr/0059-cross-request-state-is-explicit.md) § 4 refuses
+//! `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent` refuses
 //! `Core\Session` the per-core tier, and § 4's own word for the refusal is *enforced*. Two things
 //! carry that here and neither is a comment. [`nvs_config::session::Backend`] has no variant naming
 //! the local tier, so there is no value this module could match on to select it; and every
@@ -469,7 +469,7 @@ pub(crate) fn backend(ctx: &Ctx, member: &str) -> Result<Backend, Fault> {
         Fault::thrown(format!(
             "Session::{member}(): no session store is configured — write `[session] backend = \
                  \"shared\"`, which is where a record has to live for a request on another core to \
-                 find it (ADR 0059 § 4)"
+                 find it (`rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent`)"
         ))
     })
 }
@@ -629,7 +629,7 @@ nvs_runtime::nvs_helper! {
             ctx,
             &member,
             ", which is where a record has to live for a request on another core to find it \
-             (ADR 0059 § 4)",
+             (`rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent`)",
         )?;
 
         // A presented identifier this store cannot have issued is absent, and is absent here
@@ -1222,7 +1222,7 @@ mod tests {
         }
     }
 
-    /// ADR 0059 § 4, as the roster and as the write.
+    /// `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent`, as the roster and as the write.
     ///
     /// Three claims, because each alone passes something broken. The roster admits no local tier —
     /// so no later reader can select one — and it is read from `nvs_config` rather than spelled
@@ -1234,7 +1234,7 @@ mod tests {
     fn a_session_is_never_backed_by_the_local_cache_tier() {
         assert!(
             BACKENDS.iter().all(|(word, _)| *word != "local"),
-            "ADR 0059 § 4 is enforced by the roster having no local entry: {BACKENDS:?}"
+            "`rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent` is enforced by the roster having no local entry: {BACKENDS:?}"
         );
         assert_eq!(Backend::of("local"), None);
 
@@ -1254,7 +1254,7 @@ mod tests {
         assert_eq!(
             store_get(&key_of(ID)),
             None,
-            "and nowhere in the per-core tier ADR 0059 § 4 refuses it"
+            "and nowhere in the per-core tier `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent` refuses it"
         );
     }
 
@@ -1297,7 +1297,7 @@ mod tests {
         assert_eq!(
             local, None,
             "while the local tier's copy of the same bytes never left the core that wrote it — \
-             which is what ADR 0059 § 4 refuses a session for"
+             which is what `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent` refuses a session for"
         );
     }
 

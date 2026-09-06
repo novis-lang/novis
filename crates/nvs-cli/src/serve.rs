@@ -2,7 +2,7 @@
 //! entry file as `rule:security/isolate-shares-nothing`'s isolate.
 //!
 //! [`nvs_server::serve::serve_on_this_core`] is the loop and
-//! [ADR 0138](/docs/adr/0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md)
+//! `rule:concurrency/one-future-per-connection`
 //! is what drives a connection on it; what this module owns is the four things
 //! only the binary can supply — the socket the loop accepts on, the clock it
 //! holds a connection to, the handler that says which isolate a request is, and
@@ -452,7 +452,7 @@ pub(crate) fn run(
     });
 
     // The loop runs *as a task*, which is not a formality: every connection it
-    // accepts is a child of it (ADR 0072 § 1), and `serve_on_this_core` refuses
+    // accepts is a child of it (`rule:concurrency/all-answers-a-typed-shape`), and `serve_on_this_core` refuses
     // to run anywhere else. Its own context writes nothing — a connection's
     // bytes are its request's isolate's, captured and handed back as data (ADR
     // 0088 § 3) — so `OutputSink::Sink` is what it holds rather than stdout.
@@ -468,7 +468,7 @@ pub(crate) fn run(
     // answer can be given: `nvs-server` names no `nvs-stdlib`, so the store a
     // fleet entry would be held in is reachable from here and nowhere else.
     // What is missing is the operation rather than the store — `Core\Cache`'s
-    // shared tier is `put` and `get` (ADR 0059 § 2) and neither is a
+    // shared tier is `put` and `get` (`rule:concurrency/a-cached-value-is-copied-across-the-boundary`) and neither is a
     // set-if-absent — so there is nothing to implement `nvs_server::Leases`
     // with yet, and § 3's fallback holds: every fleet entry is left unarmed and
     // named. The moment that tier gains a compare-and-set, the implementation
@@ -484,7 +484,7 @@ pub(crate) fn run(
         );
         // A second task on *this* scheduler and not a second scheduler: the
         // ticker sleeps out its interval on a core the accept loop is still
-        // serving on, and each fire is a child task of it (ADR 0072 § 1).
+        // serving on, and each fire is a child task of it (`rule:concurrency/all-answers-a-typed-shape`).
         // `TaskRoot::Request` for the same reason the accept loop holds it — a
         // fault under a fire belongs to that run and must not retire the worker
         // the requests are being served by.

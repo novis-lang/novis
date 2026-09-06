@@ -8,7 +8,7 @@
 //! pull. It cannot work, and the reason is a fact about `hyper` rather than a
 //! preference: an [`Incoming`] is polled with the **connection's** `Context`,
 //! and what fills it is that connection's own dispatcher loop
-//! ([ADR 0138] § 1). The isolate is a *peer* task
+//! (`rule:concurrency/one-future-per-connection`). The isolate is a *peer* task
 //! ([`crate::serve::serve_connection`]'s docs own that shape), so a pull made
 //! on its stack has no connection context to poll with and no way to make the
 //! read side run.
@@ -37,7 +37,6 @@
 //! ahead of the program.
 //!
 //! [ADR 0105]: ../../../docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md
-//! [ADR 0138]: ../../../docs/adr/0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md
 
 use std::cell::RefCell;
 use std::pin::Pin;
@@ -321,6 +320,6 @@ const OVER_CAP: &str = "the request body is larger than the upload_total limit a
 /// thread here would stop the core that owes the bytes.
 const NO_TASK: &str = "the request body cannot be read from outside the request's own task";
 
-/// The request was cancelled while it waited — the peer went away, or ADR 0072
-/// § 4's teardown reached it. Delivered once, so this stops waiting.
+/// The request was cancelled while it waited — the peer went away, or `rule:concurrency/nothing-is-still-running-when-a-call-returns`
+/// 's teardown reached it. Delivered once, so this stops waiting.
 const CANCELLED: &str = "the request ended before its body finished arriving";

@@ -1,4 +1,4 @@
-//! [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md) § 6's
+//! `rule:concurrency/after-response-outlives-the-connection`'s
 //! after-response work, at the seam that runs it: the completion path of the
 //! isolate a request is.
 //!
@@ -93,7 +93,7 @@ fn closure_of(invoke: nvs_runtime::NvsFn) -> Value {
     Value::object(object)
 }
 
-/// ADR 0072 § 6: the connection ends, the request tree does not.
+/// `rule:concurrency/after-response-outlives-the-connection`: the connection ends, the request tree does not.
 ///
 /// The joiner here is a stand-in for `nvs_server::serve`'s connection and does
 /// the two things one does — it takes the answer, and then it returns — with

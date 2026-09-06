@@ -1,5 +1,5 @@
 --TEST--
-A cached entry is a copy in both directions — a write through the original does not reach it, each `get` answers a fresh one, and a value with no meaning across a copy boundary is refused — ADR 0059 § 2
+A cached entry is a copy in both directions — a write through the original does not reach it, each `get` answers a fresh one, and a value with no meaning across a copy boundary is refused — `rule:concurrency/a-cached-value-is-copied-across-the-boundary`
 --FILE--
 <?nvs
 class Note {

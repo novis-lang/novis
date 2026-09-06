@@ -2,10 +2,10 @@
 //! registry: the series one core accumulates between scrapes, the shape each
 //! name is fixed to on first use, and the bound past which a new one is refused.
 //!
-//! # Why a core owns it, and why that is not ADR 0059's closed door
+//! # Why a core owns it, and why that is not `rule:concurrency/cross-request-state-is-explicit`'s closed door
 //!
 //! A registry is mutable state outliving a request, which is the shape
-//! [ADR 0059](/docs/adr/0059-cross-request-state-is-explicit.md) exists to
+//! `rule:concurrency/cross-request-state-is-explicit` exists to
 //! constrain, and § 5 is where it passes that ADR's own test: nothing reads a
 //! metric to make a decision — no Novis program can read one at all — the values
 //! are approximate aggregates whose merge across cores is arithmetic rather than

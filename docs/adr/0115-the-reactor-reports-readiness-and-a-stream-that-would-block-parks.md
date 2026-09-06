@@ -1,4 +1,4 @@
-# ADR 0115 — The reactor reports readiness, and a stream that would block parks its own task
+# `rule:concurrency/the-reactor-reports-readiness` — The reactor reports readiness, and a stream that would block parks its own task
 
 - **Status:** Accepted
 - **Date:** 2026-08-29
@@ -7,7 +7,7 @@
   accounted against the request that owns it. It does **not** decide: what a worker admits, which is
   [ADR 0106](0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md) § 7's arithmetic; what the
   blocking pool is for or how large it is, which is that ADR's § 6; the `Core\Task` surface, which is
-  [ADR 0072](0072-core-task-structured-concurrency.md); the HTTP client that will sit on top of a
+  `rule:concurrency/one-scheduler`; the HTTP client that will sit on top of a
   stream, which is `docs/agent/goals/` goal 4's; or the configurable spelling of any number below,
   which is goal 3's `[limits]`.
 - **Depends on:** [0106](0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md), whose § 6 says

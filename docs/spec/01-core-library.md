@@ -1120,7 +1120,7 @@ originates outside the process is `tainted` (`rule:security/tainted-qualifier`).
   (`rule:core-classes/session-is-started-explicitly`). Where the record lives is `[session] backend`, which
   names the shared cache tier or the database and refuses the local one
   ([ADR 0139](../adr/0139-a-session-is-a-record-its-store-issued.md) § 3, enforcing
-  [ADR 0059](../adr/0059-cross-request-state-is-explicit.md) § 4).
+  `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent`).
 - `Core\Env`: `get(string): ?tainted string`, `all()`, `mode(): Env\Mode`, and the constants `EOL`, `OS`,
   `VERSION`; its one enum is `Env\Mode` — `Production`, `Development`. Read-only —
   `putenv` has no equivalent, because a process-global mutation is unsound across cores. `mode` reads the
@@ -1285,7 +1285,7 @@ Two `Throwable`s join § 10's tree, both under `Core\Db`:
 
 ## 19. `Core\Task`
 
-Semantics are [ADR 0072](../adr/0072-core-task-structured-concurrency.md) — what cancellation does and does
+Semantics are `rule:concurrency/one-scheduler` — what cancellation does and does
 not run, why control never leaves a call with work still running, and the `[deferred]` bound. This section
 owns the signatures only. Nothing here needs a capability; it needs the M5 scheduler, which is why it sits
 in Part II and lands at **M5** rather than M8.

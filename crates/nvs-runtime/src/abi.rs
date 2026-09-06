@@ -311,7 +311,7 @@ pub const DEADLINE_POLL_BATCH: usize = 256;
 /// Whatever `body` returns, or a [`Fault::Fatal`] naming `member` when the
 /// deadline has passed. Fatal rather than thrown because a deadline is a
 /// cancellation, and
-/// [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md) § 5
+/// `rule:concurrency/cancellation-runs-no-user-code`
 /// settles that cancellation is not a `Throwable` and runs no user code — the
 /// same standing [`FATAL`] already gives a resource limit, and the same one
 /// [`crate::nvs_safepoint`] gives `SafepointFlags::CANCEL`.
@@ -744,7 +744,7 @@ thread_local! {
 /// It is *narrow* on purpose: the guard is held only across the drop of a
 /// suspended task, by the host that is doing the dropping, on the thread doing
 /// it. Nothing script-level runs inside the window —
-/// [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md) § 5's
+/// `rule:concurrency/cancellation-runs-no-user-code`'s
 /// "cancellation runs no user code" is untouched, because what unwinds is
 /// native `Drop` code, which that section already permits and requires.
 ///
@@ -798,7 +798,7 @@ thread_local! {
 /// may not unwind it; it has to resume the task and let it die by
 /// `rule:errors/propagation`'s return status at
 /// its next safepoint, which is
-/// [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md) § 5's
+/// `rule:concurrency/cancellation-runs-no-user-code`'s
 /// rule reached the only way this stack allows. `nvs-host`'s scheduler module
 /// owns that decision and is this type's only consumer.
 ///
@@ -1133,7 +1133,7 @@ mod tests {
         assert!(
             matches!(&fault, Fault::Fatal(message)
                 if message.contains("Core\\Test::sweep") && message.contains("deadline")),
-            "a deadline is a cancellation, so ADR 0072 § 5 makes it FATAL and \
+            "a deadline is a cancellation, so `rule:concurrency/cancellation-runs-no-user-code` makes it FATAL and \
              uncatchable, and it names the member it interrupted: {fault:?}"
         );
     }

@@ -1,8 +1,8 @@
 --TEST--
-Cancellation reaches a grandchild: when the outer group's deadline expires, a child's own children are torn down with it and none of the tree runs past the point it was parked at — ADR 0072 §§ 4, 5
+Cancellation reaches a grandchild: when the outer group's deadline expires, a child's own children are torn down with it and none of the tree runs past the point it was parked at — `rule:concurrency/nothing-is-still-running-when-a-call-returns` and `rule:concurrency/cancellation-runs-no-user-code`
 --FILE--
 <?nvs
-// ADR 0072 § 4's promise is that control does not leave the call with work
+// `rule:concurrency/nothing-is-still-running-when-a-call-returns`'s promise is that control does not leave the call with work
 // still running. A group one level deep is where that is a *tree* rather than
 // a list: the outer call can only keep the promise by cancelling children it
 // never named, because `branch` below is the only child it knows about and

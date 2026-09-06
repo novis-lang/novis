@@ -135,7 +135,7 @@ crates, and it has the reset that § 13 calls the good case. The other four are 
 
 ## Stage 8 — `Core\Queue`
 
-21. **[ADR 0084](../../adr/0084-durable-background-jobs.md), whole**: the jobs and dead-letter tables,
+21. **`rule:concurrency/enqueue-commits-with-your-write`, whole**: the jobs and dead-letter tables,
     `nvs queue migrate`, per-backend `SKIP LOCKED`-shaped claiming, the visibility timeout, bounded retries
     with jittered backoff.
 22. **The transactional-enqueue property is the reason for the whole design** — § 3: an enqueue commits

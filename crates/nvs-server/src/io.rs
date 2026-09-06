@@ -1,6 +1,6 @@
 //! `hyper`'s two IO traits over the parking stream.
 //!
-//! [ADR 0138](/docs/adr/0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md)
+//! `rule:concurrency/one-future-per-connection`
 //! is this module's specification. The whole of the adapter is one sentence:
 //! **try the syscall, and on `WouldBlock` arm the reactor and answer
 //! `Pending`** — never suspend, because a suspend inside a `poll` is that
@@ -27,7 +27,7 @@
 //! waker, because a stored waker would be a second, staler route to the same
 //! task. And a `Pending` from here is only honest because
 //! [`nvs_host::NvsStream::poll_read`] armed the reactor *before* it answered —
-//! ADR 0115's rule 1, which is why the arming lives in `nvs-host` beside the
+//! `rule:concurrency/the-reactor-reports-readiness`'s rule 1, which is why the arming lives in `nvs-host` beside the
 //! registration it touches and not in this module.
 //!
 //! # What the copy spends, and why it is taken
@@ -220,7 +220,7 @@ impl ConnectionIo {
     /// closing: [`Write::poll_shutdown`] below says the writing is done, and
     /// the FIN goes out when this is dropped. Handing the stream back is how a
     /// caller keeps it past that — an upgrade to a WebSocket, which
-    /// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md)
+    /// `rule:concurrency/a-connection-is-a-root-isolate`
     /// makes an isolate over the same descriptor.
     ///
     /// The deadline goes with it: what bounds a WebSocket is that isolate's own

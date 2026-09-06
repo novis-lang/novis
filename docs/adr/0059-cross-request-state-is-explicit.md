@@ -1,4 +1,4 @@
-# ADR 0059 — Cross-request state is explicit: `Core\Cache` is per-core, copied in and out, and capped
+# `rule:concurrency/cross-request-state-is-explicit` — Cross-request state is explicit: `Core\Cache` is per-core, copied in and out, and capped
 
 - **Status:** Accepted
 - **Date:** 2026-08-23

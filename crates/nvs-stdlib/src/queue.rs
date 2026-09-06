@@ -1,4 +1,4 @@
-//! `Core\Queue` — [ADR 0084](/docs/adr/0084-durable-background-jobs.md)'s durable background
+//! `Core\Queue` — `rule:concurrency/enqueue-commits-with-your-write`'s durable background
 //! job, over the `[db.<name>]` block a `[queue] connection` names.
 //!
 //! **A job is a row, and that is the whole design.** § 3 states the property everything else is
@@ -18,7 +18,7 @@
 //! grant is what stops a request choosing its own database. Nothing here takes a connection name at
 //! all: `[queue] connection` is root-owned configuration, resolved and proven to name a real block at
 //! boot ([`nvs_config::queue::queue_for`]), and `$queue` is a column value rather than a block. There
-//! is no name for a capability to be about, so ADR 0084 § 1 states none and this module invents one.
+//! is no name for a capability to be about, so `rule:concurrency/queue-four-members` states none and this module invents one.
 //!
 //! **The schema is this module's, and `nvs queue migrate` reads it.** § 2 makes the runtime own one
 //! jobs table and one dead-letter table, created by an explicit operator command — DDL is an
@@ -370,7 +370,7 @@ pub const MIGRATION_MYSQL: &[Migration] = &[
     },
 ];
 
-/// ADR 0084 § 1's `push`, as one statement.
+/// `rule:concurrency/queue-four-members`'s `push`, as one statement.
 ///
 /// **One statement rather than a check and an insert**, because two would be two moments and § 3's
 /// property is about there being one. The `existing` arm is `key`'s dedupe and costs nothing at all
@@ -399,7 +399,7 @@ pub const INSERT_POSTGRES: &str = "with existing as (\
      returning id\
  ) select id from inserted union all select id from existing limit 1";
 
-/// ADR 0084 § 4's claim, as the one statement that finds a job and marks it in the same moment.
+/// `rule:concurrency/claiming-is-one-statement`'s claim, as the one statement that finds a job and marks it in the same moment.
 ///
 /// **`for update skip locked` is the whole of the mutual exclusion**, and it is why a fleet needs no
 /// protocol of ours: two workers running this against one server cannot come back with the same row,
@@ -478,7 +478,7 @@ pub const CLAIM_POSTGRES: &str = "with due as (\
 pub const QUEUES_POSTGRES: &str = "select distinct queue from nvs_jobs \
     where (state = 0 and run_at <= $1::bigint) or (state = 1 and claimed_at <= $2::bigint)";
 
-/// ADR 0084 § 6's write-back for an attempt that returned, and [`CLAIM_POSTGRES`]'s other half.
+/// `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`'s write-back for an attempt that returned, and [`CLAIM_POSTGRES`]'s other half.
 ///
 /// **Keyed on the lease and not only on the id.** `claimed_at` is the instant the worker's own
 /// claim wrote, so a write-back whose row has since been handed to another worker by § 4's
@@ -725,7 +725,7 @@ pub fn dead_errors(at: i64, class: &str, message: &str) -> String {
     serde_json::Value::Array(vec![serde_json::Value::Object(entry)]).to_string()
 }
 
-/// The ceiling ADR 0084 § 6 asks for and names no number for.
+/// The ceiling `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept` asks for and names no number for.
 ///
 /// Five minutes, and the two directions it is chosen between: a cap long enough to be worth having
 /// spares a queue nothing once the outage it is waiting out is over, and a cap short enough to
@@ -784,7 +784,7 @@ fn jitter(id: i64, attempts: i64) -> u64 {
     z ^ (z >> 31)
 }
 
-/// ADR 0084 §§ 1 and 6's `status`, as one statement over both of § 2's tables.
+/// `rule:concurrency/queue-four-members` and `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`'s `status`, as one statement over both of § 2's tables.
 ///
 /// **Two tables and not one**, because § 6 *moves* a job that has exhausted its attempts into the
 /// dead-letter table rather than deleting it, and a caller asking what became of its job is owed
@@ -828,7 +828,7 @@ pub const STATUS_MYSQL: &str = "select state from nvs_jobs \
     where id = ? and queue = ? \
     limit 1";
 
-/// ADR 0084 § 1's `cancel`, as one conditional update.
+/// `rule:concurrency/queue-four-members`'s `cancel`, as one conditional update.
 ///
 /// **`and state = 0` is the whole of the member's semantics, and it is in the statement rather than
 /// in a check before it.** A job is cancellable only while it is pending, so reading its state and
@@ -855,7 +855,7 @@ const CANCEL_POSTGRES: &str = "update nvs_jobs set state = 4 \
 pub const CANCEL_MYSQL: &str = "update nvs_jobs set state = 4 \
     where id = ? and queue = ? and state = 0";
 
-/// ADR 0084 §§ 1 and 6's `stats`, as one aggregate over one queue.
+/// `rule:concurrency/queue-four-members` and `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`'s `stats`, as one aggregate over one queue.
 ///
 /// **Named for what it reads rather than for the member**, because [`STATS`] is the class that
 /// member answers with and two constants cannot both be `STATS`.
@@ -962,7 +962,7 @@ const BACKOFF_ARG: usize = 5;
 /// `{key: …}`'s. See [`ARGS_ARG`].
 const KEY_ARG: usize = 6;
 
-/// ADR 0084 § 1's `Core\Queue` — all four of `push`, `status`, `cancel` and `stats`.
+/// `rule:concurrency/queue-four-members`'s `Core\Queue` — all four of `push`, `status`, `cancel` and `stats`.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     methods: &[
@@ -1288,7 +1288,7 @@ pub(crate) const ID: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// § 1's `stats`, as the record it answers with — ADR 0084 §§ 1 and 6.
+/// § 1's `stats`, as the record it answers with — `rule:concurrency/queue-four-members` and `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`.
 ///
 /// **The counters are members rather than a shape's fields**, which is where this departs from
 /// § 1's originally unannotated `::stats(string $queue)` and has to: a `Core`-owned instance has no
@@ -1296,7 +1296,7 @@ pub(crate) const ID: CoreClass = CoreClass {
 /// would resolve a class, find no member, and reach `nvs-ir` with nothing to call. The other answer
 /// — a shape returned by value — needs a spelling this registry has not got, which is gap 1's
 /// blocker and not a thing worth waiting for. `Core\Db\Write` is the same shape for the same
-/// reason, and ADR 0084 § 1 now carries the annotation so there is one home for it.
+/// reason, and `rule:concurrency/queue-four-members` now carries the annotation so there is one home for it.
 ///
 /// **Four counters, because § 6 names four things to watch**: what is waiting, what is held, how
 /// much has been attempted, and how deep the dead-letter table is. [`COUNTS_POSTGRES`] is the one home for
@@ -1354,7 +1354,7 @@ pub(crate) const STATS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// ADR 0084 §§ 4 and 6's job lifecycle, as § 1's `Core\Queue\State`.
+/// `rule:concurrency/claiming-is-one-statement` and `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`'s job lifecycle, as § 1's `Core\Queue\State`.
 ///
 /// **§ 1 is the home of the roster and of why there is no `Failed`**; this is the home of what a
 /// case *is* here, which is a stored number. Each case is a resting state of a row rather than an
@@ -1477,7 +1477,7 @@ fn run_at_of(args: &[Value]) -> Result<Option<i64>, Fault> {
 
 /// The base delay a `push` that wrote no `{backoff: …}` agreed to, in milliseconds.
 ///
-/// [ADR 0084](/docs/adr/0084-durable-background-jobs.md) § 6 asks for exponential backoff
+/// `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept` asks for exponential backoff
 /// with jitter and a cap and names no number, and § 2's `[queue]` block has no key for one — the
 /// base is a property of the *job*, which is why § 1 puts it on `push`'s options shape beside
 /// `maxAttempts` and not in the deployment's block. So the default lives here, and it is not
@@ -1528,7 +1528,7 @@ fn max_attempts_of(args: &[Value], configured: u32) -> Result<u32, Fault> {
             ThrownClass::Logic,
             format!(
                 "{PUSH}: `maxAttempts` of 0 asks for a job that is dead-lettered by the enqueue \
-                 that created it — ADR 0084 § 6 makes attempts finite, not optional"
+                 that created it — `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept` makes attempts finite, not optional"
             ),
         ));
     }
@@ -1750,7 +1750,7 @@ fn no_dialect(member: &str, block: &str, driver: nvs_db::Driver) -> Fault {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Queue::push(string $script, {…}): Queue\Id` — ADR 0084 §§ 1 and 3.
+    /// `Core\Queue::push(string $script, {…}): Queue\Id` — `rule:concurrency/queue-four-members` and `rule:concurrency/enqueue-commits-with-your-write`.
     ///
     /// **The order of the work is the point, not an accident of writing.** Every argument is read
     /// and judged before the connection is reached, so a call that wrote `maxAttempts: 0` refuses
@@ -2255,7 +2255,7 @@ fn counted_row(
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Queue::status(Queue\Id $job): Queue\State` — ADR 0084 §§ 1 and 6.
+    /// `Core\Queue::status(Queue\Id $job): Queue\State` — `rule:concurrency/queue-four-members` and `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`.
     ///
     /// **The receipt is the whole argument**, because it carries the queue as well as the row: a
     /// member taking a bare id would have to be told the queue beside it or search every one, and
@@ -2346,14 +2346,14 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Queue::cancel(Queue\Id $job): bool` — ADR 0084 § 1.
+    /// `Core\Queue::cancel(Queue\Id $job): bool` — `rule:concurrency/queue-four-members`.
     ///
     /// **It answers a `bool` although § 1 annotates no return**, and that is a decision rather than
     /// a liberty: the member's own semantics are a race it can lose — § 4 lets a worker claim the
     /// job at any moment, and it is the *ordinary* outcome for a job cancelled late, not an unlucky
     /// one — so a caller has no other way to learn whether the work is still going to happen. A
     /// `void` spelling would make "cancelled" and "too late" look identical at the call site, and
-    /// throwing for the second would make the commonest race an exception. ADR 0084 § 1 carries the
+    /// throwing for the second would make the commonest race an exception. `rule:concurrency/queue-four-members` carries the
     /// annotation now, so there is one home for it.
     ///
     /// **The state test is in [`CANCEL_POSTGRES`] and not here**, which is why nothing in this body reads
@@ -2407,7 +2407,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Queue::stats(string $queue): Queue\Stats` — ADR 0084 §§ 1 and 6.
+    /// `Core\Queue::stats(string $queue): Queue\Stats` — `rule:concurrency/queue-four-members` and `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`.
     ///
     /// **Asked about a queue and not about a job**, which is what makes it the odd member of § 1's
     /// four: the other three take the receipt [`ID`] is, because they are about one row, and this
@@ -3010,7 +3010,7 @@ mod tests {
         );
     }
 
-    /// [`retry_at`] is ADR 0084 § 6's ladder and this is what makes it one: the delay doubles, it
+    /// [`retry_at`] is `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`'s ladder and this is what makes it one: the delay doubles, it
     /// stops at [`RETRY_CAP_MS`], and two jobs on the same rung are not due at the same instant.
     ///
     /// Asserted as bounds over the whole ladder rather than as numbers, because the jitter has no

@@ -2,7 +2,7 @@
 //! bounded queue between two tasks whose `send` **suspends** at the bound
 //! instead of growing.
 //!
-//! [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)
+//! `rule:concurrency/one-scheduler`
 //! scopes the roster and explicitly not this type's spelling, so what is
 //! decided here is decided here. `crates/nvs-host/src/channel.rs`'s module doc
 //! is the one home for *why* a bound rather than growth — an unbounded queue

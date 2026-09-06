@@ -1,5 +1,5 @@
 --TEST--
-ADR 0083 § 3's connection loop compiles as written, and `Core\Socket::current()` is the one place a program that is not a connection isolate is refused — ADR 0083 §§ 1, 3
+`rule:concurrency/a-connection-is-a-loop`'s connection loop compiles as written, and `Core\Socket::current()` is the one place a program that is not a connection isolate is refused — `rule:concurrency/a-connection-is-a-root-isolate` and `rule:concurrency/a-connection-is-a-loop`
 --FILE--
 <?nvs
 // § 1 gives a connection its own root isolate and moves the socket into it, so

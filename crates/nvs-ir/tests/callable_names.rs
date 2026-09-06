@@ -2,7 +2,7 @@
 //! see a declaration: what a written `Class::method(...)` records on the object
 //! it produces, and what an `fn` literal deliberately does not.
 //!
-//! [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 2 makes
+//! `rule:concurrency/an-upgrade-is-spawn-shaped` makes
 //! `Core\Socket::upgrade(Chat::run(...), args: {…})` an isolate entry, and ADR
 //! 0006 binds that map to the entry's parameters **by name**. A `callable`
 //! carries its arity and its parameter tags and nothing else, so the names are

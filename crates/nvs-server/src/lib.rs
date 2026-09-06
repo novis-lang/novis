@@ -57,7 +57,7 @@
 //! one answer instead of making three.
 //!
 //! [`socket`] is where this crate stops speaking HTTP:
-//! [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 1's
+//! `rule:concurrency/a-connection-is-a-root-isolate`'s
 //! upgrade, framed. [`serve`] answers the opening handshake `101` and takes the
 //! connection back off `hyper`; this module puts RFC 6455 over the same
 //! descriptor and hands the result to the connection's root isolate as
@@ -89,8 +89,8 @@
 //! **There is no second scheduler.** `hyper` with `http1` and `server` alone
 //! needs no `Executor` and `serve_connection` spawns nothing, so what drives a
 //! connection is one `Future` polled on the accepting coroutine's own stack
-//! ([ADR 0138](/docs/adr/0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md)).
-//! [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)'s
+//! (`rule:concurrency/one-future-per-connection`).
+//! `rule:concurrency/one-scheduler`'s
 //! refusal of tokio's task primitives is untouched by that.
 //!
 //! `tokio` itself is nevertheless in the lock file, because `hyper` 1.11 depends

@@ -13,7 +13,7 @@
 //!
 //! One thing here is not a fact the request arrived with, and that is
 //! [`UpgradeSlot`]:
-//! [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 1's
+//! `rule:concurrency/a-connection-is-a-root-isolate`'s
 //! connection isolate is *prepared* inside the request by `Core\Socket::upgrade`
 //! and *started* by the connection once that request has ended, so the two need
 //! somewhere to meet. It is on the carrier because a connection is the only
@@ -24,7 +24,7 @@
 //! `nvs_stdlib::socket`'s module doc, § *Decision: this member spawns nothing,
 //! and the connection starts it*.
 //!
-//! **There are two such cells and not one.** ADR 0083 § 5 is the home of why:
+//! **There are two such cells and not one.** `rule:concurrency/two-doors-one-isolate` is the home of why:
 //! a WebSocket upgrade *takes the socket*, so its isolate starts once the
 //! request's own future has ended, while an SSE connection takes nothing and
 //! writes into the body of an ordinary `200` the connection is still sending.
@@ -343,7 +343,7 @@ pub struct Inbound {
     /// **What it spends:** 26 bytes per request, held no longer than the
     /// carrier.
     trace: Option<crate::trace_context::TraceContext>,
-    /// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 1's
+    /// `rule:concurrency/a-connection-is-a-root-isolate`'s
     /// upgrade slot, for a request a connection offered one to, and `None` for
     /// every other carrier — [`Self::offer_upgrade`] owns which is which and
     /// [`UpgradeSlot`] owns why it is a shared cell.
@@ -355,7 +355,7 @@ pub struct Inbound {
     /// running on an upgradable connection — one small allocation the connection
     /// holds the other reference to.
     upgrade: Option<UpgradeSlot>,
-    /// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 5's
+    /// `rule:concurrency/two-doors-one-isolate`'s
     /// SSE cell, for a request a server offered one to, and `None` for every
     /// other carrier — [`Self::offer_sse`] owns which is which and [`SseSlot`]
     /// owns why it is a second cell rather than a second use of the first.
@@ -676,7 +676,7 @@ impl Inbound {
         self.form.as_deref()
     }
 
-    /// Offers ADR 0083 § 1's upgrade to this request: the slot
+    /// Offers `rule:concurrency/a-connection-is-a-root-isolate`'s upgrade to this request: the slot
     /// `Core\Socket::upgrade` writes a prepared connection isolate into, whose
     /// other half is held by whoever is going to start it.
     ///
@@ -701,7 +701,7 @@ impl Inbound {
     pub fn upgrade_slot(&self) -> Option<&UpgradeSlot> {
         self.upgrade.as_ref()
     }
-    /// Offers ADR 0083 § 5's SSE cell to this request: the slot
+    /// Offers `rule:concurrency/two-doors-one-isolate`'s SSE cell to this request: the slot
     /// `Core\Sse::upgrade` writes a prepared connection isolate into, which the
     /// connection starts against the response body it is still sending.
     ///
@@ -724,7 +724,7 @@ impl Inbound {
     }
 }
 
-/// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 1's
+/// `rule:concurrency/a-connection-is-a-root-isolate`'s
 /// connection isolate, prepared and not yet started: the program it runs, and
 /// the argument that has already crossed to it.
 ///
@@ -821,7 +821,7 @@ impl Upgrade {
 /// request writes through its `nvs_runtime::Inbound`, the request ends and its
 /// context — the carrier with it — is dropped, and the connection reads through
 /// the half it kept. A field the connection had to reach back into a finished
-/// request for would be the ordering ADR 0083 § 1 forbids, spelled as something
+/// request for would be the ordering `rule:concurrency/a-connection-is-a-root-isolate` forbids, spelled as something
 /// to remember rather than as something the code can express.
 ///
 /// Cloning one is what "offering" it is: both halves name the same cell, and a
@@ -872,7 +872,7 @@ impl UpgradeSlot {
 
 /// The place a prepared [`Upgrade`] is left for a connection that is **still
 /// sending the response** —
-/// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 5's SSE
+/// `rule:concurrency/two-doors-one-isolate`'s SSE
 /// hand-over, and the second of the carrier's two cells.
 ///
 /// **A separate type rather than a second [`UpgradeSlot`]**, because the two
@@ -995,8 +995,8 @@ pub trait RequestBody {
     /// request's own isolate, and that is a task **beside** the connection
     /// rather than a frame inside its poll — `nvs_server::serve_connection`'s
     /// service answers `Pending` while it runs
-    /// ([ADR 0138](/docs/adr/0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md)
-    /// § 1) — so a pull parks that isolate and the connection's next poll is
+    /// (`rule:concurrency/one-future-per-connection`
+    /// ) — so a pull parks that isolate and the connection's next poll is
     /// what delivers the bytes. Stated as the rule an implementation has to
     /// keep: **nothing may pull one from inside the poll of the very
     /// connection future that would deliver them.**
@@ -1135,7 +1135,7 @@ mod tests {
         )
     }
 
-    /// ADR 0083 § 1's slot, as the two halves it is: a carrier nobody offered
+    /// `rule:concurrency/a-connection-is-a-root-isolate`'s slot, as the two halves it is: a carrier nobody offered
     /// one to has none — which is the whole of how `Core\Socket::upgrade`
     /// refuses off a CLI program and inside a `spawn script` child — and a
     /// carrier that has one is writing into the cell the connection kept.
@@ -1201,7 +1201,7 @@ mod tests {
         assert_eq!(marker.get(), 2);
     }
 
-    /// ADR 0083 § 5's second cell, and the one thing that separates it from the
+    /// `rule:concurrency/two-doors-one-isolate`'s second cell, and the one thing that separates it from the
     /// first: it reaches a request no upgrade could have been framed out of.
     /// Asserted as the pair the door will write — a plain `GET` carrying an SSE
     /// cell and no upgrade slot — because "offered to every request" is a claim

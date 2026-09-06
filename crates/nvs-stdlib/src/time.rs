@@ -3478,7 +3478,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// [`Woken::Cancelled`] is the group cancelling this child mid-sleep. The
     /// member stops the request there and then, through [`Ctx::cancel`], which
-    /// is ADR 0072 § 5's teardown reached by `rule:errors/propagation`'s return status — the
+    /// is `rule:concurrency/cancellation-runs-no-user-code`'s teardown reached by `rule:errors/propagation`'s return status — the
     /// only way it can be reached from a frame that is `extern "C"`.
     ///
     /// With no host on the thread the wait still has to happen, and blocking is

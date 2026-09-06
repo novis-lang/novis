@@ -1,5 +1,5 @@
 --TEST--
-`deadline` bounds the whole call and not each child, `all` and `map` agree on that, and `limit` is the other half of the same bag — ADR 0072 §§ 3, 4
+`deadline` bounds the whole call and not each child, `all` and `map` agree on that, and `limit` is the other half of the same bag — `rule:concurrency/limit-and-deadline-are-the-only-bounds` and `rule:concurrency/nothing-is-still-running-when-a-call-returns`
 --FILE--
 <?nvs
 // The neighbouring case pins that `timeout` and `race` do not exist as names.

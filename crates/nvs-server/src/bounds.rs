@@ -1,4 +1,4 @@
-//! [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 7's
+//! `rule:concurrency/connection-bounds-are-finite`'s
 //! connection bounds: the numbers an open WebSocket is held inside, every one
 //! of them finite before anything is configured.
 //!
@@ -59,7 +59,7 @@
 
 use std::time::Duration;
 
-/// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 7's
+/// `rule:concurrency/connection-bounds-are-finite`'s
 /// bounds on one open connection.
 ///
 /// Copied per connection rather than shared, for `nvs_config::server::Waits`'
@@ -203,7 +203,7 @@ impl Drop for Slot {
 mod tests {
     use super::{Connection, Slot};
 
-    /// ADR 0083 § 7's first bullet, as the assertion it is: with nothing
+    /// `rule:concurrency/connection-bounds-are-finite`'s first bullet, as the assertion it is: with nothing
     /// configured, every bound a connection is held inside is a finite number.
     ///
     /// Destructured rather than read field by field, so that a bound added to

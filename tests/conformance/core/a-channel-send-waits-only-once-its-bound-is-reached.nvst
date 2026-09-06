@@ -1,5 +1,5 @@
 --TEST--
-A `Core\Task\Channel`'s bound asserted on both sides: the last send that fits returns without the consumer running, and the first that does not fit only returns after it has — ADR 0072 § 1's children over `nvs_stdlib::channel`'s bound
+A `Core\Task\Channel`'s bound asserted on both sides: the last send that fits returns without the consumer running, and the first that does not fit only returns after it has — `rule:concurrency/all-answers-a-typed-shape`'s children over `nvs_stdlib::channel`'s bound
 --FILE--
 <?nvs
 // A send is observed to have waited without asking the channel anything about
@@ -15,7 +15,7 @@ class Log {
 // Capacity two against three sends: two fit, the third cannot.
 var $chan = new Core\Task\Channel<int>(2);
 
-// Both halves are children of this call, so ADR 0072 § 4's promise applies —
+// Both halves are children of this call, so `rule:concurrency/nothing-is-still-running-when-a-call-returns`'s promise applies —
 // `all` does not return with either still running, which is what lets the
 // counters below be read as final.
 Core\Task::all({

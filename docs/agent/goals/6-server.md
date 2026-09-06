@@ -15,11 +15,11 @@ program's stop condition.
 ["http1", "server"]` depends on `http`, `http-body`, `bytes`, `futures-core` and `pin-project-lite` — and,
 measured rather than assumed, on `tokio` as well: 1.11 takes it unconditionally at `features = ["sync"]` for
 one `oneshot` in its upgrade path, which is a channel library and not a runtime. **No `rt`, no `net`, no
-`time`, no executor, no `spawn`**, so ADR 0072's rule holds and the workspace `Cargo.toml`'s comment above
+`time`, no executor, no `spawn`**, so `rule:concurrency/one-scheduler`'s rule holds and the workspace `Cargo.toml`'s comment above
 the dependency owns that reading. h1 requires no `Executor` and `serve_connection` spawns nothing, so the connection future is
 driven by a **`block_on` on the coroutine that owns the connection** — a waker that marks the coroutine
 ready, poll, park on `Pending` — over `hyper::rt::Read`/`Write` adapters wrapping goal 2's parking stream.
-That is one polled future per connection and not a second scheduler, so ADR 0072's rejection of tokio's
+That is one polled future per connection and not a second scheduler, so `rule:concurrency/one-scheduler`'s rejection of tokio's
 task primitives is untouched. Hand-rolling h1 was weighed and refused: `docs/plan/design.md` gives the
 reason about FCGI and it applies here — framing is where request smuggling lives, and it is not a parser
 to own.
@@ -97,7 +97,7 @@ gets its first adversarial traffic.
     `Allow:`).
 13. **§ 7's mount captures are how one table serves many tenants**, and § 8's split: CSRF is the server's,
     the access decision is the dispatcher's.
-14. **`Core\Session`**, which **may not be backed by `Core\Cache`'s local tier** — ADR 0059 § 4 names it as
+14. **`Core\Session`**, which **may not be backed by `Core\Cache`'s local tier** — `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent` names it as
     a hole that tier must not fill, and a session that vanishes because a core evicted it is an
     authentication bug.
 15. **Uploads** — [ADR 0105](../../adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
@@ -116,7 +116,7 @@ gets its first adversarial traffic.
     fires as a **root** isolate through goal 2's `Isolate`, with the fleet lease over goal 4's shared
     store. Goal 3 landed its boot-time validation; this is the runtime half.
 18. **`Core\Task::afterResponse`'s tree stays alive past the connection**, bounded by `[deferred]
-    max_concurrent` — ADR 0072 §§ 6–7. Goal 2 built the member under compiled-in defaults; this is where
+    max_concurrent` — `rule:concurrency/after-response-outlives-the-connection` and `rule:concurrency/deferred-is-bounded-by-two-directives`. Goal 2 built the member under compiled-in defaults; this is where
     the connection actually ends while the tree does not.
 19. **The observability export** — [ADR 0076](../../adr/0076-observability-export.md): `Core\Metrics`, the
     default series, W3C `traceparent` **inbound**, with a trace id generated for every request **whether
@@ -124,7 +124,7 @@ gets its first adversarial traffic.
 
 ## Stage 6b — persistent connections
 
-[ADR 0083](../../adr/0083-persistent-connections-are-isolates.md) whole. [m7.md](../../plan/m7.md) places
+`rule:concurrency/a-connection-is-a-root-isolate` whole. [m7.md](../../plan/m7.md) places
 it in this milestone and no stage above carries it. A connection is a **root isolate** opened by a request
 that then ends normally, so this stage adds a lifetime, not an isolation path — and item 25's state-bleed
 suite gains connections as its third parameterisation rather than a second suite.
@@ -143,7 +143,7 @@ suite gains connections as its third parameterisation rather than a second suite
     name and refuses an `fn` literal or a `callable`-typed variable with a diagnostic naming the method
     form, and a function→`Program` arm beside `program_over` in `crates/nvs-cli/src/script.rs`; `upgrade`
     then reuses all three rather than growing a check of its own.
-19c. **`Core\Socket::current`, `Socket\Message`, `send`, `receive`, `close`** — ADR 0083 § 3. `receive()`
+19c. **`Core\Socket::current`, `Socket\Message`, `send`, `receive`, `close`** — `rule:concurrency/a-connection-is-a-loop`. `receive()`
     is **the one wait**, over the peer *and* the connection's subscribed topics, answering a peer frame
     (payload `tainted`) or a topic delivery (the copied value and the topic's name); there is no
     `Core\Topic::receive()` and no two-task scaffold in a connection script. `send` suspends until the frame
@@ -242,11 +242,11 @@ there by the switch that left it and folded forward at every switch since.
 - **`max_in_flight` is an arithmetic, not a number.** ADR 0106 amended ADR 0097 § 5 to say so.
 - **`tungstenite` is the framing crate**, sync, over `NvsStream` with no adapter, picked under ADR 0051
   § 4's pre-authorization; owning RFC 6455 is refused for the reason owning h1 is.
-- **`receive()` selects over both sources** — ADR 0083 § 3 — and an isolate's entry is a path or a
+- **`receive()` selects over both sources** — `rule:concurrency/a-connection-is-a-loop` — and an isolate's entry is a path or a
   static method with `args:` bound to its parameters — `rule:security/isolate-shares-nothing`. Both are decided in those bodies; a
   session that wants a `Core\Topic::receive()`, an `fn` literal entry or a capturing closure has found the
   decision, not a gap.
-- **`Core\Session` may not use the local cache tier.** ADR 0059 § 4.
+- **`Core\Session` may not use the local cache tier.** `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent`.
 - **A mount routes and carries nothing else.** Policy is the per-app block's, which goal 3 built.
 - **`nvs ctl reload` is the socket's only operation**, and there is no network-reachable control surface in
   either direction of configuration. ADR 0078 § 6.

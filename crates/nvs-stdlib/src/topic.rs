@@ -650,7 +650,7 @@ mod tests {
         }
     }
 
-    /// A context that is a connection's — ADR 0083 § 1's isolate with a socket
+    /// A context that is a connection's — `rule:concurrency/a-connection-is-a-root-isolate`'s isolate with a socket
     /// already moved onto it.
     fn connected() -> Ctx {
         connected_to(&Watched::default())

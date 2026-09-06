@@ -14,7 +14,7 @@ files = [
 
 modules = [
   # Stages 2-4 -- the three new `Core` modules land beside these; `socket.rs` is `Core\Socket`
-  # (ADR 0083's WebSocket) and is deliberately NOT what this goal extends.
+  # (`rule:concurrency/a-connection-is-a-root-isolate`'s WebSocket) and is deliberately NOT what this goal extends.
   "crates/nvs-stdlib/src/socket.rs",
   # Stages 2-4 -- every new class declares its rows here.
   "crates/nvs-stdlib/src/registry.rs",

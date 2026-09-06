@@ -1,5 +1,5 @@
 --TEST--
-Twenty values through a `Core\Task\Channel` of capacity one arrive exactly once each and in the order they were sent, counted rather than read off a line — ADR 0072 § 4's "nothing still running" over `nvs_stdlib::channel`
+Twenty values through a `Core\Task\Channel` of capacity one arrive exactly once each and in the order they were sent, counted rather than read off a line — `rule:concurrency/nothing-is-still-running-when-a-call-returns`'s "nothing still running" over `nvs_stdlib::channel`
 --FILE--
 <?nvs
 // A capacity of one makes every send past the first wait, so this sweep is

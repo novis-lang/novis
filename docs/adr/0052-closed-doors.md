@@ -92,7 +92,7 @@ This does not close operator configuration. [ADR 0005](0005-config-changeability
 with a different threat model. The rule is about **userland calls whose effect outlives or escapes the
 caller's own request**.
 
-The replacement is [ADR 0059](0059-cross-request-state-is-explicit.md)'s `Core\Cache` — per-core in
+The replacement is `rule:concurrency/cross-request-state-is-explicit`'s `Core\Cache` — per-core in
 process, or a real store where sharing must be genuine — where the sharing is explicit, bounded, and
 visible in the capability grants.
 

@@ -712,7 +712,7 @@ context have nothing left to be.
 | `get_include_path` | dropped | there is no runtime include and so no search path: a program's units are resolved while compiling |
 | `set_include_path` | dropped | same, and it is process-global besides |
 | `stream_resolve_include_path` | dropped | same. Resolving a path the program does name is `Core\IO::canonicalize`, and proving it is inside a base is `Core\IO::within` |
-| `ftok` | dropped | System V IPC is not in this runtime. State shared between requests is `Core\Cache` and nothing else ([ADR 0059](../adr/0059-cross-request-state-is-explicit.md)) |
+| `ftok` | dropped | System V IPC is not in this runtime. State shared between requests is `Core\Cache` and nothing else (`rule:concurrency/cross-request-state-is-explicit`) |
 
 ### Streams: wrappers, filters, contexts and buckets
 
@@ -767,7 +767,7 @@ inclusion bug into a remote one. There is no opt-in and no reduced form.
 | `stream_set_chunk_size` | dropped | chunk and buffer sizes are the runtime's |
 | `stream_set_read_buffer` | dropped | same |
 | `stream_set_write_buffer` | dropped | same |
-| `stream_select` | dropped | waiting on many sources is `Core\Task` ([ADR 0072](../adr/0072-core-task-structured-concurrency.md)): the reactor does the selecting, and a task that is ready is resumed |
+| `stream_select` | dropped | waiting on many sources is `Core\Task` (`rule:concurrency/one-scheduler`): the reactor does the selecting, and a task that is ready is resumed |
 | `stream_socket_client` | member | `Core\Net` ([01 § 16](01-core-library.md)), over the runtime's own reactor rather than a second event loop |
 | `stream_socket_server` | member | `Core\Net` |
 | `stream_socket_accept` | member | `Core\Net` |
@@ -1440,7 +1440,7 @@ site left.
 | `mysqli_debug` | dropped | switches on the client library's own trace file, by a format string. Tracing is the runtime's ([ADR 0041](../adr/0041-timeline-export-and-gc-spawn-trace-events.md)) and a query is already a trace event ([ADR 0067](../adr/0067-core-db.md) § 11) |
 | `mysqli_dump_debug_info` | dropped | asks the server to write debug information into its own log |
 | `mysqli_report` | dropped | picks process-wide between `false` returns, warnings and exceptions. Failure throws, always (`rule:core-api/shape-rules` R4), so there is no mode to select |
-| `mysqli_poll` | dropped | waits on several `MYSQLI_ASYNC` queries at once, the one place mysqli has concurrency. Concurrency is `Core\Task` over connections ([ADR 0072](../adr/0072-core-task-structured-concurrency.md)), not a poll loop over one |
+| `mysqli_poll` | dropped | waits on several `MYSQLI_ASYNC` queries at once, the one place mysqli has concurrency. Concurrency is `Core\Task` over connections (`rule:concurrency/one-scheduler`), not a poll loop over one |
 | `mysqli_reap_async_query` | dropped | collects one of those results; the same answer |
 
 ### Statements, and the calls that run them
@@ -1670,7 +1670,7 @@ with better manners.
 | `pg_set_error_verbosity` | dropped | how much of that message the server composes. What an application branches on is normalised into `kind`, and the message text is not the interface |
 | `pg_set_error_context_visibility` | dropped | whether the `CONTEXT` line appears in it, and the same answer |
 | `pg_last_notice` | dropped | the server's last `NOTICE`, kept per connection. A condition worth acting on throws (`rule:core-classes/db-error`); one that is not is the server's to log |
-| `pg_get_notify` | dropped | a pending `NOTIFY` payload, for a connection that has issued `LISTEN`. That pair is deferred and the pool's reset drops a connection's listeners ([ADR 0067](../adr/0067-core-db.md) §§ 12, 13). The durable answer to the same problem is a job row, which commits with the write that enqueued it ([ADR 0084](../adr/0084-durable-background-jobs.md)) |
+| `pg_get_notify` | dropped | a pending `NOTIFY` payload, for a connection that has issued `LISTEN`. That pair is deferred and the pool's reset drops a connection's listeners ([ADR 0067](../adr/0067-core-db.md) §§ 12, 13). The durable answer to the same problem is a job row, which commits with the write that enqueued it (`rule:concurrency/enqueue-commits-with-your-write`) |
 | `pg_trace` | dropped | writes the client-server conversation to a file the program names. What a statement did is a `query` trace event instead, carrying the statement's own facts and never a bound parameter ([ADR 0067](../adr/0067-core-db.md) § 11) |
 | `pg_untrace` | dropped | stops that, and has nothing to stop |
 

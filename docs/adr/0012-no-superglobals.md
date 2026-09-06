@@ -138,7 +138,7 @@ selection via an [ADR 0005](0005-config-changeability.md)-style directive, locki
 collection are a real feature with their own questions. All four are answered in
 [ADR 0139](0139-a-session-is-a-record-its-store-issued.md): the backends are the shared cache tier and
 the database, with the local tier refused at boot naming
-[ADR 0059](0059-cross-request-state-is-explicit.md) § 4; there is no lock; and expiry is the store's own
+`rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent`; there is no lock; and expiry is the store's own
 rather than a sweeper's.
 
 ### 5. `Core\Cli` is CLI-SAPI-only, and says so loudly

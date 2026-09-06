@@ -198,7 +198,7 @@ fresh id. Expiry needs no code path of its own, which is the point of choosing b
 
 ## Verification
 
-- `[session] backend = "local"` is `E0626` at boot, and its note names ADR 0059 § 4 and the file the
+- `[session] backend = "local"` is `E0626` at boot, and its note names `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent` and the file the
   key was written in. The roster the refusal is derived from is asserted to contain no local entry, so
   a backend added later cannot re-admit it by accident — that is the pair
   `a_session_is_never_backed_by_the_local_cache_tier` asserts.

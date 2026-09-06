@@ -410,8 +410,8 @@ pub enum CoreTy {
     ///
     /// [`Self::CallableTo`] one level up, and it exists for exactly that
     /// variant's reason at a wider position.
-    /// [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)
-    /// § 1 makes `Task::all`'s answer a shape with the argument's own field
+    /// `rule:concurrency/all-answers-a-typed-shape`
+    /// makes `Task::all`'s answer a shape with the argument's own field
     /// names, each field typed as *that field's* closure returns — which is the
     /// whole reason the member is worth having, since the uniform alternative
     /// answers `array<mixed>` and every call site then pays a cast. No type at
@@ -421,7 +421,7 @@ pub enum CoreTy {
     /// **The argument has to be *written* at the call site**, and each field's
     /// value has to be a written `fn` literal — `E0773` and `E0774` are the two
     /// diagnostics, and `nvs_types::expr::args` is the one place that reads a
-    /// field. That is ADR 0072 § 1's own restriction rather than an
+    /// field. That is `rule:concurrency/all-answers-a-typed-shape`'s own restriction rather than an
     /// implementation limit: `callable` carries no signature, so a variable has
     /// nothing to bind from, and `rule:types/grammar`'s deferred typed-`callable`
     /// signatures are what would lift it.
@@ -1335,12 +1335,12 @@ pub const CLASSES: &[CoreClass] = &[
     // `Core\Script`, and [`crate::test`]'s own doc on it owns why it is a
     // `Core`-owned instance rather than the shape § 18's example writes.
     crate::test::RESPONSE,
-    // ADR 0072 § 1's `Core\Task`, and no spec § of its own either: structured
+    // `rule:concurrency/all-answers-a-typed-shape`'s `Core\Task`, and no spec § of its own either: structured
     // concurrency is a language surface over the `nvs-host` scheduler. The
     // signature is here and the body is a placeholder — [`crate::task`] owns
     // why, and it is the one row of the three that is not compile-time folded.
     crate::task::CLASS,
-    // Goal 2's item 11, and no spec § of its own either — ADR 0072's scope
+    // Goal 2's item 11, and no spec § of its own either — `rule:concurrency/one-scheduler`'s scope
     // line leaves this type's spelling undecided, so [`crate::channel`]'s
     // module doc is the one home for the surface and for why the queue lives
     // in the instance's own slots rather than in the host.
@@ -1456,7 +1456,7 @@ pub const CLASSES: &[CoreClass] = &[
     // presented identifier this store cannot have issued is *absent* rather
     // than a second question about validity.
     crate::session::CLASS,
-    // ADR 0083 §§ 1-2, and no spec § of its own: the spec's roster has no
+    // `rule:concurrency/a-connection-is-a-root-isolate` and `rule:concurrency/an-upgrade-is-spawn-shaped`, and no spec § of its own: the spec's roster has no
     // `Core\Socket` row, so that ADR is the whole specification. Last of the
     // request-facing group because it is where a request stops being one — §
     // 1 makes the connection a *root* isolate, so the request that upgraded it
@@ -1464,7 +1464,7 @@ pub const CLASSES: &[CoreClass] = &[
     // member answers `void` where the ADR writes a returned response, and why
     // three of § 2's four options are absent rather than accepted.
     crate::socket::CLASS,
-    // ADR 0083 § 3's message, immediately after the class whose `receive`
+    // `rule:concurrency/a-connection-is-a-loop`'s message, immediately after the class whose `receive`
     // is the only thing that produces one.
     crate::socket::MESSAGE,
     // `rule:core-classes/topic`, and beside the class whose `receive` is the only thing a
@@ -1474,7 +1474,7 @@ pub const CLASSES: &[CoreClass] = &[
     // is per core and holds a weak reference, and why `publish` — § 4's third
     // row — is not here yet.
     crate::topic::CLASS,
-    // ADR 0083 § 5, and beside `Core\Socket` because the two are one model with
+    // `rule:concurrency/two-doors-one-isolate`, and beside `Core\Socket` because the two are one model with
     // two doors: the same root isolate, reached through the cell the hand-over
     // needs. [`crate::sse`] owns why that is a second cell rather than a second
     // use of the first, and why this member is offered to every request a
@@ -1600,7 +1600,7 @@ pub const CLASSES: &[CoreClass] = &[
     // with the transport that fills them, and [`crate::http`]'s module doc is
     // the home of that list.
     crate::http::RESPONSE,
-    // ADR 0059's two tiers, as the two members that hand back a store — the
+    // `rule:concurrency/cross-request-state-is-explicit`'s two tiers, as the two members that hand back a store — the
     // sanctioned exception to `rule:security/no-cross-request-state`'s closed door on cross-request
     // state, and the one place a value outlives the request that made it.
     crate::cache::CLASS,
@@ -1689,7 +1689,7 @@ pub const CLASSES: &[CoreClass] = &[
     // and neither class is reachable except through that member.
     crate::db::PLAN,
     crate::db::STEP,
-    // ADR 0084 § 1's durable background job, immediately after the database classes
+    // `rule:concurrency/queue-four-members`'s durable background job, immediately after the database classes
     // because that is what it is made of: a job is a row in one of these connections,
     // which is the whole of why § 3's enqueue can commit with the write that caused
     // it. All four of § 1's members are landed, and [`crate::queue`]'s known gaps say
@@ -1915,7 +1915,7 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     // member was written — the local tier is a `HashMap` in the calling core's
     // own thread, so nothing leaves the process, no name is resolved and no file
     // is opened, and `rule:security/capability-question-is-grant-and-scope` has no door to check at. What is left to bound
-    // is footprint, which ADR 0059 § 3's `nvs.toml` cap bounds and a boolean
+    // is footprint, which `rule:concurrency/cache-memory-is-charged-to-the-core`'s `nvs.toml` cap bounds and a boolean
     // grant would not: a grant would price caching anything as an authority
     // question every deployment then has to answer, and still not bound a byte.
     (crate::cache::NAME, "local", None),
@@ -2191,7 +2191,7 @@ pub const ENUMS: &[CoreEnum] = &[
     // `rule:core-classes/schema-plan`'s grade, beside the database enums because it is read off a
     // plan the way `ErrorKind` above is read off a failure.
     crate::db::GRADE,
-    // ADR 0084 §§ 4 and 6's job lifecycle, immediately after the database enums
+    // `rule:concurrency/claiming-is-one-statement` and `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`'s job lifecycle, immediately after the database enums
     // for the reason [`crate::queue::CLASS`] sits after the database classes: a
     // job is a row, and this enum is one of that row's columns as well as what
     // `Core\Queue::status` answers. [`crate::queue`]'s own docs own why there
@@ -2302,7 +2302,7 @@ pub const WRITTEN_CLASS_MEMBERS: &[(&str, &str)] = &[
 /// because a second table was not updated. There is no roster to forget.
 ///
 /// `None` for a member with no entry parameter, which is every member but the
-/// two ADR 0083 § 2 and § 5 name.
+/// two `rule:concurrency/an-upgrade-is-spawn-shaped` and § 5 name.
 #[must_use]
 pub fn entry_parameter(class: &str, method: &str) -> Option<usize> {
     self::class(class)?
@@ -3553,7 +3553,7 @@ mod tests {
         }
         assert!(
             marked > 0,
-            "ADR 0083 § 2's `Core\\Socket::upgrade` declares one"
+            "`rule:concurrency/an-upgrade-is-spawn-shaped`'s `Core\\Socket::upgrade` declares one"
         );
     }
 

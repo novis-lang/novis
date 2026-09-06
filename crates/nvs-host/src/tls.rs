@@ -3,7 +3,7 @@
 //!
 //! [`crate::net`] promises that an unmodified protocol implementation runs over
 //! its stream, and its `a_rustls_session_streams_over_it_unmodified` has proven
-//! that for TLS since ADR 0115 § 3 was written. What was missing to make that
+//! that for TLS since `rule:concurrency/try-the-syscall-then-park` was written. What was missing to make that
 //! usable was never the transport — it was a **client**, and a client is a
 //! session plus an answer to "whose certificates do you believe". This module
 //! is those two things and nothing else: [`NvsTls::over`] takes a connected

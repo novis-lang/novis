@@ -1,8 +1,8 @@
 --TEST--
-`Core\Socket::upgrade` accepts `rule:security/isolate-shares-nothing`'s second entry spelling — a static method reference — and it reaches the same body the path form does rather than any compile question — ADR 0083 §§ 1-2
+`Core\Socket::upgrade` accepts `rule:security/isolate-shares-nothing`'s second entry spelling — a static method reference — and it reaches the same body the path form does rather than any compile question — `rule:concurrency/a-connection-is-a-root-isolate` and `rule:concurrency/an-upgrade-is-spawn-shaped`
 --FILE--
 <?nvs
-// ADR 0083 § 2 makes the operand `spawn script`'s, and ADR 0006 § *Decision*
+// `rule:concurrency/an-upgrade-is-spawn-shaped` makes the operand `spawn script`'s, and ADR 0006 § *Decision*
 // gives that operand two spellings: a file path, and a static method whose
 // parameters `args:` binds by name. This case is the accepted half of the rule
 // at this second site; `an-upgrade-refuses-an-entry-it-cannot-see-the-function-

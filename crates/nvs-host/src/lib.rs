@@ -32,7 +32,7 @@
 //! boundary, because the run queue is created on the far side of it.
 //!
 //! [`Reactor`] is what calls [`Scheduler::wake`]: readiness on epoll, kqueue or
-//! a poll of `\Device\Afd`, keyed by [`TaskId`], with ADR 0115 § 2's five-rule
+//! a poll of `\Device\Afd`, keyed by [`TaskId`], with `rule:concurrency/the-parking-contract`'s five-rule
 //! parking contract in its module doc. [`run_until_idle`] joins the two, and is
 //! what a worker's body is. The scheduler itself still knows nothing about I/O,
 //! so a run queue remains testable with none in it at all.
@@ -51,7 +51,7 @@
 //! `reactor`'s module doc records that decision and what it was chosen over.
 //!
 //! [`NvsTcp`] is that route's first consumer: a socket whose `Read` and `Write`
-//! are `std::io`'s own and which parks instead of blocking, ADR 0115 § 3. Its
+//! are `std::io`'s own and which parks instead of blocking, `rule:concurrency/try-the-syscall-then-park`. Its
 //! module doc owns the try-then-park order and what a repeat park costs. There
 //! is one such type and not one per socket family — [`NvsStream`] is generic
 //! over what it parks on, and `NvsUnix` is the same type over a local socket;
@@ -60,7 +60,7 @@
 //! What a task *costs* is [`stack`]: [`TASK_STACK_SIZE`] of reserved address
 //! space per task, resident only in the pages its handler touched, pooled per
 //! worker and recycled by the [`Scheduler`] that ended the task. That module's
-//! doc is ADR 0115 § 4's only home in this tree, and it is also where the
+//! doc is `rule:concurrency/a-task-stack-is-reserved-wide-and-pooled`'s only home in this tree, and it is also where the
 //! recursion limit's bounds come from — a task's limit is armed from the stack
 //! this crate handed it, not asserted from a ceiling.
 //!
@@ -79,7 +79,7 @@
 //! the scheduler that is resuming it.
 //!
 //! [`mod@block_on`] is the one place in this tree that speaks `Future`, and
-//! [ADR 0138](/docs/adr/0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md)
+//! `rule:concurrency/one-future-per-connection`
 //! is why it is a loop rather than a runtime: an HTTP/1 connection is one
 //! future, driven to completion on the coroutine that accepted it, whose waker
 //! is a permission to poll again and nothing else. Nothing is spawned, nothing

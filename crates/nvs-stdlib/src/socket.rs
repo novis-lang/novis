@@ -1,5 +1,5 @@
-//! `Core\Socket` — [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md)
-//! §§ 1-2's WebSocket upgrade, as the signature a program writes.
+//! `Core\Socket` — `rule:concurrency/a-connection-is-a-root-isolate` and `rule:concurrency/an-upgrade-is-spawn-shaped`
+//! 's WebSocket upgrade, as the signature a program writes.
 //!
 //! § 1 makes a connection a **root isolate** rather than a suspended request:
 //! its own arena, its own `[limits]` budget, its own grants, and none of the
@@ -63,7 +63,7 @@
 //! `Ctx::isolate`'s tree: the child's memory is charged to the request, its
 //! deadline is the same word the request's `wall_time` expires, and it is a
 //! task under the request's, so the request cannot return while it runs
-//! ([ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md) § 4). Each
+//! (`rule:concurrency/nothing-is-still-running-when-a-call-returns`). Each
 //! of those is the opposite of what § 1 states, and none of them is a builder
 //! away.
 //!
@@ -163,7 +163,7 @@
 //!
 //! # Why the member answers `void`
 //!
-//! Because calling it performs the upgrade — ADR 0083 § 2's own bullet, which
+//! Because calling it performs the upgrade — `rule:concurrency/an-upgrade-is-spawn-shaped`'s own bullet, which
 //! is the home of the reasoning and of what the alternative would cost. The
 //! short of it: nothing in this language reads a handler's return, so
 //! [`crate::response`] is a class of `void` members writing the response the
@@ -199,7 +199,7 @@ use crate::registry::{Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc,
 /// message quoting it cannot drift apart.
 pub(crate) const NAME: &str = r"Core\Socket";
 
-/// `Core\Socket`'s registry rows — ADR 0083 § 2's `upgrade` at the door, and
+/// `Core\Socket`'s registry rows — `rule:concurrency/an-upgrade-is-spawn-shaped`'s `upgrade` at the door, and
 /// § 3's three inside. See [`crate::registry::CLASSES`].
 ///
 /// # It is a namespace class and an instance class at once
@@ -443,7 +443,7 @@ const MESSAGE_TEXT: usize = 1;
 const MESSAGE_BYTES: usize = 2;
 const MESSAGE_VALUE: usize = 3;
 
-/// ADR 0083 § 3's message: the one shape both of `receive`'s sources answer in.
+/// `rule:concurrency/a-connection-is-a-loop`'s message: the one shape both of `receive`'s sources answer in.
 ///
 /// # One class, not two, and `topic` is what tells them apart
 ///
@@ -578,7 +578,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     })
 }
 
-/// ADR 0083 § 2's entry, resolved into the one thing a connection runs.
+/// `rule:concurrency/an-upgrade-is-spawn-shaped`'s entry, resolved into the one thing a connection runs.
 ///
 /// The two written forms are told apart by the value's own tag and by nothing
 /// else, which is what the module doc's "the entry interns as `mixed`" costs
@@ -675,7 +675,7 @@ impl Drop for HeldCallable {
     }
 }
 
-/// ADR 0083 § 2's **method entry**, prepared: the callable the request is
+/// `rule:concurrency/an-upgrade-is-spawn-shaped`'s **method entry**, prepared: the callable the request is
 /// holding, the names its target declares, and the recipes that arm the child.
 ///
 /// The connection's context is not this one's child — § 1 makes it a *root*
@@ -910,7 +910,7 @@ fn message_of_delivery(delivery: Delivery) -> Value {
 /// # Errors
 ///
 /// [`no_connection`] on a context with no peer, and a `RuntimeError` naming
-/// what the framing layer reported — which is ADR 0083 § 3's "throws on the
+/// what the framing layer reported — which is `rule:concurrency/a-connection-is-a-loop`'s "throws on the
 /// send timeout rather than waiting forever", the timeout itself being the
 /// implementation's under ADR 0074.
 fn send_frame(
@@ -961,7 +961,7 @@ fn message_slot(args: &[Value], index: usize, member: &str) -> Result<Value, Fau
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Socket::current(): Core\Socket` — ADR 0083 § 3's first line.
+    /// `Core\Socket::current(): Core\Socket` — `rule:concurrency/a-connection-is-a-loop`'s first line.
     ///
     /// The handle carries nothing, so this allocates an object with no slots
     /// and the *context* is what every member on it reads. [`CLASS`]'s own doc
@@ -981,7 +981,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Socket::receive(): ?Core\Socket\Message` — ADR 0083 § 3's one
+    /// `Core\Socket::receive(): ?Core\Socket\Message` — `rule:concurrency/a-connection-is-a-loop`'s one
     /// wait, over both sources.
     ///
     /// **The bus is drained before the socket is read**, and that order is the
@@ -1046,7 +1046,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Socket::send(string|bytes $frame): void` — ADR 0083 § 3's send,
+    /// `Core\Socket::send(string|bytes $frame): void` — `rule:concurrency/a-connection-is-a-loop`'s send,
     /// which throws on the send timeout rather than waiting forever.
     ///
     /// The timeout is the implementation's, under
@@ -1179,7 +1179,7 @@ mod tests {
         }
     }
 
-    /// A context that is a connection's: ADR 0083 § 1's isolate with the
+    /// A context that is a connection's: `rule:concurrency/a-connection-is-a-root-isolate`'s isolate with the
     /// socket already moved onto it, which is what `nvs_server::socket` does
     /// for a real one.
     fn connected(peer: &Peer) -> Ctx {
@@ -1205,7 +1205,7 @@ mod tests {
         nvs_runtime::call(nvs_core_socket_receive, ctx, &[conn]).expect("the wait answered")
     }
 
-    /// ADR 0083 § 3's one wait is one member over two sources, so a connection
+    /// `rule:concurrency/a-connection-is-a-loop`'s one wait is one member over two sources, so a connection
     /// holding a queued delivery *and* a frame from the peer answers both from
     /// the same call site — which is the whole reason § 3 refuses a second
     /// `Core\Topic::receive()`.
@@ -1548,7 +1548,7 @@ mod tests {
         nvs_runtime::OK
     }
 
-    /// ADR 0083 § 1 gives the connection the slot and § 2's member fills it, so
+    /// `rule:concurrency/a-connection-is-a-root-isolate` gives the connection the slot and § 2's member fills it, so
     /// what this asserts is the hand-over itself: after the call the slot holds
     /// the resolver's program for the path that was *written*, and the argument
     /// beside it is a **copy** rather than the request's own graph.
@@ -1593,7 +1593,7 @@ mod tests {
         release_crossed(mine);
     }
 
-    /// The refusal that makes this member callable only where ADR 0083 § 1's
+    /// The refusal that makes this member callable only where `rule:concurrency/a-connection-is-a-root-isolate`'s
     /// ordering can hold: a request no connection offered a slot for has
     /// nowhere to leave an isolate, so it is told so rather than answered as
     /// though a peer were attached.
@@ -1697,7 +1697,7 @@ mod tests {
         release_crossed(path);
     }
 
-    /// ADR 0083 § 2's two written entry forms, prepared side by side and
+    /// `rule:concurrency/an-upgrade-is-spawn-shaped`'s two written entry forms, prepared side by side and
     /// asserted to differ **only** in what the connection runs.
     ///
     /// § 2's rule is that the target is `spawn script`'s operand — a path or a

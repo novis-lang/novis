@@ -194,7 +194,7 @@ pub enum Ty {
     /// [`Self::CallableTo`]'s sibling one level up: that one says "this
     /// argument is a closure, and its result names a variable"; this one says
     /// "this argument is a shape literal of closures, and the shape of *their*
-    /// results names a variable". ADR 0072 § 1 is the whole reason it exists —
+    /// results names a variable". `rule:concurrency/all-answers-a-typed-shape` is the whole reason it exists —
     /// `Task::all`'s answer keeps each field's own declared return type rather
     /// than collapsing to `array<mixed>`, and no ordinary type at this position
     /// could say so, because the argument's own type is a shape of opaque

@@ -1,5 +1,5 @@
 --TEST--
-A `Core\Socket\Message` cannot be constructed, so the only way to one is a `receive()` inside the isolate an upgrade opened — ADR 0083 §§ 1-3
+A `Core\Socket\Message` cannot be constructed, so the only way to one is a `receive()` inside the isolate an upgrade opened — `rule:concurrency/a-connection-is-a-root-isolate`, `rule:concurrency/an-upgrade-is-spawn-shaped` and `rule:concurrency/a-connection-is-a-loop`
 --FILE--
 <?nvs
 // § 1 makes the socket the isolate's, and § 3 makes `current()` the one way to

@@ -1,5 +1,5 @@
 --TEST--
-`{limit, deadline}` is the only way to bound a `Core\Task` call: `timeout` is neither an option nor a member, and `race` is not a member either — ADR 0072 § 3, `rule:core-api/shape-rules` R2
+`{limit, deadline}` is the only way to bound a `Core\Task` call: `timeout` is neither an option nor a member, and `race` is not a member either — `rule:concurrency/limit-and-deadline-are-the-only-bounds`, `rule:core-api/shape-rules` R2
 --FILE--
 <?nvs
 // § 3: "The plan's `timeout(...)` is therefore not a member: a timeout on a

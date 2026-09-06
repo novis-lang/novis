@@ -1520,7 +1520,7 @@ pub mod code {
 
     /// `[session] backend` names a store a session may not live in.
     ///
-    /// ADR 0059 § 4 removed the local cache tier from the candidates and said
+    /// `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent` removed the local cache tier from the candidates and said
     /// the removal is "enforced rather than documented"; this code is that
     /// enforcement, and ADR 0139 § 3 is where the roster it checks against is
     /// written. A session read on one core and written on another must see one
@@ -2682,7 +2682,7 @@ pub mod code {
     /// A parameter that binds a shape of `fn` literals was given something
     /// other than a shape literal written at the call site.
     ///
-    /// `Core\Task::all`'s argument is ADR 0072 § 1's shape of zero-argument
+    /// `Core\Task::all`'s argument is `rule:concurrency/all-answers-a-typed-shape`'s shape of zero-argument
     /// closures, and the *whole reason* the member exists is that the result
     /// keeps each field's own type. That type is read off the written `fn`
     /// literal and from nowhere else, so a variable holding a shape has
@@ -2694,7 +2694,7 @@ pub mod code {
     /// One field of such a shape holds something other than a written `fn`
     /// literal.
     ///
-    /// ADR 0072 § 1: "a field whose value is a `callable`-typed variable
+    /// `rule:concurrency/all-answers-a-typed-shape`: "a field whose value is a `callable`-typed variable
     /// rather than a literal is a compile error naming the field, because
     /// there is nothing to bind from". [ADR
     /// 0031](/docs/adr/0031-callable-is-the-only-closure-type.md) leaves
@@ -2716,8 +2716,8 @@ pub mod code {
     /// into another arena, and a developer who learns the rule at one carrier
     /// has learned it at the other. Four call sites report it today:
     /// `Core\Serialize::encode`, `spawn script`'s `args:`,
-    /// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md)
-    /// § 2's `Core\Socket::upgrade` — an `args:` that opens a connection
+    /// `rule:concurrency/an-upgrade-is-spawn-shaped`
+    /// 's `Core\Socket::upgrade` — an `args:` that opens a connection
     /// isolate rather than a script one — and § 4's `Core\Topic::publish`,
     /// whose value is copied into every subscriber's arena on every core.
     /// `spawn`/`spawn worker` join them from the same check once they

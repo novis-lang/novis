@@ -58,7 +58,7 @@
 //! tier, an `rule:core-api/two-cache-tiers` `HashMap` in this thread. `shed` writes there, under
 //! [`PREFIX`], for the reason `consume` writes to the one shared store — a
 //! second map would be a second footprint to bound, bounded by nothing, and
-//! ADR 0059 § 3's `nvs.toml` cap is written for *the* local tier rather than
+//! `rule:concurrency/cache-memory-is-charged-to-the-core`'s `nvs.toml` cap is written for *the* local tier rather than
 //! for `Core\Cache`'s. One store, one cap, whichever member filled it.
 //!
 //! Two consequences, both § 1's approximation rather than defects. An entry
@@ -770,7 +770,7 @@ nvs_runtime::nvs_helper! {
         let (reply, admitted) = step(stored_tat(namespaced.as_bytes()), now, window, cost);
         if let Some(next_tat) = admitted {
             // Under the same `[cache.local] max_size` every other entry on this
-            // core is under (ADR 0059 § 3), which is the whole of what the
+            // core is under (`rule:concurrency/cache-memory-is-charged-to-the-core`), which is the whole of what the
             // `None` row in `registry::CAPABILITIES` says bounds this member: a
             // limiter that outgrew the cap would be the footprint a grant could
             // not have bounded anyway.
@@ -1049,7 +1049,7 @@ mod tests {
     /// at stake here is where the timestamp goes rather than the arithmetic on
     /// it. Two threads are two cores for a `thread_local` tier, so a limit of
     /// one admits one *each* — § 1's multiplication measured at two rather than
-    /// restated at eight. An unrelated write that fills ADR 0059 § 3's cap
+    /// restated at eight. An unrelated write that fills `rule:concurrency/cache-memory-is-charged-to-the-core`'s cap
     /// forgets the arrival, and the key then admits a burst GCRA alone would
     /// have refused. And [`SHED_DOC`] states both, plus the absence of the
     /// `IOError` its coherent twin documents.
@@ -1089,7 +1089,7 @@ mod tests {
             "a limit of one admits one per core, which is why a promised number is `consume`'s"
         );
 
-        // Approximate. ADR 0059 § 3's cap forgets the entry written longest
+        // Approximate. `rule:concurrency/cache-memory-is-charged-to-the-core`'s cap forgets the entry written longest
         // ago, and an arrival is an ordinary entry: a program caching anything
         // at all can drop one, without knowing this member exists.
         for filler in 0..8 {

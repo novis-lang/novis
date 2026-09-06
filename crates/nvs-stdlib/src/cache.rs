@@ -1,4 +1,4 @@
-//! `Core\Cache` — [ADR 0059](/docs/adr/0059-cross-request-state-is-explicit.md)'s
+//! `Core\Cache` — `rule:concurrency/cross-request-state-is-explicit`'s
 //! sanctioned exception to `rule:security/no-cross-request-state`'s closed door on cross-request state,
 //! as two members that hand back a store and the two operations on one.
 //!
@@ -39,7 +39,7 @@
 //!
 //! `rule:security/capability-roster-is-closed`
 //! listed `Core\Cache::local()` as the one capability-bearing member with no
-//! grant named for it, and left the naming to ADR 0059. The answer written into
+//! grant named for it, and left the naming to `rule:concurrency/cross-request-state-is-explicit`. The answer written into
 //! that ADR's § 1 is that there is **no grant**, because
 //! `rule:security/capability-question-is-grant-and-scope`
 //! checks a capability at the door to an *effect* and this tier has no
@@ -784,7 +784,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Cache\Store::put(string $key, mixed $value): void` — ADR 0059 § 2's
+    /// `Core\Cache\Store::put(string $key, mixed $value): void` — `rule:concurrency/a-cached-value-is-copied-across-the-boundary`'s
     /// copy out of the request heap.
     ///
     /// # Errors
@@ -826,7 +826,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Cache\Store::get(string $key): mixed` — ADR 0059 § 2's copy back
+    /// `Core\Cache\Store::get(string $key): mixed` — `rule:concurrency/a-cached-value-is-copied-across-the-boundary`'s copy back
     /// in, and § 1's "may be absent at any time" as the `null` it answers.
     ///
     /// # Errors
@@ -870,7 +870,7 @@ mod tests {
         SHARED_DOC, Value, local_cap, store_get, store_put,
     };
 
-    /// ADR 0059 § 2: the copy across this boundary is the graph copy `rule:classes/two-copy-depths`
+    /// `rule:concurrency/a-cached-value-is-copied-across-the-boundary`: the copy across this boundary is the graph copy `rule:classes/two-copy-depths`
     /// already defines and the isolate boundary already shares — not a third
     /// mechanism, and still not a second one now that there are two tiers.
     ///
@@ -984,7 +984,7 @@ mod tests {
         assert_eq!(store_get(b"one-core-only"), Some(b"written here".to_vec()));
     }
 
-    /// ADR 0059 § 3: exceeding the cap **evicts** rather than failing an
+    /// `rule:concurrency/cache-memory-is-charged-to-the-core`: exceeding the cap **evicts** rather than failing an
     /// allocation. The write that crosses it succeeds, and what goes is the key
     /// written longest ago — which § 1 has already told every caller to expect,
     /// since an entry may be absent at any time for any reason.
@@ -1044,7 +1044,7 @@ mod tests {
         });
     }
 
-    /// ADR 0059 § 3: the tier's memory is charged to the **core** that holds it
+    /// `rule:concurrency/cache-memory-is-charged-to-the-core`: the tier's memory is charged to the **core** that holds it
     /// — never to a request — and bounded by an `nvs.toml` directive.
     ///
     /// The name's two halves are one fact, and each is checked where the other

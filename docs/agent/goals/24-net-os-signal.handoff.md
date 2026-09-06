@@ -10,7 +10,7 @@ These are the three classes in spec § 16 that **no milestone and no goal named 
 `rule:core-api/tier-roster` puts all three at Tier 0, and M8's stdlib
 goals (4 and 5) walked without them.
 
-`Core\Socket` (`crates/nvs-stdlib/src/socket.rs`) is ADR 0083's WebSocket upgrade and is **not** what
+`Core\Socket` (`crates/nvs-stdlib/src/socket.rs`) is `rule:concurrency/a-connection-is-a-root-isolate`'s WebSocket upgrade and is **not** what
 this goal extends — the name collision is the trap worth knowing before opening the file.
 
 ## Next group

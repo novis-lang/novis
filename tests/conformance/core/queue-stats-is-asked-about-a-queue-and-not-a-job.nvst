@@ -1,5 +1,5 @@
 --TEST--
-`stats` is the one member of § 1's four asked about a whole queue, so a receipt is not something it takes — ADR 0084 §§ 1 and 6
+`stats` is the one member of § 1's four asked about a whole queue, so a receipt is not something it takes — `rule:concurrency/queue-four-members` and `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`
 --FILE--
 <?nvs
 // `cancel` and `status` are about one row and take the receipt that names it.

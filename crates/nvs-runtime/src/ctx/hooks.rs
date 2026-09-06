@@ -3,7 +3,7 @@
 //! Four callables, each held by the context for the length of one request:
 //! `rule:errors/handler-script`'s limit handler,
 //! its uncaught handler, the exit hooks a program registers, and
-//! [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md) § 6's
+//! `rule:concurrency/after-response-outlives-the-connection`'s
 //! deferred work.
 //!
 //! They share a shape, which is why they share a file: each runs *after*
@@ -262,8 +262,8 @@ impl Ctx {
     /// - **A throw** is written to the same record `Core\Log` writes, through
     ///   [`crate::floor`], and abandoned — § 5's "logged with the request's
     ///   trace id rather than swallowed", which is
-    ///   [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)
-    ///   § 4's rule for a second throw and [`crate::deferred`]'s reading of it
+    ///   `rule:concurrency/nothing-is-still-running-when-a-call-returns`
+    ///   's rule for a second throw and [`crate::deferred`]'s reading of it
     ///   for after-response work.
     /// - **An `exit`** is § 5's refusal: a hook that could end the script would
     ///   suppress every hook behind it, so the status it named is dropped and
@@ -300,8 +300,8 @@ impl Ctx {
     }
 
     /// Registers `closure` to run once this request's own frame has returned —
-    /// [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)
-    /// § 6, and [`mod@crate::deferred`] owns when that is on a host with no
+    /// `rule:concurrency/after-response-outlives-the-connection`
+    /// , and [`mod@crate::deferred`] owns when that is on a host with no
     /// response.
     ///
     /// The caller passes an **owned** reference, exactly as
@@ -391,7 +391,7 @@ impl Ctx {
     /// `[deferred] max_concurrent` — how many request trees this core may hold
     /// open for after-response work at once (§ 7).
     ///
-    /// 256 where nothing is written, which is the number ADR 0072 § 7 prints
+    /// 256 where nothing is written, which is the number `rule:concurrency/deferred-is-bounded-by-two-directives` prints
     /// beside the directive. A written `0` is honoured rather than corrected:
     /// it says this deployment does not want after-response work at all, and
     /// the refusal a call then gets names the directive it would have to

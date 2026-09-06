@@ -400,7 +400,7 @@ pub(crate) fn infer_static_call(
         // [`crate::reasons`].
         crate::reasons::check_call(owner, name, args, ctx, env);
         // A member that opens an isolate, which its row says by marking an
-        // entry parameter — ADR 0083 § 2's `Core\Socket::upgrade`. Its entry
+        // entry parameter — `rule:concurrency/an-upgrade-is-spawn-shaped`'s `Core\Socket::upgrade`. Its entry
         // takes ADR 0006 § *Decision*'s operand rule and its other arguments
         // take `rule:security/secret-sinks-refuse`'s crossing refusal, both of them the `spawn
         // script` site's own rather than a second copy. Static-only, like

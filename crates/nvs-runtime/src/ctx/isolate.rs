@@ -18,8 +18,8 @@
 use super::*;
 
 impl Ctx {
-    /// Moves [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md)
-    /// § 1's socket onto the connection isolate's own context.
+    /// Moves `rule:concurrency/a-connection-is-a-root-isolate`
+    /// 's socket onto the connection isolate's own context.
     ///
     /// Written once, by `nvs_host::Isolate::over_socket`, before the isolate's
     /// program runs and after the server framed the upgrade — which is the same
@@ -52,7 +52,7 @@ impl Ctx {
         self.peer.is_some()
     }
 
-    /// Queues one topic delivery for this connection — ADR 0083 § 3's second
+    /// Queues one topic delivery for this connection — `rule:concurrency/a-connection-is-a-loop`'s second
     /// source. § 4's bus reaches the same queue through the
     /// [`crate::peer::Inbox`] handle [`Self::inbox`] answers with, so this is
     /// the seam for a caller holding the *context* rather than the
@@ -184,7 +184,7 @@ impl Ctx {
     ///
     /// [`Self::method_isolate`] answers the case where the parent *is* the
     /// spawning context. A connection is the case where it is not:
-    /// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 1
+    /// `rule:concurrency/a-connection-is-a-root-isolate`
     /// makes it a **root** isolate started from the connection's own context,
     /// which never ran the unit and so has nothing to re-materialize from — so
     /// the recipes have to be taken here, inside the request that prepared the
@@ -211,8 +211,8 @@ impl Ctx {
     /// A context for a **child task of this request** — what `nvs-host` hands
     /// [`crate::host::Job`] when it runs a group.
     ///
-    /// [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)
-    /// § 1's children "share the request", and this is the one place that
+    /// `rule:concurrency/all-answers-a-typed-shape`
+    /// 's children "share the request", and this is the one place that
     /// sharing is decided: `nvs-host`'s `group` module doc is the home of *why*
     /// each field is on the side of the line it is on, because it is the only
     /// code that builds one.
@@ -266,7 +266,7 @@ impl Ctx {
         reason = "the parent-outlives-child obligation is a fact about the                   caller's control flow and cannot be expressed in the signature"
     )]
     pub unsafe fn child(&self) -> Self {
-        // A fresh buffer, but not necessarily a fresh *sink*: ADR 0072's task
+        // A fresh buffer, but not necessarily a fresh *sink*: `rule:concurrency/one-scheduler`'s task
         // is part of this request rather than a context of its own, so it is
         // still answering whatever this one is answering and ADR 0088 § 3's
         // first row still applies to it. An isolate reaches the same conclusion
@@ -287,7 +287,7 @@ impl Ctx {
         // The word, not its value: a task of this request is bounded by this
         // request's wall time and by no clock of its own. See the field doc.
         child.deadline = std::sync::Arc::clone(&self.deadline);
-        // Sealed rather than empty: ADR 0072 § 6's queue is the *request's*, and
+        // Sealed rather than empty: `rule:concurrency/after-response-outlives-the-connection`'s queue is the *request's*, and
         // one on a child would be drained by nobody and released when the child
         // ended. `crate::deferred` is the one home for that rule and for why a
         // refusal is the only honest answer to a registration nothing would run.
@@ -365,7 +365,7 @@ impl Ctx {
         isolate.runtime_error_class = self.runtime_error_class.clone();
         isolate.deadline = std::sync::Arc::clone(&self.deadline);
         // **Not** sealed, unlike [`Self::child`], and the difference is the one
-        // ADR 0072 § 6 draws: an isolate runs a whole program, so the frame
+        // `rule:concurrency/after-response-outlives-the-connection` draws: an isolate runs a whole program, so the frame
         // that produced its answer returning is a trigger it has, where a
         // `Core\Task` child's returning is not the end of anything a response
         // could be. `Self::new` above already gave this context its queue and

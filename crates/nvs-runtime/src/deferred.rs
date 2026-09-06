@@ -1,4 +1,4 @@
-//! [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md) § 6's
+//! `rule:concurrency/after-response-outlives-the-connection`'s
 //! after-response work: what `Core\Task::afterResponse` registered, and the one
 //! place it runs.
 //!
@@ -286,8 +286,8 @@ mod tests {
     use crate::OutputSink;
     use crate::object::{ClassTable, MethodRow, NvsObj};
 
-    /// [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)
-    /// § 7: a core holds at most `max_concurrent` request trees open for
+    /// `rule:concurrency/deferred-is-bounded-by-two-directives`
+    /// : a core holds at most `max_concurrent` request trees open for
     /// after-response work, and the tree past the cap is refused at the call
     /// site rather than queued.
     ///
@@ -456,8 +456,8 @@ mod tests {
         Value::object(object)
     }
 
-    /// `rule:core-classes/temporary-dir-sweep`'s ordering against [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)
-    /// § 6's queue, asserted from the one side that can observe it: the last
+    /// `rule:core-classes/temporary-dir-sweep`'s ordering against `rule:concurrency/after-response-outlives-the-connection`
+    /// 's queue, asserted from the one side that can observe it: the last
     /// work the request registered still finds the directory it was handed,
     /// and the teardown behind it is what takes it away.
     ///
@@ -507,7 +507,7 @@ mod tests {
     /// the request goes, the worker does not, and the context it is left
     /// holding is what runs the sweep.
     ///
-    /// The other half is that the abort runs **no user code** — ADR 0072 § 5's
+    /// The other half is that the abort runs **no user code** — `rule:concurrency/cancellation-runs-no-user-code`'s
     /// teardown — so the registrations go unrun. Asserted together because a
     /// worker that drained a cancelled request's queue would pass the sweep
     /// assertion while running exactly the script § 5 forbids, and one that

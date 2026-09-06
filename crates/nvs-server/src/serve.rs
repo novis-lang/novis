@@ -1,7 +1,7 @@
 //! The accept loop: one listening socket, one coroutine per connection, and one
 //! `hyper` connection future driven on that coroutine's own stack.
 //!
-//! [ADR 0138](/docs/adr/0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md)
+//! `rule:concurrency/one-future-per-connection`
 //! is the seam and [`crate::io`] is the adapter; this module is what puts a
 //! socket on either end of them. Its whole shape is three lines: accept, spawn
 //! a child task, and [`nvs_host::block_on()`] the connection on that child.
@@ -12,10 +12,10 @@
 //! # One connection per coroutine, and the accept loop is a task too
 //!
 //! [`serve_on_this_core`] runs *as a task*, so every connection it accepts is
-//! its child ([`nvs_host::spawn_child`], ADR 0072 § 1's "each is a child of the
+//! its child ([`nvs_host::spawn_child`], `rule:concurrency/all-answers-a-typed-shape`'s "each is a child of the
 //! calling task"). That is not a convenience: it is what makes a connection
 //! cancellable with the server, and it is the tree
-//! [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md) § 4
+//! `rule:concurrency/nothing-is-still-running-when-a-call-returns`
 //! reads when it has to prove nothing is still running. A loop that spawned
 //! roots would have to grow its own registry of live connections and its own
 //! shutdown, both of which the task tree already is.
@@ -413,7 +413,7 @@ impl Serving {
 /// task being torn down under it — and a drop that simply released the handle
 /// would leave an isolate running with nothing left that could prove it
 /// finished, which is
-/// [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md) § 4
+/// `rule:concurrency/nothing-is-still-running-when-a-call-returns`
 /// gone rather than kept. So the drop **abandons**: cancel, then wait.
 /// [`nvs_host::Running::abandon`] owns both halves and the one case that may
 /// not wait.
@@ -428,8 +428,8 @@ impl Peer {
     /// Takes the answer, once the request has ended.
     ///
     /// **"Ended" is the request's own frame and not its whole tree.**
-    /// [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)
-    /// § 6's after-response work runs on that tree once the answer here has
+    /// `rule:concurrency/after-response-outlives-the-connection`
+    /// 's after-response work runs on that tree once the answer here has
     /// been filed, and `nvs_host::isolate` cuts the tree loose from this
     /// connection before it does — so a connection that closes the instant its
     /// response is written cancels none of it.
@@ -452,7 +452,7 @@ impl Drop for Peer {
 
 /// Drives one accepted connection to completion on the calling coroutine.
 ///
-/// The whole of ADR 0138 § 1: one future, on this task's own stack, polled by
+/// The whole of `rule:concurrency/one-future-per-connection`: one future, on this task's own stack, polled by
 /// [`nvs_host::block_on()`]. `hyper` with `http1` and `server` alone spawns
 /// nothing, so there is no executor to install and no second scheduler to
 /// reconcile with [`nvs_host::Scheduler`].
@@ -476,9 +476,9 @@ impl Drop for Peer {
 /// can only get them if this future can answer `Pending` and be polled again;
 /// a service that ran the isolate to completion inside its own poll would be
 /// waiting for a read that its own frame is what owes. [`Peer`] is that wait,
-/// and it is also ADR 0072 § 4's cancellation.
+/// and it is also `rule:concurrency/nothing-is-still-running-when-a-call-returns`'s cancellation.
 ///
-/// ADR 0138 § 1 is what makes answering `Pending` cheap rather than an
+/// `rule:concurrency/one-future-per-connection` is what makes answering `Pending` cheap rather than an
 /// executor: the connection future is driven on this coroutine's own stack, so
 /// the park is [`nvs_host::block_on()`]'s and the resume lands back inside the
 /// same poll, with the core having served its other connections in between.
@@ -487,8 +487,8 @@ impl Drop for Peer {
 ///
 /// `ctx` is the connection task's, and that makes it the root of this
 /// connection's request tree
-/// ([ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)
-/// § 1): a request's isolate is a child of the connection, so a client that
+/// (`rule:concurrency/all-answers-a-typed-shape`
+/// ): a request's isolate is a child of the connection, so a client that
 /// goes away takes its request's tasks with it rather than leaving them
 /// behind.
 ///
@@ -529,7 +529,7 @@ impl Drop for Peer {
 /// the write one.
 ///
 /// **An upgradable request is offered
-/// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 1's
+/// `rule:concurrency/a-connection-is-a-root-isolate`'s
 /// slot, and only an upgradable one.** `hyper` leaves an `OnUpgrade` on the
 /// requests it framed an upgrade for; this function takes it, keeps it, and
 /// hands the request's isolate the other half of a
@@ -585,7 +585,7 @@ impl Drop for Peer {
 ///
 /// **`draining` is carried through rather than read here.** No part of an HTTP
 /// request's life asks it — the probe's `503` is [`Reply::health`]'s, and this
-/// function is never the one holding a probe — but ADR 0083 § 7's shutdown
+/// function is never the one holding a probe — but `rule:concurrency/connection-bounds-are-finite`'s shutdown
 /// close is a connection's *own*, taken at its next `receive`, so the handle
 /// travels with the socket into [`crate::socket::Framed`]. That module's
 /// `receive` is where it is argued why the close is taken there and not from
@@ -617,7 +617,7 @@ where
     // shared reference is the one kind of capture an `async move` may take out
     // of an `Fn` closure — it copies rather than moves.
     let ctx = &ctx;
-    // ADR 0083 § 1's isolate, between the request future that starts it and the
+    // `rule:concurrency/a-connection-is-a-root-isolate`'s isolate, between the request future that starts it and the
     // end of this function that joins it. A cell rather than a return value
     // because the two are a `hyper` connection apart: the service below is an
     // `Fn` whose futures outlive the call that made them, and the only thing
@@ -723,7 +723,7 @@ where
         // about an answer the policy never produced. [`crate::cors`] owns the
         // rest, including why a cache is what `Vary` is for.
         let crossing = serving.cors.answer(request.headers());
-        // ADR 0083 § 1's offer, taken here for `crossing`'s reason and one more:
+        // `rule:concurrency/a-connection-is-a-root-isolate`'s offer, taken here for `crossing`'s reason and one more:
         // `hyper` leaves an `OnUpgrade` in the extensions of a request it framed
         // an upgrade for and of no other, so this is both the last moment
         // anything on this side can read it and the whole of the question "can
@@ -764,7 +764,7 @@ where
             .then(|| websocket_opening(request.headers()))
             .flatten()
             .map(|accept| (nvs_runtime::UpgradeSlot::new(), accept));
-        // ADR 0083 § 5's cell, and the line above is the whole of what makes it
+        // `rule:concurrency/two-doors-one-isolate`'s cell, and the line above is the whole of what makes it
         // a second one: it is made for **every** request rather than for a
         // request `hyper` framed an upgrade for, because an event stream takes
         // nothing of this connection but the response the request already has.
@@ -823,7 +823,7 @@ where
                         // than an omission: what ends this wait is the
                         // isolate's own end waking the **task** that started it
                         // (`Isolate::start` takes this connection's `Wake`),
-                        // and ADR 0138 § 1's loop re-polls whatever the task
+                        // and `rule:concurrency/one-future-per-connection`'s loop re-polls whatever the task
                         // was resumed for. A waker stored here would be a
                         // second route to the same resume.
                         std::future::poll_fn(|cx| {
@@ -854,7 +854,7 @@ where
                         // (`crate::io`'s § *The clock*), so without a second
                         // poll an idle connection would sit under the write
                         // wait instead of § 5's keep-alive one. One wake is the
-                        // whole fix: ADR 0138 § 2's loop re-polls with the
+                        // whole fix: `rule:concurrency/a-waker-is-one-permission-to-poll`'s loop re-polls with the
                         // response written and the dispatcher idle, which is
                         // where `hyper` reads again.
                         if parked {
@@ -876,7 +876,7 @@ where
                 }
             }
         };
-        // ADR 0083 §§ 1 and 5's other half, and the line above is what makes it
+        // `rule:concurrency/a-connection-is-a-root-isolate` and `rule:concurrency/two-doors-one-isolate`'s other half, and the line above is what makes it
         // § 1 rather than a resumed request: the request has been joined, so
         // its arena, its carrier and everything the peer authenticated with are
         // released before anything of the connection's exists. Both cells are
@@ -981,7 +981,7 @@ where
         Pin::new(&mut connection).poll(cx)
     }))
     .unwrap_or(Ok(()));
-    // ADR 0083 § 1's hand-over, at the first moment both halves exist: the
+    // `rule:concurrency/a-connection-is-a-root-isolate`'s hand-over, at the first moment both halves exist: the
     // `101` is on the wire, `hyper` has stopped framing, and the descriptor
     // under it is nobody's until this line takes it. `hyper` ends a connection
     // it answered `101` on without shutting the socket down, which is what
@@ -996,7 +996,7 @@ where
         // `crate::socket`'s docs § *What `hyper` had already read* is the home
         // of why dropping it would lose a frame for a client that did not wait
         // for the handshake.
-        // ADR 0083 § 7's bounds, arming here because this is the first moment
+        // `rule:concurrency/connection-bounds-are-finite`'s bounds, arming here because this is the first moment
         // the descriptor is a connection rather than a request: `crate::bounds`
         // is the home of the numbers, and every wait, frame and message from
         // this line on is inside them.
@@ -1328,7 +1328,7 @@ where
         // connection on this one.
         let serving = serving.clone();
         // Cloned beside it for the same reason and used by neither this
-        // function's own tail nor the request path: ADR 0083 § 7's shutdown
+        // function's own tail nor the request path: `rule:concurrency/connection-bounds-are-finite`'s shutdown
         // close is taken by a connection isolate's own loop, so what the drain
         // needs is a handle on the far side of the hand-over.
         let draining_here = draining.clone();
@@ -1387,7 +1387,7 @@ where
     // request on it sees the drain, which is the answer a shutdown wants.
     draining.begin();
 
-    // ADR 0072 § 4, and it is the whole reason this function has a tail: the
+    // `rule:concurrency/nothing-is-still-running-when-a-call-returns`, and it is the whole reason this function has a tail: the
     // connections are this task's children, so a loop that simply returned
     // would take every connection still being served down with it. It parks
     // instead, and each connection's guard wakes it on the way out. The park is
@@ -1508,7 +1508,7 @@ impl AcceptBackoff {
 /// One connection's place in the accept loop's tally, given back however that
 /// connection's task ended.
 ///
-/// A guard rather than a decrement at the end of the body: ADR 0072 § 5's
+/// A guard rather than a decrement at the end of the body: `rule:concurrency/cancellation-runs-no-user-code`'s
 /// cancellation tears a coroutine down where it parked, so the end of the body
 /// is exactly the line a cancelled connection never reaches. The wake is here
 /// too, because a shutdown that is parked on the tally has to hear about the
@@ -1998,7 +1998,7 @@ mod tests {
         );
     }
 
-    /// The isolate ADR 0083 § 1's offer case answers with: a program that says
+    /// The isolate `rule:concurrency/a-connection-is-a-root-isolate`'s offer case answers with: a program that says
     /// whether its **own** carrier has an upgrade slot on it.
     ///
     /// It reads the slot through `Core\Socket::upgrade`'s own route —
@@ -2027,7 +2027,7 @@ mod tests {
         })
     }
 
-    /// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 1's
+    /// `rule:concurrency/a-connection-is-a-root-isolate`'s
     /// offer, at the door: a request that opened RFC 6455's handshake reaches
     /// its program with a slot on its carrier, and neither of the two requests
     /// after it on the same connection does.
@@ -2113,8 +2113,8 @@ mod tests {
         );
     }
 
-    /// The handler [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md)
-    /// § 1's three start cases answer with: a request that fills the slot on its
+    /// The handler `rule:concurrency/a-connection-is-a-root-isolate`
+    /// 's three start cases answer with: a request that fills the slot on its
     /// own carrier exactly as `Core\Socket::upgrade` will — one
     /// [`nvs_runtime::Upgrade`] over a hand-written program — reports itself, and
     /// ends.
@@ -2214,7 +2214,7 @@ mod tests {
     /// And when it framed none, which is the half § 5's case reads back.
     const NO_FRAMING: &str = "with no framed upgrade";
 
-    /// Which of [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md)'s
+    /// Which of `rule:concurrency/a-connection-is-a-root-isolate`'s
     /// two cells a case's request fills — § 1's socket hand-over or § 5's event
     /// stream — which on this side is the whole of what separates the two
     /// doors.
@@ -2355,7 +2355,7 @@ mod tests {
         client.join().expect("the client thread panicked")
     }
 
-    /// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 1's
+    /// `rule:concurrency/a-connection-is-a-root-isolate`'s
     /// two halves at once: an upgrade opens a **root isolate** — its own context
     /// and its own output, none of it this response's — and the request that
     /// opened it ends normally rather than becoming it.
@@ -2415,7 +2415,7 @@ mod tests {
         );
     }
 
-    /// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 1's
+    /// `rule:concurrency/a-connection-is-a-root-isolate`'s
     /// cost half: "the connection is not a suspended request, does not hold the
     /// request's arena". [`serve_connection`]'s doc states the same thing as an
     /// ordering — the request is joined before the connection's isolate is
@@ -2503,7 +2503,7 @@ mod tests {
         );
     }
 
-    /// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 1's
+    /// `rule:concurrency/a-connection-is-a-root-isolate`'s
     /// security property: the connection "cannot see the request's session,
     /// cookies or headers unless a value was explicitly passed".
     ///
@@ -2549,7 +2549,7 @@ mod tests {
         );
     }
 
-    /// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 1's
+    /// `rule:concurrency/a-connection-is-a-root-isolate`'s
     /// other half: the socket **arrives**. A connection isolate reads a frame
     /// the peer sent and answers one the peer reads, over the descriptor that
     /// carried the request an instant earlier.
@@ -2655,7 +2655,7 @@ mod tests {
         );
     }
 
-    /// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 1's
+    /// `rule:concurrency/a-connection-is-a-root-isolate`'s
     /// "closed with a defined code": a connection that ran past one of the
     /// `[limits]` values § 1 gives it its own budget of is **told** why, and
     /// what the peer reads is RFC 6455's 1011 rather than the reset a process
@@ -2780,7 +2780,7 @@ mod tests {
         );
         assert_eq!(
             closed, "1011",
-            "a connection over its budget did not end in ADR 0083 § 1's defined \
+            "a connection over its budget did not end in `rule:concurrency/a-connection-is-a-root-isolate`'s defined \
              code — a reset here is the OOM kill the code exists to say did not \
              happen: {closed}"
         );
@@ -2899,7 +2899,7 @@ mod tests {
         );
     }
 
-    /// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 7's
+    /// `rule:concurrency/connection-bounds-are-finite`'s
     /// third bullet: a graceful shutdown and a `nvs ctl reload` "close
     /// connections with a defined code after a drain period, so a client's
     /// reconnect logic sees a clean close rather than a reset".
@@ -3031,7 +3031,7 @@ mod tests {
         );
     }
 
-    /// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 5:
+    /// `rule:concurrency/two-doors-one-isolate`:
     /// "the isolate is the same; the door is not". An event stream opens the
     /// same root isolate the three cases above assert of § 1 — its own context,
     /// its own output, none of the request's state — out of a request nothing
@@ -3093,7 +3093,7 @@ mod tests {
         );
     }
 
-    /// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 5's
+    /// `rule:concurrency/two-doors-one-isolate`'s
     /// two cells, filled by one request: a program that asked for a socket
     /// *and* an event stream asked for two responses where the connection has
     /// one, and [`serve_connection`] refuses it rather than picking.
@@ -3306,7 +3306,7 @@ mod tests {
     ///
     /// The pause between the two halves is the case rather than realism: the
     /// second half cannot be on the wire when the program asks for it, so the
-    /// only way this answers at all is the shape ADR 0105 § 5 and ADR 0138 § 1
+    /// only way this answers at all is the shape ADR 0105 § 5 and `rule:concurrency/one-future-per-connection`
     /// name together — the isolate parks on its own task, the connection's next
     /// read delivers, and the isolate is woken back. A supplier polled from
     /// inside the connection's own poll would deadlock here instead of
@@ -4601,7 +4601,7 @@ mod tests {
         );
     }
 
-    /// ADR 0138 § 1's second property, over the wire: **a future is polled only
+    /// `rule:concurrency/one-future-per-connection`'s second property, over the wire: **a future is polled only
     /// on the stack that owns it**, and the stack that owns it is the
     /// connection's own coroutine — so a drive that parked on the parking
     /// stream comes back on the *same* task rather than wherever an executor's
@@ -4707,7 +4707,7 @@ mod tests {
         );
     }
 
-    /// ADR 0138 § 1's third property: **`Pending` suspends the task and not the
+    /// `rule:concurrency/one-future-per-connection`'s third property: **`Pending` suspends the task and not the
     /// thread**, which is [ADR 0106] § 6's rule stated about this seam. One
     /// core, two connections, and the second is answered in full while the
     /// first's drive is parked half-way through a request head.
@@ -4864,12 +4864,12 @@ mod tests {
         assert_eq!(
             sched.tracked_tasks(),
             0,
-            "the run left a task behind: ADR 0072 § 4"
+            "the run left a task behind: `rule:concurrency/nothing-is-still-running-when-a-call-returns`"
         );
         report.finished
     }
 
-    /// ADR 0138 § 1's first property, counted rather than read off a line:
+    /// `rule:concurrency/one-future-per-connection`'s first property, counted rather than read off a line:
     /// **there is no queue of futures and no spawn.** Serving a connection
     /// costs exactly one task — the coroutine that drives its future — so a
     /// second connection costs exactly one more, and `hyper` contributed none
@@ -4999,7 +4999,7 @@ mod tests {
         assert_eq!(
             sched.tracked_tasks(),
             0,
-            "the request tree outlived the request it belonged to: ADR 0072 § 4"
+            "the request tree outlived the request it belonged to: `rule:concurrency/nothing-is-still-running-when-a-call-returns`"
         );
     }
 

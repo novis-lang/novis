@@ -1,4 +1,4 @@
-# ADR 0084 — A background job is a durable row, enqueued in your transaction and run as an isolate
+# `rule:concurrency/enqueue-commits-with-your-write` — A background job is a durable row, enqueued in your transaction and run as an isolate
 
 - **Status:** Accepted
 - **Date:** 2026-08-24
@@ -35,7 +35,7 @@
 ## Context
 
 - **Neither existing mechanism covers this.** [ADR 0073](0073-scheduled-work-is-config.md) fires work by
-  *time*, from operator-owned config. [ADR 0072](0072-core-task-structured-concurrency.md)'s
+  *time*, from operator-owned config. `rule:concurrency/one-scheduler`'s
   `afterResponse` runs work after a response but inside the request tree, bounded and in-memory: if the
   process dies, the work is gone. Neither answers *enqueue this now, run it durably later, retry it if it
   fails* — which is what an email, an export, a webhook delivery, a thumbnail and a third-party sync all
@@ -46,7 +46,7 @@
   transaction, relay it to the broker afterwards — which is to say they rediscover that the database was
   the right queue. Starting there removes the failure mode instead of documenting it.
 - **Novis's shared-nothing model makes the storage question sharper, not softer.**
-  [ADR 0059](0059-cross-request-state-is-explicit.md)'s cross-request store is explicitly lossy — "it must
+  `rule:concurrency/cross-request-state-is-explicit`'s cross-request store is explicitly lossy — "it must
   always be correct to find nothing there" — which is right for a cache and disqualifying for a job
   somebody is waiting on. A runtime-owned on-disk log would make a job local to one machine's disk, which
   breaks the moment a deployment has two instances.

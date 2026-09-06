@@ -328,7 +328,7 @@ regardless, and refusing it would buy nothing.
   change with a stated reason, not a redesign.
 - **Circuit breaking** — refusing outbound calls to an endpoint that has been failing — was considered and
   not taken. It needs per-endpoint state shared across a core, which is
-  [ADR 0059](0059-cross-request-state-is-explicit.md)'s territory, and its interaction with
+  `rule:concurrency/cross-request-state-is-explicit`'s territory, and its interaction with
   `rule:core-classes/ratelimit-two-members`'s approximate tier should be argued once for both rather than twice.
 - **Per-attempt observability** — whether a retried call reports one span or one per attempt — is
   [ADR 0076](0076-observability-export.md)'s question, and it should say so rather than being decided here.

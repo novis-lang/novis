@@ -1,5 +1,5 @@
 --TEST--
-`Core\Topic::subscribe` and `unsubscribe` refuse a program that is not a connection, rather than recording a subscription nothing could ever drain — ADR 0083 §§ 3-4
+`Core\Topic::subscribe` and `unsubscribe` refuse a program that is not a connection, rather than recording a subscription nothing could ever drain — `rule:concurrency/a-connection-is-a-loop` and `rule:core-classes/topic`
 --FILE--
 <?nvs
 // § 4 makes a topic the only way two *connections* meet, and § 3 makes the one

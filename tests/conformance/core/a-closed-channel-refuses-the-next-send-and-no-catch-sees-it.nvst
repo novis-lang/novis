@@ -1,5 +1,5 @@
 --TEST--
-`Core\Task\Channel::close` is the boundary `send` is asserted on from both sides: the send that fills the bound before it returns and is delivered, and the first send after it is a fatal no `catch` sees — ADR 0072 § 4 over `nvs_stdlib::channel`, `rule:errors/throwable-hierarchy`'s uncatchable tier
+`Core\Task\Channel::close` is the boundary `send` is asserted on from both sides: the send that fills the bound before it returns and is delivered, and the first send after it is a fatal no `catch` sees — `rule:concurrency/nothing-is-still-running-when-a-call-returns` over `nvs_stdlib::channel`, `rule:errors/throwable-hierarchy`'s uncatchable tier
 --FILE--
 <?nvs
 // The neighbouring cases pin what `close` does to values already queued and

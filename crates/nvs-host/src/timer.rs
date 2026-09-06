@@ -2,8 +2,8 @@
 //! two views of it.
 //!
 //! `docs/agent/loop-goal.md` § *Stage 2* item 5 is why this is one thing and
-//! not two: [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)
-//! § 3's `{limit, deadline}` and
+//! not two: `rule:concurrency/limit-and-deadline-are-the-only-bounds`
+//! 's `{limit, deadline}` and
 //! [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md) § 5's "no spelling
 //! for an unbounded wait" both resolve to *this task must be runnable again at
 //! this instant*. A sleep is that with nothing else to wait for; a deadline is
@@ -30,7 +30,7 @@
 //!
 //! # How a deadline becomes a poll timeout
 //!
-//! `Reactor::turn` already had ADR 0115 § 2 rule 4's three states; a timer
+//! `Reactor::turn` already had `rule:concurrency/the-parking-contract` rule 4's three states; a timer
 //! changes only *how long* the blocking one blocks. With something parked and a
 //! deadline filed, the poll waits until that deadline instead of indefinitely,
 //! and the tasks it comes back due are woken exactly as readiness wakes one. A
@@ -244,7 +244,7 @@ impl Timers {
 ///
 /// Returns when the instant has passed and not before: an early wake — another
 /// descriptor this task holds becoming ready — sends it round again, which is
-/// ADR 0115 § 2 rule 2 read on a clock rather than on a socket.
+/// `rule:concurrency/the-parking-contract` rule 2 read on a clock rather than on a socket.
 ///
 /// Off a core the thread sleeps instead; this module's docs say why that is not
 /// the parking rule being bent.

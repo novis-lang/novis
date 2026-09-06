@@ -4,7 +4,7 @@
 - **Date:** 2026-08-24
 - **Scope:** the `Core\RateLimit` class — two members, one algorithm, the `Decision` they return, what a
   key may carry, and what happens when the store is unreachable. Not in scope: the shared store's own
-  configuration ([ADR 0059](0059-cross-request-state-is-explicit.md) and M8), and edge/flood limiting,
+  configuration (`rule:concurrency/cross-request-state-is-explicit` and M8), and edge/flood limiting,
   which is § 4's deliberate omission.
 - **Amends:** [0059](0059-cross-request-state-is-explicit.md) § 4 — it named "locks, rate limits,
   idempotency keys and any counter whose value is relied upon" as things that must use the shared tier,
@@ -30,7 +30,7 @@
 
 ## Context
 
-- [ADR 0059](0059-cross-request-state-is-explicit.md) § 4 is explicit that rate limits cannot use the local
+- `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent` is explicit that rate limits cannot use the local
   cache tier and must use the shared tier or the database — and then stops there. Every application that
   needs one is left to write it, and the two ways it gets written are both wrong: a counter in the local
   tier, which is per core and silently admits `cores ×` the intended limit; or an `INSERT`-and-`COUNT`
@@ -87,7 +87,7 @@ doing.
 
 `shed`'s contract states its arithmetic in as many words: **its count is per core, so a limit of 100 across
 eight cores admits up to 800.** That is exactly the `O(cores × …)` multiplication
-[ADR 0059](0059-cross-request-state-is-explicit.md) § 3 already records for the local cache tier, and it is
+`rule:concurrency/cache-memory-is-charged-to-the-core` already records for the local cache tier, and it is
 written into the member's own documentation rather than left to be discovered.
 
 ### 2. GCRA, in both tiers
@@ -137,7 +137,7 @@ Core\RateLimit\Decision — readonly allowed: bool, limit: uint, remaining: uint
   other — but Novis does not offer it as a deployment feature, because doing it here means paying for the
   request in order to reject it.
 - **No configuration at all.** The shared store is already named
-  ([ADR 0059](0059-cross-request-state-is-explicit.md)) and a limit is application policy, not deployment
+  (`rule:concurrency/cross-request-state-is-explicit`) and a limit is application policy, not deployment
   policy — a plan's quota belongs in the code or the database that defines the plan, not in a root-owned
   file an operator edits. This is a whole config block that does not need to exist.
 - **No middleware, no automatic enforcement, no `429` written for you.** The member returns a decision; what
@@ -190,7 +190,7 @@ implementation of somebody else's specification, and it is a few dozen lines wit
   retrying at a window edge stop synchronising.
 - **O(1) state per key.** Limiting per user at a million users costs a million timestamps, not a million
   request logs — the difference between a feature and a capacity plan.
-- **[ADR 0059](0059-cross-request-state-is-explicit.md) § 4's second named hole is filled** with one class
+- **`rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent`'s second named hole is filled** with one class
   and no configuration.
 - **The failure mode is a decision, not a default.** An unreachable store surfaces at a `catch` the
   application wrote, in the file that knows whether this limit is a quota or a lock.
@@ -198,7 +198,7 @@ implementation of somebody else's specification, and it is a few dozen lines wit
 **Negative**
 
 - **Every `consume` is a network round trip** on the path of the endpoint it protects. That is the price of
-  coherence, it is the same floor [ADR 0059](0059-cross-request-state-is-explicit.md) already accepted for
+  coherence, it is the same floor `rule:concurrency/cross-request-state-is-explicit` already accepted for
   its shared tier, and it is why `shed` exists for the cases that do not need it.
 - **Two members will be confused anyway.** `consume`/`shed` is clearer than `local`/`shared` for this
   operation, but somebody will reach for the fast one because it is the fast one. The contract text and the
@@ -221,7 +221,7 @@ implementation of somebody else's specification, and it is a few dozen lines wit
   if both names exist, and shipping one means the first person who needs approximate load shedding uses
   `consume` for it — at which point the name is wrong and the round trip is on a path that did not need one.
 - **One member with a `coherent: true` option.** Terser and easy to switch. Rejected for exactly the reason
-  [ADR 0059](0059-cross-request-state-is-explicit.md) rejected the identical shape for `Core\Cache`: the
+  `rule:concurrency/cross-request-state-is-explicit` rejected the identical shape for `Core\Cache`: the
   default gets chosen once and copied, and the wrong choice fails silently.
 - **Name them `local`/`shared`** to mirror `Core\Cache` exactly. Rejected: it presents them as two tiers of
   one operation, which they are not — a per-core *policy* limiter is not a weaker version of a coherent one,
@@ -266,7 +266,7 @@ implementation of somebody else's specification, and it is a few dozen lines wit
   five units of the same quota in one call.
 - **M8:** two cores calling `consume` with the same key share one budget; two cores calling `shed` with the
   same key do **not** — asserted rather than left implicit, the same shape
-  [ADR 0059](0059-cross-request-state-is-explicit.md)'s own coherence test uses.
+  `rule:concurrency/cross-request-state-is-explicit`'s own coherence test uses.
 - **M8:** an unreachable shared store makes `consume` throw `IOError` and never return a `Decision`;
   `shed` is unaffected by the store being down at all.
 - **M8:** a `tainted` key compiles; a `secret` key is a compile-time diagnostic naming

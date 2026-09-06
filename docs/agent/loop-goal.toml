@@ -1785,7 +1785,7 @@ tests = [
 ]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 3-4 -- `spawn`/`await`, the task tree, and ADR 0072's roster.
+# Stage 3-4 -- `spawn`/`await`, the task tree, and `rule:concurrency/one-scheduler`'s roster.
 # ---------------------------------------------------------------------------------------------------
 [[check]]
 kind = "cargo-named"
@@ -1800,7 +1800,7 @@ stage = "1 floor"
 name = "nvs-host (structured concurrency)"
 args = ["test", "-p", "nvs-host"]
 tests = [
-  # ADR 0072 § 4 -- the promise the whole roster is built on.
+  # `rule:concurrency/nothing-is-still-running-when-a-call-returns` -- the promise the whole roster is built on.
   "no_call_returns_with_a_child_still_running",
   "a_task_tree_dies_with_its_parent_and_leaves_no_orphan",
   # § 5 -- native teardown runs, user code does not. The intuitive implementation is the wrong one.
@@ -3093,7 +3093,7 @@ want = [
 ]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 8 -- ADR 0084's queue. The transactional-enqueue property is the reason for the whole design.
+# Stage 8 -- `rule:concurrency/enqueue-commits-with-your-write`'s queue. The transactional-enqueue property is the reason for the whole design.
 # ---------------------------------------------------------------------------------------------------
 
 # `-p nvs-stdlib` and not `-p nvs-db`, which is where these names were first filed: what they assert
@@ -3498,7 +3498,7 @@ stage = "1 floor"
 name = "nvs-stdlib (session, and the tier it may not use)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
-  # ADR 0059 § 4 -- a session that vanishes because a core evicted it is an authentication bug.
+  # `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent` -- a session that vanishes because a core evicted it is an authentication bug.
   "a_session_is_never_backed_by_the_local_cache_tier",
   "a_session_survives_a_request_landing_on_another_core",
 ]
@@ -3574,7 +3574,7 @@ file = "examples/session.nvs"
 # A program leg is one run with no cookie round trip, so a visit counter rising *across requests* --
 # `new session`, then `visits=1`, then `visits=2` -- is not something `nvs run` can ever print. That is a
 # server fact, and the cross-request half is the two names in the `nvs-stdlib (session, and the tier it
-# may not use)` check above, which is ADR 0059 § 4's rule and where `Core\Session` itself is still open
+# may not use)` check above, which is `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent`'s rule and where `Core\Session` itself is still open
 # work. What a program leg can pin is the carrier a session id rides on, and that is what this fixture
 # runs: `rule:security/protocol-roster`'s ring is ordered, so a cookie sealed under the old key still opens across a
 # rotation and is a forgery once that key is off the tail.
@@ -3597,7 +3597,7 @@ args = ["test", "-p", "nvs-server"]
 # budget, and `nvs run` producing the identical fire. Two facts about the tree agree with the ADR.
 # `crates/nvs-server/Cargo.toml` names `hyper`, `nvs-host`, `nvs-config` and `nvs-runtime`, so this
 # crate cannot reach the store at all; and the store's whole wire is `Core\Cache`'s `put` and `get`
-# (ADR 0059 § 2, `crates/nvs-stdlib/src/cache.rs`), neither of which is a compare-and-set, so no
+# (`rule:concurrency/a-cached-value-is-copied-across-the-boundary`, `crates/nvs-stdlib/src/cache.rs`), neither of which is a compare-and-set, so no
 # lease can be *taken* anywhere in the tree yet. Inverting the seam the way ADR 0139 § 4 inverts the
 # session write-back -- an `fn` pointer through `nvs-runtime` -- would therefore carry an operation
 # the store does not have, and widening the shared tier with an atomic acquire is an ADR-level
@@ -3610,7 +3610,7 @@ args = ["test", "-p", "nvs-server"]
 tests = [
   # ADR 0073 § 5 -- a ROOT isolate, not a child of a connection.
   "a_schedule_entry_fires_as_a_root_isolate",
-  # ADR 0072 §§ 6-7 is deliberately NOT here any more -- the two checks below are where it went
+  # `rule:concurrency/after-response-outlives-the-connection` and `rule:concurrency/deferred-is-bounded-by-two-directives` is deliberately NOT here any more -- the two checks below are where it went
   # and why. Neither half of it is reachable from a crate that forbids `unsafe_code`.
   # ADR 0076 -- a trace id for EVERY request, sampled or not, and no probe on the measured path.
   "an_inbound_traceparent_is_continued_and_a_missing_one_is_generated",
@@ -3635,7 +3635,7 @@ tests = ["no_probe_is_added_to_the_measured_path"]
 [[check]]
 kind = "cargo-named"
 stage = "1 floor"
-name = "nvs-host (ADR 0072 § 6 -- the connection ends, the request tree does not)"
+name = "nvs-host (`rule:concurrency/after-response-outlives-the-connection` -- the connection ends, the request tree does not)"
 args = ["test", "-p", "nvs-host"]
 # Filed here rather than under `-p nvs-server`, where it stood until the seam was read. Two reasons,
 # and the second is the one that would have cost a session: a registration is a `callable`, the only
@@ -3651,7 +3651,7 @@ tests = ["an_after_response_tree_outlives_its_connection"]
 [[check]]
 kind = "cargo-named"
 stage = "1 floor"
-name = "nvs-runtime (ADR 0072 § 7 -- max_concurrent counts trees)"
+name = "nvs-runtime (`rule:concurrency/deferred-is-bounded-by-two-directives` -- max_concurrent counts trees)"
 args = ["test", "-p", "nvs-runtime"]
 # The other half of the same move. § 7's cap is a count of request trees per *core*, taken and given
 # back by `Ctx::defer` and `Ctx::release_deferred_slot`, and the refusal is the `RuntimeError`
@@ -3660,7 +3660,7 @@ args = ["test", "-p", "nvs-runtime"]
 tests = ["the_deferred_queue_is_bounded_by_max_concurrent"]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 6b -- persistent connections. ADR 0083 whole: a connection is a ROOT isolate opened by a request
+# Stage 6b -- persistent connections. `rule:concurrency/a-connection-is-a-root-isolate` whole: a connection is a ROOT isolate opened by a request
 # that then ends, `receive()` is the one wait over the peer and its topics, and `Core\Topic` closes a
 # slow subscriber rather than blocking a publisher. The entry rule is `rule:security/isolate-shares-nothing`'s and lands first at
 # `spawn script`, which is why the first check here is not in nvs-server.
@@ -3680,7 +3680,7 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "1 floor"
-name = "nvs-server (ADR 0083 §§ 1 and 5 -- the upgrade, and the request that ends)"
+name = "nvs-server (`rule:concurrency/a-connection-is-a-root-isolate` and `rule:concurrency/two-doors-one-isolate` -- the upgrade, and the request that ends)"
 args = ["test", "-p", "nvs-server"]
 tests = [
   # § 1 -- a root isolate, and the request that upgraded it ends normally.
@@ -3703,7 +3703,7 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "1 floor"
-name = "nvs-stdlib (ADR 0083 §§ 2-3 -- the entry form, and the one wait)"
+name = "nvs-stdlib (`rule:concurrency/an-upgrade-is-spawn-shaped` and `rule:concurrency/a-connection-is-a-loop` -- the entry form, and the one wait)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
   # § 2 -- the entry rule is spawn script's, at a second site.
@@ -3735,7 +3735,7 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "1 floor"
-name = "nvs-types (ADR 0083 -- the qualifiers at the connection boundary)"
+name = "nvs-types (`rule:concurrency/a-connection-is-a-root-isolate` -- the qualifiers at the connection boundary)"
 args = ["test", "-p", "nvs-types"]
 tests = [
   "a_received_frames_payload_is_tainted_until_laundered",
@@ -3746,7 +3746,7 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "1 floor"
-name = "nvs-server (ADR 0083 § 7 -- bounds, budgets and drain)"
+name = "nvs-server (`rule:concurrency/connection-bounds-are-finite` -- bounds, budgets and drain)"
 args = ["test", "-p", "nvs-server"]
 tests = [
   # The four bullets a connection keeps with no unit in sight: the finite bounds, the budget close, the
@@ -3782,7 +3782,7 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "1 floor"
-name = "nvs-cli (ADR 0083 § 7 -- the unit a connection keeps, and the one a new connection gets)"
+name = "nvs-cli (`rule:concurrency/connection-bounds-are-finite` -- the unit a connection keeps, and the one a new connection gets)"
 args = ["test", "-p", "nvs-cli"]
 tests = [
   # § 7's second bullet, one name per half: an open connection runs to completion on the code it began
@@ -3998,7 +3998,7 @@ want = ["requests/sec", "recorded"]
 #
 # Two of them are pinned where a `.nvst` can be held to them rather than where the claim is worded.
 # A session surviving a core is asserted at the BOOT -- `[session] backend = "local"` is refused, and
-# ADR 0059 § 4 is the diagnostic's own note -- because a case running inside one request cannot be
+# `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent` is the diagnostic's own note -- because a case running inside one request cannot be
 # scheduled onto a second core, and a test that never happened to cross one would pass over a runtime
 # that loses sessions in production. A deferred tree outliving its connection is asserted from the
 # CALLER's side -- the answer is complete and carries none of the deferred bytes -- because the child's

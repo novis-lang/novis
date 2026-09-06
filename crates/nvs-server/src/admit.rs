@@ -201,8 +201,8 @@ impl Admission {
 /// ended.
 ///
 /// A guard rather than a decrement after the answer, for `serve::Served`'s
-/// reason: [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)
-/// § 5's cancellation tears a coroutine down where it parked, so the line after
+/// reason: `rule:concurrency/cancellation-runs-no-user-code`
+/// 's cancellation tears a coroutine down where it parked, so the line after
 /// the answer is exactly the one a cancelled request never reaches — and a
 /// ceiling that leaks a place per cancelled client is a server that refuses
 /// everything after enough of them.

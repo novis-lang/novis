@@ -8,7 +8,7 @@
 //! is the definition of the shape that ADR exists for. What is pinned here is
 //! the part the combinator's own unit tests cannot see — that the member
 //! actually goes through it, and that a fired poll is `FATAL` rather than
-//! something a `catch` could swallow (ADR 0072 § 5).
+//! something a `catch` could swallow (`rule:concurrency/cancellation-runs-no-user-code`).
 //!
 //! Two counts, one from each side of the same bound: the entries visited before
 //! the poll fires, and the entries visited when nothing set a deadline. A
@@ -146,7 +146,7 @@ fn an_expired_deadline_stops_arr_map_at_the_first_batch_boundary() {
     assert_eq!(
         status,
         nvs_runtime::FATAL,
-        "a deadline is a cancellation, so ADR 0072 § 5 makes it uncatchable"
+        "a deadline is a cancellation, so `rule:concurrency/cancellation-runs-no-user-code` makes it uncatchable"
     );
     assert_eq!(
         UNDER_A_DEADLINE.load(Ordering::Relaxed),

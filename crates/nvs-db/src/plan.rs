@@ -196,7 +196,7 @@ impl Change {
     /// when it removes something, because a schema value describes what its
     /// author knows about and a database legitimately holds another
     /// application's tables, an operator's own, and — under
-    /// [ADR 0084](/docs/adr/0084-durable-background-jobs.md) — the queue's two.
+    /// `rule:concurrency/enqueue-commits-with-your-write` — the queue's two.
     #[must_use]
     pub fn is_report(&self) -> bool {
         matches!(

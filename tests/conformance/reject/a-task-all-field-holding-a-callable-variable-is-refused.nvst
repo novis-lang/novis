@@ -4,7 +4,7 @@ Every spelling of a `Core\Task::all` field that is not a written `fn` literal is
 <?nvs
 // `Core\Task::all`'s result is a shape carrying each field's own return type,
 // and `callable` carries no signature (`rule:types/closure-literal`), so a field holding one has
-// no result type to read. ADR 0072 names this as a compile error rather than
+// no result type to read. `rule:concurrency/one-scheduler` names this as a compile error rather than
 // a `mixed` fallback: a silently widened field would make the whole shape's
 // types depend on how the caller happened to spell a closure.
 //

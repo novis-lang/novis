@@ -47,7 +47,7 @@
 //! Thread-local is not a compromise here: the runtime is thread-per-core and
 //! shared-nothing, so a per-thread cache needs no lock on the hot path and
 //! cannot become cross-request state
-//! ([ADR 0059](/docs/adr/0059-cross-request-state-is-explicit.md)
+//! (`rule:concurrency/cross-request-state-is-explicit`
 //! forbids that) — a compiled pattern is derived from the pattern text and
 //! its flags alone, observable only as speed.
 //!

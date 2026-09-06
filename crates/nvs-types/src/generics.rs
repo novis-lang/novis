@@ -56,7 +56,7 @@
 //! [`Ty::CallableShapeTo`] is the same answer one level up, and the reason
 //! this section is not about a single variant. `Core\Task::all({...}): S` has
 //! its whole *result* nowhere in its argument's type: the argument is a shape
-//! of opaque `callable`s, and ADR 0072 § 1 wants a shape of what each of them
+//! of opaque `callable`s, and `rule:concurrency/all-answers-a-typed-shape` wants a shape of what each of them
 //! returns. So `S` binds from the written `fn` literals themselves —
 //! [`callable_shape_var`] reads the name, and [`crate::expr::args`] builds the
 //! shape out of the `ExprInfo::Closure { return_ty }` recorded at each field.

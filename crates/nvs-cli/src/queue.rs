@@ -25,7 +25,7 @@
 //! back — `nvs_host::net`'s § *Off a core, it blocks* owns why that is the rule kept rather than
 //! bent — so the socket opens on the main thread and the whole cost of the applying half was an
 //! `nvs-db` dependency in this crate's manifest. Borrowing `main.rs`'s `run` task was the
-//! alternative and buys nothing: a task exists there so ADR 0072 § 1's children have a parent, and
+//! alternative and buys nothing: a task exists there so `rule:concurrency/all-answers-a-typed-shape`'s children have a parent, and
 //! a migration spawns nothing and shares nothing.
 //!
 //! **The `db.connect` capability is deliberately not asked.** `rule:core-classes/db-capabilities` grants an

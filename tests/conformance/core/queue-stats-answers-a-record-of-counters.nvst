@@ -1,5 +1,5 @@
 --TEST--
-`stats` answers a `Core\Queue\Stats` whose counters are members, and not one number a caller would have to ask for four times — ADR 0084 §§ 1 and 6
+`stats` answers a `Core\Queue\Stats` whose counters are members, and not one number a caller would have to ask for four times — `rule:concurrency/queue-four-members` and `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`
 --FILE--
 <?nvs
 // § 6 names four things worth watching about a queue, and the reason they

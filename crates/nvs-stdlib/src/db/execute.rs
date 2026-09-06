@@ -449,7 +449,7 @@ pub(super) fn postgres_rows(
 /// connection in `nvs-db`, and nothing about it reaches here.
 ///
 /// **`pub(crate)` because [`crate::queue`] sends over the same two drivers**, and
-/// for [`QueryWatch`]'s reason: ADR 0084's members drive a result set themselves
+/// for [`QueryWatch`]'s reason: `rule:concurrency/enqueue-commits-with-your-write`'s members drive a result set themselves
 /// rather than through this class's, so a second borrow-flattening enum over
 /// there would be this one with the same two arms. It carries § 7's three
 /// commands as well as the send, which [`Transacting`] also spells — the two are

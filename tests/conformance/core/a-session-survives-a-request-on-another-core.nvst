@@ -1,9 +1,9 @@
 --TEST--
-a session record may not live in the per-core tier, so the store a request on one core wrote is the store a request on another core reads — ADR 0059 § 4, ADR 0139 § 3
+a session record may not live in the per-core tier, so the store a request on one core wrote is the store a request on another core reads — `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent`, ADR 0139 § 3
 --FILE--
 <?nvs
 // The claim is about two cores, and it is pinned at the one place a program
-// can be held to it without there being two: the **boot**. ADR 0059 § 4 makes
+// can be held to it without there being two: the **boot**. `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent` makes
 // `Core\Session` the one exception to the local tier, and a refusal at boot is
 // what makes the property total — a fleet that never happened to be scheduled
 // across cores would pass any test written from inside a request, and would
@@ -17,7 +17,7 @@ a session record may not live in the per-core tier, so the store a request on on
 // The diagnostic's own note carries the reason rather than the case's comment
 // doing it, which is why the note is asserted and not skipped past: a code
 // whose text stopped saying *why* per-core storage is wrong would still refuse
-// and would still leave the next reader to rediscover ADR 0059 § 4.
+// and would still leave the next reader to rediscover `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent`.
 Core\Session::start();
 --FILE nvs.toml--
 # The one value § 3's roster does not hold. `shared` and `db` are the two that
@@ -29,7 +29,7 @@ backend = "local"
 
 --EXPECTF-ERROR--
 error[E0626]: `[session] backend = "local"` names no store a session may live in
-  = note: ADR 0059 § 4: a session read on one core and written on another must see one value, and the local tier is per-core%A
+  = note: `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent`: a session read on one core and written on another must see one value, and the local tier is per-core%A
   = help: write `backend = `"shared"` or `"db"``
 %A
 error: aborting due to 1 error

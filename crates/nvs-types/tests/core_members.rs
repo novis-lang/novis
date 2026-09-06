@@ -306,7 +306,7 @@ fn an_unregistered_core_reference_is_still_trusted() {
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
-/// ADR 0072 § 1, and the whole reason `Core\Task::all` is worth having: the
+/// `rule:concurrency/all-answers-a-typed-shape`, and the whole reason `Core\Task::all` is worth having: the
 /// answer is a shape with the argument's own field names, each field typed as
 /// *that field's* closure returns.
 ///
@@ -340,7 +340,7 @@ fn a_task_all_binds_each_fields_own_type() {
     );
 }
 
-/// ADR 0072 § 1's restriction, and the half of the member that no program can
+/// `rule:concurrency/all-answers-a-typed-shape`'s restriction, and the half of the member that no program can
 /// print: a field's type binds from a *written* `fn` literal, so a field
 /// holding a `callable`-typed variable is a compile error naming the field.
 ///
@@ -379,7 +379,7 @@ fn a_task_all_field_holding_a_callable_variable_is_a_compile_error() {
     );
 }
 
-/// ADR 0072 § 3: one trailing options shape carries both bounds, and there is
+/// `rule:concurrency/limit-and-deadline-are-the-only-bounds`: one trailing options shape carries both bounds, and there is
 /// no wrapper member to reach for instead.
 ///
 /// `timeout` is the spelling a developer arrives with, so it is asked twice —

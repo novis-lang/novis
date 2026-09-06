@@ -1,5 +1,5 @@
 --TEST--
-`status` answers a `Core\Queue\State` and not the ordinal the row stores it as, so a program reads a state rather than a magic integer — ADR 0084 §§ 1 and 6, `rule:enums/closed-integer-type`
+`status` answers a `Core\Queue\State` and not the ordinal the row stores it as, so a program reads a state rather than a magic integer — `rule:concurrency/queue-four-members` and `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`, `rule:enums/closed-integer-type`
 --FILE--
 <?nvs
 // The `state` column *is* an ordinal — the enum and the column are one

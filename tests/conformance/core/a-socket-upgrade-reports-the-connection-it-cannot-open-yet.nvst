@@ -1,8 +1,8 @@
 --TEST--
-`Core\Socket::upgrade` takes `spawn script`'s operand and refuses a request that arrived on no connection, rather than answering as though a peer were attached — ADR 0083 §§ 1-2
+`Core\Socket::upgrade` takes `spawn script`'s operand and refuses a request that arrived on no connection, rather than answering as though a peer were attached — `rule:concurrency/a-connection-is-a-root-isolate` and `rule:concurrency/an-upgrade-is-spawn-shaped`
 --FILE--
 <?nvs
-// ADR 0083 § 2 makes the operand `spawn script`'s, so a path is one of the two
+// `rule:concurrency/an-upgrade-is-spawn-shaped` makes the operand `spawn script`'s, so a path is one of the two
 // forms the entry may take and the compiler accepts this line. What is behind
 // it is § 1's root isolate, prepared by this member and started by the
 // connection -- and a script run from the command line is not a connection, so

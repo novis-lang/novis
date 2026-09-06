@@ -1266,7 +1266,7 @@ pub(crate) fn check_generic_args(
             continue;
         }
         // The same answer one level up, and the other binding not read out of
-        // a type: ADR 0072 § 1's `Core\Task::all` answers a shape of what each
+        // a type: `rule:concurrency/all-answers-a-typed-shape`'s `Core\Task::all` answers a shape of what each
         // field's closure returns, and the argument's own type is a shape of
         // opaque `callable`s. `bind_callable_shape` reads the literals.
         if let Some(name) = crate::generics::callable_shape_var(declared, env.interner) {
@@ -1316,7 +1316,7 @@ pub(crate) fn check_generic_args(
 /// field names, each carrying the return type of the `fn` literal written
 /// there.
 ///
-/// This is the one place ADR 0072 § 1's two restrictions are enforced, and
+/// This is the one place `rule:concurrency/all-answers-a-typed-shape`'s two restrictions are enforced, and
 /// they are enforced *here* rather than by assignability because both are
 /// facts about the written expression rather than about its type — a variable
 /// holding `{user: $loader}` has exactly the type a literal would have, and

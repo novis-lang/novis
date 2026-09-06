@@ -1191,7 +1191,7 @@ mod tests {
     /// readers, and they are spec § 15's sentence read once more one layer
     /// out: a WebSocket frame is untrusted input off a network exactly as a
     /// request body is, which
-    /// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 3
+    /// `rule:concurrency/a-connection-is-a-loop`
     /// states outright. They are the only rows here whose answer is
     /// *nullable*, because a message carries one payload kind and answers
     /// `null` for the other; the mark is on the arm that can carry one. Their

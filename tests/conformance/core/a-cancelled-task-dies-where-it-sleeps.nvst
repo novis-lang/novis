@@ -1,5 +1,5 @@
 --TEST--
-A child cancelled while it sleeps runs nothing further, and its `catch` never sees the cancellation — ADR 0072 §§ 4, 5
+A child cancelled while it sleeps runs nothing further, and its `catch` never sees the cancellation — `rule:concurrency/nothing-is-still-running-when-a-call-returns` and `rule:concurrency/cancellation-runs-no-user-code`
 --FILE--
 <?nvs
 // § 4: the deadline expires, every child is cancelled, the call waits for

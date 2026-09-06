@@ -85,8 +85,8 @@ spellings rejected, and the reasoning. Do not restate that detail here when addi
 | Audience | Web applications of every kind; the pitch is isolation and qualifiers, and PHP syntax is an on-ramp rather than a compatibility promise (`rule:programs/audience`) |
 | Packages | Content-addressed source archives from a first-party registry or (root-only) a git URL, resolved by minimal version selection, with no package code running before the program and capabilities granted per package ([ADR 0081](../adr/0081-packages-are-digests-resolution-is-a-maximum.md)) |
 | Framework | First-party and split by `rule:core-api/tier-placement`'s six tests: privileged halves in `Core`, the opinionated layer as the `nvs/web` package; no ORM, no runtime container, the language is the view layer (`rule:programs/first-party-framework`) |
-| Real-time | WebSocket and SSE connections are root isolates opened the way a script is spawned; fan-out is a bounded `Core\Topic` ([ADR 0083](../adr/0083-persistent-connections-are-isolates.md)) |
-| Background work | A durable job is a row in a `Core\Db` table, enqueued inside the caller's transaction and run as an isolate ([ADR 0084](../adr/0084-durable-background-jobs.md)) |
+| Real-time | WebSocket and SSE connections are root isolates opened the way a script is spawned; fan-out is a bounded `Core\Topic` (`rule:concurrency/a-connection-is-a-root-isolate`) |
+| Background work | A durable job is a row in a `Core\Db` table, enqueued inside the caller's transaction and run as an isolate (`rule:concurrency/enqueue-commits-with-your-write`) |
 | API contracts | OpenAPI 3.1 generated while compiling from the route table and derived codecs, with `nvs api diff` as a breaking-change gate ([ADR 0085](../adr/0085-openapi-is-generated-from-the-route-table.md)) |
 | Testing | Hand-written suite is normative; `.phpt → .nvst` transpiler imports PHP's corpus |
 | Migration | `nvs convert` — real PHP→Novis transpiler |
@@ -241,7 +241,7 @@ The decisive structural choice. One single-threaded runtime **pinned per CPU cor
 load-balanced across cores; a request never migrates between cores.
 
 **That runtime is ours, and it is not `async`.** It is `corosensei` stackful coroutines on a thread-per-core
-scheduler of our own ([ADR 0072](../adr/0072-core-task-structured-concurrency.md)), and `tokio` appears in
+scheduler of our own (`rule:concurrency/one-scheduler`), and `tokio` appears in
 neither `Cargo.toml` nor `Cargo.lock` ([ADR 0099](../adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md)).
 Earlier drafts of this section and of [ADR 0106](../adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
 § 6 said "Tokio"; that was stale text rather than a live decision, and both now say the same thing.

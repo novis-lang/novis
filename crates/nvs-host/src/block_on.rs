@@ -1,7 +1,7 @@
 //! Driving one `Future` on a coroutine: the seam between a library that is
 //! `async` and a runtime that is not.
 //!
-//! [ADR 0138](/docs/adr/0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md)
+//! `rule:concurrency/one-future-per-connection`
 //! is this module's specification and its § 1 is the whole loop: **clear the
 //! flag, poll, park.** [`block_on`] runs that on the stack of the task that
 //! called it, which for the server is the coroutine that accepted the
@@ -18,7 +18,7 @@
 //!
 //! # A waker is a permission to poll again, and it decides nothing
 //!
-//! ADR 0115 § 2's rule 2, in the shape `std::task` defines. Waking sets an
+//! `rule:concurrency/the-parking-contract`'s rule 2, in the shape `std::task` defines. Waking sets an
 //! atomic flag and delivers the one permission the drive installed; it never
 //! concludes the future is ready, never re-polls, and never touches the run
 //! queue. The re-poll is the loop's, and the loop clears the flag *before* it
@@ -92,11 +92,11 @@ use crate::scheduler::{Waiting, current_task, suspend_current};
 /// at all — the coroutine is torn down where it parked and the unwind drops the
 /// future, closing whatever it held through Rust's own drops. Both run no Novis
 /// frame, which is
-/// [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md) § 5's
+/// `rule:concurrency/cancellation-runs-no-user-code`'s
 /// rule; `Scheduler`'s teardown owns which of the two applies.
 ///
 /// One future, on the calling task's own stack. Nothing is spawned and nothing
-/// is queued; this module's docs and ADR 0138 § 1 own why that is the whole
+/// is queued; this module's docs and `rule:concurrency/one-future-per-connection` own why that is the whole
 /// definition of the seam.
 pub fn block_on<F: Future>(future: F) -> Option<F::Output> {
     let signal = Arc::new(Signal::here());
@@ -106,7 +106,7 @@ pub fn block_on<F: Future>(future: F) -> Option<F::Output> {
     loop {
         // Cleared before the poll and re-read after it, never the other way
         // round: the commonest wake there is comes from inside `poll` itself,
-        // and clearing afterwards would drop it. ADR 0138 § 2.
+        // and clearing afterwards would drop it. `rule:concurrency/a-waker-is-one-permission-to-poll`.
         signal.woken.store(false, Ordering::SeqCst);
         if let Poll::Ready(value) = future.as_mut().poll(&mut cx) {
             signal.disarm();
@@ -135,7 +135,7 @@ struct Signal {
 
 /// The three places a drive can be standing, and what a park means in each.
 ///
-/// ADR 0138 § 6's table. Not re-derived per park: a task never migrates, and a
+/// `rule:concurrency/the-park-route-is-chosen-once`'s table. Not re-derived per park: a task never migrates, and a
 /// thread that has no core when the drive starts does not acquire one.
 enum Route {
     /// On a core with a reactor — the server. The slot holds the one permission
@@ -210,8 +210,8 @@ impl Signal {
         if held.is_some() {
             // Still armed, so the last park ended in readiness on this task's
             // own reactor registration rather than in a waker. Re-issuing here
-            // is what would cost a delivered poke per readiness edge — ADR 0138
-            // § 3.
+            // is what would cost a delivered poke per readiness edge — `rule:concurrency/one-permission-per-drive`
+            // .
             return;
         }
         let Some(me) = current_task() else {
@@ -306,7 +306,7 @@ mod tests {
         assert_eq!(polls.get(), 1, "a ready future was polled more than once");
     }
 
-    /// ADR 0138 § 2's ordering, from the only side that can observe it: a wake
+    /// `rule:concurrency/a-waker-is-one-permission-to-poll`'s ordering, from the only side that can observe it: a wake
     /// fired *inside* a poll is seen by the check after that poll. A drive that
     /// cleared its flag afterwards would park on a wake that has already
     /// happened, and this test would hang rather than fail.
@@ -327,7 +327,7 @@ mod tests {
 
     /// The shape the server is built on: the drive parks its coroutine, the
     /// core goes to sleep in its poll, and a thread that is not this core ends
-    /// both with one wake. ADR 0138 § 4.
+    /// both with one wake. `rule:concurrency/a-wake-never-moves-a-task`.
     #[test]
     fn a_wake_from_another_thread_drives_a_parked_future_to_completion() {
         let mut sched = Scheduler::new();
@@ -381,7 +381,7 @@ mod tests {
         );
     }
 
-    /// ADR 0138 § 3: one permission for the whole drive, not one per park.
+    /// `rule:concurrency/one-permission-per-drive`: one permission for the whole drive, not one per park.
     #[test]
     fn a_parked_drive_holds_exactly_one_permission() {
         let mut sched = Scheduler::new();
@@ -420,7 +420,7 @@ mod tests {
         }
     }
 
-    /// ADR 0138 § 5, the ordinary half: an unwindable stack is torn down where
+    /// `rule:concurrency/a-cancelled-drive-never-parks-again`, the ordinary half: an unwindable stack is torn down where
     /// it parked, so the drive never returns at all and the future is dropped
     /// by the unwind. No `Resumed` is involved and no Novis frame runs — the
     /// scheduler's `Drop for RunQueue` doc owns the rule this asserts.
@@ -442,7 +442,7 @@ mod tests {
         assert_eq!(report.parked, 0, "the cancelled task is still parked");
     }
 
-    /// ADR 0138 § 5, the other half: a stack standing on a helper frame cannot
+    /// `rule:concurrency/a-cancelled-drive-never-parks-again`, the other half: a stack standing on a helper frame cannot
     /// be unwound, so the scheduler hands it `Resumed::Cancelled` instead — and
     /// the drive has to answer rather than park again on a wake that is not
     /// coming.

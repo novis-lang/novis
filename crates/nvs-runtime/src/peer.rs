@@ -1,5 +1,5 @@
 //! The peer a connection isolate talks to —
-//! [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 1's
+//! `rule:concurrency/a-connection-is-a-root-isolate`'s
 //! socket, as the one thing that crosses from the server into the isolate.
 //!
 //! § 1 moves the socket into the root isolate the upgrade opened. The socket
@@ -90,7 +90,7 @@ pub enum PeerFrame {
 /// One value published to a topic this connection subscribed to, queued for
 /// the next [`PeerSocket::receive`] the isolate performs.
 ///
-/// ADR 0083 § 3's **second source**. It lives here rather than in `nvs-stdlib`
+/// `rule:concurrency/a-connection-is-a-loop`'s **second source**. It lives here rather than in `nvs-stdlib`
 /// for the reason [`PeerSocket`] does: the queue it waits in is the isolate's,
 /// so [`Ctx::deliver`](crate::Ctx::deliver) has to be able to name the type,
 /// and a `Ctx` cannot name a type that crate declares. § 4's bus is what
@@ -169,7 +169,7 @@ pub fn slow_subscribers_closed() -> u64 {
     SLOW_SUBSCRIBERS_CLOSED.with(std::cell::Cell::get)
 }
 
-/// The queue one connection's deliveries wait in — ADR 0083 § 3's second
+/// The queue one connection's deliveries wait in — `rule:concurrency/a-connection-is-a-loop`'s second
 /// source, as a thing two owners can hold.
 ///
 /// [`Ctx::deliver`](crate::Ctx::deliver) fills it and
@@ -281,7 +281,7 @@ impl Inbox {
 ///
 /// A message and nothing else. The alternative — an enum of RFC 6455's and
 /// `std::io`'s failure modes — would be a taxonomy every caller in this tree
-/// then has to map back onto one `RuntimeError`, since ADR 0083 § 3 gives a
+/// then has to map back onto one `RuntimeError`, since `rule:concurrency/a-connection-is-a-loop` gives a
 /// program exactly two outcomes for a `send`: it buffered, or it threw.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PeerError(Box<str>);
@@ -306,7 +306,7 @@ impl std::fmt::Display for PeerError {
     }
 }
 
-/// The socket a connection isolate holds, as the operations ADR 0083 § 3
+/// The socket a connection isolate holds, as the operations `rule:concurrency/a-connection-is-a-loop`
 /// describes and no more.
 ///
 /// **Blocking is the contract.** Both operations may suspend the coroutine they
@@ -368,18 +368,18 @@ pub enum Closing {
     /// specifically not 1001 or 1011, which say the server is going away or
     /// broke, and either would tell a client to reconnect and do it again.
     SlowSubscriber,
-    /// ADR 0083 § 7's idle timeout: nothing arrived from this peer for
+    /// `rule:concurrency/connection-bounds-are-finite`'s idle timeout: nothing arrived from this peer for
     /// `nvs_server::bounds::Connection::idle`. RFC 6455's 1001, *going away* —
     /// the peer did nothing wrong and reconnecting is the correct response,
     /// which is what separates this from [`Self::SlowSubscriber`] however
     /// similar the two look from the server's side.
     Idle,
-    /// ADR 0083 § 7's total lifetime: this connection has been open for
+    /// `rule:concurrency/connection-bounds-are-finite`'s total lifetime: this connection has been open for
     /// `nvs_server::bounds::Connection::lifetime`, however busy it was. 1001
     /// for [`Self::Idle`]'s reason, and the reason text is what tells the two
     /// apart in a log.
     Expired,
-    /// ADR 0083 § 7's third bullet: this server is shutting down or reloading,
+    /// `rule:concurrency/connection-bounds-are-finite`'s third bullet: this server is shutting down or reloading,
     /// and the drain it began has reached this connection. 1001 for
     /// [`Self::Idle`]'s reason — the peer did nothing wrong and reconnecting is
     /// the correct response — and a separate variant because the *action* is
@@ -392,14 +392,14 @@ pub enum Closing {
     /// that is 1001 — a fourth code with no fourth answer behind it would only
     /// be a code half the client libraries in the world have no name for.
     ShuttingDown,
-    /// ADR 0083 § 7's per-process ceiling: this process already holds
+    /// `rule:concurrency/connection-bounds-are-finite`'s per-process ceiling: this process already holds
     /// `nvs_server::bounds::Connection::max_open` connections, so this one is
     /// closed before its isolate is started. 1013, *try again later*, which is
     /// the one registered code that says the refusal is about load and not
     /// about the request — a client told 1001 here would reconnect immediately
     /// and be refused again.
     AtCapacity,
-    /// ADR 0083 § 1: this connection's isolate ended in a failure — a throw
+    /// `rule:concurrency/a-connection-is-a-root-isolate`: this connection's isolate ended in a failure — a throw
     /// that reached `rule:errors/escalation-ladder`'s floor, or one of the `[limits]` values § 1 gives
     /// a connection its own budget of. RFC 6455's 1011, *internal error*.
     ///

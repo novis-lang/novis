@@ -1,4 +1,4 @@
-//! ADR 0083's qualifiers at the connection boundary — what a peer sent arrives
+//! `rule:concurrency/a-connection-is-a-root-isolate`'s qualifiers at the connection boundary — what a peer sent arrives
 //! as, and what a topic name may be built from.
 //!
 //! Both are ordinary checker questions rather than runtime ones, which is the
@@ -16,7 +16,7 @@ mod common;
 use common::*;
 use nvs_diagnostics::code;
 
-/// ADR 0083 § 3: "a received frame's payload is `tainted` — it is untrusted
+/// `rule:concurrency/a-connection-is-a-loop`: "a received frame's payload is `tainted` — it is untrusted
 /// input arriving over a network, exactly like a request body".
 ///
 /// The claim is a property of the *payload* and not of the member that answered

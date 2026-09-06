@@ -1,8 +1,8 @@
 --TEST--
-`Core\Socket::upgrade` declares no `grants:`, so a narrowing it could not enforce is refused rather than accepted and dropped — ADR 0083 § 2, `rule:security/isolate-shares-nothing`
+`Core\Socket::upgrade` declares no `grants:`, so a narrowing it could not enforce is refused rather than accepted and dropped — `rule:concurrency/an-upgrade-is-spawn-shaped`, `rule:security/isolate-shares-nothing`
 --FILE--
 <?nvs
-// ADR 0083 § 2 lists four options and calls them 0006's. Three of the four --
+// `rule:concurrency/an-upgrade-is-spawn-shaped` lists four options and calls them 0006's. Three of the four --
 // `limits:`, `grants:` and `on:` -- are refused at the sibling site with
 // `E_SPAWN_OPTION_UNSUPPORTED`, because a `grants:` narrowing that were
 // silently dropped would hand the child the parent's authority. Declaring them

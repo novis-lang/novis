@@ -64,6 +64,11 @@
       "topic": "security",
       "title": "Security and isolation",
       "order": 130
+    },
+    {
+      "topic": "concurrency",
+      "title": "Concurrency",
+      "order": 140
     }
   ]
 }

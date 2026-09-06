@@ -1,5 +1,5 @@
 --TEST--
-`Core\Task::afterResponse` runs its closure after the request's own execution, in registration order — ADR 0072 §§ 6-7
+`Core\Task::afterResponse` runs its closure after the request's own execution, in registration order — `rule:concurrency/after-response-outlives-the-connection` and `rule:concurrency/deferred-is-bounded-by-two-directives`
 --FILE--
 <?nvs
 // § 6: "The closure runs after the response is fully written." A CLI run has no

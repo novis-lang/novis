@@ -1,5 +1,5 @@
 --TEST--
-What a peer sent arrives `tainted`, so it reaches no sink without laundering while `Core\Socket`'s own two sends still forward it — ADR 0083 § 3, `rule:security/launderers-are-sink-named`
+What a peer sent arrives `tainted`, so it reaches no sink without laundering while `Core\Socket`'s own two sends still forward it — `rule:concurrency/a-connection-is-a-loop`, `rule:security/launderers-are-sink-named`
 --FILE--
 <?nvs
 // § 3 marks a received frame's payload `tainted`: it is untrusted input off a

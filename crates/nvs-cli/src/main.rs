@@ -69,8 +69,8 @@
 //! It runs **inside a task**, on a [`nvs_host::Scheduler`] of its own with a
 //! reactor installed over it, rather than on the main thread's stack. That is
 //! not about concurrency at the top level — there is one task — but about what
-//! is beneath it: [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)
-//! § 1's children are children *of the calling task*, and a `Core\Task::all`
+//! is beneath it: `rule:concurrency/all-answers-a-typed-shape`
+//! 's children are children *of the calling task*, and a `Core\Task::all`
 //! in a CLI program has nowhere to put them if the program is not one. The
 //! root is `TaskRoot::Request`, so a panic that reaches it fails this run
 //! rather than retiring anything
@@ -1335,7 +1335,7 @@ fn run_run(
     if let Some(site) = fault_inject {
         ctx.inject_fault(site.into());
     }
-    // ADR 0072 §§ 1 and 3: the program is a *task*, because the children a
+    // `rule:concurrency/all-answers-a-typed-shape` and `rule:concurrency/limit-and-deadline-are-the-only-bounds`: the program is a *task*, because the children a
     // `Core\Task::all` inside it asks for are children of the calling task and
     // `nvs_host::spawn_child` reads that caller off the scheduler rather than
     // being told it. One task, one core, and no thread is pinned — a CLI run
@@ -1362,7 +1362,7 @@ fn run_run(
             // The returned value is discarded exactly as it was when this was a
             // direct call: the script frame answers with null.
             let outcome = entry.call(ctx).map(|_| ());
-            // ADR 0072 § 6: a CLI run has no response, so the script's own
+            // `rule:concurrency/after-response-outlives-the-connection`: a CLI run has no response, so the script's own
             // frame returning is when "after the response" is —
             // `nvs_runtime::deferred` owns that reading and why a request that
             // did not return ordinarily runs none of its deferred work. It runs
@@ -1372,7 +1372,7 @@ fn run_run(
             if outcome.is_ok() {
                 // ADR 0127 § 4: the last statement, then the queue, then
                 // teardown — and *before* the deferred work below, because
-                // ADR 0072 § 6's `afterResponse` is what runs after the
+                // `rule:concurrency/after-response-outlives-the-connection`'s `afterResponse` is what runs after the
                 // response and this queue is what delays the end of one.
                 nvs_stdlib::script::run_exit_hooks(ctx, outcome, None);
                 nvs_runtime::deferred::run_deferred(ctx);

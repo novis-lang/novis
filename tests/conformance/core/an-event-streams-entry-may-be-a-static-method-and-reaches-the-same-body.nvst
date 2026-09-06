@@ -1,8 +1,8 @@
 --TEST--
-`Core\Sse::upgrade` accepts `rule:security/isolate-shares-nothing`'s second entry spelling — a static method reference — and it reaches the same body the path form does rather than any compile question — ADR 0083 §§ 2 and 5
+`Core\Sse::upgrade` accepts `rule:security/isolate-shares-nothing`'s second entry spelling — a static method reference — and it reaches the same body the path form does rather than any compile question — `rule:concurrency/an-upgrade-is-spawn-shaped` and `rule:concurrency/two-doors-one-isolate`
 --FILE--
 <?nvs
-// ADR 0083 § 5 gives this member "the identical clause" its sibling takes, so
+// `rule:concurrency/two-doors-one-isolate` gives this member "the identical clause" its sibling takes, so
 // the operand is § 2's under ADR 0006 § *Decision*: a file path, or a static
 // method whose parameters `args:` binds by name. This case is the accepted
 // half of that rule at the second door;

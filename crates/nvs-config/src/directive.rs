@@ -147,7 +147,7 @@ pub const DIRECTIVES: &[Directive] = &[
     // the store re-dials every one of them, which is the same "re-creates the runtime's mapping"
     // the row above is `Boot` for.
     Directive { key: "cache.shared", class: Class::System, apply: Apply::Boot },
-    // ADR 0059 § 3's cap on the local tier is `System` by the rule ADR 0005 states — the memory it
+    // `rule:concurrency/cache-memory-is-charged-to-the-core`'s cap on the local tier is `System` by the rule ADR 0005 states — the memory it
     // bounds is the core's, so a request raising it would spend what every other request on that
     // core then goes without — and `Reload` rather than `Boot` because a new ceiling is read by the
     // next write and enforced by forgetting entries, which re-creates nothing and re-dials nothing.
@@ -171,7 +171,7 @@ pub const DIRECTIVES: &[Directive] = &[
     // record in the store nothing reads any more, which is the one failure a session store has.
     Directive { key: "session", class: Class::System, apply: Apply::Boot },
     Directive { key: "deferred.max_concurrent", class: Class::System, apply: Apply::Reload },
-    // Its sibling is `Runtime`, and ADR 0072 § 7 is explicit that the two halves of `[deferred]`
+    // Its sibling is `Runtime`, and `rule:concurrency/deferred-is-bounded-by-two-directives` is explicit that the two halves of `[deferred]`
     // are different classes: the cap is a host-sizing decision and the deadline is an ordinary
     // per-request default a call may name its own value for.
     Directive { key: "deferred.deadline", class: Class::Runtime, apply: Apply::Reload },

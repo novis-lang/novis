@@ -26,7 +26,7 @@
 //! # "No replay" is a counter, because there is no store in this goal
 //!
 //! Refusing a replayed code needs to remember the last code accepted, and
-//! remembering across requests is [ADR 0059](/docs/adr/0059-cross-request-state-is-explicit.md)'s
+//! remembering across requests is `rule:concurrency/cross-request-state-is-explicit`'s
 //! `Core\Cache`, which is a later stage. That is not why the design is this
 //! shape, though — it is the right shape regardless. [`check`] answers **the
 //! step the code belonged to**, and takes the last step already accepted as

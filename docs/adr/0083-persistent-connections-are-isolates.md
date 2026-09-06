@@ -1,4 +1,4 @@
-# ADR 0083 — A persistent connection is an isolate, and it is opened the way a script is spawned
+# `rule:concurrency/a-connection-is-a-root-isolate` — A persistent connection is an isolate, and it is opened the way a script is spawned
 
 - **Status:** Accepted
 - **Date:** 2026-08-24
@@ -62,7 +62,7 @@
 - **Fan-out is where this design is actually hard.** One connection isolate sharing nothing with another is
   the correct default and also useless on its own — chat, presence and live dashboards are all
   *one-writes-many-read*. Any mechanism for that is a cross-isolate channel, which is exactly the thing
-  [ADR 0059](0059-cross-request-state-is-explicit.md) makes explicit and bounded rather than ambient.
+  `rule:concurrency/cross-request-state-is-explicit` makes explicit and bounded rather than ambient.
 
 ## Decision
 
@@ -190,7 +190,7 @@ Core\Topic::unsubscribe(string $topic): void
   metric label, and for the same reason: a name derived from user input is how one tenant subscribes to
   another's stream. A name is built from checked values or it does not compile.
 - **A `secret` may never be published**, per [0033](0033-secret-qualifier-for-confidential-values.md).
-- **It is not built on `Core\Cache`.** [ADR 0059](0059-cross-request-state-is-explicit.md)'s store is
+- **It is not built on `Core\Cache`.** `rule:concurrency/cross-request-state-is-explicit`'s store is
   deliberately lossy — "it must always be correct to find nothing there" — which is right for a cache and
   wrong for a message that a subscriber is waiting on. Two mechanisms, two contracts, stated here so the
   next reader does not try to unify them.

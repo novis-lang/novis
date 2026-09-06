@@ -470,8 +470,8 @@ pub struct Ctx {
     ///
     /// **What it spends:** one word per request, and one per in-flight isolate.
     script_depth: u32,
-    /// [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)
-    /// § 6's after-response work, in registration order — `None` once the
+    /// `rule:concurrency/after-response-outlives-the-connection`
+    /// 's after-response work, in registration order — `None` once the
     /// queue has been drained, which is the encoding of
     /// [`crate::deferred::DeferError::Sealed`].
     ///
@@ -1025,7 +1025,7 @@ pub struct Ctx {
     /// "this request uses sessions" is a line in the source, and it is worth
     /// nothing if the first `get` can silently start one.
     session: Option<Session>,
-    /// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 1's
+    /// `rule:concurrency/a-connection-is-a-root-isolate`'s
     /// socket, on the connection isolate the upgrade opened and on nothing else
     /// — [`crate::peer`] is the home of the seam and of why it is a trait
     /// object.
@@ -1035,7 +1035,7 @@ pub struct Ctx {
     /// rule to remember. It is dropped with this context, and dropping it is
     /// what closes the descriptor.
     peer: Option<Box<dyn crate::peer::PeerSocket>>,
-    /// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 3's
+    /// `rule:concurrency/a-connection-is-a-loop`'s
     /// **second source**: values published to topics this connection
     /// subscribed to, in arrival order, waiting for the next `receive()`.
     ///
@@ -1096,7 +1096,7 @@ impl Drop for Ctx {
             // is the only other place it is given back.
             unsafe { hook.release() };
         }
-        // ADR 0083 § 3's undelivered topic values, for a connection that ended
+        // `rule:concurrency/a-connection-is-a-loop`'s undelivered topic values, for a connection that ended
         // with the queue non-empty — `crate::peer::Delivery` carries one owned
         // reference and deliberately has no `Drop` of its own, so this is where
         // the ones no `receive()` reached are given back.
@@ -1118,7 +1118,7 @@ impl Drop for Ctx {
                 }
             }
         }
-        // ADR 0072 § 6's deferred work is request-local for the same reason,
+        // `rule:concurrency/after-response-outlives-the-connection`'s deferred work is request-local for the same reason,
         // and a request that never returned ordinarily reaches here with its
         // registrations unrun — `crate::deferred`'s module doc owns why they
         // are released rather than run. `take_deferred` also takes this tree

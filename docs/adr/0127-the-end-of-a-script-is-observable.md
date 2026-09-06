@@ -16,7 +16,7 @@
 > user code of the script** — at a normal end, at `exit`, and at an uncaught throw — each receiving a
 > readonly `Script\ExitReport` saying which ending it was. A `FATAL` and a cancellation run **none of
 > them**: the first stays `rule:errors/escalation-ladder`'s reserved-budget ladder, the
-> second stays [ADR 0072](0072-core-task-structured-concurrency.md) § 5's no-user-code rule. Hooks
+> second stays `rule:concurrency/cancellation-runs-no-user-code`'s no-user-code rule. Hooks
 > observe an ending and never steer one: reason and status are fixed before the first hook runs, and
 > nothing a hook does changes them. This is PHP's `register_shutdown_function` for every ending that is
 > not a fatal — the one PHP use it does not cover is exactly the one `Core\Fatal` already does.

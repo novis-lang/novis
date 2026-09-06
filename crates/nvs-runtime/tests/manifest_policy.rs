@@ -13,7 +13,7 @@
 //! heap representation computes passes through here.
 //!
 //! The dependency-graph half of the file is here for the same reason and pinned
-//! the same way: ADR 0072's "one scheduler" is a property of the *graph*, which
+//! the same way: `rule:concurrency/one-scheduler`'s "one scheduler" is a property of the *graph*, which
 //! no compiled artefact records either, so it is read back off `Cargo.toml` and
 //! `Cargo.lock` or it is not checked at all.
 
@@ -173,7 +173,7 @@ fn tokio_appears_in_neither_the_manifest_nor_the_lockfile() {
     // in the lock file and has been since `hyper` 1.11, which depends on it
     // unconditionally at `features = ["sync"]` for one `oneshot` on the h1
     // server path. Renaming this check was the alternative; keeping the name and
-    // making the assertion *stronger* than the name is what ADR 0072 actually
+    // making the assertion *stronger* than the name is what `rule:concurrency/one-scheduler` actually
     // wants pinned, because "the string is absent" was only ever a proxy for
     // "this binary has one scheduler and it is `nvs-host`'s". So what is checked
     // is that no crate of ours depends on `tokio`, that the graph's only route
@@ -189,7 +189,7 @@ fn tokio_appears_in_neither_the_manifest_nor_the_lockfile() {
     assert!(
         named.is_empty(),
         "a manifest in this repository names `tokio` outside a comment:\n  {}\nNo crate of ours \
-         takes an async runtime as a dependency — ADR 0072's scheduler is `nvs-host`'s and there \
+         takes an async runtime as a dependency — `rule:concurrency/one-scheduler`'s scheduler is `nvs-host`'s and there \
          is exactly one. If this is `hyper`'s transitive `tokio` being pinned or patched, the \
          reasoning belongs beside the line in the manifest.",
         named.join("\n  ")
@@ -238,7 +238,7 @@ fn tokio_appears_in_neither_the_manifest_nor_the_lockfile() {
          default feature set is empty and `hyper` asks for nothing else — the list is \
          `pin-project-lite` and nothing more. `mio`, `socket2`, `signal-hook-registry`, \
          `parking_lot` or `libc` appearing here is `rt`/`net`/`time` being compiled, which is a \
-         second scheduler in this binary and what ADR 0072 refuses. A `sync`-only addition in a \
+         second scheduler in this binary and what `rule:concurrency/one-scheduler` refuses. A `sync`-only addition in a \
          patch release is a real answer too — say which it is beside the name."
     );
 }

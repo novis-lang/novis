@@ -130,7 +130,7 @@ M4's, goal 1's, goal 2's and goal 3's whole acceptance lists, **never traded.**
 
 ## Stage 6 — the two stores
 
-19. **`Core\Cache`'s two tiers.** [ADR 0059](../../adr/0059-cross-request-state-is-explicit.md): `local()`
+19. **`Core\Cache`'s two tiers.** `rule:concurrency/cross-request-state-is-explicit`: `local()`
     per-core and in-process, whose contract states any entry may be absent at any time; `shared()` a real
     store over the network, Redis by default, gated by `net.connect`. **Two methods and not one API with a
     flag**, so the choice is visible in review. Values cross by the graph copy goal 2 built — not a third
@@ -303,7 +303,7 @@ there by the switch that left it and folded forward at every switch since.
   `None` row in `registry::CAPABILITIES`.** `rule:core-api/two-cache-tiers` is the decision behind both: their state is a
   map in the calling core's own thread, so nothing leaves the process, no name is resolved and no file
   is opened, and `rule:security/capability-question-is-grant-and-scope` has no door to put a check at. What is left to bound is footprint, which
-  ADR 0059 § 3's `nvs.toml` cap bounds and a boolean grant would not. Their siblings `shared()` and
+  `rule:concurrency/cache-memory-is-charged-to-the-core`'s `nvs.toml` cap bounds and a boolean grant would not. Their siblings `shared()` and
   `consume` declare `net.connect`, which is what makes the two classes capability-bearing at all. `rule:testing/capability-closure-test` is the home of why this is a row rather than an entry on an allowlist.
 - **A verified signature does not launder.** `rule:security/verification-does-not-launder`. This one is stated here because it reads like
   an oversight and is a decision.

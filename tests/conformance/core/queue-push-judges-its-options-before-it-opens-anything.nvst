@@ -1,5 +1,5 @@
 --TEST--
-`push` refuses a job that can never be attempted, and it does so before it reaches the database — so the refusal does not depend on the server being up — ADR 0084 §§ 1 and 6
+`push` refuses a job that can never be attempted, and it does so before it reaches the database — so the refusal does not depend on the server being up — `rule:concurrency/queue-four-members` and `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`
 --FILE--
 <?nvs
 // § 6 makes attempts finite, not optional: a job with no attempts is one the
@@ -33,5 +33,5 @@ driver = "postgres"
 host = "127.0.0.1"
 port = 1
 --EXPECT--
-Core\Queue::push: `maxAttempts` of 0 asks for a job that is dead-lettered by the enqueue that created it — ADR 0084 § 6 makes attempts finite, not optional
+Core\Queue::push: `maxAttempts` of 0 asks for a job that is dead-lettered by the enqueue that created it — `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept` makes attempts finite, not optional
 still running

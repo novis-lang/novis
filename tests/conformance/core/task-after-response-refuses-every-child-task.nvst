@@ -1,5 +1,5 @@
 --TEST--
-Only the request's own task may `Core\Task::afterResponse`: a `Core\Task::all` child and deferred work itself are refused in the same words — ADR 0072 § 6
+Only the request's own task may `Core\Task::afterResponse`: a `Core\Task::all` child and deferred work itself are refused in the same words — `rule:concurrency/after-response-outlives-the-connection`
 --FILE--
 <?nvs
 // § 6's last bullet. The queue is the *request's*, so a child task has none,

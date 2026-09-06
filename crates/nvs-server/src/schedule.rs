@@ -55,7 +55,7 @@
 //! shared store" — unreachable, since [`nvs_config::schedule`]'s boot refuses
 //! such a tree before a socket exists — and "the store it has cannot
 //! compare-and-set", which is today's answer: `Core\Cache`'s wire is `put` and
-//! `get` (ADR 0059 § 2) and neither is a set-if-absent. Which of the two it is,
+//! `get` (`rule:concurrency/a-cached-value-is-copied-across-the-boundary`) and neither is a set-if-absent. Which of the two it is,
 //! is the binary's to know and not this module's, because the ticker has no type
 //! for a store. Firing the entry on each host's own clock instead is the precise
 //! failure § 3's key exists to prevent, so the safe half is to run none of them
@@ -167,10 +167,10 @@ enum Overlap {
     Skip,
     /// At most one fire is held, and it starts the moment the run before it ends. A second overlap
     /// while one is already held is dropped and named — the bound is the whole difference between
-    /// this and the unbounded pending queue ADR 0072 § 7 refuses to build.
+    /// this and the unbounded pending queue `rule:concurrency/deferred-is-bounded-by-two-directives` refuses to build.
     Queue,
     /// The running isolate is cancelled, its teardown is waited for, and only then does the new run
-    /// start. Cancellation runs no user code (ADR 0072 § 5).
+    /// start. Cancellation runs no user code (`rule:concurrency/cancellation-runs-no-user-code`).
     Kill,
 }
 
@@ -496,14 +496,14 @@ where
                     // Held rather than started, and started by the pass at the top of this loop as
                     // soon as the run ends. One, never a queue: the second overlap above is dropped
                     // instead, because an unbounded backlog in front of a non-durable executor is
-                    // what ADR 0072 § 7 refuses to build.
+                    // what `rule:concurrency/deferred-is-bounded-by-two-directives` refuses to build.
                     Overlap::Queue => entry.held.set(true),
                     Overlap::Kill => {
                         // The run is cancelled at its next safepoint and its teardown *waited for*
                         // before the new one starts, which is the ordering § 6 states: the two must
                         // not be alive together, or `kill` would be `skip` with an extra run. The
                         // wait is a park over the entry's own count, given back by the run's guard
-                        // however it ended — ADR 0072 § 5's teardown runs no user code, so that
+                        // however it ended — `rule:concurrency/cancellation-runs-no-user-code`'s teardown runs no user code, so that
                         // `Drop` is the whole of what there is to wait for.
                         if let Some(task) = entry.fired_as.get() {
                             nvs_host::cancel_task(task);
@@ -567,7 +567,7 @@ where
         }
     }
 
-    // ADR 0072 § 4, and it is the same tail the accept loop has for the same reason: the fires are
+    // `rule:concurrency/nothing-is-still-running-when-a-call-returns`, and it is the same tail the accept loop has for the same reason: the fires are
     // this task's children, so a ticker that simply returned would take every run still going down
     // with it — including, on a shutdown, the nightly job that was three minutes into an hour of
     // work. It parks instead, and each fire's guard wakes it on the way out.
@@ -613,7 +613,7 @@ where
 /// One fire's place in the ticker's tally, given back however that run's task ended.
 ///
 /// A guard rather than a decrement at the end of the body, for the reason `serve`'s `Served` is
-/// one: ADR 0072 § 5's cancellation tears a coroutine down where it parked, so the end of the body
+/// one: `rule:concurrency/cancellation-runs-no-user-code`'s cancellation tears a coroutine down where it parked, so the end of the body
 /// is exactly the line a cancelled run never reaches.
 struct Ran {
     /// The ticker's count of fires spawned and not yet finished.
@@ -920,7 +920,7 @@ mod tests {
     }
 
     /// A shared store that *can* compare-and-set, standing in for the tier `Core\Cache::shared`
-    /// will be once ADR 0059 § 2's wire has a set-if-absent.
+    /// will be once `rule:concurrency/a-cached-value-is-copied-across-the-boundary`'s wire has a set-if-absent.
     ///
     /// A key to the instant it expires at, plus a clock the case moves by hand — a lease's whole
     /// observable behaviour, and small enough that the cases below are about the ticker rather than
@@ -1072,7 +1072,7 @@ mod tests {
     /// § 3's fallback: with no lease to take, a `fleet` entry is not armed and the boot says so.
     ///
     /// The refusal and not the omission is the point. `Core\Cache`'s shared tier is `put` and `get`
-    /// (ADR 0059 § 2) and neither is a compare-and-set, so this is what `nvs serve` does today —
+    /// (`rule:concurrency/a-cached-value-is-copied-across-the-boundary`) and neither is a compare-and-set, so this is what `nvs serve` does today —
     /// and firing a fleet-scoped interval on each host's own clock instead is the exact failure the
     /// key exists to prevent. A ticker that armed it anyway would look correct on one host.
     #[test]
@@ -1286,7 +1286,7 @@ mod tests {
     ///
     /// The ordering is the claim. A ticker that cancelled and started in the same breath would show
     /// two started runs here as well, so what pins it is the run that did **not** log: the first
-    /// fire is torn down where it parked and never reaches [`Fires::ran`], which is ADR 0072 § 5's
+    /// fire is torn down where it parked and never reaches [`Fires::ran`], which is `rule:concurrency/cancellation-runs-no-user-code`'s
     /// rule that cancellation runs no user code — and the second run's own completion proves the
     /// teardown finished rather than being merely asked for.
     #[test]

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Task::all` reads each field's type off the `fn` literal written there, so a field holding a `callable` variable, and an argument that is a variable at all, are both refused — ADR 0072 § 1, `rule:types/callable-absorbs-closure`
+`Core\Task::all` reads each field's type off the `fn` literal written there, so a field holding a `callable` variable, and an argument that is a variable at all, are both refused — `rule:concurrency/all-answers-a-typed-shape`, `rule:types/callable-absorbs-closure`
 --FILE--
 <?nvs
 // § 1: "a field whose value is a `callable`-typed variable rather than a

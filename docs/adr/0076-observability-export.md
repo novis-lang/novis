@@ -29,7 +29,7 @@
 > **same** events (never a second set of probes), and W3C `traceparent` continued inbound and propagated
 > outbound by `Core\Http\Client`. Application numbers go through a three-member **`Core\Metrics`** —
 > `increment`, `observe`, `gauge`. **This does not collide with
-> [ADR 0059](0059-cross-request-state-is-explicit.md):** metrics are approximate aggregates that nothing
+> `rule:concurrency/cross-request-state-is-explicit`:** metrics are approximate aggregates that nothing
 > reads to make a decision, so per-core accumulation with merge-at-scrape is correct, and that is exactly
 > the property 0059 § 4 tests for. Two things are decided here that libraries elsewhere get wrong. **A label
 > value refuses `tainted`** — unbounded cardinality is a user-supplied string reaching a label, and Novis
@@ -56,7 +56,7 @@
   them prevent it, because in every other language a string is a string. Novis has a type that distinguishes
   *user-supplied* from *program-authored*, which turns the documentation into a diagnostic.
 - **The 0059 question has to be answered explicitly or a reader will assume the worst.**
-  [ADR 0059](0059-cross-request-state-is-explicit.md) forbids cross-request state and says per-core state is
+  `rule:concurrency/cross-request-state-is-explicit` forbids cross-request state and says per-core state is
   a cache, never a store, because "a program that would be incorrect if a `get` returned nothing is using
   the wrong tier". A metrics registry is per-core mutable state that outlives a request, which looks exactly
   like the thing that ADR closes. It is not, and § 5 says why in as many words.
@@ -75,7 +75,7 @@ Emitted by the runtime and the M7 server, present the moment an exporter is conf
 | `nvs_gc_pause_seconds` | histogram | — |
 | `nvs_spawn_duration_seconds` | histogram | `kind` (`task`/`worker`/`script`) |
 | `nvs_tasks_in_flight` | gauge | — |
-| `nvs_deferred_trees` | gauge | — ([ADR 0072](0072-core-task-structured-concurrency.md) § 7) |
+| `nvs_deferred_trees` | gauge | — (`rule:concurrency/deferred-is-bounded-by-two-directives`) |
 | `nvs_memory_bytes` | gauge | `scope` (`request`/`cache`/`process`) |
 | `nvs_schedule_runs_total` | counter | `name`, `outcome` ([ADR 0073](0073-scheduled-work-is-config.md)) |
 
@@ -167,10 +167,10 @@ This is the decision this ADR is most likely to be remembered for. It costs a co
 line that would have taken the collector down, and it is only available because Novis spent the qualifier
 system on injection first.
 
-### 5. Why this is not [ADR 0059](0059-cross-request-state-is-explicit.md)'s closed door
+### 5. Why this is not `rule:concurrency/cross-request-state-is-explicit`'s closed door
 
 A per-core metrics registry is mutable state that outlives a request, which is the shape
-[ADR 0059](0059-cross-request-state-is-explicit.md) exists to constrain. It passes that ADR's own test, and
+`rule:concurrency/cross-request-state-is-explicit` exists to constrain. It passes that ADR's own test, and
 the reason is worth stating rather than leaving a reader to wonder:
 
 - **Nothing reads it to make a decision.** 0059 § 1's rule is that a program which would be *incorrect* if a
@@ -182,7 +182,7 @@ the reason is worth stating rather than leaving a reader to wonder:
 - **No request-derived value crosses**, because § 4 forbids exactly that. What accumulates is a fixed set of
   series with bounded label sets — counters and buckets, never a payload.
 - **Memory is charged to the core and capped** (§ 7), the same accounting and the same exception
-  [ADR 0059](0059-cross-request-state-is-explicit.md) § 3 already records for `Core\Cache::local`.
+  `rule:concurrency/cache-memory-is-charged-to-the-core` already records for `Core\Cache::local`.
 
 ### 6. Configuration, and the tier split
 
@@ -232,7 +232,7 @@ every existing series exactly correct, and the warning names the metric that is 
 Cost, as `rule:programs/memory-priority` requires: **O(cores × series)**, bounded by
 `max_series` per core, with a counter costing a few dozen bytes and a histogram its bucket array. Zero
 series until something registers one. It is charged to the core, not to a request, exactly as
-[ADR 0059](0059-cross-request-state-is-explicit.md) § 3's cache is, and it is not O(requests served).
+`rule:concurrency/cache-memory-is-charged-to-the-core`'s cache is, and it is not O(requests served).
 
 ### 8. What the crates are
 
@@ -301,7 +301,7 @@ registry, both of which are about Novis's own runtime and could not be a crate.
   § 7: a recreated counter reads as a reset and corrupts every rate query over it. A wrong number on a
   dashboard is worse than a missing one.
 - **A shared, coherent metrics store instead of per-core registries.** Rejected: it is exactly the
-  cross-request coordination [ADR 0059](0059-cross-request-state-is-explicit.md) closes, for a value that is
+  cross-request coordination `rule:concurrency/cross-request-state-is-explicit` closes, for a value that is
   approximate by definition and is merged at scrape anyway.
 - **`Core\Metrics` at Tier 2 alongside its exporter.** Smaller Tier 0. Rejected: a program's instrumentation
   calls would then compile in one build and not another, which makes the `Core` namespace conditional —
@@ -325,7 +325,7 @@ registry, both of which are about Novis's own runtime and could not be a crate.
   per attempt. One span with a count is the current behaviour by default; the question is whether a retried
   call's individual latencies are worth the span multiplication.
 - **A `Core\Metrics` read path**, if anything ever needs to read its own counters. It would land squarely in
-  [ADR 0059](0059-cross-request-state-is-explicit.md)'s territory and would need § 5's argument re-made,
+  `rule:concurrency/cross-request-state-is-explicit`'s territory and would need § 5's argument re-made,
   because a program that reads a metric to decide something is using the wrong tier.
 - **Whether `nvs_db_query_duration_seconds` should carry a statement label** — normalised SQL rather than
   just `operation`. Valuable, and a cardinality question that needs a bound before it is offered.

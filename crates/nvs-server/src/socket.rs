@@ -1,4 +1,4 @@
-//! [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 1's
+//! `rule:concurrency/a-connection-is-a-root-isolate`'s
 //! framing: the connection `hyper` handed back, as the peer a connection
 //! isolate holds.
 //!
@@ -37,7 +37,7 @@
 //! chunks off the socket rather than a frame header at a time, which is the
 //! trade AGENTS.md's ordering asks for: bytes moved are a latency question and
 //! footprint is the last thing spent. It is charged to the connection, bounded
-//! by ADR 0083 § 1's own `[limits] memory` (8 MiB in that section's example, so
+//! by `rule:concurrency/a-connection-is-a-root-isolate`'s own `[limits] memory` (8 MiB in that section's example, so
 //! under 2% of it) and O(connections in flight) rather than O(frames served).
 //! The prefix beside it is whatever `hyper` had already read — a frame at the
 //! most, released the first time the codec drains it.
@@ -136,8 +136,8 @@ impl Write for Prefixed {
     }
 }
 
-/// The framed connection, as [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md)
-/// § 1's peer.
+/// The framed connection, as `rule:concurrency/a-connection-is-a-root-isolate`
+/// 's peer.
 ///
 /// It owns the descriptor from the `101` onwards: dropping it closes the
 /// socket, which is what makes a connection isolate's teardown the connection's

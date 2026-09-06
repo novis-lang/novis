@@ -11,7 +11,7 @@
 //! because `mixed` no longer satisfies an `await` (`rule:types/unions-and-mixed`) — which is
 //! itself one of the claims here.
 //!
-//! The last four are the same ADR's *operand* rule at ADR 0083 § 2's second
+//! The last four are the same ADR's *operand* rule at `rule:concurrency/an-upgrade-is-spawn-shaped`'s second
 //! site, `Core\Socket::upgrade`, which is one rule and not two: a `Core` row
 //! marks its entry parameter and `nvs_types::expr::isolate` applies exactly
 //! what a `spawn script` gets. They live here for that reason rather than
@@ -136,7 +136,7 @@ fn an_awaited_result_s_ok_is_not_assignable_to_a_string() {
     );
 }
 
-/// ADR 0083 § 2 opens a connection with "0006's operand", so the rule above
+/// `rule:concurrency/an-upgrade-is-spawn-shaped` opens a connection with "0006's operand", so the rule above
 /// has a second site — and the accepted method form is the half a member call
 /// could not have got for free: `Chat::run(...)` is a `callable`-typed
 /// expression, and at a `string` parameter it was an ordinary mismatch.

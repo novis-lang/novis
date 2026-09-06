@@ -12,7 +12,7 @@ written against its shape, so a shape that is wrong here is wrong four times.
 ## The one design decision every session must hold
 
 **The runtime is ours and it is not `async`.** `corosensei` stackful coroutines on a thread-per-core
-scheduler ([ADR 0072](../../adr/0072-core-task-structured-concurrency.md)), and `tokio` appears in
+scheduler (`rule:concurrency/one-scheduler`), and `tokio` appears in
 neither `Cargo.toml` nor `Cargo.lock` ([ADR 0099](../../adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md)).
 `docs/plan/design.md` § *Thread-per-core, shared-nothing runtime* is the one home for the rule and this
 file does not restate it.
@@ -23,7 +23,7 @@ the program depends on getting it right: **`nvs-host`'s socket implements plain 
 reactor, the coroutine is resumed when the descriptor is ready, and the *caller* sees an ordinary blocking
 `read`. That is what lets every synchronous Rust crate compose with no async at all — `rustls` streams
 over it unmodified, and so do the wire codecs goal 5's drivers use. A design that instead exposes futures
-would put a second concurrency model beside the coroutines, which is exactly what ADR 0072 refuses.
+would put a second concurrency model beside the coroutines, which is exactly what `rule:concurrency/one-scheduler` refuses.
 
 **The proof it works already exists.** `benches/abi-probe`'s coroutine invariants are green and have been
 since M0: a helper suspends with JIT frames live above it, repeated suspends leave the frames intact, a
@@ -108,7 +108,7 @@ is a consumer of it.
    its Unix-socket sibling) implementing `std::io::Read`/`Write` over it. **This is the item the whole
    program rests on** — see § *Standing decisions* for its ADR slot, which is the first slice of this
    stage rather than a follow-up to it.
-5. **Timers.** A timer wheel on the same reactor, because a deadline is what ADR 0072 § 3's
+5. **Timers.** A timer wheel on the same reactor, because a deadline is what `rule:concurrency/limit-and-deadline-are-the-only-bounds`'s
    `{limit, deadline}` and ADR 0074 § 5's "no spelling for an unbounded wait" both resolve to. One
    implementation; a sleep and a deadline are the same mechanism seen twice.
 6. **The blocking pool.** ADR 0106 § 6: filesystem calls, name resolution and waiting on a child process
@@ -126,7 +126,7 @@ is a consumer of it.
    (`nvs_syntax::ast::ExprKind::SpawnScript` at [ast.rs:931](../../../crates/nvs-syntax/src/ast.rs)); the
    task forms and their lowering are this item. A spawned task is a coroutine on the current core's queue.
 9. **Structured concurrency: a task tree dies with its parent.** No orphans, and **no call returns with a
-   child still running** — ADR 0072 § 4, which is the promise the rest of the roster is built on.
+   child still running** — `rule:concurrency/nothing-is-still-running-when-a-call-returns`, which is the promise the rest of the roster is built on.
 10. **Cancellation runs no user code.** § 5, and it is the item most likely to be got wrong in the
     obliging direction: native teardown runs, a cancelled task's `catch` and cleanup blocks **do not**, and
     its arena is released. The guard is a case asserting exactly that, because the intuitive
@@ -136,8 +136,8 @@ is a consumer of it.
 
 ## Stage 4 — the `Core\Task` roster
 
-12. **`Core\Task::all` over a shape literal of `fn` literals**, each field keeping its own type — ADR 0072
-    § 1. A field holding a `callable` *variable* rather than an `fn` literal is a **compile error**, which
+12. **`Core\Task::all` over a shape literal of `fn` literals**, each field keeping its own type — `rule:concurrency/all-answers-a-typed-shape`
+    . A field holding a `callable` *variable* rather than an `fn` literal is a **compile error**, which
     is what makes the heterogeneous typing possible at all and is easy to leave out.
 13. **`Core\Task::map`**, subject-first, which is what `parallel_map` became — § 2.
 14. **`{limit, deadline}` is the one options shape**, in place of a `timeout` wrapper — § 3. `race` is
@@ -226,7 +226,7 @@ there by the switch that left it and folded forward at every switch since.
 - **A blocking-looking read parks; it never blocks the core.** If a syscall has no readiness to wait on,
   it goes to item 6's pool. There is no third option, and "just this once" is how a core wedges.
 - **Cancellation runs no user code**, and this is not softened when a fixture looks like it wants a
-  `finally` to run. ADR 0072 § 5 decided it; the abandoned-generator rule M4 landed is a *different*
+  `finally` to run. `rule:concurrency/cancellation-runs-no-user-code` decided it; the abandoned-generator rule M4 landed is a *different*
   mechanism about a program that suspended itself, and the two are not unified.
 - **`race` does not exist**, and neither does a `timeout` wrapper. `{limit, deadline}` is the spelling.
 - **`Core\Http\Client` is not in this goal.** The transport it will use is — a TCP stream and `rustls`

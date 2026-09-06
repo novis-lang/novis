@@ -16,7 +16,7 @@
 > no driver in it. A driver is a **sans-IO codec plus a state machine we write**: `postgres-protocol` for
 > PostgreSQL, `mysql_common` for MySQL and MariaDB, `rusqlite` for SQLite, and hand-written TDS for SQL
 > Server, because every crate that would have supplied one needs an async runtime that spawns. The wire is
-> [ADR 0115](0115-the-reactor-reports-readiness-and-a-stream-that-would-block-parks.md)'s parking stream and
+> `rule:concurrency/the-reactor-reports-readiness`'s parking stream and
 > TLS is `nvs-host`'s one client, generalised over its transport so SQL Server's tunnelled handshake reaches
 > the same session type and the same trust anchors. **A connection's busy state is a field on the
 > connection, never on the stream**, with a fourth state the surface never names: a wire that is not at a
@@ -40,7 +40,7 @@
 - The stream that replaces the runtime already exists and is proven:
   [`crates/nvs-host/src/net.rs`](../../crates/nvs-host/src/net.rs)'s `NvsStream` parks instead of blocking
   underneath `std::io::Read`/`Write`, and its `a_rustls_session_streams_over_it_unmodified` case has shown
-  since ADR 0115 § 3 that an unmodified protocol implementation runs over it. A sans-IO codec is that
+  since `rule:concurrency/try-the-syscall-then-park` that an unmodified protocol implementation runs over it. A sans-IO codec is that
   sentence's ideal consumer: it hands us bytes and takes bytes, and the waiting is not its business.
 - The five backends do not agree on what an operation *is*. PostgreSQL's extended protocol folds a prepare
   into the execute round trip; MySQL spends a whole extra round trip on the first execution of a statement
@@ -213,7 +213,7 @@ behaviour it overrides.
 ## Alternatives rejected
 
 - **`sqlx`, `tokio-postgres`, `tiberius`, or the sync `postgres` crate, with `tokio` behind a feature
-  flag.** Structurally refused: a second reactor beside ADR 0115's, on a runtime whose whole design is that
+  flag.** Structurally refused: a second reactor beside `rule:concurrency/the-reactor-reports-readiness`'s, on a runtime whose whole design is that
   a core is never blocked and a task never migrates. The feature flag makes it worse rather than better, by
   making the runtime's presence a build property.
 - **A `dyn Driver` trait.** § 5.

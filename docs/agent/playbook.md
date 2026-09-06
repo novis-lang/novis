@@ -1502,7 +1502,7 @@ is why" — is this file.
   stage nobody has started. Stage 5's `examples/transaction.nvs` passing moved it to Stage 8's
   `examples/queue.nvs`, whose `error[E0405]: Core\Queue has no member named push` reads exactly like a
   break in landed work; `Core\Queue` has never existed at all (no row in `nvs_stdlib::registry`, no
-  ADR 0084 implementation anywhere). The tell is one `grep -rn` for the name it refuses: a *regression*
+  `rule:concurrency/enqueue-commits-with-your-write` implementation anywhere). The tell is one `grep -rn` for the name it refuses: a *regression*
   names something the tree still holds. It also means every check behind that fixture — the cargo
   checks, the WSL leg, the valgrind sweep, the corpus floors — is dark until the whole stage lands, so
   a session's own guard tests are `python tools/verify.py`'s job and never the driver's.
@@ -1931,7 +1931,7 @@ is why" — is this file.
 - **A `loop-goal.toml` check can name a test for a feature no ADR has decided yet, and then the
   first slice is the ADR rather than the test.** Stage 5's `a_session_is_never_backed_by_the_local_cache_tier`
   read as an ordinary open item; `Core\Session` had no module in `nvs-stdlib`, no `[session]` block
-  in `nvs-config` and no row in the registry, and ADR 0059 § 4 — the section the check cites — said
+  in `nvs-config` and no row in the registry, and `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent` — the section the check cites — said
   the ban is "enforced rather than documented" without naming what enforces it, while `rule:core-classes/session-is-started-explicitly`
   explicitly *deferred* the mechanics to "the milestone that builds it". Three tells separate this
   from the sibling bullets' misfiled checks: the crate has no module for the surface at all, the
@@ -1945,7 +1945,7 @@ is why" — is this file.
   right dependency does not settle it — read the `[lints]` block underneath.**
   `an_after_response_tree_outlives_its_connection` was filed `-p nvs-server`, whose manifest does
   name `nvs-runtime`, so the sibling bullets' one-call manifest check passes and says nothing. It was
-  still impossible: ADR 0072 § 6's work is a `callable`, the only way to build one with no compiler
+  still impossible: `rule:concurrency/after-response-outlives-the-connection`'s work is a `callable`, the only way to build one with no compiler
   in front of it is a leaked `ClassTable` carrying an `invoke` address (`allocation_policy.rs`'s
   `closure_of`), and `crates/nvs-server` inherits the workspace's `unsafe_code = "forbid"` on
   purpose — a `#[expect(unsafe_code)]` cannot open a `forbid`, so no fixture in that crate compiles.
@@ -1993,7 +1993,7 @@ is why" — is this file.
   to save the round trip by mixing them.
 - **A `loop-goal.toml` check can name a test for a feature the tree's own module doc says is
   *blocked*, and then the check is right, the doc is the specification, and the slice is the one the
-  doc already named.** ADR 0083 §§ 2-3's check named
+  doc already named.** `rule:concurrency/an-upgrade-is-spawn-shaped` and `rule:concurrency/a-connection-is-a-loop`'s check named
   `an_upgrade_by_static_method_is_the_same_isolate_as_an_upgrade_by_path`, and
   `crates/nvs-stdlib/src/socket.rs` carried a whole `#` section — *The method form waits on a name* —
   saying that form throws, plus a `#[test]` pinning the throw. Every sibling bullet's triage says
@@ -5442,7 +5442,7 @@ is why" — is this file.
   five seconds for `Core\Queue::stats($queue)->claimed()` to be non-zero and printed `claimed 0`
   against a stage-8 check wanting `claimed 1`, with `ran`, `retried` and `dead-lettered` all
   correct on the lines after it. `[queue] workers` runs the job's isolate on the *same core* as
-  the program polling `stats`, and between ADR 0084 § 4's claim and § 6's write-back a job that
+  the program polling `stats`, and between `rule:concurrency/claiming-is-one-statement`'s claim and § 6's write-back a job that
   returns straight away parks on nothing — so the row is `Claimed` only across a window in which
   the polling task is never scheduled, and polling faster cannot reach it. The job has to park:
   `examples/queue/receipt.nvs` sleeps for a beat and says why. The same reasoning covers any state
@@ -5798,7 +5798,7 @@ is why" — is this file.
   rebuild. Assert a help sentence as `refused.notes.iter().any(...)`; `suggestions` is empty for
   every configuration diagnostic in the tree, none of which offers a span to rewrite.
 - **A `-p nvs-server` test can drive a real upgrade handshake, and one connection can carry the
-  upgradable request *and* an ordinary one after it.** ADR 0083 § 1's offer had to be asserted on
+  upgradable request *and* an ordinary one after it.** `rule:concurrency/a-connection-is-a-root-isolate`'s offer had to be asserted on
   both sides — a request `hyper` framed an upgrade for gets a slot, the next request on the same
   socket does not — and the obvious fear is that `hyper` gives up on a connection whose `Connection:
   Upgrade` request was answered `200` rather than `101`. It does not: the upgrade simply never
@@ -5814,7 +5814,7 @@ is why" — is this file.
   under test, because `nvs_host::Scheduler` keeps every finished task's whole `Ctx`.**
   `CoroutineResult::Return` pushes a `Finished { id, ctx, outcome }` onto `self.finished`
   (`crates/nvs-host/src/scheduler.rs:881`) and nothing but `take_finished` ever removes one —
-  `run_until_idle` deliberately only *reads* the ids for ADR 0115 § 2's reactor
+  `run_until_idle` deliberately only *reads* the ids for `rule:concurrency/the-parking-contract`'s reactor
   deregistration, and the two production callers are `nvs-cli`'s, after the whole run
   (`crates/nvs-cli/src/main.rs:1249`, `crates/nvs-cli/src/runner.rs:356`). So an isolate's
   context — its carrier, its arena, its output — outlives the join that collected it, and a
@@ -5876,8 +5876,7 @@ is why" — is this file.
   the helper held into the test's own `for` loop, which is where the two spellings were being held
   together anyway. `#[allow(dead_code)]` passes the scan and is the wrong trade: it ships the code.
 - **A `-p <crate>` test that asserts a *process-wide* ceiling races every other test in the same
-  binary, and the repair is to make the count a parameter rather than to serialise the tests.** ADR
-  0083 § 7's connections-per-process bound is one relaxed `static AtomicU64`, exactly as
+  binary, and the repair is to make the count a parameter rather than to serialise the tests.** `rule:concurrency/connection-bounds-are-finite`'s connections-per-process bound is one relaxed `static AtomicU64`, exactly as
   `nvs_server::admit`'s in-flight count is, and the only ceiling small enough to assert against is
   one — so `Slot::take(1)` written against the module's own count answers whichever *other* test in
   `-p nvs-server` happened to be holding a connection open at that instant, and there are several
@@ -5905,14 +5904,14 @@ is why" — is this file.
   in all of these cases — the sibling bullet above says a second connection cannot be asked for — so
   the loop breaks and calls `draining.begin()` while the child it has just spawned has not run yet,
   which is the ordering the comment above that call already states for a different reason. A first
-  cut of ADR 0083 § 7's shutdown close that closed at the first `receive()` therefore passed its own
+  cut of `rule:concurrency/connection-bounds-are-finite`'s shutdown close that closed at the first `receive()` therefore passed its own
   new case and broke `a_connection_isolate_reads_and_writes_frames_over_the_upgraded_socket`, whose
   peer had a frame on the wire the connection never read. What made both true was a *period*: the
   drain caps the wait and the close is what the timeout becomes, which is what § 7's third bullet
   asks for anyway. When a connection-side behaviour reads the drain, assume it is on from the first
   line of every existing case rather than from the moment a shutdown would really begin.
 - **A `loop-goal.toml` check can be misfiled *and* blocked at once, and the second half is settled by
-  grepping the ADR's own key type for a production caller.** ADR 0083 § 7's last two names were filed
+  grepping the ADR's own key type for a production caller.** `rule:concurrency/connection-bounds-are-finite`'s last two names were filed
   `-p nvs-server`, which the sibling bullets' one-call manifest check rules out immediately — no front
   end there, so no compiled unit to keep or swap. Moving them to `nvs-cli`, where `src/script.rs`'s
   `Compiler` is the tree's only in-memory unit table, looks like the whole repair and is not: that cache
@@ -6041,7 +6040,7 @@ is why" — is this file.
   be observed from the child either: `runner.rs`'s `answer` takes the `Completion` before the deferred
   queue drains, so an `echo` inside an `afterResponse` closure reaches a buffer nobody reads. Both
   still have an honest home. Pin a cross-request claim at the **boot** — `[session] backend = "local"`
-  is `E0626`, and ADR 0059 § 4's reasoning is the diagnostic's own note, so the case asserts the note
+  is `E0626`, and `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent`'s reasoning is the diagnostic's own note, so the case asserts the note
   rather than restating it — and pin an after-the-answer claim from the **caller's** side, where the
   assertion is that the response is complete and carries none of the deferred bytes. That is the
   property itself and not a weaker reading of it.
@@ -7841,7 +7840,7 @@ sibling in the same namespace unqualified.
   `flaky.nvs` was quietly doing: its row landed in `Succeeded` with one attempt, so the `retried` and
   `dead-lettered` lines waited out their polls and looked like unwritten work rather than a wrong
   reading. `Completion` carries `ok`, `value`, `output` and `error`, and `ok` is already false for a
-  throw *and* for a budget teardown — ADR 0084 § 6's "a job exceeding its memory, CPU or time budget
+  throw *and* for a budget teardown — `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`'s "a job exceeding its memory, CPU or time budget
   is a failed attempt" needs no second reading beside it.
 - **A module's known-gap bullet names the blocker its author hit, not every blocker between there
   and the feature.** `nvs_stdlib::db`'s gap 1 says `Core\Db::open` waits on a registry shape
@@ -8050,7 +8049,7 @@ sibling in the same namespace unqualified.
   needs both answers written, because both happen.
 - **A task that spawns children and returns takes them down with it, and the symptom is on the
   *client*.** An accept loop that handed a connection to `nvs_host::spawn_child` and then returned
-  produced a `ConnectionReset` at the peer with no error anywhere on the server side: ADR 0072 § 4's
+  produced a `ConnectionReset` at the peer with no error anywhere on the server side: `rule:concurrency/nothing-is-still-running-when-a-call-returns`'s
   "return with nothing still running" is enforced by tearing the children down, so the connection
   coroutine either never ran or was cancelled mid-flight. A parent that means to outlive its work
   parks until its own tally of outstanding children reaches zero — `crates/nvs-server/src/serve.rs`'s
@@ -8183,7 +8182,7 @@ sibling in the same namespace unqualified.
   iteration of that loop, and the closure is *inside* one. A `block_on` over the body written there,
   or reached through the isolate `Reply::Run` starts, suspends the very coroutine that owes the next
   `poll_read`. It is not a large-body problem: `poll_read` has not been asked for body bytes yet the
-  first time the service is polled, so the smallest body deadlocks too. Reading ADR 0138 does not
+  first time the service is polled, so the smallest body deadlocks too. Reading `rule:concurrency/one-future-per-connection` does not
   warn you — that ADR is about driving *one* future and says nothing about the request body. The way
   out has landed: the service **is** a future that answers `Pending` while the isolate runs as a peer
   task, so a pull may park the *isolate*. What may still never park is the connection's own task —
@@ -8236,7 +8235,7 @@ sibling in the same namespace unqualified.
   written down twice: `nvs_runtime::commands`' module doc § *Why the table is a runtime value at
   all* argues it for ADR 0086 § 6's commands, and `nvs-cli`'s `runtime_commands` is the copy that
   crosses — strings plus one closed enum for whatever a matcher needs that no string spells. Anything
-  ADR 0102's routes, ADR 0084's jobs or a later table needs is that shape again. Check for the
+  ADR 0102's routes, `rule:concurrency/enqueue-commits-with-your-write`'s jobs or a later table needs is that shape again. Check for the
   sibling before designing the edge: the cost of missing it is a dependency edge in a review rather
   than a copy nobody argues with.
 - **Widening a member's declared type in `nvs_stdlib::registry` moves four expectations, and not one
@@ -8316,7 +8315,7 @@ sibling in the same namespace unqualified.
   this tree that spawns children has the same tail and it is not decoration: a tally incremented
   *before* the spawn, a guard whose `Drop` decrements it and wakes the parent, and
   `while outstanding > 0 { suspend_current(Waiting::Parked) }` ahead of the return.
-  `crates/nvs-server/src/serve.rs:1021` is the worked one and ADR 0072 § 4 is why. Copy the tail in
+  `crates/nvs-server/src/serve.rs:1021` is the worked one and `rule:concurrency/nothing-is-still-running-when-a-call-returns` is why. Copy the tail in
   the same edit as the spawn — it is three lines written with the loop and half an hour found
   afterwards.
 - **`nvs_host::sleep` re-arms past a wake on purpose, so a loop that has to return when a *peer*
@@ -8370,7 +8369,7 @@ sibling in the same namespace unqualified.
   fixes this first. It surfaced while writing a case for `Core\Socket::upgrade(Chat::run(...))`,
   where the entry method returning `void` is the natural shape.
 - **`hyper`'s `with_upgrades()` cannot drive a connection this server accepts, and the way back to
-  the socket is `http1::Connection::into_parts`.** The obvious route to ADR 0083 § 1's hand-over is
+  the socket is `http1::Connection::into_parts`.** The obvious route to `rule:concurrency/a-connection-is-a-root-isolate`'s hand-over is
   the documented one — take the `OnUpgrade` out of the request's extensions, call
   `serve_connection(...).with_upgrades()`, `await` the upgrade and downcast it back to your IO. It
   does not compile here and it never will: `with_upgrades` is bounded `I: Send + 'static`, and
@@ -8388,7 +8387,7 @@ sibling in the same namespace unqualified.
   `tainted`-refusing sink by accident.** `Core\Socket::send` was first written
   `params: &[CoreTy::Union(&[CoreTy::Text(Qual::Neutral), CoreTy::Blob(Qual::Neutral)])]`, which
   reads as "either payload kind, neither classified as a sink" and compiles and passes every
-  registry gate. It then refused ADR 0083 § 3's own loop: `CoreTy::classification` answers `Some`
+  registry gate. It then refused `rule:concurrency/a-connection-is-a-loop`'s own loop: `CoreTy::classification` answers `Some`
   only for `Text`/`Blob`/`SecretBlob`/`Entry`, so a union answers `None`, and
   `nvs_types::expr::quals::admits_tainted_argument` maps `None` to `false` exactly as it does a
   declared sink — `expected string|bytes, found tainted string`, with nothing in the message about

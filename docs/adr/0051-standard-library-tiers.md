@@ -101,11 +101,11 @@ server compresses nothing itself, per [ADR 0097](0097-development-server-and-pro
 `Core\BigInt` (`rule:types/decimal`). `Core\Os` (`posix`, minus fork). `Core\Cli`
 and `Core\Command` (`readline`, and the argument parser every other ecosystem leaves to a package —
 [ADR 0086](0086-core-cli-terminal-is-a-sink.md), admitted by test 2 as an output sink and by test 1 for
-raw-mode input, which no sandboxed tier can reach). `Core\Uuid`. `Core\Cache` ([ADR 0059](0059-cross-request-state-is-explicit.md)). `Core\Csv`.
+raw-mode input, which no sandboxed tier can reach). `Core\Uuid`. `Core\Cache` (`rule:concurrency/cross-request-state-is-explicit`). `Core\Csv`.
 `Core\Test`. Plus `Core\Fatal`/`Core\Log` (`rule:errors/escalation-ladder`) and
 `Core\Attributes` (`rule:attributes/inert-metadata`), already scheduled for M8.
 Four more, each admitted by a test above and each with its own ADR: `Core\Task`
-([ADR 0072](0072-core-task-structured-concurrency.md), test 1 — it *is* the request lifecycle),
+(`rule:concurrency/one-scheduler`, test 1 — it *is* the request lifecycle),
 `Core\RateLimit` (`rule:core-classes/ratelimit-two-members`, tests 1 and 3),
 `Core\Metrics` ([ADR 0076](0076-observability-export.md), test 1 — it reads the runtime's own counters) and
 `Core\Router` ([ADR 0077](0077-compile-time-routing.md), test 1 — its table is built by a compiler pass).
@@ -117,9 +117,9 @@ this section already uses for the Redis backend behind `Core\Cache`.
 test 2 — it is *the* launderer, so § 2's rule that only Core may remove a qualifier makes it the one member
 that could never be a package; `Core\Password` by tests 1 and 2, as a `Core\Crypto` primitive over a
 `secret` and not an addition to `rule:security/protocol-roster`'s closed protocol
-roster; `Core\Queue` by test 1 ([ADR 0084](0084-durable-background-jobs.md));
+roster; `Core\Queue` by test 1 (`rule:concurrency/enqueue-commits-with-your-write`);
 `Core\Socket`, `Core\Sse` and `Core\Topic` by tests 1 and 3
-([ADR 0083](0083-persistent-connections-are-isolates.md)); and `Core\Api`'s emitter by test 1, since it
+(`rule:concurrency/a-connection-is-a-root-isolate`); and `Core\Api`'s emitter by test 1, since it
 reads the compiler's own route table ([ADR 0085](0085-openapi-is-generated-from-the-route-table.md)).
 `Core\Mail`'s **transport** and `Core\Storage`'s backends are Native by test 3 — they wait on the outside
 world — while composition and the backend-agnostic file API are the `nvs/web` package's.
@@ -206,7 +206,7 @@ superset in practice; `dba`, against the SQLite that § 4 already admits to the 
 has eaten every embedded key-value use case dba was built for; `tidy`, against `Core\Html`'s sanitizer —
 and repair is in any case the wrong direction, since `rule:errors/ambiguous-input-refused`
 says ambiguous input is refused rather than fixed up; and `amqp` and `kafka`, against `Core\Queue`
-([ADR 0084](0084-durable-background-jobs.md)), whose transactional enqueue is a **stronger** guarantee than
+(`rule:concurrency/enqueue-commits-with-your-write`), whose transactional enqueue is a **stronger** guarantee than
 either broker offers, not a weaker substitute for one. By **test 1** plus a thin audience: `soap`, whose
 remaining users can compose `Core\Xml` with `Core\Http\Client`, and which PHP's own `ext/soap` has not been
 meaningfully maintained for years; `ftp`, a plaintext protocol in decline that `Core\Storage` and ADR 0058's
@@ -221,7 +221,7 @@ carries CLDR.
 [0017](0017-hot-reload-without-restart.md)); `xdebug` (`rule:testing/debug-probes`,
 [0041](0041-timeline-export-and-gc-spawn-trace-events.md), [0016](0016-ide-integration.md)); `swoole`,
 `parallel`, `event` and `pthreads`, since the runtime *is* this; `apcu`
-([ADR 0059](0059-cross-request-state-is-explicit.md)); `mysqlnd` and PHP's own test extensions.
+(`rule:concurrency/cross-request-state-is-explicit`); `mysqlnd` and PHP's own test extensions.
 
 ### 4. C dependencies: two questions, not a case-by-case argument
 

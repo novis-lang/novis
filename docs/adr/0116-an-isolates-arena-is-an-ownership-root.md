@@ -38,7 +38,7 @@ What is already on disk decides most of the answer:
 
 - **Values are refcounted, and some of them own the outside world.** `crate::release` frees through one
   iterative worklist. A `Core\Db\Transaction` rolls back in its native drop, an open file closes in its
-  own; [ADR 0072](0072-core-task-structured-concurrency.md) § 5 requires exactly that teardown to run even
+  own; `rule:concurrency/cancellation-runs-no-user-code` requires exactly that teardown to run even
   when the task is cancelled and no script code may.
 - **The allocator is already per-thread, not per-request.** `crates/nvs-runtime/src/alloc.rs` is a bounded
   per-thread cache of small blocks in front of the system heap; its own module doc records that it is the
@@ -119,7 +119,7 @@ Per `rule:programs/memory-priority`'s *say what you spend*, for one **in-flight*
 | what | how much |
 |---|---|
 | its `Ctx` | one context: its own output buffer, its own assertion ledger, its own statics store (§ 4), and the origin, debug flags, error class and deadline word copied from its parent |
-| its task stack | 1 MiB of reserved address space, resident only in the pages its code touched, pooled per worker and recycled when the task ends ([ADR 0115](0115-the-reactor-reports-readiness-and-a-stream-that-would-block-parks.md) § 4) |
+| its task stack | 1 MiB of reserved address space, resident only in the pages its code touched, pooled per worker and recycled when the task ends (`rule:concurrency/a-task-stack-is-reserved-wide-and-pooled`) |
 | its values | whatever it allocates, charged against the budget accounted **at the root of the request tree** ([ADR 0006](0006-isolated-script-execution.md) § *Budgets*) |
 | a crossing, transiently | one hash-map entry per distinct object in the graph being copied, for the length of that one copy (`graph.rs` § *What it spends*) |
 | compiled code | nothing: the `Arc<CompiledUnit>` is shared, and 10 000 isolates of one file compile it once |
@@ -136,7 +136,7 @@ nobody chose.
 ### 4. An isolate does not alias its parent's statics — the one place it parts from `Ctx::child`
 
 `Ctx::child` **aliases** the request's static-property base, because a task under
-[ADR 0072](0072-core-task-structured-concurrency.md) § 1 shares the request and a child with a store of its
+`rule:concurrency/all-answers-a-typed-shape` shares the request and a child with a store of its
 own would give one request two copies of every static. `rule:security/isolate-shares-nothing`'s table says the opposite for an isolate:
 globals, class statics and runtime-defined constants are *fresh*.
 

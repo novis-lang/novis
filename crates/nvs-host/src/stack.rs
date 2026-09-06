@@ -1,7 +1,7 @@
 //! A task's stack: reserved wide, resident narrow, pooled per worker.
 //!
-//! [ADR 0115](/docs/adr/0115-the-reactor-reports-readiness-and-a-stream-that-would-block-parks.md)
-//! § 4 is this policy's only home; what follows is how it is spelled here and
+//! `rule:concurrency/a-task-stack-is-reserved-wide-and-pooled`
+//! is this policy's only home; what follows is how it is spelled here and
 //! the two facts about the platforms that make it true.
 //!
 //! # Reserved is not resident
@@ -191,7 +191,7 @@ mod tests {
 
     #[test]
     fn the_armed_floor_lands_inside_the_task_s_own_stack() {
-        // ADR 0115 § 4's last bullet, as arithmetic: the hard floor is below
+        // `rule:concurrency/a-task-stack-is-reserved-wide-and-pooled`'s last bullet, as arithmetic: the hard floor is below
         // the base and at or above the first byte the task may write, so it is
         // crossed by a deep call before the guard page is.
         let stack = DefaultStack::new(TASK_STACK_SIZE).expect("a test stack");

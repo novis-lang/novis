@@ -1,5 +1,5 @@
 --TEST--
-A channel's capacity is a bound on the sender, not a hint: the producer never gets more than capacity-plus-one ahead of the consumer, and it does get ahead, so neither a growing buffer nor a rendezvous passes — ADR 0072 § 4 over `nvs_stdlib::channel`
+A channel's capacity is a bound on the sender, not a hint: the producer never gets more than capacity-plus-one ahead of the consumer, and it does get ahead, so neither a growing buffer nor a rendezvous passes — `rule:concurrency/nothing-is-still-running-when-a-call-returns` over `nvs_stdlib::channel`
 --FILE--
 <?nvs
 // The neighbouring case pins that a capacity-one channel loses and reorders

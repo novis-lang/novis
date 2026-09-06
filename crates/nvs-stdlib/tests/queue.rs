@@ -1,4 +1,4 @@
-//! [ADR 0084](/docs/adr/0084-durable-background-jobs.md)'s queue
+//! `rule:concurrency/enqueue-commits-with-your-write`'s queue
 //! statements, run against a real server rather than read.
 //!
 //! **These cases live in this crate and not in `nvs-db`, and one edge's

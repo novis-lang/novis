@@ -1,8 +1,8 @@
 --TEST--
-`Core\Socket::upgrade` and `Core\Sse::upgrade` are two doors onto one isolate, so each names the hand-over it is missing rather than one report standing for both — ADR 0083 §§ 1 and 5
+`Core\Socket::upgrade` and `Core\Sse::upgrade` are two doors onto one isolate, so each names the hand-over it is missing rather than one report standing for both — `rule:concurrency/a-connection-is-a-root-isolate` and `rule:concurrency/two-doors-one-isolate`
 --FILE--
 <?nvs
-// ADR 0083 § 5's decision is that these are two cells on the request carrier
+// `rule:concurrency/two-doors-one-isolate`'s decision is that these are two cells on the request carrier
 // and not one: a WebSocket upgrade *takes the socket*, and only a request the
 // server framed an upgrade for has one to give, while an event stream takes
 // nothing and is offered to every request a server answers. A single slot

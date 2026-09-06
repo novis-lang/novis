@@ -1,4 +1,4 @@
-# ADR 0138 — a connection future is driven by the coroutine that owns it, and a waker is one wake
+# `rule:concurrency/one-future-per-connection` — a connection future is driven by the coroutine that owns it, and a waker is one wake
 
 - **Status:** Accepted
 - **Date:** 2026-09-03

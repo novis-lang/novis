@@ -67,7 +67,7 @@ WHAT IT CHECKS, AND WHY EACH ONE IS HERE RATHER THAN IN A REVIEWER'S HEAD
              from other ADRs, from `loop-goal.toml`, and from code comments.
 
              A `SS N` counts as citing *another* ADR only when that ADR is named directly in front
-             of it -- `[0067] SS 13`, `ADR 0072 SS 6`, `[0104]'s SS 3`. Prose in between means the
+             of it -- `[0067] SS 13`, ``rule:concurrency/one-scheduler` SS 6`, `[0104]'s SS 3`. Prose in between means the
              section belongs to the ADR doing the writing, which is how 0044 and 0084 cite their
              own SS 7 and SS 8 a clause after naming someone else. Reading across that clause finds
              1,031 more citations than matching the link text alone, and four of them are wrong;
@@ -158,7 +158,7 @@ LINK_TARGET_RE = re.compile(r"\]\(\d{4}-[a-z0-9-]+\.md(?:#[^)]*)?\)")
 SECTION_CITE_RE = re.compile(r"§§?\s*(\d+[a-z]?)")
 
 #: A `§ N` cites *another* ADR only when that ADR is named right in front of it -- `[0067] § 13`,
-#: `ADR 0072 § 6`, `[0104]'s § 3`. Anything else between the two is prose, and prose means the `§`
+#: ``rule:concurrency/after-response-outlives-the-connection``, `[0104]'s § 3`. Anything else between the two is prose, and prose means the `§`
 #: belongs to the ADR doing the writing: 0044 § 199 says "`rule:security/tainted-qualifier` ... already carry: every
 #: ported call site in § 7's table", and that § 7 is 0044's own. A window wide enough to reach
 #: across a clause reads every one of those as a cross-reference and reports it as dangling.

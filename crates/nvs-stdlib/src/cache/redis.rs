@@ -1,5 +1,5 @@
 //! The shared tier's wire: RESP over `nvs_host`'s parking stream, the two
-//! commands ADR 0059 § 2's operations become, and the one `EVAL` `rule:core-classes/ratelimit-two-members`'s
+//! commands `rule:concurrency/a-cached-value-is-copied-across-the-boundary`'s operations become, and the one `EVAL` `rule:core-classes/ratelimit-two-members`'s
 //! limiter needs.
 //!
 //! [`super`] owns the *policy* — which store is configured, which address the
@@ -16,7 +16,7 @@
 //! `SET` and `GET` over binary-safe bulk strings is the whole protocol this tier
 //! uses, and RESP's framing for those two is four lines of parser. A crate would
 //! bring a connection pool, an async runtime of its own and a command surface
-//! forty times the size of what ADR 0059 § 2 defines — the second of which is
+//! forty times the size of what `rule:concurrency/a-cached-value-is-copied-across-the-boundary` defines — the second of which is
 //! the disqualifying one, since a client with its own reactor would be the
 //! neighbour-starving blocking read this project's parking stream exists to
 //! remove. What that costs is this file; what it buys is that a shared `put`
@@ -566,7 +566,7 @@ mod tests {
         got
     }
 
-    /// ADR 0059 § 2: the shared tier's two operations are one `SET` and one
+    /// `rule:concurrency/a-cached-value-is-copied-across-the-boundary`: the shared tier's two operations are one `SET` and one
     /// `GET`, sent as RESP arrays of bulk strings, on **one** connection — the
     /// second command is not a second handshake.
     #[test]

@@ -9,7 +9,7 @@
 //!
 //! § 3 puts the sweep after [ADR 0127](/docs/adr/0127-the-end-of-a-script-is-observable.md)'s
 //! `onExit` queue on a CLI ending and after
-//! [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md) § 6's
+//! `rule:concurrency/after-response-outlives-the-connection`'s
 //! `afterResponse` work on a request, and has it cover every ending the process
 //! survives — normal, `exit`, an uncaught throw, and a request that died
 //! mid-flight. A context's teardown is all four of those at once and is
@@ -39,7 +39,7 @@
 //! a debugging session's keepings are cleared. There is no in-language setter
 //! and no per-call persist — a program able to exempt its own files from
 //! cleanup is a program that can be made to hoard them, which
-//! [ADR 0059](/docs/adr/0059-cross-request-state-is-explicit.md) already
+//! `rule:concurrency/cross-request-state-is-explicit` already
 //! answers with storage.
 //!
 //! # § 4's orphan sweep decides here and acts elsewhere

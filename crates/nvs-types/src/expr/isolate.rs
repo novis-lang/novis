@@ -231,7 +231,7 @@ fn check_entry(
 /// The rule itself, over an operand that has already been checked — the half
 /// [`check_entry`] and [`check_core_entry_argument`] share.
 ///
-/// Split out rather than duplicated because ADR 0083 § 2 opens a connection
+/// Split out rather than duplicated because `rule:concurrency/an-upgrade-is-spawn-shaped` opens a connection
 /// with "0006's operand", so the second site is the *same* rule and not a rule
 /// like it: a reader who has seen `E0802` at a `spawn script` sees the same
 /// three outcomes, the same labels and the same help at `Core\Socket::upgrade`,
@@ -266,7 +266,7 @@ fn entry_operand(path: &Expr, ty: TypeId, form: &str, env: &mut Env<'_>) {
 
 /// A `Core` member that **opens an isolate** — one whose registry row marks a
 /// parameter [`CoreTy::Entry`](nvs_stdlib::registry::CoreTy::Entry), which is
-/// ADR 0083 § 2's `Core\Socket::upgrade` and § 5's `Core\Sse` when it lands.
+/// `rule:concurrency/an-upgrade-is-spawn-shaped`'s `Core\Socket::upgrade` and § 5's `Core\Sse` when it lands.
 ///
 /// The hook [`super::calls::infer_static_call`] reaches after the target has
 /// resolved, beside the other refusals over a `Core` call's own arguments.

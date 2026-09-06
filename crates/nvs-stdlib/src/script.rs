@@ -14,8 +14,8 @@
 //! registers no members at all, which is a different thing and a stronger one.
 //! There is no `$job->cancel()`, no `$job->isDone()` and no `$job->id()`:
 //! cancellation is the parent's own teardown reaching its children
-//! ([ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)
-//! § 5), and every "is it finished yet" answer is stale before the caller reads
+//! (`rule:concurrency/cancellation-runs-no-user-code`
+//! ), and every "is it finished yet" answer is stale before the caller reads
 //! it — the same reasoning [`crate::channel`] records for `count`/`isFull`.
 //! `await` is the whole surface, and it is a keyword rather than a member
 //! because it suspends the calling task.
@@ -615,7 +615,7 @@ nvs_runtime::nvs_helper! {
 ///
 /// `site` is the whole spelling a refusal names — `spawn script Chat::run` for
 /// the construct, `Core\Socket::upgrade` for
-/// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 2's
+/// `rule:concurrency/an-upgrade-is-spawn-shaped`'s
 /// door — because the rule is `rule:security/isolate-shares-nothing`'s and the two entry forms it governs
 /// are written at three sites now. `crate::socket` is the other caller and the
 /// one home of why a connection asks this question here rather than in the

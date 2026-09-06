@@ -1,8 +1,8 @@
 --TEST--
-`Core\Sse::upgrade` takes `spawn script`'s operand and refuses a request no server is answering, rather than answering as though a stream had opened — ADR 0083 § 5
+`Core\Sse::upgrade` takes `spawn script`'s operand and refuses a request no server is answering, rather than answering as though a stream had opened — `rule:concurrency/two-doors-one-isolate`
 --FILE--
 <?nvs
-// ADR 0083 § 5 makes an event stream the same root isolate § 1 opens, prepared
+// `rule:concurrency/two-doors-one-isolate` makes an event stream the same root isolate § 1 opens, prepared
 // by this member and started by the connection that is still sending the
 // response it writes into. The cell that hand-over is left in is offered to
 // every request a server runs -- and a script run from the command line is not

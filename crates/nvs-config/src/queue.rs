@@ -1,5 +1,5 @@
 //! What a `[queue]` block still owes once it has deserialized: the `[db.<name>]` its rows live in,
-//! resolved against the merged tree, and ADR 0084 §§ 2 and 6's bounds read into numbers. Both at
+//! resolved against the merged tree, and `rule:core-classes/queue-storage-is-a-table` and `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`'s bounds read into numbers. Both at
 //! boot.
 //!
 //! **A queue fails silently by construction, which is why every question here is asked at boot.**
@@ -198,7 +198,7 @@ fn connection_of(
 /// One written count, narrowed to the width the runtime holds it at.
 ///
 /// A value above [`u32::MAX`] saturates rather than being refused: both bounds are already checked
-/// for the value that makes them meaningless, and neither has a ceiling ADR 0084 states, so a
+/// for the value that makes them meaningless, and neither has a ceiling `rule:concurrency/enqueue-commits-with-your-write` states, so a
 /// number no deployment can reach is not a second refusal worth an operator's time.
 fn count(written: Option<u64>, default: u32) -> u32 {
     written.map_or(default, |count| u32::try_from(count).unwrap_or(u32::MAX))

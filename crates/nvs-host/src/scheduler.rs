@@ -35,7 +35,7 @@
 //! suspended and handed back to the worker's pool when it completes. That is
 //! O(in-flight) and not O(requests served), which is the test that section
 //! applies. How wide that stack is reserved, how little of it is ever resident,
-//! and what the pool itself costs is ADR 0115 § 4 — spelled in
+//! and what the pool itself costs is `rule:concurrency/a-task-stack-is-reserved-wide-and-pooled` — spelled in
 //! [`crate::stack`], which is that policy's only home. This module takes a
 //! stack, arms the task's recursion limit from it, and gives it back.
 //!
@@ -44,7 +44,7 @@
 //! Every task has a parent and a list of children, and the parent is **taken
 //! from the task that spawned it** rather than passed in: [`spawn_child`] reads
 //! [`current_task`], so
-//! [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md) § 1's
+//! `rule:concurrency/all-answers-a-typed-shape`'s
 //! "each is a child of the calling task" is a property of the call rather than
 //! of a caller's diligence. A task spawned from the worker itself
 //! ([`Scheduler::spawn`], with nothing running) is a root. No ADR slot is free
@@ -69,7 +69,7 @@
 //! a frame standing on that same coroutine's stack is not something to be clever
 //! about. A marked task therefore dies at its next safepoint ([`suspend`],
 //! [`suspend_current`]) when it is running and immediately when it is already
-//! suspended, which is ADR 0072 § 5's "torn down by the runtime at its next
+//! suspended, which is `rule:concurrency/cancellation-runs-no-user-code`'s "torn down by the runtime at its next
 //! safepoint" from both directions. Only one task can be marked and still be
 //! mid-instruction — the one that cancelled itself or an ancestor — because a
 //! core runs one task at a time.
@@ -108,7 +108,7 @@
 //! aborting on it; that `Drop`'s own doc is the home of what it spends.
 //!
 //! **A task's death cancels whatever it left running**, whether it died by
-//! returning, by cancellation or by teardown. That is ADR 0072 § 4's "control
+//! returning, by cancellation or by teardown. That is `rule:concurrency/nothing-is-still-running-when-a-call-returns`'s "control
 //! does not leave the call with work still running", enforced one level below
 //! the member that promises it: a parent that forgets to wait leaves no orphan,
 //! it only loses the child's result. The one shape that outlives its spawning
@@ -138,7 +138,7 @@
 //! instead is [`crate::group`] — the implementor of `nvs-runtime`'s host seam,
 //! installed by [`Scheduler::run`] beside the tree and holding the two
 //! decisions this module does not: what a child gets for a [`Ctx`], and the
-//! order of steps that makes ADR 0072 § 4's "nothing still running" a property
+//! order of steps that makes `rule:concurrency/nothing-is-still-running-when-a-call-returns`'s "nothing still running" a property
 //! of the call. `nvs-stdlib` does not
 //! depend on this crate and may not start to — the signature registry lives
 //! there, so `nvs-types` and `nvs-codegen` would link a reactor to answer a
@@ -173,7 +173,7 @@ use crate::stack::StackPool;
 /// What a suspended task is waiting for.
 ///
 /// Two variants, because there are two reasons a task is not running and they
-/// need different answers from the scheduler. ADR 0115 adds the I/O
+/// need different answers from the scheduler. `rule:concurrency/the-reactor-reports-readiness` adds the I/O
 /// registration that turns [`Waiting::Parked`] into something a reactor can
 /// wait on; the scheduler side of it is already here.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -548,7 +548,7 @@ impl std::fmt::Debug for Wake {
 /// request **served**, which is
 /// `rule:programs/memory-priority`'s own definition of a
 /// leak. Their ids are not lost with them — [`Scheduler::take_ended`] carries
-/// every task that ended, whichever way it ended, which is what ADR 0115 § 2
+/// every task that ended, whichever way it ended, which is what `rule:concurrency/the-parking-contract`
 /// rule 3's deregistration reads.
 ///
 /// What it spends, as `rule:programs/memory-priority` asks: one `Ctx` — the arena at its peak, the
@@ -581,7 +581,7 @@ pub struct RunReport {
     /// How many tasks reached their end during this call.
     pub finished: usize,
     /// How many tasks are parked now that the run queue is empty. Non-zero is
-    /// the state ADR 0115's reactor waits in.
+    /// the state `rule:concurrency/the-reactor-reports-readiness`'s reactor waits in.
     pub parked: usize,
     /// How many tasks were torn down for a cancellation during this call. Their
     /// ids are in [`Scheduler::take_ended`], beside every task that returned;
@@ -633,7 +633,7 @@ pub struct Scheduler {
     /// Every task that ended, however it ended, until whoever drops their I/O
     /// registrations takes them — [`Scheduler::take_ended`].
     ended: Vec<TaskId>,
-    /// This worker's supply of task stacks — ADR 0115 § 4, and
+    /// This worker's supply of task stacks — `rule:concurrency/a-task-stack-is-reserved-wide-and-pooled`, and
     /// [`crate::stack`]'s module doc for the whole policy. It lives here rather
     /// than in [`crate::Worker`] because this is the type that knows when a
     /// task starts and when it ends, which is the only pair of moments a pool
@@ -677,8 +677,8 @@ impl Drop for Scheduler {
     /// its doc owns the reasoning.
     ///
     /// No script code runs here, which is
-    /// [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)
-    /// § 5's rule: what the unwind runs is native `Drop`, so an arena is
+    /// `rule:concurrency/cancellation-runs-no-user-code`
+    /// 's rule: what the unwind runs is native `Drop`, so an arena is
     /// released and a handle is closed, and no `catch` or `finally` is
     /// consulted.
     ///
@@ -747,8 +747,8 @@ impl Scheduler {
     /// happens to be constructed on, which for a task is the *worker's* stack
     /// and therefore describes memory the task will never run on. This crate
     /// allocated the stack and knows its base and its width exactly, which is
-    /// what that doc means by "an embedder that knows its bounds" — ADR 0115
-    /// § 4's last bullet.
+    /// what that doc means by "an embedder that knows its bounds" — `rule:concurrency/a-task-stack-is-reserved-wide-and-pooled`
+    /// 's last bullet.
     ///
     /// # Panics
     ///
@@ -992,7 +992,7 @@ impl Scheduler {
     /// scheduler's own stack: `force_unwind` is a `longjmp` into the coroutine
     /// and back out again, and issuing one from a frame standing on the stack
     /// being unwound is not a thing to arrange. The unwind runs native `Drop`
-    /// and no script code (ADR 0072 § 5), and it has to pass through
+    /// and no script code (`rule:concurrency/cancellation-runs-no-user-code`), and it has to pass through
     /// [`nvs_runtime::run_task`]'s containment boundary, which is what
     /// [`nvs_runtime::Teardown`] is for — the same window `Drop for Scheduler`
     /// opens for the same reason.
@@ -1053,7 +1053,7 @@ impl Scheduler {
     ///
     /// Draining rather than reading, and one list rather than two, because
     /// there is one consumer and one rule: a reactor registration must not
-    /// outlive the task that made it (ADR 0115 § 2 rule 3,
+    /// outlive the task that made it (`rule:concurrency/the-parking-contract` rule 3,
     /// [`crate::reactor::run_until_idle`]), and how the task ended does not
     /// change that. A list read without draining is walked again on every turn
     /// and grows with the number of tasks a worker has *served*, which under a
@@ -1140,7 +1140,7 @@ impl Scheduler {
 /// Spawns a child of the task that is running, answering with its id.
 ///
 /// **This is how a task gets a child at all**, and the parent is the caller
-/// rather than an argument — ADR 0072 § 1's "each is a child of the calling
+/// rather than an argument — `rule:concurrency/all-answers-a-typed-shape`'s "each is a child of the calling
 /// task". The child's id is issued here, so a parent can wait on what it
 /// spawned before the scheduler has built anything; the coroutine itself is
 /// built on the scheduler's next turn, which the module doc's *task tree*
@@ -1152,8 +1152,8 @@ impl Scheduler {
 /// Nothing is spawned in that case.
 ///
 /// A child spawned by a task that is already cancelled is born cancelled and
-/// never runs a single instruction, which is the only ordering in which ADR 0072
-/// § 4's "nothing still running" survives a parent racing its own teardown.
+/// never runs a single instruction, which is the only ordering in which `rule:concurrency/nothing-is-still-running-when-a-call-returns`
+/// 's "nothing still running" survives a parent racing its own teardown.
 pub fn spawn_child<F>(ctx: Ctx, root: TaskRoot, body: F) -> Option<TaskId>
 where
     F: FnOnce(&mut Ctx) + 'static,
@@ -1190,13 +1190,13 @@ pub fn cancel_task(id: TaskId) -> usize {
 /// cancels it by ending — the module doc's *task tree* section owns why this is
 /// the one shape that gets to do it.
 ///
-/// [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md) § 6 is
+/// `rule:concurrency/after-response-outlives-the-connection` is
 /// the whole caller list: a request tree that has filed its answer and still has
 /// after-response work to run has to outlive the connection that was waiting for
 /// that answer, and a connection ending is a task returning. It is called from
 /// **inside** the tree being detached and with its answer already published,
 /// which is what makes it safe to lose the link: there is nothing left for the
-/// parent to wait for, so ADR 0072 § 4's "control does not leave the call with
+/// parent to wait for, so `rule:concurrency/nothing-is-still-running-when-a-call-returns`'s "control does not leave the call with
 /// work still running" has already been kept by the time this runs.
 ///
 /// `false` when there is no task running here, when no scheduler is turning, and
@@ -1231,7 +1231,7 @@ pub fn detach_current() -> bool {
 /// frame between here and the task's root runs anything but its own `Drop`; a
 /// stack carrying a helper frame cannot be unwound at all, so it is resumed
 /// with the notice instead and the caller must stop waiting. Either way no
-/// script code runs, which is ADR 0072 § 5, and the module doc's *task tree*
+/// script code runs, which is `rule:concurrency/cancellation-runs-no-user-code`, and the module doc's *task tree*
 /// section owns the whole decision.
 ///
 /// # Panics
@@ -1293,7 +1293,7 @@ pub fn current_task() -> Option<TaskId> {
 /// whether they are on the run queue, parked under a wait, or still pending a
 /// coroutine.
 ///
-/// ADR 0072 § 4's "control does not leave the call with work still running" is
+/// `rule:concurrency/nothing-is-still-running-when-a-call-returns`'s "control does not leave the call with work still running" is
 /// the promise `Core\Task::all` and `::map` keep by construction. This is how
 /// a caller that is *not* one of those members reads the same fact off the
 /// tree — `rule:testing/task-tree-and-virtual-clock`'s runner, which fails a test whose task tree outlived it rather than
@@ -1491,7 +1491,7 @@ mod tests {
 
     #[test]
     fn a_finished_task_hands_its_stack_back_for_the_next_one() {
-        // ADR 0115 § 4's pool, from the only side that can observe it: a stack
+        // `rule:concurrency/a-task-stack-is-reserved-wide-and-pooled`'s pool, from the only side that can observe it: a stack
         // is recycled at the end of a task and not at the end of the worker, so
         // a run of N sequential requests costs one reservation and not N.
         let mut sched = Scheduler::new();
@@ -1535,7 +1535,7 @@ mod tests {
 
     #[test]
     fn a_task_s_recursion_limit_is_armed_from_its_own_stack() {
-        // ADR 0115 § 4's last bullet. `Ctx::new` armed from the *worker's*
+        // `rule:concurrency/a-task-stack-is-reserved-wide-and-pooled`'s last bullet. `Ctx::new` armed from the *worker's*
         // stack pointer and an asserted ceiling, which describes memory this
         // task never runs on; what the task must see is the pair computed from
         // the stack this crate handed it. Read on the task's own stack and
@@ -1967,7 +1967,7 @@ mod tests {
 
     /// Sets its flag when it is dropped — a stand-in for the native teardown a
     /// cancelled task still owes: an arena released, a transaction rolled back,
-    /// a file closed. ADR 0072 § 5 is the list.
+    /// a file closed. `rule:concurrency/cancellation-runs-no-user-code` is the list.
     struct NativeDrop(Rc<Cell<bool>>);
 
     impl Drop for NativeDrop {
@@ -1989,7 +1989,7 @@ mod tests {
 
     #[test]
     fn a_child_takes_its_parent_from_the_task_that_spawned_it() {
-        // ADR 0072 § 1's "each is a child of the calling task", asserted as a
+        // `rule:concurrency/all-answers-a-typed-shape`'s "each is a child of the calling task", asserted as a
         // property of the *call*: nothing here passes a parent in, and the only
         // way `spawn_child` could get this wrong is by reading the wrong task.
         let seen: Rc<Cell<Option<TaskId>>> = Rc::new(Cell::new(None));
@@ -2057,7 +2057,7 @@ mod tests {
 
     #[test]
     fn no_call_returns_with_a_child_still_running() {
-        // ADR 0072 § 4's whole promise. The member that makes it is Stage 4's;
+        // `rule:concurrency/nothing-is-still-running-when-a-call-returns`'s whole promise. The member that makes it is Stage 4's;
         // what the scheduler owes underneath it is that a parent returning with
         // a child parked mid-work leaves nothing that can run another
         // instruction — the child holding a row lock in that section's example.
@@ -2168,7 +2168,7 @@ mod tests {
 
     #[test]
     fn a_cancelled_task_runs_no_catch_and_no_cleanup_block() {
-        // ADR 0072 § 5, and the intuitive implementation is the wrong one: what
+        // `rule:concurrency/cancellation-runs-no-user-code`, and the intuitive implementation is the wrong one: what
         // a cancelled task still owes is *native* teardown, and everything a
         // program wrote for its own way out — a catch clause, a cleanup block, a
         // registered handler — does not run. Here the native half is a `Drop`

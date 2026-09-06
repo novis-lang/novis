@@ -3298,7 +3298,7 @@ pub(crate) const FN_PARAM_TAGS_CAPACITY: usize = 16;
 ///
 /// [ADR 0006](/docs/adr/0006-isolated-script-execution.md) § *Decision* binds
 /// an isolate's `args:` to its entry's parameters **by name**, and
-/// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 2 makes
+/// `rule:concurrency/an-upgrade-is-spawn-shaped` makes
 /// `Core\Socket::upgrade(Chat::run(...), args: {…})` one of those entries. The
 /// `spawn script Class::method` construct has the names as a constant this
 /// lowering writes into the call (`Lowering::spawn_method_entry`); a `Core`

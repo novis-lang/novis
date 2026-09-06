@@ -1,5 +1,5 @@
 --TEST--
-`put` over a key that already holds a value replaces it — the read after every write in a sweep answers that write, the shape may change with it, and thirteen rewrites totalling twice the cap forget nothing that was written before them — ADR 0059 §§ 1-3
+`put` over a key that already holds a value replaces it — the read after every write in a sweep answers that write, the shape may change with it, and thirteen rewrites totalling twice the cap forget nothing that was written before them — `rule:core-api/two-cache-tiers`, `rule:concurrency/a-cached-value-is-copied-across-the-boundary` and `rule:concurrency/cache-memory-is-charged-to-the-core`
 --FILE--
 <?nvs
 // § 2 gives the store two operations and no third one, so there is no spelling

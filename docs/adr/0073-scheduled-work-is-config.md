@@ -5,7 +5,7 @@
 - **Scope:** the `[[schedule]]` array-of-tables in `nvs.toml`, its keys and their changeability class, the
   cron dialect accepted, what a scheduled run's budget and capabilities are, overlap handling, and the
   fleet-versus-host distinction. Not in scope: the shared store's own configuration, and `Core\Cache`'s
-  member roster, both of which are [ADR 0059](0059-cross-request-state-is-explicit.md)'s and M8's.
+  member roster, both of which are `rule:concurrency/cross-request-state-is-explicit`'s and M8's.
 - **Amends:** [0064](0064-configuration-file-format.md) — a new `[[schedule]]` array-of-tables.
   [0005](0005-config-changeability.md) — the block is `System`, and § 4 below says why every key is.
   [0006](0006-isolated-script-execution.md) — a scheduled run is a **root** isolate, the same shape an
@@ -41,7 +41,7 @@
   (`rule:security/isolate-shares-nothing`) runs a file in an isolate with its own arena, its own
   config overlay and capability narrowing. `nvs.toml` ([ADR 0064](0064-configuration-file-format.md)) is a
   root-owned file the operator already writes. `Core\Cache::shared()`
-  ([ADR 0059](0059-cross-request-state-is-explicit.md)) is a coherent store across machines. What is
+  (`rule:concurrency/cross-request-state-is-explicit`) is a coherent store across machines. What is
   missing is a clock and a lock, and both are small.
 - **The API-surface question answers itself.** A runtime `Core\Schedule::register(...)` would be
   process-global mutable state (`rule:statements/static-is-a-member-modifier`) registered by whichever request
@@ -165,12 +165,12 @@ which is the entire debugging and backfill story and is why no `--run-now` flag 
 - **`"queue"` holds at most one pending run.** When a run finishes and one fire is pending, it starts
   immediately. A second overlap while one is already pending is dropped and logged — not held. An unbounded
   pending queue in front of a non-durable executor is precisely what
-  [ADR 0072](0072-core-task-structured-concurrency.md) § 7 refuses to build, and it would be no better
+  `rule:concurrency/deferred-is-bounded-by-two-directives` refuses to build, and it would be no better
   here.
 - **`"kill"`** — the running isolate is cancelled at its next safepoint
   (`rule:security/isolate-shares-nothing`), the scheduler waits for its teardown, then the new run
   starts. Cancellation runs no user code, per
-  [ADR 0072](0072-core-task-structured-concurrency.md) § 5.
+  `rule:concurrency/cancellation-runs-no-user-code`.
 
 **A missed fire is never caught up.** A host that was down, a process that restarted, a clock that jumped
 forward — in each case the missed interval is skipped and logged, and the next scheduled instant fires
@@ -209,7 +209,7 @@ the operator wrote down.
   needs one to use fleet scheduling. Stated in the refusal rather than degraded around.
 - **No catch-up, and no durability.** A missed nightly report stays missed until the next night or until
   someone runs it by hand. This is a real limitation relative to a durable scheduler, and it is the same
-  boundary [ADR 0072](0072-core-task-structured-concurrency.md) § 6 draws for deferred work.
+  boundary `rule:concurrency/after-response-outlives-the-connection` draws for deferred work.
 - **Five-field cron cannot express everything.** "The last weekday of the month" is a `@daily` script with
   a date check in it, which is more code and considerably more readable than `L-1W`.
 - **A schedule is invisible to `nvs check`.** The scripts it names are ordinary files and are checked like
@@ -246,7 +246,7 @@ the operator wrote down.
 - **Six-field cron with seconds, or Quartz's dialect.** Rejected in § 2: seconds make it a timer, and the
   dialects that offer them come with the unreadable operators attached.
 - **An unbounded `overlap = "queue"`.** Rejected in § 6, for the same reason
-  [ADR 0072](0072-core-task-structured-concurrency.md) § 7 refuses to queue deferred work: it hides an
+  `rule:concurrency/deferred-is-bounded-by-two-directives` refuses to queue deferred work: it hides an
   overload and then loses the work anyway.
 
 ## Revisiting
@@ -259,7 +259,7 @@ the operator wrote down.
 - **Exactly-once fleet semantics** if an application appears that genuinely cannot be made idempotent. That
   needs the work itself to participate in a transaction, so it is a `Core\Db` design question, not a
   scheduler one.
-- **The lease's store** is the shared tier today. If [ADR 0059](0059-cross-request-state-is-explicit.md)'s
+- **The lease's store** is the shared tier today. If `rule:concurrency/cross-request-state-is-explicit`'s
   shared backend ever becomes plural, the lease needs to name which one, and this block gains a key.
 
 ## Verification

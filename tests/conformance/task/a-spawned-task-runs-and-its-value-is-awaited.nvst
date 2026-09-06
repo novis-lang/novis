@@ -1,5 +1,5 @@
 --TEST--
-A spawned child's own `return` is the value the parent reads off the awaited result, one handle at a time and in whatever order the parent awaits them — ADR 0006 § *Failure is a value, not an exception*, ADR 0072 § 4
+A spawned child's own `return` is the value the parent reads off the awaited result, one handle at a time and in whatever order the parent awaits them — ADR 0006 § *Failure is a value, not an exception*, `rule:concurrency/nothing-is-still-running-when-a-call-returns`
 --FILE nvs.toml--
 # `rule:security/capability-check-at-the-door`: `spawn script` goes through a door that asks for
 # `script.spawn` first, and deny-by-default means a case with no

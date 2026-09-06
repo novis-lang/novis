@@ -1,5 +1,5 @@
 --TEST--
-`Core\Socket::upgrade` refuses the two entry spellings ADR 0006 § *Decision* forbids, at ADR 0083 § 2's second site and with that ADR's own diagnostic
+`Core\Socket::upgrade` refuses the two entry spellings ADR 0006 § *Decision* forbids, at `rule:concurrency/an-upgrade-is-spawn-shaped`'s second site and with that ADR's own diagnostic
 --FILE--
 <?nvs
 class Chat {

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Task::all` composes inside `Core\Task::afterResponse`'s closure with no special case — ADR 0072 § 6
+`Core\Task::all` composes inside `Core\Task::afterResponse`'s closure with no special case — `rule:concurrency/after-response-outlives-the-connection`
 --FILE--
 <?nvs
 // § 6: "`Core\Task::all`/`::map` compose inside it with no special case, since
