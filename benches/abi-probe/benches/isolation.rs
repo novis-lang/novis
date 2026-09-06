@@ -1,6 +1,6 @@
 //! The price of an isolation boundary: a child process versus a task.
 //!
-//! [ADR 0006](/docs/adr/0006-isolated-script-execution.md) gives Novis a
+//! [ADR 0006](/docs/decisions/0006.md) gives Novis a
 //! language construct for running another `.nvs` file with its own heap, globals
 //! and limits inside the same process. PHP can only express that by spawning
 //! another interpreter, so the decision rests on the gap between the two numbers

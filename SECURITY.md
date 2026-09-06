@@ -44,33 +44,33 @@ isolation*, with each rule's ADR behind it. Anything that defeats one of these i
 
 - **Qualifier bypass** — a `tainted` value reaching a sink unlaundered, a `secret` reaching output, a log,
   a dump, a `Throwable` or serialization, or a sink that should refuse and doesn't
-  ([0024](docs/adr/0024-taint-tracking-for-injection-sinks.md),
-  [0033](docs/adr/0033-secret-qualifier-for-confidential-values.md),
-  [0088](docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)).
+  ([0024](docs/decisions/0024.md),
+  [0033](docs/decisions/0033.md),
+  [0088](docs/decisions/0088.md)).
 - **Request or isolate boundary escape** — one request reading, corrupting or influencing another;
   anything shared between requests but compiled code; a poisoned artifact or hot-reload cache
-  ([0006](docs/adr/0006-isolated-script-execution.md),
-  [0017](docs/adr/0017-hot-reload-without-restart.md),
-  [0059](docs/adr/0059-cross-request-state-is-explicit.md)).
+  ([0006](docs/decisions/0006.md),
+  [0017](docs/decisions/0017.md),
+  [0059](docs/decisions/0059.md)).
 - **Extension sandbox or capability escape** — a wasm component reaching outside its grant, or a manifest
   loosening the qualifier analysis instead of tightening it
-  ([0003](docs/adr/0003-extension-system.md),
-  [0055](docs/adr/0055-extension-qualifier-declarations.md)).
+  ([0003](docs/decisions/0003.md),
+  [0055](docs/decisions/0055.md)).
 - **Memory unsafety** — any undefined behaviour reachable from safe Novis or from safe Rust, including in
   the three audited `unsafe` modules, and any JIT miscompilation that emits unsound code.
 - **Process-wide impact from one request** — a panic, resource-limit bypass or budget evasion that takes
   down the process or another request instead of dying alone
-  ([0004](docs/adr/0004-memory-for-simplicity.md),
-  [0020](docs/adr/0020-error-escalation-ladder.md)).
+  ([0004](docs/decisions/0004.md),
+  [0020](docs/decisions/0020.md)).
 - **A closed door found open** — any route to FFI or native loading, stream wrappers and scheme dispatch,
-  cross-request state, or `eval` ([0052](docs/adr/0052-closed-doors.md)).
+  cross-request state, or `eval` ([0052](docs/decisions/0052.md)).
 - **Unsafe protocol or platform defaults** — request smuggling, header or cookie parsing flaws, CSRF/CORS
   defaults that fail open, session-record forgery, a shell string accepted by `Core\Process` or argv
   quoting that recombines, an outbound request that ignores address pinning
-  ([0044](docs/adr/0044-core-process-argv-only-no-shell.md),
-  [0058](docs/adr/0058-outbound-request-policy.md),
-  [0074](docs/adr/0074-http-defaults-safe-and-finite.md),
-  [0139](docs/adr/0139-a-session-is-a-record-its-store-issued.md)).
+  ([0044](docs/decisions/0044.md),
+  [0058](docs/decisions/0058.md),
+  [0074](docs/decisions/0074.md),
+  [0139](docs/decisions/0139.md)).
 - **Supply chain** — anything that makes a build produce something other than these sources.
 
 ## What does not count
@@ -80,11 +80,11 @@ isolation*, with each rule's ADR behind it. Anything that defeats one of these i
   application's bug. A *missing* refusal is ours.
 - **Running adversarial Novis source in-process.** An isolate is exactly as strong as the request boundary
   and no stronger; sandboxed wasm is the boundary for code you must assume hostile
-  ([0006](docs/adr/0006-isolated-script-execution.md) *Consequences*,
-  [0003](docs/adr/0003-extension-system.md)).
+  ([0006](docs/decisions/0006.md) *Consequences*,
+  [0003](docs/decisions/0003.md)).
 - **The built-in server exposed directly to the internet.** It is a development server and a proxied
   origin — no TLS listener, no h2c, no FastCGI
-  ([0097](docs/adr/0097-development-server-and-proxied-origin.md)). Findings that require ignoring that
+  ([0097](docs/decisions/0097.md)). Findings that require ignoring that
   are documentation questions.
 - **A fault that kills one request and only that request.** That is the design; report it as a normal bug.
 - **Scanner output with no demonstrated path**, missing hardening flags with no exploit, and advisories
@@ -94,7 +94,7 @@ isolation*, with each rule's ADR behind it. Anything that defeats one of these i
 
 `cargo deny` gates advisories with **no blanket ignores** ([deny.toml](deny.toml)), Dependabot watches the
 tree, and a RUSTSEC advisory or a yanked crate is the one thing allowed to interrupt planned work
-([0068](docs/adr/0068-dependency-currency-and-the-version-contract.md)). If you find one we've missed and
+([0068](docs/decisions/0068.md)). If you find one we've missed and
 it is reachable, report it privately as above; if it isn't reachable, an issue is fine.
 
 ## How the claims are checked

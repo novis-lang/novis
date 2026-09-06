@@ -1,7 +1,7 @@
 # The hostile tree — one file per feature, written to break it
 
 Every feature Novis ships owes an attack
-([ADR 0134](../../docs/adr/0134-every-shipped-feature-owes-four-proofs.md)), and this is where they live. A
+([ADR 0134](../../docs/decisions/0134.md)), and this is where they live. A
 case here is not a test of what the feature *does*. It is the program somebody writes when they are
 trying to make the runtime come apart, and it passes when the runtime is still standing afterwards.
 

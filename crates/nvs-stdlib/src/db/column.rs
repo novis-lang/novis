@@ -1,4 +1,4 @@
-//! [ADR 0067 § 9](/docs/adr/0067-core-db.md)'s type table: what a
+//! [ADR 0067 § 9](/docs/decisions/0067.md)'s type table: what a
 //! column declares itself to be, and what one cell becomes as a value.
 //!
 //! Three drivers arrive with three column types and three date/time shapes and

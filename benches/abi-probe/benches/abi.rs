@@ -7,7 +7,7 @@
 //!
 //! Baselines on x86_64-pc-windows-msvc: ~0.85 ns marginal cost per frame,
 //! measured as the slope between depth 2 and depth 18. See
-//! `docs/adr/0002-error-propagation.md`.
+//! `docs/decisions/0002.md`.
 
 // `criterion_group!` expands to an undocumented public function, and a
 // benchmark harness has no public API worth documenting anyway.

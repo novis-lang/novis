@@ -34,7 +34,7 @@ The consequence to plan around: the imported `.phpt` corpus passes at a **struct
 than a compatibility-first design would, and a failure in one of these classes is intentional
 divergence, not a bug. The tracked number distinguishes the two, or it reads as regression.
 
-<sub>See also [`types/declaration`](types.md#types-declaration), [`types/conversion`](types.md#types-conversion), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/arithmetic`](types.md#types-arithmetic), [`types/arrays`](types.md#types-arrays), [`types/uint`](types.md#types-uint), [`php-migration/absent-storage-is-never-a-zero-value`](php-migration.md#php-migration-absent-storage-is-never-a-zero-value), [`php-migration/a-declared-type-answers-before-the-program-runs`](php-migration.md#php-migration-a-declared-type-answers-before-the-program-runs), [`php-migration/an-element-write-needs-storage-to-write-back-into`](php-migration.md#php-migration-an-element-write-needs-storage-to-write-back-into), [`php-migration/a-body-never-falls-off-its-end`](php-migration.md#php-migration-a-body-never-falls-off-its-end). Decided in [0007](../adr/0007-explicit-type-system.md).</sub>
+<sub>See also [`types/declaration`](types.md#types-declaration), [`types/conversion`](types.md#types-conversion), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/arithmetic`](types.md#types-arithmetic), [`types/arrays`](types.md#types-arrays), [`types/uint`](types.md#types-uint), [`php-migration/absent-storage-is-never-a-zero-value`](php-migration.md#php-migration-absent-storage-is-never-a-zero-value), [`php-migration/a-declared-type-answers-before-the-program-runs`](php-migration.md#php-migration-a-declared-type-answers-before-the-program-runs), [`php-migration/an-element-write-needs-storage-to-write-back-into`](php-migration.md#php-migration-an-element-write-needs-storage-to-write-back-into), [`php-migration/a-body-never-falls-off-its-end`](php-migration.md#php-migration-a-body-never-falls-off-its-end). Decided in [0007](../decisions/0007.md).</sub>
 
 <a id="php-migration-absent-storage-is-never-a-zero-value"></a>
 
@@ -57,7 +57,7 @@ every level of the chain under it, so `$a["k"]["j"] ?? $d` yields `$d` for an ab
 depth, and a `null` base needs no `!= null` test in that one position. `isset` and `empty` are the
 same guarded read and answer rather than throw.
 
-<sub>See also [`types/arrays`](types.md#types-arrays), [`types/declaration`](types.md#types-declaration), [`types/mixed-subscript`](types.md#types-mixed-subscript), [`classes/no-undefined-value`](classes.md#classes-no-undefined-value), [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws). Decided in [0007](../adr/0007-explicit-type-system.md).</sub>
+<sub>See also [`types/arrays`](types.md#types-arrays), [`types/declaration`](types.md#types-declaration), [`types/mixed-subscript`](types.md#types-mixed-subscript), [`classes/no-undefined-value`](classes.md#classes-no-undefined-value), [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws). Decided in [0007](../decisions/0007.md).</sub>
 
 <a id="php-migration-a-declared-type-answers-before-the-program-runs"></a>
 
@@ -84,7 +84,7 @@ reference — `$x instanceof $cls`, where `$cls` is a `class<T>` ([`types/class-
 tests the class that value holds; a bare `string` on the right is `E0496`, the name having been
 checked at the `as` that produced the reference, not at the test.
 
-<sub>See also [`types/erased-member-access`](types.md#types-erased-member-access), [`types/narrowing`](types.md#types-narrowing), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/class-reference`](types.md#types-class-reference), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused). Decided in [0007](../adr/0007-explicit-type-system.md).</sub>
+<sub>See also [`types/erased-member-access`](types.md#types-erased-member-access), [`types/narrowing`](types.md#types-narrowing), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/class-reference`](types.md#types-class-reference), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused). Decided in [0007](../decisions/0007.md).</sub>
 
 <a id="php-migration-an-element-write-needs-storage-to-write-back-into"></a>
 
@@ -107,7 +107,7 @@ Novis accepts both, the field being a slot in a heap object either way. Acceptin
 loses no program that ran. Parentheses are transparent on both sides — `($a)[0] = 2` writes `$a[0]`
 here exactly as it does in PHP.
 
-<sub>See also [`types/arrays`](types.md#types-arrays). Decided in [0007](../adr/0007-explicit-type-system.md).</sub>
+<sub>See also [`types/arrays`](types.md#types-arrays). Decided in [0007](../decisions/0007.md).</sub>
 
 <a id="php-migration-a-body-never-falls-off-its-end"></a>
 
@@ -127,7 +127,7 @@ with no `break`, a `switch` with a `default`, a `try` every path of which exits,
 always throws are all exits, and every shape it cannot prove reaches the end is treated as one — so
 the refusal costs no program that ran.
 
-<sub>See also [`types/declaration`](types.md#types-declaration), [`iteration/generators`](iteration.md#iteration-generators), [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor). Decided in [0007](../adr/0007-explicit-type-system.md).</sub>
+<sub>See also [`types/declaration`](types.md#types-declaration), [`iteration/generators`](iteration.md#iteration-generators), [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor). Decided in [0007](../decisions/0007.md).</sub>
 
 <a id="php-migration-a-deprecation-is-a-refusal"></a>
 
@@ -158,7 +158,7 @@ runtime-internal and user code gets structured concurrency, and nearly every oth
 surface Novis never shipped. Three of the four refusals rewrite mechanically under `nvs convert`;
 `return` in `finally` is the one it can only point at.
 
-<sub>See also [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`expressions/no-keyword-logical-operators`](expressions.md#expressions-no-keyword-logical-operators), [`expressions/bracket-destructuring`](expressions.md#expressions-bracket-destructuring), [`php-migration/no-return-leaves-a-finally`](php-migration.md#php-migration-no-return-leaves-a-finally), [`php-migration/a-constructor-return-carries-no-value`](php-migration.md#php-migration-a-constructor-return-carries-no-value), [`php-migration/let-and-is-are-reserved`](php-migration.md#php-migration-let-and-is-are-reserved), [`php-migration/a-readonly-property-declares-no-default`](php-migration.md#php-migration-a-readonly-property-declares-no-default), [`php-migration/no-partial-application`](php-migration.md#php-migration-no-partial-application), [`php-migration/a-session-id-the-store-did-not-issue-is-rejected`](php-migration.md#php-migration-a-session-id-the-store-did-not-issue-is-rejected), [`types/duration-literal`](types.md#types-duration-literal). Decided in [0124](../adr/0124-php-86-lands-as-four-refusals-and-one-session-rule.md).</sub>
+<sub>See also [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`expressions/no-keyword-logical-operators`](expressions.md#expressions-no-keyword-logical-operators), [`expressions/bracket-destructuring`](expressions.md#expressions-bracket-destructuring), [`php-migration/no-return-leaves-a-finally`](php-migration.md#php-migration-no-return-leaves-a-finally), [`php-migration/a-constructor-return-carries-no-value`](php-migration.md#php-migration-a-constructor-return-carries-no-value), [`php-migration/let-and-is-are-reserved`](php-migration.md#php-migration-let-and-is-are-reserved), [`php-migration/a-readonly-property-declares-no-default`](php-migration.md#php-migration-a-readonly-property-declares-no-default), [`php-migration/no-partial-application`](php-migration.md#php-migration-no-partial-application), [`php-migration/a-session-id-the-store-did-not-issue-is-rejected`](php-migration.md#php-migration-a-session-id-the-store-did-not-issue-is-rejected), [`types/duration-literal`](types.md#types-duration-literal). Decided in [0124](../decisions/0124.md).</sub>
 
 <a id="php-migration-no-return-leaves-a-finally"></a>
 
@@ -178,7 +178,7 @@ loop wholly inside the block keeps both.
 This is the one PHP 8.6 refusal with no mechanical rewrite. Whether the override was a bug (usually)
 or intent is a human's call, so `nvs convert` points at the line and rewrites nothing.
 
-<sub>See also [`php-migration/a-deprecation-is-a-refusal`](php-migration.md#php-migration-a-deprecation-is-a-refusal), [`php-migration/a-body-never-falls-off-its-end`](php-migration.md#php-migration-a-body-never-falls-off-its-end). Decided in [0124](../adr/0124-php-86-lands-as-four-refusals-and-one-session-rule.md).</sub>
+<sub>See also [`php-migration/a-deprecation-is-a-refusal`](php-migration.md#php-migration-a-deprecation-is-a-refusal), [`php-migration/a-body-never-falls-off-its-end`](php-migration.md#php-migration-a-body-never-falls-off-its-end). Decided in [0124](../decisions/0124.md).</sub>
 
 <a id="php-migration-a-constructor-return-carries-no-value"></a>
 
@@ -194,7 +194,7 @@ checking it, unchanged.
 PHP 8.6 deprecates the value-returning form on the same "never made sense" argument. The rewrite is
 mechanical — drop the value — and `nvs convert` applies it.
 
-<sub>See also [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`php-migration/a-deprecation-is-a-refusal`](php-migration.md#php-migration-a-deprecation-is-a-refusal). Decided in [0124](../adr/0124-php-86-lands-as-four-refusals-and-one-session-rule.md), [0022](../adr/0022-definite-property-initialization.md).</sub>
+<sub>See also [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`php-migration/a-deprecation-is-a-refusal`](php-migration.md#php-migration-a-deprecation-is-a-refusal). Decided in [0124](../decisions/0124.md), [0022](../decisions/0022.md).</sub>
 
 <a id="php-migration-let-and-is-are-reserved"></a>
 
@@ -215,7 +215,7 @@ The diagnostics name the living spellings: `var` declares an inferred local
 ([`classes/reserved-spellings-are-lower-case`](classes.md#classes-reserved-spellings-are-lower-case)). A converted program renames any `let` or `is` it
 used as a name; the rewrite is mechanical.
 
-<sub>See also [`types/var-inference`](types.md#types-var-inference), [`types/narrowing`](types.md#types-narrowing), [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`classes/reserved-spellings-are-lower-case`](classes.md#classes-reserved-spellings-are-lower-case), [`security/no-eval`](security.md#security-no-eval), [`php-migration/a-deprecation-is-a-refusal`](php-migration.md#php-migration-a-deprecation-is-a-refusal). Decided in [0124](../adr/0124-php-86-lands-as-four-refusals-and-one-session-rule.md).</sub>
+<sub>See also [`types/var-inference`](types.md#types-var-inference), [`types/narrowing`](types.md#types-narrowing), [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`classes/reserved-spellings-are-lower-case`](classes.md#classes-reserved-spellings-are-lower-case), [`security/no-eval`](security.md#security-no-eval), [`php-migration/a-deprecation-is-a-refusal`](php-migration.md#php-migration-a-deprecation-is-a-refusal). Decided in [0124](../decisions/0124.md).</sub>
 
 <a id="php-migration-a-readonly-property-declares-no-default"></a>
 
@@ -236,7 +236,7 @@ becomes idiomatic in the corpora `nvs convert` targets — the trigger is conver
 RFC landing. Until then the rewrite is mechanical: move the default into the constructor, or make it
 a `const`.
 
-<sub>See also [`types/class-constant`](types.md#types-class-constant), [`classes/lateinit`](classes.md#classes-lateinit), [`classes/promotion-is-constructor-only`](classes.md#classes-promotion-is-constructor-only), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`php-migration/a-deprecation-is-a-refusal`](php-migration.md#php-migration-a-deprecation-is-a-refusal). Decided in [0124](../adr/0124-php-86-lands-as-four-refusals-and-one-session-rule.md).</sub>
+<sub>See also [`types/class-constant`](types.md#types-class-constant), [`classes/lateinit`](classes.md#classes-lateinit), [`classes/promotion-is-constructor-only`](classes.md#classes-promotion-is-constructor-only), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`php-migration/a-deprecation-is-a-refusal`](php-migration.md#php-migration-a-deprecation-is-a-refusal). Decided in [0124](../decisions/0124.md).</sub>
 
 <a id="php-migration-no-partial-application"></a>
 
@@ -258,7 +258,7 @@ diagnostic ([`expressions/pipeline-hole-once`](expressions.md#expressions-pipeli
 This reopens only on conversion pressure — widespread `?` placeholders in real conversion targets —
 at which point the wrapper either suffices or measurably bloats output.
 
-<sub>See also [`types/closure-literal`](types.md#types-closure-literal), [`types/callable-is-a-closure`](types.md#types-callable-is-a-closure), [`expressions/first-class-callable-syntax`](expressions.md#expressions-first-class-callable-syntax), [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution), [`expressions/pipeline-hole-once`](expressions.md#expressions-pipeline-hole-once), [`php-migration/a-deprecation-is-a-refusal`](php-migration.md#php-migration-a-deprecation-is-a-refusal). Decided in [0124](../adr/0124-php-86-lands-as-four-refusals-and-one-session-rule.md), [0027](../adr/0027-callable-is-closures-only.md), [0031](../adr/0031-callable-is-the-only-closure-type.md).</sub>
+<sub>See also [`types/closure-literal`](types.md#types-closure-literal), [`types/callable-is-a-closure`](types.md#types-callable-is-a-closure), [`expressions/first-class-callable-syntax`](expressions.md#expressions-first-class-callable-syntax), [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution), [`expressions/pipeline-hole-once`](expressions.md#expressions-pipeline-hole-once), [`php-migration/a-deprecation-is-a-refusal`](php-migration.md#php-migration-a-deprecation-is-a-refusal). Decided in [0124](../decisions/0124.md), [0027](../decisions/0027.md), [0031](../decisions/0031.md).</sub>
 
 <a id="php-migration-a-session-id-the-store-did-not-issue-is-rejected"></a>
 
@@ -279,7 +279,7 @@ that holds nothing, such as a signed cookie carrying the record itself, cannot a
 cannot be the session store ([`core-api/session-roster`](core-api.md#core-api-session-roster)). The acceptance test presents a
 fabricated id and asserts that a fresh one comes back.
 
-<sub>See also [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly), [`core-api/session-roster`](core-api.md#core-api-session-roster), [`php-migration/a-deprecation-is-a-refusal`](php-migration.md#php-migration-a-deprecation-is-a-refusal). Decided in [0124](../adr/0124-php-86-lands-as-four-refusals-and-one-session-rule.md), [0139](../adr/0139-a-session-is-a-record-its-store-issued.md), [0012](../adr/0012-no-superglobals.md).</sub>
+<sub>See also [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly), [`core-api/session-roster`](core-api.md#core-api-session-roster), [`php-migration/a-deprecation-is-a-refusal`](php-migration.md#php-migration-a-deprecation-is-a-refusal). Decided in [0124](../decisions/0124.md), [0139](../decisions/0139.md), [0012](../decisions/0012.md).</sub>
 
 <a id="php-migration-a-trait-converts-to-an-interface-or-a-delegate"></a>
 
@@ -312,7 +312,7 @@ flagged, and two need a human decision, named rather than silently attempted.
    names the call site, and the human passes whatever callback or interface the tracker needs into
    its constructor.
 
-<sub>See also [`classes/no-traits`](classes.md#classes-no-traits), [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field), [`classes/member-conflict-is-an-error`](classes.md#classes-member-conflict-is-an-error), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier). Decided in [0043](../adr/0043-interface-default-methods-and-delegation-replace-traits.md).</sub>
+<sub>See also [`classes/no-traits`](classes.md#classes-no-traits), [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field), [`classes/member-conflict-is-an-error`](classes.md#classes-member-conflict-is-an-error), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier). Decided in [0043](../decisions/0043.md).</sub>
 
 <a id="php-migration-a-shell-call-converts-to-process-under-review"></a>
 
@@ -332,7 +332,7 @@ equivalent — and its meaning depends on a shell grammar `nvs convert` does not
 never will ([`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only)). A human supplies the real executable path and
 the argv; the converter supplies the call shape and the pointer.
 
-<sub>See also [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`core-classes/process-run`](core-classes.md#core-classes-process-run), [`core-classes/process-spawn`](core-classes.md#core-classes-process-spawn), [`core-classes/process-refuses-a-shell-target`](core-classes.md#core-classes-process-refuses-a-shell-target), [`security/process-exec-capability`](security.md#security-process-exec-capability). Decided in [0044](../adr/0044-core-process-argv-only-no-shell.md).</sub>
+<sub>See also [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`core-classes/process-run`](core-classes.md#core-classes-process-run), [`core-classes/process-spawn`](core-classes.md#core-classes-process-spawn), [`core-classes/process-refuses-a-shell-target`](core-classes.md#core-classes-process-refuses-a-shell-target), [`security/process-exec-capability`](security.md#security-process-exec-capability). Decided in [0044](../decisions/0044.md).</sub>
 
 <a id="php-migration-every-php-builtin-is-a-completion-candidate"></a>
 
@@ -357,7 +357,7 @@ The PHP spelling never reaches a file. A PHP name that resolved at runtime would
 its output is the Novis spelling, bounded by
 [`php-migration/an-item-inserts-only-a-registered-member`](php-migration.md#php-migration-an-item-inserts-only-a-registered-member).
 
-<sub>See also [`php-migration/an-item-inserts-only-a-registered-member`](php-migration.md#php-migration-an-item-inserts-only-a-registered-member), [`php-migration/the-php-name-layer-is-joined-at-build-time`](php-migration.md#php-migration-the-php-name-layer-is-joined-at-build-time), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`programs/audience`](programs.md#programs-audience), [`ide/three-of-four-item-shapes-insert-nothing`](ide.md#ide-three-of-four-item-shapes-insert-nothing), [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes). Decided in [0111](../adr/0111-a-php-builtin-completes-to-its-novis-destination.md), [0089](../adr/0089-convert-is-one-rule-table-with-two-modes.md).</sub>
+<sub>See also [`php-migration/an-item-inserts-only-a-registered-member`](php-migration.md#php-migration-an-item-inserts-only-a-registered-member), [`php-migration/the-php-name-layer-is-joined-at-build-time`](php-migration.md#php-migration-the-php-name-layer-is-joined-at-build-time), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`programs/audience`](programs.md#programs-audience), [`ide/three-of-four-item-shapes-insert-nothing`](ide.md#ide-three-of-four-item-shapes-insert-nothing), [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes). Decided in [0111](../decisions/0111.md), [0089](../decisions/0089.md).</sub>
 
 <a id="php-migration-an-item-inserts-only-a-registered-member"></a>
 
@@ -383,7 +383,7 @@ the job, where one that names its milestone reads as a language with a schedule.
 [`php-migration/completion-php-names-setting`](php-migration.md#php-migration-completion-php-names-setting) is the lever for a developer who wants only the
 items that go somewhere.
 
-<sub>See also [`php-migration/every-php-builtin-is-a-completion-candidate`](php-migration.md#php-migration-every-php-builtin-is-a-completion-candidate), [`php-migration/the-php-name-layer-is-joined-at-build-time`](php-migration.md#php-migration-the-php-name-layer-is-joined-at-build-time), [`php-migration/completion-php-names-setting`](php-migration.md#php-migration-completion-php-names-setting), [`ide/three-of-four-item-shapes-insert-nothing`](ide.md#ide-three-of-four-item-shapes-insert-nothing), [`ide/completion-offers-only-what-the-compiler-derived`](ide.md#ide-completion-offers-only-what-the-compiler-derived). Decided in [0111](../adr/0111-a-php-builtin-completes-to-its-novis-destination.md), [0108](../adr/0108-one-reference-index-completion-from-derived-facts-and-services-in-a-template-region.md).</sub>
+<sub>See also [`php-migration/every-php-builtin-is-a-completion-candidate`](php-migration.md#php-migration-every-php-builtin-is-a-completion-candidate), [`php-migration/the-php-name-layer-is-joined-at-build-time`](php-migration.md#php-migration-the-php-name-layer-is-joined-at-build-time), [`php-migration/completion-php-names-setting`](php-migration.md#php-migration-completion-php-names-setting), [`ide/three-of-four-item-shapes-insert-nothing`](ide.md#ide-three-of-four-item-shapes-insert-nothing), [`ide/completion-offers-only-what-the-compiler-derived`](ide.md#ide-completion-offers-only-what-the-compiler-derived). Decided in [0111](../decisions/0111.md), [0108](../decisions/0108.md).</sub>
 
 <a id="php-migration-the-php-name-layer-is-joined-at-build-time"></a>
 
@@ -408,7 +408,7 @@ that neither translation table is copied into the other binds this reader the sa
 editor owned would drift, and the drift would surface as the editor and the converter disagreeing
 about one name.
 
-<sub>See also [`php-migration/every-php-builtin-is-a-completion-candidate`](php-migration.md#php-migration-every-php-builtin-is-a-completion-candidate), [`php-migration/an-item-inserts-only-a-registered-member`](php-migration.md#php-migration-an-item-inserts-only-a-registered-member), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes). Decided in [0111](../adr/0111-a-php-builtin-completes-to-its-novis-destination.md), [0089](../adr/0089-convert-is-one-rule-table-with-two-modes.md).</sub>
+<sub>See also [`php-migration/every-php-builtin-is-a-completion-candidate`](php-migration.md#php-migration-every-php-builtin-is-a-completion-candidate), [`php-migration/an-item-inserts-only-a-registered-member`](php-migration.md#php-migration-an-item-inserts-only-a-registered-member), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes). Decided in [0111](../decisions/0111.md), [0089](../decisions/0089.md).</sub>
 
 <a id="php-migration-a-php-name-sorts-below-every-novis-symbol"></a>
 
@@ -431,7 +431,7 @@ The whole PHP surface in one position of one language's completion list is a lot
 keeps them out of the way; nothing makes them small, and
 [`php-migration/completion-php-names-setting`](php-migration.md#php-migration-completion-php-names-setting) is the developer's own lever.
 
-<sub>See also [`php-migration/every-php-builtin-is-a-completion-candidate`](php-migration.md#php-migration-every-php-builtin-is-a-completion-candidate), [`php-migration/an-item-inserts-only-a-registered-member`](php-migration.md#php-migration-an-item-inserts-only-a-registered-member), [`php-migration/completion-php-names-setting`](php-migration.md#php-migration-completion-php-names-setting), [`ide/three-of-four-item-shapes-insert-nothing`](ide.md#ide-three-of-four-item-shapes-insert-nothing). Decided in [0111](../adr/0111-a-php-builtin-completes-to-its-novis-destination.md).</sub>
+<sub>See also [`php-migration/every-php-builtin-is-a-completion-candidate`](php-migration.md#php-migration-every-php-builtin-is-a-completion-candidate), [`php-migration/an-item-inserts-only-a-registered-member`](php-migration.md#php-migration-an-item-inserts-only-a-registered-member), [`php-migration/completion-php-names-setting`](php-migration.md#php-migration-completion-php-names-setting), [`ide/three-of-four-item-shapes-insert-nothing`](ide.md#ide-three-of-four-item-shapes-insert-nothing). Decided in [0111](../decisions/0111.md).</sub>
 
 <a id="php-migration-completion-php-names-setting"></a>
 
@@ -453,4 +453,4 @@ wiring, not a preference.
 The setting lives in the editor extension's frozen contribution roster under that roster's own rule —
 added once, never renamed.
 
-<sub>See also [`php-migration/an-item-inserts-only-a-registered-member`](php-migration.md#php-migration-an-item-inserts-only-a-registered-member), [`php-migration/a-php-name-sorts-below-every-novis-symbol`](php-migration.md#php-migration-a-php-name-sorts-below-every-novis-symbol), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0111](../adr/0111-a-php-builtin-completes-to-its-novis-destination.md), [0099](../adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md).</sub>
+<sub>See also [`php-migration/an-item-inserts-only-a-registered-member`](php-migration.md#php-migration-an-item-inserts-only-a-registered-member), [`php-migration/a-php-name-sorts-below-every-novis-symbol`](php-migration.md#php-migration-a-php-name-sorts-below-every-novis-symbol), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0111](../decisions/0111.md), [0099](../decisions/0099.md).</sub>

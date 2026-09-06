@@ -1,4 +1,4 @@
-//! The statement path: [ADR 0067 § 1](/docs/adr/0067-core-db.md)'s
+//! The statement path: [ADR 0067 § 1](/docs/decisions/0067.md)'s
 //! plan cache, the transaction commands, and the session reset.
 //!
 //! [`TdsPlan`] is why the cache holds more than a handle. A plan was prepared
@@ -10,7 +10,7 @@
 use super::*;
 
 /// One plan this connection has the server holding, as [ADR 0067
-/// § 1](/docs/adr/0067-core-db.md)'s cache records it.
+/// § 1](/docs/decisions/0067.md)'s cache records it.
 ///
 /// The handle alone would be [`crate::mysql::Prepared`]'s twin. It is not
 /// enough here, and the second field is why.
@@ -38,7 +38,7 @@ pub struct TdsPlan {
     pub(super) declared: Rc<str>,
 }
 
-/// [ADR 0067 §§ 1 and 4](/docs/adr/0067-core-db.md)'s one statement,
+/// [ADR 0067 §§ 1 and 4](/docs/decisions/0067.md)'s one statement,
 /// end to end: the RPC out, and the token stream that answers it.
 ///
 /// [`crate::mysql::start_statement`]'s shape and its reasons — free and generic
@@ -139,7 +139,7 @@ pub(super) fn cache_declaration(declared: &Rc<str>) -> Option<&str> {
     (!declared.is_empty()).then(|| &**declared)
 }
 
-/// [ADR 0067 § 4](/docs/adr/0067-core-db.md)'s `executeMany` on this
+/// [ADR 0067 § 4](/docs/decisions/0067.md)'s `executeMany` on this
 /// protocol: one plan, one execution per set, and the affected counts summed.
 ///
 /// [`crate::mysql::execute_many`]'s loop, and every rule that function argues
@@ -241,7 +241,7 @@ pub(super) fn execute_one<S: Read + Write>(
     Ok(rows.affected().unwrap_or(0))
 }
 
-/// [ADR 0067 § 7](/docs/adr/0067-core-db.md)'s `BEGIN TRANSACTION`, or
+/// [ADR 0067 § 7](/docs/decisions/0067.md)'s `BEGIN TRANSACTION`, or
 /// the `SAVE TRANSACTION` a nested `transaction()` is.
 ///
 /// [`crate::mysql::begin`]'s shape and its depth accounting, with T-SQL's
@@ -470,7 +470,7 @@ pub(crate) fn roll_back<S: Read + Write>(
 }
 
 /// One of § 7's commands, sent as a `SQL_BATCH` message, with
-/// [ADR 0067 § 11](/docs/adr/0067-core-db.md)'s span around it.
+/// [ADR 0067 § 11](/docs/decisions/0067.md)'s span around it.
 ///
 /// **A batch rather than § 1's prepared statements**, which is where the two
 /// halves of § 1 stop pulling together — [`crate::mysql::simple_command`]'s
@@ -522,7 +522,7 @@ pub(super) fn batch_command<S: Read + Write>(
     drain(wire, state)
 }
 
-/// [ADR 0067 § 13](/docs/adr/0067-core-db.md)'s reset, and the cache it
+/// [ADR 0067 § 13](/docs/decisions/0067.md)'s reset, and the cache it
 /// takes with it.
 ///
 /// **`sp_reset_connection` as [`Status::RESET_CONNECTION`] on a message of its
@@ -861,7 +861,7 @@ mod tests {
         assert_eq!(cache.len(), 1, "the stale entry is dropped, not shadowed");
     }
 
-    /// [ADR 0067 § 4](/docs/adr/0067-core-db.md)'s batch on this
+    /// [ADR 0067 § 4](/docs/decisions/0067.md)'s batch on this
     /// protocol: one prepare, one execution per set, and the sum of what each
     /// one counted.
     ///
@@ -967,7 +967,7 @@ mod tests {
         );
     }
 
-    /// [ADR 0067 § 7](/docs/adr/0067-core-db.md)'s nesting in T-SQL's
+    /// [ADR 0067 § 7](/docs/decisions/0067.md)'s nesting in T-SQL's
     /// own vocabulary, and the one command in it that does not exist.
     ///
     /// The spellings are the driver's whole contribution here — `BEGIN`, not

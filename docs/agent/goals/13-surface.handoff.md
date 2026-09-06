@@ -16,7 +16,7 @@ Do that before writing a single case.
 
 **Stage 0 and stage 2 together: the renumbering, then the operator** — one file set:
 `crates/nvs-diagnostics/src/lib.rs`, `crates/nvs-syntax/src/token.rs`,
-`crates/nvs-syntax/src/parser/expr.rs`, and `docs/adr/0098-pipeline-operator-is-a-hole-substituted-at-parse-time.md`.
+`crates/nvs-syntax/src/parser/expr.rs`, and `docs/decisions/0098.md`.
 
 - [ ] **The three codes, reassigned**, in the registry and folded into `rule:expressions/pipeline-substitution`'s table in its own body.
       No overlay note and no new ADR number; the retired-code rule means the old numbers are not shuffled.

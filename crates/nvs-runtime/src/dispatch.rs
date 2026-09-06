@@ -144,7 +144,7 @@ pub fn call_static(ctx: &mut Ctx, label: &str, args: &[Value]) -> Result<Option<
 }
 
 /// [`call_static`], for arguments that came out of a **program's own map** —
-/// [ADR 0006](/docs/adr/0006-isolated-script-execution.md) § *Decision*'s
+/// [ADR 0006](/docs/decisions/0006.md) § *Decision*'s
 /// method entry, called with `args:`'s entries already bound to its parameters
 /// positionally by `nvs_stdlib::script`.
 ///

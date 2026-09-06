@@ -1,4 +1,4 @@
-//! [ADR 0006](/docs/adr/0006-isolated-script-execution.md) § *Decision*'s
+//! [ADR 0006](/docs/decisions/0006.md) § *Decision*'s
 //! operand rule: an isolate's entry is a path or a static method, decided
 //! syntactically at the spawn site, and the two spellings that are neither are
 //! refused where they are written.

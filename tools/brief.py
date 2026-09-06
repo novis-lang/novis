@@ -50,7 +50,7 @@ import plan as planmod  # noqa: E402  -- the plan's one API; never reimplemented
 ROOT = Path(__file__).resolve().parent.parent
 PLAN = ROOT / "docs" / "implementation-plan.md"
 ADR_README = ROOT / "docs" / "adr" / "README.md"
-ADR_DIR = ROOT / "docs" / "adr"
+ADR_DIR = ROOT / "docs" / "decisions"  # the frozen records, `NNNN.md`, since migration unit C1
 PROBE = ROOT / "benches" / "abi-probe"
 CRATES = ROOT / "crates"
 DIAGNOSTICS = CRATES / "nvs-diagnostics" / "src" / "lib.rs"
@@ -872,7 +872,7 @@ CODE_DECL_RE = re.compile(r'Code::new\("(E(\d{2})\d{2})"\)')
 RETIRED_BEFORE_RE = re.compile(r"`(E(\d{2})\d{2})`[^`]{0,80}?\bretired\b")
 RETIRED_AFTER_RE = re.compile(r"\bretired\b[^`]{0,80}?`(E(\d{2})\d{2})`")
 CODE_LEGEND_RE = re.compile(r"^///\s*\|\s*`E(\d{2})xx`\s*\|\s*([^|]+?)\s*\|")
-ADR_FILE_RE = re.compile(r"^(\d{4})-.*\.md$")
+ADR_FILE_RE = re.compile(r"^(\d{4})\.md$")
 
 
 def run_numbers():
@@ -927,7 +927,7 @@ def run_numbers():
     ]
     emit()
     if not numbers:
-        warn(f"no `NNNN-*.md` files in {rel(ADR_DIR)}/")
+        warn(f"no `NNNN.md` files in {rel(ADR_DIR)}/")
         return
     emit(f"ADRs: {len(numbers)} on disk, highest {max(numbers):04d} -- "
          f"next free is {max(numbers) + 1:04d}")

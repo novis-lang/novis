@@ -27,7 +27,7 @@ The guarantee the whole roster is built on is [`concurrency/nothing-is-still-run
 and it is a property of the call rather than of a scope object: there is no nursery, no task group
 and no handle to leak, so a task tree is bounded by the same accounting a request already has.
 
-<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`core-api/tier-roster`](core-api.md#core-api-tier-roster). Decided in [0072](../adr/0072-core-task-structured-concurrency.md), [0006](../adr/0006-isolated-script-execution.md).</sub>
+<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`core-api/tier-roster`](core-api.md#core-api-tier-roster). Decided in [0072](../decisions/0072.md), [0006](../decisions/0006.md).</sub>
 
 <a id="concurrency-all-answers-a-typed-shape"></a>
 
@@ -58,7 +58,7 @@ purpose.
 shape literal and never an array; that is the line between it and [`concurrency/map-preserves-keys-and-order`](concurrency.md#concurrency-map-preserves-keys-and-order),
 and each member refuses the other's subject.
 
-<sub>See also [`types/object-top`](types.md#types-object-top), [`core-api/shape-rules`](core-api.md#core-api-shape-rules). Decided in [0072](../adr/0072-core-task-structured-concurrency.md).</sub>
+<sub>See also [`types/object-top`](types.md#types-object-top), [`core-api/shape-rules`](core-api.md#core-api-shape-rules). Decided in [0072](../decisions/0072.md).</sub>
 
 <a id="concurrency-an-all-field-must-be-a-written-fn-literal"></a>
 
@@ -79,7 +79,7 @@ runs them cannot use `all`; it uses [`concurrency/map-preserves-keys-and-order`]
 `array<callable>` and accepts a `mixed` result. Typed `callable` signatures are what would remove
 the restriction, and until they land this is the honest cost of not answering `array<mixed>`.
 
-<sub>See also [`types/closure-literal`](types.md#types-closure-literal), [`types/callable-absorbs-closure`](types.md#types-callable-absorbs-closure), [`types/grammar`](types.md#types-grammar). Decided in [0072](../adr/0072-core-task-structured-concurrency.md), [0114](../adr/0114-an-array-literals-own-type-is-synthesized-for-one-code-action.md).</sub>
+<sub>See also [`types/closure-literal`](types.md#types-closure-literal), [`types/callable-absorbs-closure`](types.md#types-callable-absorbs-closure), [`types/grammar`](types.md#types-grammar). Decided in [0072](../decisions/0072.md), [0114](../decisions/0114.md).</sub>
 
 <a id="concurrency-a-child-belongs-to-the-calling-task"></a>
 
@@ -100,7 +100,7 @@ that ends cancels what it left running, so the tree cannot outlive it and there 
 A host with no calling task therefore has no place to put children, which is why every entry point
 that runs a program makes a task first even where one buys nothing else.
 
-<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0072](../adr/0072-core-task-structured-concurrency.md), [0006](../adr/0006-isolated-script-execution.md).</sub>
+<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0072](../decisions/0072.md), [0006](../decisions/0006.md).</sub>
 
 <a id="concurrency-map-preserves-keys-and-order"></a>
 
@@ -121,7 +121,7 @@ fixed set of differently-typed things, and one operation over many same-typed th
 spellings of one. A shape literal cannot express "one per element of a runtime array", and an array
 cannot carry a per-element type. Each refuses the other's subject rather than coercing it.
 
-<sub>See also [`core-api/subject-first`](core-api.md#core-api-subject-first), [`core-api/callback-receives-value-and-key`](core-api.md#core-api-callback-receives-value-and-key). Decided in [0072](../adr/0072-core-task-structured-concurrency.md).</sub>
+<sub>See also [`core-api/subject-first`](core-api.md#core-api-subject-first), [`core-api/callback-receives-value-and-key`](core-api.md#core-api-callback-receives-value-and-key). Decided in [0072](../decisions/0072.md).</sub>
 
 <a id="concurrency-limit-and-deadline-are-the-only-bounds"></a>
 
@@ -146,7 +146,7 @@ heterogeneous shape its answer would be a union the caller must discriminate, wh
 cast in practice. The homogeneous case that is actually wanted, hedging one request across two
 replicas, has a name reserved for it so it cannot arrive twice.
 
-<sub>See also [`core-api/options-bag`](core-api.md#core-api-options-bag), [`types/duration-literal`](types.md#types-duration-literal), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api). Decided in [0072](../adr/0072-core-task-structured-concurrency.md).</sub>
+<sub>See also [`core-api/options-bag`](core-api.md#core-api-options-bag), [`types/duration-literal`](types.md#types-duration-literal), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api). Decided in [0072](../decisions/0072.md).</sub>
 
 <a id="concurrency-nothing-is-still-running-when-a-call-returns"></a>
 
@@ -173,7 +173,7 @@ It is bought at a stated price — [`concurrency/a-deadline-bounds-the-cancel-no
 it is why cancellation is the runtime's own teardown rather than anything a program participates in
 ([`concurrency/cancellation-runs-no-user-code`](concurrency.md#concurrency-cancellation-runs-no-user-code)).
 
-<sub>See also [`concurrency/cancellation-runs-no-user-code`](concurrency.md#concurrency-cancellation-runs-no-user-code), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`errors/log-write`](errors.md#errors-log-write). Decided in [0072](../adr/0072-core-task-structured-concurrency.md).</sub>
+<sub>See also [`concurrency/cancellation-runs-no-user-code`](concurrency.md#concurrency-cancellation-runs-no-user-code), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`errors/log-write`](errors.md#errors-log-write). Decided in [0072](../decisions/0072.md).</sub>
 
 <a id="concurrency-a-deadline-bounds-the-cancel-not-the-return"></a>
 
@@ -194,7 +194,7 @@ Overrunning a stated deadline by a bounded amount is the correct trade against h
 connection back to a pool, where it would fail some later, unrelated request. A deadline is a bound
 on when the work stops being asked for; it is not a hard wall-clock guarantee on return.
 
-<sub>See also [`concurrency/nothing-is-still-running-when-a-call-returns`](concurrency.md#concurrency-nothing-is-still-running-when-a-call-returns), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state). Decided in [0072](../adr/0072-core-task-structured-concurrency.md).</sub>
+<sub>See also [`concurrency/nothing-is-still-running-when-a-call-returns`](concurrency.md#concurrency-nothing-is-still-running-when-a-call-returns), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state). Decided in [0072](../decisions/0072.md).</sub>
 
 <a id="concurrency-cancellation-runs-no-user-code"></a>
 
@@ -218,7 +218,7 @@ The consequence to learn: **work that must happen does not go in a cancellable t
 goes inside the transaction that made it necessary, in
 [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection)'s deferred work, or in a durable queue.
 
-<sub>See also [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`security/isolate-teardown-is-a-drain-then-a-sweep`](security.md#security-isolate-teardown-is-a-drain-then-a-sweep). Decided in [0072](../adr/0072-core-task-structured-concurrency.md), [0106](../adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md).</sub>
+<sub>See also [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`security/isolate-teardown-is-a-drain-then-a-sweep`](security.md#security-isolate-teardown-is-a-drain-then-a-sweep). Decided in [0072](../decisions/0072.md), [0106](../decisions/0106.md).</sub>
 
 <a id="concurrency-after-response-outlives-the-connection"></a>
 
@@ -250,7 +250,7 @@ with no record. Receipts, webhooks, cache warming and audit shipping are what it
 that *must* happen belongs in the transaction that made it necessary or in a store the application
 owns.
 
-<sub>See also [`programs/memory-priority`](programs.md#programs-memory-priority), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep). Decided in [0072](../adr/0072-core-task-structured-concurrency.md), [0006](../adr/0006-isolated-script-execution.md).</sub>
+<sub>See also [`programs/memory-priority`](programs.md#programs-memory-priority), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep). Decided in [0072](../decisions/0072.md), [0006](../decisions/0006.md).</sub>
 
 <a id="concurrency-only-the-request-registers-deferred-work"></a>
 
@@ -273,7 +273,7 @@ extend itself is a tree that never leaves flight, and the whole argument for
 [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection) is that the tree outlives the connection
 only a little.
 
-<sub>See also [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection), [`concurrency/a-child-belongs-to-the-calling-task`](concurrency.md#concurrency-a-child-belongs-to-the-calling-task). Decided in [0072](../adr/0072-core-task-structured-concurrency.md).</sub>
+<sub>See also [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection), [`concurrency/a-child-belongs-to-the-calling-task`](concurrency.md#concurrency-a-child-belongs-to-the-calling-task). Decided in [0072](../decisions/0072.md).</sub>
 
 <a id="concurrency-deferred-work-cannot-write-the-response"></a>
 
@@ -294,7 +294,7 @@ affect, so the log is the whole of what it can reach.
 `all` and `map` compose inside deferred work with no special case, because a deferred closure is an
 ordinary task.
 
-<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/on-uncaught-throw`](errors.md#errors-on-uncaught-throw), [`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member). Decided in [0072](../adr/0072-core-task-structured-concurrency.md).</sub>
+<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/on-uncaught-throw`](errors.md#errors-on-uncaught-throw), [`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member). Decided in [0072](../decisions/0072.md).</sub>
 
 <a id="concurrency-deferred-is-bounded-by-two-directives"></a>
 
@@ -320,7 +320,7 @@ arena at its peak for the length of its deferred work, so the worst case per cor
 × [limits.hard] memory` **on top of** in-flight requests. That is bounded, and it is O(in-flight
 deferred trees) rather than O(requests served).
 
-<sub>See also [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection), [`programs/memory-priority`](programs.md#programs-memory-priority), [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive). Decided in [0072](../adr/0072-core-task-structured-concurrency.md), [0005](../adr/0005-config-changeability.md), [0064](../adr/0064-configuration-file-format.md).</sub>
+<sub>See also [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection), [`programs/memory-priority`](programs.md#programs-memory-priority), [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive). Decided in [0072](../decisions/0072.md), [0005](../decisions/0005.md), [0064](../decisions/0064.md).</sub>
 
 <a id="concurrency-a-full-deferred-executor-throws"></a>
 
@@ -342,7 +342,7 @@ durability. A deployment reaching this cap has outgrown
 [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection) and wants the durable queue it declines to
 be. Failing loudly is what makes that legible, instead of receipts quietly ceasing to be sent.
 
-<sub>See also [`concurrency/deferred-is-bounded-by-two-directives`](concurrency.md#concurrency-deferred-is-bounded-by-two-directives), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0072](../adr/0072-core-task-structured-concurrency.md).</sub>
+<sub>See also [`concurrency/deferred-is-bounded-by-two-directives`](concurrency.md#concurrency-deferred-is-bounded-by-two-directives), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0072](../decisions/0072.md).</sub>
 
 <a id="concurrency-cross-request-state-is-explicit"></a>
 
@@ -366,7 +366,7 @@ observable only as speed, and a metrics registry holds approximate aggregates th
 read and nothing decides on. Both are charged to a core and capped, which is the same accounting
 [`concurrency/cache-memory-is-charged-to-the-core`](concurrency.md#concurrency-cache-memory-is-charged-to-the-core) records.
 
-<sub>See also [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`security/closed-doors`](security.md#security-closed-doors), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0059](../adr/0059-cross-request-state-is-explicit.md), [0052](../adr/0052-closed-doors.md), [0004](../adr/0004-memory-for-simplicity.md).</sub>
+<sub>See also [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`security/closed-doors`](security.md#security-closed-doors), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0059](../decisions/0059.md), [0052](../decisions/0052.md), [0004](../decisions/0004.md).</sub>
 
 <a id="concurrency-a-cached-value-is-copied-across-the-boundary"></a>
 
@@ -391,7 +391,7 @@ The copy is a real per-`get` cost, paid to keep the request model intact. An imp
 later share immutable scalars within a core by refcount, since a core is single-threaded — an
 optimisation, and it must not be observable.
 
-<sub>See also [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`iteration/generator-stays-in-one-isolate`](iteration.md#iteration-generator-stays-in-one-isolate). Decided in [0059](../adr/0059-cross-request-state-is-explicit.md), [0033](../adr/0033-secret-qualifier-for-confidential-values.md).</sub>
+<sub>See also [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`iteration/generator-stays-in-one-isolate`](iteration.md#iteration-generator-stays-in-one-isolate). Decided in [0059](../decisions/0059.md), [0033](../decisions/0033.md).</sub>
 
 <a id="concurrency-put-and-get-are-the-whole-boundary"></a>
 
@@ -413,7 +413,7 @@ those guarantees have their own homes over the shared tier, where the store's ow
 provides them — `Core\RateLimit::consume` for a limit, a lease for scheduled work, and the database
 for anything else.
 
-<sub>See also [`concurrency/a-cached-value-is-copied-across-the-boundary`](concurrency.md#concurrency-a-cached-value-is-copied-across-the-boundary), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers). Decided in [0059](../adr/0059-cross-request-state-is-explicit.md).</sub>
+<sub>See also [`concurrency/a-cached-value-is-copied-across-the-boundary`](concurrency.md#concurrency-a-cached-value-is-copied-across-the-boundary), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers). Decided in [0059](../decisions/0059.md).</sub>
 
 <a id="concurrency-cache-memory-is-charged-to-the-core"></a>
 
@@ -435,7 +435,7 @@ explicitly **not** O(requests served): an entry's lifetime is governed by TTL an
 how much traffic has passed through. That multiplication is the price of the isolation it buys, and
 it is recorded so it is a known number rather than a surprise in production.
 
-<sub>See also [`programs/memory-priority`](programs.md#programs-memory-priority), [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit). Decided in [0059](../adr/0059-cross-request-state-is-explicit.md), [0004](../adr/0004-memory-for-simplicity.md), [0005](../adr/0005-config-changeability.md).</sub>
+<sub>See also [`programs/memory-priority`](programs.md#programs-memory-priority), [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit). Decided in [0059](../decisions/0059.md), [0004](../decisions/0004.md), [0005](../decisions/0005.md).</sub>
 
 <a id="concurrency-the-local-tier-cannot-hold-what-must-be-coherent"></a>
 
@@ -459,7 +459,7 @@ The test is what a program relies on, not where bytes live
 not one: a per-core metrics registry outlives requests and passes, because no program can read a
 metric at all and its values are approximate aggregates merged arithmetically at scrape.
 
-<sub>See also [`core-api/session-roster`](core-api.md#core-api-session-roster), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`security/no-cross-request-state`](security.md#security-no-cross-request-state). Decided in [0059](../adr/0059-cross-request-state-is-explicit.md), [0075](../adr/0075-core-ratelimit.md), [0073](../adr/0073-scheduled-work-is-config.md).</sub>
+<sub>See also [`core-api/session-roster`](core-api.md#core-api-session-roster), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`security/no-cross-request-state`](security.md#security-no-cross-request-state). Decided in [0059](../decisions/0059.md), [0075](../decisions/0075.md), [0073](../decisions/0073.md).</sub>
 
 <a id="concurrency-a-connection-is-a-root-isolate"></a>
 
@@ -485,7 +485,7 @@ a connection is a root, sees only what its arguments copied in, and ends when th
 timeout fires or a budget is exceeded. A fatal error inside one tears down the connection and nothing
 wider ([`errors/escalation-ladder`](errors.md#errors-escalation-ladder)), and the peer is told with a defined close code.
 
-<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`concurrency/an-upgrade-is-spawn-shaped`](concurrency.md#concurrency-an-upgrade-is-spawn-shaped), [`concurrency/connection-bounds-are-finite`](concurrency.md#concurrency-connection-bounds-are-finite). Decided in [0083](../adr/0083-persistent-connections-are-isolates.md), [0006](../adr/0006-isolated-script-execution.md), [0017](../adr/0017-hot-reload-without-restart.md), [0005](../adr/0005-config-changeability.md), [0072](../adr/0072-core-task-structured-concurrency.md).</sub>
+<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`concurrency/an-upgrade-is-spawn-shaped`](concurrency.md#concurrency-an-upgrade-is-spawn-shaped), [`concurrency/connection-bounds-are-finite`](concurrency.md#concurrency-connection-bounds-are-finite). Decided in [0083](../decisions/0083.md), [0006](../decisions/0006.md), [0017](../decisions/0017.md), [0005](../decisions/0005.md), [0072](../decisions/0072.md).</sub>
 
 <a id="concurrency-an-upgrade-is-spawn-shaped"></a>
 
@@ -510,7 +510,7 @@ side.
 Calling it is what performs the upgrade, and it answers `void`. Nothing in this language reads a
 handler's return value, so an upgrade handed back to the runtime would be handed to nobody.
 
-<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`classes/graph-copy`](classes.md#classes-graph-copy), [`concurrency/an-upgrades-options-are-spawn-scripts`](concurrency.md#concurrency-an-upgrades-options-are-spawn-scripts), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate). Decided in [0083](../adr/0083-persistent-connections-are-isolates.md), [0006](../adr/0006-isolated-script-execution.md), [0023](../adr/0023-clone-serialize-and-cross-boundary-copy.md), [0031](../adr/0031-callable-is-the-only-closure-type.md), [0033](../adr/0033-secret-qualifier-for-confidential-values.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md), [0077](../adr/0077-compile-time-routing.md).</sub>
+<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`classes/graph-copy`](classes.md#classes-graph-copy), [`concurrency/an-upgrades-options-are-spawn-scripts`](concurrency.md#concurrency-an-upgrades-options-are-spawn-scripts), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate). Decided in [0083](../decisions/0083.md), [0006](../decisions/0006.md), [0023](../decisions/0023.md), [0031](../decisions/0031.md), [0033](../decisions/0033.md), [0024](../decisions/0024.md), [0077](../decisions/0077.md).</sub>
 
 <a id="concurrency-an-upgrades-options-are-spawn-scripts"></a>
 
@@ -534,7 +534,7 @@ accepted and dropped. A narrowing that is silently ignored hands the connection 
 request meant to give up, and a refusal is the only spelling that lets a reader tell a narrowing that
 was applied from one that was not.
 
-<sub>See also [`concurrency/an-upgrade-is-spawn-shaped`](concurrency.md#concurrency-an-upgrade-is-spawn-shaped), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing). Decided in [0083](../adr/0083-persistent-connections-are-isolates.md), [0006](../adr/0006-isolated-script-execution.md), [0005](../adr/0005-config-changeability.md).</sub>
+<sub>See also [`concurrency/an-upgrade-is-spawn-shaped`](concurrency.md#concurrency-an-upgrade-is-spawn-shaped), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing). Decided in [0083](../decisions/0083.md), [0006](../decisions/0006.md), [0005](../decisions/0005.md).</sub>
 
 <a id="concurrency-a-connection-is-a-loop"></a>
 
@@ -559,7 +559,7 @@ recover.
 
 A `Core\Socket\Message` cannot be constructed, so the only way to hold one is to have received it.
 
-<sub>See also [`concurrency/receive-is-the-one-wait`](concurrency.md#concurrency-receive-is-the-one-wait), [`concurrency/a-peer-frame-is-tainted`](concurrency.md#concurrency-a-peer-frame-is-tainted), [`concurrency/connection-bounds-are-finite`](concurrency.md#concurrency-connection-bounds-are-finite). Decided in [0083](../adr/0083-persistent-connections-are-isolates.md), [0074](../adr/0074-http-defaults-safe-and-finite.md).</sub>
+<sub>See also [`concurrency/receive-is-the-one-wait`](concurrency.md#concurrency-receive-is-the-one-wait), [`concurrency/a-peer-frame-is-tainted`](concurrency.md#concurrency-a-peer-frame-is-tainted), [`concurrency/connection-bounds-are-finite`](concurrency.md#concurrency-connection-bounds-are-finite). Decided in [0083](../decisions/0083.md), [0074](../decisions/0074.md).</sub>
 
 <a id="concurrency-receive-is-the-one-wait"></a>
 
@@ -581,7 +581,7 @@ There is nothing for such a second member to drain in any case: the subscriber q
 connection, and `receive()` is the only thing that empties it. A queue that overflows closes *that*
 subscriber rather than blocking the publisher, and the overflow is asked before the wait.
 
-<sub>See also [`concurrency/a-connection-is-a-loop`](concurrency.md#concurrency-a-connection-is-a-loop), [`core-classes/topic`](core-classes.md#core-classes-topic). Decided in [0083](../adr/0083-persistent-connections-are-isolates.md).</sub>
+<sub>See also [`concurrency/a-connection-is-a-loop`](concurrency.md#concurrency-a-connection-is-a-loop), [`core-classes/topic`](core-classes.md#core-classes-topic). Decided in [0083](../decisions/0083.md).</sub>
 
 <a id="concurrency-a-peer-frame-is-tainted"></a>
 
@@ -601,7 +601,7 @@ metric label does — a name derived from user input is how one tenant subscribe
 so a name is built from checked values or it does not compile — and a `secret` may never be passed
 through an upgrade's arguments or published to a topic.
 
-<sub>See also [`concurrency/a-connection-is-a-loop`](concurrency.md#concurrency-a-connection-is-a-loop), [`core-classes/topic`](core-classes.md#core-classes-topic). Decided in [0083](../adr/0083-persistent-connections-are-isolates.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md), [0082](../adr/0082-the-first-party-framework.md), [0033](../adr/0033-secret-qualifier-for-confidential-values.md).</sub>
+<sub>See also [`concurrency/a-connection-is-a-loop`](concurrency.md#concurrency-a-connection-is-a-loop), [`core-classes/topic`](core-classes.md#core-classes-topic). Decided in [0083](../decisions/0083.md), [0024](../decisions/0024.md), [0082](../decisions/0082.md), [0033](../decisions/0033.md).</sub>
 
 <a id="concurrency-a-stream-that-outlives-its-request-is-a-connection"></a>
 
@@ -623,7 +623,7 @@ Choosing by protocol instead of by lifetime is the mistake the line exists to pr
 events over a request that ends is a streaming response and not a connection; a WebSocket is never
 anything but a connection.
 
-<sub>See also [`concurrency/two-doors-one-isolate`](concurrency.md#concurrency-two-doors-one-isolate), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate). Decided in [0083](../adr/0083-persistent-connections-are-isolates.md).</sub>
+<sub>See also [`concurrency/two-doors-one-isolate`](concurrency.md#concurrency-two-doors-one-isolate), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate). Decided in [0083](../decisions/0083.md).</sub>
 
 <a id="concurrency-two-doors-one-isolate"></a>
 
@@ -650,7 +650,7 @@ Each member names the hand-over *it* is missing, and neither report stands for t
 carrying both would be a slot the connection has to ask the *kind* of before it could use it, which
 is a tag standing in for a distinction the types already make.
 
-<sub>See also [`concurrency/a-stream-that-outlives-its-request-is-a-connection`](concurrency.md#concurrency-a-stream-that-outlives-its-request-is-a-connection), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate). Decided in [0083](../adr/0083-persistent-connections-are-isolates.md).</sub>
+<sub>See also [`concurrency/a-stream-that-outlives-its-request-is-a-connection`](concurrency.md#concurrency-a-stream-that-outlives-its-request-is-a-connection), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate). Decided in [0083](../decisions/0083.md).</sub>
 
 <a id="concurrency-connection-bounds-are-finite"></a>
 
@@ -675,7 +675,7 @@ request.
 An application that wants a longer-lived connection sends anything at all — a ping is a frame, and
 the loop never sees one.
 
-<sub>See also [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members). Decided in [0083](../adr/0083-persistent-connections-are-isolates.md), [0074](../adr/0074-http-defaults-safe-and-finite.md), [0075](../adr/0075-core-ratelimit.md), [0004](../adr/0004-memory-for-simplicity.md).</sub>
+<sub>See also [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members). Decided in [0083](../decisions/0083.md), [0074](../decisions/0074.md), [0075](../decisions/0075.md), [0004](../decisions/0004.md).</sub>
 
 <a id="concurrency-a-connection-keeps-its-compiled-unit"></a>
 
@@ -695,7 +695,7 @@ The swap is a write to the compilation table and nothing else: a program already
 unit's pages, so the next resolve of that path hands the new unit to whoever asks next while the open
 connection never sees it.
 
-<sub>See also [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly). Decided in [0083](../adr/0083-persistent-connections-are-isolates.md), [0017](../adr/0017-hot-reload-without-restart.md), [0042](../adr/0042-on-disk-artifact-cache-format.md).</sub>
+<sub>See also [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly). Decided in [0083](../decisions/0083.md), [0017](../decisions/0017.md), [0042](../decisions/0042.md).</sub>
 
 <a id="concurrency-a-drain-closes-a-connection-cleanly"></a>
 
@@ -715,7 +715,7 @@ loop. The socket belongs to the isolate, so closing it from outside would be wri
 another task is parked on — and a dropped descriptor gives the peer a reset, which is exactly what a
 client cannot tell apart from a network failure.
 
-<sub>See also [`concurrency/connection-bounds-are-finite`](concurrency.md#concurrency-connection-bounds-are-finite), [`concurrency/a-connection-keeps-its-compiled-unit`](concurrency.md#concurrency-a-connection-keeps-its-compiled-unit). Decided in [0083](../adr/0083-persistent-connections-are-isolates.md), [0078](../adr/0078-config-reload-and-control-socket.md).</sub>
+<sub>See also [`concurrency/connection-bounds-are-finite`](concurrency.md#concurrency-connection-bounds-are-finite), [`concurrency/a-connection-keeps-its-compiled-unit`](concurrency.md#concurrency-a-connection-keeps-its-compiled-unit). Decided in [0083](../decisions/0083.md), [0078](../decisions/0078.md).</sub>
 
 <a id="concurrency-one-future-per-connection"></a>
 
@@ -738,7 +738,7 @@ The risk this closes is not that a poll loop is hard to write. It is that a poll
 becomes an executor — a ready queue, a spawn, work stealing — and then there are two schedulers on
 one core, each with its own idea of which stack may touch an arena.
 
-<sub>See also [`concurrency/a-waker-is-one-permission-to-poll`](concurrency.md#concurrency-a-waker-is-one-permission-to-poll), [`concurrency/the-park-route-is-chosen-once`](concurrency.md#concurrency-the-park-route-is-chosen-once), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate). Decided in [0138](../adr/0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md), [0115](../adr/0115-the-reactor-reports-readiness-and-a-stream-that-would-block-parks.md), [0097](../adr/0097-development-server-and-proxied-origin.md), [0106](../adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md).</sub>
+<sub>See also [`concurrency/a-waker-is-one-permission-to-poll`](concurrency.md#concurrency-a-waker-is-one-permission-to-poll), [`concurrency/the-park-route-is-chosen-once`](concurrency.md#concurrency-the-park-route-is-chosen-once), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate). Decided in [0138](../decisions/0138.md), [0115](../decisions/0115.md), [0097](../decisions/0097.md), [0106](../decisions/0106.md).</sub>
 
 <a id="concurrency-a-waker-is-one-permission-to-poll"></a>
 
@@ -761,7 +761,7 @@ of sleeping on a wake that has already happened.
 A waker cloned and held past the call fires into an empty slot and sets a flag nobody reads. That is
 inert, and it is the same reading as a wake that raced with the task ending.
 
-<sub>See also [`concurrency/one-future-per-connection`](concurrency.md#concurrency-one-future-per-connection), [`concurrency/one-permission-per-drive`](concurrency.md#concurrency-one-permission-per-drive). Decided in [0138](../adr/0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md), [0115](../adr/0115-the-reactor-reports-readiness-and-a-stream-that-would-block-parks.md).</sub>
+<sub>See also [`concurrency/one-future-per-connection`](concurrency.md#concurrency-one-future-per-connection), [`concurrency/one-permission-per-drive`](concurrency.md#concurrency-one-permission-per-drive). Decided in [0138](../decisions/0138.md), [0115](../decisions/0115.md).</sub>
 
 <a id="concurrency-one-permission-per-drive"></a>
 
@@ -782,7 +782,7 @@ A connection whose every wait ends in socket readiness — the ordinary one, sin
 task by id and never through a waker — therefore issues exactly one permission for the whole
 connection, and delivers it when the drive returns.
 
-<sub>See also [`concurrency/a-waker-is-one-permission-to-poll`](concurrency.md#concurrency-a-waker-is-one-permission-to-poll), [`concurrency/a-wake-never-moves-a-task`](concurrency.md#concurrency-a-wake-never-moves-a-task). Decided in [0138](../adr/0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md), [0115](../adr/0115-the-reactor-reports-readiness-and-a-stream-that-would-block-parks.md).</sub>
+<sub>See also [`concurrency/a-waker-is-one-permission-to-poll`](concurrency.md#concurrency-a-waker-is-one-permission-to-poll), [`concurrency/a-wake-never-moves-a-task`](concurrency.md#concurrency-a-wake-never-moves-a-task). Decided in [0138](../decisions/0138.md), [0115](../decisions/0115.md).</sub>
 
 <a id="concurrency-a-wake-never-moves-a-task"></a>
 
@@ -804,7 +804,7 @@ It is also why a waker's payload is a shared flag and slot rather than the sched
 wake, which is deliberately not thread-safe: a waker built over that would be sound exactly until a
 clone crossed a thread, and unsound with no diagnostic afterwards.
 
-<sub>See also [`concurrency/one-future-per-connection`](concurrency.md#concurrency-one-future-per-connection), [`concurrency/one-permission-per-drive`](concurrency.md#concurrency-one-permission-per-drive). Decided in [0138](../adr/0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md), [0115](../adr/0115-the-reactor-reports-readiness-and-a-stream-that-would-block-parks.md).</sub>
+<sub>See also [`concurrency/one-future-per-connection`](concurrency.md#concurrency-one-future-per-connection), [`concurrency/one-permission-per-drive`](concurrency.md#concurrency-one-permission-per-drive). Decided in [0138](../decisions/0138.md), [0115](../decisions/0115.md).</sub>
 
 <a id="concurrency-a-cancelled-drive-never-parks-again"></a>
 
@@ -824,7 +824,7 @@ it once, on the way back in; there the loop stops and the drive answers nothing.
 wait on a wake that is not coming, which is a wedged coroutine rather than a slow one, and going on
 would serve a request the client is no longer attached to.
 
-<sub>See also [`concurrency/one-future-per-connection`](concurrency.md#concurrency-one-future-per-connection), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly). Decided in [0138](../adr/0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md), [0072](../adr/0072-core-task-structured-concurrency.md).</sub>
+<sub>See also [`concurrency/one-future-per-connection`](concurrency.md#concurrency-one-future-per-connection), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly). Decided in [0138](../decisions/0138.md), [0072](../decisions/0072.md).</sub>
 
 <a id="concurrency-the-park-route-is-chosen-once"></a>
 
@@ -845,7 +845,7 @@ Blocking the thread is right in that last case for the reason every off-core wai
 there is no coroutine to suspend and no neighbour to starve, so blocking starves nobody. On a core it
 would be precisely wrong.
 
-<sub>See also [`concurrency/one-future-per-connection`](concurrency.md#concurrency-one-future-per-connection), [`concurrency/a-waker-is-one-permission-to-poll`](concurrency.md#concurrency-a-waker-is-one-permission-to-poll). Decided in [0138](../adr/0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md), [0115](../adr/0115-the-reactor-reports-readiness-and-a-stream-that-would-block-parks.md), [0106](../adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md).</sub>
+<sub>See also [`concurrency/one-future-per-connection`](concurrency.md#concurrency-one-future-per-connection), [`concurrency/a-waker-is-one-permission-to-poll`](concurrency.md#concurrency-a-waker-is-one-permission-to-poll). Decided in [0138](../decisions/0138.md), [0115](../decisions/0115.md), [0106](../decisions/0106.md).</sub>
 
 <a id="concurrency-enqueue-commits-with-your-write"></a>
 
@@ -869,7 +869,7 @@ nothing said about it. Pointing `[queue] connection` at a separate database is p
 gives up this property; so does pushing on a different connection than the queue's
 ([`concurrency/foreign-connection-enqueue-is-counted`](concurrency.md#concurrency-foreign-connection-enqueue-is-counted)).
 
-<sub>See also [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table), [`concurrency/foreign-connection-enqueue-is-counted`](concurrency.md#concurrency-foreign-connection-enqueue-is-counted), [`concurrency/no-broker-and-no-driver-interface`](concurrency.md#concurrency-no-broker-and-no-driver-interface). Decided in [0084](../adr/0084-durable-background-jobs.md), [0067](../adr/0067-core-db.md).</sub>
+<sub>See also [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table), [`concurrency/foreign-connection-enqueue-is-counted`](concurrency.md#concurrency-foreign-connection-enqueue-is-counted), [`concurrency/no-broker-and-no-driver-interface`](concurrency.md#concurrency-no-broker-and-no-driver-interface). Decided in [0084](../decisions/0084.md), [0067](../decisions/0067.md).</sub>
 
 <a id="concurrency-queue-four-members"></a>
 
@@ -890,7 +890,7 @@ earliest run time, its attempt ceiling, its backoff base, a dedupe `key` that ad
 pending job per key, and the isolate's limits and grants
 ([`concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue`](concurrency.md#concurrency-a-jobs-budget-and-grants-are-recorded-at-enqueue)).
 
-<sub>See also [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`concurrency/a-job-between-attempts-is-pending`](concurrency.md#concurrency-a-job-between-attempts-is-pending), [`concurrency/cancel-is-a-race-it-can-lose`](concurrency.md#concurrency-cancel-is-a-race-it-can-lose). Decided in [0084](../adr/0084-durable-background-jobs.md), [0063](../adr/0063-core-api-conventions.md).</sub>
+<sub>See also [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`concurrency/a-job-between-attempts-is-pending`](concurrency.md#concurrency-a-job-between-attempts-is-pending), [`concurrency/cancel-is-a-race-it-can-lose`](concurrency.md#concurrency-cancel-is-a-race-it-can-lose). Decided in [0084](../decisions/0084.md), [0063](../decisions/0063.md).</sub>
 
 <a id="concurrency-a-job-between-attempts-is-pending"></a>
 
@@ -911,7 +911,7 @@ The state is a closed integer type ([`enums/closed-integer-type`](enums.md#enums
 it as: a program compares against a case rather than a magic number, and a `Queue\State` is not
 interchangeable with another `Core` enum that happens to share its ordinals.
 
-<sub>See also [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`concurrency/attempts-are-finite-and-a-dead-letter-is-kept`](concurrency.md#concurrency-attempts-are-finite-and-a-dead-letter-is-kept). Decided in [0084](../adr/0084-durable-background-jobs.md).</sub>
+<sub>See also [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`concurrency/attempts-are-finite-and-a-dead-letter-is-kept`](concurrency.md#concurrency-attempts-are-finite-and-a-dead-letter-is-kept). Decided in [0084](../decisions/0084.md).</sub>
 
 <a id="concurrency-cancel-is-a-race-it-can-lose"></a>
 
@@ -929,7 +929,7 @@ asks `status` is answered `Cancelled` instead of being refused. The receipt stil
 `status` can answer about, which is what keeps the two members usable in the order a program actually
 writes them ([`concurrency/queue-four-members`](concurrency.md#concurrency-queue-four-members)).
 
-<sub>See also [`concurrency/claiming-is-one-statement`](concurrency.md#concurrency-claiming-is-one-statement), [`concurrency/queue-four-members`](concurrency.md#concurrency-queue-four-members). Decided in [0084](../adr/0084-durable-background-jobs.md).</sub>
+<sub>See also [`concurrency/claiming-is-one-statement`](concurrency.md#concurrency-claiming-is-one-statement), [`concurrency/queue-four-members`](concurrency.md#concurrency-queue-four-members). Decided in [0084](../decisions/0084.md).</sub>
 
 <a id="concurrency-a-job-names-a-file"></a>
 
@@ -949,7 +949,7 @@ other file — cached, hot-reloadable, traceable and coverable with no special c
 ([`concurrency/a-job-runs-as-a-root-isolate`](concurrency.md#concurrency-a-job-runs-as-a-root-isolate)) — and it is why reconstructing an object from a
 payload is a question the runtime never has to answer.
 
-<sub>See also [`concurrency/a-job-runs-as-a-root-isolate`](concurrency.md#concurrency-a-job-runs-as-a-root-isolate), [`concurrency/a-payload-refuses-secret-and-keeps-its-qualifiers`](concurrency.md#concurrency-a-payload-refuses-secret-and-keeps-its-qualifiers). Decided in [0084](../adr/0084-durable-background-jobs.md), [0006](../adr/0006-isolated-script-execution.md), [0023](../adr/0023-clone-serialize-and-cross-boundary-copy.md), [0071](../adr/0071-derived-codecs.md).</sub>
+<sub>See also [`concurrency/a-job-runs-as-a-root-isolate`](concurrency.md#concurrency-a-job-runs-as-a-root-isolate), [`concurrency/a-payload-refuses-secret-and-keeps-its-qualifiers`](concurrency.md#concurrency-a-payload-refuses-secret-and-keeps-its-qualifiers). Decided in [0084](../decisions/0084.md), [0006](../decisions/0006.md), [0023](../decisions/0023.md), [0071](../decisions/0071.md).</sub>
 
 <a id="concurrency-a-jobs-budget-and-grants-are-recorded-at-enqueue"></a>
 
@@ -967,7 +967,7 @@ The budget is what makes an overrun a bounded failure rather than a fatal
 capability door every other isolate goes through
 ([`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door)), with the job's own path as the scope.
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`concurrency/a-job-runs-as-a-root-isolate`](concurrency.md#concurrency-a-job-runs-as-a-root-isolate). Decided in [0084](../adr/0084-durable-background-jobs.md), [0005](../adr/0005-config-changeability.md).</sub>
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`concurrency/a-job-runs-as-a-root-isolate`](concurrency.md#concurrency-a-job-runs-as-a-root-isolate). Decided in [0084](../decisions/0084.md), [0005](../decisions/0005.md).</sub>
 
 <a id="concurrency-claiming-is-one-statement"></a>
 
@@ -987,7 +987,7 @@ becomes claimable again. That is what makes delivery at-least-once
 ([`concurrency/delivery-is-at-least-once`](concurrency.md#concurrency-delivery-is-at-least-once)) and what makes bounded retries a rule rather than
 advice.
 
-<sub>See also [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`concurrency/delivery-is-at-least-once`](concurrency.md#concurrency-delivery-is-at-least-once). Decided in [0084](../adr/0084-durable-background-jobs.md), [0073](../adr/0073-scheduled-work-is-config.md), [0067](../adr/0067-core-db.md).</sub>
+<sub>See also [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`concurrency/delivery-is-at-least-once`](concurrency.md#concurrency-delivery-is-at-least-once). Decided in [0084](../decisions/0084.md), [0073](../decisions/0073.md), [0067](../decisions/0067.md).</sub>
 
 <a id="concurrency-delivery-is-at-least-once"></a>
 
@@ -1006,7 +1006,7 @@ time.
 Exactly-once is not on offer, from this queue or from any honest one: systems that claim it are
 describing at-least-once plus deduplication, which is what `key` and an idempotent job already are.
 
-<sub>See also [`concurrency/claiming-is-one-statement`](concurrency.md#concurrency-claiming-is-one-statement), [`concurrency/attempts-are-finite-and-a-dead-letter-is-kept`](concurrency.md#concurrency-attempts-are-finite-and-a-dead-letter-is-kept). Decided in [0084](../adr/0084-durable-background-jobs.md).</sub>
+<sub>See also [`concurrency/claiming-is-one-statement`](concurrency.md#concurrency-claiming-is-one-statement), [`concurrency/attempts-are-finite-and-a-dead-letter-is-kept`](concurrency.md#concurrency-attempts-are-finite-and-a-dead-letter-is-kept). Decided in [0084](../decisions/0084.md).</sub>
 
 <a id="concurrency-attempts-are-finite-and-a-dead-letter-is-kept"></a>
 
@@ -1026,7 +1026,7 @@ queue silently loses work and a depth nobody reads is the same as no record at a
 An attempt ceiling of zero is refused at the call rather than accepted: it asks for a job dead-lettered
 by the enqueue that created it, and attempts are finite, not optional.
 
-<sub>See also [`concurrency/delivery-is-at-least-once`](concurrency.md#concurrency-delivery-is-at-least-once), [`concurrency/a-budget-overrun-is-a-failed-attempt`](concurrency.md#concurrency-a-budget-overrun-is-a-failed-attempt), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0084](../adr/0084-durable-background-jobs.md), [0074](../adr/0074-http-defaults-safe-and-finite.md), [0076](../adr/0076-observability-export.md).</sub>
+<sub>See also [`concurrency/delivery-is-at-least-once`](concurrency.md#concurrency-delivery-is-at-least-once), [`concurrency/a-budget-overrun-is-a-failed-attempt`](concurrency.md#concurrency-a-budget-overrun-is-a-failed-attempt), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0084](../decisions/0084.md), [0074](../decisions/0074.md), [0076](../decisions/0076.md).</sub>
 
 <a id="concurrency-a-budget-overrun-is-a-failed-attempt"></a>
 
@@ -1045,7 +1045,7 @@ all is a failed attempt too rather than a second policy written beside the first
 throw, a refusal and a budget teardown, which is why a dead-letter row can hold any of the three
 without a second entry shape.
 
-<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`concurrency/attempts-are-finite-and-a-dead-letter-is-kept`](concurrency.md#concurrency-attempts-are-finite-and-a-dead-letter-is-kept). Decided in [0084](../adr/0084-durable-background-jobs.md), [0005](../adr/0005-config-changeability.md).</sub>
+<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`concurrency/attempts-are-finite-and-a-dead-letter-is-kept`](concurrency.md#concurrency-attempts-are-finite-and-a-dead-letter-is-kept). Decided in [0084](../decisions/0084.md), [0005](../decisions/0005.md).</sub>
 
 <a id="concurrency-a-job-runs-as-a-root-isolate"></a>
 
@@ -1065,7 +1065,7 @@ one script compiles it once.
 Output is captured rather than written through, because a job's `echo` landing in the middle of what
 the server or the run's own script is writing is exactly the mixing capture exists to prevent.
 
-<sub>See also [`concurrency/a-job-names-a-file`](concurrency.md#concurrency-a-job-names-a-file), [`concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue`](concurrency.md#concurrency-a-jobs-budget-and-grants-are-recorded-at-enqueue). Decided in [0084](../adr/0084-durable-background-jobs.md), [0006](../adr/0006-isolated-script-execution.md), [0017](../adr/0017-hot-reload-without-restart.md).</sub>
+<sub>See also [`concurrency/a-job-names-a-file`](concurrency.md#concurrency-a-job-names-a-file), [`concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue`](concurrency.md#concurrency-a-jobs-budget-and-grants-are-recorded-at-enqueue). Decided in [0084](../decisions/0084.md), [0006](../decisions/0006.md), [0017](../decisions/0017.md).</sub>
 
 <a id="concurrency-who-runs-a-job-is-configuration"></a>
 
@@ -1083,7 +1083,7 @@ identical claim statement ([`concurrency/claiming-is-one-statement`](concurrency
 is an operational decision and never a behavioural one. There is nothing to install beside the runtime
 and no supervisor to keep alive.
 
-<sub>See also [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table), [`concurrency/a-job-runs-as-a-root-isolate`](concurrency.md#concurrency-a-job-runs-as-a-root-isolate). Decided in [0084](../adr/0084-durable-background-jobs.md).</sub>
+<sub>See also [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table), [`concurrency/a-job-runs-as-a-root-isolate`](concurrency.md#concurrency-a-job-runs-as-a-root-isolate). Decided in [0084](../decisions/0084.md).</sub>
 
 <a id="concurrency-a-payload-refuses-secret-and-keeps-its-qualifiers"></a>
 
@@ -1102,7 +1102,7 @@ instead of being laundered by a database. The queue's table is trusted exactly a
 the application's database is — an attacker who can write to it has already won — which is a better
 answer than returning every field `tainted` and training every job to launder reflexively.
 
-<sub>See also [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`concurrency/a-job-names-a-file`](concurrency.md#concurrency-a-job-names-a-file). Decided in [0084](../adr/0084-durable-background-jobs.md), [0033](../adr/0033-secret-qualifier-for-confidential-values.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md), [0023](../adr/0023-clone-serialize-and-cross-boundary-copy.md).</sub>
+<sub>See also [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`concurrency/a-job-names-a-file`](concurrency.md#concurrency-a-job-names-a-file). Decided in [0084](../decisions/0084.md), [0033](../decisions/0033.md), [0024](../decisions/0024.md), [0023](../decisions/0023.md).</sub>
 
 <a id="concurrency-foreign-connection-enqueue-is-counted"></a>
 
@@ -1120,7 +1120,7 @@ the program never writes it, so the checker has no way to compare the two. The r
 **records** it, and `stats` reports non-transactional enqueues, so a deployment that has quietly lost
 the property can find out by reading a counter rather than by losing a job.
 
-<sub>See also [`concurrency/enqueue-commits-with-your-write`](concurrency.md#concurrency-enqueue-commits-with-your-write), [`concurrency/queue-four-members`](concurrency.md#concurrency-queue-four-members). Decided in [0084](../adr/0084-durable-background-jobs.md).</sub>
+<sub>See also [`concurrency/enqueue-commits-with-your-write`](concurrency.md#concurrency-enqueue-commits-with-your-write), [`concurrency/queue-four-members`](concurrency.md#concurrency-queue-four-members). Decided in [0084](../decisions/0084.md).</sub>
 
 <a id="concurrency-queued-work-is-not-scheduled-work"></a>
 
@@ -1139,7 +1139,7 @@ of course `push`, and that is the intended way to enqueue a nightly batch's wort
 decides when the batch is created and the queue decides how each piece of it is run, retried and
 recorded.
 
-<sub>See also [`concurrency/delivery-is-at-least-once`](concurrency.md#concurrency-delivery-is-at-least-once), [`concurrency/attempts-are-finite-and-a-dead-letter-is-kept`](concurrency.md#concurrency-attempts-are-finite-and-a-dead-letter-is-kept). Decided in [0084](../adr/0084-durable-background-jobs.md), [0073](../adr/0073-scheduled-work-is-config.md).</sub>
+<sub>See also [`concurrency/delivery-is-at-least-once`](concurrency.md#concurrency-delivery-is-at-least-once), [`concurrency/attempts-are-finite-and-a-dead-letter-is-kept`](concurrency.md#concurrency-attempts-are-finite-and-a-dead-letter-is-kept). Decided in [0084](../decisions/0084.md), [0073](../decisions/0073.md).</sub>
 
 <a id="concurrency-no-broker-and-no-driver-interface"></a>
 
@@ -1159,7 +1159,7 @@ The seam that stays open is the storage layer's internal boundary and not a publ
 genuinely bounded by database write throughput has outgrown what the queue promises, and a
 broker-backed queue would have to say plainly which guarantee it drops.
 
-<sub>See also [`concurrency/enqueue-commits-with-your-write`](concurrency.md#concurrency-enqueue-commits-with-your-write), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0084](../adr/0084-durable-background-jobs.md).</sub>
+<sub>See also [`concurrency/enqueue-commits-with-your-write`](concurrency.md#concurrency-enqueue-commits-with-your-write), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0084](../decisions/0084.md).</sub>
 
 <a id="concurrency-the-reactor-reports-readiness"></a>
 
@@ -1181,7 +1181,7 @@ runtime brings its own scheduler ([`concurrency/the-parking-contract`](concurren
 attacker-controlled reaches a registration, which carries a descriptor and an interest set and no
 parsed input at all.
 
-<sub>See also [`concurrency/the-parking-contract`](concurrency.md#concurrency-the-parking-contract), [`concurrency/try-the-syscall-then-park`](concurrency.md#concurrency-try-the-syscall-then-park). Decided in [0115](../adr/0115-the-reactor-reports-readiness-and-a-stream-that-would-block-parks.md), [0106](../adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md), [0051](../adr/0051-standard-library-tiers.md).</sub>
+<sub>See also [`concurrency/the-parking-contract`](concurrency.md#concurrency-the-parking-contract), [`concurrency/try-the-syscall-then-park`](concurrency.md#concurrency-try-the-syscall-then-park). Decided in [0115](../decisions/0115.md), [0106](../decisions/0106.md), [0051](../decisions/0051.md).</sub>
 
 <a id="concurrency-the-parking-contract"></a>
 
@@ -1208,7 +1208,7 @@ otherwise get backwards.
 5. **One reactor per worker**, not shared. A descriptor a request owns is registered with, and woken
    by, that request's own core — which is what keeps refcounts non-atomic.
 
-<sub>See also [`concurrency/the-reactor-reports-readiness`](concurrency.md#concurrency-the-reactor-reports-readiness), [`concurrency/try-the-syscall-then-park`](concurrency.md#concurrency-try-the-syscall-then-park), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0115](../adr/0115-the-reactor-reports-readiness-and-a-stream-that-would-block-parks.md), [0106](../adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md).</sub>
+<sub>See also [`concurrency/the-reactor-reports-readiness`](concurrency.md#concurrency-the-reactor-reports-readiness), [`concurrency/try-the-syscall-then-park`](concurrency.md#concurrency-try-the-syscall-then-park), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0115](../decisions/0115.md), [0106](../decisions/0106.md).</sub>
 
 <a id="concurrency-try-the-syscall-then-park"></a>
 
@@ -1230,7 +1230,7 @@ always finds the request bytes already buffered: they arrived with the connectio
 A registration is kept while the task holds the stream rather than torn down per park, so a stream
 that parks repeatedly pays a modification and not a creation.
 
-<sub>See also [`concurrency/the-parking-contract`](concurrency.md#concurrency-the-parking-contract), [`concurrency/a-stream-is-an-ordinary-io-stream`](concurrency.md#concurrency-a-stream-is-an-ordinary-io-stream). Decided in [0115](../adr/0115-the-reactor-reports-readiness-and-a-stream-that-would-block-parks.md).</sub>
+<sub>See also [`concurrency/the-parking-contract`](concurrency.md#concurrency-the-parking-contract), [`concurrency/a-stream-is-an-ordinary-io-stream`](concurrency.md#concurrency-a-stream-is-an-ordinary-io-stream). Decided in [0115](../decisions/0115.md).</sub>
 
 <a id="concurrency-a-stream-is-an-ordinary-io-stream"></a>
 
@@ -1252,7 +1252,7 @@ What it costs is that a stack is the unit of concurrency
 space rather than the hundred bytes a stackless future would be. Simplicity of the language surface
 outranks footprint, and that trade is taken knowingly.
 
-<sub>See also [`concurrency/try-the-syscall-then-park`](concurrency.md#concurrency-try-the-syscall-then-park), [`concurrency/a-task-stack-is-reserved-wide-and-pooled`](concurrency.md#concurrency-a-task-stack-is-reserved-wide-and-pooled). Decided in [0115](../adr/0115-the-reactor-reports-readiness-and-a-stream-that-would-block-parks.md), [0132](../adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md).</sub>
+<sub>See also [`concurrency/try-the-syscall-then-park`](concurrency.md#concurrency-try-the-syscall-then-park), [`concurrency/a-task-stack-is-reserved-wide-and-pooled`](concurrency.md#concurrency-a-task-stack-is-reserved-wide-and-pooled). Decided in [0115](../decisions/0115.md), [0132](../decisions/0132.md).</sub>
 
 <a id="concurrency-a-task-stack-is-reserved-wide-and-pooled"></a>
 
@@ -1275,7 +1275,7 @@ Stacks are pooled per worker and bounded by that worker's in-flight cap. A stack
 back to the pool and is handed to the next task. The pool can never hold more stacks than the worker
 has admitted tasks, which is the O(in-flight) shape [`programs/memory-priority`](programs.md#programs-memory-priority) asks for.
 
-<sub>See also [`programs/memory-priority`](programs.md#programs-memory-priority), [`concurrency/a-tasks-recursion-limit-comes-from-its-own-stack`](concurrency.md#concurrency-a-tasks-recursion-limit-comes-from-its-own-stack), [`concurrency/a-stream-is-an-ordinary-io-stream`](concurrency.md#concurrency-a-stream-is-an-ordinary-io-stream). Decided in [0115](../adr/0115-the-reactor-reports-readiness-and-a-stream-that-would-block-parks.md), [0106](../adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md), [0116](../adr/0116-an-isolates-arena-is-an-ownership-root.md).</sub>
+<sub>See also [`programs/memory-priority`](programs.md#programs-memory-priority), [`concurrency/a-tasks-recursion-limit-comes-from-its-own-stack`](concurrency.md#concurrency-a-tasks-recursion-limit-comes-from-its-own-stack), [`concurrency/a-stream-is-an-ordinary-io-stream`](concurrency.md#concurrency-a-stream-is-an-ordinary-io-stream). Decided in [0115](../decisions/0115.md), [0106](../decisions/0106.md), [0116](../decisions/0116.md).</sub>
 
 <a id="concurrency-a-tasks-recursion-limit-comes-from-its-own-stack"></a>
 
@@ -1293,4 +1293,4 @@ between the soft recursion limit and the hard floor ([`errors/on-limit`](errors.
 several times that reserve before the two numbers are coherent — which is why a 64 KiB stack is
 rejected on arithmetic rather than on taste.
 
-<sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`concurrency/a-task-stack-is-reserved-wide-and-pooled`](concurrency.md#concurrency-a-task-stack-is-reserved-wide-and-pooled). Decided in [0115](../adr/0115-the-reactor-reports-readiness-and-a-stream-that-would-block-parks.md).</sub>
+<sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`concurrency/a-task-stack-is-reserved-wide-and-pooled`](concurrency.md#concurrency-a-task-stack-is-reserved-wide-and-pooled). Decided in [0115](../decisions/0115.md).</sub>

@@ -47,11 +47,11 @@ search, that needs M10's indexing), `semanticTokens/full`, `documentSymbol`, and
 projections of data the tree already holds rather than features built on it: `selectionRange` (the
 `SyntaxIndex`'s ancestor list *is* the response), `foldingRange` and `documentLink`. Plus exactly **two
 code actions**, admitted because their replacement text already sits in `Diagnostic::suggestions`: the
-casing fix ([0029](../adr/0029-identifier-casing-is-checked.md)/[0030](../adr/0030-no-leading-underscores-constructor-spelling.md))
-and `(int)$x` → `$x as int` ([0034](../adr/0034-legacy-cast-syntax-rejected.md)). Beside the nine standard
+casing fix ([0029](../decisions/0029.md)/[0030](../decisions/0030.md))
+and `(int)$x` → `$x as int` ([0034](../decisions/0034.md)). Beside the nine standard
 requests sits exactly **one of Novis's own**, `nvs/redactions`, answering the ranges the editor conceals —
 a literal or interpolation slot whose static type carries `secret`
-([0101](../adr/0101-secret-is-redacted-in-the-editor-and-the-range-comes-from-the-server.md) §§ 1–2). It is
+([0101](../decisions/0101.md) §§ 1–2). It is
 not a token modifier: that channel degrades to "whatever the theme thinks", and a security default may not
 have becoming-visible as its failure mode. Its fail direction is named — a range whose expression cannot be
 typed but whose binding declares `secret` is answered anyway, so a value does not flash on every keystroke
@@ -79,8 +79,8 @@ rejects may be coloured as valid** (`===`, legacy casts, `|>`, the alternative c
 **semantic tokens** colour what a regex structurally cannot know: `defaultLibrary` on a `Core` class,
 enum members, type aliases, and two modifiers of Novis's own — **`tainted` and `secret`** — so a qualified
 value is visibly qualified at every use site, which is the cheapest teaching surface ADRs
-[0024](../adr/0024-taint-tracking-for-injection-sinks.md) and
-[0033](../adr/0033-secret-qualifier-for-confidential-values.md) have. **Novis ships no colours** — colour is
+[0024](../decisions/0024.md) and
+[0033](../decisions/0033.md) have. **Novis ships no colours** — colour is
 the user's theme's — so both layers ship *names*, every one of them from the standard TextMate vocabulary
 or LSP's standard legend, because a theme styles only names it recognises and an invented scope renders as
 unstyled body text. The two custom modifiers reach a theme through `semanticTokenScopes`, and the
@@ -111,7 +111,7 @@ enforced by a dependency-allowlist test rather than by review. The setting and c
 `settings.json` silently. **A `secret` literal is concealed by default** — blurred in place, the character
 cells kept, so every edit still addresses the real text — and a reveal is per range and dies when the
 editor closes, because the threat is an unattended screen and no API reports one
-([0101](../adr/0101-secret-is-redacted-in-the-editor-and-the-range-comes-from-the-server.md)). `tainted`
+([0101](../decisions/0101.md)). `tainted`
 is decorated only if the user asks (`nvs.taint.mark`, default `off`): a glyph is *added content*, and how
 a construct looks stays the theme's call. The AST panel inherits the same placeholder in
 `nvs ast --json` itself, or it prints in a webview the credential the buffer behind it is hiding. Extension id `nvs-lang.nvs`; `package-lock.json` is committed because

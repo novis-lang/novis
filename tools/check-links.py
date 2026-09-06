@@ -22,12 +22,12 @@ the kind that only answers when asked.
 rule -- the one home for it is `docs/agent/conventions.md` § *Citing a document*:
 
 *a markdown file* is rendered by GitHub and by the website, both of which resolve a link against the
-    file's own location, so its links stay **relative** (`../adr/0067-core-db.md`).
+    file's own location, so its links stay **relative** (`../decisions/0067.md`).
 
 *a source file* -- `.rs`, `.nvs`, `.nvst` -- is rendered by nothing. GitHub shows Rust as source, and
     rustdoc resolves a relative link against the generated HTML page rather than the module, where
     `../../../docs/` has never existed. So the only readers are people, agents and `grep`, and for
-    those a link is **absolute from the repository root** (`/docs/adr/0067-core-db.md`): one spelling
+    those a link is **absolute from the repository root** (`/docs/decisions/0067.md`): one spelling
     per target, and moving the file that holds it changes nothing. The relative form cost 465 dead
     links of 1,640 before it changed -- 442 with the wrong number of `../` and 23 naming a filename
     an ADR no longer had -- none of them reported by anything, because a `../` prefix encodes the

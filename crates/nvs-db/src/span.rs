@@ -1,4 +1,4 @@
-//! [ADR 0067 § 11](/docs/adr/0067-core-db.md)'s `query` trace event:
+//! [ADR 0067 § 11](/docs/decisions/0067.md)'s `query` trace event:
 //! the facts one statement contributes to a trace, and why a bound parameter
 //! is not one of them.
 //!
@@ -73,7 +73,7 @@ use crate::conn::Driver;
 /// statement from a short one will read the wrong query into a slow trace.
 pub const SQL_LIMIT: usize = 512;
 
-/// One statement's [ADR 0067 § 11](/docs/adr/0067-core-db.md) trace
+/// One statement's [ADR 0067 § 11](/docs/decisions/0067.md) trace
 /// event, from the moment it went out to the moment its rows ended.
 ///
 /// **`Debug` is derived on purpose.** The claim this type exists to keep is

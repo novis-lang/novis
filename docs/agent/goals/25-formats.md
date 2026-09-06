@@ -40,7 +40,7 @@ Goal 24's whole acceptance list, carried in verbatim by `tools/goal-switch.py`. 
    truncating, because a truncated decompression that looks like success is the bug this class exists
    to prevent. `[limits]` supplies the default and a call may lower it, never raise it past the
    configured ceiling.
-3. **Dependencies**, picked under [ADR 0051 § 4](../../adr/0051-standard-library-tiers.md) — pure-Rust
+3. **Dependencies**, picked under [ADR 0051 § 4](../../decisions/0051.md) — pure-Rust
    implementations for all four, each owing a notice regeneration
    (`python tools/gen-attribution.py`). Nothing here takes the audited-C exception.
 4. **Streaming and whole-buffer are one surface or explicitly two**, decided in the module doc: the

@@ -88,7 +88,7 @@ fn code_for(message: &str) -> Code {
 /// It is a scan of the file so far, run only on the failure path, so a boot that succeeds pays
 /// nothing for it.
 ///
-/// [ADR 0064 § 3]: ../../../docs/adr/0064-configuration-file-format.md
+/// [ADR 0064 § 3]: ../../../docs/decisions/0064.md
 fn block_at(text: &str, offset: usize) -> Option<&str> {
     text.get(..offset)?
         .lines()

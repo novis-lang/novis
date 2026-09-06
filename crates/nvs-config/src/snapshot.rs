@@ -179,7 +179,7 @@ impl Snapshot {
         // reason an `[[app]]` key is canonicalized at this same point: a root still spelled the way
         // the operator typed it is a comparison against the wrong thing.
         //
-        // [ADR 0118]: ../../../docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md
+        // [ADR 0118]: ../../../docs/decisions/0118.md
         if let Some(capabilities) = snapshot.config.capabilities.as_mut() {
             capabilities.canonicalize(files);
         }

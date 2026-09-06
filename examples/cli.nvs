@@ -2,7 +2,7 @@
 // The command line, as a program: a command declared as an attribute, the
 // help text nobody wrote, and the terminal fact that resolves once.
 //
-// [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 6 is the
+// [ADR 0086](/docs/decisions/0086.md) § 6 is the
 // reason `#[Command]` exists at all: the argument table is built *while
 // compiling*, from the function's own parameters, so the usage line below
 // is derived from the same declaration the call is checked against. There
@@ -23,7 +23,7 @@
 
 // The handler is a `public static` method of a class, and both halves of that
 // are rules rather than style: Novis has no top-level functions at all
-// ([ADR 0011](/docs/adr/0011-functions-and-constants-are-class-members.md)),
+// ([ADR 0011](/docs/decisions/0011.md)),
 // and § 6's compiled table holds a `Class::method` string with no constructor
 // arguments anywhere in it, so there is no instance for a handler to be called
 // on. A parameter is a positional argument unless it carries `#[Core\Option]`

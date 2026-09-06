@@ -71,7 +71,7 @@ core, and M7's acceptance is that 10k concurrent cold requests compile it **exac
    process start, which is what `Worker::spawn`'s doc already prices.
 3. **Each core takes its own handle**, via `NvsListener::from_std` on a duplicated descriptor — the
    constructor's stated purpose. The accept loop, its backoff (`rule:http-server/the-body-is-read-on-demand-under-two-caps`
-   ) and the drain probe ([ADR 0017](../../adr/0017-hot-reload-without-restart.md) § 5) run per core.
+   ) and the drain probe ([ADR 0017](../../decisions/0017.md) § 5) run per core.
 4. **Draining is fleet-wide, not per core.** `isDraining()` answers the same on every core, and the
    process exits when the last core's in-flight count reaches zero — a request whose isolates are
    still running when the client disconnects leaves none behind, which is M7's acceptance and is now a

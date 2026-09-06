@@ -1,5 +1,5 @@
 <?nvs
-// [ADR 0067](/docs/adr/0067-core-db.md) § 4's one member that does not buffer,
+// [ADR 0067](/docs/decisions/0067.md) § 4's one member that does not buffer,
 // over the PostgreSQL `tests/db/compose.yaml` brings up. `Core\Db\Connection::stream`
 // is `docs/spec/01-core-library.md` § 18's `Iterable<Db\Row>` row: the rows stay
 // on the connection as a portal the server is still holding open, so walking ten

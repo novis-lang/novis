@@ -108,7 +108,16 @@ from collections import defaultdict
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ADR_DIR = os.path.join(ROOT, "docs", "adr")
+#: The frozen decision records, `docs/decisions/NNNN.md`, since the docs migration's unit C1. A
+#: record opens with a YAML block (`date:`, `status:`, `changes:`) and carries no `Amends:`; the
+#: metadata bullets that remain are `Scope`, `Depends on` and `Validated by`.
+ADR_DIR = os.path.join(ROOT, "docs", "decisions")
+#: Where the index documents still live -- README.md's tables, the authored ground-rules.md and
+#: divergences.md, tooling-parity.md -- until unit C2 retires them.
+INDEX_DIR = os.path.join(ROOT, "docs", "adr")
+#: A link to a record in either spelling: `(0066-slug.md)` from inside the old tree, or
+#: `(../decisions/0066.md)` / `(0066.md)` since the freeze. The group is the number.
+RECORD_LINK_RE = re.compile(r"(?:\(|/)(\d{4})(?:-[a-z0-9-]+)?\.md(?:#[^)]*)?\)")
 
 # The closed field set. A field outside this list is a typo, per the module doc. `Relates to:` was
 # retired -- 743 numbers across 95 ADRs that `--graph` derives -- and `Supersedes:` was a second
@@ -152,9 +161,9 @@ COUNTERS = [
 ]
 
 
-#: A markdown link's target, as `](0007-explicit-type-system.md)`. `section_refs` collapses it so a
+#: A markdown link's target, as `](../decisions/0007.md)`. `section_refs` collapses it so a
 #: citation reads as `[0007] § 4`; the `.md` in it is otherwise a sentence break to any scan.
-LINK_TARGET_RE = re.compile(r"\]\(\d{4}-[a-z0-9-]+\.md(?:#[^)]*)?\)")
+LINK_TARGET_RE = re.compile(r"\]\((?:\.\./decisions/)?\d{4}(?:-[a-z0-9-]+)?\.md(?:#[^)]*)?\)")
 SECTION_CITE_RE = re.compile(r"§§?\s*(\d+[a-z]?)")
 
 #: A `§ N` cites *another* ADR only when that ADR is named right in front of it -- `[0067] § 13`,
@@ -174,7 +183,7 @@ class Adr:
         self.num = self.file[:4]
         self.text = open(path, encoding="utf-8").read() if text is None else text
         self.lines = self.text.split("\n")
-        self.title = self.lines[0].lstrip("# ").strip() if self.lines else ""
+        self.title = next((l.lstrip("# ").strip() for l in self.lines if l.startswith("# ")), "")
         self.fields: dict[str, str] = {}
         self.field_line: dict[str, int] = {}
         #: (first line, last line) of each field, 1-based inclusive, continuations included.
@@ -189,7 +198,23 @@ class Adr:
 
     def _parse(self) -> None:
         cur = None
+        body_from = 0
+        if self.lines and self.lines[0] == "---":
+            # The frozen shape: `date:` and `status:` sit in a YAML block and read as the `Date`
+            # and `Status` fields the audit has always checked; `changes:` is the rulebook's.
+            for i, line in enumerate(self.lines[1:], 2):
+                if line == "---":
+                    body_from = i
+                    break
+                m = re.match(r"^(date|status):\s*(.+?)\s*$", line)
+                if m:
+                    name = m.group(1).capitalize()
+                    self.fields[name] = m.group(2).capitalize() if name == "Status" else m.group(2)
+                    self.field_line[name] = i
+                    self.field_span[name] = (i, i)
         for i, line in enumerate(self.lines, 1):
+            if i <= body_from:
+                continue
             m = re.match(r"^- \*\*([^:*]+):\*\*\s*(.*)$", line)
             if m and not self.headings:
                 name, value = m.group(1).strip(), m.group(2).strip()
@@ -226,7 +251,7 @@ class Adr:
 
     def refs(self) -> set[str]:
         """Every ADR this one links to, by number."""
-        return set(re.findall(r"\((\d{4})-[a-z0-9-]+\.md\)", self.text))
+        return set(RECORD_LINK_RE.findall(self.text))
 
     def field_nums(self, name: str) -> set[str]:
         return set(re.findall(r"\b(\d{4})\b", self.fields.get(name, "")))
@@ -240,7 +265,7 @@ class Adr:
         `[0007](...) and [0009](...) § 2` a claim about 0007 as well, which it is not."""
         out = []
         for i, line in enumerate(self.lines, 1):
-            # `[0007](0007-explicit-type-system.md) § 4` is how a citation is nearly always
+            # `[0007](../decisions/0007.md) § 4` is how a citation is nearly always
             # written, and the `.md` in the link target used to stop the scan dead -- so the one
             # form in common use was the one form never checked, and nine dangling `§ N` had
             # accumulated behind it. Collapsing the target to `]` leaves `[0007] § 4` and moves
@@ -308,24 +333,24 @@ INDEX_DOCS = ["README.md", "ground-rules.md", "divergences.md", "tooling-parity.
 
 
 def _link_sources(adrs):
+    """(file, lines, the directory its relative links resolve from)."""
     for a in adrs.values():
-        yield a.file, a.lines
+        yield a.file, a.lines, ADR_DIR
     for name in INDEX_DOCS:
-        path = os.path.join(ADR_DIR, name)
+        path = os.path.join(INDEX_DIR, name)
         if os.path.exists(path):
-            yield name, open(path, encoding="utf-8").read().split("\n")
+            yield name, open(path, encoding="utf-8").read().split("\n"), INDEX_DIR
 
 
 def check_links(adrs):
     out = []
-    for file, lines in _link_sources(adrs):
+    for file, lines, base in _link_sources(adrs):
         for i, line in enumerate(lines, 1):
-            for m in re.finditer(r"\]\((\d{4})-([a-z0-9-]+)\.md(?:#[^)]*)?\)", line):
-                target = f"{m.group(1)}-{m.group(2)}.md"
-                if not os.path.exists(os.path.join(ADR_DIR, target)):
-                    out.append((file, i, f"broken ADR link -> {target}"))
+            for m in re.finditer(r"\]\((?:\.\./decisions/)?(\d{4})(?:-[a-z0-9-]+)?\.md(?:#[^)]*)?\)", line):
+                if m.group(1) not in adrs:
+                    out.append((file, i, f"broken ADR link -> {m.group(1)}"))
             for m in re.finditer(r"\]\((\.\./[^)#]+)(?:#[^)]*)?\)", line):
-                rel = os.path.normpath(os.path.join(ADR_DIR, m.group(1)))
+                rel = os.path.normpath(os.path.join(base, m.group(1)))
                 if not os.path.exists(rel):
                     out.append((file, i, f"broken relative link -> {m.group(1)}"))
     return out
@@ -357,8 +382,8 @@ def check_symmetry(adrs):
 
 
 def _index_text():
-    readme = open(os.path.join(ADR_DIR, "README.md"), encoding="utf-8").read()
-    rules = open(os.path.join(ADR_DIR, "ground-rules.md"), encoding="utf-8").read()
+    readme = open(os.path.join(INDEX_DIR, "README.md"), encoding="utf-8").read()
+    rules = open(os.path.join(INDEX_DIR, "ground-rules.md"), encoding="utf-8").read()
     return readme, rules
 
 
@@ -370,7 +395,7 @@ def index_rows(adrs):
     yield "|---|---|---|"
     for num, a in sorted(adrs.items()):
         decision = a.title.split("—", 1)[-1].strip().replace("|", r"\|")
-        yield f"| [{num}]({a.file}) | {decision} | {a.fields.get('Status', '?')} |"
+        yield f"| [{num}](../decisions/{a.file}) | {decision} | {a.fields.get('Status', '?')} |"
 
 
 #: Both the check and the write find the table through this one anchor, so there is no way for
@@ -379,7 +404,7 @@ INDEX_TABLE_RE = re.compile(r"^\| # \| Decision \| Status \|\n(?:\|.*\n)+", re.M
 
 
 def check_index_table(adrs):
-    readme = open(os.path.join(ADR_DIR, "README.md"), encoding="utf-8").read()
+    readme = open(os.path.join(INDEX_DIR, "README.md"), encoding="utf-8").read()
     want = "\n".join(index_rows(adrs))
     m = INDEX_TABLE_RE.search(readme)
     if not m:
@@ -398,7 +423,7 @@ def sync_index_table(adrs):
     is what reports the drift and this is what closes it; before, `--index` printed the table
     and a reader pasted it, which is a hand copy of derived data at the one moment the reader
     has least reason to look at it closely."""
-    path = os.path.join(ADR_DIR, "README.md")
+    path = os.path.join(INDEX_DIR, "README.md")
     readme = open(path, encoding="utf-8").read()
     m = INDEX_TABLE_RE.search(readme)
     if not m:
@@ -420,8 +445,8 @@ def sync_index_table(adrs):
 def check_indexes(adrs):
     out = []
     readme, rules = _index_text()
-    routed = set(re.findall(r"\((\d{4})-[a-z0-9-]+\.md\)", readme))
-    ruled = set(re.findall(r"\((\d{4})-[a-z0-9-]+\.md\)", rules))
+    routed = set(RECORD_LINK_RE.findall(readme))
+    ruled = set(RECORD_LINK_RE.findall(rules))
     for num, a in adrs.items():
         if num not in routed:
             out.append((a.file, 1, "no row in README.md § *Where to look*"))
@@ -538,8 +563,8 @@ def orphans(adrs):
             if t != n:
                 inbound[t].add(n)
     readme, rules = _index_text()
-    routed = set(re.findall(r"\((\d{4})-[a-z0-9-]+\.md\)", readme))
-    ruled = set(re.findall(r"\((\d{4})-[a-z0-9-]+\.md\)", rules))
+    routed = set(RECORD_LINK_RE.findall(readme))
+    ruled = set(RECORD_LINK_RE.findall(rules))
     print("ADRs no other ADR links to:")
     for n in sorted(adrs):
         if not inbound[n]:
@@ -763,7 +788,7 @@ def write_index(tx: Tx) -> bool:
     which is right for a standalone call and wrong for every caller here: an index rewritten
     outside the transaction survives a rollback, and then the table states a status the ADR does
     not. That is the one inconsistency this whole file is built to make impossible."""
-    path = os.path.join(ADR_DIR, "README.md")
+    path = os.path.join(INDEX_DIR, "README.md")
     readme = open(path, encoding="utf-8").read()
     m = INDEX_TABLE_RE.search(readme)
     if not m:
@@ -845,8 +870,8 @@ def cmd_new(adrs, path: str, dry_run: bool) -> int:
 
     # The three index payloads, each `section | text`-shaped, checked against the file they land in
     # before anything is written -- a section name that does not exist is the likely typo.
-    rules_path = os.path.join(ADR_DIR, "ground-rules.md")
-    div_path = os.path.join(ADR_DIR, "divergences.md")
+    rules_path = os.path.join(INDEX_DIR, "ground-rules.md")
+    div_path = os.path.join(INDEX_DIR, "divergences.md")
     route = rule = diverge = None
     if fields.get("Route"):
         parts = [p.strip() for p in fields["Route"].split("|")]
@@ -945,7 +970,7 @@ def cmd_new(adrs, path: str, dry_run: bool) -> int:
     for t in amends:
         tx.write(adrs[t].path, add_amended_by(open(adrs[t].path, encoding="utf-8").read(), num))
 
-    readme_path = os.path.join(ADR_DIR, "README.md")
+    readme_path = os.path.join(INDEX_DIR, "README.md")
     if route:
         readme = open(readme_path, encoding="utf-8").read()
         mt = WHERE_TABLE_RE.search(readme)

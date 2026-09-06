@@ -43,7 +43,7 @@
 //! decimal on demand, so `foreach ($a as $v)`, which never asks for a key,
 //! never pays for one.
 //!
-//! **[ADR 0007 § 5](/docs/adr/0007-explicit-type-system.md) is
+//! **[ADR 0007 § 5](/docs/decisions/0007.md) is
 //! unchanged by this.** Every key is still a `string`, `"08"` is still a
 //! distinct key from `"8"` (it is what forces the degrade), insertion order is
 //! still the iteration order, and `Core\Arr::keys` still answers
@@ -262,7 +262,7 @@ pub(crate) struct Table {
 ///
 /// Every operation on a [`Table`] either answers from the packed form directly
 /// or converts to the hash form first, so nothing outside this module can tell
-/// which one it is holding: [ADR 0007 § 5](/docs/adr/0007-explicit-type-system.md)
+/// which one it is holding: [ADR 0007 § 5](/docs/decisions/0007.md)
 /// is a statement about keys, not about storage.
 enum Shape {
     /// The packed form: the keys are exactly `"0"`…`"n−1"` in order, so they

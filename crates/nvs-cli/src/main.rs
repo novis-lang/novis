@@ -351,7 +351,7 @@ enum Command {
     /// One call answers what this binary is and what is compiled into it,
     /// including the complete third-party attribution Novis's MIT license and
     /// its dependencies' licenses both require to be distributed with it.
-    /// See `docs/adr/0065-third-party-attribution-and-nvs-info.md`.
+    /// See `docs/decisions/0065.md`.
     Info {
         /// Also print every third-party license text in full.
         #[arg(long)]

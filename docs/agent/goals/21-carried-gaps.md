@@ -96,7 +96,7 @@ wrote and the WSL valgrind leg as the check.
    `crates/nvs-runtime/src/object.rs:1816` returns a member's `Tag::Object` *field* slots and nothing
    else, so `sweep` at `:1658` reads an object reachable only through an array as externally held and
    leaves it — and a cycle whose only closing edge is inside an `array<T>` therefore survives a
-   context's teardown. [ADR 0116](../../adr/0116-an-isolates-arena-is-an-ownership-root.md)
+   context's teardown. [ADR 0116](../../decisions/0116.md)
    § *Consequences* is the reason this is not a footprint question but a correctness one: it argues
    the sweep into existence with "in the server, a leak growing with requests served, which is what
    made the sweep an obligation rather than an option", and that sentence is still true of this

@@ -1,12 +1,12 @@
 # The userland benchmark suite
 
 Twenty-odd pieces of ordinary web-and-CLI code, each written once per engine: `NN-slug.nvs`,
-`NN-slug.php`, `NN-slug.py` and `NN-slug.ts`. They are not micro-benchmarks of the runtime — [ADR 0026](../../docs/adr/0026-performance-measurement-methodology.md)
+`NN-slug.php`, `NN-slug.py` and `NN-slug.ts`. They are not micro-benchmarks of the runtime — [ADR 0026](../../docs/decisions/0026.md)
 owns *that* measurement, counted in instructions so it compares across machines. These are the loops a
 person actually writes: build a string, tally an array, sort a table, match a regex, encode a payload.
 
 **Python is here because Novis's CLI claim is made against Python**, and this project does not publish an
-unmeasured claim — [ADR 0100](../../docs/adr/0100-against-python-nvs-claims-the-tool-that-gets-handed-over.md)
+unmeasured claim — [ADR 0100](../../docs/decisions/0100.md)
 § 5 is the decision. **Bun is here because it is the hardest engine to beat**, and a suite that only
 measured engines Novis wins against would stop being evidence. `--engines` is how you narrow the roster,
 and an engine you have not installed is narrowed away rather than left to fail every case.
@@ -42,7 +42,7 @@ silently reading as agreement:
   is a fair fight between each language's normal spelling, not a transliteration of one into the others.
 - **The only exceptions are arithmetic that has to agree**, because the byte-identical gate below is a
   correctness requirement and not a style choice. There are two kinds, each carrying a comment saying why
-  ([ADR 0100](../../docs/adr/0100-against-python-nvs-claims-the-tool-that-gets-handed-over.md) § 5):
+  ([ADR 0100](../../docs/decisions/0100.md) § 5):
   - **Python floors `%` where the other three truncate it toward zero.** `01-arith-loop` and
     `19-object-property` run a negative total, so their Python twins spell the truncated remainder out in
     a named helper. Their TypeScript twins need nothing — JavaScript truncates.
@@ -79,7 +79,7 @@ the symptom.
   `total` answers "what does this script cost me at the prompt"; `work` answers "how fast is the
   language". **For a CLI claim the headline is `total` and for a language claim it is `work`**, and
   quoting either without saying which is the misuse
-  [ADR 0100](../../docs/adr/0100-against-python-nvs-claims-the-tool-that-gets-handed-over.md) § 2 forbids.
+  [ADR 0100](../../docs/decisions/0100.md) § 2 forbids.
 - `php/nvs`, `py/nvs` and `bun/nvs` are ratios of the `work` figures: **above 1.00 means Novis is faster.**
 
 Two things the table cannot say for itself:

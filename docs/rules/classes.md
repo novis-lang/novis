@@ -28,7 +28,7 @@ creating one anywhere is unaffected. A script's own top-level statements are its
 declaration at file scope. What it costs is a name-mapping rewrite on every converted PHP call, on
 top of the annotations [`types/declaration`](types.md#types-declaration) already asks for.
 
-<sub>See also [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier), [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call), [`types/class-constant`](types.md#types-class-constant). Decided in [0011](../adr/0011-functions-and-constants-are-class-members.md), [0008](../adr/0008-static-and-global.md), [0003](../adr/0003-extension-system.md).</sub>
+<sub>See also [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier), [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call), [`types/class-constant`](types.md#types-class-constant). Decided in [0011](../decisions/0011.md), [0008](../decisions/0008.md), [0003](../decisions/0003.md).</sub>
 
 <a id="classes-constructor-is-a-method-named-constructor"></a>
 
@@ -51,7 +51,7 @@ Choosing a real word instead of a reserved spelling is what removes the last car
 casing check: nothing in the identifier grammar has an exception any more. The cost is one fixed
 mechanical rename for every converted class, which is the cheapest kind of break this project takes.
 
-<sub>See also [`classes/no-leading-underscore-identifiers`](classes.md#classes-no-leading-underscore-identifiers), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods). Decided in [0030](../adr/0030-no-leading-underscores-constructor-spelling.md), [0022](../adr/0022-definite-property-initialization.md), [0029](../adr/0029-identifier-casing-is-checked.md).</sub>
+<sub>See also [`classes/no-leading-underscore-identifiers`](classes.md#classes-no-leading-underscore-identifiers), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods). Decided in [0030](../decisions/0030.md), [0022](../decisions/0022.md), [0029](../decisions/0029.md).</sub>
 
 <a id="classes-no-leading-underscore-identifiers"></a>
 
@@ -72,7 +72,7 @@ exceptions of any kind.
 What it costs is a mechanical rename per underscore-prefixed name during conversion, and one habit
 a PHP-native contributor has to unlearn at the point the compiler names it.
 
-<sub>See also [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor). Decided in [0030](../adr/0030-no-leading-underscores-constructor-spelling.md), [0029](../adr/0029-identifier-casing-is-checked.md).</sub>
+<sub>See also [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor). Decided in [0030](../decisions/0030.md), [0029](../decisions/0029.md).</sub>
 
 <a id="classes-comparable"></a>
 
@@ -97,7 +97,7 @@ is a separate question and is unaffected: a `Comparable` class still compares by
 ([`expressions/object-identity-equality`](expressions.md#expressions-object-identity-equality)), and asking the content question explicitly is
 `$a->compareTo($b) == 0`.
 
-<sub>See also [`classes/ordering-lowers-to-compare-to`](classes.md#classes-ordering-lowers-to-compare-to), [`classes/comparable-is-same-class-only`](classes.md#classes-comparable-is-same-class-only), [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/object-identity-equality`](expressions.md#expressions-object-identity-equality), [`types/ordering`](types.md#types-ordering). Decided in [0013](../adr/0013-comparable-interface.md), [0011](../adr/0011-functions-and-constants-are-class-members.md).</sub>
+<sub>See also [`classes/ordering-lowers-to-compare-to`](classes.md#classes-ordering-lowers-to-compare-to), [`classes/comparable-is-same-class-only`](classes.md#classes-comparable-is-same-class-only), [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/object-identity-equality`](expressions.md#expressions-object-identity-equality), [`types/ordering`](types.md#types-ordering). Decided in [0013](../decisions/0013.md), [0011](../decisions/0011.md).</sub>
 
 <a id="classes-ordering-lowers-to-compare-to"></a>
 
@@ -117,7 +117,7 @@ answers, because the call reaches the receiver's own implementation like any oth
 A `compareTo` that throws propagates as a checked status ([`errors/propagation`](errors.md#errors-propagation)), so an ordering
 is a call site with a failure edge rather than an operator that cannot fail.
 
-<sub>See also [`classes/comparable`](classes.md#classes-comparable), [`types/arithmetic`](types.md#types-arithmetic), [`errors/propagation`](errors.md#errors-propagation). Decided in [0013](../adr/0013-comparable-interface.md).</sub>
+<sub>See also [`classes/comparable`](classes.md#classes-comparable), [`types/arithmetic`](types.md#types-arithmetic), [`errors/propagation`](errors.md#errors-propagation). Decided in [0013](../decisions/0013.md).</sub>
 
 <a id="classes-comparable-is-same-class-only"></a>
 
@@ -139,7 +139,7 @@ method — `Money::isGreaterThan(Distance $d): bool` reads oddly on purpose. The
 permissiveness here is gone until a parameterized `Comparable<T>` is designed, and no such generic
 exists yet.
 
-<sub>See also [`classes/comparable`](classes.md#classes-comparable), [`classes/ordering-lowers-to-compare-to`](classes.md#classes-ordering-lowers-to-compare-to). Decided in [0013](../adr/0013-comparable-interface.md).</sub>
+<sub>See also [`classes/comparable`](classes.md#classes-comparable), [`classes/ordering-lowers-to-compare-to`](classes.md#classes-ordering-lowers-to-compare-to). Decided in [0013](../decisions/0013.md).</sub>
 
 <a id="classes-property-hooks"></a>
 
@@ -163,7 +163,7 @@ storage model instead of two — and a `set` hook that commits a value discharge
 initialization obligation ([`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization)) exactly as a plain
 assignment does.
 
-<sub>See also [`classes/property-observer-pipeline`](classes.md#classes-property-observer-pipeline), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`types/declaration`](types.md#types-declaration). Decided in [0014](../adr/0014-property-observer.md).</sub>
+<sub>See also [`classes/property-observer-pipeline`](classes.md#classes-property-observer-pipeline), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`types/declaration`](types.md#types-declaration). Decided in [0014](../decisions/0014.md).</sub>
 
 <a id="classes-property-observer"></a>
 
@@ -186,7 +186,7 @@ which is exactly the ambient behaviour a declared `implements` replaces. Both me
 so an observer reports and never decides. It costs one ordinary virtual call per access, paid only by
 a class that asked for it.
 
-<sub>See also [`classes/property-observer-pipeline`](classes.md#classes-property-observer-pipeline), [`classes/no-dynamic-properties`](classes.md#classes-no-dynamic-properties), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`classes/stringable`](classes.md#classes-stringable). Decided in [0014](../adr/0014-property-observer.md), [0011](../adr/0011-functions-and-constants-are-class-members.md).</sub>
+<sub>See also [`classes/property-observer-pipeline`](classes.md#classes-property-observer-pipeline), [`classes/no-dynamic-properties`](classes.md#classes-no-dynamic-properties), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`classes/stringable`](classes.md#classes-stringable). Decided in [0014](../decisions/0014.md), [0011](../decisions/0011.md).</sub>
 
 <a id="classes-property-observer-pipeline"></a>
 
@@ -211,7 +211,7 @@ property has no receiving instance and reaches nothing. An observer that touches
 class recurses, exactly as any method calling itself does — there is no re-entry guard, because a
 guard would be a second rule about which write is the real one.
 
-<sub>See also [`classes/property-observer`](classes.md#classes-property-observer), [`classes/property-hooks`](classes.md#classes-property-hooks), [`classes/clone-is-shallow`](classes.md#classes-clone-is-shallow), [`errors/propagation`](errors.md#errors-propagation). Decided in [0014](../adr/0014-property-observer.md).</sub>
+<sub>See also [`classes/property-observer`](classes.md#classes-property-observer), [`classes/property-hooks`](classes.md#classes-property-hooks), [`classes/clone-is-shallow`](classes.md#classes-clone-is-shallow), [`errors/propagation`](errors.md#errors-propagation). Decided in [0014](../decisions/0014.md).</sub>
 
 <a id="classes-property-observer-costs-nothing-when-unused"></a>
 
@@ -232,7 +232,7 @@ them here prices this rule for two other mechanisms.
 The measurement rather than the assertion is what guards it: three more unhooked accesses emit no
 machine-code call at all, and cost a fraction of the same accesses behind a per-property hook.
 
-<sub>See also [`classes/property-observer-pipeline`](classes.md#classes-property-observer-pipeline), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0014](../adr/0014-property-observer.md), [0004](../adr/0004-memory-for-simplicity.md).</sub>
+<sub>See also [`classes/property-observer-pipeline`](classes.md#classes-property-observer-pipeline), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0014](../decisions/0014.md), [0004](../decisions/0004.md).</sub>
 
 <a id="classes-no-dynamic-properties"></a>
 
@@ -256,7 +256,7 @@ operand that carries its own answer is [`types/property-key`](types.md#types-pro
 construction one of `T`'s public declared names — the check moved to the conversion, once, instead of
 being repeated at every access.
 
-<sub>See also [`classes/property-observer`](classes.md#classes-property-observer), [`types/erased-member-access`](types.md#types-erased-member-access), [`types/property-key`](types.md#types-property-key), [`types/property-key-access`](types.md#types-property-key-access), [`types/declaration`](types.md#types-declaration). Decided in [0014](../adr/0014-property-observer.md), [0011](../adr/0011-functions-and-constants-are-class-members.md), [0036](../adr/0036-anonymous-object-shapes.md).</sub>
+<sub>See also [`classes/property-observer`](classes.md#classes-property-observer), [`types/erased-member-access`](types.md#types-erased-member-access), [`types/property-key`](types.md#types-property-key), [`types/property-key-access`](types.md#types-property-key-access), [`types/declaration`](types.md#types-declaration). Decided in [0014](../decisions/0014.md), [0011](../decisions/0011.md), [0036](../decisions/0036.md).</sub>
 
 <a id="classes-no-call-magic"></a>
 
@@ -278,7 +278,7 @@ name and argument list, or a `match` keyed by name — visible in the class body
 every other call. What that costs is real: a proxy or a fluent facade generated from `__call` has no
 mechanical translation and needs a human to write the surface out.
 
-<sub>See also [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`classes/no-dynamic-properties`](classes.md#classes-no-dynamic-properties), [`types/callable-is-a-closure`](types.md#types-callable-is-a-closure). Decided in [0014](../adr/0014-property-observer.md), [0029](../adr/0029-identifier-casing-is-checked.md), [0011](../adr/0011-functions-and-constants-are-class-members.md).</sub>
+<sub>See also [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`classes/no-dynamic-properties`](classes.md#classes-no-dynamic-properties), [`types/callable-is-a-closure`](types.md#types-callable-is-a-closure). Decided in [0014](../decisions/0014.md), [0029](../decisions/0029.md), [0011](../decisions/0011.md).</sub>
 
 <a id="classes-definite-property-initialization"></a>
 
@@ -304,7 +304,7 @@ copy depth reopens the gap — `clone` starts from a live object and cannot prod
 one, and the graph copy either copies a live source or refuses a payload missing a declared property
 ([`classes/serialize-is-a-closed-format`](classes.md#classes-serialize-is-a-closed-format)).
 
-<sub>See also [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws), [`classes/no-undefined-value`](classes.md#classes-no-undefined-value), [`classes/lateinit`](classes.md#classes-lateinit), [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor), [`types/declaration`](types.md#types-declaration). Decided in [0022](../adr/0022-definite-property-initialization.md), [0043](../adr/0043-interface-default-methods-and-delegation-replace-traits.md), [0023](../adr/0023-clone-serialize-and-cross-boundary-copy.md), [0038](../adr/0038-lateinit-property-modifier.md).</sub>
+<sub>See also [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws), [`classes/no-undefined-value`](classes.md#classes-no-undefined-value), [`classes/lateinit`](classes.md#classes-lateinit), [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor), [`types/declaration`](types.md#types-declaration). Decided in [0022](../decisions/0022.md), [0043](../decisions/0043.md), [0023](../decisions/0023.md), [0038](../decisions/0038.md).</sub>
 
 <a id="classes-no-undefined-value"></a>
 
@@ -327,7 +327,7 @@ loud failure, because "forgot to initialize" then looks identical to "legitimate
 remains for the case static analysis cannot reach is a throw, never a value
 ([`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws)).
 
-<sub>See also [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws), [`types/declaration`](types.md#types-declaration), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0022](../adr/0022-definite-property-initialization.md).</sub>
+<sub>See also [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws), [`types/declaration`](types.md#types-declaration), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0022](../decisions/0022.md).</sub>
 
 <a id="classes-an-unwritten-property-read-throws"></a>
 
@@ -351,7 +351,7 @@ zero additional bytes per property: the tagged value representation already had 
 and the compiled read goes by the payload — null in this state and in no other, because `lateinit` is
 restricted to a non-nullable class or interface type.
 
-<sub>See also [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/lateinit`](classes.md#classes-lateinit), [`errors/propagation`](errors.md#errors-propagation), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder). Decided in [0022](../adr/0022-definite-property-initialization.md), [0038](../adr/0038-lateinit-property-modifier.md), [0019](../adr/0019-reflection-and-ast-parsing-are-core-features.md).</sub>
+<sub>See also [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/lateinit`](classes.md#classes-lateinit), [`errors/propagation`](errors.md#errors-propagation), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder). Decided in [0022](../decisions/0022.md), [0038](../decisions/0038.md), [0019](../decisions/0019.md).</sub>
 
 <a id="classes-lateinit"></a>
 
@@ -375,7 +375,7 @@ every use, which is an ergonomic wall rather than a guarantee. Nothing else chan
 object whose `lateinit` slot is still unwritten inherits the same unwritten slot and throws under the
 same rule.
 
-<sub>See also [`classes/lateinit-restrictions`](classes.md#classes-lateinit-restrictions), [`classes/lateinit-read-before-write`](classes.md#classes-lateinit-read-before-write), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws). Decided in [0038](../adr/0038-lateinit-property-modifier.md), [0022](../adr/0022-definite-property-initialization.md).</sub>
+<sub>See also [`classes/lateinit-restrictions`](classes.md#classes-lateinit-restrictions), [`classes/lateinit-read-before-write`](classes.md#classes-lateinit-read-before-write), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws). Decided in [0038](../decisions/0038.md), [0022](../decisions/0022.md).</sub>
 
 <a id="classes-lateinit-restrictions"></a>
 
@@ -397,7 +397,7 @@ opposite claims about one property rather than a composable pair.
 Each refusal is its own diagnostic, which is one more modifier and three more rejected combinations a
 developer has to learn are refused rather than silently allowed.
 
-<sub>See also [`classes/lateinit`](classes.md#classes-lateinit), [`classes/no-undefined-value`](classes.md#classes-no-undefined-value), [`types/declaration`](types.md#types-declaration). Decided in [0038](../adr/0038-lateinit-property-modifier.md), [0022](../adr/0022-definite-property-initialization.md).</sub>
+<sub>See also [`classes/lateinit`](classes.md#classes-lateinit), [`classes/no-undefined-value`](classes.md#classes-no-undefined-value), [`types/declaration`](types.md#types-declaration). Decided in [0038](../decisions/0038.md), [0022](../decisions/0022.md).</sub>
 
 <a id="classes-lateinit-read-before-write"></a>
 
@@ -420,7 +420,7 @@ Nothing interprocedural is attempted. Whole-program analysis would widen the bla
 edit under per-file hot reload, for cases that fall through to the runtime throw anyway. This check is
 a bonus, not a safety net to rely on.
 
-<sub>See also [`classes/lateinit`](classes.md#classes-lateinit), [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws). Decided in [0038](../adr/0038-lateinit-property-modifier.md), [0022](../adr/0022-definite-property-initialization.md), [0017](../adr/0017-hot-reload-without-restart.md).</sub>
+<sub>See also [`classes/lateinit`](classes.md#classes-lateinit), [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws). Decided in [0038](../decisions/0038.md), [0022](../decisions/0022.md), [0017](../decisions/0017.md).</sub>
 
 <a id="classes-two-copy-depths"></a>
 
@@ -444,7 +444,7 @@ method call for attacker-controlled property values to drive. The cost is a real
 that wants a duplicated nested collection or custom versioning has to expose an explicit method and
 call it, and two copy depths remain two things to learn.
 
-<sub>See also [`classes/clone-is-shallow`](classes.md#classes-clone-is-shallow), [`classes/graph-copy`](classes.md#classes-graph-copy), [`classes/serialize-is-a-closed-format`](classes.md#classes-serialize-is-a-closed-format), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods). Decided in [0023](../adr/0023-clone-serialize-and-cross-boundary-copy.md), [0014](../adr/0014-property-observer.md), [0006](../adr/0006-isolated-script-execution.md).</sub>
+<sub>See also [`classes/clone-is-shallow`](classes.md#classes-clone-is-shallow), [`classes/graph-copy`](classes.md#classes-graph-copy), [`classes/serialize-is-a-closed-format`](classes.md#classes-serialize-is-a-closed-format), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods). Decided in [0023](../decisions/0023.md), [0014](../decisions/0014.md), [0006](../decisions/0006.md).</sub>
 
 <a id="classes-clone-is-shallow"></a>
 
@@ -467,7 +467,7 @@ a declared `PropertyObserver` is told nothing about it
 No `__clone` runs, and no class can declare one. A class needing a duplicated nested collection
 exposes an explicit method and calls it, rather than overloading what `clone` means.
 
-<sub>See also [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`classes/graph-copy`](classes.md#classes-graph-copy), [`classes/property-observer-pipeline`](classes.md#classes-property-observer-pipeline), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0023](../adr/0023-clone-serialize-and-cross-boundary-copy.md), [0014](../adr/0014-property-observer.md), [0022](../adr/0022-definite-property-initialization.md).</sub>
+<sub>See also [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`classes/graph-copy`](classes.md#classes-graph-copy), [`classes/property-observer-pipeline`](classes.md#classes-property-observer-pipeline), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0023](../decisions/0023.md), [0014](../decisions/0014.md), [0022](../decisions/0022.md).</sub>
 
 <a id="classes-graph-copy"></a>
 
@@ -491,7 +491,7 @@ One walk serves both carriers — arena-to-arena at the isolate boundary, and by
 `Core\Serialize` — so a rule added to it reaches both or neither. Two implementations that agree today
 is the failure that costs.
 
-<sub>See also [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`classes/serialize-is-a-closed-format`](classes.md#classes-serialize-is-a-closed-format), [`classes/clone-is-shallow`](classes.md#classes-clone-is-shallow), [`types/callable-is-a-closure`](types.md#types-callable-is-a-closure), [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling). Decided in [0023](../adr/0023-clone-serialize-and-cross-boundary-copy.md), [0006](../adr/0006-isolated-script-execution.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md).</sub>
+<sub>See also [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`classes/serialize-is-a-closed-format`](classes.md#classes-serialize-is-a-closed-format), [`classes/clone-is-shallow`](classes.md#classes-clone-is-shallow), [`types/callable-is-a-closure`](types.md#types-callable-is-a-closure), [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling). Decided in [0023](../decisions/0023.md), [0006](../decisions/0006.md), [0024](../decisions/0024.md).</sub>
 
 <a id="classes-serialize-is-a-closed-format"></a>
 
@@ -517,7 +517,7 @@ grant would contain, and a hostile payload's cost is bounded by the same memory 
 other allocation-heavy call has. What it costs is foreign data: PHP's open wire format cannot be read
 at all.
 
-<sub>See also [`classes/graph-copy`](classes.md#classes-graph-copy), [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization). Decided in [0023](../adr/0023-clone-serialize-and-cross-boundary-copy.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md), [0063](../adr/0063-core-api-conventions.md).</sub>
+<sub>See also [`classes/graph-copy`](classes.md#classes-graph-copy), [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization). Decided in [0023](../decisions/0023.md), [0024](../decisions/0024.md), [0063](../decisions/0063.md).</sub>
 
 <a id="classes-no-magic-methods"></a>
 
@@ -543,7 +543,7 @@ underscore, so a class cannot declare a hook for the runtime to decline to call.
 there is no runtime moment for a loader callback to attach to. What replaces
 `spl_autoload_register` is [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload).
 
-<sub>See also [`classes/stringable`](classes.md#classes-stringable), [`classes/no-destructors`](classes.md#classes-no-destructors), [`classes/no-call-magic`](classes.md#classes-no-call-magic), [`classes/property-observer`](classes.md#classes-property-observer), [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload). Decided in [0028](../adr/0028-closing-the-remaining-magic-methods.md), [0014](../adr/0014-property-observer.md), [0023](../adr/0023-clone-serialize-and-cross-boundary-copy.md), [0027](../adr/0027-callable-is-closures-only.md), [0029](../adr/0029-identifier-casing-is-checked.md).</sub>
+<sub>See also [`classes/stringable`](classes.md#classes-stringable), [`classes/no-destructors`](classes.md#classes-no-destructors), [`classes/no-call-magic`](classes.md#classes-no-call-magic), [`classes/property-observer`](classes.md#classes-property-observer), [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload). Decided in [0028](../decisions/0028.md), [0014](../decisions/0014.md), [0023](../decisions/0023.md), [0027](../decisions/0027.md), [0029](../decisions/0029.md).</sub>
 
 <a id="classes-stringable"></a>
 
@@ -568,7 +568,7 @@ rule can promise. Through a `mixed` or a plain `object` the same question is ans
 instance's runtime class and a class with no `toString` throws there, because there was no site to
 refuse at.
 
-<sub>See also [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`classes/comparable`](classes.md#classes-comparable), [`types/conversion`](types.md#types-conversion), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0028](../adr/0028-closing-the-remaining-magic-methods.md), [0013](../adr/0013-comparable-interface.md), [0007](../adr/0007-explicit-type-system.md).</sub>
+<sub>See also [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`classes/comparable`](classes.md#classes-comparable), [`types/conversion`](types.md#types-conversion), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0028](../decisions/0028.md), [0013](../decisions/0013.md), [0007](../decisions/0007.md).</sub>
 
 <a id="classes-no-destructors"></a>
 
@@ -595,7 +595,7 @@ is exactly the site with nowhere to report one.
 What it costs is real: no RAII, so a caller who forgets an explicit `close()` gets nothing — PHP's
 `__destruct` was an unreliable safety net, but it was a net.
 
-<sub>See also [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`iteration/generators`](iteration.md#iteration-generators), [`errors/propagation`](errors.md#errors-propagation), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0028](../adr/0028-closing-the-remaining-magic-methods.md), [0002](../adr/0002-error-propagation.md), [0004](../adr/0004-memory-for-simplicity.md).</sub>
+<sub>See also [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`iteration/generators`](iteration.md#iteration-generators), [`errors/propagation`](errors.md#errors-propagation), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0028](../decisions/0028.md), [0002](../decisions/0002.md), [0004](../decisions/0004.md).</sub>
 
 <a id="classes-unset-is-refused-on-a-property"></a>
 
@@ -619,7 +619,7 @@ including at depth. Everything else is refused, and the two shapes PHP programs 
 named — a local, which is declared once and definitely assigned so there is no undefined state to
 return it to, and a temporary, which copy-on-write would separate into a slot nothing can write back.
 
-<sub>See also [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/no-dynamic-properties`](classes.md#classes-no-dynamic-properties), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`expressions/truthy-table`](expressions.md#expressions-truthy-table). Decided in [0028](../adr/0028-closing-the-remaining-magic-methods.md), [0022](../adr/0022-definite-property-initialization.md), [0014](../adr/0014-property-observer.md).</sub>
+<sub>See also [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/no-dynamic-properties`](classes.md#classes-no-dynamic-properties), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`expressions/truthy-table`](expressions.md#expressions-truthy-table). Decided in [0028](../decisions/0028.md), [0022](../decisions/0022.md), [0014](../decisions/0014.md).</sub>
 
 <a id="classes-no-debug-hook"></a>
 
@@ -641,7 +641,7 @@ one is a built-in view, the other a call site a script constructs, and they have
 models. A `secret`-typed property is redacted wherever it is dumped, which is the qualifier's rule and
 not an exception to this one.
 
-<sub>See also [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`errors/debug-dump`](errors.md#errors-debug-dump), [`errors/no-render-hook`](errors.md#errors-no-render-hook). Decided in [0028](../adr/0028-closing-the-remaining-magic-methods.md), [0092](../adr/0092-one-diagnostic-record-three-renderings.md), [0019](../adr/0019-reflection-and-ast-parsing-are-core-features.md).</sub>
+<sub>See also [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`errors/debug-dump`](errors.md#errors-debug-dump), [`errors/no-render-hook`](errors.md#errors-no-render-hook). Decided in [0028](../decisions/0028.md), [0092](../decisions/0092.md), [0019](../decisions/0019.md).</sub>
 
 <a id="classes-no-traits"></a>
 
@@ -666,7 +666,7 @@ override calling the source it wants by name ([`classes/member-conflict-is-an-er
 costs is that no PHP source using a trait converts unconverted, and a trait's `static` property —
 silently copied per consuming class — has no destination at all.
 
-<sub>See also [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/interface-private-methods`](classes.md#classes-interface-private-methods), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field), [`classes/member-conflict-is-an-error`](classes.md#classes-member-conflict-is-an-error), [`types/no-legacy-cast`](types.md#types-no-legacy-cast). Decided in [0043](../adr/0043-interface-default-methods-and-delegation-replace-traits.md), [0015](../adr/0015-no-name-aliasing.md).</sub>
+<sub>See also [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/interface-private-methods`](classes.md#classes-interface-private-methods), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field), [`classes/member-conflict-is-an-error`](classes.md#classes-member-conflict-is-an-error), [`types/no-legacy-cast`](types.md#types-no-legacy-cast). Decided in [0043](../decisions/0043.md), [0015](../decisions/0015.md).</sub>
 
 <a id="classes-interface-default-methods"></a>
 
@@ -689,7 +689,7 @@ To call one specific interface's default from an overriding method, `InterfaceNa
 to `$this`. That is one small addition to what a reader has to know `Identifier::method()` can mean,
 alongside `parent::`, `self::` and `static::`.
 
-<sub>See also [`classes/no-traits`](classes.md#classes-no-traits), [`classes/interface-private-methods`](classes.md#classes-interface-private-methods), [`classes/member-conflict-is-an-error`](classes.md#classes-member-conflict-is-an-error), [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces). Decided in [0043](../adr/0043-interface-default-methods-and-delegation-replace-traits.md), [0094](../adr/0094-visibility-is-written-at-every-member-declaration.md).</sub>
+<sub>See also [`classes/no-traits`](classes.md#classes-no-traits), [`classes/interface-private-methods`](classes.md#classes-interface-private-methods), [`classes/member-conflict-is-an-error`](classes.md#classes-member-conflict-is-an-error), [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces). Decided in [0043](../decisions/0043.md), [0094](../decisions/0094.md).</sub>
 
 <a id="classes-interface-private-methods"></a>
 
@@ -710,7 +710,7 @@ inherits.
 The precedent is Java 9's private interface methods, and the addition is small: it changes who may
 call a member, not what an interface may hold. Interfaces still declare no state.
 
-<sub>See also [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/no-traits`](classes.md#classes-no-traits). Decided in [0043](../adr/0043-interface-default-methods-and-delegation-replace-traits.md), [0094](../adr/0094-visibility-is-written-at-every-member-declaration.md).</sub>
+<sub>See also [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/no-traits`](classes.md#classes-no-traits). Decided in [0043](../decisions/0043.md), [0094](../decisions/0094.md).</sub>
 
 <a id="classes-delegation-by-field"></a>
 
@@ -740,7 +740,7 @@ as it would be without the clause.
 It spends one pointer-sized property per delegated interface per instance, plus the delegate object —
 replacing PHP's per-class-copied trait state, which was not free either, with something inspectable.
 
-<sub>See also [`classes/no-traits`](classes.md#classes-no-traits), [`classes/member-conflict-is-an-error`](classes.md#classes-member-conflict-is-an-error), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws), [`statements/inout-is-written-at-the-call`](statements.md#statements-inout-is-written-at-the-call). Decided in [0043](../adr/0043-interface-default-methods-and-delegation-replace-traits.md), [0022](../adr/0022-definite-property-initialization.md), [0038](../adr/0038-lateinit-property-modifier.md).</sub>
+<sub>See also [`classes/no-traits`](classes.md#classes-no-traits), [`classes/member-conflict-is-an-error`](classes.md#classes-member-conflict-is-an-error), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws), [`statements/inout-is-written-at-the-call`](statements.md#statements-inout-is-written-at-the-call). Decided in [0043](../decisions/0043.md), [0022](../decisions/0022.md), [0038](../decisions/0038.md).</sub>
 
 <a id="classes-promotion-is-constructor-only"></a>
 
@@ -761,7 +761,7 @@ inherited, initialized by the binding itself
 ([`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization)), namable by an `implements ... by $field` clause, and
 carrying whatever qualifiers its type does.
 
-<sub>See also [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field). Decided in [0043](../adr/0043-interface-default-methods-and-delegation-replace-traits.md), [0022](../adr/0022-definite-property-initialization.md), [0094](../adr/0094-visibility-is-written-at-every-member-declaration.md).</sub>
+<sub>See also [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field). Decided in [0043](../decisions/0043.md), [0022](../decisions/0022.md), [0094](../decisions/0094.md).</sub>
 
 <a id="classes-member-conflict-is-an-error"></a>
 
@@ -783,7 +783,7 @@ specific source explicitly — `InterfaceName::method()` for a default, or plain
 time, but not that two sources answer the same one. A class reaching two defaults for one name
 currently resolves to whichever the member walk finds first rather than being refused.
 
-<sub>See also [`classes/no-traits`](classes.md#classes-no-traits), [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field). Decided in [0043](../adr/0043-interface-default-methods-and-delegation-replace-traits.md).</sub>
+<sub>See also [`classes/no-traits`](classes.md#classes-no-traits), [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field). Decided in [0043](../decisions/0043.md).</sub>
 
 <a id="classes-no-class-alias"></a>
 
@@ -806,7 +806,7 @@ grammar as a disguise ([`types/alias-is-never-a-bare-class`](types.md#types-alia
 already pay when they decline to alias: two libraries choosing one short name means writing the
 fully-qualified one at the call site.
 
-<sub>See also [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`types/type-alias`](types.md#types-type-alias), [`types/alias-is-never-a-bare-class`](types.md#types-alias-is-never-a-bare-class). Decided in [0015](../adr/0015-no-name-aliasing.md), [0011](../adr/0011-functions-and-constants-are-class-members.md).</sub>
+<sub>See also [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`types/type-alias`](types.md#types-type-alias), [`types/alias-is-never-a-bare-class`](types.md#types-alias-is-never-a-bare-class). Decided in [0015](../decisions/0015.md), [0011](../decisions/0011.md).</sub>
 
 <a id="classes-names-resolve-case-sensitively"></a>
 
@@ -830,7 +830,7 @@ A reserved-name check that is deliberately case-insensitive is not an exception 
 rejects more, and a tightening cannot make a program's meaning depend on case, because no spelling it
 touches has a meaning to depend on.
 
-<sub>See also [`classes/reserved-spellings-are-lower-case`](classes.md#classes-reserved-spellings-are-lower-case), [`programs/path-case`](programs.md#programs-path-case), [`programs/autoload`](programs.md#programs-autoload). Decided in [0062](../adr/0062-case-sensitivity-is-a-compiler-property.md), [0029](../adr/0029-identifier-casing-is-checked.md).</sub>
+<sub>See also [`classes/reserved-spellings-are-lower-case`](classes.md#classes-reserved-spellings-are-lower-case), [`programs/path-case`](programs.md#programs-path-case), [`programs/autoload`](programs.md#programs-autoload). Decided in [0062](../decisions/0062.md), [0029](../decisions/0029.md).</sub>
 
 <a id="classes-reserved-spellings-are-lower-case"></a>
 
@@ -854,7 +854,7 @@ inline-HTML token and teaches the author nothing. Two things fall out: `Core\Byt
 name tokens rather than a collision with the `bytes` type keyword, and identifier lexing no longer
 allocates a lower-cased copy of every name in the file.
 
-<sub>See also [`classes/names-resolve-case-sensitively`](classes.md#classes-names-resolve-case-sensitively), [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag). Decided in [0062](../adr/0062-case-sensitivity-is-a-compiler-property.md), [0029](../adr/0029-identifier-casing-is-checked.md).</sub>
+<sub>See also [`classes/names-resolve-case-sensitively`](classes.md#classes-names-resolve-case-sensitively), [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag). Decided in [0062](../decisions/0062.md), [0029](../decisions/0029.md).</sub>
 
 <a id="classes-constructor-compatibility"></a>
 
@@ -876,4 +876,4 @@ through a class reference is nobody's problem, and refusing it at its declaratio
 unrelated file's `new` the reason a class cannot be written. The cost is one hierarchy-wide question
 asked per dynamic `new` site; `new Dog()` pays nothing.
 
-<sub>See also [`types/class-reference`](types.md#types-class-reference), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization). Decided in [0125](../adr/0125-a-class-reference-is-a-type-and-as-is-its-only-source.md), [0022](../adr/0022-definite-property-initialization.md).</sub>
+<sub>See also [`types/class-reference`](types.md#types-class-reference), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization). Decided in [0125](../decisions/0125.md), [0022](../decisions/0022.md).</sub>

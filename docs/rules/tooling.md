@@ -29,7 +29,7 @@ observer ordinary code at that site would face, and there is no `setAccessible(t
 into execution, because `eval` does not exist. Neither touches the filesystem, the network or another
 process, so neither needs a capability grant ([`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability)).
 
-<sub>See also [`core-classes/reflect`](core-classes.md#core-classes-reflect), [`core-classes/ast-is-inert`](core-classes.md#core-classes-ast-is-inert), [`security/reflection-enforces-visibility`](security.md#security-reflection-enforces-visibility), [`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability), [`enums/reflection`](enums.md#enums-reflection), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0019](../adr/0019-reflection-and-ast-parsing-are-core-features.md).</sub>
+<sub>See also [`core-classes/reflect`](core-classes.md#core-classes-reflect), [`core-classes/ast-is-inert`](core-classes.md#core-classes-ast-is-inert), [`security/reflection-enforces-visibility`](security.md#security-reflection-enforces-visibility), [`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability), [`enums/reflection`](enums.md#enums-reflection), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0019](../decisions/0019.md).</sub>
 
 <a id="tooling-terminal-output-is-a-sink"></a>
 
@@ -57,7 +57,7 @@ is the sink's named launderer, performing exactly this table, for the program th
 neutralized form as a value. A `secret` value is refused outright with no carrier bypass
 ([`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse)), because substitution does nothing for confidentiality.
 
-<sub>See also [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path), [`tooling/an-escape-in-a-literal-is-a-compile-error`](tooling.md#tooling-an-escape-in-a-literal-is-a-compile-error), [`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`security/bidi-predicate`](security.md#security-bidi-predicate), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named). Decided in [0086](../adr/0086-core-cli-terminal-is-a-sink.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md), [0087](../adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md).</sub>
+<sub>See also [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path), [`tooling/an-escape-in-a-literal-is-a-compile-error`](tooling.md#tooling-an-escape-in-a-literal-is-a-compile-error), [`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`security/bidi-predicate`](security.md#security-bidi-predicate), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named). Decided in [0086](../decisions/0086.md), [0024](../decisions/0024.md), [0087](../decisions/0087.md).</sub>
 
 <a id="tooling-an-escape-in-a-literal-is-a-compile-error"></a>
 
@@ -76,7 +76,7 @@ time is to print a **computed** escape sequence, which is the attack the sink ex
 The diagnostic names `Cli\Text` so that a developer who wants colour finds the one raw path
 ([`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path)) instead of concluding that colour does not work.
 
-<sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path). Decided in [0086](../adr/0086-core-cli-terminal-is-a-sink.md).</sub>
+<sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path). Decided in [0086](../decisions/0086.md).</sub>
 
 <a id="tooling-styling-is-a-value-not-a-grammar"></a>
 
@@ -102,7 +102,7 @@ colours are class constants — `Color::RED` *is* `Color::index(1)`, written sho
 use site as any scalar constant is — and `Color::rgb(uint, uint, uint)` and `Color::index(uint)`
 construct the rest.
 
-<sub>See also [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path), [`tooling/the-terminal-profile-resolves-once`](tooling.md#tooling-the-terminal-profile-resolves-once), [`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink), [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type). Decided in [0086](../adr/0086-core-cli-terminal-is-a-sink.md), [0063](../adr/0063-core-api-conventions.md).</sub>
+<sub>See also [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path), [`tooling/the-terminal-profile-resolves-once`](tooling.md#tooling-the-terminal-profile-resolves-once), [`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink), [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type). Decided in [0086](../decisions/0086.md), [0063](../decisions/0063.md).</sub>
 
 <a id="tooling-text-is-the-one-raw-path"></a>
 
@@ -125,7 +125,7 @@ sends both the same bytes. Closing it would make the sink's carrier
 ([`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier)) two representations instead of one, and that trade is
 not worth making while `echo` writes standard output and nothing else can observe the difference.
 
-<sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/styling-is-a-value-not-a-grammar`](tooling.md#tooling-styling-is-a-value-not-a-grammar), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier). Decided in [0086](../adr/0086-core-cli-terminal-is-a-sink.md), [0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md).</sub>
+<sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/styling-is-a-value-not-a-grammar`](tooling.md#tooling-styling-is-a-value-not-a-grammar), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier). Decided in [0086](../decisions/0086.md), [0088](../decisions/0088.md).</sub>
 
 <a id="tooling-the-terminal-profile-resolves-once"></a>
 
@@ -149,7 +149,7 @@ presentation one. Resolving once is what makes two reads of the width in one run
 construction, so a program that measures at the top and draws at the bottom cannot tear a frame; the
 cost is that a resize is not noticed until the process restarts.
 
-<sub>See also [`tooling/styling-is-a-value-not-a-grammar`](tooling.md#tooling-styling-is-a-value-not-a-grammar), [`tooling/display-width-measures-what-the-sink-writes`](tooling.md#tooling-display-width-measures-what-the-sink-writes), [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink). Decided in [0086](../adr/0086-core-cli-terminal-is-a-sink.md).</sub>
+<sub>See also [`tooling/styling-is-a-value-not-a-grammar`](tooling.md#tooling-styling-is-a-value-not-a-grammar), [`tooling/display-width-measures-what-the-sink-writes`](tooling.md#tooling-display-width-measures-what-the-sink-writes), [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink). Decided in [0086](../decisions/0086.md).</sub>
 
 <a id="tooling-display-width-measures-what-the-sink-writes"></a>
 
@@ -175,7 +175,7 @@ the two [`types/bytes`](types.md#types-bytes) fixed — bytes for `bytes`, graph
 property of the renderer, not of the string; putting it on `Core\Str` would imply a string has an
 intrinsic width, the confusion [`types/string-is-utf8`](types.md#types-string-is-utf8) exists to remove.
 
-<sub>See also [`tooling/the-terminal-profile-resolves-once`](tooling.md#tooling-the-terminal-profile-resolves-once), [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`types/string-is-utf8`](types.md#types-string-is-utf8), [`types/bytes`](types.md#types-bytes). Decided in [0086](../adr/0086-core-cli-terminal-is-a-sink.md).</sub>
+<sub>See also [`tooling/the-terminal-profile-resolves-once`](tooling.md#tooling-the-terminal-profile-resolves-once), [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`types/string-is-utf8`](types.md#types-string-is-utf8), [`types/bytes`](types.md#types-bytes). Decided in [0086](../decisions/0086.md).</sub>
 
 <a id="tooling-a-prompt-is-a-core-member"></a>
 
@@ -200,7 +200,7 @@ controlling terminal, not standard input** — `/dev/tty`, `CONIN$` — so `cat 
 still ask a question; without that, piping and prompting are mutually exclusive, which is the defect
 in every hand-rolled version.
 
-<sub>See also [`tooling/a-prompt-never-blocks`](tooling.md#tooling-a-prompt-never-blocks), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source), [`security/no-ffi`](security.md#security-no-ffi), [`core-api/options-bag`](core-api.md#core-api-options-bag). Decided in [0086](../adr/0086-core-cli-terminal-is-a-sink.md), [0033](../adr/0033-secret-qualifier-for-confidential-values.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md), [0052](../adr/0052-closed-doors.md).</sub>
+<sub>See also [`tooling/a-prompt-never-blocks`](tooling.md#tooling-a-prompt-never-blocks), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source), [`security/no-ffi`](security.md#security-no-ffi), [`core-api/options-bag`](core-api.md#core-api-options-bag). Decided in [0086](../decisions/0086.md), [0033](../decisions/0033.md), [0024](../decisions/0024.md), [0052](../decisions/0052.md).</sub>
 
 <a id="tooling-a-prompt-never-blocks"></a>
 
@@ -229,7 +229,7 @@ five prompts already meet, so a sixth inherits it. A scripted line wins over a t
 and a queue with nothing left is the unattended run above, so scripting too few answers is assertable
 rather than a hang.
 
-<sub>See also [`tooling/a-prompt-is-a-core-member`](tooling.md#tooling-a-prompt-is-a-core-member), [`programs/memory-priority`](programs.md#programs-memory-priority), [`testing/test-attribute`](testing.md#testing-test-attribute). Decided in [0086](../adr/0086-core-cli-terminal-is-a-sink.md), [0074](../adr/0074-http-defaults-safe-and-finite.md), [0079](../adr/0079-testing-is-a-language-feature.md).</sub>
+<sub>See also [`tooling/a-prompt-is-a-core-member`](tooling.md#tooling-a-prompt-is-a-core-member), [`programs/memory-priority`](programs.md#programs-memory-priority), [`testing/test-attribute`](testing.md#testing-test-attribute). Decided in [0086](../decisions/0086.md), [0074](../decisions/0074.md), [0079](../decisions/0079.md).</sub>
 
 <a id="tooling-in-place-output-is-a-scoped-live-region"></a>
 
@@ -262,7 +262,7 @@ at that end on every path including a throw. Cursor primitives — `moveUp`, `cl
 survive a resize, they interleave incoherently when two tasks write, and a program that dies holding
 them leaves the operator's shell unusable.
 
-<sub>See also [`tooling/the-terminal-is-restored-on-every-exit-path`](tooling.md#tooling-the-terminal-is-restored-on-every-exit-path), [`tooling/the-terminal-profile-resolves-once`](tooling.md#tooling-the-terminal-profile-resolves-once), [`tooling/no-raw-handle-onto-standard-output`](tooling.md#tooling-no-raw-handle-onto-standard-output), [`core-classes/db-transactions`](core-classes.md#core-classes-db-transactions). Decided in [0086](../adr/0086-core-cli-terminal-is-a-sink.md), [0067](../adr/0067-core-db.md).</sub>
+<sub>See also [`tooling/the-terminal-is-restored-on-every-exit-path`](tooling.md#tooling-the-terminal-is-restored-on-every-exit-path), [`tooling/the-terminal-profile-resolves-once`](tooling.md#tooling-the-terminal-profile-resolves-once), [`tooling/no-raw-handle-onto-standard-output`](tooling.md#tooling-no-raw-handle-onto-standard-output), [`core-classes/db-transactions`](core-classes.md#core-classes-db-transactions). Decided in [0086](../decisions/0086.md), [0067](../decisions/0067.md).</sub>
 
 <a id="tooling-commands-are-compiled"></a>
 
@@ -293,7 +293,7 @@ command line is [`tooling/a-parameter-is-an-argument-unless-it-is-an-option`](to
 `clap`-shaped builder registered at run time — loses all three compile errors and the generated
 completions, and is the design every other ecosystem already has.
 
-<sub>See also [`tooling/a-parameter-is-an-argument-unless-it-is-an-option`](tooling.md#tooling-a-parameter-is-an-argument-unless-it-is-an-option), [`tooling/command-run-dispatches-and-help-is-generated`](tooling.md#tooling-command-run-dispatches-and-help-is-generated), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching), [`programs/implementing`](programs.md#programs-implementing), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host). Decided in [0086](../adr/0086-core-cli-terminal-is-a-sink.md), [0077](../adr/0077-compile-time-routing.md), [0061](../adr/0061-compile-time-autoload-and-program-discovery.md), [0071](../adr/0071-derived-codecs.md).</sub>
+<sub>See also [`tooling/a-parameter-is-an-argument-unless-it-is-an-option`](tooling.md#tooling-a-parameter-is-an-argument-unless-it-is-an-option), [`tooling/command-run-dispatches-and-help-is-generated`](tooling.md#tooling-command-run-dispatches-and-help-is-generated), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching), [`programs/implementing`](programs.md#programs-implementing), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host). Decided in [0086](../decisions/0086.md), [0077](../decisions/0077.md), [0061](../decisions/0061.md), [0071](../decisions/0071.md).</sub>
 
 <a id="tooling-a-parameter-is-an-argument-unless-it-is-an-option"></a>
 
@@ -318,7 +318,7 @@ union of literals by its word ([`routing/a-capture-narrows-to-a-closed-set`](rou
 — no new laundering rule exists for the command line. An `#[Option]` written outside a `#[Command]`
 method supplies nothing, because there is no table for it to be a row of.
 
-<sub>See also [`tooling/commands-are-compiled`](tooling.md#tooling-commands-are-compiled), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type), [`routing/a-capture-narrows-to-a-closed-set`](routing.md#routing-a-capture-narrows-to-a-closed-set), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments). Decided in [0086](../adr/0086-core-cli-terminal-is-a-sink.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md), [0077](../adr/0077-compile-time-routing.md).</sub>
+<sub>See also [`tooling/commands-are-compiled`](tooling.md#tooling-commands-are-compiled), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type), [`routing/a-capture-narrows-to-a-closed-set`](routing.md#routing-a-capture-narrows-to-a-closed-set), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments). Decided in [0086](../decisions/0086.md), [0024](../decisions/0024.md), [0077](../decisions/0077.md).</sub>
 
 <a id="tooling-command-run-dispatches-and-help-is-generated"></a>
 
@@ -342,7 +342,7 @@ mapping — and baking a convention in would fight it. A CLI has one entry point
 question, so the reason the router stops does not exist here, and stopping anyway would copy its
 shape rather than its reasoning.
 
-<sub>See also [`tooling/commands-are-compiled`](tooling.md#tooling-commands-are-compiled), [`tooling/a-parameter-is-an-argument-unless-it-is-an-option`](tooling.md#tooling-a-parameter-is-an-argument-unless-it-is-an-option), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching), [`routing/the-servers-match-dispatches-nothing`](routing.md#routing-the-servers-match-dispatches-nothing), [`statements/exit-is-the-only-termination-keyword`](statements.md#statements-exit-is-the-only-termination-keyword). Decided in [0086](../adr/0086-core-cli-terminal-is-a-sink.md), [0102](../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md).</sub>
+<sub>See also [`tooling/commands-are-compiled`](tooling.md#tooling-commands-are-compiled), [`tooling/a-parameter-is-an-argument-unless-it-is-an-option`](tooling.md#tooling-a-parameter-is-an-argument-unless-it-is-an-option), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching), [`routing/the-servers-match-dispatches-nothing`](routing.md#routing-the-servers-match-dispatches-nothing), [`statements/exit-is-the-only-termination-keyword`](statements.md#statements-exit-is-the-only-termination-keyword). Decided in [0086](../decisions/0086.md), [0102](../decisions/0102.md).</sub>
 
 <a id="tooling-no-raw-handle-onto-standard-output"></a>
 
@@ -367,7 +367,7 @@ the sink closes. Spinners and table rendering, which are pure text composition o
 than Tier 0 ([`core-api/tier-placement`](core-api.md#core-api-tier-placement)). And a TUI widget layer — panes, focus, event loops —
 which is an application framework, not a language surface.
 
-<sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path), [`tooling/in-place-output-is-a-scoped-live-region`](tooling.md#tooling-in-place-output-is-a-scoped-live-region), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation), [`core-api/tier-placement`](core-api.md#core-api-tier-placement). Decided in [0086](../adr/0086-core-cli-terminal-is-a-sink.md), [0063](../adr/0063-core-api-conventions.md), [0051](../adr/0051-standard-library-tiers.md).</sub>
+<sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path), [`tooling/in-place-output-is-a-scoped-live-region`](tooling.md#tooling-in-place-output-is-a-scoped-live-region), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation), [`core-api/tier-placement`](core-api.md#core-api-tier-placement). Decided in [0086](../decisions/0086.md), [0063](../decisions/0063.md), [0051](../decisions/0051.md).</sub>
 
 <a id="tooling-the-tty-belongs-to-the-main-task"></a>
 
@@ -386,7 +386,7 @@ throws is claiming the *terminal*; writing text never does. An isolate's `echo` 
 parent owns, never a tty ([`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured)), which is why the two rules are
 consistent rather than in tension.
 
-<sub>See also [`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink), [`tooling/the-terminal-is-restored-on-every-exit-path`](tooling.md#tooling-the-terminal-is-restored-on-every-exit-path), [`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments). Decided in [0086](../adr/0086-core-cli-terminal-is-a-sink.md), [0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md), [0006](../adr/0006-isolated-script-execution.md).</sub>
+<sub>See also [`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink), [`tooling/the-terminal-is-restored-on-every-exit-path`](tooling.md#tooling-the-terminal-is-restored-on-every-exit-path), [`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments). Decided in [0086](../decisions/0086.md), [0088](../decisions/0088.md), [0006](../decisions/0006.md).</sub>
 
 <a id="tooling-the-terminal-is-restored-on-every-exit-path"></a>
 
@@ -410,7 +410,7 @@ guard was skipped, so the stack can never keep a region nobody can reach. What i
 the last frame; what is restored is the cursor, and the row below the region is where the next `echo`
 lands.
 
-<sub>See also [`tooling/in-place-output-is-a-scoped-live-region`](tooling.md#tooling-in-place-output-is-a-scoped-live-region), [`tooling/the-tty-belongs-to-the-main-task`](tooling.md#tooling-the-tty-belongs-to-the-main-task), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code), [`errors/engine-floor`](errors.md#errors-engine-floor). Decided in [0086](../adr/0086-core-cli-terminal-is-a-sink.md), [0020](../adr/0020-error-escalation-ladder.md).</sub>
+<sub>See also [`tooling/in-place-output-is-a-scoped-live-region`](tooling.md#tooling-in-place-output-is-a-scoped-live-region), [`tooling/the-tty-belongs-to-the-main-task`](tooling.md#tooling-the-tty-belongs-to-the-main-task), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code), [`errors/engine-floor`](errors.md#errors-engine-floor). Decided in [0086](../decisions/0086.md), [0020](../decisions/0020.md).</sub>
 
 <a id="tooling-echo-always-has-a-sink"></a>
 
@@ -440,7 +440,7 @@ HTML, so no call site names a format. It also gives `Core\Out::capture` its answ
 than an `echo` the HTML sink would escape into corruption
 ([`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member)).
 
-<sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/the-tty-belongs-to-the-main-task`](tooling.md#tooling-the-tty-belongs-to-the-main-task), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured), [`errors/renderings`](errors.md#errors-renderings), [`config/a-scheduled-run-is-a-root-isolate`](config.md#config-a-scheduled-run-is-a-root-isolate). Decided in [0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md), [0086](../adr/0086-core-cli-terminal-is-a-sink.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md), [0092](../adr/0092-one-diagnostic-record-three-renderings.md).</sub>
+<sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/the-tty-belongs-to-the-main-task`](tooling.md#tooling-the-tty-belongs-to-the-main-task), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured), [`errors/renderings`](errors.md#errors-renderings), [`config/a-scheduled-run-is-a-root-isolate`](config.md#config-a-scheduled-run-is-a-root-isolate). Decided in [0088](../decisions/0088.md), [0086](../decisions/0086.md), [0024](../decisions/0024.md), [0092](../decisions/0092.md).</sub>
 
 <a id="tooling-convert-one-table-two-modes"></a>
 
@@ -472,7 +472,7 @@ letter plus four digits, never reused), `match`, `when`, `tier`, `rewrite`, `div
 sentence — the `TODO` text), `idiomatic` (what Novis wants instead — the comment the default mode
 leaves), `dialect` and `proof`. `diverges` says what will break; `idiomatic` says what to write.
 
-<sub>See also [`tooling/convert-equivalent-is-proven`](tooling.md#tooling-convert-equivalent-is-proven), [`tooling/convert-annotations-and-report`](tooling.md#tooling-convert-annotations-and-report), [`tooling/convert-three-tables`](tooling.md#tooling-convert-three-tables), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`security/sink-predicate`](security.md#security-sink-predicate). Decided in [0089](../adr/0089-convert-is-one-rule-table-with-two-modes.md), [0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md).</sub>
+<sub>See also [`tooling/convert-equivalent-is-proven`](tooling.md#tooling-convert-equivalent-is-proven), [`tooling/convert-annotations-and-report`](tooling.md#tooling-convert-annotations-and-report), [`tooling/convert-three-tables`](tooling.md#tooling-convert-three-tables), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`security/sink-predicate`](security.md#security-sink-predicate). Decided in [0089](../decisions/0089.md), [0088](../decisions/0088.md).</sub>
 
 <a id="tooling-convert-equivalent-is-proven"></a>
 
@@ -503,7 +503,7 @@ Where inference cannot decide a type, **`mixed` is an E answer, not a divergence
 unchecked position ([`types/unions-and-mixed`](types.md#types-unions-and-mixed)), which is exactly PHP's own discipline. The
 accompanying `TODO` names the binding and says what it costs.
 
-<sub>See also [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes), [`tooling/convert-php-front-end`](tooling.md#tooling-convert-php-front-end), [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0089](../adr/0089-convert-is-one-rule-table-with-two-modes.md), [0079](../adr/0079-testing-is-a-language-feature.md), [0007](../adr/0007-explicit-type-system.md), [0009](../adr/0009-string-and-bytes.md), [0090](../adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md).</sub>
+<sub>See also [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes), [`tooling/convert-php-front-end`](tooling.md#tooling-convert-php-front-end), [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0089](../decisions/0089.md), [0079](../decisions/0079.md), [0007](../decisions/0007.md), [0009](../decisions/0009.md), [0090](../decisions/0090.md).</sub>
 
 <a id="tooling-convert-is-deterministic"></a>
 
@@ -534,7 +534,7 @@ implementation may not break:
 does not happen. This is what makes the output reviewable and the tool re-runnable, and it is why
 LLM assistance is refused outright ([`tooling/convert-never-does`](tooling.md#tooling-convert-never-does)).
 
-<sub>See also [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes), [`tooling/convert-php-front-end`](tooling.md#tooling-convert-php-front-end), [`tooling/convert-never-does`](tooling.md#tooling-convert-never-does), [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style). Decided in [0089](../adr/0089-convert-is-one-rule-table-with-two-modes.md), [0039](../adr/0039-canonical-code-formatting.md).</sub>
+<sub>See also [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes), [`tooling/convert-php-front-end`](tooling.md#tooling-convert-php-front-end), [`tooling/convert-never-does`](tooling.md#tooling-convert-never-does), [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style). Decided in [0089](../decisions/0089.md), [0039](../decisions/0039.md).</sub>
 
 <a id="tooling-convert-drops-nothing"></a>
 
@@ -557,7 +557,7 @@ the dialect it was tried under — never a missing file and never a silent skip
 Novis is a converter bug: the run reports it against the rule id, and that file falls back to fully
 commented-out, so a bad rule can never leave a tree that does not parse.
 
-<sub>See also [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes), [`tooling/convert-php-front-end`](tooling.md#tooling-convert-php-front-end). Decided in [0089](../adr/0089-convert-is-one-rule-table-with-two-modes.md).</sub>
+<sub>See also [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes), [`tooling/convert-php-front-end`](tooling.md#tooling-convert-php-front-end). Decided in [0089](../decisions/0089.md).</sub>
 
 <a id="tooling-convert-annotations-and-report"></a>
 
@@ -591,7 +591,7 @@ That report is the number [`programs/no-compatibility-promise`](programs.md#prog
 instead of a compatibility claim. `--explain <id>` prints one rule: its branches, their tiers, their
 conditions and their proofs.
 
-<sub>See also [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`programs/three-claims`](programs.md#programs-three-claims), [`config/the-file-is-nvs-toml-and-it-is-toml`](config.md#config-the-file-is-nvs-toml-and-it-is-toml). Decided in [0089](../adr/0089-convert-is-one-rule-table-with-two-modes.md), [0064](../adr/0064-configuration-file-format.md), [0080](../adr/0080-the-audience-nvs-is-built-for.md).</sub>
+<sub>See also [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`programs/three-claims`](programs.md#programs-three-claims), [`config/the-file-is-nvs-toml-and-it-is-toml`](config.md#config-the-file-is-nvs-toml-and-it-is-toml). Decided in [0089](../decisions/0089.md), [0064](../decisions/0064.md), [0080](../decisions/0080.md).</sub>
 
 <a id="tooling-convert-three-tables"></a>
 
@@ -619,7 +619,7 @@ Three tables, three homes, no fourth copy.
 The table grows for years. That is the accepted price, and it is why the growth is one data row
 rather than one branch in a match.
 
-<sub>See also [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes), [`tooling/convert-equivalent-is-proven`](tooling.md#tooling-convert-equivalent-is-proven), [`testing/attribution-is-diffed-in-ci`](testing.md#testing-attribution-is-diffed-in-ci). Decided in [0089](../adr/0089-convert-is-one-rule-table-with-two-modes.md), [0065](../adr/0065-third-party-attribution-and-nvs-info.md).</sub>
+<sub>See also [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes), [`tooling/convert-equivalent-is-proven`](tooling.md#tooling-convert-equivalent-is-proven), [`testing/attribution-is-diffed-in-ci`](testing.md#testing-attribution-is-diffed-in-ci). Decided in [0089](../decisions/0089.md), [0065](../decisions/0065.md).</sub>
 
 <a id="tooling-convert-php-front-end"></a>
 
@@ -650,7 +650,7 @@ installed PHP at convert time would make output depend on which build the user h
 [`tooling/convert-is-deterministic`](tooling.md#tooling-convert-is-deterministic). The parser is not vendored: owning it would mean owning
 every future PHP release.
 
-<sub>See also [`tooling/convert-is-deterministic`](tooling.md#tooling-convert-is-deterministic), [`tooling/convert-drops-nothing`](tooling.md#tooling-convert-drops-nothing), [`tooling/convert-equivalent-is-proven`](tooling.md#tooling-convert-equivalent-is-proven), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions). Decided in [0089](../adr/0089-convert-is-one-rule-table-with-two-modes.md), [0068](../adr/0068-dependency-currency-and-the-version-contract.md), [0051](../adr/0051-standard-library-tiers.md), [0065](../adr/0065-third-party-attribution-and-nvs-info.md).</sub>
+<sub>See also [`tooling/convert-is-deterministic`](tooling.md#tooling-convert-is-deterministic), [`tooling/convert-drops-nothing`](tooling.md#tooling-convert-drops-nothing), [`tooling/convert-equivalent-is-proven`](tooling.md#tooling-convert-equivalent-is-proven), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions). Decided in [0089](../decisions/0089.md), [0068](../decisions/0068.md), [0051](../decisions/0051.md), [0065](../decisions/0065.md).</sub>
 
 <a id="tooling-convert-never-does"></a>
 
@@ -677,7 +677,7 @@ Five refusals, each a rule of its own.
   tier counts; the forbidden phrasings of [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise) bind the
   converter's own text as much as any other document.
 
-<sub>See also [`tooling/convert-is-deterministic`](tooling.md#tooling-convert-is-deterministic), [`tooling/convert-annotations-and-report`](tooling.md#tooling-convert-annotations-and-report), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`programs/autoload`](programs.md#programs-autoload), [`security/no-eval`](security.md#security-no-eval), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0089](../adr/0089-convert-is-one-rule-table-with-two-modes.md), [0080](../adr/0080-the-audience-nvs-is-built-for.md), [0061](../adr/0061-compile-time-autoload-and-program-discovery.md), [0081](../adr/0081-packages-are-digests-resolution-is-a-maximum.md).</sub>
+<sub>See also [`tooling/convert-is-deterministic`](tooling.md#tooling-convert-is-deterministic), [`tooling/convert-annotations-and-report`](tooling.md#tooling-convert-annotations-and-report), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`programs/autoload`](programs.md#programs-autoload), [`security/no-eval`](security.md#security-no-eval), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0089](../decisions/0089.md), [0080](../decisions/0080.md), [0061](../decisions/0061.md), [0081](../decisions/0081.md).</sub>
 
 <a id="tooling-fmt-never-inserts-visibility"></a>
 
@@ -699,7 +699,7 @@ word is a behaviour-identical rewrite, discharged by a differential case like an
 ([`tooling/convert-equivalent-is-proven`](tooling.md#tooling-convert-equivalent-is-proven)). Porting a PHP file therefore costs the author nothing
 here, and the ported member reports the level PHP actually gave it.
 
-<sub>See also [`core-api/written-visibility`](core-api.md#core-api-written-visibility), [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes), [`tooling/convert-equivalent-is-proven`](tooling.md#tooling-convert-equivalent-is-proven), [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per). Decided in [0094](../adr/0094-visibility-is-written-at-every-member-declaration.md), [0089](../adr/0089-convert-is-one-rule-table-with-two-modes.md), [0039](../adr/0039-canonical-code-formatting.md).</sub>
+<sub>See also [`core-api/written-visibility`](core-api.md#core-api-written-visibility), [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes), [`tooling/convert-equivalent-is-proven`](tooling.md#tooling-convert-equivalent-is-proven), [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per). Decided in [0094](../decisions/0094.md), [0089](../decisions/0089.md), [0039](../decisions/0039.md).</sub>
 
 <a id="tooling-python-claims"></a>
 
@@ -733,7 +733,7 @@ and no numeric or machine-learning stack and no route to one ([`security/no-ffi`
 No check enforces a forbidden phrasing and none should; the rule exists so a reviewer has something
 to point at.
 
-<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/three-claims`](programs.md#programs-three-claims), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`tooling/no-repl`](tooling.md#tooling-no-repl), [`tooling/bench-engine-list-is-data`](tooling.md#tooling-bench-engine-list-is-data), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/no-ffi`](security.md#security-no-ffi), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host), [`tooling/commands-are-compiled`](tooling.md#tooling-commands-are-compiled), [`concurrency/one-scheduler`](concurrency.md#concurrency-one-scheduler). Decided in [0100](../adr/0100-against-python-nvs-claims-the-tool-that-gets-handed-over.md), [0080](../adr/0080-the-audience-nvs-is-built-for.md), [0044](../adr/0044-core-process-argv-only-no-shell.md), [0033](../adr/0033-secret-qualifier-for-confidential-values.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md), [0048](../adr/0048-portable-single-file-executables.md), [0052](../adr/0052-closed-doors.md).</sub>
+<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/three-claims`](programs.md#programs-three-claims), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`tooling/no-repl`](tooling.md#tooling-no-repl), [`tooling/bench-engine-list-is-data`](tooling.md#tooling-bench-engine-list-is-data), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/no-ffi`](security.md#security-no-ffi), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host), [`tooling/commands-are-compiled`](tooling.md#tooling-commands-are-compiled), [`concurrency/one-scheduler`](concurrency.md#concurrency-one-scheduler). Decided in [0100](../decisions/0100.md), [0080](../decisions/0080.md), [0044](../decisions/0044.md), [0033](../decisions/0033.md), [0024](../decisions/0024.md), [0048](../decisions/0048.md), [0052](../decisions/0052.md).</sub>
 
 <a id="tooling-shebang-opens-code-mode"></a>
 
@@ -767,7 +767,7 @@ Windows with no edit; Windows gains no kernel shebang support, and its distribut
 single-file executable. This is one lexer branch at offset 0: no parser rule, HIR shape or runtime
 behaviour changes.
 
-<sub>See also [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag), [`statements/exit-is-the-only-termination-keyword`](statements.md#statements-exit-is-the-only-termination-keyword), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree). Decided in [0100](../adr/0100-against-python-nvs-claims-the-tool-that-gets-handed-over.md), [0049](../adr/0049-single-open-tag-and-single-exit-keyword.md), [0099](../adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md), [0095](../adr/0095-ambiguous-input-is-refused-never-repaired.md).</sub>
+<sub>See also [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag), [`statements/exit-is-the-only-termination-keyword`](statements.md#statements-exit-is-the-only-termination-keyword), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree). Decided in [0100](../decisions/0100.md), [0049](../decisions/0049.md), [0099](../decisions/0099.md), [0095](../decisions/0095.md).</sub>
 
 <a id="tooling-no-repl"></a>
 
@@ -798,7 +798,7 @@ wherever Novis is compared to Python. It reopens only on evidence that "what is 
 build, and what would be built then is a debugger-shaped inspector over a paused isolate, not a
 general evaluator.
 
-<sub>See also [`tooling/python-claims`](tooling.md#tooling-python-claims), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate), [`testing/test-attribute`](testing.md#testing-test-attribute), [`errors/debug-dump`](errors.md#errors-debug-dump), [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file), [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink). Decided in [0100](../adr/0100-against-python-nvs-claims-the-tool-that-gets-handed-over.md), [0011](../adr/0011-functions-and-constants-are-class-members.md), [0042](../adr/0042-on-disk-artifact-cache-format.md), [0022](../adr/0022-definite-property-initialization.md), [0015](../adr/0015-no-name-aliasing.md), [0079](../adr/0079-testing-is-a-language-feature.md), [0092](../adr/0092-one-diagnostic-record-three-renderings.md).</sub>
+<sub>See also [`tooling/python-claims`](tooling.md#tooling-python-claims), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate), [`testing/test-attribute`](testing.md#testing-test-attribute), [`errors/debug-dump`](errors.md#errors-debug-dump), [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file), [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink). Decided in [0100](../decisions/0100.md), [0011](../decisions/0011.md), [0042](../decisions/0042.md), [0022](../decisions/0022.md), [0015](../decisions/0015.md), [0079](../decisions/0079.md), [0092](../decisions/0092.md).</sub>
 
 <a id="tooling-bench-engine-list-is-data"></a>
 
@@ -829,7 +829,7 @@ need it and carries a comment saying why.
 and an uninstalled engine is narrowed away with `--engines`, so neither can turn a build, a test or a
 loop session red — nothing outside this suite reads any of it.
 
-<sub>See also [`testing/userland-benchmarks`](testing.md#testing-userland-benchmarks), [`testing/perf-secondary-figures`](testing.md#testing-perf-secondary-figures), [`tooling/python-claims`](tooling.md#tooling-python-claims), [`programs/three-claims`](programs.md#programs-three-claims). Decided in [0100](../adr/0100-against-python-nvs-claims-the-tool-that-gets-handed-over.md), [0026](../adr/0026-performance-measurement-methodology.md), [0065](../adr/0065-third-party-attribution-and-nvs-info.md).</sub>
+<sub>See also [`testing/userland-benchmarks`](testing.md#testing-userland-benchmarks), [`testing/perf-secondary-figures`](testing.md#testing-perf-secondary-figures), [`tooling/python-claims`](tooling.md#tooling-python-claims), [`programs/three-claims`](programs.md#programs-three-claims). Decided in [0100](../decisions/0100.md), [0026](../decisions/0026.md), [0065](../decisions/0065.md).</sub>
 
 <a id="tooling-fmt-is-one-canonical-style"></a>
 
@@ -855,7 +855,7 @@ Changing any of these rules later is a real diff across every already-formatted 
 change, so the rule set is stable once it ships. The formatter reads the lossless tree, never the strict
 parse that drops comments — a walk over the strict tree would delete every comment in the file.
 
-<sub>See also [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per), [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-is-idempotent`](tooling.md#tooling-fmt-is-idempotent), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`core-api/casing-has-no-suppression`](core-api.md#core-api-casing-has-no-suppression), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree). Decided in [0039](../adr/0039-canonical-code-formatting.md).</sub>
+<sub>See also [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per), [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-is-idempotent`](tooling.md#tooling-fmt-is-idempotent), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`core-api/casing-has-no-suppression`](core-api.md#core-api-casing-has-no-suppression), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree). Decided in [0039](../decisions/0039.md).</sub>
 
 <a id="tooling-fmt-base-style-is-per"></a>
 
@@ -883,7 +883,7 @@ accepts these in any order, which is exactly why the formatter must fix one — 
 `public static $x;` both compile and would otherwise never converge. A missing modifier is never
 supplied: a formatter that changes meaning is not a formatter ([`core-api/written-visibility`](core-api.md#core-api-written-visibility)).
 
-<sub>See also [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`tooling/fmt-sorts-the-use-block`](tooling.md#tooling-fmt-sorts-the-use-block), [`tooling/fmt-novis-constructs`](tooling.md#tooling-fmt-novis-constructs), [`core-api/written-visibility`](core-api.md#core-api-written-visibility), [`classes/lateinit`](classes.md#classes-lateinit). Decided in [0039](../adr/0039-canonical-code-formatting.md).</sub>
+<sub>See also [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`tooling/fmt-sorts-the-use-block`](tooling.md#tooling-fmt-sorts-the-use-block), [`tooling/fmt-novis-constructs`](tooling.md#tooling-fmt-novis-constructs), [`core-api/written-visibility`](core-api.md#core-api-written-visibility), [`classes/lateinit`](classes.md#classes-lateinit). Decided in [0039](../decisions/0039.md).</sub>
 
 <a id="tooling-fmt-never-reflows"></a>
 
@@ -906,7 +906,7 @@ whitespace, brace and order normalizer walking the existing parse tree rather th
 printer this project has no other user of — and one that stays trivially byte-for-byte deterministic as the
 parser evolves ([`tooling/fmt-is-idempotent`](tooling.md#tooling-fmt-is-idempotent)).
 
-<sub>See also [`tooling/fmt-is-idempotent`](tooling.md#tooling-fmt-is-idempotent), [`tooling/fmt-trailing-commas`](tooling.md#tooling-fmt-trailing-commas), [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution). Decided in [0039](../adr/0039-canonical-code-formatting.md).</sub>
+<sub>See also [`tooling/fmt-is-idempotent`](tooling.md#tooling-fmt-is-idempotent), [`tooling/fmt-trailing-commas`](tooling.md#tooling-fmt-trailing-commas), [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution). Decided in [0039](../decisions/0039.md).</sub>
 
 <a id="tooling-fmt-quotes"></a>
 
@@ -926,7 +926,7 @@ This is the one rewrite, with [`tooling/fmt-trailing-commas`](tooling.md#tooling
 whitespace-only formatter was rejected because two semantically identical files would still differ
 byte-for-byte after formatting, which undercuts the point of having one canonical layout at all.
 
-<sub>See also [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`tooling/fmt-is-idempotent`](tooling.md#tooling-fmt-is-idempotent). Decided in [0039](../adr/0039-canonical-code-formatting.md).</sub>
+<sub>See also [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`tooling/fmt-is-idempotent`](tooling.md#tooling-fmt-is-idempotent). Decided in [0039](../decisions/0039.md).</sub>
 
 <a id="tooling-fmt-trailing-commas"></a>
 
@@ -943,7 +943,7 @@ preserves; the comma follows from that decision mechanically. This removes the o
 leaves a genuinely free stylistic choice with no way to derive the right answer from context, and it is
 what makes adding an element to a multi-line list a one-line diff.
 
-<sub>See also [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-novis-constructs`](tooling.md#tooling-fmt-novis-constructs). Decided in [0039](../adr/0039-canonical-code-formatting.md).</sub>
+<sub>See also [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-novis-constructs`](tooling.md#tooling-fmt-novis-constructs). Decided in [0039](../decisions/0039.md).</sub>
 
 <a id="tooling-fmt-sorts-the-use-block"></a>
 
@@ -960,7 +960,7 @@ form to order or to expand. This is the only reordering the formatter performs a
 keep the order their author wrote ([`tooling/fmt-never-reorders-members`](tooling.md#tooling-fmt-never-reorders-members)), because an import's
 position is not observable and a member's is.
 
-<sub>See also [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per), [`tooling/fmt-never-reorders-members`](tooling.md#tooling-fmt-never-reorders-members), [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute). Decided in [0039](../adr/0039-canonical-code-formatting.md).</sub>
+<sub>See also [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per), [`tooling/fmt-never-reorders-members`](tooling.md#tooling-fmt-never-reorders-members), [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute). Decided in [0039](../decisions/0039.md).</sub>
 
 <a id="tooling-fmt-novis-constructs"></a>
 
@@ -986,7 +986,7 @@ Each construct with no PER precedent has one layout, chosen once:
 Several of these have exactly one contributor and no convention to defer to. Changing one later is a
 breaking rewrite of every formatted file, the same cost class casing already accepted.
 
-<sub>See also [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per), [`tooling/fmt-trailing-commas`](tooling.md#tooling-fmt-trailing-commas), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`types/closure-literal`](types.md#types-closure-literal), [`types/object-literal`](types.md#types-object-literal), [`types/shape-type`](types.md#types-shape-type), [`enums/declaration`](enums.md#enums-declaration). Decided in [0039](../adr/0039-canonical-code-formatting.md).</sub>
+<sub>See also [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per), [`tooling/fmt-trailing-commas`](tooling.md#tooling-fmt-trailing-commas), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`types/closure-literal`](types.md#types-closure-literal), [`types/object-literal`](types.md#types-object-literal), [`types/shape-type`](types.md#types-shape-type), [`enums/declaration`](enums.md#enums-declaration). Decided in [0039](../decisions/0039.md).</sub>
 
 <a id="tooling-fmt-is-idempotent"></a>
 
@@ -1007,7 +1007,7 @@ different bytes, because those line breaks are kept. A formatter whose output de
 would have to choose every line break itself, which is exactly the width-fitting printer this design
 declines to build. What converges is one file, run twice — never two semantically identical files.
 
-<sub>See also [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-check-writes-nothing`](tooling.md#tooling-fmt-check-writes-nothing), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients). Decided in [0039](../adr/0039-canonical-code-formatting.md).</sub>
+<sub>See also [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-check-writes-nothing`](tooling.md#tooling-fmt-check-writes-nothing), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients). Decided in [0039](../decisions/0039.md).</sub>
 
 <a id="tooling-fmt-is-never-a-diagnostic"></a>
 
@@ -1034,7 +1034,7 @@ never has to tell "laid out differently" from "semantically wrong". A separate `
 declined for the same reason — a third rule table beside the formatter's and the converter's, which no one
 has asked for.
 
-<sub>See also [`tooling/fmt-check-writes-nothing`](tooling.md#tooling-fmt-check-writes-nothing), [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients). Decided in [0039](../adr/0039-canonical-code-formatting.md).</sub>
+<sub>See also [`tooling/fmt-check-writes-nothing`](tooling.md#tooling-fmt-check-writes-nothing), [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients). Decided in [0039](../decisions/0039.md).</sub>
 
 <a id="tooling-fmt-check-writes-nothing"></a>
 
@@ -1054,7 +1054,7 @@ formatter is a fixed point ([`tooling/fmt-is-idempotent`](tooling.md#tooling-fmt
 one thing only, since formatting and repair are never one command
 ([`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic)).
 
-<sub>See also [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`tooling/fmt-is-idempotent`](tooling.md#tooling-fmt-is-idempotent). Decided in [0039](../adr/0039-canonical-code-formatting.md).</sub>
+<sub>See also [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`tooling/fmt-is-idempotent`](tooling.md#tooling-fmt-is-idempotent). Decided in [0039](../decisions/0039.md).</sub>
 
 <a id="tooling-fmt-normalizes-only-reserved-spellings"></a>
 
@@ -1076,7 +1076,7 @@ single-file walk — that rename is an editor's workspace-wide code action. A du
 can be nothing else, which is why they and only they are here. Normalizing PHP's case-insensitive
 reserved words is the converter's job, where the input is known to be PHP.
 
-<sub>See also [`types/duration-literal`](types.md#types-duration-literal), [`classes/reserved-spellings-are-lower-case`](classes.md#classes-reserved-spellings-are-lower-case), [`core-api/casing-checks-the-leading-character`](core-api.md#core-api-casing-checks-the-leading-character), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0039](../adr/0039-canonical-code-formatting.md).</sub>
+<sub>See also [`types/duration-literal`](types.md#types-duration-literal), [`classes/reserved-spellings-are-lower-case`](classes.md#classes-reserved-spellings-are-lower-case), [`core-api/casing-checks-the-leading-character`](core-api.md#core-api-casing-checks-the-leading-character), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0039](../decisions/0039.md).</sub>
 
 <a id="tooling-fmt-never-reorders-members"></a>
 
@@ -1098,7 +1098,7 @@ PHP tool's. A developer who wants the reordering can have it as a deliberate, di
 is never something a formatter does on save. The `use` block ([`tooling/fmt-sorts-the-use-block`](tooling.md#tooling-fmt-sorts-the-use-block)) is
 the only reordering anywhere.
 
-<sub>See also [`tooling/fmt-sorts-the-use-block`](tooling.md#tooling-fmt-sorts-the-use-block), [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`testing/bench-counters`](testing.md#testing-bench-counters), [`core-api/written-visibility`](core-api.md#core-api-written-visibility), [`classes/comparable`](classes.md#classes-comparable), [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes). Decided in [0039](../adr/0039-canonical-code-formatting.md).</sub>
+<sub>See also [`tooling/fmt-sorts-the-use-block`](tooling.md#tooling-fmt-sorts-the-use-block), [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`testing/bench-counters`](testing.md#testing-bench-counters), [`core-api/written-visibility`](core-api.md#core-api-written-visibility), [`classes/comparable`](classes.md#classes-comparable), [`tooling/convert-one-table-two-modes`](tooling.md#tooling-convert-one-table-two-modes). Decided in [0039](../decisions/0039.md).</sub>
 
 <a id="tooling-meta-json"></a>
 
@@ -1125,7 +1125,7 @@ succeed by printing nothing. A consumer ignores fields it does not know, so a fi
 renamed or moved; a consumer on a toolchain without the subcommand treats it as "no registry docs yet",
 never as an error. `docs/novis.md` and the website's core data are both built from this command alone.
 
-<sub>See also [`core-api/reference-card`](core-api.md#core-api-reference-card), [`core-api/field-wise-precedence`](core-api.md#core-api-field-wise-precedence), [`core-api/parameters-are-callable-by-name`](core-api.md#core-api-parameters-are-callable-by-name), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program), [`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers). Decided in [0117](../adr/0117-an-implemented-core-member-documents-itself-in-the-registry.md).</sub>
+<sub>See also [`core-api/reference-card`](core-api.md#core-api-reference-card), [`core-api/field-wise-precedence`](core-api.md#core-api-field-wise-precedence), [`core-api/parameters-are-callable-by-name`](core-api.md#core-api-parameters-are-callable-by-name), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program), [`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers). Decided in [0117](../decisions/0117.md).</sub>
 
 <a id="tooling-doc-comment-is-three-slashes"></a>
 
@@ -1158,7 +1158,7 @@ one variant test per line comment in the lexer, and nothing on any request path.
 to HTML crosses the bidi boundary the lexer already checks for every comment span
 ([`security/bidi-boundaries`](security.md#security-bidi-boundaries)), and reuses that check rather than growing a second one.
 
-<sub>See also [`tooling/doc-comment-attaches-to-the-next-declaration`](tooling.md#tooling-doc-comment-attaches-to-the-next-declaration), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`core-api/reference-card`](core-api.md#core-api-reference-card), [`security/bidi-boundaries`](security.md#security-bidi-boundaries), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case). Decided in [0137](../adr/0137-a-doc-comment-is-three-slashes-and-two-tags.md).</sub>
+<sub>See also [`tooling/doc-comment-attaches-to-the-next-declaration`](tooling.md#tooling-doc-comment-attaches-to-the-next-declaration), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`core-api/reference-card`](core-api.md#core-api-reference-card), [`security/bidi-boundaries`](security.md#security-bidi-boundaries), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case). Decided in [0137](../decisions/0137.md).</sub>
 
 <a id="tooling-doc-comment-attaches-to-the-next-declaration"></a>
 
@@ -1177,7 +1177,7 @@ written, including converted PHP; but then a note and a document are the same to
 which was meant, and converted PHP arrives full of the first kind. Requiring the marker
 ([`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes)) and refusing an orphan keeps the two apart.
 
-<sub>See also [`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes), [`tooling/strict-docs`](tooling.md#tooling-strict-docs). Decided in [0137](../adr/0137-a-doc-comment-is-three-slashes-and-two-tags.md).</sub>
+<sub>See also [`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes), [`tooling/strict-docs`](tooling.md#tooling-strict-docs). Decided in [0137](../decisions/0137.md).</sub>
 
 <a id="tooling-doc-comment-tags-are-see-and-example"></a>
 
@@ -1214,7 +1214,7 @@ type is in the signature*, and likewise for `@throws` and `@returns`.
 The two tags survive because each buys a *check* — a cross-reference that must resolve, an example that
 must still compile — and a third has to meet the same standard, never merely improve a rendering.
 
-<sub>See also [`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`types/callable-signature`](types.md#types-callable-signature), [`core-api/reference-card`](core-api.md#core-api-reference-card). Decided in [0137](../adr/0137-a-doc-comment-is-three-slashes-and-two-tags.md).</sub>
+<sub>See also [`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`types/callable-signature`](types.md#types-callable-signature), [`core-api/reference-card`](core-api.md#core-api-reference-card). Decided in [0137](../decisions/0137.md).</sub>
 
 <a id="tooling-one-json-several-renderers"></a>
 
@@ -1241,7 +1241,7 @@ Two renderers already sit on the `Core` half — the one-file reference and the 
 neither reads a Rust file to find a description. A third source of truth for user declarations would be
 exactly the duplication that shape exists to avoid.
 
-<sub>See also [`tooling/meta-json`](tooling.md#tooling-meta-json), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program), [`tooling/nvs-doc-renders-and-decides-nothing`](tooling.md#tooling-nvs-doc-renders-and-decides-nothing), [`core-api/reference-card`](core-api.md#core-api-reference-card). Decided in [0137](../adr/0137-a-doc-comment-is-three-slashes-and-two-tags.md), [0117](../adr/0117-an-implemented-core-member-documents-itself-in-the-registry.md).</sub>
+<sub>See also [`tooling/meta-json`](tooling.md#tooling-meta-json), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program), [`tooling/nvs-doc-renders-and-decides-nothing`](tooling.md#tooling-nvs-doc-renders-and-decides-nothing), [`core-api/reference-card`](core-api.md#core-api-reference-card). Decided in [0137](../decisions/0137.md), [0117](../decisions/0117.md).</sub>
 
 <a id="tooling-meta-json-takes-a-program"></a>
 
@@ -1267,7 +1267,7 @@ shape is the registry's and is unchanged by this; the user half is this rule's.
 The no-argument form must emit byte-identical output before and after the argument exists: the seam is
 one input added to one document, never a fork.
 
-<sub>See also [`tooling/meta-json`](tooling.md#tooling-meta-json), [`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case). Decided in [0137](../adr/0137-a-doc-comment-is-three-slashes-and-two-tags.md), [0117](../adr/0117-an-implemented-core-member-documents-itself-in-the-registry.md).</sub>
+<sub>See also [`tooling/meta-json`](tooling.md#tooling-meta-json), [`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case). Decided in [0137](../decisions/0137.md), [0117](../decisions/0117.md).</sub>
 
 <a id="tooling-nvs-doc-renders-and-decides-nothing"></a>
 
@@ -1285,7 +1285,7 @@ It renders text the lexer has already accepted, so it needs no bidi check of its
 website already cover every in-tree consumer — and it exists for a user's own project and for the package
 ecosystem that does not exist yet, which is why it is kept cheap to replace.
 
-<sub>See also [`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program). Decided in [0137](../adr/0137-a-doc-comment-is-three-slashes-and-two-tags.md).</sub>
+<sub>See also [`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program). Decided in [0137](../decisions/0137.md).</sub>
 
 <a id="tooling-strict-docs"></a>
 
@@ -1310,7 +1310,7 @@ Until a package manager exists, `--strict-docs` is opt-in only and nothing fires
 publishing turns out to want more than "a public member has a comment" — a minimum length, a required first
 sentence — that is a lint's design and belongs with the publisher.
 
-<sub>See also [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`tooling/doc-comment-attaches-to-the-next-declaration`](tooling.md#tooling-doc-comment-attaches-to-the-next-declaration), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0137](../adr/0137-a-doc-comment-is-three-slashes-and-two-tags.md).</sub>
+<sub>See also [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`tooling/doc-comment-attaches-to-the-next-declaration`](tooling.md#tooling-doc-comment-attaches-to-the-next-declaration), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0137](../decisions/0137.md).</sub>
 
 <a id="tooling-telemetry-is-two-opt-ins"></a>
 
@@ -1338,7 +1338,7 @@ cronned update checks as the correction.
 **Not shipped.** Nothing in `crates/` implements any of this; the implementing slices are scheduled after
 the parity chain's goals reach acceptance, and the reference says nothing of it until then.
 
-<sub>See also [`tooling/telemetry-counters-are-a-closed-set`](tooling.md#tooling-telemetry-counters-are-a-closed-set), [`tooling/a-serving-process-never-uploads`](tooling.md#tooling-a-serving-process-never-uploads), [`tooling/telemetry-show-prints-the-payload`](tooling.md#tooling-telemetry-show-prints-the-payload), [`config/telemetry-and-update-endpoints-are-configuration`](config.md#config-telemetry-and-update-endpoints-are-configuration), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0130](../adr/0130-usage-telemetry-is-opt-in-and-a-serving-process-never-uploads.md).</sub>
+<sub>See also [`tooling/telemetry-counters-are-a-closed-set`](tooling.md#tooling-telemetry-counters-are-a-closed-set), [`tooling/a-serving-process-never-uploads`](tooling.md#tooling-a-serving-process-never-uploads), [`tooling/telemetry-show-prints-the-payload`](tooling.md#tooling-telemetry-show-prints-the-payload), [`config/telemetry-and-update-endpoints-are-configuration`](config.md#config-telemetry-and-update-endpoints-are-configuration), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0130](../decisions/0130.md).</sub>
 
 <a id="tooling-telemetry-counters-are-a-closed-set"></a>
 
@@ -1364,7 +1364,7 @@ default. The counter file is provably a function of what the operator did. What 
 one local file per user and one buffered append per invocation — for `nvs serve`, once at startup before
 the listener binds — and nothing on the request path.
 
-<sub>See also [`tooling/telemetry-is-two-opt-ins`](tooling.md#tooling-telemetry-is-two-opt-ins), [`tooling/telemetry-show-prints-the-payload`](tooling.md#tooling-telemetry-show-prints-the-payload), [`observability/the-runtime-exports-what-it-already-measures`](observability.md#observability-the-runtime-exports-what-it-already-measures). Decided in [0130](../adr/0130-usage-telemetry-is-opt-in-and-a-serving-process-never-uploads.md).</sub>
+<sub>See also [`tooling/telemetry-is-two-opt-ins`](tooling.md#tooling-telemetry-is-two-opt-ins), [`tooling/telemetry-show-prints-the-payload`](tooling.md#tooling-telemetry-show-prints-the-payload), [`observability/the-runtime-exports-what-it-already-measures`](observability.md#observability-the-runtime-exports-what-it-already-measures). Decided in [0130](../decisions/0130.md).</sub>
 
 <a id="tooling-a-serving-process-never-uploads"></a>
 
@@ -1388,7 +1388,7 @@ shape people distrust even when opted in, and a second long-lived process to sec
 that sentence. Every claim here is testable against a local listener, because the endpoint is
 configuration ([`config/telemetry-and-update-endpoints-are-configuration`](config.md#config-telemetry-and-update-endpoints-are-configuration)).
 
-<sub>See also [`tooling/telemetry-is-two-opt-ins`](tooling.md#tooling-telemetry-is-two-opt-ins), [`tooling/a-failed-upload-never-fails-the-command`](tooling.md#tooling-a-failed-upload-never-fails-the-command), [`tooling/update-check-states-the-whole-picture`](tooling.md#tooling-update-check-states-the-whole-picture), [`config/telemetry-and-update-endpoints-are-configuration`](config.md#config-telemetry-and-update-endpoints-are-configuration), [`http-server/two-deployments-and-nothing-a-proxy-owns`](http-server.md#http-server-two-deployments-and-nothing-a-proxy-owns). Decided in [0130](../adr/0130-usage-telemetry-is-opt-in-and-a-serving-process-never-uploads.md).</sub>
+<sub>See also [`tooling/telemetry-is-two-opt-ins`](tooling.md#tooling-telemetry-is-two-opt-ins), [`tooling/a-failed-upload-never-fails-the-command`](tooling.md#tooling-a-failed-upload-never-fails-the-command), [`tooling/update-check-states-the-whole-picture`](tooling.md#tooling-update-check-states-the-whole-picture), [`config/telemetry-and-update-endpoints-are-configuration`](config.md#config-telemetry-and-update-endpoints-are-configuration), [`http-server/two-deployments-and-nothing-a-proxy-owns`](http-server.md#http-server-two-deployments-and-nothing-a-proxy-owns). Decided in [0130](../decisions/0130.md).</sub>
 
 <a id="tooling-a-failed-upload-never-fails-the-command"></a>
 
@@ -1406,7 +1406,7 @@ An operator who opted in is lending a command they ran for another reason
 one honest line, never a failed cron job or a changed exit code
 ([`tooling/update-check-states-the-whole-picture`](tooling.md#tooling-update-check-states-the-whole-picture)).
 
-<sub>See also [`tooling/a-serving-process-never-uploads`](tooling.md#tooling-a-serving-process-never-uploads), [`tooling/update-check-states-the-whole-picture`](tooling.md#tooling-update-check-states-the-whole-picture). Decided in [0130](../adr/0130-usage-telemetry-is-opt-in-and-a-serving-process-never-uploads.md).</sub>
+<sub>See also [`tooling/a-serving-process-never-uploads`](tooling.md#tooling-a-serving-process-never-uploads), [`tooling/update-check-states-the-whole-picture`](tooling.md#tooling-update-check-states-the-whole-picture). Decided in [0130](../decisions/0130.md).</sub>
 
 <a id="tooling-update-check-states-the-whole-picture"></a>
 
@@ -1425,7 +1425,7 @@ when something is slow, and follows the terminal's conventions. The exit status 
 update exists and whether or not a telemetry send succeeded
 ([`tooling/a-failed-upload-never-fails-the-command`](tooling.md#tooling-a-failed-upload-never-fails-the-command)); automation reads the JSON.
 
-<sub>See also [`tooling/telemetry-is-two-opt-ins`](tooling.md#tooling-telemetry-is-two-opt-ins), [`tooling/a-failed-upload-never-fails-the-command`](tooling.md#tooling-a-failed-upload-never-fails-the-command), [`config/telemetry-and-update-endpoints-are-configuration`](config.md#config-telemetry-and-update-endpoints-are-configuration), [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink). Decided in [0130](../adr/0130-usage-telemetry-is-opt-in-and-a-serving-process-never-uploads.md).</sub>
+<sub>See also [`tooling/telemetry-is-two-opt-ins`](tooling.md#tooling-telemetry-is-two-opt-ins), [`tooling/a-failed-upload-never-fails-the-command`](tooling.md#tooling-a-failed-upload-never-fails-the-command), [`config/telemetry-and-update-endpoints-are-configuration`](config.md#config-telemetry-and-update-endpoints-are-configuration), [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink). Decided in [0130](../decisions/0130.md).</sub>
 
 <a id="tooling-telemetry-show-prints-the-payload"></a>
 
@@ -1444,4 +1444,4 @@ user-facing statement of what is collected. The service side's contract is publi
 only, no IP retention, and the aggregated data itself public, so anyone can see exactly what the project
 sees.
 
-<sub>See also [`tooling/telemetry-counters-are-a-closed-set`](tooling.md#tooling-telemetry-counters-are-a-closed-set), [`tooling/telemetry-is-two-opt-ins`](tooling.md#tooling-telemetry-is-two-opt-ins), [`config/telemetry-and-update-endpoints-are-configuration`](config.md#config-telemetry-and-update-endpoints-are-configuration). Decided in [0130](../adr/0130-usage-telemetry-is-opt-in-and-a-serving-process-never-uploads.md).</sub>
+<sub>See also [`tooling/telemetry-counters-are-a-closed-set`](tooling.md#tooling-telemetry-counters-are-a-closed-set), [`tooling/telemetry-is-two-opt-ins`](tooling.md#tooling-telemetry-is-two-opt-ins), [`config/telemetry-and-update-endpoints-are-configuration`](config.md#config-telemetry-and-update-endpoints-are-configuration). Decided in [0130](../decisions/0130.md).</sub>

@@ -1200,7 +1200,7 @@ pub fn lower_property_hook(
 ///   never `return`s, kept for the construct PHP has.
 /// - [`ScriptRole::Entry`] — `null`, "the value every Novis function without
 ///   a `return` produces"
-///   ([ADR 0006](/docs/adr/0006-isolated-script-execution.md)
+///   ([ADR 0006](/docs/decisions/0006.md)
 ///   § *Decision*, which names it *deliberately not* `require`'s `1`). The
 ///   entry frame is the one a `spawn script` child is, so this is the child's
 ///   answer; under `nvs run` nothing reads it.
@@ -3296,7 +3296,7 @@ pub(crate) const FN_PARAM_TAGS_CAPACITY: usize = 16;
 ///
 /// # Why the object carries it
 ///
-/// [ADR 0006](/docs/adr/0006-isolated-script-execution.md) § *Decision* binds
+/// [ADR 0006](/docs/decisions/0006.md) § *Decision* binds
 /// an isolate's `args:` to its entry's parameters **by name**, and
 /// `rule:concurrency/an-upgrade-is-spawn-shaped` makes
 /// `Core\Socket::upgrade(Chat::run(...), args: {…})` one of those entries. The

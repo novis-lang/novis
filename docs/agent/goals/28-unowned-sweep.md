@@ -109,7 +109,7 @@ other being `DEBUG_BREAK`, which waits on `nvs dap` and is M10's.
 
 - **A session on this goal opens no ADR number.** Every item is a folded edit to an ADR whose body
   already states the rule — 0002's *Corollary*, 0033's sinks, 0044 § 1,
-  [0147](../../adr/0147-an-options-bag-tells-an-omitted-key-from-a-written-null.md) for stage 2 — or
+  [0147](../../decisions/0147.md) for stage 2 — or
   a widening whose argument lives in a doc comment.
 - **`array<T>` widening is decided and is not re-litigated by a session.** The user took it; a session
   that finds the invariant position more comfortable has found a decision, not a question.

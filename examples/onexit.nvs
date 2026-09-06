@@ -1,7 +1,7 @@
 <?nvs
 // The end of a script, observed from inside it.
 //
-// [ADR 0127](/docs/adr/0127-the-end-of-a-script-is-observable.md) is the
+// [ADR 0127](/docs/decisions/0127.md) is the
 // design. `Core\Script::onExit` registers a hook that runs as the **last user
 // code of the script**, at every non-fatal ending: the last statement, an
 // `exit`, or a throw that reached the root. The hook is handed a readonly

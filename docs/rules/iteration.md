@@ -33,7 +33,7 @@ Both members are declared without a body, and a class is held to every one of th
 **no key half** — nothing in `Iterator<T>` produces one — which is why a `foreach` over a cursor may
 bind a value and not a key ([`iteration/foreach-subjects`](iteration.md#iteration-foreach-subjects)).
 
-<sub>See also [`iteration/foreach-subjects`](iteration.md#iteration-foreach-subjects), [`iteration/concrete-generic-implements`](iteration.md#iteration-concrete-generic-implements), [`iteration/cursor-out-of-range`](iteration.md#iteration-cursor-out-of-range), [`iteration/generators`](iteration.md#iteration-generators). Decided in [0053](../adr/0053-iteration-and-generators.md), [0007](../adr/0007-explicit-type-system.md), [0028](../adr/0028-closing-the-remaining-magic-methods.md).</sub>
+<sub>See also [`iteration/foreach-subjects`](iteration.md#iteration-foreach-subjects), [`iteration/concrete-generic-implements`](iteration.md#iteration-concrete-generic-implements), [`iteration/cursor-out-of-range`](iteration.md#iteration-cursor-out-of-range), [`iteration/generators`](iteration.md#iteration-generators). Decided in [0053](../decisions/0053.md), [0007](../decisions/0007.md), [0028](../decisions/0028.md).</sub>
 
 <a id="iteration-cursor-out-of-range"></a>
 
@@ -57,7 +57,7 @@ type's null payload, and after the last it still holds the final element, which 
 A `foreach` advances and reads in lockstep, so it never stands outside the protocol. A generator's
 cursor is guarded at the same two points, and a generator that yields nothing makes them one point.
 
-<sub>See also [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces), [`iteration/generators`](iteration.md#iteration-generators). Decided in [0053](../adr/0053-iteration-and-generators.md).</sub>
+<sub>See also [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces), [`iteration/generators`](iteration.md#iteration-generators). Decided in [0053](../decisions/0053.md).</sub>
 
 <a id="iteration-concrete-generic-implements"></a>
 
@@ -75,7 +75,7 @@ declare a type variable of its own, there is no inference, no variance, and no t
 inside the class body. The door exists so a collection can be iterated
 ([`iteration/two-interfaces`](iteration.md#iteration-two-interfaces)) without opening user-defined generics.
 
-<sub>See also [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces), [`iteration/foreach-subjects`](iteration.md#iteration-foreach-subjects). Decided in [0053](../adr/0053-iteration-and-generators.md), [0007](../adr/0007-explicit-type-system.md).</sub>
+<sub>See also [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces), [`iteration/foreach-subjects`](iteration.md#iteration-foreach-subjects). Decided in [0053](../decisions/0053.md), [0007](../decisions/0007.md).</sub>
 
 <a id="iteration-foreach-subjects"></a>
 
@@ -98,7 +98,7 @@ An object becomes iterable by declaring one of the two interfaces at a concrete 
 interface that turns a subscript or a count into a method call
 ([`iteration/no-magic-collection-interfaces`](iteration.md#iteration-no-magic-collection-interfaces)).
 
-<sub>See also [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces), [`iteration/no-magic-collection-interfaces`](iteration.md#iteration-no-magic-collection-interfaces), [`iteration/generators`](iteration.md#iteration-generators). Decided in [0053](../adr/0053-iteration-and-generators.md), [0007](../adr/0007-explicit-type-system.md).</sub>
+<sub>See also [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces), [`iteration/no-magic-collection-interfaces`](iteration.md#iteration-no-magic-collection-interfaces), [`iteration/generators`](iteration.md#iteration-generators). Decided in [0053](../decisions/0053.md), [0007](../decisions/0007.md).</sub>
 
 <a id="iteration-no-magic-collection-interfaces"></a>
 
@@ -119,7 +119,7 @@ streaming a cursor without materialising it — and it has its own interfaces
 `nvs convert` has no mechanical path for either interface: each becomes a diagnostic naming the
 member that replaces it.
 
-<sub>See also [`iteration/foreach-subjects`](iteration.md#iteration-foreach-subjects), [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces). Decided in [0053](../adr/0053-iteration-and-generators.md), [0028](../adr/0028-closing-the-remaining-magic-methods.md), [0014](../adr/0014-property-observer.md), [0011](../adr/0011-functions-and-constants-are-class-members.md).</sub>
+<sub>See also [`iteration/foreach-subjects`](iteration.md#iteration-foreach-subjects), [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces). Decided in [0053](../decisions/0053.md), [0028](../decisions/0028.md), [0014](../decisions/0014.md), [0011](../decisions/0011.md).</sub>
 
 <a id="iteration-generators"></a>
 
@@ -141,7 +141,7 @@ of I/O rather than of ordinary control flow.
 A `finally` the generator is suspended inside still runs when the consumer abandons it, and
 definite assignment reasons across resumption edges exactly as it does across a linear body.
 
-<sub>See also [`iteration/yield-lexical-confinement`](iteration.md#iteration-yield-lexical-confinement), [`iteration/one-way-only`](iteration.md#iteration-one-way-only), [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces), [`iteration/generator-stays-in-one-isolate`](iteration.md#iteration-generator-stays-in-one-isolate). Decided in [0053](../adr/0053-iteration-and-generators.md).</sub>
+<sub>See also [`iteration/yield-lexical-confinement`](iteration.md#iteration-yield-lexical-confinement), [`iteration/one-way-only`](iteration.md#iteration-one-way-only), [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces), [`iteration/generator-stays-in-one-isolate`](iteration.md#iteration-generator-stays-in-one-isolate). Decided in [0053](../decisions/0053.md).</sub>
 
 <a id="iteration-yield-lexical-confinement"></a>
 
@@ -163,7 +163,7 @@ This is the price of the state-machine lowering ([`iteration/generators`](iterat
 split the body it compiles and nothing else, so a suspension point in a frame it did not generate has
 nowhere to be recorded.
 
-<sub>See also [`iteration/generators`](iteration.md#iteration-generators), [`iteration/one-way-only`](iteration.md#iteration-one-way-only). Decided in [0053](../adr/0053-iteration-and-generators.md).</sub>
+<sub>See also [`iteration/generators`](iteration.md#iteration-generators), [`iteration/one-way-only`](iteration.md#iteration-one-way-only). Decided in [0053](../decisions/0053.md).</sub>
 
 <a id="iteration-one-way-only"></a>
 
@@ -183,7 +183,7 @@ coroutines already and they are not spelled `yield`.
 
 `yield` is a statement, so it produces no value to consume.
 
-<sub>See also [`iteration/generators`](iteration.md#iteration-generators), [`iteration/yield-lexical-confinement`](iteration.md#iteration-yield-lexical-confinement). Decided in [0053](../adr/0053-iteration-and-generators.md), [0051](../adr/0051-standard-library-tiers.md).</sub>
+<sub>See also [`iteration/generators`](iteration.md#iteration-generators), [`iteration/yield-lexical-confinement`](iteration.md#iteration-yield-lexical-confinement). Decided in [0053](../decisions/0053.md), [0051](../decisions/0051.md).</sub>
 
 <a id="iteration-generator-stays-in-one-isolate"></a>
 
@@ -202,7 +202,7 @@ copy inside this one — has no meaning to give.
 
 Not yet enforced: nothing in the runtime's copy or spawn paths refuses a generator today.
 
-<sub>See also [`iteration/generators`](iteration.md#iteration-generators). Decided in [0053](../adr/0053-iteration-and-generators.md), [0023](../adr/0023-clone-serialize-and-cross-boundary-copy.md).</sub>
+<sub>See also [`iteration/generators`](iteration.md#iteration-generators). Decided in [0053](../decisions/0053.md), [0023](../decisions/0023.md).</sub>
 
 <a id="iteration-for-init-clause"></a>
 
@@ -227,7 +227,7 @@ point in the same block, so a counter in the header costs nothing in time or spa
 work and neither is rewritten into the other; a counter read after its loop, or shared by two loops,
 is the case that still wants the declaration above.
 
-<sub>See also [`iteration/for-counter-scope`](iteration.md#iteration-for-counter-scope), [`iteration/for-init-refusals`](iteration.md#iteration-for-init-refusals). Decided in [0109](../adr/0109-a-for-header-declares-its-own-counter.md), [0007](../adr/0007-explicit-type-system.md), [0037](../adr/0037-var-local-type-inference.md).</sub>
+<sub>See also [`iteration/for-counter-scope`](iteration.md#iteration-for-counter-scope), [`iteration/for-init-refusals`](iteration.md#iteration-for-init-refusals). Decided in [0109](../decisions/0109.md), [0007](../decisions/0007.md), [0037](../decisions/0037.md).</sub>
 
 <a id="iteration-for-counter-scope"></a>
 
@@ -244,7 +244,7 @@ So [`iteration/for-init-clause`](iteration.md#iteration-for-init-clause) is a sp
 header is the same statement a declaration anywhere else is, which is what makes the declare-once
 rule, definite assignment and the lowering all apply to it unchanged.
 
-<sub>See also [`iteration/for-init-clause`](iteration.md#iteration-for-init-clause), [`iteration/for-init-refusals`](iteration.md#iteration-for-init-refusals). Decided in [0109](../adr/0109-a-for-header-declares-its-own-counter.md), [0007](../adr/0007-explicit-type-system.md).</sub>
+<sub>See also [`iteration/for-init-clause`](iteration.md#iteration-for-init-clause), [`iteration/for-init-refusals`](iteration.md#iteration-for-init-refusals). Decided in [0109](../decisions/0109.md), [0007](../decisions/0007.md).</sub>
 
 <a id="iteration-for-init-refusals"></a>
 
@@ -265,4 +265,4 @@ Two grammatical refusals, each raised once and each naming the spelling that wor
 Each refused header reports **one** diagnostic and no second one, and keeps whatever declaration it
 held so no later phase reports an undeclared counter on top of it.
 
-<sub>See also [`iteration/for-init-clause`](iteration.md#iteration-for-init-clause), [`iteration/for-counter-scope`](iteration.md#iteration-for-counter-scope). Decided in [0109](../adr/0109-a-for-header-declares-its-own-counter.md).</sub>
+<sub>See also [`iteration/for-init-clause`](iteration.md#iteration-for-init-clause), [`iteration/for-counter-scope`](iteration.md#iteration-for-counter-scope). Decided in [0109](../decisions/0109.md).</sub>

@@ -44,7 +44,7 @@ document from implying otherwise.
 
 Intended outcome: a self-hosted toolchain (`nvs` binary) that runs `.nvs` files on the CLI, serves them
 over HTTP from one process, ships a working framework and a supply-chain-safe package system
-([0082](../adr/0082-the-first-party-framework.md), [0081](../adr/0081-packages-are-digests-resolution-is-a-maximum.md)),
+([0082](../decisions/0082.md), [0081](../decisions/0081.md)),
 and can mechanically transpile an existing PHP codebase's *own* application code — including its `.phpt`
 test suites — into Novis.
 
@@ -126,9 +126,9 @@ listener for it (`rule:http-server/two-deployments-and-nothing-a-proxy-owns`).
   provable rather than best-effort — a connection that cannot be proven clean is destroyed, because one
   tenant's session state arriving in another tenant's request is a leak, not a performance bug.
 - **An existing PHP application's framework and packages do not come along.** No trait, no `__call`, no
-  `ArrayAccess`, no runtime autoloader ([ADRs 0043](../adr/0043-interface-default-methods-and-delegation-replace-traits.md),
-  [0014](../adr/0014-property-observer.md), [0053](../adr/0053-iteration-and-generators.md),
-  [0061](../adr/0061-compile-time-autoload-and-program-discovery.md)) means the ecosystem built on those is
+  `ArrayAccess`, no runtime autoloader ([ADRs 0043](../decisions/0043.md),
+  [0014](../decisions/0014.md), [0053](../decisions/0053.md),
+  [0061](../decisions/0061.md)) means the ecosystem built on those is
   unreachable at any price — so `nvs convert` (M11) ports an application's own code onto Novis's own
   framework, and never onto its old one. `rule:programs/audience` records
   why this is survivable and what the alternative cost.
@@ -168,12 +168,12 @@ not restate them.**
 
 | Premise | Guarded by | Argued in |
 |---|---|---|
-| Native unwinding through JIT frames is unavailable on every platform — the premise the calling convention exists for | `tests/unwind_unavailable.rs` | [0002](../adr/0002-error-propagation.md) |
-| A throw propagates, and a runtime panic is *contained*, across native frames | `tests/invariants.rs` | [0002](../adr/0002-error-propagation.md) |
-| A checked-return frame stays cheap, and throwing costs no more than returning | `a_checked_return_frame_stays_cheap`, `throwing_costs_about_the_same_as_returning` | [0002](../adr/0002-error-propagation.md) |
+| Native unwinding through JIT frames is unavailable on every platform — the premise the calling convention exists for | `tests/unwind_unavailable.rs` | [0002](../decisions/0002.md) |
+| A throw propagates, and a runtime panic is *contained*, across native frames | `tests/invariants.rs` | [0002](../decisions/0002.md) |
+| A checked-return frame stays cheap, and throwing costs no more than returning | `a_checked_return_frame_stays_cheap`, `throwing_costs_about_the_same_as_returning` | [0002](../decisions/0002.md) |
 | A coroutine can suspend from beneath live JIT frames, cheaply | `a_helper_can_suspend_with_jit_frames_live_above_it`, `a_coroutine_round_trip_stays_cheap` | [adr/README.md](../adr/README.md), *Stackful coroutines* |
-| A wasm guest cannot read past the host heap or outlive its deadline, and the boundary is affordable | `tests/wasm_sandbox.rs`, `a_host_to_guest_call_stays_cheap`, `per_request_instantiation_stays_affordable` | [0003](../adr/0003-extension-system.md) |
-| An OS process still costs orders of magnitude more than a task — the whole cost case for in-process isolation | `an_os_process_costs_orders_of_magnitude_more_than_a_task` | [0006](../adr/0006-isolated-script-execution.md) |
+| A wasm guest cannot read past the host heap or outlive its deadline, and the boundary is affordable | `tests/wasm_sandbox.rs`, `a_host_to_guest_call_stays_cheap`, `per_request_instantiation_stays_affordable` | [0003](../decisions/0003.md) |
+| An OS process still costs orders of magnitude more than a task — the whole cost case for in-process isolation | `an_os_process_costs_orders_of_magnitude_more_than_a_task` | [0006](../decisions/0006.md) |
 
 Those spikes forced one design change, and it is normative for everything below: **exceptions propagate by
 checked return, not by unwinding**, and every runtime helper is `extern "C"` wrapping `catch_unwind`. The

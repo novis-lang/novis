@@ -18,7 +18,7 @@ pub(super) const PROC_SP_PREPEXEC: u16 = 13;
 
 /// `sp_execute`'s procedure id — MS-TDS § 2.2.6.6's `Sp_Execute`.
 ///
-/// [ADR 0067 § 1](/docs/adr/0067-core-db.md)'s cached re-execution: the
+/// [ADR 0067 § 1](/docs/decisions/0067.md)'s cached re-execution: the
 /// handle [`PROC_SP_PREPEXEC`] answered with and the values, and no SQL on the
 /// wire at all.
 pub(super) const PROC_SP_EXECUTE: u16 = 12;
@@ -37,7 +37,7 @@ pub(super) const PROC_SP_UNPREPARE: u16 = 15;
 /// batch did would be session state the reset had just finished removing.
 pub(super) const RESET_STATEMENT: &str = "select 1";
 
-/// [ADR 0067 § 7](/docs/adr/0067-core-db.md)'s outermost transaction, in
+/// [ADR 0067 § 7](/docs/decisions/0067.md)'s outermost transaction, in
 /// T-SQL's spelling.
 ///
 /// `BEGIN TRANSACTION` and not `START TRANSACTION`, which SQL Server does not
@@ -98,7 +98,7 @@ pub(super) const NVARCHAR_CHARS: u16 = 4000;
 /// be this driver deciding a sort order for someone else's database.
 pub(super) const NO_COLLATION: [u8; 5] = [0; 5];
 
-/// [ADR 0067 § 1](/docs/adr/0067-core-db.md)'s prepare and execute in
+/// [ADR 0067 § 1](/docs/decisions/0067.md)'s prepare and execute in
 /// one message: `sp_prepexec`, carrying § 5's rewritten SQL and its parameters
 /// as the procedure's own arguments.
 ///
@@ -433,7 +433,7 @@ pub(super) fn text_param(out: &mut Vec<u8>, value: Option<&[u8]>, what: &str) ->
 /// - A non-finite `float` is refused, for the reason MySQL's is. T-SQL has no
 ///   `Infinity` or `NaN` literal, and `float` holds neither value.
 /// - A `bytes` is refused, and that is this driver's one gap against
-///   [ADR 0067 § 9](/docs/adr/0067-core-db.md)'s table rather than a
+///   [ADR 0067 § 9](/docs/decisions/0067.md)'s table rather than a
 ///   rendering choice: `varbinary` has no text input form a cast recovers —
 ///   `'0x61'` casts to the four characters and not to the octet — so a `bytes`
 ///   needs a parameter of its own type, which is a marker this driver does not

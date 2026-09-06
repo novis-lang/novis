@@ -11,7 +11,7 @@
 //! | 1 KiB bulk copy into guest memory | 11.7 ns |
 //! | fresh pooled instance + one call | 7.57 µs |
 //!
-//! See `docs/adr/0003-extension-system.md`.
+//! See `docs/decisions/0003.md`.
 
 // `criterion_group!` expands to an undocumented public function.
 #![allow(missing_docs)]

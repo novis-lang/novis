@@ -1139,7 +1139,7 @@ def counts() -> dict[str, int]:
     def nvst(sub: str) -> int:
         d = ROOT / "tests" / sub
         return len(list(d.rglob("*.nvst"))) if d.is_dir() else 0
-    adrs = sorted((DOCS / "adr").glob("[0-9][0-9][0-9][0-9]-*.md"))
+    adrs = sorted((DOCS / "decisions").glob("[0-9][0-9][0-9][0-9].md"))
     return {
         "conformance": nvst("conformance"),
         "differential": nvst("differential"),

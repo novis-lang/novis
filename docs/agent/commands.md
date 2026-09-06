@@ -146,7 +146,7 @@ you have questions and answers them in one call:
 ```sh
 python tools/peek.py crates/nvs-ir/src/lower/expr.rs:3065-3120 \
                      crates/nvs-types/src/expr/members.rs:@public_property_names \
-                     docs/adr/0036-anonymous-object-shapes.md:"### 4" \
+                     docs/decisions/0036.md:"### 4" \
                      "crates/nvs-runtime/src/*.rs:re:slot_get"
 python tools/peek.py --locate nvs_object_slot_get SlotSet ClassDesc   # file:line, no bodies
 ```

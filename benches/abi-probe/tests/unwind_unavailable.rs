@@ -1,4 +1,4 @@
-//! Guards the *premise* of `docs/adr/0002-error-propagation.md`.
+//! Guards the *premise* of `docs/decisions/0002.md`.
 //!
 //! Novis propagates errors by checked return rather than by unwinding, because
 //! `cranelift-jit` does not register JIT frames with the platform unwinder — so

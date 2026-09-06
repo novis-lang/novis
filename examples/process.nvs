@@ -2,7 +2,7 @@
 // Running another program, as a program: an argv, a result, and the target
 // this language will not run at all.
 //
-// [ADR 0044](/docs/adr/0044-core-process-argv-only-no-shell.md) is the
+// [ADR 0044](/docs/decisions/0044.md) is the
 // whole of it. `Core\Process::run` takes a path and an `array<string>`, and
 // there is no shell-string form *anywhere* in the surface — nothing to
 // escape, because there is nothing to escape into. A tainted `$path` or

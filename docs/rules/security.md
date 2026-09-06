@@ -28,7 +28,7 @@ it is awaited like them, and it dies with its parent like them. It is as strong 
 boundary and no stronger — running code that must be assumed adversarial at the memory-safety level is
 what the wasm component tier is for.
 
-<sub>See also [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`security/request-state-throws-in-an-isolate`](security.md#security-request-state-throws-in-an-isolate), [`statements/an-isolate-has-its-own-statics`](statements.md#statements-an-isolate-has-its-own-statics). Decided in [0006](../adr/0006-isolated-script-execution.md), [0116](../adr/0116-an-isolates-arena-is-an-ownership-root.md), [0023](../adr/0023-clone-serialize-and-cross-boundary-copy.md), [0052](../adr/0052-closed-doors.md).</sub>
+<sub>See also [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`security/request-state-throws-in-an-isolate`](security.md#security-request-state-throws-in-an-isolate), [`statements/an-isolate-has-its-own-statics`](statements.md#statements-an-isolate-has-its-own-statics). Decided in [0006](../decisions/0006.md), [0116](../decisions/0116.md), [0023](../decisions/0023.md), [0052](../decisions/0052.md).</sub>
 
 <a id="security-isolate-values-cross-by-copy"></a>
 
@@ -53,7 +53,7 @@ walk is the same but the **move is not available**: refcounts are non-atomic bec
 reachable from one core only, so a cross-core crossing copies at every node. That cost belongs to the
 placement option, not to the boundary.
 
-<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root). Decided in [0006](../adr/0006-isolated-script-execution.md), [0023](../adr/0023-clone-serialize-and-cross-boundary-copy.md), [0116](../adr/0116-an-isolates-arena-is-an-ownership-root.md), [0033](../adr/0033-secret-qualifier-for-confidential-values.md).</sub>
+<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root). Decided in [0006](../decisions/0006.md), [0023](../decisions/0023.md), [0116](../decisions/0116.md), [0033](../decisions/0033.md).</sub>
 
 <a id="security-isolate-budget-is-the-trees"></a>
 
@@ -76,7 +76,7 @@ isolate that asks for more than its share is refused at the call that asked, wit
 naming the directive, and never by a page fault at an address nobody chose
 ([`errors/on-limit`](errors.md#errors-on-limit)).
 
-<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root), [`errors/on-limit`](errors.md#errors-on-limit). Decided in [0006](../adr/0006-isolated-script-execution.md), [0116](../adr/0116-an-isolates-arena-is-an-ownership-root.md), [0005](../adr/0005-config-changeability.md), [0004](../adr/0004-memory-for-simplicity.md).</sub>
+<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root), [`errors/on-limit`](errors.md#errors-on-limit). Decided in [0006](../decisions/0006.md), [0116](../decisions/0116.md), [0005](../decisions/0005.md), [0004](../decisions/0004.md).</sub>
 
 <a id="security-script-spawn-capability"></a>
 
@@ -98,7 +98,7 @@ The child's grants are the parent's effective grants, optionally narrowed at the
 widens: a parent that has dropped `net.connect` cannot regain it by spawning
 ([`security/no-runtime-grant`](security.md#security-no-runtime-grant)).
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed). Decided in [0006](../adr/0006-isolated-script-execution.md), [0118](../adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md), [0112](../adr/0112-authority-is-keyed-on-the-enclosing-namespace.md).</sub>
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed). Decided in [0006](../decisions/0006.md), [0118](../decisions/0118.md), [0112](../decisions/0112.md).</sub>
 
 <a id="security-isolate-failure-is-a-value"></a>
 
@@ -119,7 +119,7 @@ would encourage reading a spawn as a function call. Code that wants the terse fo
 the diagnostic then names the isolate rather than a parent frame it never had. Nothing unwinds across
 the boundary, for the reason nothing unwinds across a JIT frame ([`errors/propagation`](errors.md#errors-propagation)).
 
-<sub>See also [`errors/propagation`](errors.md#errors-propagation), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy). Decided in [0006](../adr/0006-isolated-script-execution.md), [0002](../adr/0002-error-propagation.md), [0020](../adr/0020-error-escalation-ladder.md).</sub>
+<sub>See also [`errors/propagation`](errors.md#errors-propagation), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy). Decided in [0006](../decisions/0006.md), [0002](../decisions/0002.md), [0020](../decisions/0020.md).</sub>
 
 <a id="security-isolate-output-is-captured"></a>
 
@@ -138,7 +138,7 @@ parent re-emit a captured result without escaping it twice, and it is why `'inhe
 separate rule: the two carriers already match. `Core\Cli`'s *members* still throw inside an isolate —
 that rule is about owning the terminal, which an isolate's buffered output never touches.
 
-<sub>See also [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing). Decided in [0006](../adr/0006-isolated-script-execution.md), [0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md).</sub>
+<sub>See also [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing). Decided in [0006](../decisions/0006.md), [0088](../decisions/0088.md).</sub>
 
 <a id="security-one-isolation-implementation"></a>
 
@@ -156,7 +156,7 @@ state-bleed suite for isolates, and a fix on either path cannot forget the other
 property a second implementation would quietly give up, since two isolation mechanisms are two places
 for the same bug to be fixed once.
 
-<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root). Decided in [0006](../adr/0006-isolated-script-execution.md), [0116](../adr/0116-an-isolates-arena-is-an-ownership-root.md).</sub>
+<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root). Decided in [0006](../decisions/0006.md), [0116](../decisions/0116.md).</sub>
 
 <a id="security-arena-is-an-ownership-root"></a>
 
@@ -177,7 +177,7 @@ reuse what it freed, so a loop appending to a string would make the footprint O(
 O(live), which [`programs/memory-priority`](programs.md#programs-memory-priority) calls a leak; and the latency a region is reached for
 is already collected by the pooled allocator.
 
-<sub>See also [`security/isolate-teardown-is-a-drain-then-a-sweep`](security.md#security-isolate-teardown-is-a-drain-then-a-sweep), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees). Decided in [0116](../adr/0116-an-isolates-arena-is-an-ownership-root.md), [0006](../adr/0006-isolated-script-execution.md), [0004](../adr/0004-memory-for-simplicity.md).</sub>
+<sub>See also [`security/isolate-teardown-is-a-drain-then-a-sweep`](security.md#security-isolate-teardown-is-a-drain-then-a-sweep), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees). Decided in [0116](../decisions/0116.md), [0006](../decisions/0006.md), [0004](../decisions/0004.md).</sub>
 
 <a id="security-isolate-teardown-is-a-drain-then-a-sweep"></a>
 
@@ -197,7 +197,7 @@ another member's field slot; a member the tally does not exactly account for is 
 and is left alone, along with everything under it. Freeing memory somebody still holds is a
 use-after-free, so priority 1 decides a question priority 5 would have answered the other way.
 
-<sub>See also [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0116](../adr/0116-an-isolates-arena-is-an-ownership-root.md), [0006](../adr/0006-isolated-script-execution.md), [0004](../adr/0004-memory-for-simplicity.md).</sub>
+<sub>See also [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0116](../decisions/0116.md), [0006](../decisions/0006.md), [0004](../decisions/0004.md).</sub>
 
 <a id="security-request-state-throws-in-an-isolate"></a>
 
@@ -220,7 +220,7 @@ arguments, deep-copied like any other value crossing the boundary
 environment variables and process arguments are process-wide facts already governed by the capability
 and config-overlay machinery.
 
-<sub>See also [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0012](../adr/0012-no-superglobals.md), [0006](../adr/0006-isolated-script-execution.md).</sub>
+<sub>See also [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0012](../decisions/0012.md), [0006](../decisions/0006.md).</sub>
 
 <a id="security-closed-doors"></a>
 
@@ -244,7 +244,7 @@ whole purpose is process-global state or in-process native binding — and cross
 shared-memory latency is not available at any price. That spends latency to buy isolation, which is
 the ordering [`programs/memory-priority`](programs.md#programs-memory-priority) mandates.
 
-<sub>See also [`security/no-ffi`](security.md#security-no-ffi), [`security/a-path-is-not-a-url`](security.md#security-a-path-is-not-a-url), [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`security/no-eval`](security.md#security-no-eval). Decided in [0052](../adr/0052-closed-doors.md), [0003](../adr/0003-extension-system.md), [0059](../adr/0059-cross-request-state-is-explicit.md).</sub>
+<sub>See also [`security/no-ffi`](security.md#security-no-ffi), [`security/a-path-is-not-a-url`](security.md#security-a-path-is-not-a-url), [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`security/no-eval`](security.md#security-no-eval). Decided in [0052](../decisions/0052.md), [0003](../decisions/0003.md), [0059](../decisions/0059.md).</sub>
 
 <a id="security-no-ffi"></a>
 
@@ -265,7 +265,7 @@ The wasm component tier exists so this is unnecessary. Wrapping an existing C or
 stated purpose, and it delivers the same capability with a memory boundary, a capability grant, a CPU
 deadline and a memory cap — which is the whole of what an FFI gives up.
 
-<sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens). Decided in [0052](../adr/0052-closed-doors.md), [0003](../adr/0003-extension-system.md), [0051](../adr/0051-standard-library-tiers.md).</sub>
+<sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens). Decided in [0052](../decisions/0052.md), [0003](../decisions/0003.md), [0051](../decisions/0051.md).</sub>
 
 <a id="security-a-path-is-not-a-url"></a>
 
@@ -288,7 +288,7 @@ resolved statically. What is refused is specifically **dispatch on the textual c
 which is also what makes [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix) a total rule rather than
 one with a scheme-shaped hole in it.
 
-<sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/sink-predicate`](security.md#security-sink-predicate), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix). Decided in [0052](../adr/0052-closed-doors.md), [0023](../adr/0023-clone-serialize-and-cross-boundary-copy.md).</sub>
+<sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/sink-predicate`](security.md#security-sink-predicate), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix). Decided in [0052](../decisions/0052.md), [0023](../decisions/0023.md).</sub>
 
 <a id="security-no-cross-request-state"></a>
 
@@ -312,7 +312,7 @@ operator's ceiling. The rule is about **userland calls whose effect outlives or 
 own request**. The replacement is a per-core or real shared cache, where the sharing is explicit,
 bounded, and visible in the grants.
 
-<sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0052](../adr/0052-closed-doors.md), [0059](../adr/0059-cross-request-state-is-explicit.md), [0006](../adr/0006-isolated-script-execution.md).</sub>
+<sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0052](../decisions/0052.md), [0059](../decisions/0059.md), [0006](../decisions/0006.md).</sub>
 
 <a id="security-no-eval"></a>
 
@@ -335,7 +335,7 @@ Running code chosen at run time is `spawn script`: in an isolate, spending the p
 `script.spawn` — which is what a template engine or a plugin loader actually needs, with a boundary
 `eval` never had.
 
-<sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing). Decided in [0052](../adr/0052-closed-doors.md), [0019](../adr/0019-reflection-and-ast-parsing-are-core-features.md), [0022](../adr/0022-definite-property-initialization.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md), [0042](../adr/0042-on-disk-artifact-cache-format.md), [0048](../adr/0048-portable-single-file-executables.md).</sub>
+<sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing). Decided in [0052](../decisions/0052.md), [0019](../decisions/0019.md), [0022](../decisions/0022.md), [0024](../decisions/0024.md), [0042](../decisions/0042.md), [0048](../decisions/0048.md).</sub>
 
 <a id="security-reflection-enforces-visibility"></a>
 
@@ -357,7 +357,7 @@ serializer or a test helper that reached into private state through reflection h
 the declaring class to offer the access, which is the same answer [`testing/private-in-the-same-file`](testing.md#testing-private-in-the-same-file)
 gives a test.
 
-<sub>See also [`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability), [`enums/reflection`](enums.md#enums-reflection). Decided in [0019](../adr/0019-reflection-and-ast-parsing-are-core-features.md), [0014](../adr/0014-property-observer.md).</sub>
+<sub>See also [`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability), [`enums/reflection`](enums.md#enums-reflection). Decided in [0019](../decisions/0019.md), [0014](../decisions/0014.md).</sub>
 
 <a id="security-reflection-needs-no-capability"></a>
 
@@ -376,7 +376,7 @@ need a grant precisely because it would then be an effect. The two rules hold ea
 is free to be open because there is nothing behind it
 ([`security/no-eval`](security.md#security-no-eval), [`security/reflection-enforces-visibility`](security.md#security-reflection-enforces-visibility)).
 
-<sub>See also [`security/no-eval`](security.md#security-no-eval), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/reflection-enforces-visibility`](security.md#security-reflection-enforces-visibility). Decided in [0019](../adr/0019-reflection-and-ast-parsing-are-core-features.md), [0052](../adr/0052-closed-doors.md), [0118](../adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md).</sub>
+<sub>See also [`security/no-eval`](security.md#security-no-eval), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/reflection-enforces-visibility`](security.md#security-reflection-enforces-visibility). Decided in [0019](../decisions/0019.md), [0052](../decisions/0052.md), [0118](../decisions/0118.md).</sub>
 
 <a id="security-tainted-qualifier"></a>
 
@@ -398,7 +398,7 @@ every request-handling function would have to launder on its first line.
 `tainted` is written after `secret` when both appear, and `tainted secret string` is a diagnostic
 naming the required order rather than a second spelling ([`security/secret-qualifier`](security.md#security-secret-qualifier)).
 
-<sub>See also [`security/tainted-sources`](security.md#security-tainted-sources), [`security/taint-propagation`](security.md#security-taint-propagation), [`security/sink-predicate`](security.md#security-sink-predicate), [`types/grammar`](types.md#types-grammar). Decided in [0024](../adr/0024-taint-tracking-for-injection-sinks.md), [0007](../adr/0007-explicit-type-system.md), [0009](../adr/0009-string-and-bytes.md), [0033](../adr/0033-secret-qualifier-for-confidential-values.md).</sub>
+<sub>See also [`security/tainted-sources`](security.md#security-tainted-sources), [`security/taint-propagation`](security.md#security-taint-propagation), [`security/sink-predicate`](security.md#security-sink-predicate), [`types/grammar`](types.md#types-grammar). Decided in [0024](../decisions/0024.md), [0007](../decisions/0007.md), [0009](../decisions/0009.md), [0033](../decisions/0033.md).</sub>
 
 <a id="security-tainted-sources"></a>
 
@@ -423,7 +423,7 @@ of `mixed`. The list of sources being **enumerable** is what lets the qualifier 
 automatically, and is exactly what `secret` has no equivalent of
 ([`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source)).
 
-<sub>See also [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables). Decided in [0024](../adr/0024-taint-tracking-for-injection-sinks.md), [0012](../adr/0012-no-superglobals.md), [0058](../adr/0058-outbound-request-policy.md), [0067](../adr/0067-core-db.md).</sub>
+<sub>See also [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables). Decided in [0024](../decisions/0024.md), [0012](../decisions/0012.md), [0058](../decisions/0058.md), [0067](../decisions/0067.md).</sub>
 
 <a id="security-taint-propagation"></a>
 
@@ -446,7 +446,7 @@ non-string type. `as ?T` decides the qualifier by exactly this rule and launders
 says nothing about whether the content is safe for a given sink, and a conversion that laundered here
 would be a one-word bypass of every rule below.
 
-<sub>See also [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`types/conversion`](types.md#types-conversion), [`expressions/conversion-keeps-qualifiers`](expressions.md#expressions-conversion-keeps-qualifiers). Decided in [0024](../adr/0024-taint-tracking-for-injection-sinks.md), [0007](../adr/0007-explicit-type-system.md), [0066](../adr/0066-nullable-conversion-operator.md).</sub>
+<sub>See also [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`types/conversion`](types.md#types-conversion), [`expressions/conversion-keeps-qualifiers`](expressions.md#expressions-conversion-keeps-qualifiers). Decided in [0024](../decisions/0024.md), [0007](../decisions/0007.md), [0066](../decisions/0066.md).</sub>
 
 <a id="security-launderers-are-sink-named"></a>
 
@@ -468,7 +468,7 @@ Which return type a launderer takes is a predicate rather than a per-member choi
 ([`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier)). Where no built-in launderer fits, the way out is
 [`security/assert-trusted`](security.md#security-assert-trusted) — written, greppable, and carrying a reason — and never a silent cast.
 
-<sub>See also [`security/assert-trusted`](security.md#security-assert-trusted), [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier), [`security/taint-propagation`](security.md#security-taint-propagation), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape). Decided in [0024](../adr/0024-taint-tracking-for-injection-sinks.md), [0133](../adr/0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md), [0055](../adr/0055-extension-qualifier-declarations.md).</sub>
+<sub>See also [`security/assert-trusted`](security.md#security-assert-trusted), [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier), [`security/taint-propagation`](security.md#security-taint-propagation), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape). Decided in [0024](../decisions/0024.md), [0133](../decisions/0133.md), [0055](../decisions/0055.md).</sub>
 
 <a id="security-assert-trusted"></a>
 
@@ -490,7 +490,7 @@ regex pattern, where no transform makes an attacker-authored pattern safe
 It removes `tainted` and nothing else: a `secret` operand is refused there, because confidentiality is
 a separate axis and this member makes no claim about it.
 
-<sub>See also [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink), [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted). Decided in [0024](../adr/0024-taint-tracking-for-injection-sinks.md), [0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md), [0076](../adr/0076-observability-export.md).</sub>
+<sub>See also [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink), [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted). Decided in [0024](../decisions/0024.md), [0088](../decisions/0088.md), [0076](../decisions/0076.md).</sub>
 
 <a id="security-sink-predicate"></a>
 
@@ -515,7 +515,7 @@ grammars the library parses are all instructions by it
 ([`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink)), and a member nobody classified fails closed
 ([`security/unclassified-parameter-refuses-tainted`](security.md#security-unclassified-parameter-refuses-tainted)).
 
-<sub>See also [`security/unclassified-parameter-refuses-tainted`](security.md#security-unclassified-parameter-refuses-tainted), [`security/log-is-not-a-sink`](security.md#security-log-is-not-a-sink), [`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`core-classes/db-parameters`](core-classes.md#core-classes-db-parameters). Decided in [0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md), [0063](../adr/0063-core-api-conventions.md).</sub>
+<sub>See also [`security/unclassified-parameter-refuses-tainted`](security.md#security-unclassified-parameter-refuses-tainted), [`security/log-is-not-a-sink`](security.md#security-log-is-not-a-sink), [`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`core-classes/db-parameters`](core-classes.md#core-classes-db-parameters). Decided in [0088](../decisions/0088.md), [0024](../decisions/0024.md), [0063](../decisions/0063.md).</sub>
 
 <a id="security-unclassified-parameter-refuses-tainted"></a>
 
@@ -537,7 +537,7 @@ out with at least that reach. The two directions are deliberately asymmetric: th
 whether to *set* the qualifier on a result reaches further than the narrowing that decides whether to
 *admit* an argument, because reaching too far over-taints in the first case and leaks in the second.
 
-<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`testing/capability-closure-test`](testing.md#testing-capability-closure-test). Decided in [0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md).</sub>
+<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`testing/capability-closure-test`](testing.md#testing-capability-closure-test). Decided in [0088](../decisions/0088.md), [0024](../decisions/0024.md).</sub>
 
 <a id="security-response-body-is-one-typed-member"></a>
 
@@ -560,7 +560,7 @@ change to two rules.
 type and its content type, and silently letting the last one win is how a JSON endpoint acquires an
 HTML prelude.
 
-<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape). Decided in [0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md), [0074](../adr/0074-http-defaults-safe-and-finite.md).</sub>
+<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape). Decided in [0088](../decisions/0088.md), [0024](../decisions/0024.md), [0074](../decisions/0074.md).</sub>
 
 <a id="security-capture-answers-the-carrier"></a>
 
@@ -581,7 +581,7 @@ This is the third instance of one rule rather than three members that each argue
 two being a laundering escape and an approved URL — and stating it once is what keeps a future
 capturing member from answering the wrong type ([`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier)).
 
-<sub>See also [`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured), [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier), [`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member). Decided in [0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md), [0006](../adr/0006-isolated-script-execution.md), [0133](../adr/0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md).</sub>
+<sub>See also [`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured), [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier), [`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member). Decided in [0088](../decisions/0088.md), [0006](../decisions/0006.md), [0133](../decisions/0133.md).</sub>
 
 <a id="security-every-grammar-is-a-sink"></a>
 
@@ -603,7 +603,7 @@ A regex quoting member remains the one exception on the roster, because a regex 
 that routinely needs a runtime value *inside* it rather than *as* it
 ([`security/regex-pattern-is-a-sink`](security.md#security-regex-pattern-is-a-sink)).
 
-<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/regex-pattern-is-a-sink`](security.md#security-regex-pattern-is-a-sink), [`security/assert-trusted`](security.md#security-assert-trusted), [`expressions/intrinsic-literals`](expressions.md#expressions-intrinsic-literals). Decided in [0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md), [0063](../adr/0063-core-api-conventions.md), [0057](../adr/0057-intrinsic-literal-folding.md), [0056](../adr/0056-regex-engine-policy.md).</sub>
+<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/regex-pattern-is-a-sink`](security.md#security-regex-pattern-is-a-sink), [`security/assert-trusted`](security.md#security-assert-trusted), [`expressions/intrinsic-literals`](expressions.md#expressions-intrinsic-literals). Decided in [0088](../decisions/0088.md), [0063](../decisions/0063.md), [0057](../decisions/0057.md), [0056](../decisions/0056.md).</sub>
 
 <a id="security-log-is-not-a-sink"></a>
 
@@ -626,7 +626,7 @@ about confidentiality rather than structure and a log is an output
 ([`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse)). Stating both here is what stops a future reader from applying
 one rule's answer to the other axis.
 
-<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`errors/log-fields`](errors.md#errors-log-fields), [`errors/log-write`](errors.md#errors-log-write). Decided in [0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md), [0020](../adr/0020-error-escalation-ladder.md), [0087](../adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md).</sub>
+<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`errors/log-fields`](errors.md#errors-log-fields), [`errors/log-write`](errors.md#errors-log-write). Decided in [0088](../decisions/0088.md), [0024](../decisions/0024.md), [0020](../decisions/0020.md), [0087](../decisions/0087.md).</sub>
 
 <a id="security-launderer-answers-a-carrier"></a>
 
@@ -650,7 +650,7 @@ visible in the source.
 A launderer written for a *new* sink is measured against the two conditions, not against today's
 table, and a sink that acquires an automatic launder reclassifies its own member the day it does.
 
-<sub>See also [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/sink-predicate`](security.md#security-sink-predicate), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source). Decided in [0133](../adr/0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md), [0067](../adr/0067-core-db.md), [0086](../adr/0086-core-cli-terminal-is-a-sink.md), [0056](../adr/0056-regex-engine-policy.md).</sub>
+<sub>See also [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/sink-predicate`](security.md#security-sink-predicate), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source). Decided in [0133](../decisions/0133.md), [0024](../decisions/0024.md), [0067](../decisions/0067.md), [0086](../decisions/0086.md), [0056](../decisions/0056.md).</sub>
 
 <a id="security-regex-pattern-is-a-sink"></a>
 
@@ -672,7 +672,7 @@ The **subject** may be tainted, and contagion applies unchanged: a substring mat
 subject is tainted ([`security/taint-propagation`](security.md#security-taint-propagation)). The denial-of-service half is answered
 separately, by tiering the pattern onto a linear-time engine and budgeting the backtracking tier.
 
-<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink), [`security/assert-trusted`](security.md#security-assert-trusted), [`core-classes/regex-two-tiers`](core-classes.md#core-classes-regex-two-tiers). Decided in [0056](../adr/0056-regex-engine-policy.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md), [0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md).</sub>
+<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink), [`security/assert-trusted`](security.md#security-assert-trusted), [`core-classes/regex-two-tiers`](core-classes.md#core-classes-regex-two-tiers). Decided in [0056](../decisions/0056.md), [0024](../decisions/0024.md), [0088](../decisions/0088.md).</sub>
 
 <a id="security-outbound-url-is-a-sink"></a>
 
@@ -695,7 +695,7 @@ Refusing at the call site is only half of it: the address is judged again at run
 capability's own policy ([`security/net-address-policy`](security.md#security-net-address-policy)), because a hardcoded hostname can still
 resolve into a private range.
 
-<sub>See also [`security/net-address-policy`](security.md#security-net-address-policy), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/sink-predicate`](security.md#security-sink-predicate), [`expressions/intrinsic-literals`](expressions.md#expressions-intrinsic-literals). Decided in [0058](../adr/0058-outbound-request-policy.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md), [0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md).</sub>
+<sub>See also [`security/net-address-policy`](security.md#security-net-address-policy), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/sink-predicate`](security.md#security-sink-predicate), [`expressions/intrinsic-literals`](expressions.md#expressions-intrinsic-literals). Decided in [0058](../decisions/0058.md), [0024](../decisions/0024.md), [0088](../decisions/0088.md).</sub>
 
 <a id="security-net-address-policy"></a>
 
@@ -719,7 +719,7 @@ The one class of address it does not govern is an endpoint an operator wrote int
 configuration and granted by name — that address is not attacker-influenceable, and applying the
 policy there would deny every ordinary deployment. A program-supplied target stays governed in full.
 
-<sub>See also [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities). Decided in [0058](../adr/0058-outbound-request-policy.md), [0118](../adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md), [0142](../adr/0142-a-configured-store-is-authorized-by-its-configuring.md), [0067](../adr/0067-core-db.md).</sub>
+<sub>See also [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities). Decided in [0058](../decisions/0058.md), [0118](../decisions/0118.md), [0142](../decisions/0142.md), [0067](../decisions/0067.md).</sub>
 
 <a id="security-the-policy-lives-in-the-capability"></a>
 
@@ -741,7 +741,7 @@ The exception is the same one [`security/net-address-policy`](security.md#securi
 operator has already approved by writing it — and it is a property of the address, not of the client
 that dials it.
 
-<sub>See also [`security/net-address-policy`](security.md#security-net-address-policy), [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink). Decided in [0058](../adr/0058-outbound-request-policy.md), [0118](../adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md), [0055](../adr/0055-extension-qualifier-declarations.md), [0051](../adr/0051-standard-library-tiers.md).</sub>
+<sub>See also [`security/net-address-policy`](security.md#security-net-address-policy), [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink). Decided in [0058](../decisions/0058.md), [0118](../decisions/0118.md), [0055](../decisions/0055.md), [0051](../decisions/0051.md).</sub>
 
 <a id="security-metric-label-refuses-tainted"></a>
 
@@ -766,7 +766,7 @@ already refuses it ([`security/secret-sinks-refuse`](security.md#security-secret
 The `Core\Metrics` surface this governs is not on disk: nothing in the tree exports a series or takes
 a label, so the refusal has no implementation to verify against.
 
-<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/assert-trusted`](security.md#security-assert-trusted), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type). Decided in [0076](../adr/0076-observability-export.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md), [0033](../adr/0033-secret-qualifier-for-confidential-values.md), [0077](../adr/0077-compile-time-routing.md).</sub>
+<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/assert-trusted`](security.md#security-assert-trusted), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type). Decided in [0076](../decisions/0076.md), [0024](../decisions/0024.md), [0033](../decisions/0033.md), [0077](../decisions/0077.md).</sub>
 
 <a id="security-route-capture-is-laundered-by-its-type"></a>
 
@@ -789,7 +789,7 @@ pattern over the request path runs before any rate limiting, which makes catastr
 unauthenticated denial of service; a closed set is spelled as a union of literal types or a subset of
 an enum's cases instead.
 
-<sub>See also [`security/taint-propagation`](security.md#security-taint-propagation), [`security/access-is-checked-for-presence-not-meaning`](security.md#security-access-is-checked-for-presence-not-meaning), [`types/literal-types`](types.md#types-literal-types). Decided in [0077](../adr/0077-compile-time-routing.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md), [0102](../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md).</sub>
+<sub>See also [`security/taint-propagation`](security.md#security-taint-propagation), [`security/access-is-checked-for-presence-not-meaning`](security.md#security-access-is-checked-for-presence-not-meaning), [`types/literal-types`](types.md#types-literal-types). Decided in [0077](../decisions/0077.md), [0024](../decisions/0024.md), [0102](../decisions/0102.md).</sub>
 
 <a id="security-derived-codec-qualifiers"></a>
 
@@ -809,7 +809,7 @@ with skipping the field as the stated fix. This adds no sink — encoding was al
 the encoder to the declaration that put it on the wire contract, and it replaces a silent omission
 with a written one.
 
-<sub>See also [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`security/taint-propagation`](security.md#security-taint-propagation), [`security/tainted-sources`](security.md#security-tainted-sources). Decided in [0071](../adr/0071-derived-codecs.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md), [0033](../adr/0033-secret-qualifier-for-confidential-values.md), [0067](../adr/0067-core-db.md).</sub>
+<sub>See also [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`security/taint-propagation`](security.md#security-taint-propagation), [`security/tainted-sources`](security.md#security-tainted-sources). Decided in [0071](../decisions/0071.md), [0024](../decisions/0024.md), [0033](../decisions/0033.md), [0067](../decisions/0067.md).</sub>
 
 <a id="security-db-pool-reset-is-a-boundary"></a>
 
@@ -831,7 +831,7 @@ users never share a connection. It is additionally scoped to the configuration g
 from: a reload can publish the same block name under a different user, and a pool keyed on the name
 alone would hand the new generation's request a connection authenticated as the old one's.
 
-<sub>See also [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`security/one-tls-client`](security.md#security-one-tls-client), [`security/net-address-policy`](security.md#security-net-address-policy), [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named). Decided in [0067](../adr/0067-core-db.md), [0078](../adr/0078-config-reload-and-control-socket.md), [0074](../adr/0074-http-defaults-safe-and-finite.md).</sub>
+<sub>See also [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`security/one-tls-client`](security.md#security-one-tls-client), [`security/net-address-policy`](security.md#security-net-address-policy), [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named). Decided in [0067](../decisions/0067.md), [0078](../decisions/0078.md), [0074](../decisions/0074.md).</sub>
 
 <a id="security-one-tls-client"></a>
 
@@ -852,7 +852,7 @@ phase of a connection is only ever the upgrade request itself.
 What does not generalise is what belongs to the socket rather than to the session — the deadline and
 the peer address — so there is still one clock, on the thing that waits.
 
-<sub>See also [`security/db-pool-reset-is-a-boundary`](security.md#security-db-pool-reset-is-a-boundary), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`core-classes/db-safe-connection-defaults`](core-classes.md#core-classes-db-safe-connection-defaults), [`core-classes/db-crate-boundary`](core-classes.md#core-classes-db-crate-boundary). Decided in [0132](../adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md), [0067](../adr/0067-core-db.md), [0058](../adr/0058-outbound-request-policy.md).</sub>
+<sub>See also [`security/db-pool-reset-is-a-boundary`](security.md#security-db-pool-reset-is-a-boundary), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`core-classes/db-safe-connection-defaults`](core-classes.md#core-classes-db-safe-connection-defaults), [`core-classes/db-crate-boundary`](core-classes.md#core-classes-db-crate-boundary). Decided in [0132](../decisions/0132.md), [0067](../decisions/0067.md), [0058](../decisions/0058.md).</sub>
 
 <a id="security-extension-manifest-only-tightens"></a>
 
@@ -876,7 +876,7 @@ no extension-specific relaxation, so the two cannot drift.
 **Not on disk.** There is no extension tier in the tree — no component loader, no manifest reader, no
 qualifier axis in a world file — so none of this is enforced today.
 
-<sub>See also [`security/extension-contagion`](security.md#security-extension-contagion), [`security/extension-declares-sink-or-source`](security.md#security-extension-declares-sink-or-source), [`security/extension-cannot-launder`](security.md#security-extension-cannot-launder), [`security/no-ffi`](security.md#security-no-ffi). Decided in [0055](../adr/0055-extension-qualifier-declarations.md), [0003](../adr/0003-extension-system.md), [0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md).</sub>
+<sub>See also [`security/extension-contagion`](security.md#security-extension-contagion), [`security/extension-declares-sink-or-source`](security.md#security-extension-declares-sink-or-source), [`security/extension-cannot-launder`](security.md#security-extension-cannot-launder), [`security/no-ffi`](security.md#security-no-ffi). Decided in [0055](../decisions/0055.md), [0003](../decisions/0003.md), [0088](../decisions/0088.md).</sub>
 
 <a id="security-extension-contagion"></a>
 
@@ -897,7 +897,7 @@ is classified ([`security/unclassified-parameter-refuses-tainted`](security.md#s
 **Not on disk.** No extension boundary exists in the tree, so there is no call site at which this
 default is applied.
 
-<sub>See also [`security/taint-propagation`](security.md#security-taint-propagation), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`security/image-component-declares-nothing`](security.md#security-image-component-declares-nothing). Decided in [0055](../adr/0055-extension-qualifier-declarations.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md), [0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md).</sub>
+<sub>See also [`security/taint-propagation`](security.md#security-taint-propagation), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`security/image-component-declares-nothing`](security.md#security-image-component-declares-nothing). Decided in [0055](../decisions/0055.md), [0024](../decisions/0024.md), [0088](../decisions/0088.md).</sub>
 
 <a id="security-extension-declares-sink-or-source"></a>
 
@@ -917,7 +917,7 @@ bindings ignore both, since neither affects the wire representation.
 
 **Not on disk.** There is no manifest format in the tree carrying either declaration.
 
-<sub>See also [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`security/extension-contagion`](security.md#security-extension-contagion), [`security/sink-predicate`](security.md#security-sink-predicate). Decided in [0055](../adr/0055-extension-qualifier-declarations.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md).</sub>
+<sub>See also [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`security/extension-contagion`](security.md#security-extension-contagion), [`security/sink-predicate`](security.md#security-sink-predicate). Decided in [0055](../decisions/0055.md), [0024](../decisions/0024.md).</sub>
 
 <a id="security-extension-cannot-launder"></a>
 
@@ -937,7 +937,7 @@ the caller to say so out loud. The rejected option is the invisible one.
 
 **Not on disk.** No extension boundary exists, so nothing enforces the refusal today.
 
-<sub>See also [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/assert-trusted`](security.md#security-assert-trusted), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize). Decided in [0055](../adr/0055-extension-qualifier-declarations.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md), [0060](../adr/0060-application-security-protocols.md).</sub>
+<sub>See also [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/assert-trusted`](security.md#security-assert-trusted), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize). Decided in [0055](../decisions/0055.md), [0024](../decisions/0024.md), [0060](../decisions/0060.md).</sub>
 
 <a id="security-secret-does-not-cross-an-extension"></a>
 
@@ -960,7 +960,7 @@ two reasons the protocol roster stays in `Core` ([`security/protocol-roster`](se
 
 **Not on disk.** There is no extension boundary in the tree to refuse at.
 
-<sub>See also [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`security/protocol-roster`](security.md#security-protocol-roster), [`security/extension-cannot-launder`](security.md#security-extension-cannot-launder), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0055](../adr/0055-extension-qualifier-declarations.md), [0033](../adr/0033-secret-qualifier-for-confidential-values.md), [0060](../adr/0060-application-security-protocols.md).</sub>
+<sub>See also [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`security/protocol-roster`](security.md#security-protocol-roster), [`security/extension-cannot-launder`](security.md#security-extension-cannot-launder), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0055](../decisions/0055.md), [0033](../decisions/0033.md), [0060](../decisions/0060.md).</sub>
 
 <a id="security-image-component-declares-nothing"></a>
 
@@ -981,7 +981,7 @@ claim worth being able to check rather than an absence nobody looked at.
 
 **Not on disk.** There is no image component in the tree.
 
-<sub>See also [`security/extension-contagion`](security.md#security-extension-contagion), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/secret-does-not-cross-an-extension`](security.md#security-secret-does-not-cross-an-extension), [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline). Decided in [0120](../adr/0120-the-image-component-is-a-pipeline-that-crosses-the-boundary-once.md), [0055](../adr/0055-extension-qualifier-declarations.md), [0118](../adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md).</sub>
+<sub>See also [`security/extension-contagion`](security.md#security-extension-contagion), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/secret-does-not-cross-an-extension`](security.md#security-secret-does-not-cross-an-extension), [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline). Decided in [0120](../decisions/0120.md), [0055](../decisions/0055.md), [0118](../decisions/0118.md).</sub>
 
 <a id="security-secret-qualifier"></a>
 
@@ -1003,7 +1003,7 @@ Two orthogonal questions — trust and confidentiality — get their own checked
 conflated into one. They compose for the case that matters most in practice, a submitted password,
 without needing a third combined concept.
 
-<sub>See also [`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source), [`security/secret-propagation`](security.md#security-secret-propagation), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`types/grammar`](types.md#types-grammar). Decided in [0033](../adr/0033-secret-qualifier-for-confidential-values.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md), [0007](../adr/0007-explicit-type-system.md).</sub>
+<sub>See also [`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source), [`security/secret-propagation`](security.md#security-secret-propagation), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`types/grammar`](types.md#types-grammar). Decided in [0033](../decisions/0033.md), [0024](../decisions/0024.md), [0007](../decisions/0007.md).</sub>
 
 <a id="security-secret-has-no-ambient-source"></a>
 
@@ -1029,7 +1029,7 @@ That is a declared return type, not an ambient grant.
 The cost is stated: `secret` protects only what a developer remembers to annotate. That is a real
 coverage gap relative to `tainted`, not an oversight.
 
-<sub>See also [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/tainted-sources`](security.md#security-tainted-sources), [`security/secret-propagation`](security.md#security-secret-propagation), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments). Decided in [0033](../adr/0033-secret-qualifier-for-confidential-values.md), [0086](../adr/0086-core-cli-terminal-is-a-sink.md), [0012](../adr/0012-no-superglobals.md).</sub>
+<sub>See also [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/tainted-sources`](security.md#security-tainted-sources), [`security/secret-propagation`](security.md#security-secret-propagation), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments). Decided in [0033](../decisions/0033.md), [0086](../decisions/0086.md), [0012](../decisions/0012.md).</sub>
 
 <a id="security-secret-propagation"></a>
 
@@ -1051,7 +1051,7 @@ accepted gap**, chosen for consistency and recorded here rather than discovered 
 Conversions between `string` and `bytes` preserve `secret` in either direction, the same way they
 preserve `tainted`.
 
-<sub>See also [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/taint-propagation`](security.md#security-taint-propagation), [`expressions/conversion-keeps-qualifiers`](expressions.md#expressions-conversion-keeps-qualifiers). Decided in [0033](../adr/0033-secret-qualifier-for-confidential-values.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md), [0066](../adr/0066-nullable-conversion-operator.md).</sub>
+<sub>See also [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/taint-propagation`](security.md#security-taint-propagation), [`expressions/conversion-keeps-qualifiers`](expressions.md#expressions-conversion-keeps-qualifiers). Decided in [0033](../decisions/0033.md), [0024](../decisions/0024.md), [0066](../decisions/0066.md).</sub>
 
 <a id="security-secret-sinks-refuse"></a>
 
@@ -1077,7 +1077,7 @@ purpose. This closes *accidental* exposure, not *intentional, narrow* use. An at
 one sink with no way out at all, being folded into the program's own metadata; the fix is to carry the
 name of where to read the secret from.
 
-<sub>See also [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`security/secret-in-a-test-report`](security.md#security-secret-in-a-test-report), [`security/log-is-not-a-sink`](security.md#security-log-is-not-a-sink), [`errors/record-transformations`](errors.md#errors-record-transformations), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0033](../adr/0033-secret-qualifier-for-confidential-values.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md), [0086](../adr/0086-core-cli-terminal-is-a-sink.md), [0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md), [0092](../adr/0092-one-diagnostic-record-three-renderings.md), [0028](../adr/0028-closing-the-remaining-magic-methods.md).</sub>
+<sub>See also [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`security/secret-in-a-test-report`](security.md#security-secret-in-a-test-report), [`security/log-is-not-a-sink`](security.md#security-log-is-not-a-sink), [`errors/record-transformations`](errors.md#errors-record-transformations), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0033](../decisions/0033.md), [0024](../decisions/0024.md), [0086](../decisions/0086.md), [0088](../decisions/0088.md), [0092](../decisions/0092.md), [0028](../decisions/0028.md).</sub>
 
 <a id="security-secret-crosses-no-boundary"></a>
 
@@ -1100,7 +1100,7 @@ the intended escape — explicit, greppable, and at the one call site where the 
 this may add friction to a worker that exists specifically to isolate credential handling is a stated
 cost of keeping one copy operation rather than two.
 
-<sub>See also [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/secret-does-not-cross-an-extension`](security.md#security-secret-does-not-cross-an-extension), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0033](../adr/0033-secret-qualifier-for-confidential-values.md), [0023](../adr/0023-clone-serialize-and-cross-boundary-copy.md), [0116](../adr/0116-an-isolates-arena-is-an-ownership-root.md), [0006](../adr/0006-isolated-script-execution.md).</sub>
+<sub>See also [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/secret-does-not-cross-an-extension`](security.md#security-secret-does-not-cross-an-extension), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0033](../decisions/0033.md), [0023](../decisions/0023.md), [0116](../decisions/0116.md), [0006](../decisions/0006.md).</sub>
 
 <a id="security-secret-comparison-is-constant-time"></a>
 
@@ -1123,7 +1123,7 @@ oracle, and receives no diagnostic anywhere.
 The cost, stated: roughly eight extra nanoseconds per comparison of two 32-byte values, invisible at
 any scale a request reaches, and the comparison cannot early-exit, which is the entire point.
 
-<sub>See also [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/verification-throws-and-compares-in-constant-time`](security.md#security-verification-throws-and-compares-in-constant-time), [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator). Decided in [0033](../adr/0033-secret-qualifier-for-confidential-values.md), [0090](../adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md), [0060](../adr/0060-application-security-protocols.md).</sub>
+<sub>See also [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/verification-throws-and-compares-in-constant-time`](security.md#security-verification-throws-and-compares-in-constant-time), [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator). Decided in [0033](../decisions/0033.md), [0090](../decisions/0090.md), [0060](../decisions/0060.md).</sub>
 
 <a id="security-secret-in-a-test-report"></a>
 
@@ -1144,7 +1144,7 @@ Separately and always, the reporter escapes control characters in every value it
 string is not confidential and may be shown, but a fixture full of terminal escapes must not be able
 to rewrite the developer's terminal from inside a failure message.
 
-<sub>See also [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`testing/failure-ledger`](testing.md#testing-failure-ledger), [`errors/record-transformations`](errors.md#errors-record-transformations). Decided in [0079](../adr/0079-testing-is-a-language-feature.md), [0033](../adr/0033-secret-qualifier-for-confidential-values.md), [0092](../adr/0092-one-diagnostic-record-three-renderings.md).</sub>
+<sub>See also [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`testing/failure-ledger`](testing.md#testing-failure-ledger), [`errors/record-transformations`](errors.md#errors-record-transformations). Decided in [0079](../decisions/0079.md), [0033](../decisions/0033.md), [0092](../decisions/0092.md).</sub>
 
 <a id="security-redaction-ranges-come-from-the-server"></a>
 
@@ -1168,7 +1168,7 @@ or a restart. An empty answer means nothing to redact; a *missing* answer means 
 
 **Not on disk.** There is no language server in the tree.
 
-<sub>See also [`security/redaction-covers-bytes-only`](security.md#security-redaction-covers-bytes-only), [`security/reveal-is-explicit-and-window-local`](security.md#security-reveal-is-explicit-and-window-local), [`security/redaction-does-not-reach`](security.md#security-redaction-does-not-reach). Decided in [0101](../adr/0101-secret-is-redacted-in-the-editor-and-the-range-comes-from-the-server.md), [0033](../adr/0033-secret-qualifier-for-confidential-values.md), [0016](../adr/0016-ide-integration.md), [0099](../adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md).</sub>
+<sub>See also [`security/redaction-covers-bytes-only`](security.md#security-redaction-covers-bytes-only), [`security/reveal-is-explicit-and-window-local`](security.md#security-reveal-is-explicit-and-window-local), [`security/redaction-does-not-reach`](security.md#security-redaction-does-not-reach). Decided in [0101](../decisions/0101.md), [0033](../decisions/0033.md), [0016](../decisions/0016.md), [0099](../decisions/0099.md).</sub>
 
 <a id="security-redaction-covers-bytes-only"></a>
 
@@ -1191,7 +1191,7 @@ the file on disk, byte for byte.
 
 **Not on disk.** There is no language server in the tree.
 
-<sub>See also [`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server), [`security/secret-qualifier`](security.md#security-secret-qualifier). Decided in [0101](../adr/0101-secret-is-redacted-in-the-editor-and-the-range-comes-from-the-server.md), [0040](../adr/0040-vscode-deep-tooling-and-resilient-parsing.md).</sub>
+<sub>See also [`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server), [`security/secret-qualifier`](security.md#security-secret-qualifier). Decided in [0101](../decisions/0101.md), [0040](../decisions/0040.md).</sub>
 
 <a id="security-reveal-is-explicit-and-window-local"></a>
 
@@ -1213,7 +1213,7 @@ user is the only thing that turns it off.
 
 **Not on disk.** There is no language server in the tree.
 
-<sub>See also [`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server), [`security/redaction-does-not-reach`](security.md#security-redaction-does-not-reach). Decided in [0101](../adr/0101-secret-is-redacted-in-the-editor-and-the-range-comes-from-the-server.md).</sub>
+<sub>See also [`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server), [`security/redaction-does-not-reach`](security.md#security-redaction-does-not-reach). Decided in [0101](../decisions/0101.md).</sub>
 
 <a id="security-tainted-has-no-default-decoration"></a>
 
@@ -1236,7 +1236,7 @@ user's theme.
 
 **Not on disk.** There is no language server in the tree.
 
-<sub>See also [`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server), [`security/sink-predicate`](security.md#security-sink-predicate), [`security/tainted-qualifier`](security.md#security-tainted-qualifier). Decided in [0101](../adr/0101-secret-is-redacted-in-the-editor-and-the-range-comes-from-the-server.md), [0099](../adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md), [0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md).</sub>
+<sub>See also [`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server), [`security/sink-predicate`](security.md#security-sink-predicate), [`security/tainted-qualifier`](security.md#security-tainted-qualifier). Decided in [0101](../decisions/0101.md), [0099](../decisions/0099.md), [0088](../decisions/0088.md).</sub>
 
 <a id="security-redaction-reaches-the-tools-own-renderings"></a>
 
@@ -1260,7 +1260,7 @@ assume a literal node's text is the source text.
 
 **Not on disk.** There is no language server, and the dump emits no such placeholder.
 
-<sub>See also [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`errors/record-transformations`](errors.md#errors-record-transformations), [`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server). Decided in [0101](../adr/0101-secret-is-redacted-in-the-editor-and-the-range-comes-from-the-server.md), [0033](../adr/0033-secret-qualifier-for-confidential-values.md), [0099](../adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md), [0092](../adr/0092-one-diagnostic-record-three-renderings.md).</sub>
+<sub>See also [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`errors/record-transformations`](errors.md#errors-record-transformations), [`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server). Decided in [0101](../decisions/0101.md), [0033](../decisions/0033.md), [0099](../decisions/0099.md), [0092](../decisions/0092.md).</sub>
 
 <a id="security-redaction-does-not-reach"></a>
 
@@ -1283,7 +1283,7 @@ This list is part of the decision, not commentary on it.
 
 **Not on disk.** There is no language server in the tree.
 
-<sub>See also [`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server), [`security/reveal-is-explicit-and-window-local`](security.md#security-reveal-is-explicit-and-window-local). Decided in [0101](../adr/0101-secret-is-redacted-in-the-editor-and-the-range-comes-from-the-server.md).</sub>
+<sub>See also [`security/redaction-ranges-come-from-the-server`](security.md#security-redaction-ranges-come-from-the-server), [`security/reveal-is-explicit-and-window-local`](security.md#security-reveal-is-explicit-and-window-local). Decided in [0101](../decisions/0101.md).</sub>
 
 <a id="security-capability-check-at-the-door"></a>
 
@@ -1306,7 +1306,7 @@ reviews are expected to catch. This one puts it *in* the effect, where omitting 
 performing the effect. The friction is the point: the door is where the check, the path rule and the
 diagnostic already are.
 
-<sub>See also [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/denial-is-a-runtime-error`](security.md#security-denial-is-a-runtime-error), [`testing/capability-closure-test`](testing.md#testing-capability-closure-test). Decided in [0118](../adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md), [0005](../adr/0005-config-changeability.md), [0112](../adr/0112-authority-is-keyed-on-the-enclosing-namespace.md).</sub>
+<sub>See also [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/denial-is-a-runtime-error`](security.md#security-denial-is-a-runtime-error), [`testing/capability-closure-test`](testing.md#testing-capability-closure-test). Decided in [0118](../decisions/0118.md), [0005](../decisions/0005.md), [0112](../decisions/0112.md).</sub>
 
 <a id="security-capability-question-is-grant-and-scope"></a>
 
@@ -1327,7 +1327,7 @@ The decision procedure is pure — a snapshot, a capability, an argument, a bool
 context, throws nothing, and is therefore testable without a compiler in front of it. Holding a
 capability is not a promise about any one argument; the scope is asked every time.
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix), [`security/no-runtime-grant`](security.md#security-no-runtime-grant). Decided in [0118](../adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md), [0078](../adr/0078-config-reload-and-control-socket.md), [0005](../adr/0005-config-changeability.md).</sub>
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix), [`security/no-runtime-grant`](security.md#security-no-runtime-grant). Decided in [0118](../decisions/0118.md), [0078](../decisions/0078.md), [0005](../decisions/0005.md).</sub>
 
 <a id="security-capability-declaration-is-one-table"></a>
 
@@ -1350,7 +1350,7 @@ is empty on the overwhelming majority of rows documents nothing while being main
 The locality it gives up is bought back mechanically: a test fails on an entry naming a class or
 member that does not exist, and another fails on a member that owes an entry and has none.
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`testing/capability-closure-test`](testing.md#testing-capability-closure-test), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed). Decided in [0118](../adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md), [0117](../adr/0117-an-implemented-core-member-documents-itself-in-the-registry.md), [0063](../adr/0063-core-api-conventions.md).</sub>
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`testing/capability-closure-test`](testing.md#testing-capability-closure-test), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed). Decided in [0118](../decisions/0118.md), [0117](../decisions/0117.md), [0063](../decisions/0063.md).</sub>
 
 <a id="security-path-scope-canonicalise-then-prefix"></a>
 
@@ -1373,7 +1373,7 @@ creating it is allowed is obviously wrong. So the argument canonicalises its **d
 ancestor** and re-appends the remainder, with the remainder refused outright if it contains `..` — the
 one component that could still escape after the ancestor is pinned.
 
-<sub>See also [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/a-path-is-not-a-url`](security.md#security-a-path-is-not-a-url), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`errors/path-component-refusals`](errors.md#errors-path-component-refusals). Decided in [0118](../adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md), [0104](../adr/0104-an-application-is-an-entry-file-path.md).</sub>
+<sub>See also [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/a-path-is-not-a-url`](security.md#security-a-path-is-not-a-url), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`errors/path-component-refusals`](errors.md#errors-path-component-refusals). Decided in [0118](../decisions/0118.md), [0104](../decisions/0104.md).</sub>
 
 <a id="security-denial-is-a-runtime-error"></a>
 
@@ -1395,7 +1395,7 @@ name is the string they will add to their configuration.
 A predicate that would otherwise answer `false` is refused rather than answered, so an ungranted
 deployment never looks like a negative result.
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy). Decided in [0118](../adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md), [0020](../adr/0020-error-escalation-ladder.md).</sub>
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy). Decided in [0118](../decisions/0118.md), [0020](../decisions/0020.md).</sub>
 
 <a id="security-capability-costs-nothing-unasked"></a>
 
@@ -1416,7 +1416,7 @@ Every member that reaches this check is by construction about to make a syscall,
 never on a hot path**. That is the whole latency argument, and it holds because of *where* the check
 is rather than because of how it is written.
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0118](../adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md), [0004](../adr/0004-memory-for-simplicity.md).</sub>
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0118](../decisions/0118.md), [0004](../decisions/0004.md).</sub>
 
 <a id="security-authority-is-the-enclosing-namespace"></a>
 
@@ -1441,7 +1441,7 @@ it reaches code no package manager ever touched.
 
 **Not on disk.** Nothing in the tree reads a per-namespace grant table.
 
-<sub>See also [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/longest-prefix-wins`](security.md#security-longest-prefix-wins), [`security/an-unmatched-namespace-holds-the-application`](security.md#security-an-unmatched-namespace-holds-the-application), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time). Decided in [0112](../adr/0112-authority-is-keyed-on-the-enclosing-namespace.md), [0081](../adr/0081-packages-are-digests-resolution-is-a-maximum.md), [0061](../adr/0061-compile-time-autoload-and-program-discovery.md).</sub>
+<sub>See also [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/longest-prefix-wins`](security.md#security-longest-prefix-wins), [`security/an-unmatched-namespace-holds-the-application`](security.md#security-an-unmatched-namespace-holds-the-application), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time). Decided in [0112](../decisions/0112.md), [0081](../decisions/0081.md), [0061](../decisions/0061.md).</sub>
 
 <a id="security-grants-are-keyed-on-a-namespace"></a>
 
@@ -1464,7 +1464,7 @@ every one of which may only tighten ([`security/no-runtime-grant`](security.md#s
 **Not on disk.** The tree reads the deployment's capability block; it has no per-namespace grant
 table, and the diagnostics this rule needs do not exist.
 
-<sub>See also [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed), [`security/longest-prefix-wins`](security.md#security-longest-prefix-wins). Decided in [0112](../adr/0112-authority-is-keyed-on-the-enclosing-namespace.md), [0081](../adr/0081-packages-are-digests-resolution-is-a-maximum.md), [0064](../adr/0064-configuration-file-format.md).</sub>
+<sub>See also [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed), [`security/longest-prefix-wins`](security.md#security-longest-prefix-wins). Decided in [0112](../decisions/0112.md), [0081](../decisions/0081.md), [0064](../decisions/0064.md).</sub>
 
 <a id="security-longest-prefix-wins"></a>
 
@@ -1485,7 +1485,7 @@ thing costs two extra characters and is visible in review as its own token.
 
 **Not on disk.** No grant table is keyed this way in the tree.
 
-<sub>See also [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace). Decided in [0112](../adr/0112-authority-is-keyed-on-the-enclosing-namespace.md), [0061](../adr/0061-compile-time-autoload-and-program-discovery.md).</sub>
+<sub>See also [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace). Decided in [0112](../decisions/0112.md), [0061](../decisions/0061.md).</sub>
 
 <a id="security-an-unmatched-namespace-holds-the-application"></a>
 
@@ -1509,7 +1509,7 @@ application's own.
 
 **Not on disk.** There is no fetch step and no audit that writes or checks these lines.
 
-<sub>See also [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time). Decided in [0112](../adr/0112-authority-is-keyed-on-the-enclosing-namespace.md), [0081](../adr/0081-packages-are-digests-resolution-is-a-maximum.md).</sub>
+<sub>See also [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time). Decided in [0112](../decisions/0112.md), [0081](../decisions/0081.md).</sub>
 
 <a id="security-optional-capability-degrades"></a>
 
@@ -1536,7 +1536,7 @@ widens ([`security/no-runtime-grant`](security.md#security-no-runtime-grant)).
 checking. The required/optional manifest split, the guard at an optional call site and the compile
 error for a required one have no representation in the tree.
 
-<sub>See also [`security/no-runtime-grant`](security.md#security-no-runtime-grant), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed), [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace). Decided in [0112](../adr/0112-authority-is-keyed-on-the-enclosing-namespace.md), [0081](../adr/0081-packages-are-digests-resolution-is-a-maximum.md), [0061](../adr/0061-compile-time-autoload-and-program-discovery.md), [0020](../adr/0020-error-escalation-ladder.md).</sub>
+<sub>See also [`security/no-runtime-grant`](security.md#security-no-runtime-grant), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed), [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace). Decided in [0112](../decisions/0112.md), [0081](../decisions/0081.md), [0061](../decisions/0061.md), [0020](../decisions/0020.md).</sub>
 
 <a id="security-no-runtime-grant"></a>
 
@@ -1559,7 +1559,7 @@ in exchange for reintroducing the dynamic escape the language closed elsewhere �
 Static attribution is total in Novis only because those doors are shut. A runtime widen would be a
 further one opened, and every claim above it would have to be qualified.
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/closed-doors`](security.md#security-closed-doors), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`security/optional-capability-degrades`](security.md#security-optional-capability-degrades). Decided in [0112](../adr/0112-authority-is-keyed-on-the-enclosing-namespace.md), [0005](../adr/0005-config-changeability.md), [0006](../adr/0006-isolated-script-execution.md), [0052](../adr/0052-closed-doors.md), [0031](../adr/0031-callable-is-the-only-closure-type.md), [0019](../adr/0019-reflection-and-ast-parsing-are-core-features.md).</sub>
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/closed-doors`](security.md#security-closed-doors), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`security/optional-capability-degrades`](security.md#security-optional-capability-degrades). Decided in [0112](../decisions/0112.md), [0005](../decisions/0005.md), [0006](../decisions/0006.md), [0052](../decisions/0052.md), [0031](../decisions/0031.md), [0019](../decisions/0019.md).</sub>
 
 <a id="security-capability-roster-is-closed"></a>
 
@@ -1583,7 +1583,7 @@ A member that reaches nothing declares that by entering the table with no capabi
 being absent from it ([`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table)), so the standard library's
 own surface is a closed claim rather than a list with an exception column.
 
-<sub>See also [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/optional-capability-degrades`](security.md#security-optional-capability-degrades). Decided in [0112](../adr/0112-authority-is-keyed-on-the-enclosing-namespace.md), [0118](../adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md), [0064](../adr/0064-configuration-file-format.md).</sub>
+<sub>See also [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/optional-capability-degrades`](security.md#security-optional-capability-degrades). Decided in [0112](../decisions/0112.md), [0118](../decisions/0118.md), [0064](../decisions/0064.md).</sub>
 
 <a id="security-package-authority-is-granted-one-line-at-a-time"></a>
 
@@ -1605,7 +1605,7 @@ process's authority* to *arbitrary computation with no authority at all*.
 
 **Not on disk.** There is no package manager, no manifest, and no grant line writer in the tree.
 
-<sub>See also [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace), [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/no-runtime-grant`](security.md#security-no-runtime-grant). Decided in [0081](../adr/0081-packages-are-digests-resolution-is-a-maximum.md), [0112](../adr/0112-authority-is-keyed-on-the-enclosing-namespace.md), [0005](../adr/0005-config-changeability.md), [0055](../adr/0055-extension-qualifier-declarations.md).</sub>
+<sub>See also [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace), [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/no-runtime-grant`](security.md#security-no-runtime-grant). Decided in [0081](../decisions/0081.md), [0112](../decisions/0112.md), [0005](../decisions/0005.md), [0055](../decisions/0055.md).</sub>
 
 <a id="security-process-exec-capability"></a>
 
@@ -1628,7 +1628,7 @@ is an instruction, so the path is the sink and the arguments are not
 A grant that names executable roots resolves the same way a spawn root does, canonicalise-then-prefix
 ([`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix)).
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/sink-predicate`](security.md#security-sink-predicate), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`core-classes/process-refuses-a-shell-target`](core-classes.md#core-classes-process-refuses-a-shell-target). Decided in [0044](../adr/0044-core-process-argv-only-no-shell.md), [0118](../adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md), [0112](../adr/0112-authority-is-keyed-on-the-enclosing-namespace.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md).</sub>
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/sink-predicate`](security.md#security-sink-predicate), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`core-classes/process-refuses-a-shell-target`](core-classes.md#core-classes-process-refuses-a-shell-target). Decided in [0044](../decisions/0044.md), [0118](../decisions/0118.md), [0112](../decisions/0112.md), [0024](../decisions/0024.md).</sub>
 
 <a id="security-protocol-roster"></a>
 
@@ -1653,7 +1653,7 @@ the claim is not exclusivity but that the obvious, documented option is the corr
 `Core\Signature` is not: no member, no module, no case. The roster is therefore not yet the closed set
 this rule describes.
 
-<sub>See also [`security/protocol-admission-test`](security.md#security-protocol-admission-test), [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key), [`security/verification-does-not-launder`](security.md#security-verification-does-not-launder), [`security/secret-does-not-cross-an-extension`](security.md#security-secret-does-not-cross-an-extension). Decided in [0060](../adr/0060-application-security-protocols.md), [0033](../adr/0033-secret-qualifier-for-confidential-values.md), [0055](../adr/0055-extension-qualifier-declarations.md), [0146](../adr/0146-a-signature-is-over-a-payload-and-a-url-is-a-payload-core-uri.md).</sub>
+<sub>See also [`security/protocol-admission-test`](security.md#security-protocol-admission-test), [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key), [`security/verification-does-not-launder`](security.md#security-verification-does-not-launder), [`security/secret-does-not-cross-an-extension`](security.md#security-secret-does-not-cross-an-extension). Decided in [0060](../decisions/0060.md), [0033](../decisions/0033.md), [0055](../decisions/0055.md), [0146](../decisions/0146.md).</sub>
 
 <a id="security-protocol-admission-test"></a>
 
@@ -1677,7 +1677,7 @@ makes it a decision rather than a negotiation.
 
 **Not on disk.** Nothing enforces the test; it governs what a future member may be.
 
-<sub>See also [`security/protocol-roster`](security.md#security-protocol-roster), [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key). Decided in [0060](../adr/0060-application-security-protocols.md).</sub>
+<sub>See also [`security/protocol-roster`](security.md#security-protocol-roster), [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key). Decided in [0060](../decisions/0060.md).</sub>
 
 <a id="security-algorithm-comes-from-the-key"></a>
 
@@ -1697,7 +1697,7 @@ The same shape runs through the roster: a key of the wrong kind is a verdict on 
 value that is not a key at all is a bug in the program, and the two are reported differently
 ([`security/verification-throws-and-compares-in-constant-time`](security.md#security-verification-throws-and-compares-in-constant-time)).
 
-<sub>See also [`security/jwt-expiry-is-mandatory`](security.md#security-jwt-expiry-is-mandatory), [`security/verification-throws-and-compares-in-constant-time`](security.md#security-verification-throws-and-compares-in-constant-time), [`security/protocol-roster`](security.md#security-protocol-roster). Decided in [0060](../adr/0060-application-security-protocols.md).</sub>
+<sub>See also [`security/jwt-expiry-is-mandatory`](security.md#security-jwt-expiry-is-mandatory), [`security/verification-throws-and-compares-in-constant-time`](security.md#security-verification-throws-and-compares-in-constant-time), [`security/protocol-roster`](security.md#security-protocol-roster). Decided in [0060](../decisions/0060.md).</sub>
 
 <a id="security-jwt-expiry-is-mandatory"></a>
 
@@ -1717,7 +1717,7 @@ answer to a different question and is why the two are not one rule.
 Expiry being unrepresentably absent is what makes a leaked token bounded rather than permanent, which
 is the failure the historical implementations kept shipping ([`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key)).
 
-<sub>See also [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key), [`security/protocol-roster`](security.md#security-protocol-roster), [`security/verification-throws-and-compares-in-constant-time`](security.md#security-verification-throws-and-compares-in-constant-time). Decided in [0060](../adr/0060-application-security-protocols.md), [0146](../adr/0146-a-signature-is-over-a-payload-and-a-url-is-a-payload-core-uri.md).</sub>
+<sub>See also [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key), [`security/protocol-roster`](security.md#security-protocol-roster), [`security/verification-throws-and-compares-in-constant-time`](security.md#security-verification-throws-and-compares-in-constant-time). Decided in [0060](../decisions/0060.md), [0146](../decisions/0146.md).</sub>
 
 <a id="security-verification-throws-and-compares-in-constant-time"></a>
 
@@ -1738,7 +1738,7 @@ credentials, the operator is right by construction anyway
 A refusal says one sentence and the same sentence for every forgery, so the failure carries no oracle
 about which part of the token was wrong.
 
-<sub>See also [`security/secret-comparison-is-constant-time`](security.md#security-secret-comparison-is-constant-time), [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key), [`security/protocol-roster`](security.md#security-protocol-roster). Decided in [0060](../adr/0060-application-security-protocols.md), [0033](../adr/0033-secret-qualifier-for-confidential-values.md), [0056](../adr/0056-regex-engine-policy.md).</sub>
+<sub>See also [`security/secret-comparison-is-constant-time`](security.md#security-secret-comparison-is-constant-time), [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key), [`security/protocol-roster`](security.md#security-protocol-roster). Decided in [0060](../decisions/0060.md), [0033](../decisions/0033.md), [0056](../decisions/0056.md).</sub>
 
 <a id="security-verification-does-not-launder"></a>
 
@@ -1756,7 +1756,7 @@ own authenticated encryption unchanged, and they come back **unqualified** — s
 authenticated operation over a value that was already plain when it went in. The asymmetry between the
 two is the rule, not an inconsistency: one is a value we had, the other is a value we were handed.
 
-<sub>See also [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/tainted-sources`](security.md#security-tainted-sources), [`security/protocol-roster`](security.md#security-protocol-roster). Decided in [0060](../adr/0060-application-security-protocols.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md).</sub>
+<sub>See also [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/tainted-sources`](security.md#security-tainted-sources), [`security/protocol-roster`](security.md#security-protocol-roster). Decided in [0060](../decisions/0060.md), [0024](../decisions/0024.md).</sub>
 
 <a id="security-bidi-predicate"></a>
 
@@ -1779,7 +1779,7 @@ answer soundly. The simplification can only over-approximate towards rejecting, 
 direction. It costs nothing measurable: two counters carried through a walk that happens anyway, no
 allocation and no table lookup.
 
-<sub>See also [`security/bidi-boundaries`](security.md#security-bidi-boundaries), [`security/bidi-scope-is-the-whole-target`](security.md#security-bidi-scope-is-the-whole-target), [`errors/record-transformations`](errors.md#errors-record-transformations). Decided in [0087](../adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md), [0029](../adr/0029-identifier-casing-is-checked.md).</sub>
+<sub>See also [`security/bidi-boundaries`](security.md#security-bidi-boundaries), [`security/bidi-scope-is-the-whole-target`](security.md#security-bidi-scope-is-the-whole-target), [`errors/record-transformations`](errors.md#errors-record-transformations). Decided in [0087](../decisions/0087.md), [0029](../decisions/0029.md).</sub>
 
 <a id="security-bidi-boundaries"></a>
 
@@ -1804,7 +1804,7 @@ a shorter string.
 exist, and an attribute that switched off a security check would be the first exception this project
 grants.
 
-<sub>See also [`security/bidi-predicate`](security.md#security-bidi-predicate), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`errors/record-transformations`](errors.md#errors-record-transformations). Decided in [0087](../adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md), [0086](../adr/0086-core-cli-terminal-is-a-sink.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md), [0137](../adr/0137-a-doc-comment-is-three-slashes-and-two-tags.md).</sub>
+<sub>See also [`security/bidi-predicate`](security.md#security-bidi-predicate), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`errors/record-transformations`](errors.md#errors-record-transformations). Decided in [0087](../decisions/0087.md), [0086](../decisions/0086.md), [0024](../decisions/0024.md), [0137](../decisions/0137.md).</sub>
 
 <a id="security-bidi-scope-is-the-whole-target"></a>
 
@@ -1827,7 +1827,7 @@ identifiers by construction, everything else by the predicate. One cost is accep
 editor or diff viewer that does not itself neutralize these controls still misrenders a file *before*
 the compiler sees it, so the check protects the merge and not the reading.
 
-<sub>See also [`security/bidi-predicate`](security.md#security-bidi-predicate), [`security/bidi-boundaries`](security.md#security-bidi-boundaries). Decided in [0087](../adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md), [0029](../adr/0029-identifier-casing-is-checked.md).</sub>
+<sub>See also [`security/bidi-predicate`](security.md#security-bidi-predicate), [`security/bidi-boundaries`](security.md#security-bidi-boundaries). Decided in [0087](../decisions/0087.md), [0029](../decisions/0029.md).</sub>
 
 <a id="security-access-is-checked-for-presence-not-meaning"></a>
 
@@ -1853,7 +1853,7 @@ that it was *honoured*.** An application that hand-rolls dispatch and never read
 no enforcement from anyone. Closing that would require recognising a dispatch site, which is an
 opinion the route table refuses to hold.
 
-<sub>See also [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`attributes/access-payload`](attributes.md#attributes-access-payload), [`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type). Decided in [0096](../adr/0096-a-route-without-a-declared-access-decision-does-not-compile.md), [0102](../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md), [0077](../adr/0077-compile-time-routing.md), [0082](../adr/0082-the-first-party-framework.md).</sub>
+<sub>See also [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`attributes/access-payload`](attributes.md#attributes-access-payload), [`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type). Decided in [0096](../decisions/0096.md), [0102](../decisions/0102.md), [0077](../decisions/0077.md), [0082](../decisions/0082.md).</sub>
 
 <a id="security-csrf-is-on-by-default"></a>
 
@@ -1875,7 +1875,7 @@ Enforcing only when a session cookie is present was rejected within this rule. I
 since forgery can only target cookie-authenticated requests, but it makes protection depend on what
 the client sent rather than on what the code says, which is harder to reason about and harder to test.
 
-<sub>See also [`security/access-is-checked-for-presence-not-meaning`](security.md#security-access-is-checked-for-presence-not-meaning), [`security/protocol-roster`](security.md#security-protocol-roster), [`attributes/access-payload`](attributes.md#attributes-access-payload). Decided in [0096](../adr/0096-a-route-without-a-declared-access-decision-does-not-compile.md), [0102](../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md), [0060](../adr/0060-application-security-protocols.md), [0074](../adr/0074-http-defaults-safe-and-finite.md).</sub>
+<sub>See also [`security/access-is-checked-for-presence-not-meaning`](security.md#security-access-is-checked-for-presence-not-meaning), [`security/protocol-roster`](security.md#security-protocol-roster), [`attributes/access-payload`](attributes.md#attributes-access-payload). Decided in [0096](../decisions/0096.md), [0102](../decisions/0102.md), [0060](../decisions/0060.md), [0074](../decisions/0074.md).</sub>
 
 <a id="security-bcrypt-read-roster"></a>
 
@@ -1895,7 +1895,7 @@ successful login at a time ([`security/needs-rehash-answers-weaker`](security.md
 kilobytes transiently per verification of a legacy row, on the calling task — bounded by in-flight
 logins, and shrinking as the table converges.
 
-<sub>See also [`security/hash-writes-argon2id-only`](security.md#security-hash-writes-argon2id-only), [`security/needs-rehash-answers-weaker`](security.md#security-needs-rehash-answers-weaker), [`security/an-unreadable-stored-hash-throws`](security.md#security-an-unreadable-stored-hash-throws). Decided in [0129](../adr/0129-password-verify-reads-a-stored-bcrypt-hash.md), [0051](../adr/0051-standard-library-tiers.md).</sub>
+<sub>See also [`security/hash-writes-argon2id-only`](security.md#security-hash-writes-argon2id-only), [`security/needs-rehash-answers-weaker`](security.md#security-needs-rehash-answers-weaker), [`security/an-unreadable-stored-hash-throws`](security.md#security-an-unreadable-stored-hash-throws). Decided in [0129](../decisions/0129.md), [0051](../decisions/0051.md).</sub>
 
 <a id="security-hash-writes-argon2id-only"></a>
 
@@ -1916,7 +1916,7 @@ written by somebody else.
 The write-side parameters and their reasons live with the implementation rather than being spelled at
 a call site, so raising them is one change rather than a sweep.
 
-<sub>See also [`security/bcrypt-read-roster`](security.md#security-bcrypt-read-roster), [`security/needs-rehash-answers-weaker`](security.md#security-needs-rehash-answers-weaker). Decided in [0129](../adr/0129-password-verify-reads-a-stored-bcrypt-hash.md).</sub>
+<sub>See also [`security/bcrypt-read-roster`](security.md#security-bcrypt-read-roster), [`security/needs-rehash-answers-weaker`](security.md#security-needs-rehash-answers-weaker). Decided in [0129](../decisions/0129.md).</sub>
 
 <a id="security-needs-rehash-answers-weaker"></a>
 
@@ -1937,7 +1937,7 @@ PHP's equivalent compares the stored parameters for difference, which answers `t
 *lowers* its cost as readily as when it raises it. Measuring weakness rather than difference is the
 divergence, and it is the direction that never rewrites a strong row into a weaker one.
 
-<sub>See also [`security/bcrypt-read-roster`](security.md#security-bcrypt-read-roster), [`security/hash-writes-argon2id-only`](security.md#security-hash-writes-argon2id-only). Decided in [0129](../adr/0129-password-verify-reads-a-stored-bcrypt-hash.md).</sub>
+<sub>See also [`security/bcrypt-read-roster`](security.md#security-bcrypt-read-roster), [`security/hash-writes-argon2id-only`](security.md#security-hash-writes-argon2id-only). Decided in [0129](../decisions/0129.md).</sub>
 
 <a id="security-bcrypt-cost-ceiling"></a>
 
@@ -1957,7 +1957,7 @@ the CPU the attacker was buying.
 The same shape guards the modern algorithm's memory parameter, which is the reason this is a ceiling
 on a stored value rather than a validation of a written one.
 
-<sub>See also [`security/bcrypt-read-roster`](security.md#security-bcrypt-read-roster), [`security/an-unreadable-stored-hash-throws`](security.md#security-an-unreadable-stored-hash-throws), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder). Decided in [0129](../adr/0129-password-verify-reads-a-stored-bcrypt-hash.md), [0020](../adr/0020-error-escalation-ladder.md).</sub>
+<sub>See also [`security/bcrypt-read-roster`](security.md#security-bcrypt-read-roster), [`security/an-unreadable-stored-hash-throws`](security.md#security-an-unreadable-stored-hash-throws), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder). Decided in [0129](../decisions/0129.md), [0020](../decisions/0020.md).</sub>
 
 <a id="security-bcrypt-truncation"></a>
 
@@ -1974,7 +1974,7 @@ password longer than the limit has a suffix that never mattered, and two passwor
 72 bytes both verify. That is one more reason every such row is marked for rehash under an algorithm
 without the edge ([`security/needs-rehash-answers-weaker`](security.md#security-needs-rehash-answers-weaker)).
 
-<sub>See also [`security/bcrypt-read-roster`](security.md#security-bcrypt-read-roster), [`security/needs-rehash-answers-weaker`](security.md#security-needs-rehash-answers-weaker). Decided in [0129](../adr/0129-password-verify-reads-a-stored-bcrypt-hash.md).</sub>
+<sub>See also [`security/bcrypt-read-roster`](security.md#security-bcrypt-read-roster), [`security/needs-rehash-answers-weaker`](security.md#security-needs-rehash-answers-weaker). Decided in [0129](../decisions/0129.md).</sub>
 
 <a id="security-an-unreadable-stored-hash-throws"></a>
 
@@ -1994,4 +1994,4 @@ notices. A throw wakes an operator ([`errors/ambiguous-input-refused`](errors.md
 The roster having two entries instead of one does not change that property; it moves where the
 boundary sits, and this rule is the boundary's home.
 
-<sub>See also [`security/bcrypt-read-roster`](security.md#security-bcrypt-read-roster), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0129](../adr/0129-password-verify-reads-a-stored-bcrypt-hash.md), [0033](../adr/0033-secret-qualifier-for-confidential-values.md).</sub>
+<sub>See also [`security/bcrypt-read-roster`](security.md#security-bcrypt-read-roster), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0129](../decisions/0129.md), [0033](../decisions/0033.md).</sub>

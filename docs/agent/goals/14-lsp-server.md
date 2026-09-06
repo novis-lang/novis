@@ -70,7 +70,7 @@ The existing `nvs check` pipeline, at the negotiated encoding, with `code` from 
 constant is worse than none. Published for **open documents only**.
 
 The gate is the content of this stage, not a detail of it:
-[ADR 0099 § 3](../../adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md) has the worked example where
+[ADR 0099 § 3](../../decisions/0099.md) has the worked example where
 one typo yields a spurious `E0301` *above* the `E0102` that caused it. A file that produced an `E00xx` or
 `E01xx` diagnostic suppresses `E03xx` and `E04xx` **for that file only**. Both directions are cases:
 gated, and `phase=all`.
@@ -92,7 +92,7 @@ session.
 
 ## Stage 7 — the five projections
 
-`semanticTokens/full` with [ADR 0099 § 4](../../adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md)'s
+`semanticTokens/full` with [ADR 0099 § 4](../../decisions/0099.md)'s
 legend — `defaultLibrary` on a `Core` class, and the `tainted` / `secret` modifiers included, which is the
 point of the item and not a detail of it. Then `documentSymbol`, `foldingRange`, `selectionRange` and
 `documentLink`: namespace, class, interface, enum, method, property, class constant and type alias for the
@@ -114,8 +114,8 @@ The client half — concealment, reveal, the two commands — is goal 15's.
 
 ## Stage 9 — the two code actions, and the boundary
 
-Casing ([0029](../../adr/0029-identifier-casing-is-checked.md)/[0030](../../adr/0030-no-leading-underscores-constructor-spelling.md))
-and `(int)$x` → `$x as int` ([0034](../../adr/0034-legacy-cast-syntax-rejected.md)), both translations of a
+Casing ([0029](../../decisions/0029.md)/[0030](../../decisions/0030.md))
+and `(int)$x` → `$x as int` ([0034](../../decisions/0034.md)), both translations of a
 `Suggestion` the `Diagnostic` already carries, registered under `source.fixAll.nvs`. **A code action whose
 fix the checker would have to compute is off path** — that boundary is the whole content of this stage, and
 `rule:ide/narrow-an-annotation-to-its-literal` is the worked

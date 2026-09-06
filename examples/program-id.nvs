@@ -1,7 +1,7 @@
 <?nvs
 // This program's identity, as a program.
 //
-// [ADR 0061](/docs/adr/0061-compile-time-autoload-and-program-discovery.md)
+// [ADR 0061](/docs/decisions/0061.md)
 // § 6 is the whole story. `Core\Program::id()` is `BLAKE3` over every
 // compiled unit's content hash, in program order, folded with the digest of
 // the environment they were compiled for — the two halves ADR 0042's cache

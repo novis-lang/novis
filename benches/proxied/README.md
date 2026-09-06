@@ -12,7 +12,7 @@ The two legs are not one series and must never be read as one; § *Two artifacts
 
 ## Why nginx fronts both, and why that is not a handicap
 
-[ADR 0097](../../docs/adr/0097-development-server-and-proxied-origin.md) § 1 gives `nvs serve` two
+[ADR 0097](../../docs/decisions/0097.md) § 1 gives `nvs serve` two
 deployments and no third, and the production one is **a proxied origin that replaces FastCGI**: no
 TLS listener, no h2c, no compression, no edge limiting, because a proxy in front does all of it
 earlier and better. PHP-FPM is the same shape for the same reason — FPM speaks FastCGI and nothing

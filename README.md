@@ -23,17 +23,17 @@ For web servers and the command line. Familiar syntax (Hello PHP).
 - **Isolation you can reach from the language.** `spawn script 'job.nvs'` runs another file with its own
   heap, its own globals and its own slice of the caller's budget — the isolation PHP can only get by
   starting another interpreter, at microseconds instead of tens of milliseconds
-  ([ADR 0006](docs/adr/0006-isolated-script-execution.md)).
+  ([ADR 0006](docs/decisions/0006.md)).
 - **Typed on purpose.** Every parameter, property and variable declares its type, and no value changes
   type behind your back: conversions are explicit and throw rather than quietly yielding `0`. Unions and
   `mixed` are there for the cases that genuinely are dynamic. `uint` gives you the whole 64-bit range PHP
   cannot represent, and arrays keep PHP's ordered hash while gaining declarable, nestable element types —
-  `array<array<uint>>` ([ADR 0007](docs/adr/0007-explicit-type-system.md)).
+  `array<array<uint>>` ([ADR 0007](docs/decisions/0007.md)).
 - **Memory-safe and contained.** Written in Rust with `unsafe` confined to three audited modules. A
   runtime bug or a resource-limit breach kills one request, never the process.
 - **Fast and simple first; memory is what pays for that.** Novis targets server-class hardware, so where a
   design can be safer, faster or simpler by holding more memory, it holds more memory — deliberately, within
-  an enforced per-request cap ([ADR 0004](docs/adr/0004-memory-for-simplicity.md)). It is not a
+  an enforced per-request cap ([ADR 0004](docs/decisions/0004.md)). It is not a
   low-footprint runtime, and sizing it means sizing for concurrency.
 - **Extensible without giving up any of that.** Extensions are sandboxed WebAssembly components: one
   precompiled binary runs on every platform, written in whatever language you like, and a crashing or
@@ -125,4 +125,4 @@ python tools/gen-attribution.py --check   # what CI runs; fails if the notice is
 The generator fails closed: a licence it has no policy for, or one missing from
 [deny.toml](deny.toml)'s allow list, stops the build instead of quietly omitting a notice. `cargo deny`
 decides what may be *linked*; this decides what must be *shipped*
-([ADR 0065](docs/adr/0065-third-party-attribution-and-nvs-info.md)).
+([ADR 0065](docs/decisions/0065.md)).

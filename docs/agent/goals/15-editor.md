@@ -1,7 +1,7 @@
 # Loop goal 15 — `editors/vscode`, and colour
 
 Build the extension: TypeScript, outside the Cargo workspace, exactly where
-[ADR 0016 § 5](../../adr/0016-ide-integration.md) puts it.
+[ADR 0016 § 5](../../decisions/0016.md) puts it.
 [docs/plan/m4b.md](../../plan/m4b.md) is the scope; `rule:ide/highlighting-is-two-layers` and `rule:ide/contributions-are-frozen-and-only-ever-added` are the colour lists and the frozen
 contribution roster, and **neither is a starting point to improve on during the run**.
 
@@ -56,7 +56,7 @@ only in the former, type annotations in every slot including `rule:types/object-
 `tainted`/`secret` qualifiers and `decimal`, Novis's own keywords (`spawn`, `spawn script`, `autoload`,
 `type`, `by`, property hooks), `rule:types/duration-literal`'s duration literals, `#[...]` attributes told apart from `#`
 comments — and the constructs it must **not** colour as valid, is
-[ADR 0099 § 4](../../adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md)'s list. **Do not re-derive it
+[ADR 0099 § 4](../../decisions/0099.md)'s list. **Do not re-derive it
 and do not shorten it.** Goal 13 landed `|>` and `let`/`is`, so that list's refusals are now real
 diagnostics the grammar can be checked against; goals 10 and 11 landed `callable<…>` signatures and `///`
 doc comments, which are colour surface `rule:ide/highlighting-is-two-layers` predates and which this stage adds.
@@ -143,7 +143,7 @@ test, one example, one hostile program.
   improvement made during the run.
 - **Dependencies: one is named, the rest are yours.** `vscode-languageclient` for the client; the Node
   test stack and the grammar test libraries you pick against
-  [ADR 0051 § 4](../../adr/0051-standard-library-tiers.md)'s two questions. An npm dependency owes the
+  [ADR 0051 § 4](../../decisions/0051.md)'s two questions. An npm dependency owes the
   allowlist entry stage 2 builds and nothing else, and lives in `devDependencies` wherever it can — a
   runtime dependency ships to users and a test library does not.
 - **The extension-host tier is CI's, and is not on the acceptance list.** It needs a display, and the

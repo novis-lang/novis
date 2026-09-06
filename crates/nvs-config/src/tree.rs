@@ -17,7 +17,7 @@
 //! `same_site = "None"` with `secure = false` is refused by the HTTP layer that reads the pair
 //! (`rule:http-server/policy-headers-are-runtime-class-and-setheader-wins`). Two reasons the split is deliberate: a value refusal wants to name the unit it
 //! expected, which `serde`'s "invalid type" cannot, and the override stream of
-//! [ADR 0103 § 3](/docs/adr/0103-configuration-is-a-tree-of-files.md) resolves *before*
+//! [ADR 0103 § 3](/docs/decisions/0103.md) resolves *before*
 //! anything is interpreted, so a value overridden by a later file must not have had to parse.
 //!
 //! Which is also why every field is an [`Option`]: unset and set-to-the-shipped-default are
@@ -27,8 +27,8 @@
 //! reads it and then dropped once the snapshot is built. Nothing here runs per request, and the
 //! `Option`-per-field shape is chosen for that reason — it would be the wrong trade on a hot path.
 //!
-//! [ADR 0064 § 2a]: ../../../docs/adr/0064-configuration-file-format.md
-//! [ADR 0064 § 3]: ../../../docs/adr/0064-configuration-file-format.md
+//! [ADR 0064 § 2a]: ../../../docs/decisions/0064.md
+//! [ADR 0064 § 3]: ../../../docs/decisions/0064.md
 
 use std::collections::BTreeMap;
 

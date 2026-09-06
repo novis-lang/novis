@@ -298,7 +298,7 @@ impl Ctx {
     /// A context for an **isolate** — the other half of the pair
     /// [`Ctx::child`] opens, and the one place the two part.
     ///
-    /// [ADR 0116](/docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
+    /// [ADR 0116](/docs/decisions/0116.md)
     /// § 4: an isolate's arena is an ownership root of its own, so its
     /// static-property base is **its own** rather than an alias of this
     /// request's. That single difference is the whole of `rule:security/isolate-shares-nothing`'s "globals,

@@ -1276,6 +1276,10 @@
         "0124 \u00a75": "php-migration/no-partial-application",
         "0124 \u00a76": "php-migration/a-session-id-the-store-did-not-issue-is-rejected"
       }
+    },
+    "C1": {
+      "status": "done",
+      "applied": "2026-09-06"
     }
   },
   "snapshot": "2026-09-06"

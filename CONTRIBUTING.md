@@ -194,7 +194,7 @@ identity tag one or more goals carry, so "goal 19" says what is happening and "M
 The two editor clients are not here yet. When they arrive they sit outside the Cargo workspace — the VS
 Code extension is TypeScript/Node tooling, the PhpStorm plugin is Kotlin/Gradle/IntelliJ Platform
 tooling — and each is a thin client over `nvs-lsp`/`nvs-fmt`, never a second implementation of language
-smarts or formatting ([ADR 0016](docs/adr/0016-ide-integration.md)).
+smarts or formatting ([ADR 0016](docs/decisions/0016.md)).
 
 [`benches/abi-probe`](benches/abi-probe/) is worth knowing about early. Several decisions in `docs/adr/`
 depend on how Cranelift, `corosensei` and Wasmtime behave rather than on Novis's own code, so a dependency
@@ -210,18 +210,18 @@ the premise the calling convention exists for.
 |---|---|
 | Pipeline | source → AST → HIR → types → IR → Cranelift → native |
 | Execution | baseline JIT now, optimising tier later, no interpreter |
-| Errors | checked return status, never unwinding ([ADR 0002](docs/adr/0002-error-propagation.md)) |
+| Errors | checked return status, never unwinding ([ADR 0002](docs/decisions/0002.md)) |
 | Concurrency | thread-per-core executors, stackful coroutines, isolated cross-core workers |
-| Priorities | security → semantics → latency → simplicity → memory footprint ([ADR 0004](docs/adr/0004-memory-for-simplicity.md)) |
-| Types | static and mandatory; explicit checked conversions; unions plus `mixed`; `int` and `uint`; string-keyed ordered arrays with declarable nested element types ([ADR 0007](docs/adr/0007-explicit-type-system.md)) |
-| Scoping | `static` is a class-member modifier only — static members and late static binding kept, function-scope `static` and `static fn` rejected, no `global` ([ADR 0008](docs/adr/0008-static-and-global.md)) |
-| OOP-only | Every function is a method, every constant a class constant — no free function, no global constant, no exception for built-ins. Built-ins live under the reserved `Core` namespace, one domain class per grouping (`Core\Str`, `Core\Arr`, `Core\Math`, …) ([ADR 0011](docs/adr/0011-functions-and-constants-are-class-members.md)) |
+| Priorities | security → semantics → latency → simplicity → memory footprint ([ADR 0004](docs/decisions/0004.md)) |
+| Types | static and mandatory; explicit checked conversions; unions plus `mixed`; `int` and `uint`; string-keyed ordered arrays with declarable nested element types ([ADR 0007](docs/decisions/0007.md)) |
+| Scoping | `static` is a class-member modifier only — static members and late static binding kept, function-scope `static` and `static fn` rejected, no `global` ([ADR 0008](docs/decisions/0008.md)) |
+| OOP-only | Every function is a method, every constant a class constant — no free function, no global constant, no exception for built-ins. Built-ins live under the reserved `Core` namespace, one domain class per grouping (`Core\Str`, `Core\Arr`, `Core\Math`, …) ([ADR 0011](docs/decisions/0011.md)) |
 | Values | 16-byte tagged, refcounted, copy-on-write arrays and strings |
 | Requests | shared-nothing; only compiled code is shared |
-| Isolates | `spawn script` runs another `.nvs` file in-process with a fresh heap, on the caller's budget ([ADR 0006](docs/adr/0006-isolated-script-execution.md)) |
-| Config | a tree of root-owned `nvs.toml` files states the defaults; a script may retune its own limits within operator-set ceilings, and `nvs config check` audits the result offline ([ADR 0005](docs/adr/0005-config-changeability.md), [ADR 0103](docs/adr/0103-configuration-is-a-tree-of-files.md)) |
-| Serving | built-in HTTP/1.1 with exactly two deployments — a development server, and a proxied production origin that replaces FastCGI. No TLS listener, no h2c, no compression: a proxy does each earlier and better. A filesystem path is never derived from a URL at request time ([ADR 0097](docs/adr/0097-development-server-and-proxied-origin.md)) |
-| Extensions | built-in, sandboxed wasm (`.nvsx`), or statically linked native — never `dlopen` ([ADR 0003](docs/adr/0003-extension-system.md)) |
+| Isolates | `spawn script` runs another `.nvs` file in-process with a fresh heap, on the caller's budget ([ADR 0006](docs/decisions/0006.md)) |
+| Config | a tree of root-owned `nvs.toml` files states the defaults; a script may retune its own limits within operator-set ceilings, and `nvs config check` audits the result offline ([ADR 0005](docs/decisions/0005.md), [ADR 0103](docs/decisions/0103.md)) |
+| Serving | built-in HTTP/1.1 with exactly two deployments — a development server, and a proxied production origin that replaces FastCGI. No TLS listener, no h2c, no compression: a proxy does each earlier and better. A filesystem path is never derived from a URL at request time ([ADR 0097](docs/decisions/0097.md)) |
+| Extensions | built-in, sandboxed wasm (`.nvsx`), or statically linked native — never `dlopen` ([ADR 0003](docs/decisions/0003.md)) |
 
 This is the short form. The fuller decision table, with the sequencing each choice implies, is in
 [docs/implementation-plan.md](docs/implementation-plan.md); the reasoning behind each choice and the

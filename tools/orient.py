@@ -72,6 +72,8 @@ except ModuleNotFoundError:  # Python < 3.11
 ROOT = Path(__file__).resolve().parent.parent
 AGENT = ROOT / "docs" / "agent"
 ADR_DIR = ROOT / "docs" / "adr"
+#: A frozen decision record: `docs/decisions/NNNN.md`, since the docs migration's unit C1.
+DECISIONS_DIR = ROOT / "docs" / "decisions"
 SPEC_DIR = ROOT / "docs" / "spec"
 
 GOAL_TOML = AGENT / "loop-goal.toml"
@@ -646,7 +648,7 @@ def run_numbers() -> None:
     lookups every session does, and the ADR one is a race if two agents both grep for it."""
     before = len(brief.out)
     brief.run_numbers()
-    section("THE NEXT FREE NUMBER", "nvs-diagnostics (every `Code::new`) and docs/adr/ filenames")
+    section("THE NEXT FREE NUMBER", "nvs-diagnostics (every `Code::new`) and docs/decisions/ filenames")
     for line in brief.out[before:]:
         if line.startswith("== ") or line.startswith("-- source:"):
             continue
@@ -849,15 +851,27 @@ def run_rules(m: Manifest) -> None:
 
 
 def adr_path(number: str) -> Path | None:
+    frozen = DECISIONS_DIR / f"{number}.md"
+    if frozen.is_file():
+        return frozen
     matches = sorted(ADR_DIR.glob(f"{number}-*.md"))
     return matches[0] if matches else None
+
+
+def strip_frontmatter(text: str) -> str:
+    """A frozen record opens with a YAML block -- `date:`, `status:`, `changes:` -- that is the
+    rulebook's reverse index, not the decision. The pack carries the title and *In short*."""
+    if not text.startswith("---\n"):
+        return text
+    end = text.find("\n---\n", 4)
+    return text[end + 5:].lstrip("\n") if end != -1 else text
 
 
 def run_adrs(m: Manifest) -> None:
     if not m.adrs:
         return
-    section("THE ADR SECTIONS IN SCOPE", "docs/adr/*.md, sliced live -- never a copy")
-    emit("A section, not the file. If you need one this does not print, open the ADR at that")
+    section("THE ADR SECTIONS IN SCOPE", "docs/decisions/*.md, sliced live -- never a copy")
+    emit("A section, not the file. If you need one this does not print, open the record at that")
     emit("heading and add the section to [context] adrs so the next session does not pay twice.")
     for entry in m.adrs:
         parts = entry.replace("§", " ").split()
@@ -866,9 +880,9 @@ def run_adrs(m: Manifest) -> None:
         number, wanted = parts[0], " ".join(parts[1:])
         path = adr_path(number)
         if path is None:
-            warn(f"[context] adrs names ADR {number}, and docs/adr/ has no {number}-*.md")
+            warn(f"[context] adrs names ADR {number}, and docs/decisions/ has no {number}.md")
             continue
-        text = read(path)
+        text = strip_frontmatter(read(path))
         body = slice_head(text) if not wanted else slice_section(text, wanted)
         if body is None:
             warn(f"ADR {number} has no section matching {wanted!r} -- it was renamed or renumbered")

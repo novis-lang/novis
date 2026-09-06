@@ -260,7 +260,7 @@ pub enum CoreTy {
     /// A `bytes` parameter carrying its classification — [`Self::Text`]'s twin.
     Blob(Qual),
     /// An **isolate entry** —
-    /// [ADR 0006](/docs/adr/0006-isolated-script-execution.md) § *Decision*'s
+    /// [ADR 0006](/docs/decisions/0006.md) § *Decision*'s
     /// operand, written as a parameter.
     ///
     /// The spec's column is `string` and a path is what the member reads. What

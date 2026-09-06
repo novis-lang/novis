@@ -181,7 +181,7 @@ impl<'a> SqliteTarget<'a> {
 /// The same enum binds a parameter and carries a read cell, because on this
 /// backend those genuinely are one set — SQLite stores a value as one of these
 /// five whatever the column was declared as, which is the fact
-/// [ADR 0067 § 9](/docs/adr/0067-core-db.md) works around by keying its
+/// [ADR 0067 § 9](/docs/decisions/0067.md) works around by keying its
 /// map off the *declared* type. Nothing here is that map: this is the storage
 /// class, and turning `Int(20260903)` into a `Core\Time\Date` because the column
 /// says `date` happens a layer up.
@@ -380,7 +380,7 @@ pub struct SqliteColumn {
 }
 
 impl SqliteColumn {
-    /// [ADR 0067 § 9](/docs/adr/0067-core-db.md)'s type for this
+    /// [ADR 0067 § 9](/docs/decisions/0067.md)'s type for this
     /// column, off the *declared* name — the one backend where that is the only
     /// thing to key on.
     ///
@@ -566,7 +566,7 @@ pub fn open(target: &SqliteTarget<'_>) -> io::Result<SqliteConn> {
 }
 
 impl SqliteConn {
-    /// [ADR 0067 § 9](/docs/adr/0067-core-db.md)'s declared zone, in
+    /// [ADR 0067 § 9](/docs/decisions/0067.md)'s declared zone, in
     /// seconds east of UTC.
     ///
     /// Public where the other four drivers keep theirs private, because they
@@ -579,7 +579,7 @@ impl SqliteConn {
         self.time_zone
     }
 
-    /// [ADR 0067 § 4](/docs/adr/0067-core-db.md)'s statement: prepared
+    /// [ADR 0067 § 4](/docs/decisions/0067.md)'s statement: prepared
     /// through § 1's cache, stepped off the core, and answered with its rows.
     ///
     /// **`execute` is this same method**, for [`crate::TdsConn::query`]'s reason:
@@ -624,7 +624,7 @@ impl SqliteConn {
         }
     }
 
-    /// [ADR 0067 § 4](/docs/adr/0067-core-db.md)'s `executeMany`: one
+    /// [ADR 0067 § 4](/docs/decisions/0067.md)'s `executeMany`: one
     /// prepare, N executions, and the affected counts summed.
     ///
     /// The whole loop is *one* handoff off the core rather than one per set.
@@ -661,7 +661,7 @@ impl SqliteConn {
         applied.map_err(server_error)
     }
 
-    /// [ADR 0067 § 7](/docs/adr/0067-core-db.md)'s `BEGIN`, or the
+    /// [ADR 0067 § 7](/docs/decisions/0067.md)'s `BEGIN`, or the
     /// `SAVEPOINT` a nested `transaction()` is.
     ///
     /// The nesting, the names and the depth accounting are
@@ -790,7 +790,7 @@ impl SqliteConn {
         Ok(span)
     }
 
-    /// [ADR 0067 § 13](/docs/adr/0067-core-db.md)'s reset, and the
+    /// [ADR 0067 § 13](/docs/decisions/0067.md)'s reset, and the
     /// connection back only if it worked.
     ///
     /// **Rolling back an open transaction is the whole reset**, which is § 13's
@@ -1040,7 +1040,7 @@ fn server_error(error: rusqlite::Error) -> io::Error {
     })
 }
 
-/// [ADR 0067 § 8](/docs/adr/0067-core-db.md)'s kind, from SQLite's
+/// [ADR 0067 § 8](/docs/decisions/0067.md)'s kind, from SQLite's
 /// extended result code.
 ///
 /// Keyed on the extended code because the primary one is too coarse to answer

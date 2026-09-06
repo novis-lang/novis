@@ -1,7 +1,7 @@
 <?nvs
 // A transaction is a closure, and that is the whole of the shape.
 //
-// [ADR 0067](/docs/adr/0067-core-db.md) § 7 removes `beginTransaction`,
+// [ADR 0067](/docs/decisions/0067.md) § 7 removes `beginTransaction`,
 // `commit`, `rollBack` on the connection, `inTransaction` and explicit
 // savepoints, and replaces all five with one member that owns the scope:
 // the closure returns and the work commits, the closure throws and the work
@@ -10,7 +10,7 @@
 // remember.
 //
 // `Core\Db\Transaction implements Queryable by $connection`
-// ([ADR 0043](/docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md)),
+// ([ADR 0043](/docs/decisions/0043.md)),
 // so `$tx` has the same surface `$db` does and nothing is declared twice.
 // A nested `transaction` is a savepoint.
 //

@@ -159,7 +159,7 @@ M4's, goal 1's, goal 2's and goal 3's whole acceptance lists, **never traded.**
     **the same visibility and hook checks ordinary code does**, and a parsed AST is typed, inert data with
     no path back into execution. `Core\Ast::parse()` is fuzzed with M1's own corpus.
 35. **The checked property key, `property<T>` — after item 24, never before it.** The design is
-    [ADR 0014](../../adr/0014-property-observer.md) § *Revisiting*'s entry, and this goal's one ADR slot
+    [ADR 0014](../../decisions/0014.md) § *Revisiting*'s entry, and this goal's one ADR slot
     writes it down — the type, its `as`-only source over `T`'s public properties, the union-typed read, the
     checked write, and the hooked/`readonly` choice that entry leaves open. Then, in the shape goal 3's
     stage 10 gave `class<T>`: the atom beside `Array` (`crates/nvs-syntax/src/ast.rs:138`, parsed in

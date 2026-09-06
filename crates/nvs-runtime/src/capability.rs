@@ -156,7 +156,7 @@ pub fn pin_host(ctx: &Ctx, host: &str, member: &str) -> Result<std::net::IpAddr,
 ///
 /// **Split out because one member asks the capability question differently and the address
 /// question identically.** `Core\Db::open`'s grant is `db.open`, whose scope is the host a
-/// settings literal named ([ADR 0067 § 3](/docs/adr/0067-core-db.md)), so asking
+/// settings literal named ([ADR 0067 § 3](/docs/decisions/0067.md)), so asking
 /// `net.connect` as well would demand a second grant for the same host; what § 3 does say is that
 /// an `open` target "stays subject to that policy in full", and *that* policy is this function.
 /// Calling [`pin_host`] there instead would collapse two capabilities into one, and re-implementing

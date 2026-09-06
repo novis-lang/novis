@@ -1,7 +1,7 @@
 # The per-feature bench tree — one measured figure each
 
 Every feature Novis ships owes a measured performance figure
-([ADR 0134](../../docs/adr/0134-every-shipped-feature-owes-four-proofs.md)), and this is where the programs
+([ADR 0134](../../docs/decisions/0134.md)), and this is where the programs
 that produce it live. **Every number here is Novis against itself.** There is no PHP column and
 there never will be — [`benches/userland/`](../userland/README.md) owns the cross-engine comparison,
 and [`benches/abi-probe/`](../abi-probe/) owns the guards that fail a build. This tree exists to
@@ -67,7 +67,7 @@ Two programs under `_calibration/` are measured in the same sweep as everything 
   and *that* ratio is the `units` column.
 
 `ns/op` is honest on the machine that took it and meaningless on another one, which is
-[ADR 0026](../../docs/adr/0026-performance-measurement-methodology.md)'s whole finding — so every
+[ADR 0026](../../docs/decisions/0026.md)'s whole finding — so every
 record carries a machine fingerprint and the report refuses to print a delta across two of them.
 `units` divides out the clock speed and travels, to about a tenth. Neither is a gate: nothing here
 fails a build, and a regression is a row in the report with a `Δ` on it.

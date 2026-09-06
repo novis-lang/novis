@@ -35,7 +35,7 @@
 //!
 //! # Why `rule:security/isolate-shares-nothing`'s *other* entry form never reaches this seam
 //!
-//! [ADR 0006](/docs/adr/0006-isolated-script-execution.md) § *Decision* gives
+//! [ADR 0006](/docs/decisions/0006.md) § *Decision* gives
 //! `spawn script` two operands: a path, and a `Class::method(...)` reference.
 //! Only the first one is a question for a resolver, and the difference is not a
 //! convenience — it is the whole of what a resolver is for. A path is a name
@@ -71,7 +71,7 @@
 //!
 //! **The capability question is asked, and it is asked unscoped.**
 //! [`resolve`] below is `rule:security/capability-check-at-the-door`'s door for a path, and `script.spawn`'s
-//! grant names filesystem roots ([ADR 0006](/docs/adr/0006-isolated-script-execution.md)
+//! grant names filesystem roots ([ADR 0006](/docs/decisions/0006.md)
 //! § *Executing code is its own capability*). A method has no path to
 //! canonicalise and prefix-check, but the grant still decides whether this
 //! program spawns isolates at all, so the method form asks `Cap::ScriptSpawn`

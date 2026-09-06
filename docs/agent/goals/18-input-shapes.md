@@ -4,9 +4,9 @@ Reading a request today ends in `mixed`. `Core\Request::post('user[address][city
 `query` answers `mixed`, and goal 16's `json()` answers `mixed` too — so every step a handler takes after
 the boundary is unchecked, and the first thing that notices a peer sent `city` as a list is whatever the
 program did with it three frames later. The language already has the answer to this and has never pointed
-it at input: [ADR 0036 § 3](../../adr/0036-anonymous-object-shapes.md)'s inline shape type is a
+it at input: [ADR 0036 § 3](../../decisions/0036.md)'s inline shape type is a
 structural, width-subtyped constraint the checker verifies, and
-[ADR 0007 § 5](../../adr/0007-explicit-type-system.md) already lets a call site write the type argument
+[ADR 0007 § 5](../../decisions/0007.md) already lets a call site write the type argument
 for a compiler-owned member — the door `Core\Json::decodeAs<T>` and `Core\Db::queryAs<T>` go through.
 
 So this goal builds the third door and makes it the general one: **one converter from `array<mixed>` to a
@@ -17,7 +17,7 @@ fields are proven rather than an array whose keys are hoped for.
 Two things in the type surface have to move first, and stage 2 is why this goal is not just four `Core`
 members. A shape's fields are all **required** today, so a form with an unchecked checkbox — a key that is
 simply absent — cannot be described at all. And `tainted` attaches to `string`/`bytes` and nothing else
-([ADR 0024 § 1](../../adr/0024-taint-tracking-for-injection-sinks.md)), so a shape over a request body has
+([ADR 0024 § 1](../../decisions/0024.md)), so a shape over a request body has
 to write the qualifier once per field, which is verbose in proportion to the form and is the reason people
 ask for the check to be turned off.
 
@@ -33,7 +33,7 @@ form or the query string, which is where the loose values usually come from.*
 
 **In detailed words**: `Core\Arr::shapeAs<T>(array<mixed> $a): T` hydrates an array into an inline shape
 or a class carrying a `Codec`, field by field, using the language's own `as` operator and its table
-([ADR 0007 § 2](../../adr/0007-explicit-type-system.md)) as the whole conversion rule — `"42"` into a
+([ADR 0007 § 2](../../decisions/0007.md)) as the whole conversion rule — `"42"` into a
 `uint` field is the `string → uint` row, so `"42abc"` and `""` throw exactly where `as` throws, and a `?T`
 field gets `as ?T` (`rule:expressions/nullable-conversion`) and answers `null` where
 `as T` would have thrown. Nothing new enters the conversion table. A key the shape does not name is

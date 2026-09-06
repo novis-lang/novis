@@ -31,7 +31,7 @@ The attribute is matched **nominally**, by resolved name: `#[Core\Test]` and a `
 one attribute, and a userland `class Test` is never it. The marker and the assertions are one class,
 so a single `use Core\Test;` places both.
 
-<sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/fixtures`](testing.md#testing-fixtures), [`testing/data-rows`](testing.md#testing-data-rows), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict). Decided in [0079](../adr/0079-testing-is-a-language-feature.md), [0077](../adr/0077-compile-time-routing.md), [0046](../adr/0046-attributes-shape-literal-metadata.md), [0063](../adr/0063-core-api-conventions.md), [0071](../adr/0071-derived-codecs.md), [0011](../adr/0011-functions-and-constants-are-class-members.md), [0029](../adr/0029-identifier-casing-is-checked.md).</sub>
+<sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/fixtures`](testing.md#testing-fixtures), [`testing/data-rows`](testing.md#testing-data-rows), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict). Decided in [0079](../decisions/0079.md), [0077](../decisions/0077.md), [0046](../decisions/0046.md), [0063](../decisions/0063.md), [0071](../decisions/0071.md), [0011](../decisions/0011.md), [0029](../decisions/0029.md).</sub>
 
 <a id="testing-isolate-per-test"></a>
 
@@ -54,7 +54,7 @@ Each test isolate spends its parent's budget, so a suite has the same enforceabl
 and CPU that a request has, and a runaway test is terminated rather than left to consume the
 machine.
 
-<sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/fixtures`](testing.md#testing-fixtures), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`statements/an-isolate-has-its-own-statics`](statements.md#statements-an-isolate-has-its-own-statics). Decided in [0079](../adr/0079-testing-is-a-language-feature.md), [0006](../adr/0006-isolated-script-execution.md), [0004](../adr/0004-memory-for-simplicity.md).</sub>
+<sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/fixtures`](testing.md#testing-fixtures), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`statements/an-isolate-has-its-own-statics`](statements.md#statements-an-isolate-has-its-own-statics). Decided in [0079](../decisions/0079.md), [0006](../decisions/0006.md), [0004](../decisions/0004.md).</sub>
 
 <a id="testing-tests-never-reach-a-build"></a>
 
@@ -72,7 +72,7 @@ artifact. Production pays nothing for them, and no test surface is reachable at 
 `nvs check` does type-check test code. That is the one place tests and non-tests are treated alike,
 and deliberately so: a test cannot rot silently while the code around it changes.
 
-<sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/determinism-declared-on-the-test`](testing.md#testing-determinism-declared-on-the-test). Decided in [0079](../adr/0079-testing-is-a-language-feature.md).</sub>
+<sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/determinism-declared-on-the-test`](testing.md#testing-determinism-declared-on-the-test). Decided in [0079](../decisions/0079.md).</sub>
 
 <a id="testing-assertions-are-typed"></a>
 
@@ -97,7 +97,7 @@ years later.
 The roster is wide on purpose. Ranking the right member by the subject's type at the call site is
 the language server's job, and not a reason to reshape the API into a chain.
 
-<sub>See also [`testing/failure-ledger`](testing.md#testing-failure-ledger), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`testing/inline-snapshots`](testing.md#testing-inline-snapshots). Decided in [0079](../adr/0079-testing-is-a-language-feature.md), [0063](../adr/0063-core-api-conventions.md), [0013](../adr/0013-comparable-interface.md), [0090](../adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md), [0007](../adr/0007-explicit-type-system.md).</sub>
+<sub>See also [`testing/failure-ledger`](testing.md#testing-failure-ledger), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`testing/inline-snapshots`](testing.md#testing-inline-snapshots). Decided in [0079](../decisions/0079.md), [0063](../decisions/0063.md), [0013](../decisions/0013.md), [0090](../decisions/0090.md), [0007](../decisions/0007.md).</sub>
 
 <a id="testing-failure-ledger"></a>
 
@@ -122,7 +122,7 @@ rather than from what came back, so a body that caught its own failure has still
 which nothing failed is itself a failure; and the passing assertions inside a discharged body stay,
 because they really ran.
 
-<sub>See also [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy). Decided in [0079](../adr/0079-testing-is-a-language-feature.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md), [0020](../adr/0020-error-escalation-ladder.md).</sub>
+<sub>See also [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy). Decided in [0079](../decisions/0079.md), [0024](../decisions/0024.md), [0020](../decisions/0020.md).</sub>
 
 <a id="testing-constructor-is-setup"></a>
 
@@ -139,7 +139,7 @@ A test class's constructor therefore declares no parameters. One that does is re
 failing rather than pretended past: the runner constructs the class with no arguments, and a test
 method's own parameters are filled by [`testing/fixtures`](testing.md#testing-fixtures) and [`testing/data-rows`](testing.md#testing-data-rows) instead.
 
-<sub>See also [`testing/after-hook`](testing.md#testing-after-hook), [`testing/fixtures`](testing.md#testing-fixtures), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test). Decided in [0079](../adr/0079-testing-is-a-language-feature.md), [0022](../adr/0022-definite-property-initialization.md).</sub>
+<sub>See also [`testing/after-hook`](testing.md#testing-after-hook), [`testing/fixtures`](testing.md#testing-fixtures), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test). Decided in [0079](../decisions/0079.md), [0022](../decisions/0022.md).</sub>
 
 <a id="testing-after-hook"></a>
 
@@ -154,7 +154,7 @@ inside it with it, which is what leaves this marker one narrow job rather than a
 Every such residue is capability-bearing, so there is nothing `#[After]` can usefully do until a
 test run can hold a capability.
 
-<sub>See also [`testing/constructor-is-setup`](testing.md#testing-constructor-is-setup), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test). Decided in [0079](../adr/0079-testing-is-a-language-feature.md).</sub>
+<sub>See also [`testing/constructor-is-setup`](testing.md#testing-constructor-is-setup), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test). Decided in [0079](../decisions/0079.md).</sub>
 
 <a id="testing-fixtures"></a>
 
@@ -177,7 +177,7 @@ Only a fixture that a test which will actually run asks for is built — a skipp
 setup nobody wanted. Resolution runs once the whole class is collected rather than as the walk
 descends, because a test may be written above the fixture that supplies it.
 
-<sub>See also [`testing/data-rows`](testing.md#testing-data-rows), [`testing/constructor-is-setup`](testing.md#testing-constructor-is-setup), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test). Decided in [0079](../adr/0079-testing-is-a-language-feature.md), [0023](../adr/0023-clone-serialize-and-cross-boundary-copy.md).</sub>
+<sub>See also [`testing/data-rows`](testing.md#testing-data-rows), [`testing/constructor-is-setup`](testing.md#testing-constructor-is-setup), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test). Decided in [0079](../decisions/0079.md), [0023](../decisions/0023.md).</sub>
 
 <a id="testing-data-rows"></a>
 
@@ -201,7 +201,7 @@ this method's own parameter list, while a fixture answers every method of the cl
 row's values are folded to constants in parameter order rather than in written order, because that
 is the order the call is made in, and are released when that call returns.
 
-<sub>See also [`testing/fixtures`](testing.md#testing-fixtures), [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/report-formats`](testing.md#testing-report-formats). Decided in [0079](../adr/0079-testing-is-a-language-feature.md), [0046](../adr/0046-attributes-shape-literal-metadata.md), [0071](../adr/0071-derived-codecs.md).</sub>
+<sub>See also [`testing/fixtures`](testing.md#testing-fixtures), [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/report-formats`](testing.md#testing-report-formats). Decided in [0079](../decisions/0079.md), [0046](../decisions/0046.md), [0071](../decisions/0071.md).</sub>
 
 <a id="testing-doubles"></a>
 
@@ -220,7 +220,7 @@ backtrace. There is no builder, no matcher mini-language and no notion of a "nic
 double — that last one is not a choice, since a double of `now(): Instant` has nothing legal to
 return by default. Every double is strict because nothing else is expressible.
 
-<sub>See also [`testing/interaction-after-the-fact`](testing.md#testing-interaction-after-the-fact), [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed). Decided in [0079](../adr/0079-testing-is-a-language-feature.md), [0036](../adr/0036-anonymous-object-shapes.md), [0031](../adr/0031-callable-is-the-only-closure-type.md), [0052](../adr/0052-closed-doors.md), [0043](../adr/0043-interface-default-methods-and-delegation-replace-traits.md).</sub>
+<sub>See also [`testing/interaction-after-the-fact`](testing.md#testing-interaction-after-the-fact), [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed). Decided in [0079](../decisions/0079.md), [0036](../decisions/0036.md), [0031](../decisions/0031.md), [0052](../decisions/0052.md), [0043](../decisions/0043.md).</sub>
 
 <a id="testing-interaction-after-the-fact"></a>
 
@@ -238,7 +238,7 @@ never leave one silently passing against a method that no longer exists.
 There is no `expects()`. An expectation declared before the exercise reads backwards and reports its
 failure from a line that is no longer where the problem is.
 
-<sub>See also [`testing/doubles`](testing.md#testing-doubles), [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed). Decided in [0079](../adr/0079-testing-is-a-language-feature.md).</sub>
+<sub>See also [`testing/doubles`](testing.md#testing-doubles), [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed). Decided in [0079](../decisions/0079.md).</sub>
 
 <a id="testing-determinism-declared-on-the-test"></a>
 
@@ -258,7 +258,7 @@ the test where it is visible and inert everywhere else, in the same category as 
 `nvs.toml` — and a test declaration reaches no built artifact, so none of this exists in production
 even in principle.
 
-<sub>See also [`testing/task-tree-and-virtual-clock`](testing.md#testing-task-tree-and-virtual-clock), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/tests-never-reach-a-build`](testing.md#testing-tests-never-reach-a-build). Decided in [0079](../adr/0079-testing-is-a-language-feature.md), [0008](../adr/0008-static-and-global.md).</sub>
+<sub>See also [`testing/task-tree-and-virtual-clock`](testing.md#testing-task-tree-and-virtual-clock), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/tests-never-reach-a-build`](testing.md#testing-tests-never-reach-a-build). Decided in [0079](../decisions/0079.md), [0008](../decisions/0008.md).</sub>
 
 <a id="testing-property-testing"></a>
 
@@ -277,7 +277,7 @@ A failure shrinks to a minimal counterexample and reports the seed that reproduc
 `string` is valid UTF-8 including combining marks and grapheme clusters, because that is what a
 `string` is — a property that only holds for ASCII is a property that is not true.
 
-<sub>See also [`testing/data-rows`](testing.md#testing-data-rows), [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed). Decided in [0079](../adr/0079-testing-is-a-language-feature.md), [0071](../adr/0071-derived-codecs.md), [0009](../adr/0009-string-and-bytes.md).</sub>
+<sub>See also [`testing/data-rows`](testing.md#testing-data-rows), [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed). Decided in [0079](../decisions/0079.md), [0071](../decisions/0071.md), [0009](../decisions/0009.md).</sub>
 
 <a id="testing-inline-snapshots"></a>
 
@@ -302,7 +302,7 @@ a diff. A run that rewrote a snapshot still reports the test as failed; the re-r
 new text is the one the author meant. The rendering is canonical, ordered, and redacts a `secret`,
 so a snapshot cannot become the place secrets get committed.
 
-<sub>See also [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed), [`testing/report-formats`](testing.md#testing-report-formats). Decided in [0079](../adr/0079-testing-is-a-language-feature.md), [0033](../adr/0033-secret-qualifier-for-confidential-values.md).</sub>
+<sub>See also [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed), [`testing/report-formats`](testing.md#testing-report-formats). Decided in [0079](../decisions/0079.md), [0033](../decisions/0033.md).</sub>
 
 <a id="testing-bench-counters"></a>
 
@@ -326,7 +326,7 @@ this rule's question; "did Novis get faster" is [`testing/perf-two-mechanisms`](
 not overlap. There is no per-member cost table and there will not be one — a hand-written claim
 about what a `Core` member costs is a number with no guard test.
 
-<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger). Decided in [0079](../adr/0079-testing-is-a-language-feature.md), [0018](../adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md), [0041](../adr/0041-timeline-export-and-gc-spawn-trace-events.md), [0026](../adr/0026-performance-measurement-methodology.md), [0004](../adr/0004-memory-for-simplicity.md).</sub>
+<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger). Decided in [0079](../decisions/0079.md), [0018](../decisions/0018.md), [0041](../decisions/0041.md), [0026](../decisions/0026.md), [0004](../decisions/0004.md).</sub>
 
 <a id="testing-task-tree-and-virtual-clock"></a>
 
@@ -345,7 +345,7 @@ Because the clock is under the test's control, a `Duration` sleep inside a task 
 That makes retry, backoff and timeout logic — some of the most error-prone code anyone writes, and
 the least tested — testable in microseconds rather than in the seconds it describes.
 
-<sub>See also [`testing/determinism-declared-on-the-test`](testing.md#testing-determinism-declared-on-the-test), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test). Decided in [0079](../adr/0079-testing-is-a-language-feature.md), [0072](../adr/0072-core-task-structured-concurrency.md).</sub>
+<sub>See also [`testing/determinism-declared-on-the-test`](testing.md#testing-determinism-declared-on-the-test), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test). Decided in [0079](../decisions/0079.md), [0072](../decisions/0072.md).</sub>
 
 <a id="testing-db-transaction"></a>
 
@@ -367,7 +367,7 @@ contend rather than nest.
 The rollback is armed around the whole retry allowance rather than around one attempt, because a
 retry calls the method again.
 
-<sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict). Decided in [0079](../adr/0079-testing-is-a-language-feature.md), [0067](../adr/0067-core-db.md).</sub>
+<sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict). Decided in [0079](../decisions/0079.md), [0067](../decisions/0067.md).</sub>
 
 <a id="testing-in-process-request"></a>
 
@@ -393,7 +393,7 @@ isolate rather than a child — leftover work is read off the test's own task �
 the test that asked for it has joined. It serves under the **default** policy rather than the tree's:
 reading a deployment's configuration would make the test's subject the deployment.
 
-<sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/task-tree-and-virtual-clock`](testing.md#testing-task-tree-and-virtual-clock). Decided in [0079](../adr/0079-testing-is-a-language-feature.md), [0077](../adr/0077-compile-time-routing.md), [0102](../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md), [0074](../adr/0074-http-defaults-safe-and-finite.md), [0058](../adr/0058-outbound-request-policy.md), [0051](../adr/0051-standard-library-tiers.md).</sub>
+<sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/task-tree-and-virtual-clock`](testing.md#testing-task-tree-and-virtual-clock). Decided in [0079](../decisions/0079.md), [0077](../decisions/0077.md), [0102](../decisions/0102.md), [0024](../decisions/0024.md), [0074](../decisions/0074.md), [0058](../decisions/0058.md), [0051](../decisions/0051.md).</sub>
 
 <a id="testing-private-in-the-same-file"></a>
 
@@ -408,7 +408,7 @@ This is the narrowest rule that avoids the failure it exists to prevent: a `publ
 exists only because a test needed to reach it. White-box testing stays possible where the author has
 already chosen to put the test next to the code; everything at a distance tests behaviour.
 
-<sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/tests-never-reach-a-build`](testing.md#testing-tests-never-reach-a-build). Decided in [0079](../adr/0079-testing-is-a-language-feature.md).</sub>
+<sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/tests-never-reach-a-build`](testing.md#testing-tests-never-reach-a-build). Decided in [0079](../decisions/0079.md).</sub>
 
 <a id="testing-runner-is-strict"></a>
 
@@ -432,7 +432,7 @@ Report order is **declaration order**, even though execution is unordered. Total
 execution order semantically irrelevant, so nothing is bought by randomizing it and stable output is
 worth a great deal.
 
-<sub>See also [`testing/failure-ledger`](testing.md#testing-failure-ledger), [`testing/report-formats`](testing.md#testing-report-formats), [`testing/task-tree-and-virtual-clock`](testing.md#testing-task-tree-and-virtual-clock), [`testing/db-transaction`](testing.md#testing-db-transaction). Decided in [0079](../adr/0079-testing-is-a-language-feature.md), [0020](../adr/0020-error-escalation-ladder.md).</sub>
+<sub>See also [`testing/failure-ledger`](testing.md#testing-failure-ledger), [`testing/report-formats`](testing.md#testing-report-formats), [`testing/task-tree-and-virtual-clock`](testing.md#testing-task-tree-and-virtual-clock), [`testing/db-transaction`](testing.md#testing-db-transaction). Decided in [0079](../decisions/0079.md), [0020](../decisions/0020.md).</sub>
 
 <a id="testing-mutation-testing"></a>
 
@@ -454,7 +454,7 @@ hundred mutants that is the difference between minutes and most of a day.
 
 The operator set is enumerated where it is implemented, so adding an operator changes no rule.
 
-<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/four-proofs`](testing.md#testing-four-proofs). Decided in [0079](../adr/0079-testing-is-a-language-feature.md), [0018](../adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md), [0042](../adr/0042-on-disk-artifact-cache-format.md).</sub>
+<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/four-proofs`](testing.md#testing-four-proofs). Decided in [0079](../decisions/0079.md), [0018](../decisions/0018.md), [0042](../decisions/0042.md).</sub>
 
 <a id="testing-report-formats"></a>
 
@@ -478,7 +478,7 @@ so there is no document for it to be about.
 The JSON schema is versioned and carries what XML has nowhere to put: a structured diff, per-row
 results, a shrunk counterexample and per-test coverage.
 
-<sub>See also [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`testing/data-rows`](testing.md#testing-data-rows), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate). Decided in [0079](../adr/0079-testing-is-a-language-feature.md), [0018](../adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md), [0040](../adr/0040-vscode-deep-tooling-and-resilient-parsing.md).</sub>
+<sub>See also [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`testing/data-rows`](testing.md#testing-data-rows), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate). Decided in [0079](../decisions/0079.md), [0018](../decisions/0018.md), [0040](../decisions/0040.md).</sub>
 
 <a id="testing-nvst-is-separate"></a>
 
@@ -496,7 +496,7 @@ The two formats answer different questions and are not unified, now or later. `n
 both — a path of `.nvst` files, or a program's compiled test table — and reports each in the shape
 that fits it.
 
-<sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/report-formats`](testing.md#testing-report-formats), [`testing/four-proofs`](testing.md#testing-four-proofs). Decided in [0079](../adr/0079-testing-is-a-language-feature.md).</sub>
+<sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/report-formats`](testing.md#testing-report-formats), [`testing/four-proofs`](testing.md#testing-four-proofs). Decided in [0079](../decisions/0079.md).</sub>
 
 <a id="testing-debug-probes"></a>
 
@@ -522,7 +522,7 @@ safepoint poll already pays. Turning a bit on for a running request is exactly s
 recompilation, no re-resolution, no second compiled unit. That is what makes starting and stopping
 coverage **mid-request** work at all, which a compiled-in-advance instrumented tier cannot do.
 
-<sub>See also [`testing/debug-surface`](testing.md#testing-debug-surface), [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive), [`testing/bench-counters`](testing.md#testing-bench-counters). Decided in [0018](../adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md), [0079](../adr/0079-testing-is-a-language-feature.md), [0041](../adr/0041-timeline-export-and-gc-spawn-trace-events.md).</sub>
+<sub>See also [`testing/debug-surface`](testing.md#testing-debug-surface), [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive), [`testing/bench-counters`](testing.md#testing-bench-counters). Decided in [0018](../decisions/0018.md), [0079](../decisions/0079.md), [0041](../decisions/0041.md).</sub>
 
 <a id="testing-debug-surface"></a>
 
@@ -548,7 +548,7 @@ A spawned isolate starts from its parent's current flag word and may only narrow
 never merges into the parent's live state; it comes back as fields on the result, by the same
 copy-out rule a value, an error and a usage figure already use.
 
-<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive), [`testing/report-formats`](testing.md#testing-report-formats). Decided in [0018](../adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md), [0006](../adr/0006-isolated-script-execution.md), [0011](../adr/0011-functions-and-constants-are-class-members.md).</sub>
+<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive), [`testing/report-formats`](testing.md#testing-report-formats). Decided in [0018](../decisions/0018.md), [0006](../decisions/0006.md), [0011](../decisions/0011.md).</sub>
 
 <a id="testing-debug-mode-directive"></a>
 
@@ -569,7 +569,7 @@ to named roots, deny-by-default, and **separate from the grant to write a file**
 write an ordinary file is not permission to persist a continuous log of every call's arguments,
 which can carry request data a coverage-only deployment never needed to expose.
 
-<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/debug-surface`](testing.md#testing-debug-surface). Decided in [0018](../adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md), [0005](../adr/0005-config-changeability.md), [0006](../adr/0006-isolated-script-execution.md).</sub>
+<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/debug-surface`](testing.md#testing-debug-surface). Decided in [0018](../decisions/0018.md), [0005](../decisions/0005.md), [0006](../decisions/0006.md).</sub>
 
 <a id="testing-probes-on-is-a-tested-configuration"></a>
 
@@ -589,7 +589,7 @@ The differential oracle cannot find these. It checks that Novis agrees with **PH
 agrees with **itself** under different codegen, and a probe-attached run and an optimised run are
 both Novis. The cost is CI wall-clock proportional to the added axes, and nothing at all at run time.
 
-<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/the-deep-lane`](testing.md#testing-the-deep-lane), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate). Decided in [0018](../adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md).</sub>
+<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/the-deep-lane`](testing.md#testing-the-deep-lane), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate). Decided in [0018](../decisions/0018.md).</sub>
 
 <a id="testing-perf-two-mechanisms"></a>
 
@@ -614,7 +614,7 @@ from one.
 
 Benchmarking an Novis **program's** own code is neither of these — that is [`testing/bench-counters`](testing.md#testing-bench-counters).
 
-<sub>See also [`testing/perf-secondary-figures`](testing.md#testing-perf-secondary-figures), [`testing/perf-history-file`](testing.md#testing-perf-history-file), [`testing/bench-counters`](testing.md#testing-bench-counters), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger). Decided in [0026](../adr/0026-performance-measurement-methodology.md), [0143](../adr/0143-a-push-runs-the-lane-its-diff-needs-the-nightly.md).</sub>
+<sub>See also [`testing/perf-secondary-figures`](testing.md#testing-perf-secondary-figures), [`testing/perf-history-file`](testing.md#testing-perf-history-file), [`testing/bench-counters`](testing.md#testing-bench-counters), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger). Decided in [0026](../decisions/0026.md), [0143](../decisions/0143.md).</sub>
 
 <a id="testing-perf-secondary-figures"></a>
 
@@ -635,7 +635,7 @@ An instruction count is a proxy, and it can in principle improve while real late
 two figures exist to catch that divergence, so the dashboard is read together with them and never
 from the count alone.
 
-<sub>See also [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/perf-history-file`](testing.md#testing-perf-history-file), [`testing/userland-benchmarks`](testing.md#testing-userland-benchmarks). Decided in [0026](../adr/0026-performance-measurement-methodology.md).</sub>
+<sub>See also [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/perf-history-file`](testing.md#testing-perf-history-file), [`testing/userland-benchmarks`](testing.md#testing-userland-benchmarks). Decided in [0026](../decisions/0026.md).</sub>
 
 <a id="testing-perf-history-file"></a>
 
@@ -654,7 +654,7 @@ figures, because the process reads a file and compiles it before any of the work
 lower of the two is what gets recorded.** A trend line reads perfectly well at that resolution; a
 guard asserting equality between two runs would not, so no such guard exists.
 
-<sub>See also [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/perf-secondary-figures`](testing.md#testing-perf-secondary-figures), [`testing/valgrind-on-wsl`](testing.md#testing-valgrind-on-wsl). Decided in [0026](../adr/0026-performance-measurement-methodology.md).</sub>
+<sub>See also [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/perf-secondary-figures`](testing.md#testing-perf-secondary-figures), [`testing/valgrind-on-wsl`](testing.md#testing-valgrind-on-wsl). Decided in [0026](../decisions/0026.md).</sub>
 
 <a id="testing-valgrind-on-wsl"></a>
 
@@ -674,7 +674,7 @@ symbols for frames the backend registered none for; the aggregate total is unaff
 instruction count either way, and root-causing falls back to platform-native profiling on whichever
 machine reproduces the regression.
 
-<sub>See also [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/perf-history-file`](testing.md#testing-perf-history-file), [`testing/the-deep-lane`](testing.md#testing-the-deep-lane). Decided in [0026](../adr/0026-performance-measurement-methodology.md).</sub>
+<sub>See also [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/perf-history-file`](testing.md#testing-perf-history-file), [`testing/the-deep-lane`](testing.md#testing-the-deep-lane). Decided in [0026](../decisions/0026.md).</sub>
 
 <a id="testing-userland-benchmarks"></a>
 
@@ -691,7 +691,7 @@ It changes nothing about the historical dashboard, whose headline metric stays t
 count. Which workloads populate that dashboard is a benchmark-design question rather than a language
 decision, and it grows as real compiled programs exist to measure.
 
-<sub>See also [`testing/perf-secondary-figures`](testing.md#testing-perf-secondary-figures), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms). Decided in [0026](../adr/0026-performance-measurement-methodology.md), [0100](../adr/0100-against-python-nvs-claims-the-tool-that-gets-handed-over.md).</sub>
+<sub>See also [`testing/perf-secondary-figures`](testing.md#testing-perf-secondary-figures), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms). Decided in [0026](../decisions/0026.md), [0100](../decisions/0100.md).</sub>
 
 <a id="testing-attribution-is-diffed-in-ci"></a>
 
@@ -706,7 +706,7 @@ job, which it completes: one decides what may be linked, this decides what must 
 Committing a generated file is deliberate. It makes the notice reviewable in a diff at the moment a
 dependency changes, and it keeps the build from depending on network access or on Python.
 
-<sub>See also [`testing/lane-table`](testing.md#testing-lane-table), [`testing/ci-lanes`](testing.md#testing-ci-lanes). Decided in [0065](../adr/0065-third-party-attribution-and-nvs-info.md), [0143](../adr/0143-a-push-runs-the-lane-its-diff-needs-the-nightly.md).</sub>
+<sub>See also [`testing/lane-table`](testing.md#testing-lane-table), [`testing/ci-lanes`](testing.md#testing-ci-lanes). Decided in [0065](../decisions/0065.md), [0143](../decisions/0143.md).</sub>
 
 <a id="testing-capability-closure-test"></a>
 
@@ -730,7 +730,7 @@ A second closure test covers the other half: nothing in the standard library rea
 system except through a door. Neither test subsumes the other — one catches a member that goes
 through a door undeclared, the other a member that reaches the OS with no door at all.
 
-<sub>See also [`testing/four-proofs`](testing.md#testing-four-proofs), [`testing/hostile-case-contract`](testing.md#testing-hostile-case-contract). Decided in [0118](../adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md).</sub>
+<sub>See also [`testing/four-proofs`](testing.md#testing-four-proofs), [`testing/hostile-case-contract`](testing.md#testing-hostile-case-contract). Decided in [0118](../decisions/0118.md).</sub>
 
 <a id="testing-four-proofs"></a>
 
@@ -753,7 +753,7 @@ policy nothing can check. A single feature excused from a single proof is a skip
 **the reason as its value**, so "this cannot be measured" and "nobody wrote one" never look the same
 in the audit.
 
-<sub>See also [`testing/roster-is-derived`](testing.md#testing-roster-is-derived), [`testing/proof-attribution`](testing.md#testing-proof-attribution), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger), [`testing/hostile-case-contract`](testing.md#testing-hostile-case-contract), [`testing/one-slice-is-one-feature`](testing.md#testing-one-slice-is-one-feature). Decided in [0134](../adr/0134-every-shipped-feature-owes-four-proofs.md), [0079](../adr/0079-testing-is-a-language-feature.md), [0117](../adr/0117-an-implemented-core-member-documents-itself-in-the-registry.md).</sub>
+<sub>See also [`testing/roster-is-derived`](testing.md#testing-roster-is-derived), [`testing/proof-attribution`](testing.md#testing-proof-attribution), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger), [`testing/hostile-case-contract`](testing.md#testing-hostile-case-contract), [`testing/one-slice-is-one-feature`](testing.md#testing-one-slice-is-one-feature). Decided in [0134](../decisions/0134.md), [0079](../decisions/0079.md), [0117](../decisions/0117.md).</sub>
 
 <a id="testing-roster-is-derived"></a>
 
@@ -773,7 +773,7 @@ owes them on the next sweep. Nobody edits a list, so no list is ever stale — a
 wrong within a day of an unattended run, and it under-reports silently, which is the failure mode
 that looks like success.
 
-<sub>See also [`testing/four-proofs`](testing.md#testing-four-proofs), [`testing/proof-attribution`](testing.md#testing-proof-attribution). Decided in [0134](../adr/0134-every-shipped-feature-owes-four-proofs.md), [0117](../adr/0117-an-implemented-core-member-documents-itself-in-the-registry.md).</sub>
+<sub>See also [`testing/four-proofs`](testing.md#testing-four-proofs), [`testing/proof-attribution`](testing.md#testing-proof-attribution). Decided in [0134](../decisions/0134.md), [0117](../decisions/0117.md).</sub>
 
 <a id="testing-proof-attribution"></a>
 
@@ -794,7 +794,7 @@ That written spelling is the only inference made. Crediting a bare `->method(` c
 case happens to name is unsound rather than merely loose, and no tightening fixes it without a type
 checker.
 
-<sub>See also [`testing/four-proofs`](testing.md#testing-four-proofs), [`testing/roster-is-derived`](testing.md#testing-roster-is-derived), [`testing/examples-live-in-the-repository`](testing.md#testing-examples-live-in-the-repository). Decided in [0134](../adr/0134-every-shipped-feature-owes-four-proofs.md).</sub>
+<sub>See also [`testing/four-proofs`](testing.md#testing-four-proofs), [`testing/roster-is-derived`](testing.md#testing-roster-is-derived), [`testing/examples-live-in-the-repository`](testing.md#testing-examples-live-in-the-repository). Decided in [0134](../decisions/0134.md).</sub>
 
 <a id="testing-member-perf-ledger"></a>
 
@@ -818,7 +818,7 @@ file's figures, and the cost of being wrong is one command rather than a wrong n
 
 Nothing here gates a build. A regression is a row with a delta on it.
 
-<sub>See also [`testing/four-proofs`](testing.md#testing-four-proofs), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/userland-benchmarks`](testing.md#testing-userland-benchmarks). Decided in [0134](../adr/0134-every-shipped-feature-owes-four-proofs.md), [0026](../adr/0026-performance-measurement-methodology.md).</sub>
+<sub>See also [`testing/four-proofs`](testing.md#testing-four-proofs), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/userland-benchmarks`](testing.md#testing-userland-benchmarks). Decided in [0134](../decisions/0134.md), [0026](../decisions/0026.md).</sub>
 
 <a id="testing-hostile-case-contract"></a>
 
@@ -841,7 +841,7 @@ Freezing the output instead is refused: every one of these programs is written t
 nobody can predict, and a suite whose expectations must be maintained is a suite that gets weakened
 until it passes.
 
-<sub>See also [`testing/four-proofs`](testing.md#testing-four-proofs), [`testing/a-failing-proof-is-fixed-or-recorded`](testing.md#testing-a-failing-proof-is-fixed-or-recorded), [`testing/capability-closure-test`](testing.md#testing-capability-closure-test). Decided in [0134](../adr/0134-every-shipped-feature-owes-four-proofs.md).</sub>
+<sub>See also [`testing/four-proofs`](testing.md#testing-four-proofs), [`testing/a-failing-proof-is-fixed-or-recorded`](testing.md#testing-a-failing-proof-is-fixed-or-recorded), [`testing/capability-closure-test`](testing.md#testing-capability-closure-test). Decided in [0134](../decisions/0134.md).</sub>
 
 <a id="testing-a-failing-proof-is-fixed-or-recorded"></a>
 
@@ -866,7 +866,7 @@ the marker is part of whatever fix eventually lands.
 skipping the feature each turn a finding into a green check, which is the single outcome this rule
 exists to prevent. A skip is for a proof that *cannot exist*, never for one that fails.
 
-<sub>See also [`testing/four-proofs`](testing.md#testing-four-proofs), [`testing/hostile-case-contract`](testing.md#testing-hostile-case-contract), [`testing/one-slice-is-one-feature`](testing.md#testing-one-slice-is-one-feature). Decided in [0134](../adr/0134-every-shipped-feature-owes-four-proofs.md).</sub>
+<sub>See also [`testing/four-proofs`](testing.md#testing-four-proofs), [`testing/hostile-case-contract`](testing.md#testing-hostile-case-contract), [`testing/one-slice-is-one-feature`](testing.md#testing-one-slice-is-one-feature). Decided in [0134](../decisions/0134.md).</sub>
 
 <a id="testing-one-slice-is-one-feature"></a>
 
@@ -884,7 +884,7 @@ carrying a context manifest naming that file set and each gated by a command tha
 Regenerating the chain is how it stays current: a group that owes nothing is left out, so a second
 emission writes the chain that is *left*.
 
-<sub>See also [`testing/four-proofs`](testing.md#testing-four-proofs), [`testing/a-failing-proof-is-fixed-or-recorded`](testing.md#testing-a-failing-proof-is-fixed-or-recorded), [`testing/roster-is-derived`](testing.md#testing-roster-is-derived). Decided in [0134](../adr/0134-every-shipped-feature-owes-four-proofs.md).</sub>
+<sub>See also [`testing/four-proofs`](testing.md#testing-four-proofs), [`testing/a-failing-proof-is-fixed-or-recorded`](testing.md#testing-a-failing-proof-is-fixed-or-recorded), [`testing/roster-is-derived`](testing.md#testing-roster-is-derived). Decided in [0134](../decisions/0134.md).</sub>
 
 <a id="testing-examples-live-in-the-repository"></a>
 
@@ -899,7 +899,7 @@ overwritten — and this simply makes the example tree one of the tool-owned one
 They live in the repository because the same sweep that tests a feature writes its examples, and a
 sweep cannot write into a tree it is not allowed to touch.
 
-<sub>See also [`testing/four-proofs`](testing.md#testing-four-proofs), [`testing/proof-attribution`](testing.md#testing-proof-attribution). Decided in [0134](../adr/0134-every-shipped-feature-owes-four-proofs.md).</sub>
+<sub>See also [`testing/four-proofs`](testing.md#testing-four-proofs), [`testing/proof-attribution`](testing.md#testing-proof-attribution). Decided in [0134](../decisions/0134.md).</sub>
 
 <a id="testing-ci-lanes"></a>
 
@@ -922,7 +922,7 @@ release gate in the same edit.
 
 Nothing has left the suite. What a push skips is work whose answer its own diff cannot change.
 
-<sub>See also [`testing/lane-table`](testing.md#testing-lane-table), [`testing/the-deep-lane`](testing.md#testing-the-deep-lane), [`testing/a-deferred-job-is-skipped-never-absent`](testing.md#testing-a-deferred-job-is-skipped-never-absent), [`testing/unknown-base-runs-everything`](testing.md#testing-unknown-base-runs-everything). Decided in [0143](../adr/0143-a-push-runs-the-lane-its-diff-needs-the-nightly.md).</sub>
+<sub>See also [`testing/lane-table`](testing.md#testing-lane-table), [`testing/the-deep-lane`](testing.md#testing-the-deep-lane), [`testing/a-deferred-job-is-skipped-never-absent`](testing.md#testing-a-deferred-job-is-skipped-never-absent), [`testing/unknown-base-runs-everything`](testing.md#testing-unknown-base-runs-everything). Decided in [0143](../decisions/0143.md).</sub>
 
 <a id="testing-lane-table"></a>
 
@@ -947,7 +947,7 @@ develops or pushes from, so no platform's coverage is ever traded away by a path
 contributor who never sees a Windows failure until the nightly is precisely the one who cannot
 reproduce it.
 
-<sub>See also [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`testing/unknown-base-runs-everything`](testing.md#testing-unknown-base-runs-everything), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms). Decided in [0143](../adr/0143-a-push-runs-the-lane-its-diff-needs-the-nightly.md), [0026](../adr/0026-performance-measurement-methodology.md), [0068](../adr/0068-dependency-currency-and-the-version-contract.md).</sub>
+<sub>See also [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`testing/unknown-base-runs-everything`](testing.md#testing-unknown-base-runs-everything), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms). Decided in [0143](../decisions/0143.md), [0026](../decisions/0026.md), [0068](../decisions/0068.md).</sub>
 
 <a id="testing-unknown-base-runs-everything"></a>
 
@@ -961,7 +961,7 @@ base commit it can diff against. Every such case resolves to **every lane true**
 The failure mode of guessing wrong in the other direction is a merged commit nothing checked, and
 there is no version of this that is worth one of those.
 
-<sub>See also [`testing/lane-table`](testing.md#testing-lane-table), [`testing/ci-lanes`](testing.md#testing-ci-lanes). Decided in [0143](../adr/0143-a-push-runs-the-lane-its-diff-needs-the-nightly.md).</sub>
+<sub>See also [`testing/lane-table`](testing.md#testing-lane-table), [`testing/ci-lanes`](testing.md#testing-ci-lanes). Decided in [0143](../decisions/0143.md).</sub>
 
 <a id="testing-a-deferred-job-is-skipped-never-absent"></a>
 
@@ -976,7 +976,7 @@ a required status check; a workflow filtered out by a path rule never reports at
 check on it waits forever. The second is a branch that cannot be merged, discovered by whoever turns
 branch protection on months from now.
 
-<sub>See also [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`testing/lane-table`](testing.md#testing-lane-table). Decided in [0143](../adr/0143-a-push-runs-the-lane-its-diff-needs-the-nightly.md).</sub>
+<sub>See also [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`testing/lane-table`](testing.md#testing-lane-table). Decided in [0143](../decisions/0143.md).</sub>
 
 <a id="testing-the-deep-lane"></a>
 
@@ -994,7 +994,7 @@ The fuzz corpus is cached between nightly runs and each target's budget is large
 could afford. A run that starts from what every previous night found is strictly more coverage than
 a per-push run that starts from nothing, and it costs the push lane nothing at all.
 
-<sub>See also [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`testing/probes-on-is-a-tested-configuration`](testing.md#testing-probes-on-is-a-tested-configuration), [`testing/valgrind-on-wsl`](testing.md#testing-valgrind-on-wsl). Decided in [0143](../adr/0143-a-push-runs-the-lane-its-diff-needs-the-nightly.md).</sub>
+<sub>See also [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`testing/probes-on-is-a-tested-configuration`](testing.md#testing-probes-on-is-a-tested-configuration), [`testing/valgrind-on-wsl`](testing.md#testing-valgrind-on-wsl). Decided in [0143](../decisions/0143.md).</sub>
 
 <a id="testing-every-push-gets-a-verdict"></a>
 
@@ -1009,4 +1009,4 @@ reads, and what a loop committing one slice at a time needs.
 The concurrency group is keyed by event as well, so a long nightly never sits in front of a short
 push.
 
-<sub>See also [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`testing/lane-table`](testing.md#testing-lane-table). Decided in [0143](../adr/0143-a-push-runs-the-lane-its-diff-needs-the-nightly.md).</sub>
+<sub>See also [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`testing/lane-table`](testing.md#testing-lane-table). Decided in [0143](../decisions/0143.md).</sub>

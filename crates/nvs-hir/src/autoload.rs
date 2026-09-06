@@ -37,7 +37,7 @@
 //!   here rather than a diagnostic, because nothing in the source spelled a
 //!   path to blame — the file is simply not the one the name asks for, and on
 //!   Linux it would not have been found at all
-//!   ([ADR 0062](/docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
+//!   ([ADR 0062](/docs/decisions/0062.md)
 //!   § 3).
 //!
 //! `nvs check --autoload-map` prints the result, which is why the two things

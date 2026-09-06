@@ -15,7 +15,7 @@
 //! * **It can be driven without its own `Value` tree.** [`Decode`] is a
 //!   `serde::de::Visitor`, so a document becomes [`nvs_runtime::NvsArray`]s and
 //!   [`Value`]s *directly* — nothing is ever materialized twice. That is what
-//!   keeps [``rule:programs/memory-priority``](/docs/adr/0004-memory-for-simplicity.md)'s
+//!   keeps [``rule:programs/memory-priority``](/docs/decisions/0004.md)'s
 //!   priority 3 honest on a member every request path uses.
 //! * **The serializer's escaping and number formatting are the crate's.** Novis
 //!   writes no JSON grammar of its own at all: [`Encodable`] answers
@@ -530,7 +530,7 @@ impl Encodable {
     /// by `nvs-codegen` from what `nvs_types::derive` read off the declaration
     /// — so nothing here asks the program a question at run time. An empty
     /// list means the class carries no `#[Json\Derive]`, which is the refusal
-    /// [ADR 0063](/docs/adr/0063-core-api-conventions.md) § 4 asks
+    /// [ADR 0063](/docs/decisions/0063.md) § 4 asks
     /// for: participation in a wire format is written, never inferred.
     ///
     /// The one instance that is not a declared class is an

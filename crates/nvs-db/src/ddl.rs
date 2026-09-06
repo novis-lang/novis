@@ -236,7 +236,7 @@ fn postgres_type(ty: &ScalarType) -> String {
 ///
 /// `BOOLEAN` is not written here even though MySQL accepts it, because MySQL's
 /// `BOOLEAN` *is* `TINYINT(1)` in the catalog and
-/// [ADR 0067 § 9](/docs/adr/0067-core-db.md) reads a `TINYINT(1)` as an `int`.
+/// [ADR 0067 § 9](/docs/decisions/0067.md) reads a `TINYINT(1)` as an `int`.
 /// A column written as a boolean that introspects as an integer is § 5's empty
 /// plan failing at the first `dump`. `CHAR(36)` for a UUID is the other
 /// direction of the same trade and it is unavoidable: MySQL has no UUID type,

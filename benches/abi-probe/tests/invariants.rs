@@ -2,7 +2,7 @@
 //!
 //! If any of these fail after a dependency bump, the plan for M3 (backend) or
 //! M5 (concurrency) is broken and needs revisiting before more code is written
-//! on top of it. See `docs/adr/0002-error-propagation.md`.
+//! on top of it. See `docs/decisions/0002.md`.
 
 use nvs_abi_probe::{Ctx, FATAL, Helper, NvsFn, OK, Probe, THROWN, Value, call, in_coroutine};
 use nvs_runtime::{TaskRoot, run_task};

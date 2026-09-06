@@ -13,7 +13,7 @@ whether or not anyone thought about it.
 
     python tools/peek.py crates/nvs-ir/src/lower/expr.rs:3065-3120 \\
                          crates/nvs-types/src/expr/members.rs:@public_property_names \\
-                         docs/adr/0036-anonymous-object-shapes.md:"### 4" \\
+                         docs/decisions/0036.md:"### 4" \\
                          "crates/nvs-runtime/src/*.rs:/slot_get/"
 
 Target forms, all of them `path` followed by `:` and a locator:

@@ -5,7 +5,7 @@
 //! parameter is a [`Bound`] whatever the wire will make of it, and a failure is
 //! a [`nvs_db::DbErrorKind`] before it is a class name. That second ordering is
 //! what lets five drivers disagree about error codes and still agree about
-//! [ADR 0067 § 10](/docs/adr/0067-core-db.md)'s kinds.
+//! [ADR 0067 § 10](/docs/decisions/0067.md)'s kinds.
 
 use super::*;
 

@@ -1620,7 +1620,7 @@ unary_float! {
     /// and matching it is what makes the round trip below agree. AGENTS.md's
     /// priority 2 is PHP-compatible *observable* behaviour, and the ulp is
     /// observable: `==` over `float` is exact ([ADR
-    /// 0090](/docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)),
+    /// 0090](/docs/decisions/0090.md)),
     /// so `toDegrees(toRadians(30.0)) == 30.0` answers `true` under PHP's
     /// spelling and `false` under the std one. Nothing here promises an
     /// accuracy the twin does not have; the round trip a ported program

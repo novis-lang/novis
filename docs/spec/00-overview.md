@@ -65,7 +65,7 @@ collapses PHP's four same-frame inclusion keywords to this one: `include`, `incl
 | construct | isolation | resolution | status |
 |---|---|---|---|
 | `require 'path.nvs';` | **none** — same frame's globals, same statics, same output, same heap | statically resolved where the path is a literal (M2); a dynamic path falls back to a runtime resolve | kept, PHP semantics — throws on a missing/unparseable file, and runs every time control reaches it |
-| `eval($source)` | n/a — there is no such construct | n/a | **rejected**, no diagnostic-with-replacement needed beyond *there is no `eval`*: a string has no stable identity, no cache key, and no path a `script.spawn` grant could name. `rule:security/no-eval` holds the full rejection and the four analyses `eval` would make unsound at once; see also [ADR 0006](../adr/0006-isolated-script-execution.md), *Alternatives rejected* |
+| `eval($source)` | n/a — there is no such construct | n/a | **rejected**, no diagnostic-with-replacement needed beyond *there is no `eval`*: a string has no stable identity, no cache key, and no path a `script.spawn` grant could name. `rule:security/no-eval` holds the full rejection and the four analyses `eval` would make unsound at once; see also [ADR 0006](../decisions/0006.md), *Alternatives rejected* |
 | `spawn script 'path.nvs' with(…)` | **full** — fresh arena, fresh globals/statics, own config overlay, sharing only immutable compiled code | the path is an arbitrary `string` expression, canonicalised and prefix-checked against `script.spawn`'s granted roots at run time (M6); the operand may instead be a static method — `Class::method(...)`, called with `args:` bound to its parameters by name — decided at the spawn site (`rule:security/isolate-shares-nothing`) | new construct, grammar fixed below |
 
 The rule of thumb the diagnostics should teach: **`require` runs code in this frame; `spawn script` runs a
@@ -145,7 +145,7 @@ as a constant, a function or a method name still parses. The one reading this cl
 
 ## 3. The declaration-slot grammar (`rule:types/declaration`'s spelling)
 
-[ADR 0007 § 3](../adr/0007-explicit-type-system.md) already normatively fixes the *type expression* grammar
+[ADR 0007 § 3](../decisions/0007.md) already normatively fixes the *type expression* grammar
 (`type := union := …`, `array<T>`, unions, intersections, `mixed`, and so on) — this document does not
 repeat it and adds no new production to it. What `rule:types/declaration` left to the spec is the *statement*-level grammar
 around each new declaration slot: where exactly a `type` sits relative to the `$` sigil, and how a
@@ -168,7 +168,7 @@ User   $owner = User::find($id);
 
 A local is declared exactly once, at this statement. Every later `$n = 5;` is a plain assignment-expression
 statement, with no type prefix — writing one again is a re-declaration, which
-[ADR 0007 § 1](../adr/0007-explicit-type-system.md) already makes a diagnostic naming the first declaration.
+[ADR 0007 § 1](../decisions/0007.md) already makes a diagnostic naming the first declaration.
 
 ### 3.2 `foreach` with typed bindings
 
@@ -221,7 +221,7 @@ type grammar itself; there is no untyped form.
 
 ### 3.4 The conversion operator: `as`, finally
 
-[ADR 0007 § 2](../adr/0007-explicit-type-system.md) opens with "provisional spelling `expr as T`." This
+[ADR 0007 § 2](../decisions/0007.md) opens with "provisional spelling `expr as T`." This
 document fixes that spelling as **final**: `as` is the conversion operator, with no alternate spelling, and
 none is planned. Its precedence and throwing behaviour are exactly as `rule:types/conversion` already states and are
 not repeated here.
@@ -237,15 +237,15 @@ type-alias-decl := 'type' ClassName '=' type ';'
 ```
 
 Sits at file/namespace scope, alongside `use` and `namespace` — never inside a class body, per
-[ADR 0015 § 5](../adr/0015-no-name-aliasing.md). `type` on its own is otherwise an ordinary reserved word in
+[ADR 0015 § 5](../decisions/0015.md). `type` on its own is otherwise an ordinary reserved word in
 this one declaration position; it is not a general statement keyword. The restriction that `TypeExpr` may
-not be a single bare class/interface/enum atom ([ADR 0015 § 6](../adr/0015-no-name-aliasing.md)) is a
+not be a single bare class/interface/enum atom ([ADR 0015 § 6](../decisions/0015.md)) is a
 resolution-time check (M2), not a parse-time one — the grammar above parses `type Id = SomeClass;` exactly
 like any other alias declaration, and M2's resolver is where it becomes a diagnostic.
 
 ## 4. The scoping surface (`rule:statements/static-is-a-member-modifier`'s spelling only)
 
-[ADR 0008 § 2](../adr/0008-static-and-global.md) is the closed, exhaustive list of where state may outlive a
+[ADR 0008 § 2](../decisions/0008.md) is the closed, exhaustive list of where state may outlive a
 call, and this document adds no storage class to it and repeats none of its reasoning. What belongs here is
 only the syntax for each row, gathered in one place since it is otherwise scattered across `rule:types/declaration` and `rule:statements/static-is-a-member-modifier`'s own examples:
 
@@ -269,7 +269,7 @@ is no `bytes` literal token.** The lexer needs no `b"…"`-shaped production, an
 
 - For the common case — a byte sequence that happens to be valid UTF-8, which is most binary-ish constants a
   program writes by hand (magic strings, protocol markers made of ASCII) — a plain string literal converts
-  for free: `"NVS1" as bytes`. [ADR 0009 § 3](../adr/0009-string-and-bytes.md) already makes `string as
+  for free: `"NVS1" as bytes`. [ADR 0009 § 3](../decisions/0009.md) already makes `string as
   bytes` total and free, so this is not a new conversion rule, only its first literal-adjacent use.
 - For a byte sequence that is **not** valid UTF-8 — a raw binary constant, a fixed hash or key material
   written inline — the spelling is a `Core\Encoding` decoder, following
@@ -280,7 +280,7 @@ is no `bytes` literal token.** The lexer needs no `b"…"`-shaped production, an
   these is one. Both join the domain-class roster `rule:classes/no-free-functions-or-constants`'s summary names as examples, not as a closed list; building
   them is ordinary M4S stdlib work, not part of this spec.
 
-This resolves one item in [ADR 0009 *Revisiting*](../adr/0009-string-and-bytes.md), and only that one: it is
+This resolves one item in [ADR 0009 *Revisiting*](../decisions/0009.md), and only that one: it is
 a decision about literal syntax, not about `string`'s default length/indexing granularity, which § 2 of that
 ADR owns.
 

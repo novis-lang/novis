@@ -14,8 +14,8 @@ whole parity program, which is most of what its acceptance list weighs.
 
 **The sweep never throws and never runs user code.** A path already gone is the goal state; a refused
 deletion is one log line, retried by whichever sweep comes next (0131 § 3). The sweep is native teardown
-placed *after* the last user code — after [0127](../../adr/0127-the-end-of-a-script-is-observable.md)'s
-`onExit` queue on a CLI ending, after [0072](../../adr/0072-core-task-structured-concurrency.md) § 6's
+placed *after* the last user code — after [0127](../../decisions/0127.md)'s
+`onExit` queue on a CLI ending, after [0072](../../decisions/0072.md) § 6's
 `afterResponse` work on a request — and off the request path. `Core\IO::remove`/`removeDir` keep
 throwing; only the automatic sweeps are silent-but-logged (0131 § 6).
 
@@ -42,7 +42,7 @@ Goal 6's whole acceptance list — the entire parity program, six goals deep, ne
    at every ending the process survives, native teardown deletes what still stands, after the `onExit`
    queue, throwing nothing, logging refusals.
 3. **The registry card** rewritten in the same slice per
-   [0117](../../adr/0117-an-implemented-core-member-documents-itself-in-the-registry.md): the "removing
+   [0117](../../decisions/0117.md): the "removing
    it is the program's own job" paragraph is replaced by 0131's contract, and `docs/novis.md`
    regenerated.
 
@@ -50,7 +50,7 @@ Goal 6's whole acceptance list — the entire parity program, six goals deep, ne
 
 1. **A request's temporary dirs are swept after its `afterResponse` work**, off the request path; an
    aborted request's dirs are swept by the surviving worker
-   ([0106](../../adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)).
+   ([0106](../../decisions/0106.md)).
 2. **`nvs serve` boot runs the orphan sweep** over the owned root, before traffic: every `nvs-<pid>-*`
    entry whose pid is dead is removed; live owners are skipped.
 
@@ -61,7 +61,7 @@ nothing, exits 0 when there is nothing to do. No force flag, per the standing de
 
 ## Stage 5 — `keep_temporary`, the fixture, the suites
 
-1. **`[debug] keep_temporary`** (reloadable, [0078](../../adr/0078-config-reload-and-control-socket.md)):
+1. **`[debug] keep_temporary`** (reloadable, [0078](../../decisions/0078.md)):
    the end-of-script sweep logs each path it would have deleted and deletes none. No in-language setter
    exists or is added.
 2. **`examples/tempdir.nvs`** — a script that creates a temporary dir, writes and reads a file inside
@@ -79,6 +79,6 @@ nothing, exits 0 when there is nothing to do. No force flag, per the standing de
 - **Windows deletion refusals are expected, not failures.** A held handle (indexer, scanner) makes the
   sweep log and move on; tests that need a refusal simulate one by holding the handle themselves.
 - **`[io]` is a new config section**; its shape follows
-  [0064](../../adr/0064-configuration-file-format.md) and its key classification
-  [0078](../../adr/0078-config-reload-and-control-socket.md) — `temp_root` Boot, `keep_temporary`
+  [0064](../../decisions/0064.md) and its key classification
+  [0078](../../decisions/0078.md) — `temp_root` Boot, `keep_temporary`
   reloadable, both recorded in the registry's reloadability field.

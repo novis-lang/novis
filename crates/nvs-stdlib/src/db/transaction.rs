@@ -1,4 +1,4 @@
-//! [ADR 0067 § 7](/docs/adr/0067-core-db.md): a transaction is a
+//! [ADR 0067 § 7](/docs/decisions/0067.md): a transaction is a
 //! closure, and what happens when it conflicts.
 //!
 //! The closure being the whole interface is what makes commit and rollback this

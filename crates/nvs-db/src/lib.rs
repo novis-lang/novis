@@ -25,7 +25,7 @@
 //!
 //! # A connection's busy state — `rule:core-classes/db-connection-busy-state`
 //!
-//! [ADR 0067 § 4](/docs/adr/0067-core-db.md) requires a second
+//! [ADR 0067 § 4](/docs/decisions/0067.md) requires a second
 //! statement on a streaming connection to throw `LogicError`. That state is
 //! **not** on the stream: `NvsStream`'s readiness registration is one task's and
 //! is deliberately invisible above `Read`/`Write`, a connection is busy whether
@@ -51,7 +51,7 @@
 //! **A poisoned connection is closed, never reset, and never returned to the
 //! pool** — [`Connection::is_poolable`] is that rule and it is the one
 //! security-relevant call in this module. [ADR 0067
-//! § 13](/docs/adr/0067-core-db.md) makes the reset a boundary because
+//! § 13](/docs/decisions/0067.md) makes the reset a boundary because
 //! a connection carrying one request's state into another's is a cross-tenant
 //! leak; a `RESET ALL` written into the middle of an unfinished message is not
 //! a reset, it is a fragment of one request's protocol stream that the *next*

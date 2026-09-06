@@ -92,7 +92,7 @@ core_affinity = "0.8"
 # `mio` is the readiness layer and *not* an async runtime — no executor, no task
 # type, no `Future`, no `tokio` anywhere in its graph — which is why reaching
 # for it is not the `BLOCKED` the goal reserves for "this needs async";
-# docs/adr/0115-the-reactor-reports-readiness-and-a-stream-that-would-block-parks.md
+# docs/decisions/0115.md
 # § 1 is the home of that reasoning. ADR 0051 § 4's first question is "no":
 # a registration carries a descriptor and an interest set, so nothing
 # attacker-controlled reaches it. Pure Rust with no build script and no C — it
@@ -240,7 +240,7 @@ rcgen = { version = "0.14", default-features = false, features = [
 
 # --- extension sandbox (M9). Built on the same cranelift version above;
 # --- spike #4 confirmed wasmtime 48 and cranelift 0.135 coexist.
-# --- See docs/adr/0003-extension-system.md.
+# --- See docs/decisions/0003.md.
 wasmtime = "48"
 
 # --- core utilities ---

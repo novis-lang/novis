@@ -286,8 +286,8 @@ the arithmetic and what a mismatch looks like.
 
 | Where you are writing | The form | Why |
 |---|---|---|
-| a `.md` file | relative to the file — `](../adr/0067-core-db.md)` | GitHub and the website render it, and both resolve against the file's own location |
-| a `.rs`, `.nvs` or `.nvst` file | absolute from the repository root — `](/docs/adr/0067-core-db.md)` | nothing renders it, so the readers are people, agents and `grep` |
+| a `.md` file | relative to the file — `](../decisions/0067.md)` | GitHub and the website render it, and both resolve against the file's own location |
+| a `.rs`, `.nvs` or `.nvst` file | absolute from the repository root — `](/docs/decisions/0067.md)` | nothing renders it, so the readers are people, agents and `grep` |
 
 A source file's link had a `../` prefix until it was measured: 465 of 1,640 were dead — 442 with the
 wrong number of `../`, 23 naming a filename its ADR no longer had. A prefix encodes the **citing**
@@ -311,7 +311,7 @@ and `python tools/adr.py --new .agent-tmp/adr.md` claims the next free number, d
 filename, dates it, folds the `Amended by:` back-link into every ADR you amend, adds the routing row and
 the ground-rules bullet, regenerates the index table and re-audits — restoring every byte if the tree
 gained a finding. Write the prose; the rest of README.md § *Adding a decision* is a form, and that is the
-call that fills it. Newest worked example: [0104](../adr/0104-an-application-is-an-entry-file-path.md).
+call that fills it. Newest worked example: [0104](../decisions/0104.md).
 
 **The skeleton is not copied here.** Run `--draft` and read what it prints: the copy that used to sit
 here had drifted from the tool that generates and checks it, which is what a second home costs. Below

@@ -385,7 +385,7 @@ pub fn bounds_for(
 const POOL_HELP: &str = "write a duration, as `30m`, or `pool = false` if the pool is not wanted at \
                          all";
 
-/// [ADR 0067 § 11](/docs/adr/0067-core-db.md)'s `slow_query` threshold for `name`'s block,
+/// [ADR 0067 § 11](/docs/decisions/0067.md)'s `slow_query` threshold for `name`'s block,
 /// or `Ok(None)` for the block that writes none — which is off, and the ADR's own default rather
 /// than a number this crate picks.
 ///

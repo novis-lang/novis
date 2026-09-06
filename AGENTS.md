@@ -42,7 +42,7 @@ is the bug — fix it.
 ## The priority ordering
 
 Highest first. A lower item is spent to buy a higher one, never the reverse. Reasoning and bounds:
-[ADR 0004](docs/adr/0004-memory-for-simplicity.md).
+[ADR 0004](docs/decisions/0004.md).
 
 1. **Security and request isolation** — not traded for anything.
 2. **Correctness of language semantics** — PHP-compatible observable behaviour.

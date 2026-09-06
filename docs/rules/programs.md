@@ -36,7 +36,7 @@ compatibility it could not hold, and Novis depends on that compatibility at no p
 framework rather than waiting for an ecosystem to appear, and differentiates on properties an
 incumbent cannot acquire in a minor release.
 
-<sub>See also [`programs/three-claims`](programs.md#programs-three-claims), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`programs/slice-ranking`](programs.md#programs-slice-ranking), [`programs/first-party-framework`](programs.md#programs-first-party-framework). Decided in [0080](../adr/0080-the-audience-nvs-is-built-for.md), [0100](../adr/0100-against-python-nvs-claims-the-tool-that-gets-handed-over.md).</sub>
+<sub>See also [`programs/three-claims`](programs.md#programs-three-claims), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`programs/slice-ranking`](programs.md#programs-slice-ranking), [`programs/first-party-framework`](programs.md#programs-first-party-framework). Decided in [0080](../decisions/0080.md), [0100](../decisions/0100.md).</sub>
 
 <a id="programs-three-claims"></a>
 
@@ -60,7 +60,7 @@ project says about itself first. The landing page, the tutorial and the first ex
 isolate and a qualifier, never with a benchmark and never with a PHP comparison. A PHP comparison page
 may exist; it is not the front door.
 
-<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0080](../adr/0080-the-audience-nvs-is-built-for.md), [0026](../adr/0026-performance-measurement-methodology.md).</sub>
+<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0080](../decisions/0080.md), [0026](../decisions/0026.md).</sub>
 
 <a id="programs-no-compatibility-promise"></a>
 
@@ -85,7 +85,7 @@ mode emits only rewrites a differential case proves identical and comments out t
 mode annotates every unproven rewrite at its own site, and `--check` publishes the share — a measured
 number standing where a claim would otherwise be.
 
-<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/three-claims`](programs.md#programs-three-claims). Decided in [0080](../adr/0080-the-audience-nvs-is-built-for.md), [0089](../adr/0089-convert-is-one-rule-table-with-two-modes.md).</sub>
+<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/three-claims`](programs.md#programs-three-claims). Decided in [0080](../decisions/0080.md), [0089](../decisions/0089.md).</sub>
 
 <a id="programs-slice-ranking"></a>
 
@@ -112,7 +112,7 @@ binds the plan, in this order:
   than an optimisation. The single-application case loses nothing by it, which is what makes this a
   tie-break rather than a priority.
 
-<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0080](../adr/0080-the-audience-nvs-is-built-for.md).</sub>
+<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0080](../decisions/0080.md).</sub>
 
 <a id="programs-memory-priority"></a>
 
@@ -146,7 +146,7 @@ latency question at priority 3, however much it looks like a memory one.
 the doc comment or record that carries it. The ordering is only usable by a later reader if the costs
 are written down as they are incurred.
 
-<sub>See also [`programs/program-id`](programs.md#programs-program-id), [`programs/three-claims`](programs.md#programs-three-claims), [`errors/propagation`](errors.md#errors-propagation). Decided in [0004](../adr/0004-memory-for-simplicity.md).</sub>
+<sub>See also [`programs/program-id`](programs.md#programs-program-id), [`programs/three-claims`](programs.md#programs-three-claims), [`errors/propagation`](errors.md#errors-propagation). Decided in [0004](../decisions/0004.md).</sub>
 
 <a id="programs-compile-target"></a>
 
@@ -171,7 +171,7 @@ standing cost is instruction selection and calling-convention lowering happening
 codegen feature thereafter, and nothing is asking for it. The rule above governs the targets that
 exist and any that is added later.
 
-<sub>See also [`programs/bundle-trust-domain`](programs.md#programs-bundle-trust-domain), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload). Decided in [0025](../adr/0025-wasm-browser-target.md).</sub>
+<sub>See also [`programs/bundle-trust-domain`](programs.md#programs-bundle-trust-domain), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload). Decided in [0025](../decisions/0025.md).</sub>
 
 <a id="programs-no-runtime-autoload"></a>
 
@@ -197,7 +197,7 @@ Classes cannot be loaded from a database, a generated file, or anywhere but the 
 time, and a name held in a string can never pull in a new file — `Core\Reflect`'s lookup by name
 reaches only the compiled program.
 
-<sub>See also [`programs/autoload`](programs.md#programs-autoload), [`programs/implementing`](programs.md#programs-implementing), [`programs/one-declaration-per-autoloaded-file`](programs.md#programs-one-declaration-per-autoloaded-file). Decided in [0061](../adr/0061-compile-time-autoload-and-program-discovery.md), [0028](../adr/0028-closing-the-remaining-magic-methods.md), [0052](../adr/0052-closed-doors.md).</sub>
+<sub>See also [`programs/autoload`](programs.md#programs-autoload), [`programs/implementing`](programs.md#programs-implementing), [`programs/one-declaration-per-autoloaded-file`](programs.md#programs-one-declaration-per-autoloaded-file). Decided in [0061](../decisions/0061.md), [0028](../decisions/0028.md), [0052](../decisions/0052.md).</sub>
 
 <a id="programs-autoload"></a>
 
@@ -241,7 +241,7 @@ Path traversal is structurally impossible, with no sanitizer: a resolved suffix 
 namespace segments, which are `PascalCase` identifiers that may not begin with `_`, so `.`, `..` and a
 path separator cannot occur in one.
 
-<sub>See also [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`programs/one-declaration-per-autoloaded-file`](programs.md#programs-one-declaration-per-autoloaded-file), [`programs/path-case`](programs.md#programs-path-case). Decided in [0061](../adr/0061-compile-time-autoload-and-program-discovery.md), [0021](../adr/0021-single-file-inclusion-construct.md), [0029](../adr/0029-identifier-casing-is-checked.md).</sub>
+<sub>See also [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`programs/one-declaration-per-autoloaded-file`](programs.md#programs-one-declaration-per-autoloaded-file), [`programs/path-case`](programs.md#programs-path-case). Decided in [0061](../decisions/0061.md), [0021](../decisions/0021.md), [0029](../decisions/0029.md).</sub>
 
 <a id="programs-one-declaration-per-autoloaded-file"></a>
 
@@ -260,7 +260,7 @@ program's contents depend on resolution order: a non-reproducible build and an u
 Files reached by `require` are unaffected and may declare anything. The cost is that a helper enum or
 `type` alias used by one class needs its own file.
 
-<sub>See also [`programs/autoload`](programs.md#programs-autoload), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload). Decided in [0061](../adr/0061-compile-time-autoload-and-program-discovery.md).</sub>
+<sub>See also [`programs/autoload`](programs.md#programs-autoload), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload). Decided in [0061](../decisions/0061.md).</sub>
 
 <a id="programs-path-case"></a>
 
@@ -288,7 +288,7 @@ Three properties keep the check honest:
   wrote are compared; how the entry file was named on the command line is not this diagnostic's
   business.
 
-<sub>See also [`programs/autoload`](programs.md#programs-autoload). Decided in [0062](../adr/0062-case-sensitivity-is-a-compiler-property.md), [0021](../adr/0021-single-file-inclusion-construct.md).</sub>
+<sub>See also [`programs/autoload`](programs.md#programs-autoload). Decided in [0062](../decisions/0062.md), [0021](../decisions/0021.md).</sub>
 
 <a id="programs-implementing"></a>
 
@@ -319,7 +319,7 @@ either pays the directory-listing dependency once rather than twice. Type checki
 lazy regardless — a discovered class nobody calls is never checked past its declaration and never
 reaches codegen.
 
-<sub>See also [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`programs/autoload`](programs.md#programs-autoload), [`programs/framework-refusals`](programs.md#programs-framework-refusals). Decided in [0061](../adr/0061-compile-time-autoload-and-program-discovery.md).</sub>
+<sub>See also [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`programs/autoload`](programs.md#programs-autoload), [`programs/framework-refusals`](programs.md#programs-framework-refusals). Decided in [0061](../decisions/0061.md).</sub>
 
 <a id="programs-program-id"></a>
 
@@ -354,7 +354,7 @@ an echo by design. A context nobody wrote an id onto makes the member **throw**,
 empty string or invent one, because callers key caches and invalidate CDNs on this value and a wrong
 identity is worse than no answer.
 
-<sub>See also [`programs/memory-priority`](programs.md#programs-memory-priority), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload). Decided in [0061](../adr/0061-compile-time-autoload-and-program-discovery.md), [0042](../adr/0042-on-disk-artifact-cache-format.md).</sub>
+<sub>See also [`programs/memory-priority`](programs.md#programs-memory-priority), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload). Decided in [0061](../decisions/0061.md), [0042](../decisions/0042.md).</sub>
 
 <a id="programs-bundle-trust-domain"></a>
 
@@ -378,7 +378,7 @@ service.** A privileged account executing that payload at every boot is exactly 
 the single-trust-domain argument depends on there not being, so the installer refuses a host that is
 itself a bundle.
 
-<sub>See also [`programs/compile-target`](programs.md#programs-compile-target), [`programs/audience`](programs.md#programs-audience). Decided in [0048](../adr/0048-portable-single-file-executables.md), [0093](../adr/0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md).</sub>
+<sub>See also [`programs/compile-target`](programs.md#programs-compile-target), [`programs/audience`](programs.md#programs-audience). Decided in [0048](../decisions/0048.md), [0093](../decisions/0093.md).</sub>
 
 <a id="programs-first-party-framework"></a>
 
@@ -402,7 +402,7 @@ be stable for years; a framework's opinions need to move. Putting the whole fram
 would lock its cadence to the runtime's, and putting all of it in a package would push privileged
 operations across a boundary they cannot cross.
 
-<sub>See also [`programs/framework-core-half`](programs.md#programs-framework-core-half), [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`programs/framework-refusals`](programs.md#programs-framework-refusals), [`programs/nvs-new`](programs.md#programs-nvs-new). Decided in [0082](../adr/0082-the-first-party-framework.md), [0051](../adr/0051-standard-library-tiers.md).</sub>
+<sub>See also [`programs/framework-core-half`](programs.md#programs-framework-core-half), [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`programs/framework-refusals`](programs.md#programs-framework-refusals), [`programs/nvs-new`](programs.md#programs-nvs-new). Decided in [0082](../decisions/0082.md), [0051](../decisions/0051.md).</sub>
 
 <a id="programs-framework-core-half"></a>
 
@@ -433,7 +433,7 @@ third-party framework can be written over this public surface, but it can comput
 and never declare it safe. A member added to this half later carries the test that placed it; one
 arriving with no test is a bug in the roster.
 
-<sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0082](../adr/0082-the-first-party-framework.md), [0051](../adr/0051-standard-library-tiers.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md).</sub>
+<sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0082](../decisions/0082.md), [0051](../decisions/0051.md), [0024](../decisions/0024.md).</sub>
 
 <a id="programs-framework-web-package"></a>
 
@@ -460,7 +460,7 @@ and form binding over `Core\Validate` — the ergonomics, never the laundering; 
 the template engine and the HTML sink already auto-escapes by default, so a second templating language
 would be a second spelling of one job. `Web\Response::view` renders a `.nvs` file and nothing more.
 
-<sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/framework-core-half`](programs.md#programs-framework-core-half), [`programs/no-migration-runner`](programs.md#programs-no-migration-runner). Decided in [0082](../adr/0082-the-first-party-framework.md), [0081](../adr/0081-packages-are-digests-resolution-is-a-maximum.md).</sub>
+<sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/framework-core-half`](programs.md#programs-framework-core-half), [`programs/no-migration-runner`](programs.md#programs-no-migration-runner). Decided in [0082](../decisions/0082.md), [0081](../decisions/0081.md).</sub>
 
 <a id="programs-framework-refusals"></a>
 
@@ -485,7 +485,7 @@ would be a second spelling of one job. `Web\Response::view` renders a `.nvs` fil
 - **No second way to do anything the language does.** The framework ships no collections of its own, no
   date type, no string helpers and no error hierarchy.
 
-<sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/implementing`](programs.md#programs-implementing). Decided in [0082](../adr/0082-the-first-party-framework.md).</sub>
+<sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/implementing`](programs.md#programs-implementing). Decided in [0082](../decisions/0082.md).</sub>
 
 <a id="programs-nvs-new"></a>
 
@@ -513,7 +513,7 @@ The scaffold is a load-bearing artifact. It is the first experience, so it is he
 own standard: tested on Windows, Linux and macOS as a first-class CI job, and a change that breaks it
 is a regression.
 
-<sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`programs/audience`](programs.md#programs-audience). Decided in [0082](../adr/0082-the-first-party-framework.md), [0080](../adr/0080-the-audience-nvs-is-built-for.md).</sub>
+<sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`programs/audience`](programs.md#programs-audience). Decided in [0082](../decisions/0082.md), [0080](../decisions/0080.md).</sub>
 
 <a id="programs-no-migration-runner"></a>
 
@@ -534,4 +534,4 @@ root-owned configuration, and none of them is obvious.
 `nvs/web` may ship a migration runner, and one appearing in the package without that decision is a
 review failure.
 
-<sub>See also [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`programs/first-party-framework`](programs.md#programs-first-party-framework). Decided in [0082](../adr/0082-the-first-party-framework.md).</sub>
+<sub>See also [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`programs/first-party-framework`](programs.md#programs-first-party-framework). Decided in [0082](../decisions/0082.md).</sub>

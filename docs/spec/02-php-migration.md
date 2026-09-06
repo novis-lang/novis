@@ -51,7 +51,7 @@ types**. Extensions the oracle build does not load are named in `tools/check-mig
 **known hole, not an empty one** — `mbstring`, `curl`, `openssl`, `sockets`, `intl`, `gd`, `zip`, `posix`,
 `pcntl` and the rest are unaudited until the inventory is regenerated against a build that has them; `gd`
 and `exif` have their answer drafted per concept in
-[ADR 0120 § 11](../adr/0120-the-image-component-is-a-pipeline-that-crosses-the-boundary-once.md), which
+[ADR 0120 § 11](../decisions/0120.md), which
 becomes one row per name here the day the inventory lists them. The
 three database extensions came off that list when the build gained them: `mysqli`, `pgsql` and `sqlite3`
 are 236 named functions `rule:core-classes/db-one-api` now owes an audited row each, rather than one

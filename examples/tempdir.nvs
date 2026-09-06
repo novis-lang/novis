@@ -2,7 +2,7 @@
 // A temporary directory, as a program: the one thing this fixture shows is
 // what it does *not* contain — there is no cleanup line at the bottom.
 //
-// [ADR 0131](/docs/adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md)
+// [ADR 0131](/docs/decisions/0131.md)
 // is the whole story. `Core\IO::temporaryDir` hands back a directory under
 // the root Novis owns (§ 2), the program writes into it as it likes, and
 // when the script ends the runtime deletes it (§ 3) — after the last user

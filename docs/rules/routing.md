@@ -30,7 +30,7 @@ database-defined URLs matches its own way and uses none of this — and because 
 matching ([`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching)), using none of it, half of it, or `url` alone
 costs nothing.
 
-<sub>See also [`routing/table-is-opt-in`](routing.md#routing-table-is-opt-in), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching), [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked), [`programs/implementing`](programs.md#programs-implementing), [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type), [`routing/repeated-routes-share-a-name-when-they-share-a-path`](routing.md#routing-repeated-routes-share-a-name-when-they-share-a-path). Decided in [0077](../adr/0077-compile-time-routing.md), [0102](../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md), [0110](../adr/0110-one-methods-repeated-routes-share-a-name-when-they-share-a-path.md).</sub>
+<sub>See also [`routing/table-is-opt-in`](routing.md#routing-table-is-opt-in), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching), [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked), [`programs/implementing`](programs.md#programs-implementing), [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type), [`routing/repeated-routes-share-a-name-when-they-share-a-path`](routing.md#routing-repeated-routes-share-a-name-when-they-share-a-path). Decided in [0077](../decisions/0077.md), [0102](../decisions/0102.md), [0110](../decisions/0110.md).</sub>
 
 <a id="routing-route-attribute"></a>
 
@@ -60,7 +60,7 @@ no route however they are spelled.
 
 A `#[Route]` method also carries an `#[Access]` ([`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling)).
 
-<sub>See also [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`attributes/repeatable`](attributes.md#attributes-repeatable), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`routing/repeated-routes-share-a-name-when-they-share-a-path`](routing.md#routing-repeated-routes-share-a-name-when-they-share-a-path), [`routing/no-wildcard-verb`](routing.md#routing-no-wildcard-verb). Decided in [0077](../adr/0077-compile-time-routing.md), [0110](../adr/0110-one-methods-repeated-routes-share-a-name-when-they-share-a-path.md), [0102](../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md).</sub>
+<sub>See also [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`attributes/repeatable`](attributes.md#attributes-repeatable), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`routing/repeated-routes-share-a-name-when-they-share-a-path`](routing.md#routing-repeated-routes-share-a-name-when-they-share-a-path), [`routing/no-wildcard-verb`](routing.md#routing-no-wildcard-verb). Decided in [0077](../decisions/0077.md), [0110](../decisions/0110.md), [0102](../decisions/0102.md).</sub>
 
 <a id="routing-path-grammar"></a>
 
@@ -92,7 +92,7 @@ in two places is one that can disagree.
 braced form is what OpenAPI, Laravel, Symfony, axum and ASP.NET all use, so it is the spelling a
 reader arrives with.
 
-<sub>See also [`routing/precedence-is-structural`](routing.md#routing-precedence-is-structural), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`classes/names-resolve-case-sensitively`](classes.md#classes-names-resolve-case-sensitively), [`routing/a-trailing-segment-may-be-absent`](routing.md#routing-a-trailing-segment-may-be-absent). Decided in [0077](../adr/0077-compile-time-routing.md), [0102](../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md).</sub>
+<sub>See also [`routing/precedence-is-structural`](routing.md#routing-precedence-is-structural), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`classes/names-resolve-case-sensitively`](classes.md#classes-names-resolve-case-sensitively), [`routing/a-trailing-segment-may-be-absent`](routing.md#routing-a-trailing-segment-may-be-absent). Decided in [0077](../decisions/0077.md), [0102](../decisions/0102.md).</sub>
 
 <a id="routing-precedence-is-structural"></a>
 
@@ -115,7 +115,7 @@ candidate, and is a `404` only if nothing else claims the path
 The model is the radix-trie rule `matchit` implements — the rule is the precedence, not the data
 structure, and a matcher is free to compute the same answer by ranking rows.
 
-<sub>See also [`routing/path-grammar`](routing.md#routing-path-grammar), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type). Decided in [0077](../adr/0077-compile-time-routing.md), [0102](../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md).</sub>
+<sub>See also [`routing/path-grammar`](routing.md#routing-path-grammar), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type). Decided in [0077](../decisions/0077.md), [0102](../decisions/0102.md).</sub>
 
 <a id="routing-matching-is-not-dispatching"></a>
 
@@ -153,7 +153,7 @@ Typed `callable` would not move this line: routes share no signature and handler
 routing is not a case that forces [`types/grammar`](types.md#types-grammar)'s deferral. Signing a route's identity is
 [`core-classes/router-signed-url`](core-classes.md#core-classes-router-signed-url).
 
-<sub>See also [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`core-classes/router-signed-url`](core-classes.md#core-classes-router-signed-url), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`types/grammar`](types.md#types-grammar), [`security/access-is-checked-for-presence-not-meaning`](security.md#security-access-is-checked-for-presence-not-meaning), [`routing/matched-once-before-the-handler`](routing.md#routing-matched-once-before-the-handler), [`routing/a-refused-verb-is-not-a-missing-path`](routing.md#routing-a-refused-verb-is-not-a-missing-path), [`routing/a-match-is-not-invocable`](routing.md#routing-a-match-is-not-invocable). Decided in [0077](../adr/0077-compile-time-routing.md), [0102](../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md).</sub>
+<sub>See also [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`core-classes/router-signed-url`](core-classes.md#core-classes-router-signed-url), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`types/grammar`](types.md#types-grammar), [`security/access-is-checked-for-presence-not-meaning`](security.md#security-access-is-checked-for-presence-not-meaning), [`routing/matched-once-before-the-handler`](routing.md#routing-matched-once-before-the-handler), [`routing/a-refused-verb-is-not-a-missing-path`](routing.md#routing-a-refused-verb-is-not-a-missing-path), [`routing/a-match-is-not-invocable`](routing.md#routing-a-match-is-not-invocable). Decided in [0077](../decisions/0077.md), [0102](../decisions/0102.md).</sub>
 
 <a id="routing-link-name-and-params-are-checked"></a>
 
@@ -180,7 +180,7 @@ the same link with a configured origin in front, and refuses exactly the same na
 `name` cannot be linked to at all ([`routing/route-attribute`](routing.md#routing-route-attribute)), and the path a link is built on is
 the mount-relative one ([`routing/link-carries-the-mount-prefix`](routing.md#routing-link-carries-the-mount-prefix)).
 
-<sub>See also [`routing/route-attribute`](routing.md#routing-route-attribute), [`routing/link-carries-the-mount-prefix`](routing.md#routing-link-carries-the-mount-prefix), [`routing/path-grammar`](routing.md#routing-path-grammar), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`routing/an-absolute-link-takes-a-configured-origin`](routing.md#routing-an-absolute-link-takes-a-configured-origin), [`routing/a-leftover-link-key-is-a-query-string`](routing.md#routing-a-leftover-link-key-is-a-query-string), [`routing/a-query-parameter-is-declared-like-a-capture`](routing.md#routing-a-query-parameter-is-declared-like-a-capture). Decided in [0077](../adr/0077-compile-time-routing.md), [0102](../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md).</sub>
+<sub>See also [`routing/route-attribute`](routing.md#routing-route-attribute), [`routing/link-carries-the-mount-prefix`](routing.md#routing-link-carries-the-mount-prefix), [`routing/path-grammar`](routing.md#routing-path-grammar), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`routing/an-absolute-link-takes-a-configured-origin`](routing.md#routing-an-absolute-link-takes-a-configured-origin), [`routing/a-leftover-link-key-is-a-query-string`](routing.md#routing-a-leftover-link-key-is-a-query-string), [`routing/a-query-parameter-is-declared-like-a-capture`](routing.md#routing-a-query-parameter-is-declared-like-a-capture). Decided in [0077](../decisions/0077.md), [0102](../decisions/0102.md).</sub>
 
 <a id="routing-link-carries-the-mount-prefix"></a>
 
@@ -203,7 +203,7 @@ is the other half of an absolute link, and is read from the resolved unit rather
 prefix in front, and the server hands it none: the prefix `crates/nvs-server/src/mount.rs` strips
 from the request path does not reach the link.
 
-<sub>See also [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked). Decided in [0077](../adr/0077-compile-time-routing.md), [0097](../adr/0097-development-server-and-proxied-origin.md), [0102](../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md).</sub>
+<sub>See also [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked). Decided in [0077](../decisions/0077.md), [0097](../decisions/0097.md), [0102](../decisions/0102.md).</sub>
 
 <a id="routing-table-is-opt-in"></a>
 
@@ -233,7 +233,7 @@ code) in the artifact, not per request and not per object. A link to a route dec
 module needs that module compiled — the consequence [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload) already
 records for a hard cross-module reference, arriving in a second place.
 
-<sub>See also [`programs/implementing`](programs.md#programs-implementing), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table). Decided in [0077](../adr/0077-compile-time-routing.md), [0102](../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md).</sub>
+<sub>See also [`programs/implementing`](programs.md#programs-implementing), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table). Decided in [0077](../decisions/0077.md), [0102](../decisions/0102.md).</sub>
 
 <a id="routing-matched-once-before-the-handler"></a>
 
@@ -258,7 +258,7 @@ rather than adding one — a match is about a quarter of the header parse the se
 caller chose. It takes the same walk as the door, so the two cannot disagree about one path, and an
 in-process test request ([`testing/in-process-request`](testing.md#testing-in-process-request)) crosses the door's match the same way.
 
-<sub>See also [`routing/the-servers-match-dispatches-nothing`](routing.md#routing-the-servers-match-dispatches-nothing), [`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default), [`security/access-is-checked-for-presence-not-meaning`](security.md#security-access-is-checked-for-presence-not-meaning), [`testing/in-process-request`](testing.md#testing-in-process-request), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching), [`routing/table-is-opt-in`](routing.md#routing-table-is-opt-in). Decided in [0102](../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md), [0077](../adr/0077-compile-time-routing.md), [0097](../adr/0097-development-server-and-proxied-origin.md).</sub>
+<sub>See also [`routing/the-servers-match-dispatches-nothing`](routing.md#routing-the-servers-match-dispatches-nothing), [`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default), [`security/access-is-checked-for-presence-not-meaning`](security.md#security-access-is-checked-for-presence-not-meaning), [`testing/in-process-request`](testing.md#testing-in-process-request), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching), [`routing/table-is-opt-in`](routing.md#routing-table-is-opt-in). Decided in [0102](../decisions/0102.md), [0077](../decisions/0077.md), [0097](../decisions/0097.md).</sub>
 
 <a id="routing-the-servers-match-dispatches-nothing"></a>
 
@@ -281,7 +281,7 @@ nothing invocable ([`routing/a-match-is-not-invocable`](routing.md#routing-a-mat
 a match is CSRF ([`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default)) — the access name rides through for whoever
 dispatches to read.
 
-<sub>See also [`routing/matched-once-before-the-handler`](routing.md#routing-matched-once-before-the-handler), [`routing/a-match-is-not-invocable`](routing.md#routing-a-match-is-not-invocable), [`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default), [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching), [`routing/table-is-opt-in`](routing.md#routing-table-is-opt-in). Decided in [0102](../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md), [0077](../adr/0077-compile-time-routing.md).</sub>
+<sub>See also [`routing/matched-once-before-the-handler`](routing.md#routing-matched-once-before-the-handler), [`routing/a-match-is-not-invocable`](routing.md#routing-a-match-is-not-invocable), [`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default), [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching), [`routing/table-is-opt-in`](routing.md#routing-table-is-opt-in). Decided in [0102](../decisions/0102.md), [0077](../decisions/0077.md).</sub>
 
 <a id="routing-a-refused-verb-is-not-a-missing-path"></a>
 
@@ -305,7 +305,7 @@ Where an optional trailing capture makes a node terminal
 form cannot `404` while the longer one `405`s. A plain `OPTIONS` is answerable by an application from
 this list; the server still answers none on its behalf, because which to answer is a convention.
 
-<sub>See also [`routing/matched-once-before-the-handler`](routing.md#routing-matched-once-before-the-handler), [`routing/a-trailing-segment-may-be-absent`](routing.md#routing-a-trailing-segment-may-be-absent), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching). Decided in [0102](../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md), [0097](../adr/0097-development-server-and-proxied-origin.md).</sub>
+<sub>See also [`routing/matched-once-before-the-handler`](routing.md#routing-matched-once-before-the-handler), [`routing/a-trailing-segment-may-be-absent`](routing.md#routing-a-trailing-segment-may-be-absent), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching). Decided in [0102](../decisions/0102.md), [0097](../decisions/0097.md).</sub>
 
 <a id="routing-a-query-parameter-is-declared-like-a-capture"></a>
 
@@ -331,7 +331,7 @@ A query value takes no part in choosing a route, so it can never reintroduce the
 dependence structural precedence exists to prevent — which is what makes the binding safe to add at
 all. How a bad value fails is [`routing/a-bad-query-value-is-a-400`](routing.md#routing-a-bad-query-value-is-a-400).
 
-<sub>See also [`routing/a-bad-query-value-is-a-400`](routing.md#routing-a-bad-query-value-is-a-400), [`routing/a-capture-narrows-to-a-closed-set`](routing.md#routing-a-capture-narrows-to-a-closed-set), [`routing/a-leftover-link-key-is-a-query-string`](routing.md#routing-a-leftover-link-key-is-a-query-string), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type), [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`attributes/api-adds-and-cannot-contradict`](attributes.md#attributes-api-adds-and-cannot-contradict), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table). Decided in [0102](../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md), [0085](../adr/0085-openapi-is-generated-from-the-route-table.md), [0071](../adr/0071-derived-codecs.md).</sub>
+<sub>See also [`routing/a-bad-query-value-is-a-400`](routing.md#routing-a-bad-query-value-is-a-400), [`routing/a-capture-narrows-to-a-closed-set`](routing.md#routing-a-capture-narrows-to-a-closed-set), [`routing/a-leftover-link-key-is-a-query-string`](routing.md#routing-a-leftover-link-key-is-a-query-string), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type), [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`attributes/api-adds-and-cannot-contradict`](attributes.md#attributes-api-adds-and-cannot-contradict), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table). Decided in [0102](../decisions/0102.md), [0085](../decisions/0085.md), [0071](../decisions/0071.md).</sub>
 
 <a id="routing-a-bad-query-value-is-a-400"></a>
 
@@ -354,7 +354,7 @@ fail two ways.
 converts a query value into a bound parameter or answers `400` for one. `Core\Router\Match::params`
 carries the path captures alone, and a program reads `Core\Request::query()` raw.
 
-<sub>See also [`routing/a-query-parameter-is-declared-like-a-capture`](routing.md#routing-a-query-parameter-is-declared-like-a-capture), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type). Decided in [0102](../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md), [0077](../adr/0077-compile-time-routing.md).</sub>
+<sub>See also [`routing/a-query-parameter-is-declared-like-a-capture`](routing.md#routing-a-query-parameter-is-declared-like-a-capture), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type). Decided in [0102](../decisions/0102.md), [0077](../decisions/0077.md).</sub>
 
 <a id="routing-a-trailing-segment-may-be-absent"></a>
 
@@ -377,7 +377,7 @@ It replaces the two-attribute spelling for one endpoint, which is legal but carr
 two forms could not share a name, one of them lost reverse-URL generation, and metrics saw one endpoint
 as two series. A link built with the optional capture left out of `$params` simply drops the segment.
 
-<sub>See also [`routing/a-refused-verb-is-not-a-missing-path`](routing.md#routing-a-refused-verb-is-not-a-missing-path), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`routing/path-grammar`](routing.md#routing-path-grammar), [`routing/repeated-routes-share-a-name-when-they-share-a-path`](routing.md#routing-repeated-routes-share-a-name-when-they-share-a-path). Decided in [0102](../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md), [0077](../adr/0077-compile-time-routing.md), [0095](../adr/0095-ambiguous-input-is-refused-never-repaired.md), [0097](../adr/0097-development-server-and-proxied-origin.md).</sub>
+<sub>See also [`routing/a-refused-verb-is-not-a-missing-path`](routing.md#routing-a-refused-verb-is-not-a-missing-path), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`routing/path-grammar`](routing.md#routing-path-grammar), [`routing/repeated-routes-share-a-name-when-they-share-a-path`](routing.md#routing-repeated-routes-share-a-name-when-they-share-a-path). Decided in [0102](../decisions/0102.md), [0077](../decisions/0077.md), [0095](../decisions/0095.md), [0097](../decisions/0097.md).</sub>
 
 <a id="routing-a-capture-narrows-to-a-closed-set"></a>
 
@@ -405,7 +405,7 @@ compile time; a computed value is substituted and encoded. The enum-case-subset 
 converted at match time: an enum capture matches and hands over its segment text, because a case's
 segment spelling is still undecided.
 
-<sub>See also [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type), [`types/literal-types`](types.md#types-literal-types), [`core-classes/validate-has-no-type-predicates`](core-classes.md#core-classes-validate-has-no-type-predicates), [`programs/memory-priority`](programs.md#programs-memory-priority), [`routing/a-leftover-link-key-is-a-query-string`](routing.md#routing-a-leftover-link-key-is-a-query-string), [`routing/path-grammar`](routing.md#routing-path-grammar), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table). Decided in [0102](../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md), [0077](../adr/0077-compile-time-routing.md), [0047](../adr/0047-literal-and-enum-case-types.md), [0075](../adr/0075-core-ratelimit.md).</sub>
+<sub>See also [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type), [`types/literal-types`](types.md#types-literal-types), [`core-classes/validate-has-no-type-predicates`](core-classes.md#core-classes-validate-has-no-type-predicates), [`programs/memory-priority`](programs.md#programs-memory-priority), [`routing/a-leftover-link-key-is-a-query-string`](routing.md#routing-a-leftover-link-key-is-a-query-string), [`routing/path-grammar`](routing.md#routing-path-grammar), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table). Decided in [0102](../decisions/0102.md), [0077](../decisions/0077.md), [0047](../decisions/0047.md), [0075](../decisions/0075.md).</sub>
 
 <a id="routing-a-leftover-link-key-is-a-query-string"></a>
 
@@ -427,7 +427,7 @@ silently ship as a query parameter. The declared type says what a query *value* 
 constrain what a link may be handed, except that a literal outside a closed set is refused
 ([`routing/a-capture-narrows-to-a-closed-set`](routing.md#routing-a-capture-narrows-to-a-closed-set)).
 
-<sub>See also [`routing/a-query-parameter-is-declared-like-a-capture`](routing.md#routing-a-query-parameter-is-declared-like-a-capture), [`routing/an-absolute-link-takes-a-configured-origin`](routing.md#routing-an-absolute-link-takes-a-configured-origin), [`routing/a-capture-narrows-to-a-closed-set`](routing.md#routing-a-capture-narrows-to-a-closed-set), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked). Decided in [0102](../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md), [0077](../adr/0077-compile-time-routing.md).</sub>
+<sub>See also [`routing/a-query-parameter-is-declared-like-a-capture`](routing.md#routing-a-query-parameter-is-declared-like-a-capture), [`routing/an-absolute-link-takes-a-configured-origin`](routing.md#routing-an-absolute-link-takes-a-configured-origin), [`routing/a-capture-narrows-to-a-closed-set`](routing.md#routing-a-capture-narrows-to-a-closed-set), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked). Decided in [0102](../decisions/0102.md), [0077](../decisions/0077.md).</sub>
 
 <a id="routing-an-absolute-link-takes-a-configured-origin"></a>
 
@@ -451,7 +451,7 @@ mean two different things at one call site depending on a file the reader is not
 break the property that one compiled table serves at any mount prefix. Where the origin comes from when
 one binary serves several hosts is [`routing/an-origin-is-per-mount-and-checked-at-boot`](routing.md#routing-an-origin-is-per-mount-and-checked-at-boot).
 
-<sub>See also [`routing/a-leftover-link-key-is-a-query-string`](routing.md#routing-a-leftover-link-key-is-a-query-string), [`routing/an-origin-is-per-mount-and-checked-at-boot`](routing.md#routing-an-origin-is-per-mount-and-checked-at-boot), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked). Decided in [0102](../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md), [0097](../adr/0097-development-server-and-proxied-origin.md).</sub>
+<sub>See also [`routing/a-leftover-link-key-is-a-query-string`](routing.md#routing-a-leftover-link-key-is-a-query-string), [`routing/an-origin-is-per-mount-and-checked-at-boot`](routing.md#routing-an-origin-is-per-mount-and-checked-at-boot), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked). Decided in [0102](../decisions/0102.md), [0097](../decisions/0097.md).</sub>
 
 <a id="routing-an-origin-is-per-mount-and-checked-at-boot"></a>
 
@@ -477,7 +477,7 @@ error, so the failure is at deploy time rather than in a sent message.
 served request never receives it — only a command-line run installs an origin, from `[[app]]` — and the
 boot check is recorded as not yet built beside the mount expander.
 
-<sub>See also [`routing/an-absolute-link-takes-a-configured-origin`](routing.md#routing-an-absolute-link-takes-a-configured-origin), [`routing/a-request-reads-its-mount`](routing.md#routing-a-request-reads-its-mount). Decided in [0102](../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md), [0097](../adr/0097-development-server-and-proxied-origin.md), [0005](../adr/0005-config-changeability.md), [0078](../adr/0078-config-reload-and-control-socket.md).</sub>
+<sub>See also [`routing/an-absolute-link-takes-a-configured-origin`](routing.md#routing-an-absolute-link-takes-a-configured-origin), [`routing/a-request-reads-its-mount`](routing.md#routing-a-request-reads-its-mount). Decided in [0102](../decisions/0102.md), [0097](../decisions/0097.md), [0005](../decisions/0005.md), [0078](../decisions/0078.md).</sub>
 
 <a id="routing-a-request-reads-its-mount"></a>
 
@@ -503,7 +503,7 @@ source state and a hostname is deployment state, so each lives where it changes,
 relocatable to `/ModuleA`, `/ModuleB` or `/` with no recompile. A program never derives its own prefix
 from the request target.
 
-<sub>See also [`routing/matched-once-before-the-handler`](routing.md#routing-matched-once-before-the-handler), [`routing/an-origin-is-per-mount-and-checked-at-boot`](routing.md#routing-an-origin-is-per-mount-and-checked-at-boot), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/request-state-throws-in-an-isolate`](security.md#security-request-state-throws-in-an-isolate), [`routing/link-carries-the-mount-prefix`](routing.md#routing-link-carries-the-mount-prefix). Decided in [0102](../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md), [0097](../adr/0097-development-server-and-proxied-origin.md).</sub>
+<sub>See also [`routing/matched-once-before-the-handler`](routing.md#routing-matched-once-before-the-handler), [`routing/an-origin-is-per-mount-and-checked-at-boot`](routing.md#routing-an-origin-is-per-mount-and-checked-at-boot), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/request-state-throws-in-an-isolate`](security.md#security-request-state-throws-in-an-isolate), [`routing/link-carries-the-mount-prefix`](routing.md#routing-link-carries-the-mount-prefix). Decided in [0102](../decisions/0102.md), [0097](../decisions/0097.md).</sub>
 
 <a id="routing-a-match-is-not-invocable"></a>
 
@@ -529,7 +529,7 @@ The ergonomic cost is paid where the framework layer already sits: `Web\Controll
 declining the framework writes it itself, permanently. The roster of compiler-recognised attributes this
 table draws on has one home ([`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute)), and no rule restates its size.
 
-<sub>See also [`routing/the-servers-match-dispatches-nothing`](routing.md#routing-the-servers-match-dispatches-nothing), [`types/grammar`](types.md#types-grammar), [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching). Decided in [0102](../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md), [0077](../adr/0077-compile-time-routing.md), [0007](../adr/0007-explicit-type-system.md).</sub>
+<sub>See also [`routing/the-servers-match-dispatches-nothing`](routing.md#routing-the-servers-match-dispatches-nothing), [`types/grammar`](types.md#types-grammar), [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching). Decided in [0102](../decisions/0102.md), [0077](../decisions/0077.md), [0007](../decisions/0007.md).</sub>
 
 <a id="routing-api-document-is-generated-from-the-route-table"></a>
 
@@ -557,7 +557,7 @@ contradict.
 refuses emits no document at all rather than a partial one. A handler returning `mixed` produces a
 useless schema, visibly, which is the correct incentive.
 
-<sub>See also [`routing/api-document-is-a-deterministic-build-artifact`](routing.md#routing-api-document-is-a-deterministic-build-artifact), [`routing/api-diff-fails-a-breaking-change`](routing.md#routing-api-diff-fails-a-breaking-change), [`routing/a-shared-name-is-one-endpoint-everywhere`](routing.md#routing-a-shared-name-is-one-endpoint-everywhere), [`attributes/api-adds-and-cannot-contradict`](attributes.md#attributes-api-adds-and-cannot-contradict), [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type), [`routing/a-query-parameter-is-declared-like-a-capture`](routing.md#routing-a-query-parameter-is-declared-like-a-capture). Decided in [0085](../adr/0085-openapi-is-generated-from-the-route-table.md), [0077](../adr/0077-compile-time-routing.md), [0071](../adr/0071-derived-codecs.md), [0102](../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md), [0110](../adr/0110-one-methods-repeated-routes-share-a-name-when-they-share-a-path.md).</sub>
+<sub>See also [`routing/api-document-is-a-deterministic-build-artifact`](routing.md#routing-api-document-is-a-deterministic-build-artifact), [`routing/api-diff-fails-a-breaking-change`](routing.md#routing-api-diff-fails-a-breaking-change), [`routing/a-shared-name-is-one-endpoint-everywhere`](routing.md#routing-a-shared-name-is-one-endpoint-everywhere), [`attributes/api-adds-and-cannot-contradict`](attributes.md#attributes-api-adds-and-cannot-contradict), [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type), [`routing/a-query-parameter-is-declared-like-a-capture`](routing.md#routing-a-query-parameter-is-declared-like-a-capture). Decided in [0085](../decisions/0085.md), [0077](../decisions/0077.md), [0071](../decisions/0071.md), [0102](../decisions/0102.md), [0110](../decisions/0110.md).</sub>
 
 <a id="routing-api-document-is-a-deterministic-build-artifact"></a>
 
@@ -581,7 +581,7 @@ OpenAPI 3.1 only, whose schema dialect is JSON Schema, so every declared type ma
 type system says something it cannot express. A handler answering HTML or a stream appears as an
 operation with an opaque response — honest, and not very useful.
 
-<sub>See also [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table), [`routing/api-diff-fails-a-breaking-change`](routing.md#routing-api-diff-fails-a-breaking-change). Decided in [0085](../adr/0085-openapi-is-generated-from-the-route-table.md), [0082](../adr/0082-the-first-party-framework.md), [0051](../adr/0051-standard-library-tiers.md).</sub>
+<sub>See also [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table), [`routing/api-diff-fails-a-breaking-change`](routing.md#routing-api-diff-fails-a-breaking-change). Decided in [0085](../decisions/0085.md), [0082](../decisions/0082.md), [0051](../decisions/0051.md).</sub>
 
 <a id="routing-api-diff-fails-a-breaking-change"></a>
 
@@ -607,7 +607,7 @@ A document that cannot be read or is not JSON is a failure naming the file, neve
 "nothing changed" and "could not tell" may not share an exit code in a gate. Put the command in CI
 against the last release's document and a broken client turns from an incident into a red pipeline.
 
-<sub>See also [`routing/api-document-is-a-deterministic-build-artifact`](routing.md#routing-api-document-is-a-deterministic-build-artifact), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table). Decided in [0085](../adr/0085-openapi-is-generated-from-the-route-table.md).</sub>
+<sub>See also [`routing/api-document-is-a-deterministic-build-artifact`](routing.md#routing-api-document-is-a-deterministic-build-artifact), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table). Decided in [0085](../decisions/0085.md).</sub>
 
 <a id="routing-repeated-routes-share-a-name-when-they-share-a-path"></a>
 
@@ -638,7 +638,7 @@ is written on each line rather than inherited from the first: the attributes are
 literals, and an inheritance rule would make their order matter, which the route table's precedence
 rules exist to avoid.
 
-<sub>See also [`routing/a-shared-name-is-one-endpoint-everywhere`](routing.md#routing-a-shared-name-is-one-endpoint-everywhere), [`routing/no-wildcard-verb`](routing.md#routing-no-wildcard-verb), [`attributes/repeatable`](attributes.md#attributes-repeatable), [`routing/route-attribute`](routing.md#routing-route-attribute), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered). Decided in [0110](../adr/0110-one-methods-repeated-routes-share-a-name-when-they-share-a-path.md), [0077](../adr/0077-compile-time-routing.md), [0046](../adr/0046-attributes-shape-literal-metadata.md).</sub>
+<sub>See also [`routing/a-shared-name-is-one-endpoint-everywhere`](routing.md#routing-a-shared-name-is-one-endpoint-everywhere), [`routing/no-wildcard-verb`](routing.md#routing-no-wildcard-verb), [`attributes/repeatable`](attributes.md#attributes-repeatable), [`routing/route-attribute`](routing.md#routing-route-attribute), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered). Decided in [0110](../decisions/0110.md), [0077](../decisions/0077.md), [0046](../decisions/0046.md).</sub>
 
 <a id="routing-no-wildcard-verb"></a>
 
@@ -668,7 +668,7 @@ was wanted for — one name, one `url()` target, one metrics series. What it doe
 `methodsFor` and the CSRF classification read it. A method serving a safe and an unsafe verb carries
 one `#[Access]` for both, and the CSRF check is still per verb from that one declaration.
 
-<sub>See also [`routing/repeated-routes-share-a-name-when-they-share-a-path`](routing.md#routing-repeated-routes-share-a-name-when-they-share-a-path), [`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`routing/a-refused-verb-is-not-a-missing-path`](routing.md#routing-a-refused-verb-is-not-a-missing-path). Decided in [0110](../adr/0110-one-methods-repeated-routes-share-a-name-when-they-share-a-path.md), [0077](../adr/0077-compile-time-routing.md), [0102](../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md), [0096](../adr/0096-a-route-without-a-declared-access-decision-does-not-compile.md), [0010](../adr/0010-enums-are-a-value-type.md).</sub>
+<sub>See also [`routing/repeated-routes-share-a-name-when-they-share-a-path`](routing.md#routing-repeated-routes-share-a-name-when-they-share-a-path), [`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`routing/a-refused-verb-is-not-a-missing-path`](routing.md#routing-a-refused-verb-is-not-a-missing-path). Decided in [0110](../decisions/0110.md), [0077](../decisions/0077.md), [0102](../decisions/0102.md), [0096](../decisions/0096.md), [0010](../decisions/0010.md).</sub>
 
 <a id="routing-a-shared-name-is-one-endpoint-everywhere"></a>
 
@@ -696,7 +696,7 @@ The route table's shape does not change: one row per `(path, method)`, with `nam
 row rather than a key into them, and the reverse index `url()` reads is built from that column.
 Runtime cost is zero and memory cost is one `?string` column's worth of repeats.
 
-<sub>See also [`routing/repeated-routes-share-a-name-when-they-share-a-path`](routing.md#routing-repeated-routes-share-a-name-when-they-share-a-path), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table), [`routing/an-absolute-link-takes-a-configured-origin`](routing.md#routing-an-absolute-link-takes-a-configured-origin), [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked). Decided in [0110](../adr/0110-one-methods-repeated-routes-share-a-name-when-they-share-a-path.md), [0085](../adr/0085-openapi-is-generated-from-the-route-table.md), [0102](../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md), [0076](../adr/0076-observability-export.md).</sub>
+<sub>See also [`routing/repeated-routes-share-a-name-when-they-share-a-path`](routing.md#routing-repeated-routes-share-a-name-when-they-share-a-path), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table), [`routing/an-absolute-link-takes-a-configured-origin`](routing.md#routing-an-absolute-link-takes-a-configured-origin), [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked). Decided in [0110](../decisions/0110.md), [0085](../decisions/0085.md), [0102](../decisions/0102.md), [0076](../decisions/0076.md).</sub>
 
 <a id="routing-a-quick-fix-writes-a-derived-path"></a>
 
@@ -729,4 +729,4 @@ point of inserting text rather than deriving a path.
 This is a fix, not a generator. A generator's output has to be *right*, and a URL is not
 type-determined by anything; this output is a starting point, read as a diff before it is accepted.
 
-<sub>See also [`routing/repeated-routes-share-a-name-when-they-share-a-path`](routing.md#routing-repeated-routes-share-a-name-when-they-share-a-path), [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`routing/route-attribute`](routing.md#routing-route-attribute). Decided in [0110](../adr/0110-one-methods-repeated-routes-share-a-name-when-they-share-a-path.md), [0077](../adr/0077-compile-time-routing.md), [0040](../adr/0040-vscode-deep-tooling-and-resilient-parsing.md), [0108](../adr/0108-one-reference-index-completion-from-derived-facts-and-services-in-a-template-region.md).</sub>
+<sub>See also [`routing/repeated-routes-share-a-name-when-they-share-a-path`](routing.md#routing-repeated-routes-share-a-name-when-they-share-a-path), [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`routing/route-attribute`](routing.md#routing-route-attribute). Decided in [0110](../decisions/0110.md), [0077](../decisions/0077.md), [0040](../decisions/0040.md), [0108](../decisions/0108.md).</sub>

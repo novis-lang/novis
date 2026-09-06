@@ -43,7 +43,7 @@ information-flow labels, Ur/Web makes an injection unrepresentable by typing SQL
 and FaCT and CT-Wasm have a literal `secret` qualifier for constant-time code. None of them is a
 general-purpose language anyone ships a web application in, and Ur/Web's constructive SQL is the one design
 whose guarantee is genuinely stronger than the rule
-[ADR 0024](adr/0024-taint-tracking-for-injection-sinks.md) § *Revisiting* already flags for revisiting.
+[ADR 0024](decisions/0024.md) § *Revisiting* already flags for revisiting.
 
 ## Why this is a difference in kind
 

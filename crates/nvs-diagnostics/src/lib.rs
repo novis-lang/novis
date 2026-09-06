@@ -134,7 +134,7 @@ pub mod code {
     /// casing table.
     pub const E_BAD_CONST_CASING: Code = Code::new("E0113");
     /// A method literally named `__construct` —
-    /// [ADR 0030](/docs/adr/0030-no-leading-underscores-constructor-spelling.md)
+    /// [ADR 0030](/docs/decisions/0030.md)
     /// §§ 2-3: Novis's constructor is spelled `constructor`, an ordinary
     /// `camelCase` method name needing no exception of its own.
     pub const E_LEGACY_CONSTRUCTOR_SPELLING: Code = Code::new("E0114");
@@ -493,7 +493,7 @@ pub mod code {
     /// filesystem is case-insensitive — `require 'mailer.nvs';` finding
     /// `Mailer.nvs`. Reported on Windows/macOS so the same source is not a
     /// `E_REQUIRE_TARGET_NOT_FOUND` on Linux; see
-    /// [ADR 0062](/docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
+    /// [ADR 0062](/docs/decisions/0062.md)
     /// § 3, which extends
     /// `rule:programs/autoload`'s exact-name rule from `autoload` to `require`.
     pub const E_REQUIRE_PATH_CASE_MISMATCH: Code = Code::new("E0314");
@@ -522,7 +522,7 @@ pub mod code {
     pub const E_AUTOLOAD_GLOB_SHAPE: Code = Code::new("E0318");
     /// A bare name used where a value is expected — `PHP_EOL`, `MY_LIMIT` —
     /// which in PHP would be a global constant fetch.
-    /// [ADR 0011](/docs/adr/0011-functions-and-constants-are-class-members.md)
+    /// [ADR 0011](/docs/decisions/0011.md)
     /// § 3 removed that storage row outright: a constant is always a class
     /// constant, so there is no name for this to resolve against and nothing
     /// below the resolver to lower it to.
@@ -1490,7 +1490,7 @@ pub mod code {
     /// believes is in force and nothing else does. It is also what lets
     /// `nvs_config::http::Cookies` resolve the key without an
     /// "or something else" arm, and so without ever repairing one
-    /// ([0095](/docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)).
+    /// ([0095](/docs/decisions/0095.md)).
     ///
     /// Not `E0612`'s refusal reached from another direction: that one is a
     /// *pair* of individually meaningful values, and this is one value that
@@ -2696,7 +2696,7 @@ pub mod code {
     /// `rule:concurrency/all-answers-a-typed-shape`: "a field whose value is a `callable`-typed variable
     /// rather than a literal is a compile error naming the field, because
     /// there is nothing to bind from". [ADR
-    /// 0031](/docs/adr/0031-callable-is-the-only-closure-type.md) leaves
+    /// 0031](/docs/decisions/0031.md) leaves
     /// `callable` without a signature, so the field's own result type exists
     /// only at the literal; `rule:types/grammar`'s deferred typed-`callable`
     /// signatures are what would remove this, and that ADR's *Revisiting* is
@@ -2705,7 +2705,7 @@ pub mod code {
 
     /// A `secret`-qualified value reaches
     /// `rule:classes/graph-copy`'s graph copy — [ADR
-    /// 0033](/docs/adr/0033-secret-qualifier-for-confidential-values.md)
+    /// 0033](/docs/decisions/0033.md)
     /// § 4's `serialize()`-and-`spawn` sink, which that bullet deliberately
     /// states once for *both* carriers rather than distinguishing "crossing to
     /// a live isolate" from "externalizing to bytes".
@@ -3051,7 +3051,7 @@ pub mod code {
     pub const E_ECHO_BESIDE_A_BODY_MEMBER: Code = Code::new("E0801");
 
     /// A `spawn script` operand that is neither of
-    /// [ADR 0006](/docs/adr/0006-isolated-script-execution.md)
+    /// [ADR 0006](/docs/decisions/0006.md)
     /// § *Decision*'s two entry forms — an `fn` literal, or a value whose type
     /// is `callable`.
     ///

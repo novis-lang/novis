@@ -41,7 +41,7 @@
 //! a Novis one — that is the slice after this, on the boundary
 //! [`crate::PgColumn::decode`] already occupies for the other driver.
 //!
-//! [ADR 0132 § 2](/docs/adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md)
+//! [ADR 0132 § 2](/docs/decisions/0132.md)
 //! decides what is here and what is not. `mysql_common` frames every packet,
 //! keeps the sequence-id discipline, and owns each authentication plugin's
 //! challenge/response arithmetic — that is the borrowed codec. **The sequencing
@@ -66,7 +66,7 @@
 //! 2. **The upgrade.** [`request_tls`] writes an `SSLRequest` — a bare
 //!    capability word, the last plaintext this connection carries — and a
 //!    server whose greeting does not offer `CLIENT_SSL` is **refused** rather
-//!    than answered. [ADR 0067 § 3](/docs/adr/0067-core-db.md) makes
+//!    than answered. [ADR 0067 § 3](/docs/decisions/0067.md) makes
 //!    `VerifyFull` the default with no spelling for turning it off, and a
 //!    handshake that continued in the clear here is exactly PHP's
 //!    `sslmode=prefer` under another name.
@@ -104,7 +104,7 @@
 //!
 //! `caching_sha2_password`'s cache-miss path does send the password, over TLS,
 //! to a server whose certificate has already been verified to
-//! [ADR 0067 § 3](/docs/adr/0067-core-db.md)'s standard. That is the
+//! [ADR 0067 § 3](/docs/decisions/0067.md)'s standard. That is the
 //! plugin's design and MySQL 8's default; it is not a downgrade a server can
 //! ask for, because the fast path and the full path are the same plugin and the
 //! same verified peer.
@@ -113,7 +113,7 @@
 //!
 //! [`CLIENT_CAPABILITIES`] does not contain `CLIENT_LOCAL_FILES`, so a
 //! conforming server may not ask for a file at all — that is
-//! [ADR 0067 § 3](/docs/adr/0067-core-db.md)'s first closed hole, and
+//! [ADR 0067 § 3](/docs/decisions/0067.md)'s first closed hole, and
 //! it is closed by an absent bit rather than by a check. The check exists
 //! anyway, in [`read_ok`], because the bit is a request and a malicious server
 //! is under no obligation to honour it: a `0xFB` response is answered with the
@@ -126,7 +126,7 @@
 //!
 //! `HandshakeResponse` carries the connection's collation, and this driver
 //! sends `utf8mb4_general_ci`. That is
-//! [ADR 0067 § 3](/docs/adr/0067-core-db.md)'s third default — text
+//! [ADR 0067 § 3](/docs/decisions/0067.md)'s third default — text
 //! columns arrive as valid UTF-8 by construction, which is what
 //! `rule:types/bytes`'s guarantee needs —
 //! and it costs nothing, where a `SET NAMES` after the fact would be a round
@@ -228,7 +228,7 @@ const READ_CHUNK: usize = 16 * 1024;
 const MAX_PACKET: u32 = 16 * 1024 * 1024;
 
 /// The collation every connection this driver opens is in —
-/// [ADR 0067 § 3](/docs/adr/0067-core-db.md)'s forced `utf8mb4`.
+/// [ADR 0067 § 3](/docs/decisions/0067.md)'s forced `utf8mb4`.
 const COLLATION: u8 = CollationId::UTF8MB4_GENERAL_CI as u8;
 
 /// What this client claims it can do, and the absences are the interesting
@@ -292,7 +292,7 @@ pub struct MySqlTarget<'a> {
     /// The zone a `DATETIME` or `TIMESTAMP` off this connection is read in, as
     /// a whole number of seconds east of UTC.
     ///
-    /// [ADR 0067 § 9](/docs/adr/0067-core-db.md)'s declared zone. It is
+    /// [ADR 0067 § 9](/docs/decisions/0067.md)'s declared zone. It is
     /// sent to the server as well as held here, so `CURRENT_TIMESTAMP` and a
     /// decoded column agree about which zone they are in —
     /// [`set_session_time_zone`] is where it goes out, and as a numeric offset
@@ -300,7 +300,7 @@ pub struct MySqlTarget<'a> {
     /// and it usually is not.
     pub time_zone: i32,
     /// How many prepared statements this connection may keep alive on the
-    /// server, [ADR 0067 § 1](/docs/adr/0067-core-db.md)'s
+    /// server, [ADR 0067 § 1](/docs/decisions/0067.md)'s
     /// `statement_cache`.
     ///
     /// [`crate::PgTarget::statement_cache`]'s twin: the same reader answers it
@@ -314,7 +314,7 @@ impl<'a> MySqlTarget<'a> {
     /// One `[db.<name>]` block as this driver's target, or why it is not one.
     ///
     /// [`crate::PgTarget::resolve`]'s twin, and the twinning is the point:
-    /// [ADR 0067 § 2](/docs/adr/0067-core-db.md) makes a block a
+    /// [ADR 0067 § 2](/docs/decisions/0067.md) makes a block a
     /// discriminated union on `driver`, so the *fields* a MySQL connection
     /// needs are the same four a PostgreSQL one needs and the refusals are one
     /// vocabulary — [`BlockError`], which lives in [`mod@crate::conn`] for that
@@ -445,7 +445,7 @@ pub(crate) struct Backend {
     /// What a [`ServerError`] off this connection calls the server it came
     /// from — the word an operator reads in the rendered sentence.
     pub(crate) name: &'static str,
-    /// [ADR 0067 § 8](/docs/adr/0067-core-db.md)'s table for this
+    /// [ADR 0067 § 8](/docs/decisions/0067.md)'s table for this
     /// server's vendor codes. MariaDB's is not MySQL's, which is § 8's own
     /// sentence and the reason this field is a function rather than a bool.
     pub(crate) kind_of: fn(u16, &str) -> DbErrorKind,
@@ -975,7 +975,7 @@ fn auth_failed(error: mysql_common::auth::plugins::Error) -> io::Error {
 }
 
 /// The server's `ERR` packet, worded as this crate's callers read it and
-/// carrying [ADR 0067 § 8](/docs/adr/0067-core-db.md)'s normalised kind.
+/// carrying [ADR 0067 § 8](/docs/decisions/0067.md)'s normalised kind.
 ///
 /// An `Other` holding a [`ServerError`], which is [`crate::pg`]'s `server_error`
 /// and its reasons: a caller that prints the sentence is unchanged, and one that
@@ -1101,7 +1101,7 @@ pub(crate) fn kind_of(code: u16, sql_state: &str) -> DbErrorKind {
 /// `SET time_zone`, and § 13's `COM_RESET_CONNECTION`.
 ///
 /// [`read_answer`] is the reader and owns every packet shape, including
-/// [ADR 0067 § 3](/docs/adr/0067-core-db.md)'s `LOCAL INFILE` refusal.
+/// [ADR 0067 § 3](/docs/decisions/0067.md)'s `LOCAL INFILE` refusal.
 /// What this adds is the *caller's* claim: these commands have no result set,
 /// so a column count arriving here is a server answering something other than
 /// what was asked, and there is no reader on this path to drain it with. It is
@@ -1275,12 +1275,12 @@ pub(crate) fn read_columns<S: Read + Write>(
 ///
 /// MySQL types both members of each pair the same — `MYSQL_TYPE_BLOB`,
 /// `MYSQL_TYPE_STRING` — and puts the difference here, so
-/// [ADR 0067 § 9](/docs/adr/0067-core-db.md)'s split between `tainted
+/// [ADR 0067 § 9](/docs/decisions/0067.md)'s split between `tainted
 /// string` and `tainted bytes` is read off the charset or it is not read at
 /// all. The number is protocol constant `binary`, fixed since 4.1.
 const BINARY_CHARSET: u16 = 63;
 
-/// [ADR 0067 § 9](/docs/adr/0067-core-db.md)'s type map, as the Novis
+/// [ADR 0067 § 9](/docs/decisions/0067.md)'s type map, as the Novis
 /// type one MySQL column definition declares — what `Core\Db\Column::type`
 /// answers for this column.
 ///
@@ -1510,7 +1510,7 @@ impl MySqlConn {
         )
     }
 
-    /// [ADR 0067 § 4](/docs/adr/0067-core-db.md)'s `executeMany`: one
+    /// [ADR 0067 § 4](/docs/decisions/0067.md)'s `executeMany`: one
     /// prepare, N executions, and the affected counts summed.
     ///
     /// The two-line delegation [`MySqlConn::query`] gives its reason for.
@@ -1529,7 +1529,7 @@ impl MySqlConn {
         )
     }
 
-    /// [ADR 0067 § 7](/docs/adr/0067-core-db.md)'s `START TRANSACTION`,
+    /// [ADR 0067 § 7](/docs/decisions/0067.md)'s `START TRANSACTION`,
     /// or the `SAVEPOINT` a nested `transaction()` is.
     ///
     /// The driver half of § 7 and nothing more — the closure, the
@@ -1587,7 +1587,7 @@ impl MySqlConn {
         roll_back(&mut self.wire, &self.state, self.capabilities, &self.depth)
     }
 
-    /// [ADR 0067 § 13](/docs/adr/0067-core-db.md)'s reset, before this
+    /// [ADR 0067 § 13](/docs/decisions/0067.md)'s reset, before this
     /// connection may be handed to another request.
     ///
     /// Takes `self` by value for [`crate::conn::PgConn::reset`]'s reason: a reset
@@ -2077,7 +2077,7 @@ fn execute_one<S: Read + Write>(
     Ok(rows.affected().unwrap_or(0))
 }
 
-/// [ADR 0067 § 7](/docs/adr/0067-core-db.md)'s `START TRANSACTION`, or
+/// [ADR 0067 § 7](/docs/decisions/0067.md)'s `START TRANSACTION`, or
 /// the `SAVEPOINT` a nested `transaction()` opens.
 ///
 /// **The depth decides which**, as in [`crate::pg`]'s `begin`, and § 7's
@@ -2277,7 +2277,7 @@ pub(crate) fn roll_back<S: Read + Write>(
     Ok(span)
 }
 
-/// One of § 7's commands, sent as text, as [ADR 0067 § 11](/docs/adr/0067-core-db.md)'s
+/// One of § 7's commands, sent as text, as [ADR 0067 § 11](/docs/decisions/0067.md)'s
 /// span.
 ///
 /// **`COM_QUERY` rather than § 1's prepared statements**, which is where the
@@ -2362,9 +2362,9 @@ fn text_command<S: Read + Write>(
 /// results is free and re-walking per column is what would cost.
 ///
 /// The values are `mysql_common`'s own [`MyValue`], which is
-/// [ADR 0132 § 2](/docs/adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md)'s
+/// [ADR 0132 § 2](/docs/decisions/0132.md)'s
 /// borrowed codec answering in its own vocabulary. [`scalar`] is what turns one
-/// into the Novis value [ADR 0067 § 9](/docs/adr/0067-core-db.md)'s
+/// into the Novis value [ADR 0067 § 9](/docs/decisions/0067.md)'s
 /// table names, against the column it belongs to — the boundary
 /// [`crate::PgColumn::decode`] sits on for the other driver.
 pub struct MySqlRow {
@@ -2454,7 +2454,7 @@ fn decode_row(columns: &[Column], packet: &[u8]) -> io::Result<MySqlRow> {
 ///
 /// [`crate::PgDate`]'s opposite number and the same promise: a
 /// `Core\Time\Date` is an instance of a class `nvs-stdlib` declares, this crate
-/// cannot allocate one, and so [ADR 0067 § 9](/docs/adr/0067-core-db.md)'s
+/// cannot allocate one, and so [ADR 0067 § 9](/docs/decisions/0067.md)'s
 /// structured rows are finished one layer up.
 ///
 /// Nothing here parsed a rendering — MySQL's binary protocol sends the
@@ -2622,7 +2622,7 @@ impl MySqlScalar<'_> {
 /// to the column's type** ([`execute`] says why that is not an escaping
 /// decision), so this is a text rendering exactly as PostgreSQL's is — and it
 /// is a *different* text rendering, because the two servers read different
-/// literals. Three rows of [ADR 0067 § 9](/docs/adr/0067-core-db.md)
+/// literals. Three rows of [ADR 0067 § 9](/docs/decisions/0067.md)
 /// differ, and each one is a value the other driver's rendering would store
 /// wrongly rather than fail on:
 ///
@@ -2950,7 +2950,7 @@ impl<S: Read + Write> MySqlRows<'_, S> {
         self.columns.get(index).map(column_type)
     }
 
-    /// [ADR 0067 § 11](/docs/adr/0067-core-db.md)'s trace event for this
+    /// [ADR 0067 § 11](/docs/decisions/0067.md)'s trace event for this
     /// statement.
     ///
     /// Borrowed rather than taken, for [`crate::PgRows::span`]'s reason: a
@@ -2968,7 +2968,7 @@ impl<S: Read + Write> MySqlRows<'_, S> {
         self.span.name(connection);
     }
 
-    /// [ADR 0067 § 4](/docs/adr/0067-core-db.md)'s affected-row count,
+    /// [ADR 0067 § 4](/docs/decisions/0067.md)'s affected-row count,
     /// once the stream has ended, and `None` while rows may still arrive.
     ///
     /// Two numbers under one name, and which one it is follows the statement:
@@ -2982,7 +2982,7 @@ impl<S: Read + Write> MySqlRows<'_, S> {
         self.ended.then_some(self.affected)
     }
 
-    /// [ADR 0067 § 4](/docs/adr/0067-core-db.md)'s `lastId` — the
+    /// [ADR 0067 § 4](/docs/decisions/0067.md)'s `lastId` — the
     /// `AUTO_INCREMENT` value this statement generated, `0` for none — once the
     /// stream has ended.
     ///

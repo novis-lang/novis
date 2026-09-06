@@ -30,7 +30,7 @@ platform, so an unwinder would walk off a coroutine stack into unrelated memory.
 therefore ordinary IR the optimiser can see through, and a throw across a coroutine boundary is
 not a special case.
 
-<sub>See also [`errors/helper-abi`](errors.md#errors-helper-abi), [`errors/throw-is-not-slower`](errors.md#errors-throw-is-not-slower), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder). Decided in [0002](../adr/0002-error-propagation.md).</sub>
+<sub>See also [`errors/helper-abi`](errors.md#errors-helper-abi), [`errors/throw-is-not-slower`](errors.md#errors-throw-is-not-slower), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder). Decided in [0002](../decisions/0002.md).</sub>
 
 <a id="errors-helper-abi"></a>
 
@@ -53,7 +53,7 @@ root carries a `catch_unwind` as well. And a panic raised while a panic is unwin
 process whatever the profile says, so nothing on a teardown path may panic and teardown does not
 recurse.
 
-<sub>See also [`errors/propagation`](errors.md#errors-propagation), [`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code). Decided in [0002](../adr/0002-error-propagation.md), [0106](../adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md).</sub>
+<sub>See also [`errors/propagation`](errors.md#errors-propagation), [`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code). Decided in [0002](../decisions/0002.md), [0106](../decisions/0106.md).</sub>
 
 <a id="errors-throw-is-not-slower"></a>
 
@@ -75,7 +75,7 @@ It holds only while throwing does not allocate. Storing a message as a `String` 
 return, more than the whole propagation path it was meant to measure, so the pending-error slot is
 a `Cow<'static, str>` and a static exception message allocates nothing.
 
-<sub>See also [`errors/propagation`](errors.md#errors-propagation). Decided in [0002](../adr/0002-error-propagation.md).</sub>
+<sub>See also [`errors/propagation`](errors.md#errors-propagation). Decided in [0002](../decisions/0002.md).</sub>
 
 <a id="errors-throwable-hierarchy"></a>
 
@@ -95,7 +95,7 @@ This is what makes "a fatal is not catchable" hold at the ABI level without ever
 cooperating, and it is why no catch-loop can be written for a resource limit at all — not merely
 why one is unlikely.
 
-<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/on-limit`](errors.md#errors-on-limit), [`errors/compile-failure`](errors.md#errors-compile-failure). Decided in [0020](../adr/0020-error-escalation-ladder.md).</sub>
+<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/on-limit`](errors.md#errors-on-limit), [`errors/compile-failure`](errors.md#errors-compile-failure). Decided in [0020](../decisions/0020.md).</sub>
 
 <a id="errors-escalation-ladder"></a>
 
@@ -122,7 +122,7 @@ Every tier that writes a log line writes the same record through the same native
 ([`errors/log-write`](errors.md#errors-log-write)), so a dashboard never reconciles two shapes depending on which tier
 produced a line.
 
-<sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`errors/on-uncaught-throw`](errors.md#errors-on-uncaught-throw), [`errors/handler-script`](errors.md#errors-handler-script), [`errors/engine-floor`](errors.md#errors-engine-floor). Decided in [0020](../adr/0020-error-escalation-ladder.md).</sub>
+<sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`errors/on-uncaught-throw`](errors.md#errors-on-uncaught-throw), [`errors/handler-script`](errors.md#errors-handler-script), [`errors/engine-floor`](errors.md#errors-engine-floor). Decided in [0020](../decisions/0020.md).</sub>
 
 <a id="errors-on-limit"></a>
 
@@ -148,7 +148,7 @@ safety net is exactly the case where the choice should belong to someone else.
 `nvs-runtime`, which holds no `Core` class descriptor to instantiate one from — and a keyed array
 takes a later field without changing the signature of a handler already written.
 
-<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/stack-depth`](errors.md#errors-stack-depth), [`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code). Decided in [0020](../adr/0020-error-escalation-ladder.md).</sub>
+<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/stack-depth`](errors.md#errors-stack-depth), [`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code). Decided in [0020](../decisions/0020.md).</sub>
 
 <a id="errors-stack-depth"></a>
 
@@ -178,7 +178,7 @@ those. Request data also recurses through engine frames — a nested document in
 value graph in teardown — which are bounded separately by an explicit depth counter and an
 iterative teardown.
 
-<sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`errors/propagation`](errors.md#errors-propagation). Decided in [0020](../adr/0020-error-escalation-ladder.md), [0106](../adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md).</sub>
+<sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`errors/propagation`](errors.md#errors-propagation). Decided in [0020](../decisions/0020.md), [0106](../decisions/0106.md).</sub>
 
 <a id="errors-on-uncaught-throw"></a>
 
@@ -201,7 +201,7 @@ the ladder — it runs at every non-fatal ending including successful ones, need
 observes the ending rather than reporting a failure. A handler faulting here changes nothing about
 it.
 
-<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/handler-script`](errors.md#errors-handler-script). Decided in [0020](../adr/0020-error-escalation-ladder.md), [0127](../adr/0127-the-end-of-a-script-is-observable.md).</sub>
+<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/handler-script`](errors.md#errors-handler-script). Decided in [0020](../decisions/0020.md), [0127](../decisions/0127.md).</sub>
 
 <a id="errors-handler-script"></a>
 
@@ -228,7 +228,7 @@ The tier is the shared catch-all: it fires for any tier-1 or tier-2 failure, for
 never registered at all, for an internal panic unconditionally, and for an entry-script compile
 failure where no frame ever existed to register anything from.
 
-<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/engine-floor`](errors.md#errors-engine-floor), [`errors/log-write`](errors.md#errors-log-write). Decided in [0020](../adr/0020-error-escalation-ladder.md).</sub>
+<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/engine-floor`](errors.md#errors-engine-floor), [`errors/log-write`](errors.md#errors-log-write). Decided in [0020](../decisions/0020.md).</sub>
 
 <a id="errors-engine-floor"></a>
 
@@ -255,7 +255,7 @@ ladder can leave; a `finally` is not enough, because an internal panic bypasses 
 design. A ladder that protects the process and leaves the shell unusable has failed at what it is
 for.
 
-<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/handler-script`](errors.md#errors-handler-script), [`errors/log-write`](errors.md#errors-log-write). Decided in [0020](../adr/0020-error-escalation-ladder.md), [0086](../adr/0086-core-cli-terminal-is-a-sink.md), [0106](../adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md).</sub>
+<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/handler-script`](errors.md#errors-handler-script), [`errors/log-write`](errors.md#errors-log-write). Decided in [0020](../decisions/0020.md), [0086](../decisions/0086.md), [0106](../decisions/0106.md).</sub>
 
 <a id="errors-panics-bypass-user-code"></a>
 
@@ -275,7 +275,7 @@ So **only a resource-limit `FATAL` reaches [`errors/on-limit`](errors.md#errors-
 to [`errors/handler-script`](errors.md#errors-handler-script) — still user-formattable, still routed wherever the operator sends
 diagnostics — without ever calling back into the failing request's own code.
 
-<sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`errors/helper-abi`](errors.md#errors-helper-abi), [`errors/handler-script`](errors.md#errors-handler-script). Decided in [0020](../adr/0020-error-escalation-ladder.md).</sub>
+<sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`errors/helper-abi`](errors.md#errors-helper-abi), [`errors/handler-script`](errors.md#errors-handler-script). Decided in [0020](../decisions/0020.md).</sub>
 
 <a id="errors-compile-failure"></a>
 
@@ -295,7 +295,7 @@ running: an ordinary `ParseError`, catchable at the call site like any `Throwabl
 lets a framework fail a bad template or plugin gracefully instead of the whole request. Uncaught, it
 rides the normal [`errors/on-uncaught-throw`](errors.md#errors-on-uncaught-throw) path — by then a frame did exist.
 
-<sub>See also [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder). Decided in [0020](../adr/0020-error-escalation-ladder.md), [0091](../adr/0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md).</sub>
+<sub>See also [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder). Decided in [0020](../decisions/0020.md), [0091](../decisions/0091.md).</sub>
 
 <a id="errors-log-write"></a>
 
@@ -321,7 +321,7 @@ JSON was chosen over `logfmt` because an arbitrary error message or a multi-line
 escaping that is correct on the first and only attempt at the floor, and JSON's escaping is a
 solved, mechanical problem where `logfmt`'s quoting of embedded quotes, newlines and spaces is not.
 
-<sub>See also [`errors/log-level`](errors.md#errors-log-level), [`errors/log-fields`](errors.md#errors-log-fields), [`errors/engine-floor`](errors.md#errors-engine-floor), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record). Decided in [0020](../adr/0020-error-escalation-ladder.md), [0092](../adr/0092-one-diagnostic-record-three-renderings.md).</sub>
+<sub>See also [`errors/log-level`](errors.md#errors-log-level), [`errors/log-fields`](errors.md#errors-log-fields), [`errors/engine-floor`](errors.md#errors-engine-floor), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record). Decided in [0020](../decisions/0020.md), [0092](../decisions/0092.md).</sub>
 
 <a id="errors-diagnostic-record"></a>
 
@@ -347,7 +347,7 @@ implementation rather than five.
 One crate — `nvs-render` — owns the model and every rendering of it, and both the runtime and the
 compiler front end depend on it.
 
-<sub>See also [`errors/renderings`](errors.md#errors-renderings), [`errors/record-transformations`](errors.md#errors-record-transformations), [`errors/record-producers`](errors.md#errors-record-producers), [`errors/log-fields`](errors.md#errors-log-fields). Decided in [0092](../adr/0092-one-diagnostic-record-three-renderings.md), [0106](../adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md).</sub>
+<sub>See also [`errors/renderings`](errors.md#errors-renderings), [`errors/record-transformations`](errors.md#errors-record-transformations), [`errors/record-producers`](errors.md#errors-record-producers), [`errors/log-fields`](errors.md#errors-log-fields). Decided in [0092](../decisions/0092.md), [0106](../decisions/0106.md).</sub>
 
 <a id="errors-log-level"></a>
 
@@ -369,7 +369,7 @@ spans and sampling belong to tracing and a trace *level* would be a second home 
 
 `[log] level` sets the minimum level written.
 
-<sub>See also [`errors/log-write`](errors.md#errors-log-write), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record). Decided in [0092](../adr/0092-one-diagnostic-record-three-renderings.md).</sub>
+<sub>See also [`errors/log-write`](errors.md#errors-log-write), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record). Decided in [0092](../decisions/0092.md).</sub>
 
 <a id="errors-renderings"></a>
 
@@ -397,7 +397,7 @@ Colour is the only thing that varies with a tty; structure, substitution and red
 web-facing log viewer is an HTTP response, and reaches the HTML rendering through the response sink
 like everything else.
 
-<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/debug-dump`](errors.md#errors-debug-dump), [`errors/no-render-hook`](errors.md#errors-no-render-hook). Decided in [0092](../adr/0092-one-diagnostic-record-three-renderings.md), [0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md).</sub>
+<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/debug-dump`](errors.md#errors-debug-dump), [`errors/no-render-hook`](errors.md#errors-no-render-hook). Decided in [0092](../decisions/0092.md), [0088](../decisions/0088.md).</sub>
 
 <a id="errors-record-transformations"></a>
 
@@ -431,7 +431,7 @@ rendering can emit a reference.
 Tainted data flows into a record freely, because the record frames it and **the rendering is what
 makes it safe**. There is no raw escape hatch, and no rendering may be selected by an argument.
 
-<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/renderings`](errors.md#errors-renderings), [`errors/log-write`](errors.md#errors-log-write). Decided in [0092](../adr/0092-one-diagnostic-record-three-renderings.md), [0033](../adr/0033-secret-qualifier-for-confidential-values.md), [0086](../adr/0086-core-cli-terminal-is-a-sink.md), [0087](../adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md).</sub>
+<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/renderings`](errors.md#errors-renderings), [`errors/log-write`](errors.md#errors-log-write). Decided in [0092](../decisions/0092.md), [0033](../decisions/0033.md), [0086](../decisions/0086.md), [0087](../decisions/0087.md).</sub>
 
 <a id="errors-record-producers"></a>
 
@@ -458,7 +458,7 @@ The `Throwable` case is the one that would have leaked had the scope been narrow
 most-read diagnostic output in any language, and leaving it outside would have meant a second
 implementation of [`errors/record-transformations`](errors.md#errors-record-transformations).
 
-<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/log-write`](errors.md#errors-log-write), [`errors/debug-dump`](errors.md#errors-debug-dump). Decided in [0092](../adr/0092-one-diagnostic-record-three-renderings.md), [0079](../adr/0079-testing-is-a-language-feature.md).</sub>
+<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/log-write`](errors.md#errors-log-write), [`errors/debug-dump`](errors.md#errors-debug-dump). Decided in [0092](../decisions/0092.md), [0079](../decisions/0079.md).</sub>
 
 <a id="errors-debug-dump"></a>
 
@@ -494,7 +494,7 @@ bug in `var_dump`; it is that `var_dump` writes to output, so a forgotten call a
 deployment are enough. Here the forgotten call writes a log line, and the spelling that would put it
 in a response does not exist outside a mode whose ceiling is closed by default.
 
-<sub>See also [`errors/renderings`](errors.md#errors-renderings), [`errors/record-transformations`](errors.md#errors-record-transformations), [`errors/no-render-hook`](errors.md#errors-no-render-hook). Decided in [0092](../adr/0092-one-diagnostic-record-three-renderings.md), [0091](../adr/0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md), [0085](../adr/0085-openapi-is-generated-from-the-route-table.md).</sub>
+<sub>See also [`errors/renderings`](errors.md#errors-renderings), [`errors/record-transformations`](errors.md#errors-record-transformations), [`errors/no-render-hook`](errors.md#errors-no-render-hook). Decided in [0092](../decisions/0092.md), [0091](../decisions/0091.md), [0085](../decisions/0085.md).</sub>
 
 <a id="errors-no-render-hook"></a>
 
@@ -513,7 +513,7 @@ lying view of the state a dump exists to show.
 Adding a fourth rendering later is a change to one crate, not to any call site — which is the
 property that makes refusing one now cheap to revisit.
 
-<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/debug-dump`](errors.md#errors-debug-dump). Decided in [0092](../adr/0092-one-diagnostic-record-three-renderings.md), [0028](../adr/0028-closing-the-remaining-magic-methods.md).</sub>
+<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/debug-dump`](errors.md#errors-debug-dump). Decided in [0092](../decisions/0092.md), [0028](../decisions/0028.md).</sub>
 
 <a id="errors-log-fields"></a>
 
@@ -536,7 +536,7 @@ without changing it.
 A record is charged to the request's budget, and a record shed under burst pressure **increments a
 counter that is exported**, because a silently dropped log line is worse than a counted one.
 
-<sub>See also [`errors/log-write`](errors.md#errors-log-write), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record). Decided in [0092](../adr/0092-one-diagnostic-record-three-renderings.md), [0076](../adr/0076-observability-export.md).</sub>
+<sub>See also [`errors/log-write`](errors.md#errors-log-write), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record). Decided in [0092](../decisions/0092.md), [0076](../decisions/0076.md).</sub>
 
 <a id="errors-ambiguous-input-refused"></a>
 
@@ -566,7 +566,7 @@ origin parser is dangerous in.
 Strict parsing is not slower. Validation folds into the pass that already touches every byte to find
 delimiters; it is *lenient* parsing that needs extra work to unfold, re-scan and normalise.
 
-<sub>See also [`errors/http-message-defects`](errors.md#errors-http-message-defects), [`errors/cookie-name-bytes`](errors.md#errors-cookie-name-bytes), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count), [`errors/path-component-refusals`](errors.md#errors-path-component-refusals). Decided in [0095](../adr/0095-ambiguous-input-is-refused-never-repaired.md), [0097](../adr/0097-development-server-and-proxied-origin.md).</sub>
+<sub>See also [`errors/http-message-defects`](errors.md#errors-http-message-defects), [`errors/cookie-name-bytes`](errors.md#errors-cookie-name-bytes), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count), [`errors/path-component-refusals`](errors.md#errors-path-component-refusals). Decided in [0095](../decisions/0095.md), [0097](../decisions/0097.md).</sub>
 
 <a id="errors-http-message-defects"></a>
 
@@ -595,7 +595,7 @@ body flows straight into program logic. An upstream emitting genuinely ambiguous
 whose answers cannot be reasoned about, so a throw at the call site is the honest outcome — and an
 opt-out would be copy-pasted into the calls that did not need it.
 
-<sub>See also [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`errors/cookie-name-bytes`](errors.md#errors-cookie-name-bytes). Decided in [0095](../adr/0095-ambiguous-input-is-refused-never-repaired.md), [0097](../adr/0097-development-server-and-proxied-origin.md), [0074](../adr/0074-http-defaults-safe-and-finite.md).</sub>
+<sub>See also [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`errors/cookie-name-bytes`](errors.md#errors-cookie-name-bytes). Decided in [0095](../decisions/0095.md), [0097](../decisions/0097.md), [0074](../decisions/0074.md).</sub>
 
 <a id="errors-cookie-name-bytes"></a>
 
@@ -619,7 +619,7 @@ consecutive CVEs in PHP — the second being the incomplete fix for the first, w
 mangling let a plain cookie be read as a `__Host-` one. Enforcing it once, in the one place that
 parses the header, is the whole fix.
 
-<sub>See also [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`errors/http-message-defects`](errors.md#errors-http-message-defects). Decided in [0095](../adr/0095-ambiguous-input-is-refused-never-repaired.md), [0012](../adr/0012-no-superglobals.md).</sub>
+<sub>See also [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`errors/http-message-defects`](errors.md#errors-http-message-defects). Decided in [0095](../decisions/0095.md), [0012](../decisions/0012.md).</sub>
 
 <a id="errors-multipart-part-count"></a>
 
@@ -638,7 +638,7 @@ one.
 This also widens the attribution rule in the only direction it was missing: **temp files, file
 descriptors and disk bytes are charged to a request the same way memory is.**
 
-<sub>See also [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0095](../adr/0095-ambiguous-input-is-refused-never-repaired.md), [0064](../adr/0064-configuration-file-format.md), [0004](../adr/0004-memory-for-simplicity.md).</sub>
+<sub>See also [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0095](../decisions/0095.md), [0064](../decisions/0064.md), [0004](../decisions/0004.md).</sub>
 
 <a id="errors-path-component-refusals"></a>
 
@@ -670,4 +670,4 @@ laundered and never was.
 and goes on accepting both separators on every platform. `Path::normalize` is **not** a launderer,
 because the base is not part of its input.
 
-<sub>See also [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0095](../adr/0095-ambiguous-input-is-refused-never-repaired.md).</sub>
+<sub>See also [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0095](../decisions/0095.md).</sub>

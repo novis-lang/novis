@@ -2,7 +2,7 @@
 // The pool has a ceiling, and a request that arrives at it waits before it is
 // refused.
 //
-// [ADR 0067](/docs/adr/0067-core-db.md) § 13 sizes a pool per core: `max` is
+// [ADR 0067](/docs/decisions/0067.md) § 13 sizes a pool per core: `max` is
 // how many connections one core may hold open under a block — so a
 // deployment's ceiling on the server is `cores × max`, which is the number an
 // operator sizes `max_connections` against — and `acquire` is how long a

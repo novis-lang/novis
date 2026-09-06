@@ -30,7 +30,7 @@ async support is the same stack switching the scheduler already uses, so there i
 at the boundary. What it costs is [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost), and an author who wants
 direct heap access cannot have it. That is the point.
 
-<sub>See also [`packaging/three-tiers`](packaging.md#packaging-three-tiers), [`packaging/values-cross-as-handles`](packaging.md#packaging-values-cross-as-handles), [`packaging/a-guest-has-no-ambient-authority`](packaging.md#packaging-a-guest-has-no-ambient-authority), [`security/no-ffi`](security.md#security-no-ffi), [`security/closed-doors`](security.md#security-closed-doors), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0003](../adr/0003-extension-system.md), [0052](../adr/0052-closed-doors.md).</sub>
+<sub>See also [`packaging/three-tiers`](packaging.md#packaging-three-tiers), [`packaging/values-cross-as-handles`](packaging.md#packaging-values-cross-as-handles), [`packaging/a-guest-has-no-ambient-authority`](packaging.md#packaging-a-guest-has-no-ambient-authority), [`security/no-ffi`](security.md#security-no-ffi), [`security/closed-doors`](security.md#security-closed-doors), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0003](../decisions/0003.md), [0052](../decisions/0052.md).</sub>
 
 <a id="packaging-three-tiers"></a>
 
@@ -56,7 +56,7 @@ Which tier a candidate lands at is decided by [`core-api/tier-placement`](core-a
 and the resulting roster is [`core-api/tier-roster`](core-api.md#core-api-tier-roster). The partition is not PHP's: `ctype` being an
 extension while `str_pad` is not tracks 1997 build engineering and nothing worth preserving.
 
-<sub>See also [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost). Decided in [0003](../adr/0003-extension-system.md), [0051](../adr/0051-standard-library-tiers.md).</sub>
+<sub>See also [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost). Decided in [0003](../decisions/0003.md), [0051](../decisions/0051.md).</sub>
 
 <a id="packaging-an-nvsx-is-one-file-carrying-its-manifest"></a>
 
@@ -80,7 +80,7 @@ resources — rather than everything marshalled through `i32`, and semantic vers
 is part of the contract. A PHP extension must be recompiled for every minor engine release; an
 `.nvsx` compiled against `nvs:ext@1.0.0` is not.
 
-<sub>See also [`packaging/extension-calls-are-statically-typed`](packaging.md#packaging-extension-calls-are-statically-typed), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key). Decided in [0003](../adr/0003-extension-system.md), [0055](../adr/0055-extension-qualifier-declarations.md).</sub>
+<sub>See also [`packaging/extension-calls-are-statically-typed`](packaging.md#packaging-extension-calls-are-statically-typed), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key). Decided in [0003](../decisions/0003.md), [0055](../decisions/0055.md).</sub>
 
 <a id="packaging-values-cross-as-handles"></a>
 
@@ -103,7 +103,7 @@ accessor call is a fixed cost, a bulk copy is nearly free, and the design that w
 a few times rather than words many times ([`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost),
 [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline)).
 
-<sub>See also [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost), [`core-api/a-lifetime-is-an-object`](core-api.md#core-api-a-lifetime-is-an-object). Decided in [0003](../adr/0003-extension-system.md).</sub>
+<sub>See also [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost), [`core-api/a-lifetime-is-an-object`](core-api.md#core-api-a-lifetime-is-an-object). Decided in [0003](../decisions/0003.md).</sub>
 
 <a id="packaging-extension-calls-are-statically-typed"></a>
 
@@ -125,7 +125,7 @@ holds a jump into a trampoline that another set may have moved, so the set is pa
 unit's key and a changed set is an ordinary cache miss
 ([`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key)).
 
-<sub>See also [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-nvsx-is-one-file-carrying-its-manifest`](packaging.md#packaging-an-nvsx-is-one-file-carrying-its-manifest). Decided in [0003](../adr/0003-extension-system.md), [0011](../adr/0011-functions-and-constants-are-class-members.md), [0078](../adr/0078-config-reload-and-control-socket.md).</sub>
+<sub>See also [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-nvsx-is-one-file-carrying-its-manifest`](packaging.md#packaging-an-nvsx-is-one-file-carrying-its-manifest). Decided in [0003](../decisions/0003.md), [0011](../decisions/0011.md), [0078](../decisions/0078.md).</sub>
 
 <a id="packaging-extension-loading-is-root-controlled"></a>
 
@@ -156,7 +156,7 @@ order-independent, and the set is folded into every compiled unit's key
 invalidation pass. A component is compiled once, into the same content-addressed artifact cache as
 Novis's own code, and the compiled module is shared across every core.
 
-<sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/lists-are-arrays-and-repeated-records-are-arrays-of-tables`](config.md#config-lists-are-arrays-and-repeated-records-are-arrays-of-tables), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-extension-package-carries-two-payloads`](packaging.md#packaging-an-extension-package-carries-two-payloads), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0003](../adr/0003-extension-system.md), [0064](../adr/0064-configuration-file-format.md), [0078](../adr/0078-config-reload-and-control-socket.md).</sub>
+<sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/lists-are-arrays-and-repeated-records-are-arrays-of-tables`](config.md#config-lists-are-arrays-and-repeated-records-are-arrays-of-tables), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-extension-package-carries-two-payloads`](packaging.md#packaging-an-extension-package-carries-two-payloads), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0003](../decisions/0003.md), [0064](../decisions/0064.md), [0078](../decisions/0078.md).</sub>
 
 <a id="packaging-a-fresh-instance-per-request"></a>
 
@@ -180,7 +180,7 @@ because a guest re-instantiated per request loses them every time; such a client
 ([`core-api/tier-placement`](core-api.md#core-api-tier-placement)). Cross-request state a program wants is explicit and host-owned
 ([`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit)).
 
-<sub>See also [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit), [`packaging/a-guest-runs-under-the-requests-budget`](packaging.md#packaging-a-guest-runs-under-the-requests-budget). Decided in [0003](../adr/0003-extension-system.md).</sub>
+<sub>See also [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit), [`packaging/a-guest-runs-under-the-requests-budget`](packaging.md#packaging-a-guest-runs-under-the-requests-budget). Decided in [0003](../decisions/0003.md).</sub>
 
 <a id="packaging-a-guest-runs-under-the-requests-budget"></a>
 
@@ -200,7 +200,7 @@ the way any other limit does ([`errors/on-limit`](errors.md#errors-on-limit)); i
 with third-party code inside it: a crashing or malicious extension harms one request, not every request
 in flight.
 
-<sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`packaging/a-fresh-instance-per-request`](packaging.md#packaging-a-fresh-instance-per-request). Decided in [0003](../adr/0003-extension-system.md), [0020](../adr/0020-error-escalation-ladder.md).</sub>
+<sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`packaging/a-fresh-instance-per-request`](packaging.md#packaging-a-fresh-instance-per-request). Decided in [0003](../decisions/0003.md), [0020](../decisions/0020.md).</sub>
 
 <a id="packaging-a-guest-has-no-ambient-authority"></a>
 
@@ -222,7 +222,7 @@ The same absence is what keeps an extension honest about qualifiers: with no amb
 sink of its own, it can declare what it consumes and produces but cannot launder
 ([`security/extension-cannot-launder`](security.md#security-extension-cannot-launder)).
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/extension-cannot-launder`](security.md#security-extension-cannot-launder). Decided in [0003](../adr/0003-extension-system.md).</sub>
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/extension-cannot-launder`](security.md#security-extension-cannot-launder). Decided in [0003](../decisions/0003.md).</sub>
 
 <a id="packaging-the-boundary-is-the-cost"></a>
 
@@ -245,7 +245,7 @@ a comparator, because sorting ten thousand strings through a per-comparison boun
 130,000 crossings; the image component crosses once per terminal
 ([`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline)).
 
-<sub>See also [`packaging/three-tiers`](packaging.md#packaging-three-tiers), [`packaging/values-cross-as-handles`](packaging.md#packaging-values-cross-as-handles), [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline). Decided in [0003](../adr/0003-extension-system.md), [0051](../adr/0051-standard-library-tiers.md).</sub>
+<sub>See also [`packaging/three-tiers`](packaging.md#packaging-three-tiers), [`packaging/values-cross-as-handles`](packaging.md#packaging-values-cross-as-handles), [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline). Decided in [0003](../decisions/0003.md), [0051](../decisions/0051.md).</sub>
 
 <a id="packaging-a-c-dependency-answers-two-questions"></a>
 
@@ -272,7 +272,7 @@ The test is enforced rather than remembered: `python tools/gen-attribution.py --
 default binary's C dependencies from the resolved graph and fails CI on any without a recorded answer
 ([`testing/attribution-is-diffed-in-ci`](testing.md#testing-attribution-is-diffed-in-ci)).
 
-<sub>See also [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`testing/attribution-is-diffed-in-ci`](testing.md#testing-attribution-is-diffed-in-ci), [`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component), [`packaging/the-third-party-notice-is-generated-never-written-by-hand`](packaging.md#packaging-the-third-party-notice-is-generated-never-written-by-hand). Decided in [0051](../adr/0051-standard-library-tiers.md).</sub>
+<sub>See also [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`testing/attribution-is-diffed-in-ci`](testing.md#testing-attribution-is-diffed-in-ci), [`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component), [`packaging/the-third-party-notice-is-generated-never-written-by-hand`](packaging.md#packaging-the-third-party-notice-is-generated-never-written-by-hand). Decided in [0051](../decisions/0051.md).</sub>
 
 <a id="packaging-a-service-is-one-stored-argv"></a>
 
@@ -304,7 +304,7 @@ control socket ([`config/one-local-control-socket`](config.md#config-one-local-c
 
 What that argv may name is [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink)'s closed list.
 
-<sub>See also [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink), [`packaging/the-argv-lives-in-imagepath`](packaging.md#packaging-the-argv-lives-in-imagepath), [`packaging/the-unit-is-printed-and-install-is-the-opt-in`](packaging.md#packaging-the-unit-is-printed-and-install-is-the-opt-in), [`config/one-local-control-socket`](config.md#config-one-local-control-socket), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only). Decided in [0093](../adr/0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md), [0078](../adr/0078-config-reload-and-control-socket.md).</sub>
+<sub>See also [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink), [`packaging/the-argv-lives-in-imagepath`](packaging.md#packaging-the-argv-lives-in-imagepath), [`packaging/the-unit-is-printed-and-install-is-the-opt-in`](packaging.md#packaging-the-unit-is-printed-and-install-is-the-opt-in), [`config/one-local-control-socket`](config.md#config-one-local-control-socket), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only). Decided in [0093](../decisions/0093.md), [0078](../decisions/0078.md).</sub>
 
 <a id="packaging-the-installer-is-a-sink"></a>
 
@@ -332,7 +332,7 @@ reason — never a bare non-zero exit. The refusals run in front of `nvs service
 operator learns what would have been refused without an elevated shell and without installing
 anything.
 
-<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`packaging/a-bundle-may-not-install-itself`](packaging.md#packaging-a-bundle-may-not-install-itself). Decided in [0093](../adr/0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md), [0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md), [0103](../adr/0103-configuration-is-a-tree-of-files.md), [0048](../adr/0048-portable-single-file-executables.md).</sub>
+<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`packaging/a-bundle-may-not-install-itself`](packaging.md#packaging-a-bundle-may-not-install-itself). Decided in [0093](../decisions/0093.md), [0088](../decisions/0088.md), [0103](../decisions/0103.md), [0048](../decisions/0048.md).</sub>
 
 <a id="packaging-the-argv-lives-in-imagepath"></a>
 
@@ -360,7 +360,7 @@ Novis's default install location is such a path, and the finding usually appears
 the installation. Arguments given to `sc start <name> arg` reach `ServiceMain` but are not persisted;
 nothing may depend on them, and `nvs service run` ignores them.
 
-<sub>See also [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`packaging/a-service-is-one-stored-argv`](packaging.md#packaging-a-service-is-one-stored-argv). Decided in [0093](../adr/0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md), [0044](../adr/0044-core-process-argv-only-no-shell.md).</sub>
+<sub>See also [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`packaging/a-service-is-one-stored-argv`](packaging.md#packaging-a-service-is-one-stored-argv). Decided in [0093](../decisions/0093.md), [0044](../decisions/0044.md).</sub>
 
 <a id="packaging-a-service-runs-as-a-virtual-account"></a>
 
@@ -377,7 +377,7 @@ its configuration and write its cache and log, and cannot write its own binary.
 than taken from the command line ([`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink)). `LocalSystem` is never the
 default and must be written out as `--account SYSTEM`.
 
-<sub>See also [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink), [`packaging/a-service-answers-its-manager`](packaging.md#packaging-a-service-answers-its-manager). Decided in [0093](../adr/0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md).</sub>
+<sub>See also [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink), [`packaging/a-service-answers-its-manager`](packaging.md#packaging-a-service-answers-its-manager). Decided in [0093](../decisions/0093.md).</sub>
 
 <a id="packaging-a-service-answers-its-manager"></a>
 
@@ -405,7 +405,7 @@ Windows event log, the first place an administrator looks. The event-log source 
 install and removed at uninstall, and `uninstall` leaves nothing behind: no registry key, no source, no
 unit file, no granted ACL.
 
-<sub>See also [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly), [`packaging/a-service-runs-as-a-virtual-account`](packaging.md#packaging-a-service-runs-as-a-virtual-account), [`http-server/the-residue-is-one-named-fault-class`](http-server.md#http-server-the-residue-is-one-named-fault-class). Decided in [0093](../adr/0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md), [0078](../adr/0078-config-reload-and-control-socket.md).</sub>
+<sub>See also [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly), [`packaging/a-service-runs-as-a-virtual-account`](packaging.md#packaging-a-service-runs-as-a-virtual-account), [`http-server/the-residue-is-one-named-fault-class`](http-server.md#http-server-the-residue-is-one-named-fault-class). Decided in [0093](../decisions/0093.md), [0078](../decisions/0078.md).</sub>
 
 <a id="packaging-the-unit-is-printed-and-install-is-the-opt-in"></a>
 
@@ -430,7 +430,7 @@ Nothing else is generated: no OpenRC, no SysV, no `rc.d`; `launchd` would take t
 shape if it is ever added. What the printed unit contains is
 [`packaging/the-generated-unit-is-hardened`](packaging.md#packaging-the-generated-unit-is-hardened).
 
-<sub>See also [`packaging/the-generated-unit-is-hardened`](packaging.md#packaging-the-generated-unit-is-hardened), [`packaging/the-argv-lives-in-imagepath`](packaging.md#packaging-the-argv-lives-in-imagepath), [`packaging/a-service-is-one-stored-argv`](packaging.md#packaging-a-service-is-one-stored-argv). Decided in [0093](../adr/0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md).</sub>
+<sub>See also [`packaging/the-generated-unit-is-hardened`](packaging.md#packaging-the-generated-unit-is-hardened), [`packaging/the-argv-lives-in-imagepath`](packaging.md#packaging-the-argv-lives-in-imagepath), [`packaging/a-service-is-one-stored-argv`](packaging.md#packaging-a-service-is-one-stored-argv). Decided in [0093](../decisions/0093.md).</sub>
 
 <a id="packaging-the-generated-unit-is-hardened"></a>
 
@@ -469,7 +469,7 @@ Socket activation — a privileged port with an empty capability set — is defe
 it changes how `nvs serve` acquires its listener, which makes it a server change the unit generator
 would simply follow.
 
-<sub>See also [`packaging/the-unit-is-printed-and-install-is-the-opt-in`](packaging.md#packaging-the-unit-is-printed-and-install-is-the-opt-in), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions), [`config/three-changeability-classes`](config.md#config-three-changeability-classes). Decided in [0093](../adr/0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md), [0097](../adr/0097-development-server-and-proxied-origin.md), [0051](../adr/0051-standard-library-tiers.md).</sub>
+<sub>See also [`packaging/the-unit-is-printed-and-install-is-the-opt-in`](packaging.md#packaging-the-unit-is-printed-and-install-is-the-opt-in), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions), [`config/three-changeability-classes`](config.md#config-three-changeability-classes). Decided in [0093](../decisions/0093.md), [0097](../decisions/0097.md), [0051](../decisions/0051.md).</sub>
 
 <a id="packaging-a-bundle-may-not-install-itself"></a>
 
@@ -490,7 +490,7 @@ The narrower rule — allow it for a non-`serve` payload — is rejected as a co
 carry in their head to serve a case nobody has asked for. Reopening this means arguing the trust-domain
 point directly.
 
-<sub>See also [`programs/bundle-trust-domain`](programs.md#programs-bundle-trust-domain), [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink). Decided in [0093](../adr/0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md), [0048](../adr/0048-portable-single-file-executables.md).</sub>
+<sub>See also [`programs/bundle-trust-domain`](programs.md#programs-bundle-trust-domain), [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink). Decided in [0093](../decisions/0093.md), [0048](../decisions/0048.md).</sub>
 
 <a id="packaging-a-service-is-operator-surface"></a>
 
@@ -510,7 +510,7 @@ causes it — and nothing per request. Its dependencies are one Windows-only cra
 crate for `sd_notify`, both behind `#[cfg]`, both pure Rust with no build script, and neither reachable
 from a served request.
 
-<sub>See also [`security/no-runtime-grant`](security.md#security-no-runtime-grant), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`packaging/a-service-is-one-stored-argv`](packaging.md#packaging-a-service-is-one-stored-argv). Decided in [0093](../adr/0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md), [0005](../adr/0005-config-changeability.md).</sub>
+<sub>See also [`security/no-runtime-grant`](security.md#security-no-runtime-grant), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`packaging/a-service-is-one-stored-argv`](packaging.md#packaging-a-service-is-one-stored-argv). Decided in [0093](../decisions/0093.md), [0005](../decisions/0005.md).</sub>
 
 <a id="packaging-an-extension-package-carries-two-payloads"></a>
 
@@ -536,7 +536,7 @@ would spend a boundary crossing per method to append to an array
 ([`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost)), and would hold plan state across calls in an instance
 whose whole premise is that state does not outlive a request.
 
-<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io), [`packaging/an-nvsx-is-one-file-carrying-its-manifest`](packaging.md#packaging-an-nvsx-is-one-file-carrying-its-manifest), [`packaging/extension-loading-is-root-controlled`](packaging.md#packaging-extension-loading-is-root-controlled), [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0120](../adr/0120-the-image-component-is-a-pipeline-that-crosses-the-boundary-once.md), [0081](../adr/0081-packages-are-digests-resolution-is-a-maximum.md), [0123](../adr/0123-spreadsheet-reading-and-generation-are-one-sandboxed-component-with-no-io.md).</sub>
+<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io), [`packaging/an-nvsx-is-one-file-carrying-its-manifest`](packaging.md#packaging-an-nvsx-is-one-file-carrying-its-manifest), [`packaging/extension-loading-is-root-controlled`](packaging.md#packaging-extension-loading-is-root-controlled), [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0120](../decisions/0120.md), [0081](../decisions/0081.md), [0123](../decisions/0123.md).</sub>
 
 <a id="packaging-pdf-decoding-ships-in-the-image-package"></a>
 
@@ -559,7 +559,7 @@ interpreter with an RCE history long enough that ImageMagick's stock policy ship
 disabled. A PDF interpreter is a strictly larger hostile-bytes case than any format already on the
 roster, and the sandbox is where a parser that size belongs.
 
-<sub>See also [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/image-format-roster`](core-classes.md#core-classes-image-format-roster), [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`packaging/an-extension-package-carries-two-payloads`](packaging.md#packaging-an-extension-package-carries-two-payloads). Decided in [0128](../adr/0128-a-pdf-page-is-a-decode-source-of-the-image-component.md), [0120](../adr/0120-the-image-component-is-a-pipeline-that-crosses-the-boundary-once.md), [0121](../adr/0121-pdf-generation-is-sandboxed-html-rendering-with-no-io.md).</sub>
+<sub>See also [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/image-format-roster`](core-classes.md#core-classes-image-format-roster), [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`packaging/an-extension-package-carries-two-payloads`](packaging.md#packaging-an-extension-package-carries-two-payloads). Decided in [0128](../decisions/0128.md), [0120](../decisions/0120.md), [0121](../decisions/0121.md).</sub>
 
 <a id="packaging-the-artifact-cache-is-read-not-mapped"></a>
 
@@ -581,7 +581,7 @@ What the entry contains, how it is verified before it becomes executable, and wh
 extension set ([`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key)) are unchanged by how its bytes
 arrive; only the read path is.
 
-<sub>See also [`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-artifact-is-verified-whole-before-a-page-is-executable`](packaging.md#packaging-an-artifact-is-verified-whole-before-a-page-is-executable), [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers). Decided in [0106](../adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md), [0042](../adr/0042-on-disk-artifact-cache-format.md).</sub>
+<sub>See also [`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-artifact-is-verified-whole-before-a-page-is-executable`](packaging.md#packaging-an-artifact-is-verified-whole-before-a-page-is-executable), [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers). Decided in [0106](../decisions/0106.md), [0042](../decisions/0042.md).</sub>
 
 <a id="packaging-an-artifact-is-one-immutable-content-addressed-file"></a>
 
@@ -616,7 +616,7 @@ independently creatable, verifiable and discardable, so a bug or an attack again
 blast radius of exactly one entry. The `[opcache]` directives that govern the store are
 [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system)'s.
 
-<sub>See also [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system), [`packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`](packaging.md#packaging-an-artifact-is-a-relocatable-object-behind-a-self-describing-header). Decided in [0042](../adr/0042-on-disk-artifact-cache-format.md), [0078](../adr/0078-config-reload-and-control-socket.md), [0017](../adr/0017-hot-reload-without-restart.md).</sub>
+<sub>See also [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system), [`packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`](packaging.md#packaging-an-artifact-is-a-relocatable-object-behind-a-self-describing-header). Decided in [0042](../decisions/0042.md), [0078](../decisions/0078.md), [0017](../decisions/0017.md).</sub>
 
 <a id="packaging-an-artifact-is-a-relocatable-object-behind-a-self-describing-header"></a>
 
@@ -650,7 +650,7 @@ process allocates are the ones the payload's undefined names refer to. A change 
 payload leaves undefined, or to what a reader must do with them, is a `format_version` bump: an older
 file becomes a plain miss rather than one relocated under yesterday's rules.
 
-<sub>See also [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file), [`packaging/an-artifact-is-verified-whole-before-a-page-is-executable`](packaging.md#packaging-an-artifact-is-verified-whole-before-a-page-is-executable), [`packaging/a-warm-hit-skips-codegen-not-the-front-end`](packaging.md#packaging-a-warm-hit-skips-codegen-not-the-front-end). Decided in [0042](../adr/0042-on-disk-artifact-cache-format.md).</sub>
+<sub>See also [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file), [`packaging/an-artifact-is-verified-whole-before-a-page-is-executable`](packaging.md#packaging-an-artifact-is-verified-whole-before-a-page-is-executable), [`packaging/a-warm-hit-skips-codegen-not-the-front-end`](packaging.md#packaging-a-warm-hit-skips-codegen-not-the-front-end). Decided in [0042](../decisions/0042.md).</sub>
 
 <a id="packaging-a-warm-hit-skips-codegen-not-the-front-end"></a>
 
@@ -673,7 +673,7 @@ format — with an IR class list versioned alongside the file, never a serialise
 A cold run pays its compile once per distinct (content, environment) pair, ever; every later run, in any
 process, is an `mmap`, a verify, a relocate and an `mprotect`.
 
-<sub>See also [`packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`](packaging.md#packaging-an-artifact-is-a-relocatable-object-behind-a-self-describing-header), [`packaging/an-artifact-is-verified-whole-before-a-page-is-executable`](packaging.md#packaging-an-artifact-is-verified-whole-before-a-page-is-executable). Decided in [0042](../adr/0042-on-disk-artifact-cache-format.md).</sub>
+<sub>See also [`packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`](packaging.md#packaging-an-artifact-is-a-relocatable-object-behind-a-self-describing-header), [`packaging/an-artifact-is-verified-whole-before-a-page-is-executable`](packaging.md#packaging-an-artifact-is-verified-whole-before-a-page-is-executable). Decided in [0042](../decisions/0042.md).</sub>
 
 <a id="packaging-an-artifact-is-verified-whole-before-a-page-is-executable"></a>
 
@@ -703,7 +703,7 @@ further away than a PC-relative call can reach gets an eight-byte cell holding i
 jump through it, so every displacement written names a target inside the reader's own mapping. A
 relocation that still does not fit is a miss, never a truncated address; so is an unresolvable symbol.
 
-<sub>See also [`packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`](packaging.md#packaging-an-artifact-is-a-relocatable-object-behind-a-self-describing-header), [`packaging/a-bad-cache-entry-is-a-miss-never-an-error`](packaging.md#packaging-a-bad-cache-entry-is-a-miss-never-an-error), [`packaging/the-checksum-proves-integrity-and-ownership-proves-trust`](packaging.md#packaging-the-checksum-proves-integrity-and-ownership-proves-trust). Decided in [0042](../adr/0042-on-disk-artifact-cache-format.md).</sub>
+<sub>See also [`packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`](packaging.md#packaging-an-artifact-is-a-relocatable-object-behind-a-self-describing-header), [`packaging/a-bad-cache-entry-is-a-miss-never-an-error`](packaging.md#packaging-a-bad-cache-entry-is-a-miss-never-an-error), [`packaging/the-checksum-proves-integrity-and-ownership-proves-trust`](packaging.md#packaging-the-checksum-proves-integrity-and-ownership-proves-trust). Decided in [0042](../decisions/0042.md).</sub>
 
 <a id="packaging-a-bad-cache-entry-is-a-miss-never-an-error"></a>
 
@@ -729,7 +729,7 @@ is not a silent miss is a cache directory another account can write, which
 [`packaging/the-checksum-proves-integrity-and-ownership-proves-trust`](packaging.md#packaging-the-checksum-proves-integrity-and-ownership-proves-trust) refuses out loud, because that
 is a breach of the boundary and not a bad entry.
 
-<sub>See also [`packaging/an-artifact-is-verified-whole-before-a-page-is-executable`](packaging.md#packaging-an-artifact-is-verified-whole-before-a-page-is-executable), [`errors/propagation`](errors.md#errors-propagation). Decided in [0042](../adr/0042-on-disk-artifact-cache-format.md).</sub>
+<sub>See also [`packaging/an-artifact-is-verified-whole-before-a-page-is-executable`](packaging.md#packaging-an-artifact-is-verified-whole-before-a-page-is-executable), [`errors/propagation`](errors.md#errors-propagation). Decided in [0042](../decisions/0042.md).</sub>
 
 <a id="packaging-a-writer-publishes-by-one-atomic-rename-and-never-a-lock"></a>
 
@@ -754,7 +754,7 @@ losing an un-synced entry means the next process recompiles it, which is a miss 
 sync on every write buys nothing. A failed write is likewise nobody's error: the caller drops it and the
 run continues on the compile it just did.
 
-<sub>See also [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file). Decided in [0042](../adr/0042-on-disk-artifact-cache-format.md).</sub>
+<sub>See also [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file). Decided in [0042](../decisions/0042.md).</sub>
 
 <a id="packaging-the-checksum-proves-integrity-and-ownership-proves-trust"></a>
 
@@ -782,7 +782,7 @@ silent fall back to compiling every time — a bad entry is invisible, a breache
 Ownership that changes after the process started is not re-checked mid-run, consistent with every other
 `System`-class directive ([`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system)).
 
-<sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system), [`packaging/an-artifact-is-verified-whole-before-a-page-is-executable`](packaging.md#packaging-an-artifact-is-verified-whole-before-a-page-is-executable). Decided in [0042](../adr/0042-on-disk-artifact-cache-format.md).</sub>
+<sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system), [`packaging/an-artifact-is-verified-whole-before-a-page-is-executable`](packaging.md#packaging-an-artifact-is-verified-whole-before-a-page-is-executable). Decided in [0042](../decisions/0042.md).</sub>
 
 <a id="packaging-eviction-rides-the-cold-miss-at-a-probability"></a>
 
@@ -807,7 +807,7 @@ The cache may transiently sit above its cap between the misses that happen to ro
 accepted trade, bounded by how unlikely a long silent stretch of pure hits is, and correctable at any
 time through [`packaging/nvs-cache-gc-and-clear-are-the-deterministic-escape`](packaging.md#packaging-nvs-cache-gc-and-clear-are-the-deterministic-escape).
 
-<sub>See also [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system), [`packaging/nvs-cache-gc-and-clear-are-the-deterministic-escape`](packaging.md#packaging-nvs-cache-gc-and-clear-are-the-deterministic-escape). Decided in [0042](../adr/0042-on-disk-artifact-cache-format.md).</sub>
+<sub>See also [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system), [`packaging/nvs-cache-gc-and-clear-are-the-deterministic-escape`](packaging.md#packaging-nvs-cache-gc-and-clear-are-the-deterministic-escape). Decided in [0042](../decisions/0042.md).</sub>
 
 <a id="packaging-nvs-cache-gc-and-clear-are-the-deterministic-escape"></a>
 
@@ -824,7 +824,7 @@ Neither is ever needed for correctness. A content-addressed entry cannot be stal
 changed toolchain or a changed extension set is a different key — so the only thing either command
 changes is disk usage, and the next run of anything they removed pays one cold compile.
 
-<sub>See also [`packaging/eviction-rides-the-cold-miss-at-a-probability`](packaging.md#packaging-eviction-rides-the-cold-miss-at-a-probability). Decided in [0042](../adr/0042-on-disk-artifact-cache-format.md).</sub>
+<sub>See also [`packaging/eviction-rides-the-cold-miss-at-a-probability`](packaging.md#packaging-eviction-rides-the-cold-miss-at-a-probability). Decided in [0042](../decisions/0042.md).</sub>
 
 <a id="packaging-a-wasm-module-cache-reuses-the-artifact-cache"></a>
 
@@ -842,7 +842,7 @@ The rule is that the cache is one mechanism with one trust story. An extension's
 subject to the same ownership check on the directory and the same checksum on the file as a program's,
 and a wrong-environment module is a miss at the path rather than a file that is opened and rejected.
 
-<sub>See also [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file), [`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component). Decided in [0042](../adr/0042-on-disk-artifact-cache-format.md).</sub>
+<sub>See also [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file), [`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component). Decided in [0042](../decisions/0042.md).</sub>
 
 <a id="packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host"></a>
 
@@ -869,7 +869,7 @@ genuinely new code is the footer writer and the footer reader
 ([`packaging/a-bundle-is-found-by-its-footer-before-argv-is-read`](packaging.md#packaging-a-bundle-is-found-by-its-footer-before-argv-is-read)); everything after that is the
 ordinary `nvs run` pipeline.
 
-<sub>See also [`programs/bundle-trust-domain`](programs.md#programs-bundle-trust-domain), [`packaging/a-bundle-carries-source-not-artifacts`](packaging.md#packaging-a-bundle-carries-source-not-artifacts), [`packaging/a-bundle-is-found-by-its-footer-before-argv-is-read`](packaging.md#packaging-a-bundle-is-found-by-its-footer-before-argv-is-read), [`packaging/a-macos-bundle-is-ad-hoc-signed-at-build`](packaging.md#packaging-a-macos-bundle-is-ad-hoc-signed-at-build). Decided in [0048](../adr/0048-portable-single-file-executables.md), [0093](../adr/0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md).</sub>
+<sub>See also [`programs/bundle-trust-domain`](programs.md#programs-bundle-trust-domain), [`packaging/a-bundle-carries-source-not-artifacts`](packaging.md#packaging-a-bundle-carries-source-not-artifacts), [`packaging/a-bundle-is-found-by-its-footer-before-argv-is-read`](packaging.md#packaging-a-bundle-is-found-by-its-footer-before-argv-is-read), [`packaging/a-macos-bundle-is-ad-hoc-signed-at-build`](packaging.md#packaging-a-macos-bundle-is-ad-hoc-signed-at-build). Decided in [0048](../decisions/0048.md), [0093](../decisions/0093.md).</sub>
 
 <a id="packaging-a-bundle-carries-source-not-artifacts"></a>
 
@@ -896,7 +896,7 @@ first `nvs run` of an uncached file pays, and a second run is a plain cache hit.
 recoverable from the executable by anyone who looks, the same posture as every comparable ecosystem's
 CLI bundling; hiding it is not a requirement, and neither encryption nor obfuscation is applied.
 
-<sub>See also [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file), [`packaging/a-bundled-require-resolves-at-build-time`](packaging.md#packaging-a-bundled-require-resolves-at-build-time). Decided in [0048](../adr/0048-portable-single-file-executables.md), [0042](../adr/0042-on-disk-artifact-cache-format.md).</sub>
+<sub>See also [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file), [`packaging/a-bundled-require-resolves-at-build-time`](packaging.md#packaging-a-bundled-require-resolves-at-build-time). Decided in [0048](../decisions/0048.md), [0042](../decisions/0042.md).</sub>
 
 <a id="packaging-a-bundled-require-resolves-at-build-time"></a>
 
@@ -919,7 +919,7 @@ diagnostic an ordinary run would give.
 This rule is the home for every closed-world target, and any other inherits it rather than restating
 it.
 
-<sub>See also [`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct), [`packaging/a-bundle-carries-source-not-artifacts`](packaging.md#packaging-a-bundle-carries-source-not-artifacts). Decided in [0048](../adr/0048-portable-single-file-executables.md), [0021](../adr/0021-single-file-inclusion-construct.md), [0025](../adr/0025-wasm-browser-target.md).</sub>
+<sub>See also [`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct), [`packaging/a-bundle-carries-source-not-artifacts`](packaging.md#packaging-a-bundle-carries-source-not-artifacts). Decided in [0048](../decisions/0048.md), [0021](../decisions/0021.md), [0025](../decisions/0025.md).</sub>
 
 <a id="packaging-a-bundle-is-found-by-its-footer-before-argv-is-read"></a>
 
@@ -949,7 +949,7 @@ code path with one different byte source for reads, so there is no second interp
 the first. A footer whose `format_version` this host does not understand is treated as no bundle at
 all, which is the one behaviour that cannot corrupt anything.
 
-<sub>See also [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host), [`packaging/a-bundle-carries-source-not-artifacts`](packaging.md#packaging-a-bundle-carries-source-not-artifacts). Decided in [0048](../adr/0048-portable-single-file-executables.md).</sub>
+<sub>See also [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host), [`packaging/a-bundle-carries-source-not-artifacts`](packaging.md#packaging-a-bundle-carries-source-not-artifacts). Decided in [0048](../decisions/0048.md).</sub>
 
 <a id="packaging-a-macos-bundle-is-ad-hoc-signed-at-build"></a>
 
@@ -967,7 +967,7 @@ one-time cost inside the build command, paid by the author at build time and nev
 which is also why a bundle never re-signs itself
 ([`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host)).
 
-<sub>See also [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host). Decided in [0048](../adr/0048-portable-single-file-executables.md).</sub>
+<sub>See also [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host). Decided in [0048](../decisions/0048.md).</sub>
 
 <a id="packaging-a-nvsx-dependency-embeds-in-the-same-payload"></a>
 
@@ -985,7 +985,7 @@ An extension embedded in a bundle behaves identically to the same extension load
 `[[extension]]` entry for a plain `nvs run`: it is the same component, the same manifest and the same
 pin, read from a different byte source.
 
-<sub>See also [`packaging/a-bundle-carries-source-not-artifacts`](packaging.md#packaging-a-bundle-carries-source-not-artifacts), [`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component). Decided in [0048](../adr/0048-portable-single-file-executables.md), [0003](../adr/0003-extension-system.md).</sub>
+<sub>See also [`packaging/a-bundle-carries-source-not-artifacts`](packaging.md#packaging-a-bundle-carries-source-not-artifacts), [`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component). Decided in [0048](../decisions/0048.md), [0003](../decisions/0003.md).</sub>
 
 <a id="packaging-build-compile-packages-what-is-on-disk-and-resolves-nothing"></a>
 
@@ -1002,7 +1002,7 @@ Resolving dependencies into source on disk is a separate command's job — `nvs 
 compose rather than overlap: `nvs pkg install && nvs build --compile`. Keeping them apart is what keeps
 the bundler's own surface at one input, one output and one footer.
 
-<sub>See also [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host). Decided in [0048](../adr/0048-portable-single-file-executables.md).</sub>
+<sub>See also [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host). Decided in [0048](../decisions/0048.md).</sub>
 
 <a id="packaging-the-third-party-notice-is-generated-never-written-by-hand"></a>
 
@@ -1035,7 +1035,7 @@ Dev-dependencies are excluded — they are linked into nothing a user receives. 
 CI diffs it ([`testing/attribution-is-diffed-in-ci`](testing.md#testing-attribution-is-diffed-in-ci)), and the binary carries it
 ([`packaging/the-notice-is-embedded-in-the-binary`](packaging.md#packaging-the-notice-is-embedded-in-the-binary)).
 
-<sub>See also [`testing/attribution-is-diffed-in-ci`](testing.md#testing-attribution-is-diffed-in-ci), [`packaging/the-notice-is-embedded-in-the-binary`](packaging.md#packaging-the-notice-is-embedded-in-the-binary). Decided in [0065](../adr/0065-third-party-attribution-and-nvs-info.md).</sub>
+<sub>See also [`testing/attribution-is-diffed-in-ci`](testing.md#testing-attribution-is-diffed-in-ci), [`packaging/the-notice-is-embedded-in-the-binary`](packaging.md#packaging-the-notice-is-embedded-in-the-binary). Decided in [0065](../decisions/0065.md).</sub>
 
 <a id="packaging-the-notice-is-embedded-in-the-binary"></a>
 
@@ -1057,7 +1057,7 @@ is changed alone.
 The cost is roughly 55 KB of read-only data in a binary measured in tens of megabytes: priority 5 spent
 on a legal obligation, never touching a request path.
 
-<sub>See also [`packaging/the-third-party-notice-is-generated-never-written-by-hand`](packaging.md#packaging-the-third-party-notice-is-generated-never-written-by-hand), [`packaging/nvs-info-is-the-one-call-and-nvs-i-its-php-spelling`](packaging.md#packaging-nvs-info-is-the-one-call-and-nvs-i-its-php-spelling). Decided in [0065](../adr/0065-third-party-attribution-and-nvs-info.md).</sub>
+<sub>See also [`packaging/the-third-party-notice-is-generated-never-written-by-hand`](packaging.md#packaging-the-third-party-notice-is-generated-never-written-by-hand), [`packaging/nvs-info-is-the-one-call-and-nvs-i-its-php-spelling`](packaging.md#packaging-nvs-info-is-the-one-call-and-nvs-i-its-php-spelling). Decided in [0065](../decisions/0065.md).</sub>
 
 <a id="packaging-nvs-info-is-the-one-call-and-nvs-i-its-php-spelling"></a>
 
@@ -1086,7 +1086,7 @@ Fields that do not exist yet are not printed; the report grows a section as each
 lands. **It reports no per-request state, ever** — that is [`testing/debug-probes`](testing.md#testing-debug-probes)' territory and is
 flag-gated for reasons this command does not share.
 
-<sub>See also [`packaging/the-notice-is-embedded-in-the-binary`](packaging.md#packaging-the-notice-is-embedded-in-the-binary), [`packaging/a-build-records-no-timestamp`](packaging.md#packaging-a-build-records-no-timestamp), [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`testing/debug-probes`](testing.md#testing-debug-probes). Decided in [0065](../adr/0065-third-party-attribution-and-nvs-info.md).</sub>
+<sub>See also [`packaging/the-notice-is-embedded-in-the-binary`](packaging.md#packaging-the-notice-is-embedded-in-the-binary), [`packaging/a-build-records-no-timestamp`](packaging.md#packaging-a-build-records-no-timestamp), [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`testing/debug-probes`](testing.md#testing-debug-probes). Decided in [0065](../decisions/0065.md).</sub>
 
 <a id="packaging-a-build-records-no-timestamp"></a>
 
@@ -1103,7 +1103,7 @@ worth more than knowing when it happened.
 is present, and every fact that cannot be determined becomes `unknown` rather than failing the build.
 All of it reaches [`packaging/nvs-info-is-the-one-call-and-nvs-i-its-php-spelling`](packaging.md#packaging-nvs-info-is-the-one-call-and-nvs-i-its-php-spelling)'s report.
 
-<sub>See also [`packaging/nvs-info-is-the-one-call-and-nvs-i-its-php-spelling`](packaging.md#packaging-nvs-info-is-the-one-call-and-nvs-i-its-php-spelling). Decided in [0065](../adr/0065-third-party-attribution-and-nvs-info.md).</sub>
+<sub>See also [`packaging/nvs-info-is-the-one-call-and-nvs-i-its-php-spelling`](packaging.md#packaging-nvs-info-is-the-one-call-and-nvs-i-its-php-spelling). Decided in [0065](../decisions/0065.md).</sub>
 
 <a id="packaging-a-package-is-its-digest"></a>
 
@@ -1133,7 +1133,7 @@ what makes "the digest is the identity" a statement about code a human could rea
 subcommand, no `package.toml` or `package.lock` reader, and nothing in the tree digests a package
 archive.
 
-<sub>See also [`packaging/a-package-name-is-vendor-slash-name`](packaging.md#packaging-a-package-name-is-vendor-slash-name), [`packaging/a-package-cannot-reach-its-host`](packaging.md#packaging-a-package-cannot-reach-its-host), [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`programs/bundle-trust-domain`](programs.md#programs-bundle-trust-domain), [`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component), [`packaging/an-extension-package-carries-two-payloads`](packaging.md#packaging-an-extension-package-carries-two-payloads), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file). Decided in [0081](../adr/0081-packages-are-digests-resolution-is-a-maximum.md), [0120](../adr/0120-the-image-component-is-a-pipeline-that-crosses-the-boundary-once.md), [0042](../adr/0042-on-disk-artifact-cache-format.md), [0003](../adr/0003-extension-system.md).</sub>
+<sub>See also [`packaging/a-package-name-is-vendor-slash-name`](packaging.md#packaging-a-package-name-is-vendor-slash-name), [`packaging/a-package-cannot-reach-its-host`](packaging.md#packaging-a-package-cannot-reach-its-host), [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`programs/bundle-trust-domain`](programs.md#programs-bundle-trust-domain), [`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component), [`packaging/an-extension-package-carries-two-payloads`](packaging.md#packaging-an-extension-package-carries-two-payloads), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file). Decided in [0081](../decisions/0081.md), [0120](../decisions/0120.md), [0042](../decisions/0042.md), [0003](../decisions/0003.md).</sub>
 
 <a id="packaging-a-package-name-is-vendor-slash-name"></a>
 
@@ -1153,7 +1153,7 @@ registry whose maintainers do not depend on it does not stay good.
 
 Names are first-come, and the squatting policy is the registry operator's own operational document.
 
-<sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace), [`programs/path-case`](programs.md#programs-path-case), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions). Decided in [0081](../adr/0081-packages-are-digests-resolution-is-a-maximum.md), [0062](../adr/0062-case-sensitivity-is-a-compiler-property.md), [0051](../adr/0051-standard-library-tiers.md).</sub>
+<sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace), [`programs/path-case`](programs.md#programs-path-case), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions). Decided in [0081](../decisions/0081.md), [0062](../decisions/0062.md), [0051](../decisions/0051.md).</sub>
 
 <a id="packaging-a-package-cannot-reach-its-host"></a>
 
@@ -1177,7 +1177,7 @@ same canonicalise-and-prefix-check `spawn script` performs against its granted r
 **Not on disk.** No fetch path exists to refuse an archive, and the compiler has no file-to-package
 map against which to check a path.
 
-<sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix). Decided in [0081](../adr/0081-packages-are-digests-resolution-is-a-maximum.md), [0064](../adr/0064-configuration-file-format.md), [0006](../adr/0006-isolated-script-execution.md).</sub>
+<sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix). Decided in [0081](../decisions/0081.md), [0064](../decisions/0064.md), [0006](../decisions/0006.md).</sub>
 
 <a id="packaging-a-git-dependency-is-root-only"></a>
 
@@ -1205,7 +1205,7 @@ that cannot use the public one runs or mirrors its own, and nothing above change
 
 **Not on disk**, with the rest of the package system.
 
-<sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest), [`packaging/publishing-never-overwrites`](packaging.md#packaging-publishing-never-overwrites). Decided in [0081](../adr/0081-packages-are-digests-resolution-is-a-maximum.md).</sub>
+<sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest), [`packaging/publishing-never-overwrites`](packaging.md#packaging-publishing-never-overwrites). Decided in [0081](../decisions/0081.md).</sub>
 
 <a id="packaging-resolution-takes-the-highest-minimum"></a>
 
@@ -1232,7 +1232,7 @@ than an afterthought.
 A minimum is a floor and never a ceiling, so the algorithm is sound only if a higher version is
 always acceptable — which is what [`packaging/a-breaking-release-is-a-new-name`](packaging.md#packaging-a-breaking-release-is-a-new-name) guarantees.
 
-<sub>See also [`packaging/a-breaking-release-is-a-new-name`](packaging.md#packaging-a-breaking-release-is-a-new-name), [`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted), [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest). Decided in [0081](../adr/0081-packages-are-digests-resolution-is-a-maximum.md).</sub>
+<sub>See also [`packaging/a-breaking-release-is-a-new-name`](packaging.md#packaging-a-breaking-release-is-a-new-name), [`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted), [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest). Decided in [0081](../decisions/0081.md).</sub>
 
 <a id="packaging-a-breaking-release-is-a-new-name"></a>
 
@@ -1255,7 +1255,7 @@ dependencies — is what makes a rename rare enough to live with.
 The rule is watched rather than enforced: if library authors route around it by shipping breaks
 under the same name, either an API-diff check at publish or a ceiling mechanism becomes necessary.
 
-<sub>See also [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum), [`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded), [`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted). Decided in [0081](../adr/0081-packages-are-digests-resolution-is-a-maximum.md), [0068](../adr/0068-dependency-currency-and-the-version-contract.md).</sub>
+<sub>See also [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum), [`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded), [`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted). Decided in [0081](../decisions/0081.md), [0068](../decisions/0068.md).</sub>
 
 <a id="packaging-a-known-bad-version-is-retracted-not-deleted"></a>
 
@@ -1276,7 +1276,7 @@ range expresses that a minimum cannot: "not 2.3.1, it is broken".
 If audit proves insufficient in practice and users sit on known-vulnerable versions, the thing to
 argue is a narrowly scoped automatic patch floor, not a general range system.
 
-<sub>See also [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum), [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log). Decided in [0081](../adr/0081-packages-are-digests-resolution-is-a-maximum.md).</sub>
+<sub>See also [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum), [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log). Decided in [0081](../decisions/0081.md).</sub>
 
 <a id="packaging-nothing-runs-before-the-program"></a>
 
@@ -1304,7 +1304,7 @@ language with no FFI and no native compilation step available to userland, an al
 "packages that genuinely need it" would exist only to be abused, and if such a need ever appears
 the rule is re-argued from scratch rather than amended.
 
-<sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`security/no-eval`](security.md#security-no-eval), [`security/closed-doors`](security.md#security-closed-doors), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time). Decided in [0081](../adr/0081-packages-are-digests-resolution-is-a-maximum.md), [0052](../adr/0052-closed-doors.md), [0046](../adr/0046-attributes-shape-literal-metadata.md), [0071](../adr/0071-derived-codecs.md).</sub>
+<sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`security/no-eval`](security.md#security-no-eval), [`security/closed-doors`](security.md#security-closed-doors), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time). Decided in [0081](../decisions/0081.md), [0052](../decisions/0052.md), [0046](../decisions/0046.md), [0071](../decisions/0071.md).</sub>
 
 <a id="packaging-the-lockfile-holds-every-digest"></a>
 
@@ -1328,7 +1328,7 @@ The lock is for integrity, not for determinism: [`packaging/resolution-takes-the
 is deterministic on its own, and `nvs build --locked` on a clean machine with an empty cache produces
 byte-identical compiled units to the machine that wrote the lock, on all three platforms.
 
-<sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log), [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file). Decided in [0081](../adr/0081-packages-are-digests-resolution-is-a-maximum.md), [0042](../adr/0042-on-disk-artifact-cache-format.md).</sub>
+<sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log), [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file). Decided in [0081](../decisions/0081.md), [0042](../decisions/0042.md).</sub>
 
 <a id="packaging-the-registry-keeps-an-append-only-log"></a>
 
@@ -1352,7 +1352,7 @@ The log is also why a registry, rather than git URLs alone, is the transitive so
 the advisory feed and `nvs audit` all need a namespace with an authority behind it that cannot
 quietly rewrite what it said.
 
-<sub>See also [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest), [`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted), [`packaging/publishing-never-overwrites`](packaging.md#packaging-publishing-never-overwrites). Decided in [0081](../adr/0081-packages-are-digests-resolution-is-a-maximum.md).</sub>
+<sub>See also [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest), [`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted), [`packaging/publishing-never-overwrites`](packaging.md#packaging-publishing-never-overwrites). Decided in [0081](../decisions/0081.md).</sub>
 
 <a id="packaging-a-fetched-package-is-an-autoload-line"></a>
 
@@ -1385,7 +1385,7 @@ compilation ([`packaging/a-package-file-stays-under-its-declared-prefix`](packag
 
 **Not on disk.** `autoload` is shipped; `nvs fetch` and the generated file are not.
 
-<sub>See also [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`programs/autoload`](programs.md#programs-autoload), [`packaging/a-package-file-stays-under-its-declared-prefix`](packaging.md#packaging-a-package-file-stays-under-its-declared-prefix), [`packaging/package-toml-is-a-tool-input`](packaging.md#packaging-package-toml-is-a-tool-input), [`packaging/autoload-probes-fold-into-the-cache-key`](packaging.md#packaging-autoload-probes-fold-into-the-cache-key). Decided in [0081](../adr/0081-packages-are-digests-resolution-is-a-maximum.md), [0061](../adr/0061-compile-time-autoload-and-program-discovery.md).</sub>
+<sub>See also [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`programs/autoload`](programs.md#programs-autoload), [`packaging/a-package-file-stays-under-its-declared-prefix`](packaging.md#packaging-a-package-file-stays-under-its-declared-prefix), [`packaging/package-toml-is-a-tool-input`](packaging.md#packaging-package-toml-is-a-tool-input), [`packaging/autoload-probes-fold-into-the-cache-key`](packaging.md#packaging-autoload-probes-fold-into-the-cache-key). Decided in [0081](../decisions/0081.md), [0061](../decisions/0061.md).</sub>
 
 <a id="packaging-package-toml-is-a-tool-input"></a>
 
@@ -1414,7 +1414,7 @@ It is TOML with unknown fields refused ([`config/a-duplicate-key-is-an-error-and
 and its integration with the program is the generated file
 [`packaging/a-fetched-package-is-an-autoload-line`](packaging.md#packaging-a-fetched-package-is-an-autoload-line) describes.
 
-<sub>See also [`packaging/a-fetched-package-is-an-autoload-line`](packaging.md#packaging-a-fetched-package-is-an-autoload-line), [`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest), [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`security/optional-capability-degrades`](security.md#security-optional-capability-degrades). Decided in [0081](../adr/0081-packages-are-digests-resolution-is-a-maximum.md), [0061](../adr/0061-compile-time-autoload-and-program-discovery.md), [0064](../adr/0064-configuration-file-format.md), [0112](../adr/0112-authority-is-keyed-on-the-enclosing-namespace.md).</sub>
+<sub>See also [`packaging/a-fetched-package-is-an-autoload-line`](packaging.md#packaging-a-fetched-package-is-an-autoload-line), [`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest), [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`security/optional-capability-degrades`](security.md#security-optional-capability-degrades). Decided in [0081](../decisions/0081.md), [0061](../decisions/0061.md), [0064](../decisions/0064.md), [0112](../decisions/0112.md).</sub>
 
 <a id="packaging-publishing-never-overwrites"></a>
 
@@ -1439,7 +1439,7 @@ Operating the registry — index, artifact store, log, advisory feed, accounts, 
 is a real and permanent responsibility; the protocol is static signed files so that the serving side
 is cheap and mirrorable, but the responsibility is the main cost of having a package system at all.
 
-<sub>See also [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log), [`packaging/a-git-dependency-is-root-only`](packaging.md#packaging-a-git-dependency-is-root-only), [`packaging/a-package-cannot-reach-its-host`](packaging.md#packaging-a-package-cannot-reach-its-host), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time). Decided in [0081](../adr/0081-packages-are-digests-resolution-is-a-maximum.md).</sub>
+<sub>See also [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log), [`packaging/a-git-dependency-is-root-only`](packaging.md#packaging-a-git-dependency-is-root-only), [`packaging/a-package-cannot-reach-its-host`](packaging.md#packaging-a-package-cannot-reach-its-host), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time). Decided in [0081](../decisions/0081.md).</sub>
 
 <a id="packaging-a-package-file-stays-under-its-declared-prefix"></a>
 
@@ -1471,7 +1471,7 @@ did not think about it.
 **Not on disk.** The diagnostic code the design named has since been issued to a configuration
 refusal; the check takes the band's next free number when it lands.
 
-<sub>See also [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace), [`security/an-unmatched-namespace-holds-the-application`](security.md#security-an-unmatched-namespace-holds-the-application), [`packaging/a-fetched-package-is-an-autoload-line`](packaging.md#packaging-a-fetched-package-is-an-autoload-line). Decided in [0112](../adr/0112-authority-is-keyed-on-the-enclosing-namespace.md), [0081](../adr/0081-packages-are-digests-resolution-is-a-maximum.md).</sub>
+<sub>See also [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace), [`security/an-unmatched-namespace-holds-the-application`](security.md#security-an-unmatched-namespace-holds-the-application), [`packaging/a-fetched-package-is-an-autoload-line`](packaging.md#packaging-a-fetched-package-is-an-autoload-line). Decided in [0112](../decisions/0112.md), [0081](../decisions/0081.md).</sub>
 
 <a id="packaging-autoload-probes-fold-into-the-cache-key"></a>
 
@@ -1503,7 +1503,7 @@ arise; resolution happens once, at build time.
 **Not on disk.** The resolver produces the probe trace and then drops it: the revalidation table the
 key needs does not exist yet, so neither the trace nor the listed directories reach a cache key.
 
-<sub>See also [`programs/autoload`](programs.md#programs-autoload), [`programs/implementing`](programs.md#programs-implementing), [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file). Decided in [0061](../adr/0061-compile-time-autoload-and-program-discovery.md), [0042](../adr/0042-on-disk-artifact-cache-format.md).</sub>
+<sub>See also [`programs/autoload`](programs.md#programs-autoload), [`programs/implementing`](programs.md#programs-implementing), [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file). Decided in [0061](../decisions/0061.md), [0042](../decisions/0042.md).</sub>
 
 <a id="packaging-the-version-contract-starts-at-0-1-0"></a>
 
@@ -1530,7 +1530,7 @@ The scheme ([`packaging/below-1-0-the-breaking-slot-moves-left`](packaging.md#pa
 plan a version at or past 0.1.0 without an explicit flag acknowledging that the contract begins
 there, and the workspace version is below it.
 
-<sub>See also [`packaging/below-1-0-the-breaking-slot-moves-left`](packaging.md#packaging-below-1-0-the-breaking-slot-moves-left), [`packaging/the-versioned-surface-is-enumerated`](packaging.md#packaging-the-versioned-surface-is-enumerated), [`packaging/the-sweep-is-fired-by-a-human`](packaging.md#packaging-the-sweep-is-fired-by-a-human), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise). Decided in [0068](../adr/0068-dependency-currency-and-the-version-contract.md).</sub>
+<sub>See also [`packaging/below-1-0-the-breaking-slot-moves-left`](packaging.md#packaging-below-1-0-the-breaking-slot-moves-left), [`packaging/the-versioned-surface-is-enumerated`](packaging.md#packaging-the-versioned-surface-is-enumerated), [`packaging/the-sweep-is-fired-by-a-human`](packaging.md#packaging-the-sweep-is-fired-by-a-human), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise). Decided in [0068](../decisions/0068.md).</sub>
 
 <a id="packaging-the-versioned-surface-is-enumerated"></a>
 
@@ -1562,7 +1562,7 @@ And **explicitly does not version**:
 The contract is not in force until [`packaging/the-version-contract-starts-at-0-1-0`](packaging.md#packaging-the-version-contract-starts-at-0-1-0) throws its
 switch.
 
-<sub>See also [`packaging/who-can-see-it-decides-the-release-slot`](packaging.md#packaging-who-can-see-it-decides-the-release-slot), [`packaging/the-version-contract-starts-at-0-1-0`](packaging.md#packaging-the-version-contract-starts-at-0-1-0), [`programs/bundle-trust-domain`](programs.md#programs-bundle-trust-domain), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host). Decided in [0068](../adr/0068-dependency-currency-and-the-version-contract.md), [0042](../adr/0042-on-disk-artifact-cache-format.md), [0048](../adr/0048-portable-single-file-executables.md).</sub>
+<sub>See also [`packaging/who-can-see-it-decides-the-release-slot`](packaging.md#packaging-who-can-see-it-decides-the-release-slot), [`packaging/the-version-contract-starts-at-0-1-0`](packaging.md#packaging-the-version-contract-starts-at-0-1-0), [`programs/bundle-trust-domain`](programs.md#programs-bundle-trust-domain), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host). Decided in [0068](../decisions/0068.md), [0042](../decisions/0042.md), [0048](../decisions/0048.md).</sub>
 
 <a id="packaging-below-1-0-the-breaking-slot-moves-left"></a>
 
@@ -1584,7 +1584,7 @@ where `MAJOR` is the breaking slot.
 The scheme applies in both of [`packaging/the-version-contract-starts-at-0-1-0`](packaging.md#packaging-the-version-contract-starts-at-0-1-0)'s regimes; what
 a slot *promises* is the contract's, through [`packaging/who-can-see-it-decides-the-release-slot`](packaging.md#packaging-who-can-see-it-decides-the-release-slot).
 
-<sub>See also [`packaging/the-version-contract-starts-at-0-1-0`](packaging.md#packaging-the-version-contract-starts-at-0-1-0), [`packaging/who-can-see-it-decides-the-release-slot`](packaging.md#packaging-who-can-see-it-decides-the-release-slot). Decided in [0068](../adr/0068-dependency-currency-and-the-version-contract.md).</sub>
+<sub>See also [`packaging/the-version-contract-starts-at-0-1-0`](packaging.md#packaging-the-version-contract-starts-at-0-1-0), [`packaging/who-can-see-it-decides-the-release-slot`](packaging.md#packaging-who-can-see-it-decides-the-release-slot). Decided in [0068](../decisions/0068.md).</sub>
 
 <a id="packaging-who-can-see-it-decides-the-release-slot"></a>
 
@@ -1613,7 +1613,7 @@ ladder its last rows send a change down is [`packaging/a-dependency-break-is-abs
 Nothing checks the classification; it is addressed to whoever runs the sweep, and the commit message
 is where it becomes visible ([`packaging/one-bump-one-commit`](packaging.md#packaging-one-bump-one-commit)).
 
-<sub>See also [`packaging/the-versioned-surface-is-enumerated`](packaging.md#packaging-the-versioned-surface-is-enumerated), [`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded), [`packaging/below-1-0-the-breaking-slot-moves-left`](packaging.md#packaging-below-1-0-the-breaking-slot-moves-left), [`packaging/one-bump-one-commit`](packaging.md#packaging-one-bump-one-commit). Decided in [0068](../adr/0068-dependency-currency-and-the-version-contract.md).</sub>
+<sub>See also [`packaging/the-versioned-surface-is-enumerated`](packaging.md#packaging-the-versioned-surface-is-enumerated), [`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded), [`packaging/below-1-0-the-breaking-slot-moves-left`](packaging.md#packaging-below-1-0-the-breaking-slot-moves-left), [`packaging/one-bump-one-commit`](packaging.md#packaging-one-bump-one-commit). Decided in [0068](../decisions/0068.md).</sub>
 
 <a id="packaging-a-dependency-break-is-absorbed-never-forwarded"></a>
 
@@ -1650,7 +1650,7 @@ Steps 2 and 3 mean carrying adapters with no feature to their name — simplicit
 implementation spent for compatibility of the program, deliberately. A dependency that repeatedly
 forces the ladder is a design problem, not an update problem; the hold dates are the evidence.
 
-<sub>See also [`packaging/who-can-see-it-decides-the-release-slot`](packaging.md#packaging-who-can-see-it-decides-the-release-slot), [`packaging/a-forced-break-is-announced-before-it-lands`](packaging.md#packaging-a-forced-break-is-announced-before-it-lands), [`packaging/a-breaking-release-is-a-new-name`](packaging.md#packaging-a-breaking-release-is-a-new-name), [`packaging/the-sweep-is-fired-by-a-human`](packaging.md#packaging-the-sweep-is-fired-by-a-human), [`security/no-ffi`](security.md#security-no-ffi), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions), [`packaging/the-third-party-notice-is-generated-never-written-by-hand`](packaging.md#packaging-the-third-party-notice-is-generated-never-written-by-hand). Decided in [0068](../adr/0068-dependency-currency-and-the-version-contract.md), [0004](../adr/0004-memory-for-simplicity.md), [0065](../adr/0065-third-party-attribution-and-nvs-info.md).</sub>
+<sub>See also [`packaging/who-can-see-it-decides-the-release-slot`](packaging.md#packaging-who-can-see-it-decides-the-release-slot), [`packaging/a-forced-break-is-announced-before-it-lands`](packaging.md#packaging-a-forced-break-is-announced-before-it-lands), [`packaging/a-breaking-release-is-a-new-name`](packaging.md#packaging-a-breaking-release-is-a-new-name), [`packaging/the-sweep-is-fired-by-a-human`](packaging.md#packaging-the-sweep-is-fired-by-a-human), [`security/no-ffi`](security.md#security-no-ffi), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions), [`packaging/the-third-party-notice-is-generated-never-written-by-hand`](packaging.md#packaging-the-third-party-notice-is-generated-never-written-by-hand). Decided in [0068](../decisions/0068.md), [0004](../decisions/0004.md), [0065](../decisions/0065.md).</sub>
 
 <a id="packaging-a-forced-break-is-announced-before-it-lands"></a>
 
@@ -1671,7 +1671,7 @@ option in either case.
 This is the seventh step of [`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded), and it
 is reached only after the six above it are exhausted.
 
-<sub>See also [`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded), [`packaging/who-can-see-it-decides-the-release-slot`](packaging.md#packaging-who-can-see-it-decides-the-release-slot). Decided in [0068](../adr/0068-dependency-currency-and-the-version-contract.md).</sub>
+<sub>See also [`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded), [`packaging/who-can-see-it-decides-the-release-slot`](packaging.md#packaging-who-can-see-it-decides-the-release-slot). Decided in [0068](../decisions/0068.md).</sub>
 
 <a id="packaging-a-dependency-move-proves-two-things"></a>
 
@@ -1695,7 +1695,7 @@ commit.** CI fails otherwise, and correctly: the notice is a licence obligation,
 ([`testing/ci-lanes`](testing.md#testing-ci-lanes)); they are what make a hold, a vendored fork and this rule enforceable
 rather than aspirational.
 
-<sub>See also [`testing/attribution-is-diffed-in-ci`](testing.md#testing-attribution-is-diffed-in-ci), [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`packaging/one-bump-one-commit`](packaging.md#packaging-one-bump-one-commit), [`packaging/the-sweep-is-fired-by-a-human`](packaging.md#packaging-the-sweep-is-fired-by-a-human), [`packaging/the-third-party-notice-is-generated-never-written-by-hand`](packaging.md#packaging-the-third-party-notice-is-generated-never-written-by-hand). Decided in [0068](../adr/0068-dependency-currency-and-the-version-contract.md), [0065](../adr/0065-third-party-attribution-and-nvs-info.md), [0143](../adr/0143-a-push-runs-the-lane-its-diff-needs-the-nightly.md).</sub>
+<sub>See also [`testing/attribution-is-diffed-in-ci`](testing.md#testing-attribution-is-diffed-in-ci), [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`packaging/one-bump-one-commit`](packaging.md#packaging-one-bump-one-commit), [`packaging/the-sweep-is-fired-by-a-human`](packaging.md#packaging-the-sweep-is-fired-by-a-human), [`packaging/the-third-party-notice-is-generated-never-written-by-hand`](packaging.md#packaging-the-third-party-notice-is-generated-never-written-by-hand). Decided in [0068](../decisions/0068.md), [0065](../decisions/0065.md), [0143](../decisions/0143.md).</sub>
 
 <a id="packaging-one-bump-one-commit"></a>
 
@@ -1713,7 +1713,7 @@ wall of them, and that is reason enough. Nothing checks the rule; it is addresse
 sweep ([`packaging/the-sweep-is-fired-by-a-human`](packaging.md#packaging-the-sweep-is-fired-by-a-human)), and the sweep's report is where a violation
 becomes visible.
 
-<sub>See also [`packaging/who-can-see-it-decides-the-release-slot`](packaging.md#packaging-who-can-see-it-decides-the-release-slot), [`packaging/a-dependency-move-proves-two-things`](packaging.md#packaging-a-dependency-move-proves-two-things), [`packaging/the-sweep-is-fired-by-a-human`](packaging.md#packaging-the-sweep-is-fired-by-a-human). Decided in [0068](../adr/0068-dependency-currency-and-the-version-contract.md).</sub>
+<sub>See also [`packaging/who-can-see-it-decides-the-release-slot`](packaging.md#packaging-who-can-see-it-decides-the-release-slot), [`packaging/a-dependency-move-proves-two-things`](packaging.md#packaging-a-dependency-move-proves-two-things), [`packaging/the-sweep-is-fired-by-a-human`](packaging.md#packaging-the-sweep-is-fired-by-a-human). Decided in [0068](../decisions/0068.md).</sub>
 
 <a id="packaging-the-sweep-is-fired-by-a-human"></a>
 
@@ -1741,4 +1741,4 @@ is a defect**: it gets a hold with a date and a reason, or it gets updated. Bein
 neutral state, because the alternative is one enormous forced migration under a security deadline.
 The cadence applies in both of [`packaging/the-version-contract-starts-at-0-1-0`](packaging.md#packaging-the-version-contract-starts-at-0-1-0)'s regimes.
 
-<sub>See also [`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded), [`packaging/a-dependency-move-proves-two-things`](packaging.md#packaging-a-dependency-move-proves-two-things), [`packaging/one-bump-one-commit`](packaging.md#packaging-one-bump-one-commit), [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms). Decided in [0068](../adr/0068-dependency-currency-and-the-version-contract.md), [0143](../adr/0143-a-push-runs-the-lane-its-diff-needs-the-nightly.md), [0026](../adr/0026-performance-measurement-methodology.md).</sub>
+<sub>See also [`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded), [`packaging/a-dependency-move-proves-two-things`](packaging.md#packaging-a-dependency-move-proves-two-things), [`packaging/one-bump-one-commit`](packaging.md#packaging-one-bump-one-commit), [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms). Decided in [0068](../decisions/0068.md), [0143](../decisions/0143.md), [0026](../decisions/0026.md).</sub>

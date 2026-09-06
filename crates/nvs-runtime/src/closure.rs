@@ -415,7 +415,7 @@ fn closure_param_tags(closure: Value) -> Result<u64, Fault> {
 /// `None` is the honest answer for an `fn` literal and is not a failure:
 /// [`CLOSURE_PARAM_NAMES`] is written at a `Class::method(...)` and nowhere
 /// else, so a literal's closure genuinely has no such field. A caller that
-/// *needs* names — [ADR 0006](/docs/adr/0006-isolated-script-execution.md)
+/// *needs* names — [ADR 0006](/docs/decisions/0006.md)
 /// § *Decision*'s `args:` binding, which is by name — turns that `None` into
 /// its own refusal naming the form the program wrote, because only the caller
 /// knows which member it is refusing on behalf of.

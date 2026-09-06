@@ -60,7 +60,7 @@
 //! Neither decoder is a *validator*. `decodeComponent` will happily decode text
 //! that could never have appeared in a URI; asking whether something is a URI
 //! is `Uri::tryParse($text)`, which is `parse` with `null` where it throws
-//! ([ADR 0066 § 3a](/docs/adr/0066-nullable-conversion-operator.md)).
+//! ([ADR 0066 § 3a](/docs/decisions/0066.md)).
 //! **There is no `Uri::isValid`** — it and `Uri::tryParse($text) != null` are
 //! one predicate, and R17 keeps one of them. Which one is not arbitrary: a
 //! validator that is a *separate implementation* from the parser is how

@@ -186,7 +186,7 @@ impl FloatWidth {
     }
 }
 
-/// A column's type: [ADR 0067 § 9](/docs/adr/0067-core-db.md)'s map in the
+/// A column's type: [ADR 0067 § 9](/docs/decisions/0067.md)'s map in the
 /// write direction, with the parameters a `CREATE TABLE` must carry.
 ///
 /// Where § 9's read direction is many-to-one — `SMALLINT`, `INTEGER` and
@@ -712,7 +712,7 @@ impl Schema {
     }
 }
 
-/// One node of [ADR 0145 § 1](/docs/adr/0145-a-schema-is-a-value-core-db-schema-converges-a-closed.md)'s
+/// One node of [ADR 0145 § 1](/docs/decisions/0145.md)'s
 /// canonical array form.
 ///
 /// The array form is what makes a built schema, a saved file and an

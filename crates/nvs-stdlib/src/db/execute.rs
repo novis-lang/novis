@@ -3,7 +3,7 @@
 //! `query`, `queryAs`, `execute` and `executeMany` are one shape over five
 //! drivers, so everything that varies is pushed to the bottom of this module:
 //! the `*_rows` and `*_write` pairs are where a driver's own result becomes the
-//! rows and the write [ADR 0067](/docs/adr/0067-core-db.md) § 18
+//! rows and the write [ADR 0067](/docs/decisions/0067.md) § 18
 //! declares.
 //!
 //! **SQLite is the one that cannot be written like the others.** Its cells
@@ -947,7 +947,7 @@ pub(super) fn sqlite_described_columns(columns: &[nvs_db::SqliteColumn]) -> NvsA
     described
 }
 
-/// One stepped cell as [ADR 0067 § 9](/docs/adr/0067-core-db.md)'s
+/// One stepped cell as [ADR 0067 § 9](/docs/decisions/0067.md)'s
 /// value for the type its column was **declared** — the storage class it
 /// arrived in wherever that declaration names something SQLite can hold, and a
 /// `Core\Time`, a `Core\Uuid`, a `decimal` or a `bool` where it does not.
@@ -1389,7 +1389,7 @@ mod tests {
         }
     }
 
-    /// [ADR 0067 § 4](/docs/adr/0067-core-db.md)'s `{timeout?: Duration}`, over
+    /// [ADR 0067 § 4](/docs/decisions/0067.md)'s `{timeout?: Duration}`, over
     /// the three links that make it a bound rather than an option that parses:
     /// the duration becomes an instant, the instant reaches the socket, and a
     /// socket that gave up on it becomes a throw.
@@ -1495,7 +1495,7 @@ mod tests {
         }
     }
 
-    /// [ADR 0067 § 9](/docs/adr/0067-core-db.md)'s SQLite rule, asserted
+    /// [ADR 0067 § 9](/docs/decisions/0067.md)'s SQLite rule, asserted
     /// as the **agreement** it is: one cell, five declarations, five different
     /// answers.
     ///

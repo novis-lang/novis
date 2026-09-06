@@ -10,14 +10,14 @@
 //!
 //! | probe | guards |
 //! |---|---|
-//! | `tests/invariants.rs` | the checked-return ABI and coroutine behaviour of [ADR 0002](/docs/adr/0002-error-propagation.md) |
+//! | `tests/invariants.rs` | the checked-return ABI and coroutine behaviour of [ADR 0002](/docs/decisions/0002.md) |
 //! | `tests/unwind_unavailable.rs` | the *premise* of ADR 0002 — that native unwinding is unavailable |
-//! | `tests/wasm_sandbox.rs` | the sandbox guarantees of [ADR 0003](/docs/adr/0003-extension-system.md) |
+//! | `tests/wasm_sandbox.rs` | the sandbox guarantees of [ADR 0003](/docs/decisions/0003.md) |
 //! | `tests/perf_guards.rs` | order-of-magnitude regressions in the quoted costs |
-//! | [`process`] | the cost of the child process that [ADR 0006](/docs/adr/0006-isolated-script-execution.md) replaces with an in-process isolate |
+//! | [`process`] | the cost of the child process that [ADR 0006](/docs/decisions/0006.md) replaces with an in-process isolate |
 //! | `shared/isolate.rs` | the cost of the in-process isolate it is replaced *with* — the other half of that comparison, outside this library because it needs the compiler crates and those are dev-only |
 //! | `benches/*` | the quoted costs themselves, tracked over time |
-//! | `examples/callgrind_spike.rs` | the callgrind-instruction-count premise of [ADR 0026](/docs/adr/0026-performance-measurement-methodology.md)'s historical performance dashboard — Linux/WSL only, see that ADR |
+//! | `examples/callgrind_spike.rs` | the callgrind-instruction-count premise of [ADR 0026](/docs/decisions/0026.md)'s historical performance dashboard — Linux/WSL only, see that ADR |
 //!
 //! # The ABI under test
 //!
@@ -123,7 +123,7 @@ pub struct Ctx {
     /// How many times a helper suspended the coroutine.
     pub suspends: u64,
     /// Stands in for the real runtime's debug-flags word
-    /// ([ADR 0018](/docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
+    /// ([ADR 0018](/docs/decisions/0018.md)
     /// § 1) and, by the same shape, its safepoint word: compiled code loads
     /// it and branches on non-zero at every probe site. Left zero throughout,
     /// because the number being guarded is the all-bits-*off* cost.
@@ -324,7 +324,7 @@ probe_helper! {
     }
 }
 
-/// The slow path behind an [ADR 0018](/docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
+/// The slow path behind an [ADR 0018](/docs/decisions/0018.md)
 /// § 1 probe site — the shape `nvs_runtime::nvs_probe_stmt` has, reduced to
 /// the one thing this probe needs to observe.
 ///
@@ -471,7 +471,7 @@ impl Probe {
 
     /// [`Self::compile_chain`], with `stmts` statement-shaped stores in each
     /// frame ahead of its call, each optionally preceded by
-    /// [ADR 0018](/docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
+    /// [ADR 0018](/docs/decisions/0018.md)
     /// § 1's debug-flags check: load one word out of the context, branch on
     /// non-zero, fall through to the next statement.
     ///

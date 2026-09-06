@@ -2,7 +2,7 @@
 //! `Core\Db::open`'s twelve settings, and the two members that need no
 //! connection at all.
 //!
-//! [ADR 0067 § 3](/docs/adr/0067-core-db.md) splits the first two on
+//! [ADR 0067 § 3](/docs/decisions/0067.md) splits the first two on
 //! who wrote the endpoint. A block is the operator's word and is taken as one;
 //! arguments are the program's, so `open` re-checks the address they resolve to
 //! against the policy in front of it. `inList` and `quoteIdentifier` are here
@@ -21,7 +21,7 @@ pub(super) const OPEN: &str = r"Core\Db::open";
 pub(super) const QUERY: &str = r"Core\Db\Connection::query";
 
 /// `Core\Db\Connection::queryAs`, as its own refusals spell it — under
-/// [``rule:classes/no-traits``](/docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md)'s
+/// [``rule:classes/no-traits``](/docs/decisions/0043.md)'s
 /// delegation, a call through a `Core\Db\Transaction` names the connection's
 /// member here exactly as [`QUERY`] does.
 pub(super) const QUERY_AS: &str = r"Core\Db\Connection::queryAs";

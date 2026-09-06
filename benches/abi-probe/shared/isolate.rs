@@ -1,4 +1,4 @@
-//! The in-process isolate that [ADR 0006](/docs/adr/0006-isolated-script-execution.md)
+//! The in-process isolate that [ADR 0006](/docs/decisions/0006.md)
 //! replaces a child process with, as one measurable operation.
 //!
 //! [`nvs_abi_probe::process`] is the other half of the same comparison and is

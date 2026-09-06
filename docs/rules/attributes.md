@@ -22,7 +22,7 @@ object or per instance.
 Retrieval is `Core\Attributes` and nothing else ([`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval)). There is no
 attribute table in the compiled unit for `Core\Reflect` or anything else to walk.
 
-<sub>See also [`attributes/attach-sites-and-forms`](attributes.md#attributes-attach-sites-and-forms), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type). Decided in [0046](../adr/0046-attributes-shape-literal-metadata.md), [0036](../adr/0036-anonymous-object-shapes.md).</sub>
+<sub>See also [`attributes/attach-sites-and-forms`](attributes.md#attributes-attach-sites-and-forms), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type). Decided in [0046](../decisions/0046.md), [0036](../decisions/0036.md).</sub>
 
 <a id="attributes-attach-sites-and-forms"></a>
 
@@ -59,7 +59,7 @@ fails the shape is the ordinary mismatch `E0401`.
 The one exemption is the closed, `Core`-owned roster of compiler-recognized attributes, matched by name
 and naming no shape at all. Every userland name is an alias or a mistake.
 
-<sub>See also [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/repeatable`](attributes.md#attributes-repeatable), [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute). Decided in [0046](../adr/0046-attributes-shape-literal-metadata.md), [0036](../adr/0036-anonymous-object-shapes.md), [0015](../adr/0015-no-name-aliasing.md), [0071](../adr/0071-derived-codecs.md).</sub>
+<sub>See also [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/repeatable`](attributes.md#attributes-repeatable), [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute). Decided in [0046](../decisions/0046.md), [0036](../decisions/0036.md), [0015](../decisions/0015.md), [0071](../decisions/0071.md).</sub>
 
 <a id="attributes-payload-is-a-compile-time-constant"></a>
 
@@ -81,7 +81,7 @@ Two things follow with no rule of their own. The literal resolves once, at compi
 payload, because a tainted value has no compile-time-constant source at all; a `secret` class constant
 can, and is refused there as a sink (`E0727`).
 
-<sub>See also [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`attributes/retrieval-folds-while-checking`](attributes.md#attributes-retrieval-folds-while-checking), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type). Decided in [0046](../adr/0046-attributes-shape-literal-metadata.md), [0033](../adr/0033-secret-qualifier-for-confidential-values.md), [0012](../adr/0012-no-superglobals.md).</sub>
+<sub>See also [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`attributes/retrieval-folds-while-checking`](attributes.md#attributes-retrieval-folds-while-checking), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type). Decided in [0046](../decisions/0046.md), [0033](../decisions/0033.md), [0012](../decisions/0012.md).</sub>
 
 <a id="attributes-repeatable"></a>
 
@@ -106,7 +106,7 @@ Ambiguity is entirely retrieval's problem ([`attributes/retrieval-folds-while-ch
 that needs exactly one attachment says so itself and refuses the second where it is written, the way
 `#[Access]` does ([`attributes/access-payload`](attributes.md#attributes-access-payload)).
 
-<sub>See also [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval), [`attributes/retrieval-folds-while-checking`](attributes.md#attributes-retrieval-folds-while-checking), [`attributes/access-payload`](attributes.md#attributes-access-payload). Decided in [0046](../adr/0046-attributes-shape-literal-metadata.md).</sub>
+<sub>See also [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval), [`attributes/retrieval-folds-while-checking`](attributes.md#attributes-retrieval-folds-while-checking), [`attributes/access-payload`](attributes.md#attributes-access-payload). Decided in [0046](../decisions/0046.md).</sub>
 
 <a id="attributes-structural-retrieval"></a>
 
@@ -137,7 +137,7 @@ A written `$member` is checked against the target's real declarations and one na
 absent attribute gives, and nothing downstream could tell them apart. A `$member` that is not a string
 literal has no name to check and folds to an empty result.
 
-<sub>See also [`attributes/retrieval-folds-while-checking`](attributes.md#attributes-retrieval-folds-while-checking), [`attributes/call-site-type-argument`](attributes.md#attributes-call-site-type-argument), [`attributes/repeatable`](attributes.md#attributes-repeatable). Decided in [0046](../adr/0046-attributes-shape-literal-metadata.md), [0036](../adr/0036-anonymous-object-shapes.md), [0027](../adr/0027-callable-is-closures-only.md), [0022](../adr/0022-definite-property-initialization.md), [0033](../adr/0033-secret-qualifier-for-confidential-values.md).</sub>
+<sub>See also [`attributes/retrieval-folds-while-checking`](attributes.md#attributes-retrieval-folds-while-checking), [`attributes/call-site-type-argument`](attributes.md#attributes-call-site-type-argument), [`attributes/repeatable`](attributes.md#attributes-repeatable). Decided in [0046](../decisions/0046.md), [0036](../decisions/0036.md), [0027](../decisions/0027.md), [0022](../decisions/0022.md), [0033](../decisions/0033.md).</sub>
 
 <a id="attributes-retrieval-folds-while-checking"></a>
 
@@ -159,7 +159,7 @@ Because the call becomes the payload, every value in a *matched* payload needs a
 through the scope the payload was written in — a class constant whose own declaration folds to no value
 is `E0731`. A `T` that is not a shape is `E0729`, and a `$target` that names no declaration is `E0730`.
 
-<sub>See also [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/repeatable`](attributes.md#attributes-repeatable). Decided in [0046](../adr/0046-attributes-shape-literal-metadata.md), [0036](../adr/0036-anonymous-object-shapes.md).</sub>
+<sub>See also [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/repeatable`](attributes.md#attributes-repeatable). Decided in [0046](../decisions/0046.md), [0036](../decisions/0036.md).</sub>
 
 <a id="attributes-call-site-type-argument"></a>
 
@@ -180,7 +180,7 @@ everything up to a matching `>` parses as a type list with no diagnostic **and**
 against a class-shaped name and immediately followed by a parenthesized operand — parentheses say the
 other thing.
 
-<sub>See also [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval), [`programs/implementing`](programs.md#programs-implementing). Decided in [0046](../adr/0046-attributes-shape-literal-metadata.md), [0071](../adr/0071-derived-codecs.md), [0007](../adr/0007-explicit-type-system.md).</sub>
+<sub>See also [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval), [`programs/implementing`](programs.md#programs-implementing). Decided in [0046](../decisions/0046.md), [0071](../decisions/0071.md), [0007](../decisions/0007.md).</sub>
 
 <a id="attributes-api-adds-and-cannot-contradict"></a>
 
@@ -211,7 +211,7 @@ A `security` name is carried uninterpreted rather than compared: nothing in the 
 `nvs.toml` declares a scheme, so there is no roster to check against and the emitted document names
 schemes it does not define. The comparison lands here on the day a scheme has a home.
 
-<sub>See also [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata). Decided in [0085](../adr/0085-openapi-is-generated-from-the-route-table.md), [0071](../adr/0071-derived-codecs.md), [0077](../adr/0077-compile-time-routing.md).</sub>
+<sub>See also [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata). Decided in [0085](../decisions/0085.md), [0071](../decisions/0071.md), [0077](../decisions/0077.md).</sub>
 
 <a id="attributes-access-is-a-required-sibling"></a>
 
@@ -243,7 +243,7 @@ attached behaviour: this attaches a *declaration* to the method, not a filter, a
 opinion. The guarantee is that the decision was **written**, not that it was **honoured** — the
 compiler never asks what the name means.
 
-<sub>See also [`attributes/access-payload`](attributes.md#attributes-access-payload), [`attributes/api-adds-and-cannot-contradict`](attributes.md#attributes-api-adds-and-cannot-contradict). Decided in [0096](../adr/0096-a-route-without-a-declared-access-decision-does-not-compile.md), [0094](../adr/0094-visibility-is-written-at-every-member-declaration.md), [0077](../adr/0077-compile-time-routing.md).</sub>
+<sub>See also [`attributes/access-payload`](attributes.md#attributes-access-payload), [`attributes/api-adds-and-cannot-contradict`](attributes.md#attributes-api-adds-and-cannot-contradict). Decided in [0096](../decisions/0096.md), [0094](../decisions/0094.md), [0077](../decisions/0077.md).</sub>
 
 <a id="attributes-access-payload"></a>
 
@@ -275,4 +275,4 @@ readings — conjunction or disjunction — and choosing between them silently i
 prevents. A method carrying several `#[Route]` attributes still carries one `#[Access]`, covering all
 of them.
 
-<sub>See also [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/repeatable`](attributes.md#attributes-repeatable). Decided in [0096](../adr/0096-a-route-without-a-declared-access-decision-does-not-compile.md), [0046](../adr/0046-attributes-shape-literal-metadata.md), [0007](../adr/0007-explicit-type-system.md), [0110](../adr/0110-one-methods-repeated-routes-share-a-name-when-they-share-a-path.md).</sub>
+<sub>See also [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/repeatable`](attributes.md#attributes-repeatable). Decided in [0096](../decisions/0096.md), [0046](../decisions/0046.md), [0007](../decisions/0007.md), [0110](../decisions/0110.md).</sub>

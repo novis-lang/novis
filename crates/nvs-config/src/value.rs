@@ -34,7 +34,7 @@
 //! Cost: no allocation on a value that parses, one `String` per refusal. It runs at boot, on each
 //! reload, and once per `Core\Config::set` — never on a read of a limit already in the snapshot.
 //!
-//! [ADR 0064 § 5]: ../../../docs/adr/0064-configuration-file-format.md
+//! [ADR 0064 § 5]: ../../../docs/decisions/0064.md
 
 use std::cmp::Ordering;
 

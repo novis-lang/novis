@@ -995,7 +995,7 @@ is why" — is this file.
   instead of eighteen pasted calls. Probed with `nvs run` before the three `Core\Csv` cases were
   written.
 - **`peek.py --locate` is a mode, not a flag you can add to a read.** A call written as
-  `python tools/peek.py "docs/adr/0088-*.md:### 2" file.rs:79-120 --locate report_mismatch` prints the
+  `python tools/peek.py "docs/decisions/0088.md:### 2" file.rs:79-120 --locate report_mismatch` prints the
   anchors and *silently drops both read targets* — `--locate` takes the rest of argv, so the questions you
   batched with it are never answered, and a symbol it cannot find exits 1 on top of that. Ask for anchors
   in their own call, and keep the reads in another.
@@ -6189,7 +6189,7 @@ is why" — is this file.
   plan: each paragraph already names the rule it belongs to. What is left in `mod.rs` afterwards is its
   charter — see AGENTS.md's length-target table for why the charter is the part that matters.
 - **A moved file's doc links no longer move with it — leave them exactly as they are.** A `.rs`, `.nvs`
-  or `.nvst` file cites a document absolutely from the root (`](/docs/adr/0067-core-db.md)`), so a
+  or `.nvst` file cites a document absolutely from the root (`](/docs/decisions/0067.md)`), so a
   split, a rename or a new directory level changes nothing in the prose. The `../` prefix this replaced
   encoded the *citing* file's depth, which made every move a silent breakage: 465 of 1,640 links were
   dead when it was finally measured, and reading one of the drifted ones is how the tds split concluded
@@ -7131,7 +7131,7 @@ sibling in the same namespace unqualified.
   `DIRECTIVES` row, the `unit_of` arm, and the reader. Nothing fails to compile without the third.
 - **`rule:errors/on-limit`'s roster of resource limits is restated in four places, and three of them are
   prose no test reads.** Adding `max_output` as a limit whose breach reaches the tier-1 handler
-  meant editing the ADR's own list (`docs/adr/0020-error-escalation-ladder.md` § 1, which also
+  meant editing the ADR's own list (`docs/decisions/0020.md` § 1, which also
   carried "call-stack depth is the *fifth* limit" — a running count of the kind
   `conventions.md` § *An ADR* forbids), `nvs_runtime::Limit`'s enum doc ("Three variants, because
   three limits are enforced... § 1 lists five"), and `Core\Fatal::onLimit`'s reference card `short`

@@ -30,7 +30,7 @@ specification. Write those as differential cases, not as frozen ones.
 There is no async runtime and `sqlx`, `tokio-postgres` and `tiberius` are not usable here — not as a
 preference but structurally, because they need a runtime that spawns. What *is* usable is the wire-protocol
 half of the ecosystem: `mysql_common`, `postgres-protocol`, and our own TDS. SQLite is `rusqlite`, and it
-is [ADR 0051 § 4](../../adr/0051-standard-library-tiers.md)'s **one audited C exception** — its test suite
+is [ADR 0051 § 4](../../decisions/0051.md)'s **one audited C exception** — its test suite
 is orders of magnitude larger than its source and it is continuously fuzzed, which is the exceptional
 verification record that question 2 asks for. Nothing else clears that bar, and goal 4 built the
 enumeration check that says so.

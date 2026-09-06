@@ -63,7 +63,7 @@
 //! [`SECRETS`] against the named blocks the tree has — at boot and again at each `nvs ctl reload`.
 //! Nothing here runs per request.
 //!
-//! [ADR 0067]: ../../../docs/adr/0067-core-db.md
+//! [ADR 0067]: ../../../docs/decisions/0067.md
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};

@@ -3,7 +3,7 @@
 // description will not open, the one question only a `mixed` can be asked,
 // and source read as data.
 //
-// [ADR 0019](/docs/adr/0019-reflection-and-ast-parsing-are-core-features.md)
+// [ADR 0019](/docs/decisions/0019.md)
 // makes both of these built in rather than extension-provided, and gives
 // them the two rules the third and fourth lines below exist for.
 //

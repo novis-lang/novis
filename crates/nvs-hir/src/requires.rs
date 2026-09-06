@@ -54,7 +54,7 @@
 //! A literal path whose spelling differs from the on-disk entry's only in
 //! case is `code::E_REQUIRE_PATH_CASE_MISMATCH` — see [`check_path_case`],
 //! which is what stops a `require` from compiling on Windows/macOS and then
-//! failing on Linux ([ADR 0062](/docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
+//! failing on Linux ([ADR 0062](/docs/decisions/0062.md)
 //! § 3). A literal path that resolves to nothing loadable is
 //! `code::E_REQUIRE_TARGET_NOT_FOUND`. A literal path that leads back to a
 //! file already on the current chain is `code::E_CIRCULAR_REQUIRE` rather
@@ -454,7 +454,7 @@ fn canonicalize(path: &Path) -> Option<PathBuf> {
 
 /// Reports a `require` whose literal path resolved only because the
 /// filesystem folds case —
-/// [ADR 0062](/docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
+/// [ADR 0062](/docs/decisions/0062.md)
 /// § 3, extending `rule:programs/autoload`'s exact-name rule from `autoload` to `require`.
 ///
 /// The comparison is free of extra syscalls: `canonicalize` on Windows and

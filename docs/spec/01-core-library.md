@@ -1,8 +1,8 @@
 # Novis Specification — 01: The `Core` library
 
 **This file is authoritative for every `Core` signature.** It is the member list
-[ADR 0011 § 2](../adr/0011-functions-and-constants-are-class-members.md) deferred and
-[ADR 0051 § 3](../adr/0051-standard-library-tiers.md) placed. The *shape* rules every entry obeys are
+[ADR 0011 § 2](../decisions/0011.md) deferred and
+[ADR 0051 § 3](../decisions/0051.md) placed. The *shape* rules every entry obeys are
 `rule:core-api/shape-rules` — read that first; this file applies it and does not
 re-argue it. Where a class has its own ADR (`Core\Regex`, `Core\Decimal`, `Core\Reflect`, `Core\Process`,
 `Core\Cache`, …) that ADR owns the semantics and this file owns only the signatures. For an *implemented*
@@ -32,7 +32,7 @@ The **Replaces** column names the PHP built-ins an entry subsumes. It is one of 
 (M11) is generated from and the only place that can answer "did we drop something real": this file states
 what Novis *has*, and that one accounts for every PHP name Novis does not.
 
-**Qualifier** is the `rule:security/tainted-qualifier`/[0033](../adr/0033-secret-qualifier-for-confidential-values.md)
+**Qualifier** is the `rule:security/tainted-qualifier`/[0033](../decisions/0033.md)
 classification, and every member has one:
 
 | Mark | Meaning |
@@ -48,7 +48,7 @@ tainted argument, and a member that ships with one fails that crate's own test s
 (`rule:security/unclassified-parameter-refuses-tainted`). Which parameters are
 sinks follows from that ADR's § 1 predicate — *the content becomes an instruction something executes,
 rather than data something returns or frames* — of which one corollary is that all four
-[R11](../adr/0063-core-api-conventions.md) grammars are sinks.
+[R11](../decisions/0063.md) grammars are sinks.
 
 Two conventions apply throughout and are not repeated per entry:
 
@@ -93,7 +93,7 @@ surface, `Core\Attributes`' retrieval body is M8 by `rule:attributes/inert-metad
 (its `#[...]` *syntax* is M4), and `Core\Reflect`, `Core\Decimal` and `Core\BigInt` want a finished object
 representation under them. They land with whichever milestone closes their dependency, to this same
 contract. `Core\Test` is the one entry whose schedule is already fixed rather than dependency-driven:
-[ADR 0079](../adr/0079-testing-is-a-language-feature.md) § 24 names the milestone for each of its pieces,
+[ADR 0079](../decisions/0079.md) § 24 names the milestone for each of its pieces,
 from the assertions at the M4S tail to `#[Bench]` and mutation testing at M10.
 
 ---
@@ -212,7 +212,7 @@ Enums: `NormalForm { Nfc, Nfd, Nfkc, Nfkd }`.
 ## 2. `Core\Arr`
 
 `array<T>` is an insertion-ordered hash with copy-on-write value semantics
-([ADR 0007 § 5](../adr/0007-explicit-type-system.md)). Every member is pure (R3); an implementation
+([ADR 0007 § 5](../decisions/0007.md)). Every member is pure (R3); an implementation
 mutates in place whenever the argument's refcount is 1, so purity costs nothing. `T` is a type variable —
 the stdlib is parametric where user code is not.
 
@@ -604,10 +604,10 @@ rather than degrading to `float`, because silent precision loss on a wire format
 `JSON_BIGINT_AS_STRING` exists to work around. A class participates by implementing
 `Core\Json\Codec`, which declares `toJson(): mixed` and a static `fromJson(mixed $value): static`; there is
 no magic hook and no structural encoding of public properties
-([ADR 0063 § 4](../adr/0063-core-api-conventions.md)). An inline shape
+([ADR 0063 § 4](../decisions/0063.md)). An inline shape
 (`rule:types/object-top`) is the one instance that needs neither, encoding as a
 JSON object keyed by its field names — it has no declaration to carry a codec, and
-[ADR 0071 § 7](../adr/0071-derived-codecs.md) owns why that is not the same rule. A `secret` value cannot be encoded at all
+[ADR 0071 § 7](../decisions/0071.md) owns why that is not the same rule. A `secret` value cannot be encoded at all
 (`rule:security/secret-qualifier`).
 
 Both halves are generated from a class's own declared properties by the opt-in `#[Json\Derive]`
@@ -701,7 +701,7 @@ launderer is `Core\IO::within`, in § 14, which is where the base is known.
 `array<T>` is list, stack, queue and dictionary, so `SplStack`, `SplQueue`, `SplDoublyLinkedList`,
 `SplFixedArray`, `ArrayObject` and `ArrayIterator` are dropped as restatements of it. These three survive
 because an insertion-ordered `int|string`-keyed hash cannot express them
-([ADR 0063 § 4](../adr/0063-core-api-conventions.md)).
+([ADR 0063 § 4](../decisions/0063.md)).
 
 | Type | Members | Replaces |
 |---|---|---|
@@ -751,7 +751,7 @@ Members are readonly properties, not `getX()` accessors: `$e->message`, `$e->pre
 `$e->location`. `ParseError` and `Core\Db\DbError` carry one more — `issues: array<Core\Issue>`, where
 `type Core\Issue = {path: string, message: string};` — so a failed decode reports **every** offending field
 at once rather than the first, each located by a dotted path (`"address.city"`, `"tags.3"`) or, for a row, by
-its column name ([ADR 0071 § 5](../adr/0071-derived-codecs.md)). It is empty on any error that has no field
+its column name ([ADR 0071 § 5](../decisions/0071.md)). It is empty on any error that has no field
 list to report. There is no `getCode()`: an `int` code with no declared meaning is what a user-defined
 subclass with a typed property does properly. `Throwable`'s message is a `secret` sink
 (`rule:security/secret-qualifier`). Resource-limit reports are **not**
@@ -988,15 +988,15 @@ same shape rules.
 
 | Class | Owns | ADR |
 |---|---|---|
-| `Core\Reflect` | `forClass`, `forObject`, `typeOf(mixed): TypeKind`, and the visibility-respecting walk. Replaces `ReflectionClass` **and** `get_class`, `get_object_vars`, `get_class_methods`, `method_exists`, `property_exists`, `class_exists`, `is_a`, `is_subclass_of`, `class_implements`, `spl_object_id` | [0019](../adr/0019-reflection-and-ast-parsing-are-core-features.md) |
-| `Core\Ast` | `parse(string): Node` returning inert typed data | [0019](../adr/0019-reflection-and-ast-parsing-are-core-features.md) |
-| `Core\Attributes` | `get<T>`, `all<T>` — structural, not a `Reflect` walk | [0046](../adr/0046-attributes-shape-literal-metadata.md) |
-| `Core\Program` | `implementing<T>()` | [0061](../adr/0061-compile-time-autoload-and-program-discovery.md) |
-| `Core\Router` | `match(Http\Method $method, tainted string $path): ?Router\Match`, `methodsFor(tainted string $path): array<Http\Method>` (empty ⇒ 404, else 405 + `Allow:`), `url(string $name, array<string, mixed> $params): string` (**launder**, URL path) and `urlAbsolute(...)` (**launder**, URL — prepends the mount's configured `origin`), over a table built while compiling from `#[Route]`. The server matches once per request and `Core\Request::route()` is that match. A duplicate route, a `{param}` with no matching method parameter, an unknown literal `url()` name and a `url()` key that is neither a capture nor a declared `#[Query]` parameter are compile errors | [0077](../adr/0077-compile-time-routing.md), [0102](../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md) |
-| `Core\Command` | `run(): uint`, `help(?string): Cli\Text` and `completions(Cli\Shell): string`, over a table built while compiling from `#[Command]`/`#[Option]`/`#[Argument]`. A duplicate command name, two options sharing a spelling and an `#[Option]` on a parameter with no conversion from `string` are compile errors. Unlike `Core\Router` it dispatches, because a CLI has one entry point and no middleware question | [0086](../adr/0086-core-cli-terminal-is-a-sink.md) |
-| `Core\Decimal`, `Core\BigInt` | the non-operator members of the `decimal` scalar and arbitrary-precision integers. Replaces `bcmath`, `gmp` | [0054](../adr/0054-decimal-scalar-type.md) |
-| `Core\Serialize` | `encode(mixed $value): bytes` and `decode(bytes $data): mixed` — the user-facing half of the one graph-copy operation the `spawn` boundary already runs. `decode` is a **`tainted` sink**. Replaces `serialize`, `unserialize` | [0023](../adr/0023-clone-serialize-and-cross-boundary-copy.md) |
-| `Core\Test` | the assertion roster — `assertSame`/`assertEquals<T>`/`assertEqualsDeep`, `assertTrue`, `assertNull`, `assertCount`, `assertContains`, `assertThrows`, `assertDoesNotThrow`, `expectFailure` — plus `double<T>`/`partial<T>`, `assertCalled`/`assertNeverCalled`, `advance`, `scriptAnswers`, `assertCompletes`, `assertMatchesInline` and `request`. Every one is subject-first and generic where it compares | [0079](../adr/0079-testing-is-a-language-feature.md) |
+| `Core\Reflect` | `forClass`, `forObject`, `typeOf(mixed): TypeKind`, and the visibility-respecting walk. Replaces `ReflectionClass` **and** `get_class`, `get_object_vars`, `get_class_methods`, `method_exists`, `property_exists`, `class_exists`, `is_a`, `is_subclass_of`, `class_implements`, `spl_object_id` | [0019](../decisions/0019.md) |
+| `Core\Ast` | `parse(string): Node` returning inert typed data | [0019](../decisions/0019.md) |
+| `Core\Attributes` | `get<T>`, `all<T>` — structural, not a `Reflect` walk | [0046](../decisions/0046.md) |
+| `Core\Program` | `implementing<T>()` | [0061](../decisions/0061.md) |
+| `Core\Router` | `match(Http\Method $method, tainted string $path): ?Router\Match`, `methodsFor(tainted string $path): array<Http\Method>` (empty ⇒ 404, else 405 + `Allow:`), `url(string $name, array<string, mixed> $params): string` (**launder**, URL path) and `urlAbsolute(...)` (**launder**, URL — prepends the mount's configured `origin`), over a table built while compiling from `#[Route]`. The server matches once per request and `Core\Request::route()` is that match. A duplicate route, a `{param}` with no matching method parameter, an unknown literal `url()` name and a `url()` key that is neither a capture nor a declared `#[Query]` parameter are compile errors | [0077](../decisions/0077.md), [0102](../decisions/0102.md) |
+| `Core\Command` | `run(): uint`, `help(?string): Cli\Text` and `completions(Cli\Shell): string`, over a table built while compiling from `#[Command]`/`#[Option]`/`#[Argument]`. A duplicate command name, two options sharing a spelling and an `#[Option]` on a parameter with no conversion from `string` are compile errors. Unlike `Core\Router` it dispatches, because a CLI has one entry point and no middleware question | [0086](../decisions/0086.md) |
+| `Core\Decimal`, `Core\BigInt` | the non-operator members of the `decimal` scalar and arbitrary-precision integers. Replaces `bcmath`, `gmp` | [0054](../decisions/0054.md) |
+| `Core\Serialize` | `encode(mixed $value): bytes` and `decode(bytes $data): mixed` — the user-facing half of the one graph-copy operation the `spawn` boundary already runs. `decode` is a **`tainted` sink**. Replaces `serialize`, `unserialize` | [0023](../decisions/0023.md) |
+| `Core\Test` | the assertion roster — `assertSame`/`assertEquals<T>`/`assertEqualsDeep`, `assertTrue`, `assertNull`, `assertCount`, `assertContains`, `assertThrows`, `assertDoesNotThrow`, `expectFailure` — plus `double<T>`/`partial<T>`, `assertCalled`/`assertNeverCalled`, `advance`, `scriptAnswers`, `assertCompletes`, `assertMatchesInline` and `request`. Every one is subject-first and generic where it compares | [0079](../decisions/0079.md) |
 
 `Core\Reflect::typeOf` is the single replacement for PHP's 14 `is_*` predicates plus `gettype`: they are
 only meaningful on a `mixed`, and the checker already knows every other case.
@@ -1082,7 +1082,7 @@ originates outside the process is `tainted` (`rule:security/tainted-qualifier`).
   glob `captures(): array<tainted string>` — which is how a host-mounted deployment learns which tenant it
   serves, and never `null`, because a request that reached a program reached it through some mount;
   `route(): ?Router\Match` is the match the server made once before the handler, and is what the CSRF check
-  and the `route` metric label read ([0102](../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md));
+  and the `route` metric label read ([0102](../decisions/0102.md));
   `method` reports `Get` for a `HEAD` request so a
   `Get`-only route table still matches, with `isHead` carrying the truth; `clientIp` and `scheme` are
   resolved from the socket peer unless a peer in `[server] trusted_proxies` asserted otherwise;
@@ -1147,24 +1147,24 @@ originates outside the process is `tainted` (`rule:security/tainted-qualifier`).
 
 | Class | Surface | ADR |
 |---|---|---|
-| `Core\Http\Client` | `get`, `post`, `put`, `delete`, `head`, `send(Request)`, `stream`, each over `string \| Core\Http\Target`; `Core\Http::allowUrl` is the SSRF launderer that pins an address. Replaces all ~30 `curl_*` functions and their handle. One trailing `Core\Http\Options` shape — `{deadline?, connectTimeout?, headers?, followRedirects?, retryAttempts?, retryBackoff?, retryIdempotencyKey?}` — with **no spelling for an unbounded wait**: `deadline` covers every attempt and every hop, retry is jittered, and `post`/`patch` with `retryAttempts` and no `retryIdempotencyKey` is a compile error | [0058](../adr/0058-outbound-request-policy.md), [0074](../adr/0074-http-defaults-safe-and-finite.md) |
-| `Core\RateLimit` | `consume(tainted string $key, uint $limit, Duration $per, {burst?, cost?}): RateLimit\Decision` over the shared store, and `shed(…)` per core and approximate. `Decision` is readonly `allowed: bool`, `limit: uint`, `remaining: uint`, `retryAfter: ?Duration`. Both **neutral**; a `secret` key is refused; an unreachable store throws | [0075](../adr/0075-core-ratelimit.md) |
-| `Core\Metrics` | `increment(string $name, {by?, labels?})`, `observe(string $name, float $value, {labels?})`, `gauge(…)`. A `labels` **value** is a `tainted` sink with no launderer — label by an enum, an `as`-converted scalar or a route name | [0076](../adr/0076-observability-export.md) |
-| `Core\Task` | § 19 below — `all`, `map`, `afterResponse` | [0072](../adr/0072-core-task-structured-concurrency.md) |
-| `Core\Net` | TCP/UDP/Unix sockets over the runtime's own reactor. Replaces `socket_*`, `stream_socket_*`, `fsockopen` — three PHP APIs for one job | [0051](../adr/0051-standard-library-tiers.md) |
-| `Core\Db` | the full surface is § 18 below — the one subsystem in Part II too large for a row. Replaces `PDO` **and** the procedural `mysqli`/`pgsql`/`sqlite3` APIs | [0067](../adr/0067-core-db.md) |
-| `Core\Crypto` | AEAD only, no ECB, no unauthenticated CBC, no cipher-name-as-string. Replaces `openssl_*`'s primitive half and `sodium_*` | [0051](../adr/0051-standard-library-tiers.md) |
-| `Core\Password` | `hash(secret string): string`, `verify(secret string, string): bool`, `needsRehash(string): bool` — **no algorithm argument**. `verify` and `needsRehash` also read a PHP-stored bcrypt hash (`verify` verifies it, `needsRehash` answers `true`); `hash` writes only Argon2id. Replaces `password_hash`, `password_verify`, `crypt` | [0063](../adr/0063-core-api-conventions.md), [0129](../adr/0129-password-verify-reads-a-stored-bcrypt-hash.md) |
-| `Core\Jwt`, `Core\Csrf`, `Core\Totp`, `Core\SignedCookie`, `Core\Signature` | the closed five-entry roster; a JWT's algorithm comes from the key, never the token. `Core\Signature::sign(array<string, mixed> $payload, {keys: array<secret bytes>, until: ?Time\Instant}): string` and `::verify(string $token, array<secret bytes> $keys): array<string, mixed>` are the detached pair — a canonical payload map, never assembled text; `until` is a required key whose `null` is the forever spelling; `verify` answers a **`tainted`** payload or throws ([0146](../adr/0146-a-signature-is-over-a-payload-and-a-url-is-a-payload-core-uri.md)) | [0060](../adr/0060-application-security-protocols.md) |
-| `Core\Process` | `run`, `spawn` — argv only, never a shell string | [0044](../adr/0044-core-process-argv-only-no-shell.md) |
-| `Core\Mail` | an SMTP client with structured headers. Replaces `mail()` | [0051](../adr/0051-standard-library-tiers.md) |
-| `Core\Cache` | `local(): Cache\Store`, `shared(): Cache\Store`, and on the store `put(string $key, mixed $value): void` / `get(string $key): mixed` — copy-in/copy-out, and a miss answers `null` rather than throwing. Replaces `apcu_*`, `memcached` for the local case | [0059](../adr/0059-cross-request-state-is-explicit.md) |
-| `Core\Log`, `Core\Fatal` | structured logging. `write(Log\Level, string $message, array<string, mixed> $fields = [])`, where `Log\Level` is `Debug`, `Info`, `Warn`, `Error`, `Critical`. Both refuse a `secret` argument at the call site — a sink on the [0033](../adr/0033-secret-qualifier-for-confidential-values.md) axis; on the `tainted` axis neither is a sink, because a field is *data* ([0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md) § 7) and logging tainted input is the point | [0020](../adr/0020-error-escalation-ladder.md), [0092](../adr/0092-one-diagnostic-record-three-renderings.md) |
-| `Core\Debug` | `dump(mixed ...$values)` and `render(mixed)` — replacing `var_dump`, `print_r`, `var_export`, `debug_zval_refcount` — plus the coverage, tracing and profiling controls | `dump`/`render`: [0092](../adr/0092-one-diagnostic-record-three-renderings.md); the probes: [0018](../adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) |
-| `Core\Signal` | graceful shutdown only. What remains of `pcntl_*` after `fork` is refused | [0051](../adr/0051-standard-library-tiers.md) |
-| `Core\Script` | `onExit(callable $hook): void` — FIFO end-of-script hooks, run once as the last user code at every non-fatal ending (normal, `exit`, uncaught throw); each receives a readonly `Script\ExitReport` — `reason: Script\ExitReason` (`Normal`, `ExitCall`, `UncaughtThrow`), `status: int`, `error: ?Throwable` — and may declare no parameter. Never fires on a `FATAL` or a cancellation, and observes the ending rather than changing it. Replaces `register_shutdown_function`'s non-fatal uses | [0127](../adr/0127-the-end-of-a-script-is-observable.md) |
-| `Core\Os` | process and host facts (`pid`, `hostname`, `cpuCount`, `memoryUsage`, `loadAverage`). Replaces `posix_*` minus fork, `php_uname`, `memory_get_usage`, `getrusage`, `sys_getloadavg` | [0051](../adr/0051-standard-library-tiers.md) |
-| `Core\Config` | `set(string, string): bool`, `get(string): ?string`, `restore(string): void`, `all(): array<string, string>` — the request-local overlay over `nvs.toml`. Replaces `ini_set`, `ini_get`, `ini_restore`, `ini_get_all`, `set_time_limit`. String-in/string-out because the directive name is dynamic; the registry parses with the same parser the boot path uses | [0005](../adr/0005-config-changeability.md), [0064](../adr/0064-configuration-file-format.md) |
+| `Core\Http\Client` | `get`, `post`, `put`, `delete`, `head`, `send(Request)`, `stream`, each over `string \| Core\Http\Target`; `Core\Http::allowUrl` is the SSRF launderer that pins an address. Replaces all ~30 `curl_*` functions and their handle. One trailing `Core\Http\Options` shape — `{deadline?, connectTimeout?, headers?, followRedirects?, retryAttempts?, retryBackoff?, retryIdempotencyKey?}` — with **no spelling for an unbounded wait**: `deadline` covers every attempt and every hop, retry is jittered, and `post`/`patch` with `retryAttempts` and no `retryIdempotencyKey` is a compile error | [0058](../decisions/0058.md), [0074](../decisions/0074.md) |
+| `Core\RateLimit` | `consume(tainted string $key, uint $limit, Duration $per, {burst?, cost?}): RateLimit\Decision` over the shared store, and `shed(…)` per core and approximate. `Decision` is readonly `allowed: bool`, `limit: uint`, `remaining: uint`, `retryAfter: ?Duration`. Both **neutral**; a `secret` key is refused; an unreachable store throws | [0075](../decisions/0075.md) |
+| `Core\Metrics` | `increment(string $name, {by?, labels?})`, `observe(string $name, float $value, {labels?})`, `gauge(…)`. A `labels` **value** is a `tainted` sink with no launderer — label by an enum, an `as`-converted scalar or a route name | [0076](../decisions/0076.md) |
+| `Core\Task` | § 19 below — `all`, `map`, `afterResponse` | [0072](../decisions/0072.md) |
+| `Core\Net` | TCP/UDP/Unix sockets over the runtime's own reactor. Replaces `socket_*`, `stream_socket_*`, `fsockopen` — three PHP APIs for one job | [0051](../decisions/0051.md) |
+| `Core\Db` | the full surface is § 18 below — the one subsystem in Part II too large for a row. Replaces `PDO` **and** the procedural `mysqli`/`pgsql`/`sqlite3` APIs | [0067](../decisions/0067.md) |
+| `Core\Crypto` | AEAD only, no ECB, no unauthenticated CBC, no cipher-name-as-string. Replaces `openssl_*`'s primitive half and `sodium_*` | [0051](../decisions/0051.md) |
+| `Core\Password` | `hash(secret string): string`, `verify(secret string, string): bool`, `needsRehash(string): bool` — **no algorithm argument**. `verify` and `needsRehash` also read a PHP-stored bcrypt hash (`verify` verifies it, `needsRehash` answers `true`); `hash` writes only Argon2id. Replaces `password_hash`, `password_verify`, `crypt` | [0063](../decisions/0063.md), [0129](../decisions/0129.md) |
+| `Core\Jwt`, `Core\Csrf`, `Core\Totp`, `Core\SignedCookie`, `Core\Signature` | the closed five-entry roster; a JWT's algorithm comes from the key, never the token. `Core\Signature::sign(array<string, mixed> $payload, {keys: array<secret bytes>, until: ?Time\Instant}): string` and `::verify(string $token, array<secret bytes> $keys): array<string, mixed>` are the detached pair — a canonical payload map, never assembled text; `until` is a required key whose `null` is the forever spelling; `verify` answers a **`tainted`** payload or throws ([0146](../decisions/0146.md)) | [0060](../decisions/0060.md) |
+| `Core\Process` | `run`, `spawn` — argv only, never a shell string | [0044](../decisions/0044.md) |
+| `Core\Mail` | an SMTP client with structured headers. Replaces `mail()` | [0051](../decisions/0051.md) |
+| `Core\Cache` | `local(): Cache\Store`, `shared(): Cache\Store`, and on the store `put(string $key, mixed $value): void` / `get(string $key): mixed` — copy-in/copy-out, and a miss answers `null` rather than throwing. Replaces `apcu_*`, `memcached` for the local case | [0059](../decisions/0059.md) |
+| `Core\Log`, `Core\Fatal` | structured logging. `write(Log\Level, string $message, array<string, mixed> $fields = [])`, where `Log\Level` is `Debug`, `Info`, `Warn`, `Error`, `Critical`. Both refuse a `secret` argument at the call site — a sink on the [0033](../decisions/0033.md) axis; on the `tainted` axis neither is a sink, because a field is *data* ([0088](../decisions/0088.md) § 7) and logging tainted input is the point | [0020](../decisions/0020.md), [0092](../decisions/0092.md) |
+| `Core\Debug` | `dump(mixed ...$values)` and `render(mixed)` — replacing `var_dump`, `print_r`, `var_export`, `debug_zval_refcount` — plus the coverage, tracing and profiling controls | `dump`/`render`: [0092](../decisions/0092.md); the probes: [0018](../decisions/0018.md) |
+| `Core\Signal` | graceful shutdown only. What remains of `pcntl_*` after `fork` is refused | [0051](../decisions/0051.md) |
+| `Core\Script` | `onExit(callable $hook): void` — FIFO end-of-script hooks, run once as the last user code at every non-fatal ending (normal, `exit`, uncaught throw); each receives a readonly `Script\ExitReport` — `reason: Script\ExitReason` (`Normal`, `ExitCall`, `UncaughtThrow`), `status: int`, `error: ?Throwable` — and may declare no parameter. Never fires on a `FATAL` or a cancellation, and observes the ending rather than changing it. Replaces `register_shutdown_function`'s non-fatal uses | [0127](../decisions/0127.md) |
+| `Core\Os` | process and host facts (`pid`, `hostname`, `cpuCount`, `memoryUsage`, `loadAverage`). Replaces `posix_*` minus fork, `php_uname`, `memory_get_usage`, `getrusage`, `sys_getloadavg` | [0051](../decisions/0051.md) |
+| `Core\Config` | `set(string, string): bool`, `get(string): ?string`, `restore(string): void`, `all(): array<string, string>` — the request-local overlay over `nvs.toml`. Replaces `ini_set`, `ini_get`, `ini_restore`, `ini_get_all`, `set_time_limit`. String-in/string-out because the directive name is dynamic; the registry parses with the same parser the boot path uses | [0005](../decisions/0005.md), [0064](../decisions/0064.md) |
 
 ## 17. Documents and formats
 
@@ -1173,7 +1173,7 @@ originates outside the process is `tainted` (`rule:security/tainted-qualifier`).
 | `Core\Html` | `escape` (the auto-applied launderer), `sanitize`, `Markup`, and the WHATWG HTML parser — never-failing, producing `Core\Xml`'s tree: one node family, two front doors | `rule:security/tainted-qualifier` owns both launderers; the parser and the shared tree are `rule:core-classes/html-parsing` |
 | `Core\Xml` | one API replacing DOM, SimpleXML, XMLReader, XMLWriter, `xml_parser_*` and XSLTProcessor. Its **tree** API and its **streaming** reader/writer are different jobs, not twins — the tree materialises, the stream does not, and no operation is available through both | the one place in this file where two shapes of the same subsystem coexist, stated explicitly so it is not read as an exception to R17. The tree is also what `Core\Html`'s parser produces (`rule:core-classes/html-parsing`), and lands with it |
 | `Core\Compress` | gzip, deflate, brotli, zstd — one API replacing `gzopen` handles, `deflate_init` contexts and `zlib.*` stream filters | |
-| `Core\Zip` | Core rather than an extension because `../` entries, symlink entries and decompression bombs are *policy*, and policy must be non-optional | [ADR 0051 § 3](../adr/0051-standard-library-tiers.md) |
+| `Core\Zip` | Core rather than an extension because `../` entries, symlink entries and decompression bombs are *policy*, and policy must be non-optional | [ADR 0051 § 3](../decisions/0051.md) |
 | `Core\Mime` | type detection by magic bytes, not by libmagic's rule interpreter | |
 
 ## 18. `Core\Db`

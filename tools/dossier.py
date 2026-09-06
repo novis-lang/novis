@@ -212,7 +212,7 @@ FINDINGS = ROOT / ".loop" / "dossier-findings"
 #: either shared by a goal's whole batch -- `crates/` holds the `mod tests` all eighteen of its
 #: features append to -- or is a ledger with exactly one writer. A second writer arriving in
 #: parallel is how both of those fail silently instead of loudly.
-RESERVED = ("crates/", "tools/", "docs/perf/", "docs/agent/", "docs/adr/", "fuzz/", ".loop/")
+RESERVED = ("crates/", "tools/", "docs/perf/", "docs/agent/", "docs/adr/", "docs/decisions/", "fuzz/", ".loop/")
 
 #: How many workers a fan-out runs. Deliberately not `machine.jobs()`: a worker is an agent waiting
 #: on an API, not a process waiting on a core, and the only machine-bound thing it does is bless an

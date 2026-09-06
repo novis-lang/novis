@@ -32,7 +32,7 @@ one injection into a compromise; `LOAD DATA LOCAL INFILE`; `PDO::quote` and
 `lastInsertId` state; `PDO::ATTR_*`; and `PDO::inTransaction`. Query builders, ORMs and migration
 tooling are not `Core` at all.
 
-<sub>See also [`core-classes/db-parameters`](core-classes.md#core-classes-db-parameters), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum), [`types/conversion`](types.md#types-conversion). Decided in [0067](../adr/0067-core-db.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md), [0028](../adr/0028-closing-the-remaining-magic-methods.md), [0051](../adr/0051-standard-library-tiers.md), [0063](../adr/0063-core-api-conventions.md).</sub>
+<sub>See also [`core-classes/db-parameters`](core-classes.md#core-classes-db-parameters), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum), [`types/conversion`](types.md#types-conversion). Decided in [0067](../decisions/0067.md), [0024](../decisions/0024.md), [0028](../decisions/0028.md), [0051](../decisions/0051.md), [0063](../decisions/0063.md).</sub>
 
 <a id="core-classes-db-connection-is-named"></a>
 
@@ -59,7 +59,7 @@ A connection is released by the runtime at request teardown — the job a destru
 done by the arena instead. `close()` releases one early, and the name is then free for the next
 `connect`.
 
-<sub>See also [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities), [`core-classes/db-safe-connection-defaults`](core-classes.md#core-classes-db-safe-connection-defaults), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api). Decided in [0067](../adr/0067-core-db.md), [0064](../adr/0064-configuration-file-format.md), [0103](../adr/0103-configuration-is-a-tree-of-files.md), [0033](../adr/0033-secret-qualifier-for-confidential-values.md), [0047](../adr/0047-literal-and-enum-case-types.md).</sub>
+<sub>See also [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities), [`core-classes/db-safe-connection-defaults`](core-classes.md#core-classes-db-safe-connection-defaults), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api). Decided in [0067](../decisions/0067.md), [0064](../decisions/0064.md), [0103](../decisions/0103.md), [0033](../decisions/0033.md), [0047](../decisions/0047.md).</sub>
 
 <a id="core-classes-db-capabilities"></a>
 
@@ -85,7 +85,7 @@ hostname is safe to send credentials to, since a malicious server can answer any
 `LOCAL INFILE` request. `Core\Taint::assertTrusted` is the only way through. `database` and `user`
 accept `tainted` freely, and `password` is `secret tainted string`.
 
-<sub>See also [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named), [`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability), [`core-classes/db-safe-connection-defaults`](core-classes.md#core-classes-db-safe-connection-defaults). Decided in [0067](../adr/0067-core-db.md), [0058](../adr/0058-outbound-request-policy.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md), [0118](../adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md), [0145](../adr/0145-a-schema-is-a-value-core-db-schema-converges-a-closed.md).</sub>
+<sub>See also [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named), [`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability), [`core-classes/db-safe-connection-defaults`](core-classes.md#core-classes-db-safe-connection-defaults). Decided in [0067](../decisions/0067.md), [0058](../decisions/0058.md), [0024](../decisions/0024.md), [0118](../decisions/0118.md), [0145](../decisions/0145.md).</sub>
 
 <a id="core-classes-db-safe-connection-defaults"></a>
 
@@ -106,7 +106,7 @@ literal naming a weaker mode does not compile. **The connection charset is force
 The cost is one connection option a deployment cannot turn down, which is the point: an unsafe
 default that can be restored is an unsafe default a misconfigured deployment still has.
 
-<sub>See also [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types), [`types/bytes`](types.md#types-bytes). Decided in [0067](../adr/0067-core-db.md), [0009](../adr/0009-string-and-bytes.md).</sub>
+<sub>See also [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types), [`types/bytes`](types.md#types-bytes). Decided in [0067](../decisions/0067.md), [0009](../decisions/0009.md).</sub>
 
 <a id="core-classes-db-statement-members"></a>
 
@@ -130,7 +130,7 @@ every later set, and it cannot route a statement that answers with a result set,
 mean one program leaving different rows in two servers. The price is N round trips where one command
 would do, and it is recorded here rather than hidden.
 
-<sub>See also [`core-classes/db-streaming`](core-classes.md#core-classes-db-streaming), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state). Decided in [0067](../adr/0067-core-db.md), [0004](../adr/0004-memory-for-simplicity.md), [0063](../adr/0063-core-api-conventions.md).</sub>
+<sub>See also [`core-classes/db-streaming`](core-classes.md#core-classes-db-streaming), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state). Decided in [0067](../decisions/0067.md), [0004](../decisions/0004.md), [0063](../decisions/0063.md).</sub>
 
 <a id="core-classes-db-streaming"></a>
 
@@ -154,7 +154,7 @@ a `RuntimeError` naming `query` on each of them rather than buffering behind the
 `streamAs` is owed entirely. `crates/nvs-stdlib/src/db/mod.rs` is where that gap is recorded, and
 `crates/nvs-db/src/pg.rs` holds the one driver that has it.
 
-<sub>See also [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state). Decided in [0067](../adr/0067-core-db.md), [0132](../adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md).</sub>
+<sub>See also [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state). Decided in [0067](../decisions/0067.md), [0132](../decisions/0132.md).</sub>
 
 <a id="core-classes-db-parameters"></a>
 
@@ -178,7 +178,7 @@ type, so a `mixed` that turned out to be a list would reshape the query instead 
 `NOT IN`, the rewriter cannot tell which it is in, and picking one silently is worse than making the
 caller branch. Expansion changes the statement's arity, so the statement cache keys on it.
 
-<sub>See also [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members). Decided in [0067](../adr/0067-core-db.md), [0007](../adr/0007-explicit-type-system.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md).</sub>
+<sub>See also [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members). Decided in [0067](../decisions/0067.md), [0007](../decisions/0007.md), [0024](../decisions/0024.md).</sub>
 
 <a id="core-classes-db-column-types"></a>
 
@@ -205,7 +205,7 @@ language's own `as`, so `Core\Db` never grows a second stringification table. Ev
 yields is `tainted` where its type can carry it, which closes stored injection by the same mechanism
 as reflected. The same table is read the other way by [`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed).
 
-<sub>See also [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed), [`types/decimal`](types.md#types-decimal), [`types/uint`](types.md#types-uint), [`types/conversion`](types.md#types-conversion). Decided in [0067](../adr/0067-core-db.md), [0054](../adr/0054-decimal-scalar-type.md), [0009](../adr/0009-string-and-bytes.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md), [0036](../adr/0036-anonymous-object-shapes.md), [0063](../adr/0063-core-api-conventions.md), [0071](../adr/0071-derived-codecs.md), [0145](../adr/0145-a-schema-is-a-value-core-db-schema-converges-a-closed.md).</sub>
+<sub>See also [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed), [`types/decimal`](types.md#types-decimal), [`types/uint`](types.md#types-uint), [`types/conversion`](types.md#types-conversion). Decided in [0067](../decisions/0067.md), [0054](../decisions/0054.md), [0009](../decisions/0009.md), [0024](../decisions/0024.md), [0036](../decisions/0036.md), [0063](../decisions/0063.md), [0071](../decisions/0071.md), [0145](../decisions/0145.md).</sub>
 
 <a id="core-classes-db-transactions"></a>
 
@@ -233,7 +233,7 @@ Nesting on one connection issues `SAVEPOINT` and `ROLLBACK TO SAVEPOINT`, which 
 the closure on deadlock and serialization failure only, outermost transactions only, and defaults to
 `0` because re-running a closure that sends mail is worse than surfacing the conflict.
 
-<sub>See also [`core-classes/db-error`](core-classes.md#core-classes-db-error), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`errors/propagation`](errors.md#errors-propagation). Decided in [0067](../adr/0067-core-db.md), [0028](../adr/0028-closing-the-remaining-magic-methods.md), [0043](../adr/0043-interface-default-methods-and-delegation-replace-traits.md), [0002](../adr/0002-error-propagation.md).</sub>
+<sub>See also [`core-classes/db-error`](core-classes.md#core-classes-db-error), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`errors/propagation`](errors.md#errors-propagation). Decided in [0067](../decisions/0067.md), [0028](../decisions/0028.md), [0043](../decisions/0043.md), [0002](../decisions/0002.md).</sub>
 
 <a id="core-classes-db-error"></a>
 
@@ -257,7 +257,7 @@ is a `secret` sink. The SQL text may, being developer-authored. The four raw val
 one boxed slice, which is eight bytes narrower than the single slot it replaced and costs one
 allocation on a path that is already allocating the object, the message and the backtrace.
 
-<sub>See also [`core-classes/db-transactions`](core-classes.md#core-classes-db-transactions), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record). Decided in [0067](../adr/0067-core-db.md), [0033](../adr/0033-secret-qualifier-for-confidential-values.md), [0063](../adr/0063-core-api-conventions.md), [0002](../adr/0002-error-propagation.md).</sub>
+<sub>See also [`core-classes/db-transactions`](core-classes.md#core-classes-db-transactions), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record). Decided in [0067](../decisions/0067.md), [0033](../decisions/0033.md), [0063](../decisions/0063.md), [0002](../decisions/0002.md).</sub>
 
 <a id="core-classes-db-literal-query-checking"></a>
 
@@ -279,7 +279,7 @@ parsing the `CREATE TABLE` a server prints.
 What this costs is that a column name typo survives to run time. What it buys is that the compiler
 never has to be right about a dialect it does not own.
 
-<sub>See also [`core-classes/db-parameters`](core-classes.md#core-classes-db-parameters), [`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection), [`expressions/intrinsic-literals`](expressions.md#expressions-intrinsic-literals). Decided in [0067](../adr/0067-core-db.md), [0057](../adr/0057-intrinsic-literal-folding.md), [0145](../adr/0145-a-schema-is-a-value-core-db-schema-converges-a-closed.md).</sub>
+<sub>See also [`core-classes/db-parameters`](core-classes.md#core-classes-db-parameters), [`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection), [`expressions/intrinsic-literals`](expressions.md#expressions-intrinsic-literals). Decided in [0067](../decisions/0067.md), [0057](../decisions/0057.md), [0145](../decisions/0145.md).</sub>
 
 <a id="core-classes-db-crate-boundary"></a>
 
@@ -305,7 +305,7 @@ which is exactly what a sans-IO crate is. Sequencing — what to send next, what
 means, when the connection is reusable — is where this project's own decisions live, and borrowing it
 is what would have dragged an async runtime in. TDS has no such crate and is written by hand.
 
-<sub>See also [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state), [`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection). Decided in [0132](../adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md), [0067](../adr/0067-core-db.md), [0051](../adr/0051-standard-library-tiers.md).</sub>
+<sub>See also [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state), [`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection). Decided in [0132](../decisions/0132.md), [0067](../decisions/0067.md), [0051](../decisions/0051.md).</sub>
 
 <a id="core-classes-db-drivers-are-an-enum"></a>
 
@@ -331,7 +331,7 @@ placeholder rewriter, the statement cache, the pool, the Novis side of the type 
 normalisation, whose per-driver code tables are *data* each driver supplies rather than behaviour it
 overrides.
 
-<sub>See also [`core-classes/db-crate-boundary`](core-classes.md#core-classes-db-crate-boundary), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`core-classes/db-unix-socket-path`](core-classes.md#core-classes-db-unix-socket-path). Decided in [0132](../adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md), [0067](../adr/0067-core-db.md), [0003](../adr/0003-extension-system.md).</sub>
+<sub>See also [`core-classes/db-crate-boundary`](core-classes.md#core-classes-db-crate-boundary), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`core-classes/db-unix-socket-path`](core-classes.md#core-classes-db-unix-socket-path). Decided in [0132](../decisions/0132.md), [0067](../decisions/0067.md), [0003](../decisions/0003.md).</sub>
 
 <a id="core-classes-db-connection-busy-state"></a>
 
@@ -358,7 +358,7 @@ An abandoned stream is not automatically poison: a driver that can cancel and dr
 returns to `Idle` and pools the connection, and one that cannot poisons it. That choice is per
 driver, in the driver.
 
-<sub>See also [`core-classes/db-streaming`](core-classes.md#core-classes-db-streaming), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum). Decided in [0132](../adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md), [0067](../adr/0067-core-db.md).</sub>
+<sub>See also [`core-classes/db-streaming`](core-classes.md#core-classes-db-streaming), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum). Decided in [0132](../decisions/0132.md), [0067](../decisions/0067.md).</sub>
 
 <a id="core-classes-db-unix-socket-path"></a>
 
@@ -383,7 +383,7 @@ The cost is one piece of protocol trivia per driver, encoded where that driver's
 holds neither the derivation nor the transport, and `crates/nvs-db/src/tds/mod.rs` has no refusal to
 report.
 
-<sub>See also [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum). Decided in [0142](../adr/0142-a-configured-store-is-authorized-by-its-configuring.md), [0067](../adr/0067-core-db.md), [0132](../adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md).</sub>
+<sub>See also [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum). Decided in [0142](../decisions/0142.md), [0067](../decisions/0067.md), [0132](../decisions/0132.md).</sub>
 
 <a id="core-classes-queue-storage-is-a-table"></a>
 
@@ -406,7 +406,7 @@ transactional enqueue — the property the whole design rests on — requires it
 database is permitted and silently gives up that property, which is why the documentation says so at
 the point the option is offered.
 
-<sub>See also [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges), [`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability), [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities). Decided in [0084](../adr/0084-durable-background-jobs.md), [0145](../adr/0145-a-schema-is-a-value-core-db-schema-converges-a-closed.md), [0067](../adr/0067-core-db.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md).</sub>
+<sub>See also [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges), [`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability), [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities). Decided in [0084](../decisions/0084.md), [0145](../decisions/0145.md), [0067](../decisions/0067.md), [0024](../decisions/0024.md).</sub>
 
 <a id="core-classes-schema-is-a-value"></a>
 
@@ -433,7 +433,7 @@ own spelling of a default are each normalized out on both sides. The acceptance 
 property — apply a schema, introspect it back, and the resulting plan is **empty**, on all five
 backends. Every normalization rule exists because that property failed without it.
 
-<sub>See also [`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed), [`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection), [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`types/arrays`](types.md#types-arrays). Decided in [0145](../adr/0145-a-schema-is-a-value-core-db-schema-converges-a-closed.md), [0090](../adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md), [0071](../adr/0071-derived-codecs.md), [0067](../adr/0067-core-db.md).</sub>
+<sub>See also [`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed), [`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection), [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`types/arrays`](types.md#types-arrays). Decided in [0145](../decisions/0145.md), [0090](../decisions/0090.md), [0071](../decisions/0071.md), [0067](../decisions/0067.md).</sub>
 
 <a id="core-classes-schema-vocabulary-is-closed"></a>
 
@@ -462,7 +462,7 @@ because it is reachable through `Core\Db::execute` exactly as it is today. Forei
 indexes, index types, collations, check constraints, triggers, views and partitioning are all out of
 v1 for the same reason: no portable spelling, and admitting one would break the empty-plan property.
 
-<sub>See also [`core-classes/schema-is-a-value`](core-classes.md#core-classes-schema-is-a-value), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types), [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan). Decided in [0145](../adr/0145-a-schema-is-a-value-core-db-schema-converges-a-closed.md), [0067](../adr/0067-core-db.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md).</sub>
+<sub>See also [`core-classes/schema-is-a-value`](core-classes.md#core-classes-schema-is-a-value), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types), [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan). Decided in [0145](../decisions/0145.md), [0067](../decisions/0067.md), [0024](../decisions/0024.md).</sub>
 
 <a id="core-classes-schema-converges"></a>
 
@@ -486,7 +486,7 @@ changes and fleet locking stay a blocked gap in the first-party framework
 stops there deliberately: every one of those open questions is a question convergence does not have
 to answer.
 
-<sub>See also [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection), [`core-classes/schema-absence-never-destroys`](core-classes.md#core-classes-schema-absence-never-destroys), [`programs/no-migration-runner`](programs.md#programs-no-migration-runner). Decided in [0145](../adr/0145-a-schema-is-a-value-core-db-schema-converges-a-closed.md), [0082](../adr/0082-the-first-party-framework.md).</sub>
+<sub>See also [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection), [`core-classes/schema-absence-never-destroys`](core-classes.md#core-classes-schema-absence-never-destroys), [`programs/no-migration-runner`](programs.md#programs-no-migration-runner). Decided in [0145](../decisions/0145.md), [0082](../decisions/0082.md).</sub>
 
 <a id="core-classes-schema-introspection"></a>
 
@@ -509,7 +509,7 @@ anyway, and the introspector must exist for the diff regardless — so a parser 
 worse implementation of a job already done. Offline `.sql` input, if it is ever wanted, is a separate
 tool with its own decision.
 
-<sub>See also [`core-classes/schema-is-a-value`](core-classes.md#core-classes-schema-is-a-value), [`core-classes/db-literal-query-checking`](core-classes.md#core-classes-db-literal-query-checking), [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges). Decided in [0145](../adr/0145-a-schema-is-a-value-core-db-schema-converges-a-closed.md), [0067](../adr/0067-core-db.md), [0051](../adr/0051-standard-library-tiers.md).</sub>
+<sub>See also [`core-classes/schema-is-a-value`](core-classes.md#core-classes-schema-is-a-value), [`core-classes/db-literal-query-checking`](core-classes.md#core-classes-db-literal-query-checking), [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges). Decided in [0145](../decisions/0145.md), [0067](../decisions/0067.md), [0051](../decisions/0051.md).</sub>
 
 <a id="core-classes-schema-plan"></a>
 
@@ -536,7 +536,7 @@ cannot issue DDL at all and a DBA applies the change from a ticket — a plan wh
 elided into "3 unsafe changes" is useless to that person, and a plan they can paste is the whole
 product. Emitters follow the four dialects, not the five drivers.
 
-<sub>See also [`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability), [`core-classes/schema-absence-never-destroys`](core-classes.md#core-classes-schema-absence-never-destroys), [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges). Decided in [0145](../adr/0145-a-schema-is-a-value-core-db-schema-converges-a-closed.md), [0067](../adr/0067-core-db.md).</sub>
+<sub>See also [`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability), [`core-classes/schema-absence-never-destroys`](core-classes.md#core-classes-schema-absence-never-destroys), [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges). Decided in [0145](../decisions/0145.md), [0067](../decisions/0067.md).</sub>
 
 <a id="core-classes-schema-absence-never-destroys"></a>
 
@@ -562,7 +562,7 @@ every plan against a shared database holds reports, and a rule reading *every* s
 refuse every plan ever computed against a real database. `applySafe` reads the grades of the steps it
 would run.
 
-<sub>See also [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0145](../adr/0145-a-schema-is-a-value-core-db-schema-converges-a-closed.md), [0084](../adr/0084-durable-background-jobs.md).</sub>
+<sub>See also [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0145](../decisions/0145.md), [0084](../decisions/0084.md).</sub>
 
 <a id="core-classes-schema-apply-capability"></a>
 
@@ -583,7 +583,7 @@ step it would run is not `Safe`, and throws naming the first that is not.
 **`applyIncludingRisky()`** says so where it is written, so a reviewer reading the call sees the
 claim being made. `nvs schema plan|apply|dump` is the operator's spelling of the same thing.
 
-<sub>See also [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities), [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0145](../adr/0145-a-schema-is-a-value-core-db-schema-converges-a-closed.md), [0067](../adr/0067-core-db.md), [0084](../adr/0084-durable-background-jobs.md).</sub>
+<sub>See also [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities), [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0145](../decisions/0145.md), [0067](../decisions/0067.md), [0084](../decisions/0084.md).</sub>
 
 <a id="core-classes-derive-attribute"></a>
 
@@ -608,7 +608,7 @@ structural, unchanged ([`attributes/structural-retrieval`](attributes.md#attribu
 attribute joins the closed list; nothing else is ever matched by name. The list itself is a single
 table in the compiler, which is what stops a per-record running total from going stale.
 
-<sub>See also [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`core-classes/derive-generates-what-is-missing`](core-classes.md#core-classes-derive-generates-what-is-missing), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval). Decided in [0071](../adr/0071-derived-codecs.md), [0062](../adr/0062-case-sensitivity-is-a-compiler-property.md), [0067](../adr/0067-core-db.md), [0102](../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md).</sub>
+<sub>See also [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`core-classes/derive-generates-what-is-missing`](core-classes.md#core-classes-derive-generates-what-is-missing), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval). Decided in [0071](../decisions/0071.md), [0062](../decisions/0062.md), [0067](../decisions/0067.md), [0102](../decisions/0102.md).</sub>
 
 <a id="core-classes-derive-field-list"></a>
 
@@ -636,7 +636,7 @@ Two per-field overrides exist and no more: `name` renames one key or column, and
 the field from the codec entirely. There is no whole-class naming policy — that would make a wire
 format depend on a setting rather than on the source.
 
-<sub>See also [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`core-classes/derive-reports-every-field`](core-classes.md#core-classes-derive-reports-every-field), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types). Decided in [0071](../adr/0071-derived-codecs.md), [0022](../adr/0022-definite-property-initialization.md), [0038](../adr/0038-lateinit-property-modifier.md), [0030](../adr/0030-no-leading-underscores-constructor-spelling.md), [0067](../adr/0067-core-db.md).</sub>
+<sub>See also [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`core-classes/derive-reports-every-field`](core-classes.md#core-classes-derive-reports-every-field), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types). Decided in [0071](../decisions/0071.md), [0022](../decisions/0022.md), [0038](../decisions/0038.md), [0030](../decisions/0030.md), [0067](../decisions/0067.md).</sub>
 
 <a id="core-classes-derive-reports-every-field"></a>
 
@@ -661,7 +661,7 @@ One thing the record describes has not landed: `Core\Db\DbError` has no `issues`
 the row half's per-field refusals are reported on a `ParseError` instead. Gap 4 in
 `crates/nvs-stdlib/src/db/mod.rs` is where that is recorded.
 
-<sub>See also [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`core-classes/db-error`](core-classes.md#core-classes-db-error), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy). Decided in [0071](../adr/0071-derived-codecs.md), [0002](../adr/0002-error-propagation.md), [0067](../adr/0067-core-db.md).</sub>
+<sub>See also [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`core-classes/db-error`](core-classes.md#core-classes-db-error), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy). Decided in [0071](../decisions/0071.md), [0002](../decisions/0002.md), [0067](../decisions/0067.md).</sub>
 
 <a id="core-classes-derive-generates-what-is-missing"></a>
 
@@ -688,7 +688,7 @@ field-by-field code. **Nothing is stored per object and nothing is reflected at 
 is O(derived classes in compiled code), not O(objects) and not O(requests), and a program with no
 derive attribute pays nothing at all, including no pass.
 
-<sub>See also [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`types/object-literal`](types.md#types-object-literal), [`types/shape-type`](types.md#types-shape-type). Decided in [0071](../adr/0071-derived-codecs.md), [0023](../adr/0023-clone-serialize-and-cross-boundary-copy.md), [0029](../adr/0029-identifier-casing-is-checked.md), [0042](../adr/0042-on-disk-artifact-cache-format.md), [0063](../adr/0063-core-api-conventions.md).</sub>
+<sub>See also [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`types/object-literal`](types.md#types-object-literal), [`types/shape-type`](types.md#types-shape-type). Decided in [0071](../decisions/0071.md), [0023](../decisions/0023.md), [0029](../decisions/0029.md), [0042](../decisions/0042.md), [0063](../decisions/0063.md).</sub>
 
 <a id="core-classes-process-is-argv-only"></a>
 
@@ -713,7 +713,7 @@ What this costs is the one case where a shell genuinely was the feature — a pi
 redirect. Those are written in Novis, or by spawning the shell explicitly and owning the quoting at
 that call site.
 
-<sub>See also [`core-classes/process-run`](core-classes.md#core-classes-process-run), [`core-classes/process-refuses-a-shell-target`](core-classes.md#core-classes-process-refuses-a-shell-target), [`core-classes/process-spawn`](core-classes.md#core-classes-process-spawn). Decided in [0044](../adr/0044-core-process-argv-only-no-shell.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md), [0118](../adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md).</sub>
+<sub>See also [`core-classes/process-run`](core-classes.md#core-classes-process-run), [`core-classes/process-refuses-a-shell-target`](core-classes.md#core-classes-process-refuses-a-shell-target), [`core-classes/process-spawn`](core-classes.md#core-classes-process-spawn). Decided in [0044](../decisions/0044.md), [0024](../decisions/0024.md), [0118](../decisions/0118.md).</sub>
 
 <a id="core-classes-process-run"></a>
 
@@ -738,7 +738,7 @@ reuses the request's existing `max_output` directive to bound that capture; noth
 tree today, so what bounds a capture is the request's memory limit, which the buffers are charged
 against like any other allocation (`crates/nvs-stdlib/src/process.rs`, gap 1).
 
-<sub>See also [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`core-classes/process-options`](core-classes.md#core-classes-process-options), [`types/bytes`](types.md#types-bytes), [`types/conversion`](types.md#types-conversion). Decided in [0044](../adr/0044-core-process-argv-only-no-shell.md), [0009](../adr/0009-string-and-bytes.md), [0005](../adr/0005-config-changeability.md).</sub>
+<sub>See also [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`core-classes/process-options`](core-classes.md#core-classes-process-options), [`types/bytes`](types.md#types-bytes), [`types/conversion`](types.md#types-conversion). Decided in [0044](../decisions/0044.md), [0009](../decisions/0009.md), [0005](../decisions/0005.md).</sub>
 
 <a id="core-classes-process-options"></a>
 
@@ -762,7 +762,7 @@ coroutine resumes into a throw naming the timeout.
 and nothing else; there is no options type, so a child inherits the environment, runs in the calling
 process's directory, and is bounded only by the request's own wall-clock deadline.
 
-<sub>See also [`core-classes/process-run`](core-classes.md#core-classes-process-run), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0044](../adr/0044-core-process-argv-only-no-shell.md), [0033](../adr/0033-secret-qualifier-for-confidential-values.md), [0005](../adr/0005-config-changeability.md).</sub>
+<sub>See also [`core-classes/process-run`](core-classes.md#core-classes-process-run), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0044](../decisions/0044.md), [0033](../decisions/0033.md), [0005](../decisions/0005.md).</sub>
 
 <a id="core-classes-process-spawn"></a>
 
@@ -782,7 +782,7 @@ kinds of process.
 **Not shipped.** `crates/nvs-stdlib/src/process.rs` registers `run` alone; there is no handle type,
 so a program that needs to interleave with a child's output has no member to reach for.
 
-<sub>See also [`core-classes/process-run`](core-classes.md#core-classes-process-run), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only). Decided in [0044](../adr/0044-core-process-argv-only-no-shell.md).</sub>
+<sub>See also [`core-classes/process-run`](core-classes.md#core-classes-process-run), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only). Decided in [0044](../decisions/0044.md).</sub>
 
 <a id="core-classes-process-refuses-a-shell-target"></a>
 
@@ -808,7 +808,7 @@ There is no convenience for the case where a batch file really is the target: a 
 `cmd.exe` explicitly, through the same argv API, and takes the quoting risk visibly rather than
 through a flag that looks as safe as every other call.
 
-<sub>See also [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`core-classes/process-run`](core-classes.md#core-classes-process-run). Decided in [0044](../adr/0044-core-process-argv-only-no-shell.md).</sub>
+<sub>See also [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`core-classes/process-run`](core-classes.md#core-classes-process-run). Decided in [0044](../decisions/0044.md).</sub>
 
 <a id="core-classes-regex-two-tiers"></a>
 
@@ -835,7 +835,7 @@ The budget's default is a stated constant today rather than a configuration key,
 configuration subsystem in front of it yet — `crates/nvs-stdlib/src/regex.rs` names it and records
 the gap.
 
-<sub>See also [`core-classes/regex-literal-tiering`](core-classes.md#core-classes-regex-literal-tiering), [`core-classes/regex-syntax`](core-classes.md#core-classes-regex-syntax), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder). Decided in [0056](../adr/0056-regex-engine-policy.md), [0005](../adr/0005-config-changeability.md), [0020](../adr/0020-error-escalation-ladder.md).</sub>
+<sub>See also [`core-classes/regex-literal-tiering`](core-classes.md#core-classes-regex-literal-tiering), [`core-classes/regex-syntax`](core-classes.md#core-classes-regex-syntax), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder). Decided in [0056](../decisions/0056.md), [0005](../decisions/0005.md), [0020](../decisions/0020.md).</sub>
 
 <a id="core-classes-regex-literal-tiering"></a>
 
@@ -862,7 +862,7 @@ rather than discovered.
 
 The third consequence is not built: there is no `[regex]` block, so `deny` cannot be written yet.
 
-<sub>See also [`core-classes/regex-two-tiers`](core-classes.md#core-classes-regex-two-tiers), [`expressions/intrinsic-literals`](expressions.md#expressions-intrinsic-literals), [`expressions/intrinsic-list-is-closed`](expressions.md#expressions-intrinsic-list-is-closed). Decided in [0056](../adr/0056-regex-engine-policy.md), [0057](../adr/0057-intrinsic-literal-folding.md), [0005](../adr/0005-config-changeability.md).</sub>
+<sub>See also [`core-classes/regex-two-tiers`](core-classes.md#core-classes-regex-two-tiers), [`expressions/intrinsic-literals`](expressions.md#expressions-intrinsic-literals), [`expressions/intrinsic-list-is-closed`](expressions.md#expressions-intrinsic-list-is-closed). Decided in [0056](../decisions/0056.md), [0057](../decisions/0057.md), [0005](../decisions/0005.md).</sub>
 
 <a id="core-classes-regex-syntax"></a>
 
@@ -883,7 +883,7 @@ to avoid.
 
 `/e` and the other spellings PHP has already removed are not reintroduced.
 
-<sub>See also [`core-classes/regex-two-tiers`](core-classes.md#core-classes-regex-two-tiers), [`types/string-is-utf8`](types.md#types-string-is-utf8), [`types/bytes`](types.md#types-bytes). Decided in [0056](../adr/0056-regex-engine-policy.md), [0009](../adr/0009-string-and-bytes.md).</sub>
+<sub>See also [`core-classes/regex-two-tiers`](core-classes.md#core-classes-regex-two-tiers), [`types/string-is-utf8`](types.md#types-string-is-utf8), [`types/bytes`](types.md#types-bytes). Decided in [0056](../decisions/0056.md), [0009](../decisions/0009.md).</sub>
 
 <a id="core-classes-html-auto-escape"></a>
 
@@ -909,7 +909,7 @@ converted with `as Markup` is trusted — it is exactly what the developer wrote
 `Markup + Markup` is `Markup`, so composing trusted fragments stays cheap; `.` has no row for a
 carrier, and a mixed `$markup + "x"` is refused rather than escaped, because `+` is not a sink.
 
-<sub>See also [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0024](../adr/0024-taint-tracking-for-injection-sinks.md), [0133](../adr/0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md), [0087](../adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md), [0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md), [0086](../adr/0086-core-cli-terminal-is-a-sink.md).</sub>
+<sub>See also [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0024](../decisions/0024.md), [0133](../decisions/0133.md), [0087](../decisions/0087.md), [0088](../decisions/0088.md), [0086](../decisions/0086.md).</sub>
 
 <a id="core-classes-html-escape-answers-markup"></a>
 
@@ -931,7 +931,7 @@ replacement character. Escaping `<`, `>`, `&` and quotes does nothing about disp
 that rule a bidi payload would survive the auto-escape sink intact. A balanced control is legitimate
 mixed-direction text and passes through.
 
-<sub>See also [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize). Decided in [0133](../adr/0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md), [0087](../adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md).</sub>
+<sub>See also [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize). Decided in [0133](../decisions/0133.md), [0024](../decisions/0024.md), [0087](../decisions/0087.md).</sub>
 
 <a id="core-classes-html-to-source"></a>
 
@@ -956,7 +956,7 @@ The name is deliberate. `to…` is the conversion verb, `source` is spelled out,
 `raw` — which in every template language means the opposite direction — nor `unescape`, which is
 reserved for the operation that actually inverts `escape` and which this is not.
 
-<sub>See also [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0133](../adr/0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md), [0063](../adr/0063-core-api-conventions.md).</sub>
+<sub>See also [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0133](../decisions/0133.md), [0024](../decisions/0024.md), [0063](../decisions/0063.md).</sub>
 
 <a id="core-classes-html-sanitize"></a>
 
@@ -976,7 +976,7 @@ dangerous" is a list an attacker gets to extend.
 The member waits on the WHATWG tree ([`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing)), which is what it would parse
 into.
 
-<sub>See also [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape). Decided in [0133](../adr/0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md), [0051](../adr/0051-standard-library-tiers.md), [0122](../adr/0122-html-parsing-is-a-whatwg-entry-on-core-html-over-core-xmls-tree.md).</sub>
+<sub>See also [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape). Decided in [0133](../decisions/0133.md), [0024](../decisions/0024.md), [0051](../decisions/0051.md), [0122](../decisions/0122.md).</sub>
 
 <a id="core-classes-html-parsing"></a>
 
@@ -1005,7 +1005,7 @@ request and gone with it.
 builds this parse in the same milestone, because the tree and the builder interface are one
 implementation and the second one built would otherwise be shaped by whichever landed first.
 
-<sub>See also [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0122](../adr/0122-html-parsing-is-a-whatwg-entry-on-core-html-over-core-xmls-tree.md), [0095](../adr/0095-ambiguous-input-is-refused-never-repaired.md), [0063](../adr/0063-core-api-conventions.md), [0121](../adr/0121-pdf-generation-is-sandboxed-html-rendering-with-no-io.md).</sub>
+<sub>See also [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0122](../decisions/0122.md), [0095](../decisions/0095.md), [0063](../decisions/0063.md), [0121](../decisions/0121.md).</sub>
 
 <a id="core-classes-secret-reveal"></a>
 
@@ -1029,7 +1029,7 @@ safe to keep comes out", and each such function's author carries responsibility 
 
 `reveal` removes `secret` and nothing else: a value that was also `tainted` stays `tainted`.
 
-<sub>See also [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/process-options`](core-classes.md#core-classes-process-options), [`core-classes/ratelimit-gcra`](core-classes.md#core-classes-ratelimit-gcra). Decided in [0033](../adr/0033-secret-qualifier-for-confidential-values.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md).</sub>
+<sub>See also [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/process-options`](core-classes.md#core-classes-process-options), [`core-classes/ratelimit-gcra`](core-classes.md#core-classes-ratelimit-gcra). Decided in [0033](../decisions/0033.md), [0024](../decisions/0024.md).</sub>
 
 <a id="core-classes-validate-has-no-type-predicates"></a>
 
@@ -1050,7 +1050,7 @@ What survives is the roster that names no type: `isEmail`, `isIp`, `isMac`, `isD
 `isPrintable`. None has an `as` equivalent, because none names a type
 ([`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion)).
 
-<sub>See also [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`expressions/try-parse`](expressions.md#expressions-try-parse), [`types/conversion`](types.md#types-conversion). Decided in [0066](../adr/0066-nullable-conversion-operator.md), [0063](../adr/0063-core-api-conventions.md).</sub>
+<sub>See also [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`expressions/try-parse`](expressions.md#expressions-try-parse), [`types/conversion`](types.md#types-conversion). Decided in [0066](../decisions/0066.md), [0063](../decisions/0063.md).</sub>
 
 <a id="core-classes-reflect"></a>
 
@@ -1073,7 +1073,7 @@ What it costs is that a serializer or a container cannot reach state its author 
 is the trade: the alternative is that every access modifier in the language is advisory, which is
 what PHP's reflection makes them.
 
-<sub>See also [`core-classes/ast-is-inert`](core-classes.md#core-classes-ast-is-inert), [`enums/reflection`](enums.md#enums-reflection), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0019](../adr/0019-reflection-and-ast-parsing-are-core-features.md), [0043](../adr/0043-interface-default-methods-and-delegation-replace-traits.md).</sub>
+<sub>See also [`core-classes/ast-is-inert`](core-classes.md#core-classes-ast-is-inert), [`enums/reflection`](enums.md#enums-reflection), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0019](../decisions/0019.md), [0043](../decisions/0043.md).</sub>
 
 <a id="core-classes-ast-is-inert"></a>
 
@@ -1096,7 +1096,7 @@ path. A program can walk a tree, print it, or rewrite it into a new source strin
 or a file — never a way to run what it describes. Shipping this is therefore not `eval` under a
 different name; it is the same refusal restated.
 
-<sub>See also [`core-classes/reflect`](core-classes.md#core-classes-reflect), [`types/declaration`](types.md#types-declaration), [`programs/compile-target`](programs.md#programs-compile-target). Decided in [0019](../adr/0019-reflection-and-ast-parsing-are-core-features.md), [0006](../adr/0006-isolated-script-execution.md).</sub>
+<sub>See also [`core-classes/reflect`](core-classes.md#core-classes-reflect), [`types/declaration`](types.md#types-declaration), [`programs/compile-target`](programs.md#programs-compile-target). Decided in [0019](../decisions/0019.md), [0006](../decisions/0006.md).</sub>
 
 <a id="core-classes-session-is-started-explicitly"></a>
 
@@ -1118,7 +1118,7 @@ own rather than a sweeper's.
 What this costs is one line per request that uses sessions. What it buys is that a request that does
 not use them pays nothing, which the ambient version could never promise.
 
-<sub>See also [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments), [`core-classes/script-args`](core-classes.md#core-classes-script-args). Decided in [0012](../adr/0012-no-superglobals.md), [0139](../adr/0139-a-session-is-a-record-its-store-issued.md), [0059](../adr/0059-cross-request-state-is-explicit.md), [0008](../adr/0008-static-and-global.md).</sub>
+<sub>See also [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments), [`core-classes/script-args`](core-classes.md#core-classes-script-args). Decided in [0012](../decisions/0012.md), [0139](../decisions/0139.md), [0059](../decisions/0059.md), [0008](../decisions/0008.md).</sub>
 
 <a id="core-classes-cli-arguments"></a>
 
@@ -1143,7 +1143,7 @@ The record this rule comes from specified `args()`/`argc()` and a throw when cal
 HTTP. The shipped member is `arguments()`, and inside a request it answers empty rather than throwing
 — the launcher writes the command line and only the CLI entry point writes one.
 
-<sub>See also [`core-classes/script-args`](core-classes.md#core-classes-script-args), [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables). Decided in [0012](../adr/0012-no-superglobals.md), [0086](../adr/0086-core-cli-terminal-is-a-sink.md), [0118](../adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md).</sub>
+<sub>See also [`core-classes/script-args`](core-classes.md#core-classes-script-args), [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables). Decided in [0012](../decisions/0012.md), [0086](../decisions/0086.md), [0118](../decisions/0118.md).</sub>
 
 <a id="core-classes-script-args"></a>
 
@@ -1165,7 +1165,7 @@ whole of the reason: an ambient, undeclared variable is the shape being closed, 
 introduced itself is no better for having been introduced deliberately. Each isolate's arguments are
 its own.
 
-<sub>See also [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`statements/an-isolate-has-its-own-statics`](statements.md#statements-an-isolate-has-its-own-statics). Decided in [0012](../adr/0012-no-superglobals.md), [0006](../adr/0006-isolated-script-execution.md), [0023](../adr/0023-clone-serialize-and-cross-boundary-copy.md).</sub>
+<sub>See also [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`statements/an-isolate-has-its-own-statics`](statements.md#statements-an-isolate-has-its-own-statics). Decided in [0012](../decisions/0012.md), [0006](../decisions/0006.md), [0023](../decisions/0023.md).</sub>
 
 <a id="core-classes-topic"></a>
 
@@ -1193,7 +1193,7 @@ It is **not** built on the shared cache, which is deliberately lossy — right f
 for a message a subscriber is waiting on. Cross-machine fan-out is not the runtime's: a fleet bridges
 topics to a broker in application code.
 
-<sub>See also [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0083](../adr/0083-persistent-connections-are-isolates.md), [0023](../adr/0023-clone-serialize-and-cross-boundary-copy.md), [0033](../adr/0033-secret-qualifier-for-confidential-values.md), [0059](../adr/0059-cross-request-state-is-explicit.md), [0051](../adr/0051-standard-library-tiers.md), [0076](../adr/0076-observability-export.md).</sub>
+<sub>See also [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0083](../decisions/0083.md), [0023](../decisions/0023.md), [0033](../decisions/0033.md), [0059](../decisions/0059.md), [0051](../decisions/0051.md), [0076](../decisions/0076.md).</sub>
 
 <a id="core-classes-ratelimit-two-members"></a>
 
@@ -1218,7 +1218,7 @@ there is no `[ratelimit]` block at all. **Any automatic enforcement** — the me
 and writes no `429`. **Distributed reservation** and multi-key atomic checks, which are considerably
 more machinery with no named use case yet.
 
-<sub>See also [`core-classes/ratelimit-gcra`](core-classes.md#core-classes-ratelimit-gcra), [`core-classes/ratelimit-unreachable-store-throws`](core-classes.md#core-classes-ratelimit-unreachable-store-throws), [`core-classes/topic`](core-classes.md#core-classes-topic). Decided in [0075](../adr/0075-core-ratelimit.md), [0059](../adr/0059-cross-request-state-is-explicit.md), [0063](../adr/0063-core-api-conventions.md), [0074](../adr/0074-http-defaults-safe-and-finite.md), [0077](../adr/0077-compile-time-routing.md).</sub>
+<sub>See also [`core-classes/ratelimit-gcra`](core-classes.md#core-classes-ratelimit-gcra), [`core-classes/ratelimit-unreachable-store-throws`](core-classes.md#core-classes-ratelimit-unreachable-store-throws), [`core-classes/topic`](core-classes.md#core-classes-topic). Decided in [0075](../decisions/0075.md), [0059](../decisions/0059.md), [0063](../decisions/0063.md), [0074](../decisions/0074.md), [0077](../decisions/0077.md).</sub>
 
 <a id="core-classes-ratelimit-gcra"></a>
 
@@ -1246,7 +1246,7 @@ nature and the store's protocol is length-prefixed, so a key cannot reshape a co
 TTL. The in-process tier is an existing crate; the shared tier is a small script of our own, an
 algorithm over our own state.
 
-<sub>See also [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-classes/ratelimit-unreachable-store-throws`](core-classes.md#core-classes-ratelimit-unreachable-store-throws), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal), [`types/duration-literal`](types.md#types-duration-literal). Decided in [0075](../adr/0075-core-ratelimit.md), [0063](../adr/0063-core-api-conventions.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md), [0033](../adr/0033-secret-qualifier-for-confidential-values.md).</sub>
+<sub>See also [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-classes/ratelimit-unreachable-store-throws`](core-classes.md#core-classes-ratelimit-unreachable-store-throws), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal), [`types/duration-literal`](types.md#types-duration-literal). Decided in [0075](../decisions/0075.md), [0063](../decisions/0063.md), [0024](../decisions/0024.md), [0033](../decisions/0033.md).</sub>
 
 <a id="core-classes-ratelimit-unreachable-store-throws"></a>
 
@@ -1266,7 +1266,7 @@ can question.
 `shed` cannot fail this way, its state being in the core's own memory, which is one more reason the
 two are different members rather than one with a flag.
 
-<sub>See also [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-classes/ratelimit-gcra`](core-classes.md#core-classes-ratelimit-gcra), [`errors/propagation`](errors.md#errors-propagation). Decided in [0075](../adr/0075-core-ratelimit.md), [0063](../adr/0063-core-api-conventions.md), [0002](../adr/0002-error-propagation.md).</sub>
+<sub>See also [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-classes/ratelimit-gcra`](core-classes.md#core-classes-ratelimit-gcra), [`errors/propagation`](errors.md#errors-propagation). Decided in [0075](../decisions/0075.md), [0063](../decisions/0063.md), [0002](../decisions/0002.md).</sub>
 
 <a id="core-classes-io-write-stream"></a>
 
@@ -1291,7 +1291,7 @@ It is general on purpose: a request body, a decompressed archive, an outbound re
 upload part all reach disk through this one implementation, so the partial-write cleanup lives in one
 place rather than in every call site that hand-wrote the loop.
 
-<sub>See also [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep), [`core-classes/process-run`](core-classes.md#core-classes-process-run). Decided in [0105](../adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md), [0063](../adr/0063-core-api-conventions.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md).</sub>
+<sub>See also [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep), [`core-classes/process-run`](core-classes.md#core-classes-process-run). Decided in [0105](../decisions/0105.md), [0063](../decisions/0063.md), [0024](../decisions/0024.md).</sub>
 
 <a id="core-classes-temporary-dir-sweep"></a>
 
@@ -1321,7 +1321,7 @@ and there is no in-language setter, because a program that can exempt its own fi
 hoard them. The program's own `remove` and `removeDir` are unchanged and still throw: a deliberate
 action's failure is the program's to hear about.
 
-<sub>See also [`core-classes/temporary-dir-orphan-sweep`](core-classes.md#core-classes-temporary-dir-orphan-sweep), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`errors/propagation`](errors.md#errors-propagation). Decided in [0131](../adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md), [0127](../adr/0127-the-end-of-a-script-is-observable.md), [0072](../adr/0072-core-task-structured-concurrency.md), [0106](../adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md), [0078](../adr/0078-config-reload-and-control-socket.md), [0059](../adr/0059-cross-request-state-is-explicit.md), [0004](../adr/0004-memory-for-simplicity.md).</sub>
+<sub>See also [`core-classes/temporary-dir-orphan-sweep`](core-classes.md#core-classes-temporary-dir-orphan-sweep), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`errors/propagation`](errors.md#errors-propagation). Decided in [0131](../decisions/0131.md), [0127](../decisions/0127.md), [0072](../decisions/0072.md), [0106](../decisions/0106.md), [0078](../decisions/0078.md), [0059](../decisions/0059.md), [0004](../decisions/0004.md).</sub>
 
 <a id="core-classes-temporary-dir-orphan-sweep"></a>
 
@@ -1345,7 +1345,7 @@ matter how old. Every failure mode falls the safe way — a recycled pid makes a
 look alive and it leaks until a later sweep, never the reverse — so the sweep may under-delete and
 can never over-delete. There is no force flag that overrides liveness.
 
-<sub>See also [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep). Decided in [0131](../adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md).</sub>
+<sub>See also [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep). Decided in [0131](../decisions/0131.md).</sub>
 
 <a id="core-classes-signature"></a>
 
@@ -1372,7 +1372,7 @@ payload" is not a property the checker can see, so it is not one the return type
 **Not shipped.** There is no `Core\Signature` in `crates/nvs-stdlib/src/`; the nearest landed member
 is `signed_cookie.rs`, whose key-ring shape this one adopts.
 
-<sub>See also [`core-classes/router-signed-url`](core-classes.md#core-classes-router-signed-url), [`core-classes/uri-removable-components`](core-classes.md#core-classes-uri-removable-components), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0146](../adr/0146-a-signature-is-over-a-payload-and-a-url-is-a-payload-core-uri.md), [0060](../adr/0060-application-security-protocols.md), [0033](../adr/0033-secret-qualifier-for-confidential-values.md).</sub>
+<sub>See also [`core-classes/router-signed-url`](core-classes.md#core-classes-router-signed-url), [`core-classes/uri-removable-components`](core-classes.md#core-classes-uri-removable-components), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0146](../decisions/0146.md), [0060](../decisions/0060.md), [0033](../decisions/0033.md).</sub>
 
 <a id="core-classes-router-signed-url"></a>
 
@@ -1396,7 +1396,7 @@ when to ask.
 **Not shipped.** `crates/nvs-stdlib/src/router.rs` carries neither member, and
 [`core-classes/signature`](core-classes.md#core-classes-signature) — the payload half both would sign — is not built either.
 
-<sub>See also [`core-classes/signature`](core-classes.md#core-classes-signature). Decided in [0146](../adr/0146-a-signature-is-over-a-payload-and-a-url-is-a-payload-core-uri.md), [0097](../adr/0097-development-server-and-proxied-origin.md), [0102](../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md).</sub>
+<sub>See also [`core-classes/signature`](core-classes.md#core-classes-signature). Decided in [0146](../decisions/0146.md), [0097](../decisions/0097.md), [0102](../decisions/0102.md).</sub>
 
 <a id="core-classes-uri-removable-components"></a>
 
@@ -1425,7 +1425,7 @@ an array, and removing the last parameter leaves no query at all rather than a b
 non-nullable, so an omitted key and a written `null` arrive identically, and the two parameter
 members do not exist.
 
-<sub>See also [`core-classes/signature`](core-classes.md#core-classes-signature). Decided in [0147](../adr/0147-an-options-bag-tells-an-omitted-key-from-a-written-null.md), [0146](../adr/0146-a-signature-is-over-a-payload-and-a-url-is-a-payload-core-uri.md).</sub>
+<sub>See also [`core-classes/signature`](core-classes.md#core-classes-signature). Decided in [0147](../decisions/0147.md), [0146](../decisions/0146.md).</sub>
 
 <a id="core-classes-image-pipeline"></a>
 
@@ -1452,7 +1452,7 @@ over the image's own contents is not admitted, because its cost is the boundary 
 **Not shipped.** There is no image extension in the tree: no `nvs/image` package and no crate behind
 it.
 
-<sub>See also [`core-classes/image-pixel-model`](core-classes.md#core-classes-image-pixel-model), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`core-classes/image-one-entry-point-per-job`](core-classes.md#core-classes-image-one-entry-point-per-job). Decided in [0120](../adr/0120-the-image-component-is-a-pipeline-that-crosses-the-boundary-once.md), [0063](../adr/0063-core-api-conventions.md), [0003](../adr/0003-extension-system.md).</sub>
+<sub>See also [`core-classes/image-pixel-model`](core-classes.md#core-classes-image-pixel-model), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`core-classes/image-one-entry-point-per-job`](core-classes.md#core-classes-image-one-entry-point-per-job). Decided in [0120](../decisions/0120.md), [0063](../decisions/0063.md), [0003](../decisions/0003.md).</sub>
 
 <a id="core-classes-image-pixel-model"></a>
 
@@ -1479,7 +1479,7 @@ above was priced against that.
 
 **Not shipped.** No image component exists in the tree.
 
-<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/image-format-roster`](core-classes.md#core-classes-image-format-roster). Decided in [0120](../adr/0120-the-image-component-is-a-pipeline-that-crosses-the-boundary-once.md).</sub>
+<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/image-format-roster`](core-classes.md#core-classes-image-format-roster). Decided in [0120](../decisions/0120.md).</sub>
 
 <a id="core-classes-image-format-roster"></a>
 
@@ -1502,7 +1502,7 @@ image and is documented as queue work rather than a request-path call.
 
 **Not shipped.** No image component exists in the tree, so no format decodes.
 
-<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap). Decided in [0120](../adr/0120-the-image-component-is-a-pipeline-that-crosses-the-boundary-once.md), [0051](../adr/0051-standard-library-tiers.md), [0128](../adr/0128-a-pdf-page-is-a-decode-source-of-the-image-component.md).</sub>
+<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap). Decided in [0120](../decisions/0120.md), [0051](../decisions/0051.md), [0128](../decisions/0128.md).</sub>
 
 <a id="core-classes-image-pixel-cap"></a>
 
@@ -1531,7 +1531,7 @@ rather than inside one call.
 
 **Not shipped.** No image component exists in the tree.
 
-<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/spreadsheet-bulk-boundary`](core-classes.md#core-classes-spreadsheet-bulk-boundary). Decided in [0120](../adr/0120-the-image-component-is-a-pipeline-that-crosses-the-boundary-once.md), [0005](../adr/0005-config-changeability.md), [0055](../adr/0055-extension-qualifier-declarations.md), [0020](../adr/0020-error-escalation-ladder.md), [0095](../adr/0095-ambiguous-input-is-refused-never-repaired.md).</sub>
+<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/spreadsheet-bulk-boundary`](core-classes.md#core-classes-spreadsheet-bulk-boundary). Decided in [0120](../decisions/0120.md), [0005](../decisions/0005.md), [0055](../decisions/0055.md), [0020](../decisions/0020.md), [0095](../decisions/0095.md).</sub>
 
 <a id="core-classes-image-correct-by-default"></a>
 
@@ -1553,7 +1553,7 @@ from the header and stores them where it chooses.
 
 **Not shipped.** No image component exists in the tree.
 
-<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/image-one-entry-point-per-job`](core-classes.md#core-classes-image-one-entry-point-per-job). Decided in [0120](../adr/0120-the-image-component-is-a-pipeline-that-crosses-the-boundary-once.md).</sub>
+<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/image-one-entry-point-per-job`](core-classes.md#core-classes-image-one-entry-point-per-job). Decided in [0120](../decisions/0120.md).</sub>
 
 <a id="core-classes-image-one-entry-point-per-job"></a>
 
@@ -1579,7 +1579,7 @@ safely; sanitising one would be the repair that is refused everywhere else.
 
 **Not shipped.** No image component exists in the tree.
 
-<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed). Decided in [0120](../adr/0120-the-image-component-is-a-pipeline-that-crosses-the-boundary-once.md), [0079](../adr/0079-testing-is-a-language-feature.md), [0095](../adr/0095-ambiguous-input-is-refused-never-repaired.md).</sub>
+<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed). Decided in [0120](../decisions/0120.md), [0079](../decisions/0079.md), [0095](../decisions/0095.md).</sub>
 
 <a id="core-classes-pdf-render-has-no-io"></a>
 
@@ -1606,7 +1606,7 @@ so a plain document renders out of the box, and the guest needs no clock.
 
 **Not shipped.** There is no PDF package in the tree, and no milestone owns it.
 
-<sub>See also [`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine), [`core-classes/pdf-output-is-inert`](core-classes.md#core-classes-pdf-output-is-inert), [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io). Decided in [0121](../adr/0121-pdf-generation-is-sandboxed-html-rendering-with-no-io.md), [0120](../adr/0120-the-image-component-is-a-pipeline-that-crosses-the-boundary-once.md), [0051](../adr/0051-standard-library-tiers.md), [0058](../adr/0058-outbound-request-policy.md), [0095](../adr/0095-ambiguous-input-is-refused-never-repaired.md).</sub>
+<sub>See also [`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine), [`core-classes/pdf-output-is-inert`](core-classes.md#core-classes-pdf-output-is-inert), [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io). Decided in [0121](../decisions/0121.md), [0120](../decisions/0120.md), [0051](../decisions/0051.md), [0058](../decisions/0058.md), [0095](../decisions/0095.md).</sub>
 
 <a id="core-classes-pdf-one-engine"></a>
 
@@ -1642,7 +1642,7 @@ queue.
 
 **Not shipped.** There is no PDF package in the tree.
 
-<sub>See also [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`core-classes/pdf-css-subset`](core-classes.md#core-classes-pdf-css-subset), [`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only). Decided in [0121](../adr/0121-pdf-generation-is-sandboxed-html-rendering-with-no-io.md), [0051](../adr/0051-standard-library-tiers.md), [0120](../adr/0120-the-image-component-is-a-pipeline-that-crosses-the-boundary-once.md), [0122](../adr/0122-html-parsing-is-a-whatwg-entry-on-core-html-over-core-xmls-tree.md), [0044](../adr/0044-core-process-argv-only-no-shell.md).</sub>
+<sub>See also [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`core-classes/pdf-css-subset`](core-classes.md#core-classes-pdf-css-subset), [`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only). Decided in [0121](../decisions/0121.md), [0051](../decisions/0051.md), [0120](../decisions/0120.md), [0122](../decisions/0122.md), [0044](../decisions/0044.md).</sub>
 
 <a id="core-classes-pdf-css-subset"></a>
 
@@ -1662,7 +1662,7 @@ invisible.
 
 **Not shipped.** There is no PDF package in the tree.
 
-<sub>See also [`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine), [`core-classes/spreadsheet-evaluation-and-roster`](core-classes.md#core-classes-spreadsheet-evaluation-and-roster). Decided in [0121](../adr/0121-pdf-generation-is-sandboxed-html-rendering-with-no-io.md).</sub>
+<sub>See also [`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine), [`core-classes/spreadsheet-evaluation-and-roster`](core-classes.md#core-classes-spreadsheet-evaluation-and-roster). Decided in [0121](../decisions/0121.md).</sub>
 
 <a id="core-classes-pdf-output-is-inert"></a>
 
@@ -1684,7 +1684,7 @@ it trades the no-I/O guarantee, not the inertness of what it writes.
 
 **Not shipped.** There is no PDF package in the tree.
 
-<sub>See also [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`core-classes/spreadsheet-output-is-inert`](core-classes.md#core-classes-spreadsheet-output-is-inert), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source). Decided in [0121](../adr/0121-pdf-generation-is-sandboxed-html-rendering-with-no-io.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md), [0079](../adr/0079-testing-is-a-language-feature.md).</sub>
+<sub>See also [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`core-classes/spreadsheet-output-is-inert`](core-classes.md#core-classes-spreadsheet-output-is-inert), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source). Decided in [0121](../decisions/0121.md), [0024](../decisions/0024.md), [0079](../decisions/0079.md).</sub>
 
 <a id="core-classes-pdf-page-is-an-image-source"></a>
 
@@ -1712,7 +1712,7 @@ the codecs, with substitutes for the standard fonts embedded so an unembedded-fo
 **Not shipped.** There is no image component in the tree, so there is nothing for this to be a format
 of.
 
-<sub>See also [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`core-classes/image-format-roster`](core-classes.md#core-classes-image-format-roster), [`core-classes/pdf-decode-refusals`](core-classes.md#core-classes-pdf-decode-refusals). Decided in [0128](../adr/0128-a-pdf-page-is-a-decode-source-of-the-image-component.md), [0120](../adr/0120-the-image-component-is-a-pipeline-that-crosses-the-boundary-once.md), [0121](../adr/0121-pdf-generation-is-sandboxed-html-rendering-with-no-io.md), [0051](../adr/0051-standard-library-tiers.md).</sub>
+<sub>See also [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`core-classes/image-format-roster`](core-classes.md#core-classes-image-format-roster), [`core-classes/pdf-decode-refusals`](core-classes.md#core-classes-pdf-decode-refusals). Decided in [0128](../decisions/0128.md), [0120](../decisions/0120.md), [0121](../decisions/0121.md), [0051](../decisions/0051.md).</sub>
 
 <a id="core-classes-pdf-decode-refusals"></a>
 
@@ -1739,7 +1739,7 @@ as a known consequence rather than closed by a rule.
 
 **Not shipped.** There is no image component in the tree.
 
-<sub>See also [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0128](../adr/0128-a-pdf-page-is-a-decode-source-of-the-image-component.md), [0095](../adr/0095-ambiguous-input-is-refused-never-repaired.md), [0121](../adr/0121-pdf-generation-is-sandboxed-html-rendering-with-no-io.md), [0044](../adr/0044-core-process-argv-only-no-shell.md).</sub>
+<sub>See also [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0128](../decisions/0128.md), [0095](../decisions/0095.md), [0121](../decisions/0121.md), [0044](../decisions/0044.md).</sub>
 
 <a id="core-classes-spreadsheet-has-no-io"></a>
 
@@ -1765,7 +1765,7 @@ are inert payload the reader may enumerate but can never execute. Cells read fro
 
 **Not shipped.** There is no spreadsheet package in the tree, and no milestone owns it.
 
-<sub>See also [`core-classes/spreadsheet-formula-is-a-value`](core-classes.md#core-classes-spreadsheet-formula-is-a-value), [`core-classes/spreadsheet-bulk-boundary`](core-classes.md#core-classes-spreadsheet-bulk-boundary), [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io). Decided in [0123](../adr/0123-spreadsheet-reading-and-generation-are-one-sandboxed-component-with-no-io.md), [0120](../adr/0120-the-image-component-is-a-pipeline-that-crosses-the-boundary-once.md), [0121](../adr/0121-pdf-generation-is-sandboxed-html-rendering-with-no-io.md), [0051](../adr/0051-standard-library-tiers.md), [0055](../adr/0055-extension-qualifier-declarations.md).</sub>
+<sub>See also [`core-classes/spreadsheet-formula-is-a-value`](core-classes.md#core-classes-spreadsheet-formula-is-a-value), [`core-classes/spreadsheet-bulk-boundary`](core-classes.md#core-classes-spreadsheet-bulk-boundary), [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io). Decided in [0123](../decisions/0123.md), [0120](../decisions/0120.md), [0121](../decisions/0121.md), [0051](../decisions/0051.md), [0055](../decisions/0055.md).</sub>
 
 <a id="core-classes-spreadsheet-formula-is-a-value"></a>
 
@@ -1787,7 +1787,7 @@ half of any real export.
 
 **Not shipped.** There is no spreadsheet package in the tree.
 
-<sub>See also [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io), [`core-classes/spreadsheet-evaluation-and-roster`](core-classes.md#core-classes-spreadsheet-evaluation-and-roster). Decided in [0123](../adr/0123-spreadsheet-reading-and-generation-are-one-sandboxed-component-with-no-io.md), [0024](../adr/0024-taint-tracking-for-injection-sinks.md).</sub>
+<sub>See also [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io), [`core-classes/spreadsheet-evaluation-and-roster`](core-classes.md#core-classes-spreadsheet-evaluation-and-roster). Decided in [0123](../decisions/0123.md), [0024](../decisions/0024.md).</sub>
 
 <a id="core-classes-spreadsheet-bulk-boundary"></a>
 
@@ -1813,7 +1813,7 @@ flight rather than rows total.
 
 **Not shipped.** There is no spreadsheet package in the tree.
 
-<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io). Decided in [0123](../adr/0123-spreadsheet-reading-and-generation-are-one-sandboxed-component-with-no-io.md), [0120](../adr/0120-the-image-component-is-a-pipeline-that-crosses-the-boundary-once.md).</sub>
+<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io). Decided in [0123](../decisions/0123.md), [0120](../decisions/0120.md).</sub>
 
 <a id="core-classes-spreadsheet-evaluation-and-roster"></a>
 
@@ -1838,7 +1838,7 @@ becomes a named, testable diagnostic.
 
 **Not shipped.** There is no spreadsheet package in the tree.
 
-<sub>See also [`core-classes/spreadsheet-formula-is-a-value`](core-classes.md#core-classes-spreadsheet-formula-is-a-value), [`core-classes/spreadsheet-output-is-inert`](core-classes.md#core-classes-spreadsheet-output-is-inert), [`core-classes/pdf-css-subset`](core-classes.md#core-classes-pdf-css-subset). Decided in [0123](../adr/0123-spreadsheet-reading-and-generation-are-one-sandboxed-component-with-no-io.md), [0051](../adr/0051-standard-library-tiers.md), [0121](../adr/0121-pdf-generation-is-sandboxed-html-rendering-with-no-io.md).</sub>
+<sub>See also [`core-classes/spreadsheet-formula-is-a-value`](core-classes.md#core-classes-spreadsheet-formula-is-a-value), [`core-classes/spreadsheet-output-is-inert`](core-classes.md#core-classes-spreadsheet-output-is-inert), [`core-classes/pdf-css-subset`](core-classes.md#core-classes-pdf-css-subset). Decided in [0123](../decisions/0123.md), [0051](../decisions/0051.md), [0121](../decisions/0121.md).</sub>
 
 <a id="core-classes-spreadsheet-output-is-inert"></a>
 
@@ -1857,4 +1857,4 @@ compare bytes ends up comparing nothing.
 
 **Not shipped.** There is no spreadsheet package in the tree.
 
-<sub>See also [`core-classes/pdf-output-is-inert`](core-classes.md#core-classes-pdf-output-is-inert), [`core-classes/spreadsheet-evaluation-and-roster`](core-classes.md#core-classes-spreadsheet-evaluation-and-roster). Decided in [0123](../adr/0123-spreadsheet-reading-and-generation-are-one-sandboxed-component-with-no-io.md), [0121](../adr/0121-pdf-generation-is-sandboxed-html-rendering-with-no-io.md), [0079](../adr/0079-testing-is-a-language-feature.md).</sub>
+<sub>See also [`core-classes/pdf-output-is-inert`](core-classes.md#core-classes-pdf-output-is-inert), [`core-classes/spreadsheet-evaluation-and-roster`](core-classes.md#core-classes-spreadsheet-evaluation-and-roster). Decided in [0123](../decisions/0123.md), [0121](../decisions/0121.md), [0079](../decisions/0079.md).</sub>

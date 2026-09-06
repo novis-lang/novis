@@ -28,7 +28,7 @@ What it exports is [`observability/default-series`](observability.md#observabili
 [`observability/four-kinds-become-a-span`](observability.md#observability-four-kinds-become-a-span); what an application adds by hand goes through
 [`observability/metrics-three-members`](observability.md#observability-metrics-three-members).
 
-<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`observability/default-series`](observability.md#observability-default-series), [`observability/four-kinds-become-a-span`](observability.md#observability-four-kinds-become-a-span), [`observability/metrics-three-members`](observability.md#observability-metrics-three-members), [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind). Decided in [0076](../adr/0076-observability-export.md), [0018](../adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md), [0041](../adr/0041-timeline-export-and-gc-spawn-trace-events.md).</sub>
+<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`observability/default-series`](observability.md#observability-default-series), [`observability/four-kinds-become-a-span`](observability.md#observability-four-kinds-become-a-span), [`observability/metrics-three-members`](observability.md#observability-metrics-three-members), [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind). Decided in [0076](../decisions/0076.md), [0018](../decisions/0018.md), [0041](../decisions/0041.md).</sub>
 
 <a id="observability-default-series"></a>
 
@@ -60,7 +60,7 @@ into a core's registry ahead of [`observability/past-max-series-a-new-series-is-
 bound rather than counted through it, because a `max_series` small enough to refuse them would
 quietly turn "present the moment an exporter is configured" into a different configuration.
 
-<sub>See also [`observability/the-runtime-exports-what-it-already-measures`](observability.md#observability-the-runtime-exports-what-it-already-measures), [`observability/route-label-is-the-declared-name`](observability.md#observability-route-label-is-the-declared-name), [`observability/past-max-series-a-new-series-is-refused`](observability.md#observability-past-max-series-a-new-series-is-refused), [`concurrency/deferred-is-bounded-by-two-directives`](concurrency.md#concurrency-deferred-is-bounded-by-two-directives), [`config/scheduled-work-is-a-config-block`](config.md#config-scheduled-work-is-a-config-block), [`programs/memory-priority`](programs.md#programs-memory-priority), [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind). Decided in [0076](../adr/0076-observability-export.md), [0041](../adr/0041-timeline-export-and-gc-spawn-trace-events.md).</sub>
+<sub>See also [`observability/the-runtime-exports-what-it-already-measures`](observability.md#observability-the-runtime-exports-what-it-already-measures), [`observability/route-label-is-the-declared-name`](observability.md#observability-route-label-is-the-declared-name), [`observability/past-max-series-a-new-series-is-refused`](observability.md#observability-past-max-series-a-new-series-is-refused), [`concurrency/deferred-is-bounded-by-two-directives`](concurrency.md#concurrency-deferred-is-bounded-by-two-directives), [`config/scheduled-work-is-a-config-block`](config.md#config-scheduled-work-is-a-config-block), [`programs/memory-priority`](programs.md#programs-memory-priority), [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind). Decided in [0076](../decisions/0076.md), [0041](../decisions/0041.md).</sub>
 
 <a id="observability-route-label-is-the-declared-name"></a>
 
@@ -83,7 +83,7 @@ table loses something real; the alternative was worse, and the coupling is delib
 A route name is one of the values that are already unqualified and are what a label should have
 been, which is why it passes [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted) for free.
 
-<sub>See also [`observability/default-series`](observability.md#observability-default-series), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`routing/table-is-opt-in`](routing.md#routing-table-is-opt-in), [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted). Decided in [0076](../adr/0076-observability-export.md), [0077](../adr/0077-compile-time-routing.md), [0102](../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md), [0110](../adr/0110-one-methods-repeated-routes-share-a-name-when-they-share-a-path.md).</sub>
+<sub>See also [`observability/default-series`](observability.md#observability-default-series), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`routing/table-is-opt-in`](routing.md#routing-table-is-opt-in), [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted). Decided in [0076](../decisions/0076.md), [0077](../decisions/0077.md), [0102](../decisions/0102.md), [0110](../decisions/0110.md).</sub>
 
 <a id="observability-four-kinds-become-a-span"></a>
 
@@ -103,7 +103,7 @@ The spans are derived from the same events the timeline already files; there is 
 probes for tracing, and export cost stays off the hot path the debug probes deliberately keep cheap.
 A retried outbound call is one span carrying an attempt count, not one span per attempt.
 
-<sub>See also [`observability/a-query-is-a-trace-event`](observability.md#observability-a-query-is-a-trace-event), [`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request), [`observability/sampling-is-head-based`](observability.md#observability-sampling-is-head-based), [`testing/debug-probes`](testing.md#testing-debug-probes), [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`observability/gc-pause-is-its-own-event`](observability.md#observability-gc-pause-is-its-own-event), [`observability/spawn-is-its-own-event`](observability.md#observability-spawn-is-its-own-event). Decided in [0076](../adr/0076-observability-export.md), [0041](../adr/0041-timeline-export-and-gc-spawn-trace-events.md), [0067](../adr/0067-core-db.md).</sub>
+<sub>See also [`observability/a-query-is-a-trace-event`](observability.md#observability-a-query-is-a-trace-event), [`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request), [`observability/sampling-is-head-based`](observability.md#observability-sampling-is-head-based), [`testing/debug-probes`](testing.md#testing-debug-probes), [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`observability/gc-pause-is-its-own-event`](observability.md#observability-gc-pause-is-its-own-event), [`observability/spawn-is-its-own-event`](observability.md#observability-spawn-is-its-own-event). Decided in [0076](../decisions/0076.md), [0041](../decisions/0041.md), [0067](../decisions/0067.md).</sub>
 
 <a id="observability-a-trace-id-exists-for-every-request"></a>
 
@@ -126,7 +126,7 @@ the request's state lives, eagerly, rather than by whichever subsystem asks firs
 **A trace id never becomes a metric label.** It is unbounded by construction, and
 [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted) would refuse it anyway.
 
-<sub>See also [`observability/an-inbound-traceparent-is-continued`](observability.md#observability-an-inbound-traceparent-is-continued), [`observability/a-log-record-carries-trace-ids-when-a-trace-is-active`](observability.md#observability-a-log-record-carries-trace-ids-when-a-trace-is-active), [`observability/sampling-is-head-based`](observability.md#observability-sampling-is-head-based), [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted). Decided in [0076](../adr/0076-observability-export.md), [0097](../adr/0097-development-server-and-proxied-origin.md).</sub>
+<sub>See also [`observability/an-inbound-traceparent-is-continued`](observability.md#observability-an-inbound-traceparent-is-continued), [`observability/a-log-record-carries-trace-ids-when-a-trace-is-active`](observability.md#observability-a-log-record-carries-trace-ids-when-a-trace-is-active), [`observability/sampling-is-head-based`](observability.md#observability-sampling-is-head-based), [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted). Decided in [0076](../decisions/0076.md), [0097](../decisions/0097.md).</sub>
 
 <a id="observability-an-inbound-traceparent-is-continued"></a>
 
@@ -148,7 +148,7 @@ distributed trace is worse than none; that half of the rule is
 [`observability/sampling-is-head-based`](observability.md#observability-sampling-is-head-based)'s. The other direction is
 [`observability/an-outbound-call-propagates-traceparent`](observability.md#observability-an-outbound-call-propagates-traceparent).
 
-<sub>See also [`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request), [`observability/an-outbound-call-propagates-traceparent`](observability.md#observability-an-outbound-call-propagates-traceparent), [`observability/sampling-is-head-based`](observability.md#observability-sampling-is-head-based). Decided in [0076](../adr/0076-observability-export.md).</sub>
+<sub>See also [`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request), [`observability/an-outbound-call-propagates-traceparent`](observability.md#observability-an-outbound-call-propagates-traceparent), [`observability/sampling-is-head-based`](observability.md#observability-sampling-is-head-based). Decided in [0076](../decisions/0076.md).</sub>
 
 <a id="observability-an-outbound-call-propagates-traceparent"></a>
 
@@ -166,7 +166,7 @@ What leaves is the runtime's own id — one per request, from
 is what the W3C format tells a receiver to read as no header at all, and that would end the trace at
 this hop while looking right on the line that sent ours.
 
-<sub>See also [`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request), [`observability/an-inbound-traceparent-is-continued`](observability.md#observability-an-inbound-traceparent-is-continued), [`observability/metrics-and-trace-blocks-are-system`](observability.md#observability-metrics-and-trace-blocks-are-system). Decided in [0076](../adr/0076-observability-export.md).</sub>
+<sub>See also [`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request), [`observability/an-inbound-traceparent-is-continued`](observability.md#observability-an-inbound-traceparent-is-continued), [`observability/metrics-and-trace-blocks-are-system`](observability.md#observability-metrics-and-trace-blocks-are-system). Decided in [0076](../decisions/0076.md).</sub>
 
 <a id="observability-sampling-is-head-based"></a>
 
@@ -186,7 +186,7 @@ Head sampling records one per cent of the errors too, when one per cent is the f
 sampling — decide after the fact, keep the slow and the failed — needs a collector-side component or
 a buffering exporter, and is deliberately not built.
 
-<sub>See also [`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request), [`observability/an-inbound-traceparent-is-continued`](observability.md#observability-an-inbound-traceparent-is-continued), [`observability/metrics-and-trace-blocks-are-system`](observability.md#observability-metrics-and-trace-blocks-are-system). Decided in [0076](../adr/0076-observability-export.md).</sub>
+<sub>See also [`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request), [`observability/an-inbound-traceparent-is-continued`](observability.md#observability-an-inbound-traceparent-is-continued), [`observability/metrics-and-trace-blocks-are-system`](observability.md#observability-metrics-and-trace-blocks-are-system). Decided in [0076](../decisions/0076.md).</sub>
 
 <a id="observability-metrics-three-members"></a>
 
@@ -214,7 +214,7 @@ question ([`observability/the-exporter-is-a-feature-and-core-metrics-is-not`](ob
 without one still accumulates into the per-core registry, so behaviour is identical across builds
 except for the export path. A program that never calls it and serves no requests holds zero series.
 
-<sub>See also [`observability/a-name-is-fixed-to-one-kind`](observability.md#observability-a-name-is-fixed-to-one-kind), [`observability/the-exporter-is-a-feature-and-core-metrics-is-not`](observability.md#observability-the-exporter-is-a-feature-and-core-metrics-is-not), [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted), [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse). Decided in [0076](../adr/0076-observability-export.md), [0051](../adr/0051-standard-library-tiers.md).</sub>
+<sub>See also [`observability/a-name-is-fixed-to-one-kind`](observability.md#observability-a-name-is-fixed-to-one-kind), [`observability/the-exporter-is-a-feature-and-core-metrics-is-not`](observability.md#observability-the-exporter-is-a-feature-and-core-metrics-is-not), [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted), [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse). Decided in [0076](../decisions/0076.md), [0051](../decisions/0051.md).</sub>
 
 <a id="observability-a-name-is-fixed-to-one-kind"></a>
 
@@ -233,7 +233,7 @@ registry keys on the set, not the spelling. Both refusals are distinct from the 
 refusal of [`observability/past-max-series-a-new-series-is-refused`](observability.md#observability-past-max-series-a-new-series-is-refused), which is a no-op rather
 than a throw.
 
-<sub>See also [`observability/metrics-three-members`](observability.md#observability-metrics-three-members), [`observability/past-max-series-a-new-series-is-refused`](observability.md#observability-past-max-series-a-new-series-is-refused). Decided in [0076](../adr/0076-observability-export.md).</sub>
+<sub>See also [`observability/metrics-three-members`](observability.md#observability-metrics-three-members), [`observability/past-max-series-a-new-series-is-refused`](observability.md#observability-past-max-series-a-new-series-is-refused). Decided in [0076](../decisions/0076.md).</sub>
 
 <a id="observability-a-registry-is-per-core-and-nothing-reads-it"></a>
 
@@ -260,7 +260,7 @@ to constrain — and it passes that rule's own test rather than being an excepti
 A shared, coherent store would be the cross-request coordination that rule closes, bought for a
 number that is approximate by definition.
 
-<sub>See also [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit), [`concurrency/cache-memory-is-charged-to-the-core`](concurrency.md#concurrency-cache-memory-is-charged-to-the-core), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`observability/past-max-series-a-new-series-is-refused`](observability.md#observability-past-max-series-a-new-series-is-refused), [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted). Decided in [0076](../adr/0076-observability-export.md), [0059](../adr/0059-cross-request-state-is-explicit.md).</sub>
+<sub>See also [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit), [`concurrency/cache-memory-is-charged-to-the-core`](concurrency.md#concurrency-cache-memory-is-charged-to-the-core), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`observability/past-max-series-a-new-series-is-refused`](observability.md#observability-past-max-series-a-new-series-is-refused), [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted). Decided in [0076](../decisions/0076.md), [0059](../decisions/0059.md).</sub>
 
 <a id="observability-metrics-and-trace-blocks-are-system"></a>
 
@@ -292,7 +292,7 @@ protocol, metrics take a scrape or a push, a trace takes only a push, and `sampl
 one. Anything else is **refused at boot, where it is written** — a wrong value here produces
 silence, a collector nothing writes to, and there is no later moment at which that reports itself.
 
-<sub>See also [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive), [`observability/sampling-is-head-based`](observability.md#observability-sampling-is-head-based), [`observability/past-max-series-a-new-series-is-refused`](observability.md#observability-past-max-series-a-new-series-is-refused), [`observability/the-exporter-is-a-feature-and-core-metrics-is-not`](observability.md#observability-the-exporter-is-a-feature-and-core-metrics-is-not). Decided in [0076](../adr/0076-observability-export.md), [0064](../adr/0064-configuration-file-format.md), [0005](../adr/0005-config-changeability.md).</sub>
+<sub>See also [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive), [`observability/sampling-is-head-based`](observability.md#observability-sampling-is-head-based), [`observability/past-max-series-a-new-series-is-refused`](observability.md#observability-past-max-series-a-new-series-is-refused), [`observability/the-exporter-is-a-feature-and-core-metrics-is-not`](observability.md#observability-the-exporter-is-a-feature-and-core-metrics-is-not). Decided in [0076](../decisions/0076.md), [0064](../decisions/0064.md), [0005](../decisions/0005.md).</sub>
 
 <a id="observability-a-log-record-carries-trace-ids-when-a-trace-is-active"></a>
 
@@ -316,7 +316,7 @@ record was written.
 Two fields added to a shape that already exists, and they are what lets an operator jump from a
 log line to the trace that produced it — the single highest-value thing an observability stack does.
 
-<sub>See also [`errors/log-write`](errors.md#errors-log-write), [`errors/log-fields`](errors.md#errors-log-fields), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request). Decided in [0076](../adr/0076-observability-export.md), [0020](../adr/0020-error-escalation-ladder.md), [0092](../adr/0092-one-diagnostic-record-three-renderings.md).</sub>
+<sub>See also [`errors/log-write`](errors.md#errors-log-write), [`errors/log-fields`](errors.md#errors-log-fields), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request). Decided in [0076](../decisions/0076.md), [0020](../decisions/0020.md), [0092](../decisions/0092.md).</sub>
 
 <a id="observability-the-exporter-is-a-feature-and-core-metrics-is-not"></a>
 
@@ -337,7 +337,7 @@ program that calls it holds a registry nothing will ever read, bounded and tiny,
 is worse. It is the same split the Core roster already uses for `Core\Cache`'s Redis backend, where
 the class is always there and the driver is a feature.
 
-<sub>See also [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`observability/metrics-three-members`](observability.md#observability-metrics-three-members), [`observability/the-exporters-are-crates`](observability.md#observability-the-exporters-are-crates). Decided in [0076](../adr/0076-observability-export.md), [0051](../adr/0051-standard-library-tiers.md), [0048](../adr/0048-portable-single-file-executables.md).</sub>
+<sub>See also [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`observability/metrics-three-members`](observability.md#observability-metrics-three-members), [`observability/the-exporters-are-crates`](observability.md#observability-the-exporters-are-crates). Decided in [0076](../decisions/0076.md), [0051](../decisions/0051.md), [0048](../decisions/0048.md).</sub>
 
 <a id="observability-past-max-series-a-new-series-is-refused"></a>
 
@@ -362,7 +362,7 @@ a histogram its bucket array. Charged to the core, not to a request, exactly as
 [`concurrency/cache-memory-is-charged-to-the-core`](concurrency.md#concurrency-cache-memory-is-charged-to-the-core) charges the cache, and never O(requests
 served). The nine of [`observability/default-series`](observability.md#observability-default-series) are seeded ahead of the bound.
 
-<sub>See also [`observability/a-registry-is-per-core-and-nothing-reads-it`](observability.md#observability-a-registry-is-per-core-and-nothing-reads-it), [`observability/default-series`](observability.md#observability-default-series), [`concurrency/cache-memory-is-charged-to-the-core`](concurrency.md#concurrency-cache-memory-is-charged-to-the-core), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0076](../adr/0076-observability-export.md).</sub>
+<sub>See also [`observability/a-registry-is-per-core-and-nothing-reads-it`](observability.md#observability-a-registry-is-per-core-and-nothing-reads-it), [`observability/default-series`](observability.md#observability-default-series), [`concurrency/cache-memory-is-charged-to-the-core`](concurrency.md#concurrency-cache-memory-is-charged-to-the-core), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0076](../decisions/0076.md).</sub>
 
 <a id="observability-the-exporters-are-crates"></a>
 
@@ -382,7 +382,7 @@ whole without an exporter: an exporter reads its series in order and formats the
 changes nothing above it. StatsD is not a wire format here — no histogram semantics worth the name
 and no trace story at all.
 
-<sub>See also [`observability/the-exporter-is-a-feature-and-core-metrics-is-not`](observability.md#observability-the-exporter-is-a-feature-and-core-metrics-is-not), [`observability/four-kinds-become-a-span`](observability.md#observability-four-kinds-become-a-span), [`observability/a-registry-is-per-core-and-nothing-reads-it`](observability.md#observability-a-registry-is-per-core-and-nothing-reads-it). Decided in [0076](../adr/0076-observability-export.md).</sub>
+<sub>See also [`observability/the-exporter-is-a-feature-and-core-metrics-is-not`](observability.md#observability-the-exporter-is-a-feature-and-core-metrics-is-not), [`observability/four-kinds-become-a-span`](observability.md#observability-four-kinds-become-a-span), [`observability/a-registry-is-per-core-and-nothing-reads-it`](observability.md#observability-a-registry-is-per-core-and-nothing-reads-it). Decided in [0076](../decisions/0076.md).</sub>
 
 <a id="observability-a-query-is-a-trace-event"></a>
 
@@ -406,7 +406,7 @@ reports what the caller waited. The same span feeds
 readers there are, and it is what becomes a query span in
 [`observability/four-kinds-become-a-span`](observability.md#observability-four-kinds-become-a-span). Both outputs are inert unless asked for.
 
-<sub>See also [`observability/a-slow-query-is-logged-past-a-threshold`](observability.md#observability-a-slow-query-is-logged-past-a-threshold), [`observability/four-kinds-become-a-span`](observability.md#observability-four-kinds-become-a-span), [`core-classes/db-error`](core-classes.md#core-classes-db-error), [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named), [`testing/debug-probes`](testing.md#testing-debug-probes), [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind). Decided in [0067](../adr/0067-core-db.md), [0041](../adr/0041-timeline-export-and-gc-spawn-trace-events.md).</sub>
+<sub>See also [`observability/a-slow-query-is-logged-past-a-threshold`](observability.md#observability-a-slow-query-is-logged-past-a-threshold), [`observability/four-kinds-become-a-span`](observability.md#observability-four-kinds-become-a-span), [`core-classes/db-error`](core-classes.md#core-classes-db-error), [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named), [`testing/debug-probes`](testing.md#testing-debug-probes), [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind). Decided in [0067](../decisions/0067.md), [0041](../decisions/0041.md).</sub>
 
 <a id="observability-a-slow-query-is-logged-past-a-threshold"></a>
 
@@ -428,7 +428,7 @@ duration is refused at boot, where it is written.
 The threshold and the trace are asked once, *before* a statement borrows the context, so a request
 that turns either on midway through a statement gets a whole event or none, never half of one.
 
-<sub>See also [`observability/a-query-is-a-trace-event`](observability.md#observability-a-query-is-a-trace-event), [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named), [`errors/log-write`](errors.md#errors-log-write). Decided in [0067](../adr/0067-core-db.md).</sub>
+<sub>See also [`observability/a-query-is-a-trace-event`](observability.md#observability-a-query-is-a-trace-event), [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named), [`errors/log-write`](errors.md#errors-log-write). Decided in [0067](../decisions/0067.md).</sub>
 
 <a id="observability-trace-events-carry-a-kind"></a>
 
@@ -454,7 +454,7 @@ The tag is what lets one stream serve every consumer: the timeline export, the p
 attribution, and production telemetry all read these four kinds and add no instrumentation of their
 own.
 
-<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`observability/a-query-is-a-trace-event`](observability.md#observability-a-query-is-a-trace-event). Decided in [0041](../adr/0041-timeline-export-and-gc-spawn-trace-events.md), [0018](../adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md), [0067](../adr/0067-core-db.md).</sub>
+<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`observability/a-query-is-a-trace-event`](observability.md#observability-a-query-is-a-trace-event). Decided in [0041](../decisions/0041.md), [0018](../decisions/0018.md), [0067](../decisions/0067.md).</sub>
 
 <a id="observability-gc-pause-is-its-own-event"></a>
 
@@ -476,7 +476,7 @@ of whichever function happened to be executing, and `PROFILE`'s self/inclusive f
 that function did not cause. With it the pause is its own bar on the timeline, and in production
 telemetry it becomes a metric rather than a span ([`observability/a-call-never-becomes-a-span`](observability.md#observability-a-call-never-becomes-a-span)).
 
-<sub>See also [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`testing/debug-probes`](testing.md#testing-debug-probes), [`observability/a-registry-is-per-core-and-nothing-reads-it`](observability.md#observability-a-registry-is-per-core-and-nothing-reads-it). Decided in [0041](../adr/0041-timeline-export-and-gc-spawn-trace-events.md), [0018](../adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md).</sub>
+<sub>See also [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`testing/debug-probes`](testing.md#testing-debug-probes), [`observability/a-registry-is-per-core-and-nothing-reads-it`](observability.md#observability-a-registry-is-per-core-and-nothing-reads-it). Decided in [0041](../decisions/0041.md), [0018](../decisions/0018.md).</sub>
 
 <a id="observability-spawn-is-its-own-event"></a>
 
@@ -500,7 +500,7 @@ its parent's `spawn` bar, anchored at the spawn's timestamp, is an export-time o
 exporter over data that already crosses the boundary on `ScriptResult` — not a new live cross-arena
 mechanism.
 
-<sub>See also [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/isolate-failure-is-a-value`](security.md#security-isolate-failure-is-a-value). Decided in [0041](../adr/0041-timeline-export-and-gc-spawn-trace-events.md), [0018](../adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md).</sub>
+<sub>See also [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/isolate-failure-is-a-value`](security.md#security-isolate-failure-is-a-value). Decided in [0041](../decisions/0041.md), [0018](../decisions/0018.md).</sub>
 
 <a id="observability-speedscope-timeline-export"></a>
 
@@ -522,7 +522,7 @@ The NDJSON trace remains the format no third-party tool reads; this export close
 visualisation, and for nothing else. The exact CLI flag that selects it is left to the exporter's
 implementation, the same way the Clover and lcov shapes were.
 
-<sub>See also [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`testing/debug-surface`](testing.md#testing-debug-surface). Decided in [0041](../adr/0041-timeline-export-and-gc-spawn-trace-events.md), [0040](../adr/0040-vscode-deep-tooling-and-resilient-parsing.md), [0018](../adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md).</sub>
+<sub>See also [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`testing/debug-surface`](testing.md#testing-debug-surface). Decided in [0041](../decisions/0041.md), [0040](../decisions/0040.md), [0018](../decisions/0018.md).</sub>
 
 <a id="observability-a-call-never-becomes-a-span"></a>
 
@@ -542,7 +542,7 @@ backend. And admitting one would put export cost on the per-call path that
 other kind was placed off of on purpose ([`observability/gc-pause-is-its-own-event`](observability.md#observability-gc-pause-is-its-own-event),
 [`observability/spawn-is-its-own-event`](observability.md#observability-spawn-is-its-own-event)).
 
-<sub>See also [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`observability/gc-pause-is-its-own-event`](observability.md#observability-gc-pause-is-its-own-event), [`observability/spawn-is-its-own-event`](observability.md#observability-spawn-is-its-own-event), [`observability/default-series`](observability.md#observability-default-series), [`observability/a-registry-is-per-core-and-nothing-reads-it`](observability.md#observability-a-registry-is-per-core-and-nothing-reads-it). Decided in [0041](../adr/0041-timeline-export-and-gc-spawn-trace-events.md), [0076](../adr/0076-observability-export.md).</sub>
+<sub>See also [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`observability/gc-pause-is-its-own-event`](observability.md#observability-gc-pause-is-its-own-event), [`observability/spawn-is-its-own-event`](observability.md#observability-spawn-is-its-own-event), [`observability/default-series`](observability.md#observability-default-series), [`observability/a-registry-is-per-core-and-nothing-reads-it`](observability.md#observability-a-registry-is-per-core-and-nothing-reads-it). Decided in [0041](../decisions/0041.md), [0076](../decisions/0076.md).</sub>
 
 <a id="observability-script-on-exit"></a>
 
@@ -577,7 +577,7 @@ Which endings drain the queue is [`observability/three-endings-fire-the-exit-que
 never do are [`observability/a-fatal-and-a-cancellation-run-no-exit-hook`](observability.md#observability-a-fatal-and-a-cancellation-run-no-exit-hook). This is the home of
 PHP's `register_shutdown_function` for every ending that is not a fatal.
 
-<sub>See also [`observability/three-endings-fire-the-exit-queue`](observability.md#observability-three-endings-fire-the-exit-queue), [`observability/a-fatal-and-a-cancellation-run-no-exit-hook`](observability.md#observability-a-fatal-and-a-cancellation-run-no-exit-hook), [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`core-api/removals`](core-api.md#core-api-removals). Decided in [0127](../adr/0127-the-end-of-a-script-is-observable.md), [0063](../adr/0063-core-api-conventions.md).</sub>
+<sub>See also [`observability/three-endings-fire-the-exit-queue`](observability.md#observability-three-endings-fire-the-exit-queue), [`observability/a-fatal-and-a-cancellation-run-no-exit-hook`](observability.md#observability-a-fatal-and-a-cancellation-run-no-exit-hook), [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`core-api/removals`](core-api.md#core-api-removals). Decided in [0127](../decisions/0127.md), [0063](../decisions/0063.md).</sub>
 
 <a id="observability-three-endings-fire-the-exit-queue"></a>
 
@@ -604,7 +604,7 @@ taxes every entry file for the coverage it does give.
 `ExitReason` is a closed public enum. A future termination kind that should fire the queue is a new
 case on this queue, decided on its own; a second queue is the wrong answer.
 
-<sub>See also [`observability/script-on-exit`](observability.md#observability-script-on-exit), [`observability/a-fatal-and-a-cancellation-run-no-exit-hook`](observability.md#observability-a-fatal-and-a-cancellation-run-no-exit-hook), [`observability/exit-hooks-run-after-the-ladder-before-teardown`](observability.md#observability-exit-hooks-run-after-the-ladder-before-teardown). Decided in [0127](../adr/0127-the-end-of-a-script-is-observable.md).</sub>
+<sub>See also [`observability/script-on-exit`](observability.md#observability-script-on-exit), [`observability/a-fatal-and-a-cancellation-run-no-exit-hook`](observability.md#observability-a-fatal-and-a-cancellation-run-no-exit-hook), [`observability/exit-hooks-run-after-the-ladder-before-teardown`](observability.md#observability-exit-hooks-run-after-the-ladder-before-teardown). Decided in [0127](../decisions/0127.md).</sub>
 
 <a id="observability-a-fatal-and-a-cancellation-run-no-exit-hook"></a>
 
@@ -630,7 +630,7 @@ failing or already gone. Process death is the same answer for free.
 The firing set is therefore narrower than PHP's. Someone who assumed "no matter what" learns the two
 exceptions, and gets `Core\Fatal::onLimit` for the one that matters.
 
-<sub>See also [`observability/three-endings-fire-the-exit-queue`](observability.md#observability-three-endings-fire-the-exit-queue), [`errors/on-limit`](errors.md#errors-on-limit), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`concurrency/cancellation-runs-no-user-code`](concurrency.md#concurrency-cancellation-runs-no-user-code). Decided in [0127](../adr/0127-the-end-of-a-script-is-observable.md), [0020](../adr/0020-error-escalation-ladder.md), [0072](../adr/0072-core-task-structured-concurrency.md).</sub>
+<sub>See also [`observability/three-endings-fire-the-exit-queue`](observability.md#observability-three-endings-fire-the-exit-queue), [`errors/on-limit`](errors.md#errors-on-limit), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`concurrency/cancellation-runs-no-user-code`](concurrency.md#concurrency-cancellation-runs-no-user-code). Decided in [0127](../decisions/0127.md), [0020](../decisions/0020.md), [0072](../decisions/0072.md).</sub>
 
 <a id="observability-exit-hooks-run-after-the-ladder-before-teardown"></a>
 
@@ -655,7 +655,7 @@ before the deferred work, for the same reason. The four mechanisms route by one 
 is scoped cleanup, `afterResponse` is post-response work, `Core\Fatal` observes a failure the request
 cannot survive, `onExit` is the end of the script.
 
-<sub>See also [`observability/three-endings-fire-the-exit-queue`](observability.md#observability-three-endings-fire-the-exit-queue), [`errors/on-uncaught-throw`](errors.md#errors-on-uncaught-throw), [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection), [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep). Decided in [0127](../adr/0127-the-end-of-a-script-is-observable.md), [0020](../adr/0020-error-escalation-ladder.md), [0072](../adr/0072-core-task-structured-concurrency.md), [0131](../adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md).</sub>
+<sub>See also [`observability/three-endings-fire-the-exit-queue`](observability.md#observability-three-endings-fire-the-exit-queue), [`errors/on-uncaught-throw`](errors.md#errors-on-uncaught-throw), [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection), [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep). Decided in [0127](../decisions/0127.md), [0020](../decisions/0020.md), [0072](../decisions/0072.md), [0131](../decisions/0131.md).</sub>
 
 <a id="observability-a-hook-observes-and-never-steers"></a>
 
@@ -675,4 +675,4 @@ register another hook; it joins the tail of the same drain.
 Only one thing stops the drain early: a limit breach inside a hook is a `FATAL`, and
 [`observability/a-fatal-and-a-cancellation-run-no-exit-hook`](observability.md#observability-a-fatal-and-a-cancellation-run-no-exit-hook) takes over from there.
 
-<sub>See also [`observability/script-on-exit`](observability.md#observability-script-on-exit), [`observability/a-fatal-and-a-cancellation-run-no-exit-hook`](observability.md#observability-a-fatal-and-a-cancellation-run-no-exit-hook), [`errors/log-write`](errors.md#errors-log-write). Decided in [0127](../adr/0127-the-end-of-a-script-is-observable.md), [0020](../adr/0020-error-escalation-ladder.md), [0072](../adr/0072-core-task-structured-concurrency.md).</sub>
+<sub>See also [`observability/script-on-exit`](observability.md#observability-script-on-exit), [`observability/a-fatal-and-a-cancellation-run-no-exit-hook`](observability.md#observability-a-fatal-and-a-cancellation-run-no-exit-hook), [`errors/log-write`](errors.md#errors-log-write). Decided in [0127](../decisions/0127.md), [0020](../decisions/0020.md), [0072](../decisions/0072.md).</sub>

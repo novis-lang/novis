@@ -211,7 +211,7 @@ pub enum Woken {
 pub type Waker = Box<dyn FnOnce()>;
 
 /// Where an isolate's `echo` ends up — [ADR
-/// 0006](/docs/adr/0006-isolated-script-execution.md) § *Output is
+/// 0006](/docs/decisions/0006.md) § *Output is
 /// captured by default*.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Output {
@@ -227,7 +227,7 @@ pub enum Output {
     Inherit,
 }
 
-/// Which of [ADR 0006](/docs/adr/0006-isolated-script-execution.md)
+/// Which of [ADR 0006](/docs/decisions/0006.md)
 /// § *Decision*'s two entry forms a spawn named.
 ///
 /// It reaches the seam because it decides one thing on the *other* side of it
@@ -453,7 +453,7 @@ pub trait Host: std::fmt::Debug {
     /// the whole reason this answers anything at all. A task parked here is
     /// standing on an `extern "C"` helper frame, so its host may not unwind it
     /// ([`crate::HelperFrame`]); it resumes the task instead, and the member
-    /// turns that into [``rule:errors/propagation``](/docs/adr/0002-error-propagation.md)'s
+    /// turns that into [``rule:errors/propagation``](/docs/decisions/0002.md)'s
     /// return status at the next safepoint. A host with no task beneath the
     /// call still owes the wait, blocking is the right answer there, and it
     /// answers [`Woken::Elapsed`] because nothing could have cancelled it.
@@ -508,7 +508,7 @@ pub trait Host: std::fmt::Debug {
     /// the handle that collects it later.
     ///
     /// This is the half of [ADR
-    /// 0006](/docs/adr/0006-isolated-script-execution.md)'s spawn that
+    /// 0006](/docs/decisions/0006.md)'s spawn that
     /// only a scheduler can do, and it is deliberately **eager**: the child is
     /// a runnable task before this returns, so a parent that spawns three and
     /// then awaits three overlaps them. Deferring the start to the join would

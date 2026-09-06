@@ -106,12 +106,12 @@ enum Grammar {
     /// `rule:core-classes/db-parameters`'s placeholder spelling, checked against the *params array*
     /// written beside it — the second grammar read against another argument,
     /// and the only one whose other argument is a single array rather than the
-    /// variadic tail. [ADR 0067 § 10](/docs/adr/0067-core-db.md) is
+    /// variadic tail. [ADR 0067 § 10](/docs/decisions/0067.md) is
     /// what puts it on § 1's list; the vendors' SQL itself is not read here and
     /// that section says why.
     Sql,
     /// A hostname, read against the compiling machine's `db.open` grant —
-    /// [ADR 0067 § 10](/docs/adr/0067-core-db.md)'s second sentence.
+    /// [ADR 0067 § 10](/docs/decisions/0067.md)'s second sentence.
     ///
     /// The odd one out, twice over, and both are deliberate. It is the only
     /// variant whose second half is the *machine's configuration* rather than
@@ -386,7 +386,7 @@ pub(crate) fn check_call(
 }
 
 /// A literal query, and the literal params array written beside it —
-/// [ADR 0067 § 10](/docs/adr/0067-core-db.md)'s refused second
+/// [ADR 0067 § 10](/docs/decisions/0067.md)'s refused second
 /// statement, placeholder count and positional-vs-named consistency.
 ///
 /// The two halves are two codes because they are two mistakes: a second
@@ -596,7 +596,7 @@ fn report_mismatch(span: nvs_diagnostics::Span, message: &str, label: &str, env:
     );
 }
 
-/// [ADR 0067 § 10](/docs/adr/0067-core-db.md)'s refusals, which are the
+/// [ADR 0067 § 10](/docs/decisions/0067.md)'s refusals, which are the
 /// same *kind* as [`report_mismatch`]'s and share its code: the literal is one
 /// the rewriter reads perfectly well, and the mistake is in the pairing.
 fn report_query(span: nvs_diagnostics::Span, message: &str, env: &mut Env<'_>) {
@@ -614,7 +614,7 @@ fn report_query(span: nvs_diagnostics::Span, message: &str, env: &mut Env<'_>) {
     );
 }
 
-/// [ADR 0067 § 10](/docs/adr/0067-core-db.md)'s host refusal, which is
+/// [ADR 0067 § 10](/docs/decisions/0067.md)'s host refusal, which is
 /// not [`report_query`]'s kind at all: nothing is wrong with the literal, and
 /// what the message has to carry is the *deployment* it was checked against.
 ///

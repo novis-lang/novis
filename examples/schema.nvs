@@ -2,7 +2,7 @@
 // A schema is a value: define it, plan it against a real database, and apply
 // the half that cannot lose data.
 //
-// [ADR 0145](/docs/adr/0145-a-schema-is-a-value-core-db-schema-converges-a-closed.md)
+// [ADR 0145](/docs/decisions/0145.md)
 // is the design, and this program is § 3's whole model in twenty lines: there
 // are no migrations, no version table and no ordering to get right. You say
 // what should exist, and the difference between that and what does exist is

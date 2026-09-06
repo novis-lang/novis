@@ -5,7 +5,7 @@
 //! A row is an array the query already built, so every member here reads that
 //! and never the wire. The typed accessors are where the type a value is stored
 //! as meets the one the caller asked for, which is why [`Requested`] has three
-//! answers and not two: [ADR 0067 § 6](/docs/adr/0067-core-db.md)
+//! answers and not two: [ADR 0067 § 6](/docs/decisions/0067.md)
 //! names "no such column" and "a value that will not fit" as different
 //! refusals, and a `bool` that is really a `0` has to be told from a `7`.
 
@@ -1417,7 +1417,7 @@ mod tests {
     /// Naming the column is the item rather than a nicety. § 6 has field names
     /// match column names exactly and `AS` as the way to rename, so at a table
     /// of forty columns the path is the only thing separating "one of these did
-    /// not match" from a fix — [ADR 0071 § 5](/docs/adr/0071-derived-codecs.md)
+    /// not match" from a fix — [ADR 0071 § 5](/docs/decisions/0071.md)
     /// is where the `issues` list this reads back is specified, and the throw is
     /// a `ParseError` for the reason [`hydrate`]'s own docs give.
     #[test]

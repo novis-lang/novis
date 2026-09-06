@@ -62,6 +62,10 @@ TOPIC_MAP = MIGRATION / "topic-map.json"
 EXEMPLAR = MIGRATION / "exemplar.md"
 
 ADR_DIR = ROOT / "docs" / "adr"
+#: Where a record lives once unit C1 has frozen it: `docs/decisions/NNNN.md`, no slug, no
+#: `Amends:`. Until then it is `docs/adr/NNNN-slug.md`, and `record_files()` finds whichever is
+#: on disk so every reader here works on both sides of that transaction.
+DECISIONS_DIR = ROOT / "docs" / "decisions"
 GOALS_DIR = ROOT / "docs" / "agent" / "goals"
 PLAN = ROOT / "docs" / "agent" / "docs-migration.md"
 
@@ -70,14 +74,29 @@ ADR_CITE = re.compile(r"(?:ADR\s+)?(\d{4})(?:\s*§+\s*([0-9]+[a-z]?(?:\s*,\s*[0-
 ADR_BARE = re.compile(r"ADR\s+(\d{4})(?:\s*§+\s*([0-9]+[a-z]?))?")
 #: `carried_items`' view of a citation, which has to agree with `cite`'s (in
 #: `plan_citation_rewrites`) or the loss test measures different units than the rewriter moves.
-#: `[ADR 0084](../adr/0084-durable-background-jobs.md) § 2` is ONE citation, of `0084 §2`; reading
+#: `[ADR 0084](../decisions/0084.md) § 2` is ONE citation, of `0084 §2`; reading
 #: it as a bare `0084` because a link sits between the record and its `§` sends check 3's exemption
 #: to the topic owning the whole record -- `concurrency` -- instead of the one owning § 2 --
 #: `core-classes`. The rewrite is then correct and reported as a loss anyway, which is what rolled
 #: B12 back. `ADR_BARE` itself is deliberately left alone: it keys the A3 snapshot's citation
 #: inventory, which is frozen, and check 1 counts against those keys.
 ADR_CARRIED = re.compile(r"ADR\s+(\d{4})(?:\]\([^)]*\))?(?:\s*§+\s*([0-9]+[a-z]?))?")
-ADR_LINK = re.compile(r"\]\((?:[./]*docs/adr/|)(\d{4})-[a-z0-9-]+\.md")
+#: A record cited as a link, in either home: `(../adr/NNNN-slug.md)` before C1, `(../decisions/NNNN.md)`
+#: after it. Read the number with `record_of(match)`; the two homes are two groups.
+ADR_LINK = re.compile(
+    r"\]\((?:[./]*docs/adr/|)(\d{4})-[a-z0-9-]+\.md"
+    r"|\]\((?:[./]*docs/decisions/|[./]*decisions/|)(\d{4})\.md"
+)
+
+
+def record_of(match: "re.Match[str]") -> str:
+    return match.group(1) or match.group(2)
+
+
+def record_files() -> list[Path]:
+    """Every decision record on disk, frozen (`docs/decisions/NNNN.md`) or not (`docs/adr/NNNN-*.md`)."""
+    frozen = sorted(DECISIONS_DIR.glob("[0-9][0-9][0-9][0-9].md"))
+    return frozen if frozen else sorted(ADR_DIR.glob("[0-9][0-9][0-9][0-9]-*.md"))
 
 SCAN_GLOBS = ("crates/**/*.rs", "docs/**/*.md", "docs/**/*.toml", "tests/**/*.nvst", "tools/**/*.py")
 
@@ -180,9 +199,9 @@ def goal_tomls() -> list[Path]:
 
 
 def adr_sections() -> dict[str, str]:
-    """Every `NNNN §N` anchor in docs/adr/, mapped to its heading text."""
+    """Every `NNNN §N` anchor in the decision records, mapped to its heading text."""
     out: dict[str, str] = {}
-    for path in sorted(ADR_DIR.glob("[0-9][0-9][0-9][0-9]-*.md")):
+    for path in record_files():
         number = path.name[:4]
         out[number] = path.name
         for line in path.read_text(encoding="utf-8").splitlines():
@@ -209,8 +228,19 @@ def scan_adr_citations() -> dict[str, list[str]]:
                     key = f"{match.group(1)} §{match.group(2)}" if match.group(2) else match.group(1)
                     sites.setdefault(key, []).append(f"{rel}:{line_no}")
                 for match in ADR_LINK.finditer(line):
-                    sites.setdefault(match.group(1), []).append(f"{rel}:{line_no}")
+                    sites.setdefault(record_of(match), []).append(f"{rel}:{line_no}")
     return sites
+
+
+#: A record's `- **Amends:**` or `- **Amended by:**` bullet in a snapshot pack, continuation lines
+#: included. C1 strips both fields from every record by design -- the overlay they carried is what
+#: the freeze ends, and `changes:` is the relation kept -- so the loss test measures the snapshot
+#: without them. Goal 23's pack carried `docs/plan/m7.md` from nowhere but 0097's Amends clause.
+AMENDMENT_FIELD = re.compile(r"^- \*\*Amend(?:s|ed by):\*\*.*\n(?:  (?!- ).*\n)*", re.M)
+
+
+def drop_amendment_fields(pack: str) -> str:
+    return AMENDMENT_FIELD.sub("", pack)
 
 
 def carried_items(pack: str) -> set[str]:
@@ -467,7 +497,7 @@ def gate(quick: bool = False) -> GateResult:
             base = SNAPSHOT / "orient" / f"{toml.stem}.txt"
             if not base.exists():
                 continue
-            before = carried_items(base.read_text(encoding="utf-8"))
+            before = carried_items(drop_amendment_fields(base.read_text(encoding="utf-8")))
             _, now = run([sys.executable, "tools/orient.py", "--goal", str(toml.relative_to(ROOT))])
             after = carried_items(now)
             for item in sorted(before - after):
@@ -483,6 +513,10 @@ def gate(quick: bool = False) -> GateResult:
                     # topic whose records are linked rather than merely named, which is most of them.
                     link = re.match(r"path:docs/adr/(\d{4})-", item)
                     anchor = link.group(1) if link else None
+                    # C1 moves the record itself: `docs/adr/NNNN-slug.md` becomes
+                    # `docs/decisions/NNNN.md`, and a pack that names the new path has lost nothing.
+                    if link and f"path:docs/decisions/{link.group(1)}.md" in after:
+                        continue
                 if anchor is not None:
                     topic = mapping.get(anchor)
                     # Accounted for when the section became a rule and the pack carries that topic.
@@ -619,7 +653,8 @@ def cmd_next(state: dict, uid: str | None) -> int:
             print(f"  {anchor:<14} {n:>4} citation site(s)")
         records = sorted({a.split()[0] for a in owned})
         print(f"\n  read them in one call:")
-        print(f"  python tools/peek.py " + " ".join(f"docs/adr/{r}-*.md" for r in records[:8]))
+        on_disk = {p.name[:4]: p.relative_to(ROOT).as_posix() for p in record_files()}
+        print(f"  python tools/peek.py " + " ".join(on_disk.get(r, f"docs/adr/{r}-*.md") for r in records[:8]))
 
         print(f"\nCITATIONS AT STAKE -- rewritten by --apply, not by you:")
         total = sum(len(sites.get(a, [])) for a in owned)
@@ -665,15 +700,23 @@ def apply_format() -> str:
   ## remap: 0007 §2 -> types/conversion
   ## remap: 0066    -> types/nullable-conversion
 
+  ## delete: docs/spec/00-overview.md
+  ## rewrite: (?<![A-Za-z0-9_-])adr/(\\d{4})-[a-z0-9-]+\\.md -> decisions/\\1.md
+
   ## note:
-  Anything the next session needs to know. Optional."""
+  Anything the next session needs to know. Optional.
+
+  A Phase C unit retires files rather than writing chapters: `## delete:` removes one (restored on
+  rollback), and `## rewrite:` is a regex substitution applied to every tracked text file outside
+  website/ -- the mechanical half of a move, so a path that changed is re-pointed everywhere at once."""
 
 
 # --------------------------------------------------------------------------- --apply
 
 
 def parse_apply(path: Path) -> dict:
-    doc: dict = {"json": {}, "fragments": {}, "remap": {}, "unit": None, "topic": None, "note": ""}
+    doc: dict = {"json": {}, "fragments": {}, "remap": {}, "deletes": [], "rewrites": [],
+                 "unit": None, "topic": None, "note": ""}
     key: tuple[str, str] | None = None
     buf: list[str] = []
 
@@ -690,7 +733,7 @@ def parse_apply(path: Path) -> dict:
             doc["note"] = text
 
     for line in path.read_text(encoding="utf-8").splitlines():
-        header = re.match(r"^##\s+(unit|topic|json|fragment|remap|note):\s*(.*)$", line.strip())
+        header = re.match(r"^##\s+(unit|topic|json|fragment|remap|delete|rewrite|note):\s*(.*)$", line.strip())
         if header:
             flush()
             kind, rest = header.group(1), header.group(2).strip()
@@ -702,6 +745,14 @@ def parse_apply(path: Path) -> dict:
                 match = re.match(r"^(.+?)\s*->\s*(\S+)$", rest)
                 if match:
                     doc["remap"][match.group(1).strip()] = match.group(2).strip()
+                key = None
+            elif kind == "delete":
+                doc["deletes"].append(rest)
+                key = None
+            elif kind == "rewrite":
+                # The arrow is the separator; a pattern may not contain ` -> ` itself.
+                pattern, _, repl = rest.partition(" -> ")
+                doc["rewrites"].append((pattern.strip(), repl.strip()))
                 key = None
             else:
                 key = (kind, rest)
@@ -754,12 +805,36 @@ def cmd_apply(state: dict, path: Path, dry_run: bool) -> int:
             writes[index_path] = json.dumps(index, indent=2) + "\n"
 
     rewrites = plan_citation_rewrites(doc["remap"])
+    deletes = [ROOT / rel for rel in doc["deletes"]]
+    missing = [p for p in deletes if not p.exists()]
+    if missing:
+        print("cannot delete what is not there: " + ", ".join(str(p.relative_to(ROOT)) for p in missing[:5]),
+              file=sys.stderr)
+        return 1
+    try:
+        substitutions = [(re.compile(pat), repl) for pat, repl in doc["rewrites"]]
+    except re.error as exc:
+        print(f"a `## rewrite:` pattern does not compile: {exc}", file=sys.stderr)
+        return 1
+    # The rewrite walks the tree as it will be *after* the writes and deletes: a file this unit
+    # writes is re-pointed in memory before it lands, and one it removes is not read at all.
+    for p, text in list(writes.items()):
+        for pattern, repl in substitutions:
+            text = pattern.sub(repl, text)
+        writes[p] = text
+    path_rewrites = plan_path_rewrites(substitutions, skip=set(deletes) | set(writes))
 
-    print(f"unit {doc['unit']}: {len(writes)} file(s) written, {len(rewrites)} file(s) re-cited\n")
+    print(f"unit {doc['unit']}: {len(writes)} file(s) written, {len(deletes)} deleted, "
+          f"{len(rewrites)} file(s) re-cited, {len(path_rewrites)} re-pointed\n")
     for p in sorted(writes):
         print(f"  write   {p.relative_to(ROOT)}")
+    for p in sorted(deletes):
+        print(f"  delete  {p.relative_to(ROOT)}")
     for p in sorted(rewrites):
         print(f"  re-cite {p.relative_to(ROOT)}  ({rewrites[p][1]} site(s))")
+    for p in sorted(path_rewrites):
+        if p not in writes:
+            print(f"  re-point {p.relative_to(ROOT)}")
 
     if dry_run:
         print("\n--dry-run: nothing written")
@@ -769,6 +844,14 @@ def cmd_apply(state: dict, path: Path, dry_run: bool) -> int:
     try:
         for p, text in writes.items():
             backup[p] = read_verbatim(p) if p.exists() else None
+            write_verbatim(p, text)
+        for p in deletes:
+            backup[p] = read_verbatim(p)
+            p.unlink()
+        for p, text in path_rewrites.items():
+            if p in writes:
+                continue
+            backup.setdefault(p, read_verbatim(p))
             write_verbatim(p, text)
         for p, (text, _) in rewrites.items():
             backup.setdefault(p, read_verbatim(p))
@@ -791,6 +874,16 @@ def cmd_apply(state: dict, path: Path, dry_run: bool) -> int:
         run([sys.executable, "tools/rules.py", "--render"])
         for p in rulebook.Rulebook().generated():
             backup.setdefault(p, None)  # anything the render invented that the pre-scan missed
+
+        # `docs/novis.md` is generated from `docs/spec/` and the chapters, and gate check 4 refuses
+        # a stale copy. A unit that re-points a link or retires a spec file changes what the
+        # reference renders, so it is regenerated here, inside the backup, rather than failing
+        # the gate for a file nobody edits by hand. The examples run in check 6 (verify.py).
+        novis = ROOT / "docs" / "novis.md"
+        backup.setdefault(novis, read_verbatim(novis) if novis.exists() else None)
+        code, out = run([sys.executable, "tools/reference.py", "--no-examples"])
+        if code != 0:
+            raise RuntimeError(f"reference.py could not regenerate docs/novis.md:\n{out[-2000:]}")
 
         print("\nrunning the gate...\n")
         result = gate()
@@ -870,6 +963,49 @@ def format_rust(backup: dict[Path, str | None]) -> list[Path]:
     if touched:
         run(["cargo", "fmt", "--all"])
     return touched
+
+
+#: What a `## rewrite:` never touches. `website/`'s subtrees mirror `docs/` through their own sync
+#: scripts and are not this migration's to edit (its top-level README is a hand-written file that
+#: check-links reads, so that one is); the snapshot is the frozen *before*; the handoff belongs to
+#: the loop.
+REWRITE_SKIP = (".migration/snapshot/", "docs/agent/handoff.md")
+
+
+def tracked_text_files() -> list[Path]:
+    """Every file git tracks outside `REWRITE_SKIP`, so a path rewrite reaches a root `README.md`,
+    a bench, an example and a `Cargo.toml` comment as well as the citation globs."""
+    code, out = run(["git", "ls-files", "-z"])
+    if code != 0:
+        raise RuntimeError("git ls-files failed; a rewrite needs the tracked set")
+    files = []
+    for rel in out.split("\0"):
+        if not rel or rel.startswith(REWRITE_SKIP):
+            continue
+        if rel.startswith("website/") and rel.count("/") > 1:
+            continue
+        p = ROOT / rel
+        if p.is_file():
+            files.append(p)
+    return files
+
+
+def plan_path_rewrites(substitutions: list[tuple["re.Pattern[str]", str]], skip: set[Path]) -> dict[Path, str]:
+    """Apply every `## rewrite:` to every tracked text file not in `skip`."""
+    if not substitutions:
+        return {}
+    out: dict[Path, str] = {}
+    for path in sorted(set(tracked_text_files()) - skip):
+        try:
+            text = read_verbatim(path)
+        except (UnicodeDecodeError, OSError):
+            continue
+        new = text
+        for pattern, repl in substitutions:
+            new = pattern.sub(repl, new)
+        if new != text:
+            out[path] = new
+    return out
 
 
 def plan_citation_rewrites(remap: dict[str, str]) -> dict[Path, tuple[str, int]]:
