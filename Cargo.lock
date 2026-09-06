@@ -1921,6 +1921,7 @@ dependencies = [
  "nvs-syntax",
  "nvs-test",
  "nvs-types",
+ "object",
  "rand",
  "serde_json",
  "toml",
