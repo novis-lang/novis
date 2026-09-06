@@ -9,6 +9,7 @@
 //! env_hash           = BLAKE3(target_triple ‖ cpu_feature_bitset ‖ compiler_version_hash ‖ extension_set_hash)
 //! content_hash       = BLAKE3(source)
 //! artifact_key       = BLAKE3(content_hash ‖ env_hash)
+//! program_id         = BLAKE3(content_hash of each unit, in program order ‖ env_hash)
 //! ```
 //!
 //! **The source is hashed once.** Both keys carry [`content_hash`], and the on-disk key is derived
@@ -22,6 +23,12 @@
 //! formula is how one of them ends up hashing three pins where the other hashes four. A
 //! [`UnitKey`]'s fields are private and [`UnitKey::new`] takes an [`EnvHash`] for the same reason:
 //! there is no way to spell the pre-§ 4 key.
+//!
+//! **[`program_id`] is here for that same rule rather than because it is a cache key** — it is not
+//! one. It is [ADR 0061]'s `Core\Program::id()`, and it belongs to this module because its two
+//! inputs do: written where its answer is *used* it would be a second spelling of a formula whose
+//! whole content is that everyone spells it identically. It reads the digests a resolution has
+//! already computed, so a program's identity reads no source a second time.
 //!
 //! **Every variable-length field is length-prefixed before it is hashed**, so a pin set of
 //! `["ab", "c"]` and one of `["a", "bc"]` are different environments rather than the same one.
@@ -50,6 +57,7 @@
 //!
 //! [ADR 0017]: ../../../docs/adr/0017-hot-reload-without-restart.md
 //! [ADR 0042]: ../../../docs/adr/0042-on-disk-artifact-cache-format.md
+//! [ADR 0061]: ../../../docs/adr/0061-compile-time-autoload-and-program-discovery.md
 //! [ADR 0078]: ../../../docs/adr/0078-config-reload-and-control-socket.md
 
 use std::fmt;
@@ -106,6 +114,29 @@ impl fmt::Display for EnvHash {
     }
 }
 
+/// A whole program's identity — what [ADR 0061]'s `Core\Program::id()` answers, computed by
+/// [`program_id`] and displayed as 64 lowercase hex characters, never truncated here.
+///
+/// A type of its own for [`EnvHash`]'s reason: this module holds three digests over overlapping
+/// inputs, and only the type system keeps a program's identity out of a cache key.
+///
+/// [ADR 0061]: ../../../docs/adr/0061-compile-time-autoload-and-program-discovery.md
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub struct ProgramId(Digest);
+
+impl ProgramId {
+    /// The digest itself, for a caller that wants its bytes rather than its hex.
+    pub fn digest(&self) -> Digest {
+        self.0
+    }
+}
+
+impl fmt::Display for ProgramId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
 /// The environment this process compiles for, as one digest — [ADR 0078] § 4.
 ///
 /// The configuration's contribution is its `[[extension]]` array and nothing else: every other
@@ -144,6 +175,32 @@ pub fn artifact_key(content: Digest, env: EnvHash) -> Digest {
     hasher.update(content.as_bytes());
     hasher.update(env.0.as_bytes());
     Digest(*hasher.finalize().as_bytes())
+}
+
+/// [ADR 0061]'s program identity: `BLAKE3(each unit's content hash, in program order ‖ env_hash)`.
+///
+/// Every input is a fixed 32-byte digest and the environment's is always the last one, so the
+/// concatenation splits positionally and no field needs [`feed`]'s length prefix. Order is
+/// significant on purpose: `units` is the resolution's own order, and the same files required in a
+/// different order are a different program.
+///
+/// The environment is folded in for the reason [ADR 0042] § 1 folds it into an artifact key — the
+/// same sources compiled against another extension set, CPU or compiler are not the same running
+/// program, and an id that could not tell them apart would name two of them the same thing.
+///
+/// Cost: one BLAKE3 pass over `32 × (units + 1)` bytes, once per program resolution and once per
+/// hot-reload swap ([ADR 0017]), never per call — a first-call compute would put the whole hash on
+/// one unlucky request's path. What it holds is 32 bytes per program, per [ADR 0004]'s ledger.
+///
+/// [ADR 0004]: ../../../docs/adr/0004-memory-for-simplicity.md
+/// [ADR 0061]: ../../../docs/adr/0061-compile-time-autoload-and-program-discovery.md
+pub fn program_id(units: &[Digest], env: EnvHash) -> ProgramId {
+    let mut hasher = blake3::Hasher::new();
+    for unit in units {
+        hasher.update(unit.as_bytes());
+    }
+    hasher.update(env.0.as_bytes());
+    ProgramId(Digest(*hasher.finalize().as_bytes()))
 }
 
 /// [ADR 0017]'s in-memory unit key, as [ADR 0078] § 4 rekeyed it: `{ path, content_hash, env_hash }`.
@@ -462,5 +519,56 @@ fn cpu_feature_bitset() -> u64 {
             }
         }
         bits
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A stand-in unit digest. [`program_id`] reads its inputs as opaque bytes, so a test does not
+    /// need real sources to pin what the combine does with them.
+    fn unit(seed: u8) -> Digest {
+        Digest([seed; 32])
+    }
+
+    fn env(seed: u8) -> EnvHash {
+        EnvHash(unit(seed))
+    }
+
+    #[test]
+    fn the_program_id_is_stable_for_identical_units_and_env() {
+        let units = [unit(1), unit(2), unit(3)];
+        let first = program_id(&units, env(9));
+        assert_eq!(first, program_id(&units, env(9)));
+
+        let hex = first.to_string();
+        assert_eq!(hex.len(), 64);
+        assert!(
+            hex.chars()
+                .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase())
+        );
+    }
+
+    #[test]
+    fn the_program_id_changes_when_one_units_content_does() {
+        assert_ne!(
+            program_id(&[unit(1), unit(2), unit(3)], env(9)),
+            program_id(&[unit(1), unit(2), unit(4)], env(9)),
+        );
+    }
+
+    #[test]
+    fn the_program_id_changes_when_the_env_hash_does() {
+        let units = [unit(1), unit(2)];
+        assert_ne!(program_id(&units, env(9)), program_id(&units, env(10)));
+    }
+
+    #[test]
+    fn the_program_id_changes_when_the_unit_order_does() {
+        assert_ne!(
+            program_id(&[unit(1), unit(2)], env(9)),
+            program_id(&[unit(2), unit(1)], env(9)),
+        );
     }
 }
