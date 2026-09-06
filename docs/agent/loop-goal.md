@@ -1,84 +1,91 @@
-# Loop goal 7 — ADR 0131's temporary-directory sweep
+# Loop goal 8 — `Core\Program::id()`, the program's own fingerprint
 
-Land [ADR 0131](../adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md):
-every directory `Core\IO::temporaryDir` hands out dies with its script, swept by the runtime without ever
-throwing; a dead process's leftovers are reclaimed at `nvs serve` boot and under `nvs tmp clean`, keyed on
-owner liveness and never on age. The ADR is **written and accepted** — this goal implements it and does
-not reopen it. It sits after the parity program because the post-response sweep and the boot sweep both
-live in `nvs-server`, which goal 6 creates.
+Give userland the identity the runtime already stakes correctness on: one member,
+`Core\Program::id(): string`, answering a stable hex fingerprint of *exactly this build of this
+application* — the same on every process serving the same sources on the same runtime, different the
+moment any source file, the runtime build or the extension set changes. It is the deploy hash every web
+stack eventually grows by hand (a git SHA baked in at build, an env var someone forgets), derived here by
+the runtime so it is always present and always honest.
 
-This goal is small by chain standards: one design, five crates touched at one seam each. Its floor is the
-whole parity program, which is most of what its acceptance list weighs.
+This goal is one member and one computed value: the smallest goal on the chain. Its floor is goal 7's
+whole list, which is the parity program plus the temp sweep.
 
-## Two things every session must hold
+## What the member answers, in the two registers the card carries
 
-**The sweep never throws and never runs user code.** A path already gone is the goal state; a refused
-deletion is one log line, retried by whichever sweep comes next (0131 § 3). The sweep is native teardown
-placed *after* the last user code — after [0127](../adr/0127-the-end-of-a-script-is-observable.md)'s
-`onExit` queue on a CLI ending, after [0072](../adr/0072-core-task-structured-concurrency.md) § 6's
-`afterResponse` work on a request — and off the request path. `Core\IO::remove`/`removeDir` keep
-throwing; only the automatic sweeps are silent-but-logged (0131 § 6).
+**In simple words** (the registry card's short description): *The program's fingerprint: one short hex
+text that names exactly this build of this application. Every process running the same sources on the
+same runtime answers the same text, and any change — a source file, the runtime, an extension — makes it
+a different text.*
 
-**The orphan sweep's predicate is owner liveness, never age**, and it only ever walks the owned root
-(0131 §§ 2, 4). Every failure mode must fall toward under-deleting: a recycled pid leaks an entry until a
-later sweep, and no test or fix may introduce a path that deletes a live owner's directory. `tmp clean`
-has no force flag.
+**In detailed words** (the reference doc's body): `Core\Program::id()` answers the lowercase-hex spelling
+of `BLAKE3(unit content hashes in program order ‖ env_hash)` — the per-unit source digests
+[ADR 0042](../adr/0042-on-disk-artifact-cache-format.md)'s artifact cache already computes, combined
+in program order, then the environment hash covering the target triple, the CPU feature bitset, the
+compiler build and the loaded extension set
+([ADR 0078](../adr/0078-config-reload-and-control-socket.md)). It is computed once when the program is
+resolved, and again when a hot reload swaps code in
+([ADR 0017](../adr/0017-hot-reload-without-restart.md)) — never per call. Two properties are the
+contract: **deterministic** — every worker process, restart and machine serving the same sources on the
+same runtime answers the same id, so it is usable as a cache key; and **complete** — any change to any
+source file in the program graph, to the runtime build or to the extension set changes it, so nothing
+keyed on it survives a deploy. Its uses: asset cache-busting query strings, cache-key namespacing so a
+new deploy never reads an old deploy's entries, a release tag in logs and error reports, an
+"app updated, please reload" comparison header, and deploy-scoped validity for values the application
+serializes. What publishing it reveals is deploy *timing* — an observer can tell that a deployment
+changed, never what changed; a deployment that treats timing as sensitive truncates or keys the id before
+publishing it.
 
 ## Stage 0 — the catch-up
 
-Nothing. ADR 0131 landed with its spec § 14 amendment in the same change; no fixture predates the rule.
+Nothing. No fixture predates the rule; the ADR amendment lands inside this goal.
 
 ## Stage 1 — the floor
 
-Goal 6's whole acceptance list — the entire parity program, six goals deep, never traded.
+Goal 7's whole acceptance list — the parity program and the temp sweep, never traded.
 
-## Stage 2 — the keystone: the owned root and the end-of-script sweep
+## Stage 2 — the keystone: the value, computed once and threaded
 
-1. **The owned root.** `capability::temp_dir` creates under `[io] temp_root` (a Boot key in
-   `nvs-config`), else a private `novis` subdirectory of the platform temporary directory — no longer
-   bare `std::env::temp_dir()`. Entry naming (`nvs-<pid>-<nonce>`) and the `fs.write` check are
-   unchanged.
-2. **The tracked list and the sweep.** The runtime records each path `temporaryDir` answers, per script;
-   at every ending the process survives, native teardown deletes what still stands, after the `onExit`
-   queue, throwing nothing, logging refusals.
-3. **The registry card** rewritten in the same slice per
-   [0117](../adr/0117-an-implemented-core-member-documents-itself-in-the-registry.md): the "removing
-   it is the program's own job" paragraph is replaced by 0131's contract, and `docs/novis.md`
-   regenerated.
+1. **The combine.** A `program_id` beside `content_hash` and `env_hash` in
+   `crates/nvs-config/src/cache.rs:120` / `:105`, reusing both — BLAKE3 over the unit content hashes in
+   program order, then the `env_hash`. No second hashing of any source: the per-unit digests are the ones
+   the artifact cache already computed.
+2. **The threading.** `resolve_program` (`crates/nvs-hir/src/requires.rs:182`) is where the unit set
+   becomes final; the caller that already holds the `env_hash` owns the combine, and the result is stored
+   in the per-program state the runtime reads (`crates/nvs-runtime/src/ctx/wiring.rs` is the neighborhood — the
+   session picks the exact seam). The hot-reload swap recomputes it with the units it swaps in.
 
-## Stage 3 — the server: post-response and boot
+## Stage 3 — the member, its card, its proofs
 
-1. **A request's temporary dirs are swept after its `afterResponse` work**, off the request path; an
-   aborted request's dirs are swept by the surviving worker
-   ([0106](../adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)).
-2. **`nvs serve` boot runs the orphan sweep** over the owned root, before traffic: every `nvs-<pid>-*`
-   entry whose pid is dead is removed; live owners are skipped.
-
-## Stage 4 — `nvs tmp clean`
-
-The same orphan sweep as a subcommand: prints each path it removes, `--dry-run` prints and deletes
-nothing, exits 0 when there is nothing to do. No force flag, per the standing decision above.
-
-## Stage 5 — `keep_temporary`, the fixture, the suites
-
-1. **`[debug] keep_temporary`** (reloadable, [0078](../adr/0078-config-reload-and-control-socket.md)):
-   the end-of-script sweep logs each path it would have deleted and deletes none. No in-language setter
-   exists or is added.
-2. **`examples/tempdir.nvs`** — a script that creates a temporary dir, writes and reads a file inside
-   it, and prints what it read; a named integration test then asserts the directory is gone from the
-   owned root after the run.
-3. The conformance and differential suites, and the leak sweep, still green.
+1. **`Core\Program::id()`** — the `Core` member shape's full set of edits, in a new
+   `crates/nvs-stdlib/src/program.rs`, with the registry card
+   (`crates/nvs-stdlib/src/registry.rs`) carrying the two descriptions above per
+   [ADR 0117](../adr/0117-an-implemented-core-member-documents-itself-in-the-registry.md), and the
+   reference doc at `docs/reference/core/Program.md`. Zero arguments, pure, no capability gate — it reads
+   program state and touches no I/O.
+2. **The conformance case** — `tests/conformance/core/` — asserting in-language what frozen output can
+   assert about a value that differs per build: 64 lowercase hex characters, and two calls within one
+   run agree.
+3. **`examples/program-id.nvs`** — the same two properties as a runnable fixture with deterministic
+   output, plus the named unit tests of the TOML: stability for identical inputs, change on one unit's
+   content, change on the env hash.
 
 ## Standing decisions
 
-- **ADR 0131 is the design and is not reopened.** Its sections are the items above; a conflict between
-  this file and the ADR is a bug in this file. No new ADR numbers in this goal.
-- **Pid-liveness has a per-platform edge** (recycled pids, access-denied on `OpenProcess`). Any
-  ambiguity resolves toward *skip* — under-delete, never over-delete — decided-and-recorded in the
-  sweep module's doc comment, never `BLOCKED`.
-- **Windows deletion refusals are expected, not failures.** A held handle (indexer, scanner) makes the
-  sweep log and move on; tests that need a refusal simulate one by holding the handle themselves.
-- **`[io]` is a new config section**; its shape follows
-  [0064](../adr/0064-configuration-file-format.md) and its key classification
-  [0078](../adr/0078-config-reload-and-control-socket.md) — `temp_root` Boot, `keep_temporary`
-  reloadable, both recorded in the registry's reloadability field.
+- **The formula is fixed and is not re-derived**: `BLAKE3(unit content hashes in program order ‖
+  env_hash)`, spelled as all 32 bytes in lowercase hex — 64 characters. Userland truncates if it wants
+  fewer; the runtime never does.
+- **This goal may open [ADR 0061](../adr/0061-compile-time-autoload-and-program-discovery.md) for one
+  folded amendment and no new ADR number**: a section giving `Core\Program` its first and only runtime
+  member, carrying the formula and the reason it *cannot* be a compile-time-folded constant — folding the
+  id into any unit as a literal would change that unit's bytes, hence its content hash, hence the id it
+  just folded. Circularity, not preference.
+- **Plain `string`, never `secret`** ([ADR 0033](../adr/0033-secret-qualifier-for-confidential-values.md)):
+  every use of the id — URLs, headers, logs — is an echo, which `secret` refuses by design. The
+  fingerprinting caveat (deploy timing, nothing else) is recorded in the registry card, not enforced.
+- **Computed at program resolution and at the hot-reload swap, never per call and never lazily** — a
+  first-call compute would put a hash of every unit digest on one unlucky request's path. What this
+  spends: 32 bytes per program and one BLAKE3 combine per resolution, per
+  [ADR 0004](../adr/0004-memory-for-simplicity.md)'s ledger.
+- **Ambiguity about the seam resolves toward the existing hashes' home** — `nvs-config/src/cache.rs`
+  owns the combine as it owns its two inputs; decided-and-recorded in that module's doc comment, never
+  `BLOCKED`.

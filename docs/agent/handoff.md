@@ -2,44 +2,32 @@
 
 ## State
 
-**Goal 7 — ADR 0131's temporary-directory sweep — has §§ 2-5 on disk, and every test its acceptance
-list names is now in the tree**: 610 `cargo-named` tests and 183 `.nvst` cases, none missing. The last
-one, `a_finished_scripts_temporary_dir_is_gone_from_the_owned_root`, landed this session at
-`crates/nvs-cli/src/script.rs:1079` — a whole script compiled from a file, run as an isolate under a
-configured `[io] temp_root`, with the directory it filled gone afterwards and the owned root left
-standing and empty.
-
-That end-to-end reading rests on two facts the case does not arrange and deliberately does not mock:
-`Ctx::isolate` copies the parent's configuration (`crates/nvs-runtime/src/ctx/isolate.rs:356`), so the
-child reads the same `[io] temp_root`, and `Ctx::drop` is the sweep's only caller
-(`crates/nvs-runtime/src/ctx/mod.rs:1172`), so the context `nvs_host::Isolate::run` makes and drops is
-what takes the directory away. Nothing in `nvs-cli` calls the sweep; the isolate ending is the call.
-
-**Whether the goal is met is the driver's gate to say.** Every named test and case exists, but the
-list also carries 17 `command`, 53 `exact` and 29 `nvs-suite` checks that only a real run decides, so
-the status line is `CONTINUE` and `tools/loop.py`'s own acceptance pass is what ends the run.
+**Goal 8 — `Core\Program::id()` — has just started; nothing of it has landed yet.** Goal 7's whole list
+is this goal's Stage 1 floor. The design is settled in the goal prose's standing decisions: the formula
+is `BLAKE3(unit content hashes in program order ‖ env_hash)`, 64 lowercase hex characters, computed at
+program resolution and at the hot-reload swap, exposed as a plain (never `secret`) string; the one design
+act is a folded amendment to ADR 0061 giving `Core\Program` its first runtime member and recording why
+the id cannot be a compile-time-folded constant.
 
 ## Next group
 
-**§ 5's mirror of § 3, in the file that just grew § 3's.** One file:
-`crates/nvs-cli/src/script.rs`.
+**Stage 2: the combine and its threading** — one file set: `crates/nvs-config/src/cache.rs`,
+`crates/nvs-hir/src/requires.rs`, `crates/nvs-runtime/src/ctx/wiring.rs`.
 
-- [ ] **`[debug] keep_temporary = true` end to end** (0131 § 5) — the same fixture and the same helper
-      as the case below it, and the temporary directory *still there* after the script ends: the
-      negative reading that makes the positive one mean something, since a sweep that never ran at all
-      passes § 3's case only by accident of the root being empty for another reason.
-      `crates/nvs-cli/src/script.rs:1042` is `rooted_at`, which grows a second argument for the key,
-      and `crates/nvs-cli/src/script.rs:1079` is the case to mirror. The branch under test is
-      `crates/nvs-runtime/src/sweep.rs:90`; asserting the *kept path is named in the log* is the
-      harder half — it goes through `crate::floor::report`, so start with the directory surviving and
-      add the record only if this crate can already read one.
-- [ ] **The plan's `Open now` says nothing about ADR 0131** — `docs/implementation-plan.md:44`. The
-      field is 1998 B of its 2000 B ceiling, so this is a `## plan-edit:` that **replaces** a sentence
-      with one about the sweep, never one that adds a sentence; an addition alone is refused.
+- [ ] **`program_id` beside its two inputs** — `crates/nvs-config/src/cache.rs:120` (`content_hash`) and
+      `:105` (`env_hash`): BLAKE3 over the unit content hashes in program order, then the env hash,
+      reusing the digests the artifact cache already computes. The four named tests of the TOML's
+      stage 2 check prove deterministic and complete.
+- [ ] **Threaded to the runtime** — computed where `resolve_program`'s answer
+      (`crates/nvs-hir/src/requires.rs:182`) and the `env_hash` are both in hand, stored in the
+      per-program state, recomputed by the hot-reload swap.
 
 ## Backlog
 
-- `[debug] keep_temporary` has no CLI-layer reading at all — `crates/nvs-cli/src/script.rs` owns it.
-- The goal's completion is decided by `python tools/loop.py --goal-only` and by nothing a session
-  writes — `docs/agent/loop-goal.toml` is the list.
-- `benches/abi-probe/tests/` is part of this goal's acceptance list — see the playbook bullet.
+- Stage 3 (the member, the ADR 0061 amendment, the registry card with the goal prose's two
+  descriptions, `docs/reference/core/Program.md`, the conformance case, `examples/program-id.nvs`)
+  shares no files with stage 2 except the ctx seam — a session that lands stage 2 with headroom starts
+  the ADR amendment, which is prose and cheap.
+- When this goal's last check goes green the driver takes goal 9 — `Core\Db\Schema`.
+  `docs/agent/goals/chain.toml` is the schedule and this does not restate it: the hand-written entries
+  end at goal 50, whose emitter writes everything from 51 on.

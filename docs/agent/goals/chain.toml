@@ -100,10 +100,9 @@ retired = "2026-09-06"
 [[goal]]
 name = "7 temp-sweep"
 md = "docs/agent/goals/7-temp-sweep.md"
-toml = "docs/agent/goals/7-temp-sweep.toml"
-handoff = "docs/agent/goals/7-temp-sweep.handoff.md"
 milestone = "post-parity"
 preflight = "docker"
+retired = "2026-09-06"
 
 # Post-parity: `Core\Program::id()` — the program fingerprint the freeze/thaw design needs and userland
 # gets. One member over hashes the artifact cache already computes; the smallest goal on the chain.

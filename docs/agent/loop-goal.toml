@@ -1,12 +1,13 @@
-# Goal 7 -- ADR 0131's temporary-directory sweep. The acceptance test, as data.
+# Goal 8 -- Core\Program::id(). The acceptance test, as data.
 #
-# `7-temp-sweep.md` is the prose. One home each.
+# `8-program-id.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 
 files = [
-  "examples/tempdir.nvs",
+  "examples/program-id.nvs",
   # carried from the previous goal by tools/goal-switch.py
+  "examples/tempdir.nvs",
   "examples/cycles.nvs",
   "examples/stream.nvs",
   "examples/octets.nvs",
@@ -69,32 +70,20 @@ files = [
 [context]
 
 modules = [
-  # The owned root and the fs.write check: `temp_dir` moves off `std::env::temp_dir()` here.
-  "crates/nvs-runtime/src/capability.rs",
-  # This goal's own module — the end-of-script sweep and the walk both § 4 doors share — beside the two
-  # queues § 3 orders it behind.
-  "crates/nvs-runtime/src/sweep.rs",
-  "crates/nvs-runtime/src/deferred.rs",
-  "crates/nvs-runtime/src/ctx/hooks.rs",
-  # `temporaryDir`'s helper and its registry card, rewritten per 0117 when the sweep lands.
-  "crates/nvs-stdlib/src/io.rs",
+  # `content_hash` and `env_hash` live here; the `program_id` combine joins them.
+  "crates/nvs-config/src/cache.rs",
+  # `resolve_program` -- where the unit set becomes final.
+  "crates/nvs-hir/src/requires.rs",
+  # The per-program state the runtime reads; the id is stored beside it.
+  "crates/nvs-runtime/src/ctx/wiring.rs",
+  # The registry card, and the member's own new module beside it.
   "crates/nvs-stdlib/src/registry.rs",
-  # Script teardown (the end-of-script sweep) and the worker's post-request path.
-  "crates/nvs-host/src/isolate.rs",
-  # `[io] temp_root` (Boot) and `[debug] keep_temporary` (reloadable).
-  "crates/nvs-config/src/*.rs",
-  # The boot orphan sweep and the post-`afterResponse` sweep.
-  "crates/nvs-server/src/*.rs",
-  # `nvs tmp clean`.
-  "crates/nvs-cli/src/*.rs",
 ]
 
-rules = ["0131", "0004", "0106", "0127", "0072", "0078", "0117", "0064", "0079"]
+rules = ["0061", "0042", "0078", "0017", "0117", "0033", "0063", "0004"]
 
-# 0131 whole: it is this goal's entire design, and every stage implements one of its sections. The
-# bare number prints the ADR's *In short* and nothing else, so the three sections the remaining stages
-# live inside are named beside it -- §§ 3-5 were re-sliced by hand in the session that found this.
-adrs = ["0131", "0131 §3", "0131 §4", "0131 §5"]
+# 0061 whole: the amendment this goal folds into it is its one design act.
+adrs = ["0061", "0042", "0017"]
 
 shapes = ["A `Core` member — the five edits", "A `.nvst` test case", "A commit message"]
 
@@ -103,7 +92,6 @@ playbook = [
   'Tooling > a core class',
   'Running things > adding a',
   'Running things > target/release/nvs.exe is',
-  'Running things > a leak whose',
   'Writing a test case > a rule',
   'Writing a test case > a -p',
   'Writing a test case > a test binary',
@@ -137,6 +125,12 @@ compose = "tests/db/compose.yaml"
 services = ["postgres", "redis"]
 memoize_on = ["crates/nvs-server", "crates/nvs-db", "tests/db"]
 
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+# 280 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
+# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
+# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
 # <<< goal-switch: floor checks are inserted below this line >>>
 
@@ -4314,15 +4308,12 @@ stage = "1 floor"
 name = "the differential tree"
 args = ["test", "tests/differential/"]
 
-
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- the keystone: the owned root, the tracked list, the end-of-script sweep. 0131 §§ 2-3.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "2 root and sweep"
+stage = "1 floor"
 name = "nvs-runtime (the owned root)"
 args = ["test", "-p", "nvs-runtime"]
 tests = [
@@ -4337,7 +4328,7 @@ tests = [
 # cheapest beside the queue that runs it.
 [[check]]
 kind = "cargo-named"
-stage = "2 root and sweep"
+stage = "1 floor"
 name = "nvs-runtime (the end-of-script sweep)"
 args = ["test", "-p", "nvs-runtime"]
 tests = [
@@ -4361,7 +4352,7 @@ tests = [
 # stage 2's sweep check gives.
 [[check]]
 kind = "cargo-named"
-stage = "3 server sweeps"
+stage = "1 floor"
 name = "nvs-runtime (the post-response sweep)"
 args = ["test", "-p", "nvs-runtime"]
 tests = [
@@ -4375,7 +4366,7 @@ tests = [
 # and reads no configuration tree, so the walk could never have run there.
 [[check]]
 kind = "cargo-named"
-stage = "3 server sweeps"
+stage = "1 floor"
 name = "nvs-cli (the boot orphan sweep)"
 args = ["test", "-p", "nvs-cli"]
 tests = [
@@ -4385,10 +4376,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 4 -- `nvs tmp clean`. 0131 § 4: liveness, never age; no force flag; dry-run deletes nothing.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "4 tmp clean"
+stage = "1 floor"
 name = "nvs-cli (the manual door)"
 args = ["test", "-p", "nvs-cli"]
 tests = [
@@ -4406,7 +4396,7 @@ tests = [
 # it, and the case needs a config snapshot rather than an isolate to say what an operator wrote.
 [[check]]
 kind = "cargo-named"
-stage = "5 keep and prove"
+stage = "1 floor"
 name = "nvs-runtime (keep_temporary)"
 args = ["test", "-p", "nvs-runtime"]
 tests = [
@@ -4415,15 +4405,46 @@ tests = [
 
 [[check]]
 kind = "exact"
-stage = "5 keep and prove"
+stage = "1 floor"
 file = "examples/tempdir.nvs"
 want = ["wrote and read: hello from a temporary"]
 
 [[check]]
 kind = "cargo-named"
-stage = "5 keep and prove"
+stage = "1 floor"
 name = "nvs-cli (the fixture's directory is gone)"
 args = ["test", "-p", "nvs-cli"]
 tests = [
   "a_finished_scripts_temporary_dir_is_gone_from_the_owned_root",
+]
+
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the keystone: the combine, deterministic and complete. Goal prose stage 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the combine"
+name = "nvs-config (the program id)"
+args = ["test", "-p", "nvs-config"]
+tests = [
+  "the_program_id_is_stable_for_identical_units_and_env",
+  "the_program_id_changes_when_one_units_content_does",
+  "the_program_id_changes_when_the_env_hash_does",
+  "the_program_id_changes_when_the_unit_order_does",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the member: Core\Program::id() reads the stored value. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "exact"
+stage = "3 the member"
+file = "examples/program-id.nvs"
+want = [
+  "id is 64 lowercase hex characters",
+  "two reads within one run agree",
 ]
