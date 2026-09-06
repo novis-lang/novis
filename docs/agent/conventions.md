@@ -369,7 +369,8 @@ the record. The pair is `docs/rules/<topic>.json` — the structure, which carri
 generated from the two by `python tools/rules.py --render` and **is never edited**, along with
 [ground-rules.md](../ground-rules.md) and [divergences.md](../divergences.md).
 
-The JSON entry, appended to the topic's `rules` array in the position the chapter should read it:
+The JSON entry, inserted into the topic's `rules` array at the position § *Where a rule sits in the
+order* below gives it — never appended because it is the newest:
 
 ```json
 {
@@ -406,6 +407,38 @@ paragraph where one is enough, four where the rule has a table of cases in it.
 `--render --check` are CI's `docs` job, and `session.py --wrap` runs both for any session that has
 touched `docs/rules/` — so a fragment edited without a render, or a rule renamed under its citations,
 refuses the wrap rather than reaching CI.
+
+## Where a rule sits in the order
+
+**Both arrays read from the ground up — the order a language is built in, never the order the decisions
+arrived in.** `git log` keeps the arrival order, so nothing is lost by not writing it twice, and a
+reader who opens a chapter at the top meets the thing being declared before anything that constrains it.
+
+[`docs/rules/_index.json`](../rules/_index.json) is where a chapter's place is written, and its `order`
+values sit ten apart so a new topic slots in without renumbering its neighbours. The five bands, in the
+order the generated pages walk them:
+
+| Band | Chapters |
+|---|---|
+| The language itself | `programs`, `types`, `expressions`, `statements`, `classes`, `enums`, `iteration`, `attributes`, `errors` |
+| What checks it before it runs | `tooling`, `ide`, `testing` |
+| The runtime it runs on | `security`, `concurrency`, `core-api`, `core-classes`, `observability` |
+| The server on top of that | `http-server`, `routing` |
+| What surrounds the language | `config`, `packaging`, `php-migration` |
+
+Inside a chapter there is no `order` field — **position in the `rules` array is the order**, and the
+same principle repeats one level down:
+
+- The rule that says a thing **exists** comes before every rule that narrows it, and a refusal sits with
+  the thing it refuses rather than in a block of refusals at the end.
+- The surface a **program writes** comes before the machinery underneath it — the queue's members before
+  the parking contract, a directive before how a reload applies it.
+- A rule that cannot be understood without another one goes **after** that one.
+- A run that is already grouped — the `fmt-` rules, the `db-` rules, the capability rules — stays one
+  run: a new member joins it rather than starting a second group elsewhere in the array.
+
+Nothing checks this, because no tool can read whether one rule explains another. It is the reason a
+reorder is cheap: moving an entry changes no content, and `--render` rewrites the chapters from it.
 
 ## A decision record
 

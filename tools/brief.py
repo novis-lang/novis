@@ -462,6 +462,9 @@ HOMES = (
     ("comment comments changelog history prose dates docstring",
      "docs/agent/conventions.md, 'A code comment'",
      "a comment says what the code does now: no date, no volatile count, rewritten whole"),
+    ("order ordering position band chapters",
+     "docs/agent/conventions.md, 'Where a rule sits in the order'",
+     "the rulebook reads ground-up, not by date: the five bands, and where a new rule is inserted"),
 )
 
 WHERE_CAP = 40  # a display cap on one `--where` answer, not on anything an author writes

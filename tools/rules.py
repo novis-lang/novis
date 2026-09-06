@@ -24,6 +24,11 @@ topics cannot collide on one -- which is what lets the migration author many top
 without a lock. The citation token, everywhere in the repository, is `rule:types/conversion`;
 `grep -rn 'rule:' ` finds every one of them, and that is what makes the migration's gate cheap.
 
+A chapter's place is the `order` in `_index.json`; a rule's place is its position in the topic's
+`rules` array, and there is no `order` field on a rule. Both read from the ground up rather than by
+when the decision landed, which is a thing no check can measure: the scheme, and where a new rule
+goes under it, is `docs/agent/conventions.md` -- *Where a rule sits in the order*.
+
 WHAT IS GENERATED FROM THIS, AND WHY IT IS NOT MAINTAINED BY HAND
 
 `docs/rules/<topic>.md`, `docs/ground-rules.md` and `docs/divergences.md` are all derived here.
