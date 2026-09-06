@@ -102,10 +102,21 @@ mod tests {
 
     use super::{Address, Denied, Operation, Refusal, bind, boundary, reload};
 
-    /// A directory of this case's own, empty, under the system temporary directory — the one place
-    /// all three targets give the invoking account and nobody else.
+    /// A directory of this case's own, empty, beside the test binary under `target/`.
+    ///
+    /// Not `std::env::temp_dir()`, which is what this was: on Unix that is `/tmp`, mode 1777, and
+    /// the ADR 0103 § 6 check § 3's socket directory is held to refuses a directory the world can
+    /// write. It runs on the named directory *and* on its parent, so a scratch directory of our own
+    /// is refused for the `/tmp` above it however tight its own bits are. That refusal is § 3
+    /// working, so the case names a directory the rule accepts rather than asking for a rule that
+    /// accepts `/tmp`. `target/` is owned by this account and writable by neither its group nor the
+    /// world, which is the same bar the operator's `/run/nvs` has to clear.
     fn scratch(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("nvs-control-{}-{name}", std::process::id()));
+        let beside = std::env::current_exe().expect("the test binary knows its own path");
+        let dir = beside
+            .parent()
+            .expect("a test binary sits in a directory")
+            .join(format!("nvs-control-{}-{name}", std::process::id()));
         drop(fs::remove_dir_all(&dir));
         fs::create_dir_all(&dir).expect("a scratch directory of this case's own");
         dir
