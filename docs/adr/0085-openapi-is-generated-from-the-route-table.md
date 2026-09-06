@@ -49,8 +49,8 @@
   ([0010](0010-enums-are-a-value-type.md)) and a shape type is structural
   ([0036](0036-anonymous-object-shapes.md)). Each maps onto JSON Schema with no loss, which is why 3.1 —
   whose schema dialect *is* JSON Schema — is the target.
-- **It is nearly free, and it is a real differentiator.** For [0080](0080-the-audience-nvs-is-built-for.md)'s
-  audience — platforms whose customers integrate against them — "the contract is generated from the
+- **It is nearly free, and it is a real differentiator.** For any application something else integrates
+  against ([0080](0080-the-audience-nvs-is-built-for.md)), "the contract is generated from the
   implementation and CI fails if you break it" is a property teams pay for, and no incumbent can offer it
   without the type system to back it.
 

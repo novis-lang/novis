@@ -334,7 +334,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0077](0077-compile-time-routing.md) | Routes are compiled, not registered, and the router stops at matching | Accepted |
 | [0078](0078-config-reload-and-control-socket.md) | `nvs.toml` reloads over a local control socket, and the extension set joins the compilation key | Accepted |
 | [0079](0079-testing-is-a-language-feature.md) | Testing is a language feature: `#[Test]` compiles to a table, every test is its own isolate, and `Core\Test` is typed | Accepted |
-| [0080](0080-the-audience-nvs-is-built-for.md) | Novis is built for platforms that run code, and data, they do not control | Accepted |
+| [0080](0080-the-audience-nvs-is-built-for.md) | Novis is built to serve web applications of every kind | Accepted |
 | [0081](0081-packages-are-digests-resolution-is-a-maximum.md) | A dependency is a digest, resolution is a maximum, and a package's authority is granted one line at a time | Accepted |
 | [0082](0082-the-first-party-framework.md) | Novis ships the batteries: a first-party framework, split by ADR 0051's existing tests | Accepted |
 | [0083](0083-persistent-connections-are-isolates.md) | A persistent connection is an isolate, and it is opened the way a script is spawned | Accepted |

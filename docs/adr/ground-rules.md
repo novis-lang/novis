@@ -14,9 +14,10 @@ spellings rejected, and the reasoning.
 
 ## Implementation invariants
 
-- **Novis is built first for platforms that run code, and data, they do not control** — so the framework and
-  the dependency story outrank new breadth, the pitch is isolation and qualifiers rather than speed, and no
-  document may claim PHP compatibility ([0080](0080-the-audience-nvs-is-built-for.md)).
+- **Novis is built to serve web applications of every kind** — the safety properties are how it is built
+  rather than who it is for, so the framework and the dependency story outrank new breadth, the pitch is
+  isolation and qualifiers rather than speed, and no document may claim PHP compatibility
+  ([0080](0080-the-audience-nvs-is-built-for.md)).
 - **Memory is spent to buy security, semantics, latency and simplicity, in that order** — and never to
   buy a leak: what is spent stays attributable to a request, under an enforceable cap, and O(in-flight)
   rather than O(requests served) ([0004](0004-memory-for-simplicity.md)).

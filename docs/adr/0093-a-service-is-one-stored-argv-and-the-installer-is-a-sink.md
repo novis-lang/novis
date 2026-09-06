@@ -30,8 +30,9 @@
 
 ## Context
 
-- [0080](0080-the-audience-nvs-is-built-for.md) puts Novis in front of multi-tenant and regulated platforms,
-  a large share of which deploy on Windows. Deploying a long-running process there today means a
+- A large share of the web applications Novis is built for
+  ([0080](0080-the-audience-nvs-is-built-for.md)) deploy on Windows. Deploying a long-running process
+  there today means a
   third-party shim — NSSM, WinSW — because **an arbitrary executable is not a Windows service**: the SCM
   requires the process itself to call `StartServiceCtrlDispatcher` within roughly thirty seconds of start
   and to answer control messages for the rest of its life. A shim satisfies the SCM on the hosted

@@ -30,9 +30,11 @@ The goal is a new programming language for web servers and CLI, written in Rust,
   ([ADR 0004](../adr/0004-memory-for-simplicity.md)).
 
 **Who this is for, and what it claims** — [ADR 0080](../adr/0080-the-audience-nvs-is-built-for.md) owns both
-and this states only the headline. The first serious user is the **multi-tenant or regulated platform**: a
-team whose process runs code, or holds data, at more than one trust level. Novis makes exactly three claims to
-that user, and no incumbent language can add any of them later — **injection and secret leakage are compile
+and this states only the headline. Novis is built to serve **web applications of every kind**, whatever the
+application does and whoever wrote the code it runs; the safety properties are how it is built rather than a
+segment's requirement, and the untrusted-code case is where they pay the most rather than what they are for.
+Novis makes exactly three claims, and no incumbent language can add any of them later — **injection and
+secret leakage are compile
 errors**; **a request, a job, a connection and an untrusted script are each a budgeted isolate in one
 process**; and **suspension has no colour**. Raw speed against PHP is measured
 ([ADR 0026](../adr/0026-performance-measurement-methodology.md)) and is not the pitch: persistent-worker PHP
@@ -80,7 +82,7 @@ spellings rejected, and the reasoning. Do not restate that detail here when addi
 | Text and binary | `string` is guaranteed-valid UTF-8 and counts extended grapheme clusters; binary data is the separate `bytes` primitive, counting bytes ([ADR 0009](../adr/0009-string-and-bytes.md)) |
 | Databases | One `Core\Db` API over MySQL, MariaDB (a driver of its own, not a MySQL version), PostgreSQL, SQLite and MS SQL Server: connections named in root-owned config, every statement prepared, a transaction is a closure ([ADR 0067](../adr/0067-core-db.md)) |
 | Tooling | LSP + formatter, test runner, debugger + profiler, package manager |
-| Audience | Multi-tenant and regulated platforms first; the pitch is isolation and qualifiers, and PHP syntax is an on-ramp rather than a compatibility promise ([ADR 0080](../adr/0080-the-audience-nvs-is-built-for.md)) |
+| Audience | Web applications of every kind; the pitch is isolation and qualifiers, and PHP syntax is an on-ramp rather than a compatibility promise ([ADR 0080](../adr/0080-the-audience-nvs-is-built-for.md)) |
 | Packages | Content-addressed source archives from a first-party registry or (root-only) a git URL, resolved by minimal version selection, with no package code running before the program and capabilities granted per package ([ADR 0081](../adr/0081-packages-are-digests-resolution-is-a-maximum.md)) |
 | Framework | First-party and split by [ADR 0051](../adr/0051-standard-library-tiers.md)'s six tests: privileged halves in `Core`, the opinionated layer as the `nvs/web` package; no ORM, no runtime container, the language is the view layer ([ADR 0082](../adr/0082-the-first-party-framework.md)) |
 | Real-time | WebSocket and SSE connections are root isolates opened the way a script is spawned; fan-out is a bounded `Core\Topic` ([ADR 0083](../adr/0083-persistent-connections-are-isolates.md)) |

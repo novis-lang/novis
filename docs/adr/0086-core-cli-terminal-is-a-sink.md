@@ -78,11 +78,10 @@
   terminal and shown to nobody. Substituting them visibly makes `echo` show *more* of what arrived, not
   less. That asymmetry is what makes the default affordable, and it is why § 1 substitutes rather than
   deletes.
-- **The audience makes it load-bearing rather than cosmetic.**
-  [0080](0080-the-audience-nvs-is-built-for.md) names the multi-tenant and regulated platform as Novis's
-  first serious user. The deploy scripts, tenant-migration tools and log triage such a team writes are
-  precisely the programs that print data they did not author, to a terminal belonging to an operator with
-  production credentials.
+- **The programs that hit this hardest make it load-bearing rather than cosmetic.** Deploy scripts,
+  migration tools and log triage print data their author never wrote, to a terminal belonging to an
+  operator holding production credentials. Nothing about that is exotic — it is what an operational script
+  does — which is why the default has to hold for every program rather than for a careful one.
 
 ## Decision
 

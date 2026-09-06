@@ -1,32 +1,34 @@
-# ADR 0080 — Novis is built for platforms that run code, and data, they do not control
+# ADR 0080 — Novis is built to serve web applications of every kind
 
 - **Status:** Accepted
 - **Date:** 2026-08-24
-- **Scope:** who Novis's first serious user is, what that ranks first when two slices compete, the three claims
-  the project makes about itself, and the explicit answer to *why this does not end where Hack ended*. Not
-  in scope: any language semantics — this ADR changes no rule and adds no surface. It decides what gets
-  built next and what the documentation says, which is why it is here rather than in a README.
+- **Scope:** who Novis is for, what that ranks first when two slices compete, the three claims the project
+  makes about itself, and the explicit answer to *why this does not end where Hack ended*. Not in scope:
+  any language semantics — this ADR changes no rule and adds no surface. It decides what gets built next
+  and what the documentation says, which is why it is here rather than in a README.
 - **Amends:** [docs/plan/design.md](../plan/design.md) § *Context* — its motivation
   paragraph named PHP's execution model as the reason Novis exists; § 2 below replaces that framing, because
   two of its three premises have since been answered inside PHP itself. The plan's *Consequences to accept*
   keeps every entry it had; nothing there was wrong, and § 5 below adds the one it was missing.
 - **Amended by:** 0089, 0100
 
-> **In short:** Novis's first serious user is the **multi-tenant or regulated platform** — a team whose
-> process runs code, or holds data, that the team did not write and cannot fully trust: SaaS platforms with
-> customer-authored logic, agencies hosting many clients in one fleet, fintech and health backends where a
-> leaked secret is a reportable event, plugin and marketplace hosts. For that user, compile-time taint
-> ([0024](0024-taint-tracking-for-injection-sinks.md)), the `secret` qualifier
-> ([0033](0033-secret-qualifier-for-confidential-values.md)), per-request isolation without a second process
-> ([0006](0006-isolated-script-execution.md)), deny-by-default capabilities
-> ([0005](0005-config-changeability.md)) and sandboxed extensions
-> ([0003](0003-extension-system.md)) are not features to weigh against a competitor's — they are the
-> purchase. That user is also **greenfield**, which is the only reason a language with no ecosystem can win
-> them. Three things follow and each is binding. **The pitch is isolation, qualifiers and uncoloured
-> suspension — never "faster than PHP"**, a claim two of whose three premises PHP has since answered. **The
-> PHP-shaped syntax is an on-ramp, never a compatibility promise**, and no document may imply otherwise.
-> And **the two things standing between Novis and that user are not language features** — they are a
-> dependency story ([0081](0081-packages-are-digests-resolution-is-a-maximum.md)) and a framework
+> **In short:** Novis is built to serve **web applications, of every kind**. That is the objective and it is
+> not narrowed to a segment: any team building anything for the web is who this is for, whatever the
+> application does and whoever wrote the code it runs. The safety properties are **how Novis is built, not
+> who it is built for** — compile-time taint ([0024](0024-taint-tracking-for-injection-sinks.md)), the
+> `secret` qualifier ([0033](0033-secret-qualifier-for-confidential-values.md)), per-request isolation
+> without a second process ([0006](0006-isolated-script-execution.md)), deny-by-default capabilities
+> ([0005](0005-config-changeability.md)) and sandboxed extensions ([0003](0003-extension-system.md)) earn
+> their place against an ordinary application's own mistakes, which are the ones that actually happen.
+> That the same properties make it unusually safe to run code the operator did not write is a **real and
+> substantial benefit, and not the claim** — no document may write as though the untrusted-code case were
+> the point of the language. Command-line programs are a genuine second capability of the same runtime,
+> welcome and supported, and never a goal that ranks work. Three things follow and each is binding. **The
+> pitch is isolation, qualifiers and uncoloured suspension — never "faster than PHP"**, a claim two of whose
+> three premises PHP has since answered. **The PHP-shaped syntax is an on-ramp, never a compatibility
+> promise**, and no document may imply otherwise. And **the two things standing between Novis and a working
+> application are not language features** — they are a dependency story
+> ([0081](0081-packages-are-digests-resolution-is-a-maximum.md)) and a framework
 > ([0082](0082-the-first-party-framework.md)), which is why both were decided before more `Core` breadth.
 
 ## Context
@@ -70,25 +72,38 @@
 
 ## Decision
 
-### 1. The audience, stated narrowly enough to be actionable
+### 1. The audience: anyone building a web application
 
-Novis's first serious user runs, in one process, code or data with more than one trust level:
+Novis is for web applications. Not a segment of them, not a vertical, not a trust posture — the whole
+category, from a single service with one owner to a fleet serving thousands of tenants. A team choosing
+Novis is choosing it to build and run the web application they were going to build anyway, and everything
+below is what they get for it:
 
-| The user | What makes Novis the answer rather than an option |
+| What an application gets | How |
 |---|---|
-| SaaS platforms running customer-authored logic — rules, templates, integrations, formulas | `spawn script` isolates without a second process ([0006](0006-isolated-script-execution.md)); wasm extensions rather than `dlopen` ([0003](0003-extension-system.md)); enforceable per-isolate budgets |
-| Agencies and hosts running many clients on one fleet | Per-request isolation is the default rather than an achievement; a compromised tenant reaches nothing ([0017](0017-hot-reload-without-restart.md), [0059](0059-cross-request-state-is-explicit.md)) |
-| Fintech, health, public-sector backends | `secret` refused by output, logs, dumps, `Throwable` messages and serialization ([0033](0033-secret-qualifier-for-confidential-values.md)); injection is a compile error ([0024](0024-taint-tracking-for-injection-sinks.md)); `decimal` is a scalar ([0054](0054-decimal-scalar-type.md)) |
-| Plugin and marketplace hosts | Per-package capabilities ([0081](0081-packages-are-digests-resolution-is-a-maximum.md) § 4) plus sandboxed extensions — a dependency's authority is declared and narrowed, never ambient |
+| Injection and secret leakage caught before the code ever runs | `tainted` and `secret` are type qualifiers checked while compiling ([0024](0024-taint-tracking-for-injection-sinks.md), [0033](0033-secret-qualifier-for-confidential-values.md)), not findings from a scanner run afterwards |
+| A request that cannot damage another request, or the worker | Every request, job and connection is an isolate in one process, with an enforceable memory, CPU and time budget ([0006](0006-isolated-script-execution.md), [0059](0059-cross-request-state-is-explicit.md)) |
+| Dependencies that cannot quietly do more than they said | Per-package capabilities ([0081](0081-packages-are-digests-resolution-is-a-maximum.md) § 4) plus sandboxed extensions rather than `dlopen` ([0003](0003-extension-system.md)) — a dependency's authority is declared and narrowed, never ambient |
+| Money, time and text that behave | `decimal` is a scalar ([0054](0054-decimal-scalar-type.md)), a duration is a literal ([0070](0070-duration-literals.md)), and `string` is always valid UTF-8 ([0009](0009-string-and-bytes.md)) |
+| An application that keeps serving while it is reloaded | The compiled-unit cache swaps a pointer rather than restarting a worker ([0017](0017-hot-reload-without-restart.md)) |
 
-**The list continues in [0100](0100-against-python-nvs-claims-the-tool-that-gets-handed-over.md) § 1 with
-one more row, ranked below every row here** — the internal and ops tooling those same teams write in Python
-today. It buys nothing new: it is this table's purchase spent on a program with no HTTP request in it, and
-where the two compete for a slice, the rows above win.
+**Running code the operator did not write is where these properties pay the most, and that is a benefit
+rather than a definition.** SaaS platforms with customer-authored logic, agencies hosting many clients on
+one fleet, marketplace and plugin hosts, and backends where a leaked secret is a reportable event all get
+something from Novis that no incumbent can retrofit, and the project is glad to have them. What it must not
+do is describe itself as *their* language. An application with one owner, one team and no untrusted input
+at all is served by exactly the same properties, because the mistakes those properties catch are
+overwhelmingly the application's own.
 
-Every one of these is **greenfield or new-service** work. That is not a coincidence to note in passing; it
-is the single property that makes an ecosystemless language viable at all, and it is why this audience is
-first rather than the larger ones behind it.
+**Command-line programs are a side effect, and a welcome one.** The same runtime, compiled the same way,
+produces a single-file executable with no interpreter to install
+([0048](0048-portable-single-file-executables.md)), and everything
+[0100](0100-against-python-nvs-claims-the-tool-that-gets-handed-over.md) says about that stands as written.
+It was never a goal of this project, and it never ranks a slice above one that serves a web application.
+
+**It is still new-service work.** A language with no ecosystem gets chosen for something being built, not
+for something already running. That is a constraint on *when* a team can pick Novis, not a filter on *which*
+teams it is for, and § 4 is where it is argued.
 
 ### 2. The three claims, and the one that is retired
 
@@ -148,7 +163,8 @@ decision that followed from it.
 
 ### 5. What this ranks first
 
-When two slices compete for a session, the one serving § 1's user wins. Concretely, and binding on
+When two slices compete for a session, the one that gets a working web application sooner wins. Concretely,
+and binding on
 [the plan](../implementation-plan.md):
 
 - The **framework** ([0082](0082-the-first-party-framework.md)) and the **dependency story**
@@ -167,20 +183,27 @@ When two slices compete for a session, the one serving § 1's user wins. Concret
 - A **security property that is already decided but not yet enforced** outranks new `Core` breadth. The
   qualifiers are the product; a `Core` member that does not carry them correctly is worse than a missing
   one.
-- **Multi-tenant shape wins ties.** Where a design could serve one application or many on a fleet, it
-  serves many: per-tenant budgets, per-tenant limits, per-tenant observability labels
-  ([0076](0076-observability-export.md)), and a connection reset that is a security boundary rather than an
-  optimisation ([0067](0067-core-db.md) § 13).
+- **The multi-tenant shape wins ties** — as an engineering default, not an audience one. Where a design
+  could serve one application or many on a fleet at the same cost, it serves many: per-tenant budgets,
+  per-tenant limits, per-tenant observability labels ([0076](0076-observability-export.md)), and a
+  connection reset that is a security boundary rather than an optimisation ([0067](0067-core-db.md) § 13).
+  The single-application case loses nothing by it, which is exactly what makes this a tie-break rather than
+  a priority.
 
 ## Consequences
 
-- **The larger audiences are deliberately second.** PHP teams modernising, and greenfield backends choosing
-  between Go and Node, are both bigger markets. Serving them first would mean either a compatibility promise
-  that cannot be kept or a merit-only fight against a fifteen-year ecosystem. They become reachable *after*
-  the first segment proves the runtime — not before.
-- **The project accepts a smaller total addressable market in exchange for a winnable one.** This is the
-  trade, stated plainly, and it should be re-argued rather than assumed if adoption ever comes from
-  somewhere else (see *Revisiting*).
+- **No audience is deliberately second.** PHP teams modernising and greenfield backends choosing between Go
+  and Node are served by the same language and the same three claims. What the project refuses them is a
+  *compatibility promise* in the first case (§ 3) and a *merit-only speed argument* in the second (§ 2) —
+  refusing a bad argument is not the same as ranking a group below another.
+- **A narrow first segment is the wrong description, not merely a narrower one.** Naming multi-tenant and
+  regulated platforms as *the* audience is a sharper wedge and makes a roadmap easy to argue, but it
+  describes the qualifiers and the isolation as one vertical's requirement when they are the language's
+  ordinary behaviour — and in doing so it tells every other team that the language is not for them. The
+  segment keeps its place in § 1 as where those properties pay the most.
+- **The market is the honest one, and it is contested.** Competing for general web application work means
+  competing against fifteen-year ecosystems on merit. That is a harder fight than a segment would have
+  been, and § 4 is the argument for why it is survivable here in a way it was not for Hack.
 - **Documentation has a shape now.** The landing page, the tutorial and the first example lead with an
   isolate and a qualifier, not with a benchmark and not with a PHP comparison. A PHP comparison page may
   exist; it is not the front door.
@@ -197,10 +220,10 @@ When two slices compete for a session, the one serving § 1's user wins. Concret
   perform: they cannot bring their framework, their packages, or the majority of their code, and the
   ADRs that make that true are all correct. This is precisely Hack's position, attempted with vastly
   greater resources.
-- **Target general greenfield backends, competing with Go, Node and FastAPI on merit.** The biggest market
-  and the most honest fight. Rejected as a *first* audience because it offers no wedge: a team choosing
-  Go today is not choosing it for something Novis uniquely provides, so the comparison is decided by ecosystem
-  and hiring, which Novis loses. It is the natural *second* audience.
+- **Name a narrow first segment — multi-tenant and regulated platforms — and rank every slice by it.**
+  Rejected for the reason in *Consequences*: it describes the safety properties as one vertical's
+  requirement when they are the language's ordinary behaviour, and it reads to everybody else as a language
+  built for somebody else. The wedge it buys is real; the description it forces is wrong.
 - **Refuse to name an audience and build the best language available.** The default, and what the project
   was doing. Rejected because it silently ranks slices by what is interesting rather than by what is
   blocking, and because it produced a plan with 79 ADRs of language design, no dependency story and no
@@ -211,9 +234,9 @@ When two slices compete for a session, the one serving § 1's user wins. Concret
 
 ## Revisiting
 
-- **If adoption arrives from a segment this ADR ranks second** — PHP teams, or general greenfield backends —
-  that is data beating reasoning, and § 1 should be rewritten around whoever actually showed up, with § 5's
-  ranking following.
+- **If adoption concentrates in one segment rather than across web applications generally**, that is data
+  worth acting on: § 5's ranking should follow whoever actually showed up. § 1 should still not narrow to
+  them — the properties do not become less useful to everybody else because one group found them first.
 - **If PHP, Python or Node ships a credible taint or capability system in the language**, § 2's first and
   strongest claim narrows sharply and the whole positioning needs re-argument. Watch for it explicitly; a
   language-level qualifier is the only development that would falsify this ADR outright.
