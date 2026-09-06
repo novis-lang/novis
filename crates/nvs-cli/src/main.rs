@@ -56,6 +56,10 @@
 //! * `nvs queue migrate` — `rule:core-classes/queue-storage-is-a-table`'s
 //!   two tables, created by the operator's explicit command; see [`queue`],
 //!   and [`worker`] for the in-process worker `[queue] workers` starts.
+//! * `nvs schema plan|apply|dump` — `rule:core-classes/schema-converges`'s
+//!   convergence as a command: the difference between a schema value and a live
+//!   database, printed with every step's grade and SQL, applied, or read back
+//!   out of the database; see [`schema`].
 //! * `nvs service` — `rule:packaging/a-service-is-one-stored-argv`'s
 //!   operator surface: the one argv a service manager stores; see [`service`].
 //!
@@ -107,6 +111,7 @@ mod meta;
 mod openapi;
 mod queue;
 mod runner;
+mod schema;
 mod script;
 mod serve;
 mod service;
@@ -336,6 +341,16 @@ enum Command {
         #[command(subcommand)]
         command: QueueCommand,
     },
+    /// Converge a database on a schema value, or read the one it already holds.
+    ///
+    /// The operator's spelling of `Core\Db\Schema`:
+    /// `rule:core-classes/schema-converges` computes the difference against the
+    /// server every time, so there is no migration to order and no history to
+    /// keep. See [`schema`].
+    Schema {
+        #[command(subcommand)]
+        command: SchemaCommand,
+    },
     /// Clear what a hard-killed script left in the temporary root.
     ///
     /// The operator's half of
@@ -475,6 +490,64 @@ enum QueueCommand {
         /// Print the statements without running them, and succeed.
         #[arg(long)]
         dry_run: bool,
+    },
+}
+
+/// `nvs schema`'s own subcommands.
+///
+/// Three, and they are one walk stopped at three points:
+/// `rule:core-classes/schema-introspection`'s read alone is `dump`, the
+/// difference that read feeds is `plan`, and running what the difference says is
+/// `apply`. There is no `status` beside them because `plan` against a converged
+/// database already prints nothing, and no `rollback` because
+/// `rule:core-classes/schema-converges` keeps no history to roll back to.
+#[derive(Subcommand)]
+enum SchemaCommand {
+    /// Print the difference between a schema value and the database, and run
+    /// none of it.
+    ///
+    /// Every step carries its grade, the reason for that grade and its complete
+    /// SQL — including the steps `apply` refuses, which is
+    /// `rule:core-classes/schema-plan`'s rule and the reason a plan is useful
+    /// against a database this deployment may not write to at all.
+    Plan {
+        /// The root files to read, in order — `config check`'s list, read the
+        /// same way.
+        files: Vec<PathBuf>,
+        /// The `[db.<name>]` block to plan against.
+        #[arg(long)]
+        connection: String,
+        /// The JSON file holding the schema value, as `dump` writes one.
+        #[arg(long)]
+        schema: PathBuf,
+    },
+    /// Run the steps of that plan that may run.
+    ///
+    /// Without `--including-risky` this refuses a plan holding a step that is
+    /// not `Safe` and names the first one, which is
+    /// `rule:core-classes/schema-apply-capability`'s `applySafe` on a command
+    /// line. A report is never run either way.
+    Apply {
+        /// The root files to read, in order.
+        files: Vec<PathBuf>,
+        /// The `[db.<name>]` block to converge.
+        #[arg(long)]
+        connection: String,
+        /// The JSON file holding the schema value.
+        #[arg(long)]
+        schema: PathBuf,
+        /// Run the steps that can hold a long lock or fail on existing rows as
+        /// well, saying so here rather than discovering it in production.
+        #[arg(long)]
+        including_risky: bool,
+    },
+    /// Write out the schema value the database already holds, as JSON.
+    Dump {
+        /// The root files to read, in order.
+        files: Vec<PathBuf>,
+        /// The `[db.<name>]` block to read.
+        #[arg(long)]
+        connection: String,
     },
 }
 
@@ -656,6 +729,26 @@ fn main() -> ExitCode {
                     dry_run,
                 },
         } => queue::migrate(&cli.config, &files, connection.as_deref(), dry_run),
+        Command::Schema {
+            command:
+                SchemaCommand::Plan {
+                    files,
+                    connection,
+                    schema,
+                },
+        } => schema::plan(&cli.config, &files, &connection, &schema),
+        Command::Schema {
+            command:
+                SchemaCommand::Apply {
+                    files,
+                    connection,
+                    schema,
+                    including_risky,
+                },
+        } => schema::apply(&cli.config, &files, &connection, &schema, including_risky),
+        Command::Schema {
+            command: SchemaCommand::Dump { files, connection },
+        } => schema::dump(&cli.config, &files, &connection),
         Command::Tmp {
             command: TmpCommand::Clean { dry_run },
         } => tmp::clean(&cli.config, dry_run),
