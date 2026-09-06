@@ -7,8 +7,10 @@
 //! `sqlite_master` with the `pragma_*` table-valued functions for SQLite. This
 //! module is the text half of that and holds no rows: [`query`] answers one
 //! statement, `nvs-stdlib` issues it over a connection the program already has
-//! (§ 9 makes planning an ordinary read under `db.connect`), and the assembly
-//! back into a [`Schema`](crate::Schema) is the other half.
+//! (§ 9 makes planning an ordinary read under `db.connect`), [`scalar_type`]
+//! and [`column_default`] read the two spellings in that row back into the
+//! vocabulary, and the assembly into a [`Schema`](crate::Schema) is the other
+//! half.
 //!
 //! # One row shape per read, and every dialect answers it
 //!
@@ -68,17 +70,18 @@
 //!    `datetime2(7)` reads back as `datetime2`. That is § 5's normalisation to
 //!    own rather than this module's, since the write direction in
 //!    [`crate::ddl`] emits one precision for every instant column.
-//! 3. **No spelling here is a [`ScalarType`](crate::ScalarType) yet.**
-//!    `ScalarType::from_spelling` reads *this vocabulary's* canonical names —
-//!    `int64`, `text(200)` — and a catalog answers the server's — `bigint`,
-//!    `character varying(200)`. The map from one to the other is per dialect
-//!    and is the reverse of [`crate::ddl::column_type`]; it belongs with the
-//!    row assembly, which is the next slice.
+//! 3. **[`scalar_type`] is a choice function, and § 5 owes the other half.**
+//!    The map back is not injective — three of the four dialects have no
+//!    unsigned integer and spell one as the width above it — so a column
+//!    written as `uint32` reads back as `int64` and the plan is empty only
+//!    once § 5 normalises the *declared* side the same way. Every case is
+//!    named in that function's own doc; nothing here hides one.
 //! 4. **The read is one schema deep.** A PostgreSQL search path with two
 //!    schemas on it, or a SQL Server object under a schema other than the
 //!    login's default, is out of view. § 11 has no cross-schema construct, so
 //!    there is nothing in the vocabulary to lose yet.
 
+use crate::schema::{ColumnDefault, FloatWidth, IntWidth, ScalarType};
 use crate::sql::Dialect;
 
 /// One of the two reads an introspection makes.
@@ -372,6 +375,428 @@ WHERE m.type = 'table'
   AND ii.name IS NOT NULL
 ORDER BY 1, 2, 4"#;
 
+/// The [`ScalarType`] a server's own type spelling names, or `None` for a
+/// spelling § 11's vocabulary has not got.
+///
+/// This is the reverse of [`crate::ddl::column_type`] and **not** of
+/// [`ScalarType::from_spelling`]: that reader takes this vocabulary's own
+/// canonical names — `int64`, `text(200)` — and this one takes the words a
+/// catalog printed, which are the *server's* and not the emitter's.
+/// PostgreSQL's `format_type` answers `character varying(200)` where the
+/// emitter wrote `VARCHAR(200)`, and `timestamp with time zone` where it wrote
+/// `TIMESTAMPTZ`. Both spellings are accepted, because both are the same
+/// column.
+///
+/// A spelling is read case-insensitively, with runs of whitespace collapsed
+/// and a single parenthesised group lifted out of wherever it sits — so
+/// `timestamp(3) without time zone` is the head `timestamp without time zone`
+/// with an argument, and a precision the vocabulary cannot hold is dropped
+/// rather than refused, which is gap 2 of this module's doc in the other
+/// direction. Nothing here parses SQL: it is a closed table of names per
+/// dialect, exactly as [`ScalarType::from_spelling`] is a closed table over
+/// the canonical ones, and § 4 refuses the alternative at every tier.
+///
+/// # The map is not injective, and these are the choices it makes
+///
+/// The emitter writes one spelling for two types in six places, so reading is
+/// a choice and each one costs a normalisation § 5 must make on the declared
+/// side for the round trip to be empty:
+///
+/// - **`INTEGER`/`INT` is [`IntWidth::Normal`] signed, and `BIGINT` is
+///   [`IntWidth::Big`] signed**, on the three dialects with no unsigned
+///   integer. A `uint16` reads back as `int32` and a `uint32` as `int64` —
+///   the server genuinely holds the wider column, so the *reading* is right
+///   and it is the declared side that has to be widened before the diff.
+/// - **`NUMERIC(20, 0)`/`DECIMAL(20, 0)` is a [`ScalarType::Decimal`]**, never
+///   a `uint64`, on PostgreSQL and SQL Server. Decimal is the general answer
+///   and `uint64` the case only MySQL has a type for. SQLite is the exception
+///   and needs no choice at all: a declared type there is a name rather than a
+///   constraint, so the emitter's `NUMERIC(20, 0)` for `uint64` and its
+///   `DECIMAL(p, s)` for a decimal come back as two different words.
+/// - **`BYTEA` and `BLOB` are [`ScalarType::Bytes`] unbounded**: PostgreSQL and
+///   SQLite hold no declared length for binary, so a `bytes(64)` reads back
+///   without its 64. There is nothing in the server to recover it from.
+/// - **SQL Server's `NVARCHAR(MAX)` is [`ScalarType::Text`] unbounded**, never
+///   [`ScalarType::Json`], because that backend has no JSON type and the
+///   emitter writes the same words for both.
+/// - **MySQL's `CHAR(36)` is [`ScalarType::Uuid`]**, which is safe rather than
+///   lucky: the emitter writes `CHAR(36)` for nothing else and text is always
+///   a `VARCHAR`, so no vocabulary type is being taken away from.
+/// - **PostgreSQL's unbounded `character varying` is `TEXT`**, and its `JSON`
+///   is `JSONB`. Neither is a spelling the emitter writes; both are what that
+///   server means, and refusing them would make a hand-made column unreadable
+///   rather than merely unnormalised.
+///
+/// `every_catalog_spelling_the_emitter_wrote_reads_back_as_its_own_type` holds
+/// the whole of that as a round trip rather than as a table of expected names:
+/// for every type and every dialect, the spelling the emitter wrote must read
+/// back as a type whose own emission is that same string.
+#[must_use]
+pub fn scalar_type(spelling: &str, dialect: Dialect) -> Option<ScalarType> {
+    let (head, args) = split_spelling(spelling)?;
+    let args = args.as_deref();
+    let ty = match dialect {
+        Dialect::PostgreSql => postgres_scalar(&head, args),
+        Dialect::MySql => mysql_scalar(&head, args),
+        Dialect::Sqlite => sqlite_scalar(&head, args),
+        Dialect::SqlServer => sqlserver_scalar(&head, args),
+    }?;
+    ty.check().ok()?;
+    Some(ty)
+}
+
+/// A spelling as a lower-case head and the one parenthesised group it carries.
+///
+/// The group is lifted out of wherever it sits rather than required at the
+/// end, because PostgreSQL writes the parameter in the middle of the name —
+/// `timestamp(3) without time zone`. A second group, or an unclosed one, is
+/// refused: that is a type this vocabulary does not have.
+fn split_spelling(spelling: &str) -> Option<(String, Option<String>)> {
+    /// One space between words, and none at either end.
+    fn words(text: &str) -> String {
+        text.split_whitespace().collect::<Vec<_>>().join(" ")
+    }
+
+    let lower = spelling.to_ascii_lowercase();
+    let Some((before, rest)) = lower.split_once('(') else {
+        return (!lower.trim().is_empty()).then(|| (words(&lower), None));
+    };
+    let (args, after) = rest.split_once(')')?;
+    if args.contains('(') || after.contains(['(', ')']) {
+        return None;
+    }
+    Some((words(&format!("{before} {after}")), Some(words(args))))
+}
+
+/// A single unsigned parameter — a length, or a display width to ignore.
+fn one_arg(args: Option<&str>) -> Option<u32> {
+    args?.parse().ok()
+}
+
+/// `p, s`, with a missing scale reading as zero, as a catalog printing only a
+/// precision means. A precision no vocabulary decimal could carry does not
+/// parse as a `u8` and so refuses here rather than in
+/// [`ScalarType::check`](ScalarType).
+fn decimal_args(args: Option<&str>) -> Option<ScalarType> {
+    let text = args?;
+    let (precision, scale) = match text.split_once(',') {
+        Some((precision, scale)) => (precision.trim(), scale.trim()),
+        None => (text, "0"),
+    };
+    Some(ScalarType::Decimal {
+        precision: precision.parse().ok()?,
+        scale: scale.parse().ok()?,
+    })
+}
+
+/// PostgreSQL, as `format_type` prints it — the standard's long spellings
+/// alongside the abbreviations a person types.
+fn postgres_scalar(head: &str, args: Option<&str>) -> Option<ScalarType> {
+    Some(match (head, args) {
+        ("smallint" | "int2", None) => ScalarType::Int(IntWidth::Small),
+        ("integer" | "int" | "int4", None) => ScalarType::Int(IntWidth::Normal),
+        ("bigint" | "int8", None) => ScalarType::Int(IntWidth::Big),
+        ("real" | "float4", None) => ScalarType::Float(FloatWidth::Single),
+        ("double precision" | "float8", None) => ScalarType::Float(FloatWidth::Double),
+        ("numeric" | "decimal", Some(_)) => decimal_args(args)?,
+        ("character varying" | "varchar", Some(_)) => ScalarType::Text {
+            max: Some(one_arg(args)?),
+        },
+        ("text" | "character varying" | "varchar", None) => ScalarType::Text { max: None },
+        ("bytea", None) => ScalarType::Bytes { max: None },
+        ("boolean" | "bool", None) => ScalarType::Bool,
+        ("date", None) => ScalarType::Date,
+        ("time" | "time without time zone", _) => ScalarType::Time,
+        ("timestamp" | "timestamp without time zone", _) => ScalarType::DateTime,
+        ("timestamptz" | "timestamp with time zone", _) => ScalarType::Instant,
+        ("uuid", None) => ScalarType::Uuid,
+        ("json" | "jsonb", None) => ScalarType::Json,
+        _ => return None,
+    })
+}
+
+/// MySQL and MariaDB, as `column_type` prints it: `unsigned` is part of the
+/// name, and a display width MySQL 8 no longer prints is accepted and ignored
+/// where an older server still does.
+fn mysql_scalar(head: &str, args: Option<&str>) -> Option<ScalarType> {
+    Some(match (head, args) {
+        ("smallint", _) => ScalarType::Int(IntWidth::Small),
+        ("int" | "integer", _) => ScalarType::Int(IntWidth::Normal),
+        ("bigint", _) => ScalarType::Int(IntWidth::Big),
+        ("smallint unsigned", _) => ScalarType::Uint(IntWidth::Small),
+        ("int unsigned" | "integer unsigned", _) => ScalarType::Uint(IntWidth::Normal),
+        ("bigint unsigned", _) => ScalarType::Uint(IntWidth::Big),
+        ("float", None) => ScalarType::Float(FloatWidth::Single),
+        ("double", None) => ScalarType::Float(FloatWidth::Double),
+        ("decimal" | "numeric", Some(_)) => decimal_args(args)?,
+        ("varchar", Some(_)) => ScalarType::Text {
+            max: Some(one_arg(args)?),
+        },
+        ("longtext", None) => ScalarType::Text { max: None },
+        ("varbinary", Some(_)) => ScalarType::Bytes {
+            max: Some(one_arg(args)?),
+        },
+        ("longblob", None) => ScalarType::Bytes { max: None },
+        ("bit", Some("1")) => ScalarType::Bool,
+        ("date", None) => ScalarType::Date,
+        ("time", _) => ScalarType::Time,
+        ("datetime", _) => ScalarType::DateTime,
+        ("timestamp", _) => ScalarType::Instant,
+        ("char", Some("36")) => ScalarType::Uuid,
+        ("json", None) => ScalarType::Json,
+        _ => return None,
+    })
+}
+
+/// SQLite, where `pragma_table_info` reports the declared name back verbatim,
+/// so this is very nearly [`crate::ddl`]'s own words read backwards.
+fn sqlite_scalar(head: &str, args: Option<&str>) -> Option<ScalarType> {
+    Some(match (head, args) {
+        ("smallint", None) => ScalarType::Int(IntWidth::Small),
+        ("integer" | "int", None) => ScalarType::Int(IntWidth::Normal),
+        ("bigint", None) => ScalarType::Int(IntWidth::Big),
+        ("real", None) => ScalarType::Float(FloatWidth::Single),
+        ("double precision" | "double", None) => ScalarType::Float(FloatWidth::Double),
+        // SQLite is the one dialect that tells `uint64` from the decimal of
+        // the same shape, and that is the emitter's doing rather than the
+        // server's: a declared type here is a name and not a constraint, so
+        // its `NUMERIC(20, 0)` and its `DECIMAL(20, 0)` both come back out of
+        // `pragma_table_info` as themselves.
+        ("numeric" | "decimal", Some(_)) => match (head, decimal_args(args)?) {
+            (
+                "numeric",
+                ScalarType::Decimal {
+                    precision: 20,
+                    scale: 0,
+                },
+            ) => ScalarType::Uint(IntWidth::Big),
+            (_, ty) => ty,
+        },
+        ("varchar", Some(_)) => ScalarType::Text {
+            max: Some(one_arg(args)?),
+        },
+        ("text", None) => ScalarType::Text { max: None },
+        ("blob", None) => ScalarType::Bytes { max: None },
+        ("boolean", None) => ScalarType::Bool,
+        ("date", None) => ScalarType::Date,
+        ("time", None) => ScalarType::Time,
+        ("datetime", None) => ScalarType::DateTime,
+        ("timestamptz", None) => ScalarType::Instant,
+        ("uuid", None) => ScalarType::Uuid,
+        ("json", None) => ScalarType::Json,
+        _ => return None,
+    })
+}
+
+/// SQL Server, as this module's own `CASE` assembles it out of `DATA_TYPE` and
+/// the length columns: `(max)` for the unbounded forms and nothing at all for
+/// a type whose parameter that catalog does not report.
+fn sqlserver_scalar(head: &str, args: Option<&str>) -> Option<ScalarType> {
+    Some(match (head, args) {
+        ("smallint", None) => ScalarType::Int(IntWidth::Small),
+        ("int", None) => ScalarType::Int(IntWidth::Normal),
+        ("bigint", None) => ScalarType::Int(IntWidth::Big),
+        ("real", None) => ScalarType::Float(FloatWidth::Single),
+        // `FLOAT(n)` is `real` at 24 bits or fewer and a double above it,
+        // which is the server's own rule; a bare `float` is the 53-bit one.
+        ("float", None) => ScalarType::Float(FloatWidth::Double),
+        ("float", Some(_)) => match one_arg(args)? {
+            0..=24 => ScalarType::Float(FloatWidth::Single),
+            _ => ScalarType::Float(FloatWidth::Double),
+        },
+        ("decimal" | "numeric", Some(_)) => decimal_args(args)?,
+        ("nvarchar" | "varchar", Some("max")) => ScalarType::Text { max: None },
+        ("nvarchar" | "varchar", Some(_)) => ScalarType::Text {
+            max: Some(one_arg(args)?),
+        },
+        ("varbinary" | "binary", Some("max")) => ScalarType::Bytes { max: None },
+        ("varbinary" | "binary", Some(_)) => ScalarType::Bytes {
+            max: Some(one_arg(args)?),
+        },
+        ("bit", None) => ScalarType::Bool,
+        ("date", None) => ScalarType::Date,
+        ("time", _) => ScalarType::Time,
+        ("datetime2", _) => ScalarType::DateTime,
+        ("datetimeoffset", _) => ScalarType::Instant,
+        ("uniqueidentifier", None) => ScalarType::Uuid,
+        _ => return None,
+    })
+}
+
+/// The [`ColumnDefault`] a server's own default expression names, or `None`
+/// for one § 2's closed set cannot hold.
+///
+/// The reverse of `literal` in [`crate::ddl`], and **type-directed** in the
+/// same way that function is: `1` is a `bool` on a `bool` column and an
+/// integer on an integer one, and `CURRENT_TIMESTAMP` is
+/// [`ColumnDefault::Now`] only where a timestamp could be stored. Reading it
+/// any other way would need to know what the server meant, which is the
+/// question § 4 refuses to answer with a parser.
+///
+/// Three wrappers are the server's and were never written by an emitter, and
+/// each is removed before the literal is read:
+///
+/// - **SQL Server parenthesises a default, sometimes twice** — `((0))`,
+///   `(N'hi')`, `(getdate())` — and the parentheses carry no meaning.
+/// - **PostgreSQL labels a literal with its type**: `pg_get_expr` prints
+///   `'hi'::character varying` and `'12.34'::numeric`. The label is the
+///   column's own type, so dropping it loses nothing this function did not
+///   already have.
+/// - **MySQL prints a literal with no quotes at all.** `COLUMN_DEFAULT` gives
+///   `hi`, not `'hi'`, so an unquoted value is read as the literal it is
+///   rather than refused — which is also why this reader is type-directed and
+///   not shape-directed.
+///
+/// # What is refused, and why refusing is the safe direction
+///
+/// `None` is the answer for an expression default — `nextval(…)`,
+/// `uuid_generate_v4()`, a string with an escape this vocabulary does not
+/// write — because § 2's set is closed and an expression is the value a server
+/// is most likely to spell back differently. A default read as `None` costs a
+/// spurious step in § 5's plan; a default read *wrongly* costs a plan that
+/// says nothing needs doing when it does, and only one of those is recoverable
+/// by looking at the plan. What the assembly does with a `None` is its own
+/// doc's business, not this function's.
+#[must_use]
+pub fn column_default(spelling: &str, ty: &ScalarType, dialect: Dialect) -> Option<ColumnDefault> {
+    let bare = strip_cast(unwrap_parens(spelling.trim()));
+    if matches!(ty, ScalarType::DateTime | ScalarType::Instant) && is_now(bare) {
+        return Some(ColumnDefault::Now);
+    }
+    let value = unquote(bare, dialect)?;
+    let default = match ty {
+        ScalarType::Int(_) => ColumnDefault::Int(value.parse().ok()?),
+        ScalarType::Uint(_) => ColumnDefault::Uint(value.parse().ok()?),
+        ScalarType::Float(_) => ColumnDefault::Float(value.parse().ok()?),
+        ScalarType::Decimal { .. } => {
+            // Not a number this reader parses: a decimal literal keeps the
+            // digits the schema wrote, and turning them into a float and back
+            // is exactly the rounding [ADR 0054] gives a `decimal` to avoid.
+            let digits = value.trim_start_matches(['+', '-']);
+            if digits.is_empty()
+                || !digits.chars().all(|c| c.is_ascii_digit() || c == '.')
+                || digits.matches('.').count() > 1
+            {
+                return None;
+            }
+            ColumnDefault::Decimal(value)
+        }
+        ScalarType::Text { .. } => ColumnDefault::Text(value),
+        ScalarType::Bool => match value.to_ascii_lowercase().as_str() {
+            "1" | "true" | "t" => ColumnDefault::Bool(true),
+            "0" | "false" | "f" => ColumnDefault::Bool(false),
+            _ => return None,
+        },
+        _ => return None,
+    };
+    // The one rule, and the same one the builder applies: a literal that could
+    // not have been written on all five backends is not one an introspection
+    // invents either.
+    default.fits(ty).then_some(default)
+}
+
+/// SQL Server's wrapping parentheses, however many it added.
+///
+/// `(getdate())` is a wrapper around a call and `getdate()` is not, which is
+/// why the inside is checked for balance rather than the outside for shape.
+fn unwrap_parens(text: &str) -> &str {
+    /// Whether `text` closes every parenthesis it opens outside a literal.
+    fn balanced(text: &str) -> bool {
+        let mut depth = 0i32;
+        let mut quoted = false;
+        for c in text.chars() {
+            match c {
+                // A doubled quote toggles twice and so nets out.
+                '\'' => quoted = !quoted,
+                '(' if !quoted => depth += 1,
+                ')' if !quoted => {
+                    depth -= 1;
+                    if depth < 0 {
+                        return false;
+                    }
+                }
+                _ => {}
+            }
+        }
+        depth == 0 && !quoted
+    }
+
+    let mut text = text;
+    while let Some(inner) = text
+        .strip_prefix('(')
+        .and_then(|rest| rest.strip_suffix(')'))
+        .map(str::trim)
+        .filter(|inner| balanced(inner))
+    {
+        text = inner;
+    }
+    text
+}
+
+/// PostgreSQL's `::type` label, dropped from the end of a literal.
+fn strip_cast(text: &str) -> &str {
+    let mut quoted = false;
+    for (at, c) in text.char_indices() {
+        match c {
+            '\'' => quoted = !quoted,
+            ':' if !quoted && text[at..].starts_with("::") => return text[..at].trim_end(),
+            _ => {}
+        }
+    }
+    text
+}
+
+/// The spellings the five servers print for `CURRENT_TIMESTAMP`, with the
+/// precision one of them adds ignored.
+fn is_now(text: &str) -> bool {
+    let lower = text.to_ascii_lowercase();
+    let head = lower
+        .split_once('(')
+        .map_or(lower.as_str(), |(head, _)| head);
+    matches!(
+        head.trim(),
+        "current_timestamp" | "now" | "getdate" | "sysdatetimeoffset" | "localtimestamp"
+    )
+}
+
+/// The value inside a quoted literal, or the whole text where the server
+/// printed it unquoted.
+///
+/// `N'…'` is SQL Server's national literal and `b'…'` MySQL's bit literal, and
+/// both are the emitter's own spellings. Inside, a doubled quote is the one
+/// escape every backend shares and a backslash is MySQL's alone — an escape
+/// outside those two is refused rather than guessed at, because this is a
+/// closed set of literals and not a lexer.
+fn unquote(text: &str, dialect: Dialect) -> Option<String> {
+    let opened = ["N'", "n'", "b'", "B'", "'"]
+        .into_iter()
+        .find_map(|prefix| text.strip_prefix(prefix));
+    let Some(body) = opened else {
+        return Some(text.to_owned());
+    };
+    let body = body.strip_suffix('\'')?;
+    let mut out = String::with_capacity(body.len());
+    let mut chars = body.chars();
+    while let Some(c) = chars.next() {
+        match c {
+            '\'' => {
+                // A lone quote means the literal ended before the text did, so
+                // this is an expression rather than one value.
+                if chars.next() != Some('\'') {
+                    return None;
+                }
+                out.push('\'');
+            }
+            '\\' if dialect.backslash_escapes() => match chars.next()? {
+                escaped @ ('\\' | '\'') => out.push(escaped),
+                _ => return None,
+            },
+            other => out.push(other),
+        }
+    }
+    Some(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -630,6 +1055,336 @@ mod tests {
                     "{read:?} on {dialect:?} leaves the row order to the server"
                 );
             }
+        }
+    }
+
+    /// The vocabulary's own family name for a type, by a match with no
+    /// wildcard: a variant added to [`ScalarType`] stops this compiling, so
+    /// the sweep below cannot quietly stop covering one.
+    fn family(ty: &ScalarType) -> &'static str {
+        match ty {
+            ScalarType::Int(_) => "int",
+            ScalarType::Uint(_) => "uint",
+            ScalarType::Float(_) => "float",
+            ScalarType::Decimal { .. } => "decimal",
+            ScalarType::Text { .. } => "text",
+            ScalarType::Bytes { .. } => "bytes",
+            ScalarType::Bool => "bool",
+            ScalarType::Date => "date",
+            ScalarType::Time => "time",
+            ScalarType::DateTime => "datetime",
+            ScalarType::Instant => "instant",
+            ScalarType::Uuid => "uuid",
+            ScalarType::Json => "json",
+        }
+    }
+
+    /// Every family in § 11's vocabulary, with both sides of every width and
+    /// parameter the reverse map has to choose between.
+    fn every_type() -> Vec<ScalarType> {
+        vec![
+            ScalarType::Int(IntWidth::Small),
+            ScalarType::Int(IntWidth::Normal),
+            ScalarType::Int(IntWidth::Big),
+            ScalarType::Uint(IntWidth::Small),
+            ScalarType::Uint(IntWidth::Normal),
+            ScalarType::Uint(IntWidth::Big),
+            ScalarType::Float(FloatWidth::Single),
+            ScalarType::Float(FloatWidth::Double),
+            ScalarType::Decimal {
+                precision: 20,
+                scale: 0,
+            },
+            ScalarType::Decimal {
+                precision: 12,
+                scale: 4,
+            },
+            ScalarType::Text { max: Some(200) },
+            ScalarType::Text { max: None },
+            ScalarType::Bytes { max: Some(64) },
+            ScalarType::Bytes { max: None },
+            ScalarType::Bool,
+            ScalarType::Date,
+            ScalarType::Time,
+            ScalarType::DateTime,
+            ScalarType::Instant,
+            ScalarType::Uuid,
+            ScalarType::Json,
+        ]
+    }
+
+    /// ADR 0145 § 4: the reverse of [`ddl::column_type`] reads back every
+    /// spelling that emitter writes.
+    ///
+    /// Asserted as a **round trip over the emitters** rather than as a table
+    /// of eighty expected names, because the map is deliberately not injective
+    /// — `INTEGER` is both `int32` and `uint16` on three of the four — and a
+    /// table would have to state the choice twice, once here and once in the
+    /// map. What matters is not which of the two comes back but that what
+    /// comes back is the **same column**: its own emission must be the string
+    /// that was read.
+    #[test]
+    fn every_catalog_spelling_the_emitter_wrote_reads_back_as_its_own_type() {
+        let types = every_type();
+        for wanted in [
+            "int", "uint", "float", "decimal", "text", "bytes", "bool", "date", "time", "datetime",
+            "instant", "uuid", "json",
+        ] {
+            assert!(
+                types.iter().any(|ty| family(ty) == wanted),
+                "the sweep covers no `{wanted}`"
+            );
+        }
+
+        for dialect in DIALECTS {
+            for ty in &types {
+                let sql = ddl::column_type(ty, dialect);
+                let read = scalar_type(&sql, dialect)
+                    .unwrap_or_else(|| panic!("{dialect:?} cannot read `{sql}` back at all"));
+                assert_eq!(
+                    ddl::column_type(&read, dialect),
+                    sql,
+                    "{dialect:?} read `{sql}` as {read:?}, which is a different column"
+                );
+                // The one answer that would look plausible everywhere: the
+                // canonical spelling is a different reader's input entirely.
+                assert!(
+                    ScalarType::from_spelling(&sql).is_err(),
+                    "`{sql}` is also a canonical name, so the two readers overlap"
+                );
+            }
+        }
+    }
+
+    /// The server's own words, which are not the emitter's — and the refusals.
+    #[test]
+    fn a_catalog_spelling_is_read_in_the_servers_words_and_not_the_emitters() {
+        // PostgreSQL's `format_type` never says `VARCHAR` or `TIMESTAMPTZ`.
+        assert_eq!(
+            scalar_type("character varying(200)", Dialect::PostgreSql),
+            Some(ScalarType::Text { max: Some(200) })
+        );
+        assert_eq!(
+            scalar_type("timestamp with time zone", Dialect::PostgreSql),
+            Some(ScalarType::Instant)
+        );
+        // A parameter in the middle of the name, and one the vocabulary has no
+        // room for: gap 2 of this module's doc, in the read direction.
+        assert_eq!(
+            scalar_type("timestamp(3) without time zone", Dialect::PostgreSql),
+            Some(ScalarType::DateTime)
+        );
+        assert_eq!(
+            scalar_type("DATETIME2(7)", Dialect::SqlServer),
+            Some(ScalarType::DateTime)
+        );
+        // Case and whitespace are the server's business, not the map's, and an
+        // older MySQL still prints the display width it no longer needs.
+        assert_eq!(
+            scalar_type("  BIGINT   UNSIGNED ", Dialect::MySql),
+            Some(ScalarType::Uint(IntWidth::Big))
+        );
+        assert_eq!(
+            scalar_type("int(10) unsigned", Dialect::MySql),
+            Some(ScalarType::Uint(IntWidth::Normal))
+        );
+
+        // A dialect reads its own vocabulary and not its neighbour's: MySQL's
+        // boolean is a `BIT(1)` and PostgreSQL's is a `BOOLEAN`, and neither
+        // spelling means anything on the other server.
+        assert_eq!(scalar_type("bit(1)", Dialect::PostgreSql), None);
+        assert_eq!(scalar_type("boolean", Dialect::MySql), None);
+
+        // Refusals: a type outside § 11, a precision no vocabulary decimal can
+        // carry, a zero width, and text that is not a type at all.
+        for (spelling, dialect) in [
+            ("hstore", Dialect::PostgreSql),
+            ("numeric(1000, 500)", Dialect::PostgreSql),
+            ("varchar(0)", Dialect::Sqlite),
+            ("enum('a','b')", Dialect::MySql),
+            ("", Dialect::SqlServer),
+        ] {
+            assert_eq!(
+                scalar_type(spelling, dialect),
+                None,
+                "`{spelling}` read as a {dialect:?} type"
+            );
+        }
+    }
+
+    /// § 2's own name for a default, by a match with no wildcard: a case added
+    /// to [`ColumnDefault`] stops this compiling.
+    fn case(default: &ColumnDefault) -> &'static str {
+        match default {
+            ColumnDefault::Int(_) => "int",
+            ColumnDefault::Uint(_) => "uint",
+            ColumnDefault::Float(_) => "float",
+            ColumnDefault::Decimal(_) => "decimal",
+            ColumnDefault::Text(_) => "text",
+            ColumnDefault::Bool(_) => "bool",
+            ColumnDefault::Now => "now",
+        }
+    }
+
+    /// Every case of § 2's closed set, on a type it fits, with the two text
+    /// values that carry an escape.
+    fn every_default() -> Vec<(ColumnDefault, ScalarType)> {
+        vec![
+            (ColumnDefault::Int(-7), ScalarType::Int(IntWidth::Big)),
+            (ColumnDefault::Uint(9), ScalarType::Uint(IntWidth::Normal)),
+            (
+                ColumnDefault::Float(1.5),
+                ScalarType::Float(FloatWidth::Double),
+            ),
+            (
+                ColumnDefault::Decimal("12.34".to_owned()),
+                ScalarType::Decimal {
+                    precision: 6,
+                    scale: 2,
+                },
+            ),
+            (
+                ColumnDefault::Text("plain".to_owned()),
+                ScalarType::Text { max: Some(20) },
+            ),
+            (
+                ColumnDefault::Text("it's".to_owned()),
+                ScalarType::Text { max: Some(20) },
+            ),
+            (
+                ColumnDefault::Text("a\\b".to_owned()),
+                ScalarType::Text { max: Some(20) },
+            ),
+            (ColumnDefault::Bool(true), ScalarType::Bool),
+            (ColumnDefault::Bool(false), ScalarType::Bool),
+            (ColumnDefault::Now, ScalarType::DateTime),
+            (ColumnDefault::Now, ScalarType::Instant),
+        ]
+    }
+
+    /// ADR 0145 § 4: the reverse of [`crate::ddl`]'s literal reads back every
+    /// default that emitter writes, as the same case and the same value.
+    ///
+    /// A round trip again rather than a table of expected texts, and here the
+    /// equality is exact — unlike a type, a default has no choice to make, so
+    /// anything but the value that went in is a normalisation § 5 would have
+    /// to invent to hide.
+    #[test]
+    fn a_default_the_emitter_wrote_reads_back_as_the_same_case() {
+        let defaults = every_default();
+        for wanted in ["int", "uint", "float", "decimal", "text", "bool", "now"] {
+            assert!(
+                defaults.iter().any(|(default, _)| case(default) == wanted),
+                "the sweep covers no `{wanted}` default"
+            );
+        }
+
+        for (default, ty) in &defaults {
+            for dialect in DIALECTS {
+                let sql = ddl::literal(default, ty, dialect);
+                let read = column_default(&sql, ty, dialect).unwrap_or_else(|| {
+                    panic!("{dialect:?} cannot read `{sql}` back as a {default:?}")
+                });
+                assert_eq!(&read, default, "{dialect:?} read `{sql}` as another value");
+            }
+        }
+    }
+
+    /// The three wrappers a server adds that no emitter wrote, and the
+    /// expressions that are refused rather than guessed at.
+    #[test]
+    fn a_default_is_read_in_the_servers_words_and_not_the_emitters() {
+        let text20 = ScalarType::Text { max: Some(20) };
+        // PostgreSQL labels every literal with the column's own type.
+        assert_eq!(
+            column_default("'hi'::character varying", &text20, Dialect::PostgreSql),
+            Some(ColumnDefault::Text("hi".to_owned()))
+        );
+        assert_eq!(
+            column_default(
+                "'12.34'::numeric",
+                &ScalarType::Decimal {
+                    precision: 6,
+                    scale: 2
+                },
+                Dialect::PostgreSql
+            ),
+            Some(ColumnDefault::Decimal("12.34".to_owned()))
+        );
+        // `CURRENT_TIMESTAMP` is stored as `now()` and printed as one.
+        assert_eq!(
+            column_default("now()", &ScalarType::DateTime, Dialect::PostgreSql),
+            Some(ColumnDefault::Now)
+        );
+        assert_eq!(
+            column_default("true", &ScalarType::Bool, Dialect::PostgreSql),
+            Some(ColumnDefault::Bool(true))
+        );
+        // MySQL prints a literal with no quotes at all, which is why the
+        // reader is type-directed: nothing about `hi` says it is text.
+        assert_eq!(
+            column_default("hi", &text20, Dialect::MySql),
+            Some(ColumnDefault::Text("hi".to_owned()))
+        );
+        assert_eq!(
+            column_default("current_timestamp()", &ScalarType::DateTime, Dialect::MySql),
+            Some(ColumnDefault::Now)
+        );
+        // SQL Server parenthesises, sometimes twice, and has two clocks.
+        assert_eq!(
+            column_default(
+                "((42))",
+                &ScalarType::Int(IntWidth::Big),
+                Dialect::SqlServer
+            ),
+            Some(ColumnDefault::Int(42))
+        );
+        assert_eq!(
+            column_default("(N'hi')", &text20, Dialect::SqlServer),
+            Some(ColumnDefault::Text("hi".to_owned()))
+        );
+        for clock in ["(getdate())", "(sysdatetimeoffset())"] {
+            assert_eq!(
+                column_default(clock, &ScalarType::Instant, Dialect::SqlServer),
+                Some(ColumnDefault::Now),
+                "{clock} is not this server's clock"
+            );
+        }
+
+        // A `1` is whatever the column is, and `CURRENT_TIMESTAMP` is a
+        // default only where a timestamp could be stored.
+        assert_eq!(
+            column_default("1", &ScalarType::Bool, Dialect::Sqlite),
+            Some(ColumnDefault::Bool(true))
+        );
+        assert_eq!(
+            column_default("1", &ScalarType::Int(IntWidth::Small), Dialect::Sqlite),
+            Some(ColumnDefault::Int(1))
+        );
+        assert_eq!(
+            column_default("CURRENT_TIMESTAMP", &text20, Dialect::Sqlite),
+            Some(ColumnDefault::Text("CURRENT_TIMESTAMP".to_owned()))
+        );
+
+        // Refusals: an expression, a literal that ran on past its own quote, a
+        // MySQL escape this vocabulary never writes, and a default on a type
+        // `ColumnDefault::fits` refuses outright.
+        for (spelling, ty, dialect) in [
+            (
+                "nextval('t_id_seq'::regclass)",
+                ScalarType::Int(IntWidth::Big),
+                Dialect::PostgreSql,
+            ),
+            ("uuid_generate_v4()", ScalarType::Uuid, Dialect::PostgreSql),
+            ("'a' || 'b'", text20.clone(), Dialect::PostgreSql),
+            ("'a\\nb'", text20.clone(), Dialect::MySql),
+            ("'hi'", ScalarType::Text { max: None }, Dialect::PostgreSql),
+        ] {
+            assert_eq!(
+                column_default(spelling, &ty, dialect),
+                None,
+                "`{spelling}` read as a {dialect:?} default on {ty:?}"
+            );
         }
     }
 }

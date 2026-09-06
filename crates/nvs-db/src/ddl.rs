@@ -433,7 +433,7 @@ fn rowid_identity(table: &Table, dialect: Dialect) -> Option<&Ident> {
 /// server not running in UTC, silently, in a column whose whole point is that
 /// it carries its zone. `SYSDATETIMEOFFSET()` is the same clock read as the
 /// type it is being stored in.
-fn literal(default: &ColumnDefault, ty: &ScalarType, dialect: Dialect) -> String {
+pub(crate) fn literal(default: &ColumnDefault, ty: &ScalarType, dialect: Dialect) -> String {
     match default {
         ColumnDefault::Int(value) => value.to_string(),
         ColumnDefault::Uint(value) => value.to_string(),

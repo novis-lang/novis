@@ -279,7 +279,10 @@ impl ScalarType {
         matches!(self, ScalarType::Int(_) | ScalarType::Uint(_))
     }
 
-    fn check(&self) -> Result<(), SchemaError> {
+    /// The bounds every backend agrees on, checked wherever a type is built
+    /// from text — [`ScalarType::from_spelling`]'s canonical names and
+    /// [`crate::catalog::scalar_type`]'s catalog spellings alike.
+    pub(crate) fn check(&self) -> Result<(), SchemaError> {
         match *self {
             ScalarType::Decimal { precision, scale } => {
                 if precision == 0 || precision > 38 || scale > precision {
@@ -332,7 +335,11 @@ impl ColumnDefault {
     /// every [`ScalarType::Bytes`], [`ScalarType::Json`] and
     /// [`ScalarType::Uuid`] carry no default, and a `VARCHAR(n)` carries one
     /// happily.
-    fn fits(&self, ty: &ScalarType) -> bool {
+    ///
+    /// This is also the rule [`crate::catalog::column_default`] reads a
+    /// server's own default against, so a literal that could not have been
+    /// written is not one an introspection invents either.
+    pub(crate) fn fits(&self, ty: &ScalarType) -> bool {
         matches!(
             (self, ty),
             (ColumnDefault::Int(_), ScalarType::Int(_))
