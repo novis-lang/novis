@@ -1,14 +1,15 @@
 # Contributing to Novis
 
-Novis is pre-alpha. Nothing runs yet and most of the language is still being decided, which makes this the
-point where an opinion is worth more than a patch — and, for now, the point where a patch is the one thing
-we cannot take. **Ideas, reports and questions are open to anyone at any time; pull requests are not open
+Novis is pre-alpha. It runs, but nothing about it is released or settled and much of the language is still
+being decided, which makes this the point where an opinion is worth more than a patch — and, for now, the
+point where a patch is the one thing we cannot take. **Ideas, reports and questions are open to anyone at any time; pull requests are not open
 yet.** This file routes the first, explains the second, and its second half is the developer's map of the
 tree.
 
-> **Status: pre-alpha, milestone M0.** The language does not run yet — `Hello World` is M3. Nothing is
-> stable, and the crates listed further down are mostly the shape the workspace grows into rather than
-> code you can read today.
+> **Status: pre-alpha.** The language runs: `nvs run` compiles and executes a `.nvs` file, `nvs test`
+> runs the conformance trees, `nvs serve` answers HTTP. Nothing is released — the version is `0.0.1`
+> with no tag behind it — and nothing is stable. Work runs as a chain of numbered goals rather than as
+> a march through milestones; `python tools/brief.py` prints the live one.
 
 ## Where to take what you have
 
@@ -114,68 +115,86 @@ cargo bench -p nvs-abi-probe                                   # track the numbe
 
 `python tools/verify.py` runs build, fmt, test, the `.nvst` trees and clippy in that order, stopping at the
 first failure — one call instead of the four above.
+
+The docs carry their own gates, which `verify.py` deliberately does not run because they need no
+toolchain and finish in about a second together. They are CI's `docs` job, and a change to `docs/` or to
+this file is checked by them and by nothing else:
+
+```sh
+python tools/check-links.py    # every markdown link resolves, with matching case
+python tools/layout.py         # the layout listing below still describes the tree
+python tools/adr.py --check    # ADR field set, heading order, and the derived index table
+python tools/plan.py --check   # every milestone row agrees with the file it names
+```
+
 [docs/agent/commands.md](docs/agent/commands.md) is the full set of tools this repo is driven by.
 
 ### Repository layout
 
-Four of these exist today. The rest are the shape the workspace grows into; the right-hand column is
-the milestone that creates each one, since a crate is added when its milestone starts rather than
-sitting empty. `nvs-cli` is the one exception to "created when its milestone starts": M1's own plan
-names `nvs ast` as its verification tool, so the crate was scaffolded early with just that one
-subcommand — `run`/`test` and the rest of the CLI still arrive at M3.
+**Every row below is on disk today**, and `python tools/layout.py --check` is the gate that keeps that
+true: it fails if a row names something that is not there, if a crate or a tracked top-level directory
+has no row, or if an `[audited unsafe]` marker disagrees with the crate's own lint policy — that marker
+means the crate overrides the workspace's `unsafe_code = "forbid"` with its own audited `deny`. What the
+workspace has *not* built yet — the extension loader, the formatter, the language server, the PHP
+converter, the package manager — is scheduled in [docs/implementation-plan.md](docs/implementation-plan.md)
+and named nowhere else, because a second copy of a schedule is how this section last went stale.
 
+<!-- layout:begin  python tools/layout.py --check gates this listing; see that file's docstring -->
 ```
-crates/
-  nvs-diagnostics   spans, source maps, error rendering                            exists
-  nvs-syntax        lexer (inline HTML + PHP mode), parser, AST                        M1
-  nvs-hir           name resolution, namespaces, class graph                           M2
-  nvs-types         declared types, unions, narrowing, no inference                    M2
-  nvs-ir            CFG/SSA IR, safepoints, refcount ops                               M2
-  nvs-codegen       Cranelift backend  [audited unsafe]                                M3
-  nvs-runtime       values, arrays, coroutines, scheduler  [audited unsafe]            M3
-  nvs-cli           the `nvs` binary (`ast`, `check`, `run`, `test`, `info`)       exists
-  nvs-stdlib        Core domain classes, native builtin static methods                 M4S
-  nvs-test          .nvst runner                                                    exists
-  nvs-host          Transport trait, unit cache, the Isolate boundary                  M5
-  nvs-config        nvs.toml registry, changeability classes, overlays                  M6
-  nvs-cache         content-addressed artifact cache                                   M6
-  nvs-http          hyper h1 + h2c transport, optional rustls                          M7
-  nvs-regex         two-tier engine + `preg_*` layer                                   M8
-  nvs-db            driver trait + mysql / pgsql / sqlite / mssql                      M8
-  nvs-ext           .nvsx loader, WIT host, per-request instancing                     M9
-  nvs-fmt           formatter                                                         M10
-  nvs-lsp           tower-lsp language server                                         M10
-  nvs-dap           debug adapter                                                     M10
-  nvs-pkg           package manager                                                   M10
-  nvs-convert       PHP→Novis transpiler, .phpt→.nvst                                   M11
-  nvs-fcgi          optional FastCGI transport                                        M13
-editors/
-  vscode            TextMate grammar, language-configuration.json, LSP client        M10
-  phpstorm          file-type registration, LSP-bridge plugin (Kotlin/Gradle)         M10
+crates/             the Cargo workspace
+  nvs-diagnostics   spans, source maps, the one diagnostic record
+  nvs-render        that record's three renderings: terminal, JSON, LSP
+  nvs-syntax        lexer (inline HTML + PHP mode), parser, AST
+  nvs-hir           name resolution, namespaces, class graph, compile-time autoload
+  nvs-types         declared types, unions, narrowing, no inference
+  nvs-ir            CFG/SSA IR, safepoints, refcount ops
+  nvs-codegen       Cranelift backend  [audited unsafe]
+  nvs-runtime       values, arrays, strings, refcounting  [audited unsafe]
+  nvs-host          thread-per-core scheduler, reactor, coroutines, the Isolate boundary  [audited unsafe]
+  nvs-stdlib        every `Core` member, and the registry a call resolves against  [audited unsafe]
+  nvs-db            the five SQL drivers: sans-IO codecs over nvs-host's streams
+  nvs-config        the directive registry and the `nvs.toml` tree  [audited unsafe]
+  nvs-server        the built-in HTTP server: a socket to a root isolate and back
+  nvs-cli           the `nvs` binary  [audited unsafe]
+  nvs-test          the `.nvst` conformance format and its runner
 benches/
-  abi-probe         architecture invariants + cost baselines  [audited unsafe]     exists
-tools/
-  brief.py          the one-call orientation digest every session starts with      exists
-  loop.py           the unattended work-loop driver                                exists
-  splice.py         exact-block file edit, for edits a shell would mangle          exists
-  gaps.py           the cases Part I's corpus does not ask for yet, as a worklist  exists
-  check-links.py    advisory: markdown links that break, or that mis-match case    exists
-  gen-attribution   generates THIRD-PARTY-LICENSES.txt from the dep graph          exists
-  leak-check.sh     valgrind over named .nvs fixtures (WSL/Linux)                  exists
-docs/setup.md       what a machine installs, and what a clone does not carry      exists
-docs/adr/           architecture decision records + the topic routing table        exists
-docs/agent/         how agents work in this repo: loop, prompts, live handoff      exists
-docs/spec/          normative language reference                                unwritten
+  abi-probe         architecture invariants + cost baselines  [audited unsafe]
+  userland          the same program in Novis and in PHP, for `tools/bench.py`
+  members           per-`Core`-member figures, and their calibration
+  serve             the request-path pair the server comparison runs
+  proxied           compose files, nginx and PHP configuration for the proxied comparison
+tests/              the case trees: conformance, differential, db, hostile, config
+examples/           `.nvs` programs the guard tests and the docs compile
+fuzz/               cargo-fuzz targets
+docker/             the container image
+website/            the Astro site
+tools/              how this repository is driven; docs/agent/commands.md is the full set
+docs/
+  setup.md          what a development machine installs, and what a clone does not carry
+  novis.md          the one-file reference to everything Novis has (generated)
+  implementation-plan.md   the milestone index, and the status block a session overwrites
+  adr/              one decision per file, plus the topic routing table
+  agent/            how agents work here: loop, goals, prompts, conventions, live handoff
+  plan/             one file per milestone, plus the frozen pre-M0 design
+  spec/             the normative language reference
+  reference/        the chapters `tools/reference.py` generates `docs/novis.md` from
+  perf/             recorded benchmark figures
+  examples/         worked `Core` examples
+.github/            CI: three platforms, miri, asan and fuzz legs, and a Python-only docs job
+.claude/            Claude Code settings, and the pointer file to AGENTS.md
 ```
+<!-- layout:end -->
 
 `docs/agent/` holds how work is driven here: the [work-loop design](docs/agent/coordinator.md), the
 [per-session prompt](docs/agent/session-prompt.md), the [current goal](docs/agent/loop-goal.md), and
-[handoff.md](docs/agent/handoff.md) — live state, overwritten by each session.
+[handoff.md](docs/agent/handoff.md) — live state, overwritten by each session. The schedule is the goal
+chain in [docs/agent/goals/](docs/agent/goals/README.md), not the milestone table: a milestone is an
+identity tag one or more goals carry, so "goal 19" says what is happening and "M7" does not.
 
-`editors/` sits outside the Cargo workspace — the VS Code extension is TypeScript/Node tooling, the
-PhpStorm plugin is Kotlin/Gradle/IntelliJ Platform tooling — and is a thin client over `nvs-lsp`/`nvs-fmt`
-in both cases, never a second implementation of language smarts or formatting
-([ADR 0016](docs/adr/0016-ide-integration.md)).
+The two editor clients are not here yet. When they arrive they sit outside the Cargo workspace — the VS
+Code extension is TypeScript/Node tooling, the PhpStorm plugin is Kotlin/Gradle/IntelliJ Platform
+tooling — and each is a thin client over `nvs-lsp`/`nvs-fmt`, never a second implementation of language
+smarts or formatting ([ADR 0016](docs/adr/0016-ide-integration.md)).
 
 [`benches/abi-probe`](benches/abi-probe/) is worth knowing about early. Several decisions in `docs/adr/`
 depend on how Cranelift, `corosensei` and Wasmtime behave rather than on Novis's own code, so a dependency
@@ -200,8 +219,8 @@ the premise the calling convention exists for.
 | Values | 16-byte tagged, refcounted, copy-on-write arrays and strings |
 | Requests | shared-nothing; only compiled code is shared |
 | Isolates | `spawn script` runs another `.nvs` file in-process with a fresh heap, on the caller's budget ([ADR 0006](docs/adr/0006-isolated-script-execution.md)) |
-| Config | root-owned `nvs.toml` states defaults; a script may retune its own limits within operator-set ceilings ([ADR 0005](docs/adr/0005-config-changeability.md)) |
-| Serving | built-in HTTP/1.1 + h2c; FastCGI optional and later |
+| Config | a tree of root-owned `nvs.toml` files states the defaults; a script may retune its own limits within operator-set ceilings, and `nvs config check` audits the result offline ([ADR 0005](docs/adr/0005-config-changeability.md), [ADR 0103](docs/adr/0103-configuration-is-a-tree-of-files.md)) |
+| Serving | built-in HTTP/1.1 with exactly two deployments — a development server, and a proxied production origin that replaces FastCGI. No TLS listener, no h2c, no compression: a proxy does each earlier and better. A filesystem path is never derived from a URL at request time ([ADR 0097](docs/adr/0097-development-server-and-proxied-origin.md)) |
 | Extensions | built-in, sandboxed wasm (`.nvsx`), or statically linked native — never `dlopen` ([ADR 0003](docs/adr/0003-extension-system.md)) |
 
 This is the short form. The fuller decision table, with the sequencing each choice implies, is in

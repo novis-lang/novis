@@ -296,13 +296,14 @@ jobs:
   # ---------------------------------------------------------------------------
   # The docs have linters of their own and, until this job existed, nothing ran
   # them — six findings had accumulated across four ADRs, including two links
-  # citing files by names they were renamed out of. All four scripts are Python
-  # only, need no toolchain and finish in about a second together, which is why
-  # they are one job rather than steps bolted onto a build.
+  # citing files by names they were renamed out of. Every script here is Python
+  # only, needs no toolchain and they finish in about a second together, which is
+  # why they are one job rather than steps bolted onto a build.
   #
   # Each of these gates on *structure* and never on a length: a stale index row,
-  # a table row that does not parse, a playbook selector that resolves to two
-  # bullets or none. Sizes stay reports in all four, for the reason
+  # a table row that does not parse, a layout row naming a crate that is not on
+  # disk, a playbook selector that resolves to two bullets or none. Sizes stay
+  # reports in every one of them, for the reason
   # docs/agent/doc-style.md gives — a number is weighed, not enforced — so a
   # green run here never means the docs are short, only that the tools can still
   # read them and that what they derive still agrees with what is committed.
@@ -319,6 +320,8 @@ jobs:
         run: python tools/adr.py --check
       - name: Every markdown link resolves, with matching case
         run: python tools/check-links.py
+      - name: CONTRIBUTING.md's layout listing still describes the tree
+        run: python tools/layout.py --check
       - name: Every milestone row parses and agrees with the file it names
         run: python tools/plan.py --check
       - name: Every playbook bullet is reachable by exactly one selector

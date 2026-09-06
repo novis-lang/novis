@@ -234,6 +234,18 @@ a check being skipped: the inputs are bit-identical. Only green is cached, the e
 hour, and `--no-cache` forces the real thing. A `--fast` or `-p`-scoped verdict never satisfies a wider
 run; a wider one does satisfy a narrower.
 
+**The docs gates are not in that list and `verify.py` runs none of them.** `check-links.py`,
+`layout.py`, `adr.py --check`, `plan.py --check`, `playbook.py --check` and `release.py --check` are
+CI's `docs` job — Python-only, no toolchain, about a second together — and `session.py --wrap` runs the
+link half in-process so a wrap cannot commit a link it just broke.
+
+`layout.py` is the one a **code** change trips. It holds CONTRIBUTING.md's layout listing to the tree:
+every row names something on disk, every crate, bench package and tracked top-level directory has a row,
+and an `[audited unsafe]` marker matches the crate's own `[lints]`. So **a slice that adds or removes a
+crate owes that file one line**, and `python tools/layout.py --rows` drafts it from the crate's own `//!`
+opening sentence. Nothing else in the tree notices a new crate: that block is prose, and a build cannot
+fail over it.
+
 ## The user-facing reference, and its proof
 
 ```sh
