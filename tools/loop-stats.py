@@ -238,11 +238,31 @@ def read_session(path):
         + [i for i, t in enumerate(texts) if "splice.py" in t]
     )
     verifies = [i for i, t in enumerate(texts) if any(m in t for m in VERIFY_MARKERS)]
-    commits = [i for i, t in enumerate(texts) if "git commit" in t]
+    # One VERIFICATION, not one call about one. `--start` and the `--wait` that collects it are
+    # two calls over a single run of the seven steps, so counting calls reported a session that
+    # verified twice as having verified four times -- against a rule that says "once, at the end".
+    runs = [i for i in verifies if "--wait" not in texts[i]]
+    # A session's commits go through `session.py --wrap`, which is the ONLY spelling that commits
+    # -- so counting `git commit` counted the hand-rolled git the wrap exists to remove, and read
+    # 0 for 33 of 39 sessions of one run while the ledger showed 2-6 each. Count the wrap, and the
+    # hand-rolled one beside it, and the column means "this session committed" again.
+    commits = [i for i, t in enumerate(texts) if "git commit" in t or "session.py --wrap" in t]
 
     n = len(calls)
     head = mutations[0] if mutations else n
-    tail_start = verifies[0] if verifies else n
+    # The tail begins after the LAST mutation, not at the first verification.
+    #
+    # `verify.py --start` is the recommended shape -- its own docstring says "start the run, write
+    # the wrap, then collect" -- and it is fired mid-work, so `verifies[0]` lands in the middle of
+    # a session rather than at the end of it. Measured across one 39-session run, the span from
+    # `verifies[0]` onwards held 103 Edit and 68 Write calls: that is work being counted as fixed
+    # cost. The number that came out, "fixed cost 31 of 67 calls (46%)", is quoted in AGENTS.md
+    # § *Session workflow* as the reason the group gate is a context budget, and it was inflated
+    # by the very habit this file recommends.
+    #
+    # After the last mutation is the honest boundary: everything from there is collecting a
+    # verification and applying the wrap, which is what "tail" was always meant to name.
+    tail_start = (mutations[-1] + 1) if mutations else (verifies[0] if verifies else n)
     # A session that verified before it edited anything did something unusual; fold the
     # oddity into `work` rather than reporting a negative phase.
     tail_start = max(tail_start, head)
@@ -274,7 +294,7 @@ def read_session(path):
         "head_buckets": head_buckets,
         "work": tail_start - head,
         "tail": n - tail_start,
-        "verify_runs": len(verifies),
+        "verify_runs": len(runs),
         "shell_writes": len(shell_writes),
         "commits": len(commits),
         "ctx_start": contexts[0] if contexts else 0,
