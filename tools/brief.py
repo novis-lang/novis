@@ -445,9 +445,9 @@ def run_no_adr_decisions():
 
 
 #: The homes that are not rules. `--where` routes a keyword to the rulebook -- a chapter, or a
-#: rule whose id or title matches -- and everything a language rule can be is there. These four
-#: are the topics the retired routing table also carried that no rule owns, because they are
-#: about the repository rather than the language: the schedule, the tooling, the measurements.
+#: rule whose id or title matches -- and everything a language rule can be is there. These are the
+#: topics the retired routing table also carried that no rule owns, because they are about the
+#: repository rather than the language: the schedule, the tooling, the prose, the measurements.
 #: Each row is (the words that hit it, the home, one line saying what is there). Keep it this
 #: short: a topic that grows a rule moves to the rulebook and comes off this list.
 HOMES = (
@@ -459,6 +459,9 @@ HOMES = (
      "the benchmark programs, and the figures with the methodology that took them"),
     ("perf performance latency throughput", "docs/perf/",
      "the measured figures, the methodology and the regressions"),
+    ("comment comments changelog history prose dates docstring",
+     "docs/agent/conventions.md, 'A code comment'",
+     "a comment says what the code does now: no date, no volatile count, rewritten whole"),
 )
 
 WHERE_CAP = 40  # a display cap on one `--where` answer, not on anything an author writes

@@ -17,8 +17,7 @@ The docs are optimised for an agent that reads one file and starts working. Keep
 - **A comment is prose too.** Every line on this page binds a `//!` header, a `///` on a `Core` member and
   a `#` in a manifest exactly as it binds a file under `docs/`: present tense, rewritten whole rather than
   overlaid, and carrying no date and no measured number it does not own.
-  [conventions.md](conventions.md) § *A code comment* is the home of the shape, and `python
-  tools/prose.py --check` is what keeps it from drifting back.
+  [conventions.md](conventions.md) § *A code comment* is the home of the shape.
 - **Front-load.** Decision first, reasoning below it. Assume the reader stops after the first screen.
 - A choice that would be expensive to reverse gets its own numbered decision record if the reasoning is
   subtle or contested; otherwise a paragraph in *Decisions taken at project start* in

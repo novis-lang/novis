@@ -266,27 +266,6 @@ crate owes that file one line**, and `python tools/layout.py --rows` drafts it f
 opening sentence. Nothing else in the tree notices a new crate: that block is prose, and a build cannot
 fail over it.
 
-## The comment gate
-
-```sh
-python tools/prose.py                     # every source comment carrying a date, with its line
-python tools/prose.py --check             # quiet on success, exit 1 on a finding (CI)
-python tools/prose.py --changed           # only what differs from HEAD, plus the changelog warnings
-```
-
-[conventions.md](conventions.md) § *A code comment* is the rule and this is the half of it a machine can
-judge: **a source comment carries no date.** A date inside backticks is a value the code is talking about
-— a SQL literal, an epoch constant, the day a fixture is built on — and passes; a bare one in prose is
-either history, which `git log` already holds, or a value in the wrong clothes. So the escape hatch is
-backticks rather than an allowlist, and there is nothing to keep in sync.
-
-`--changed` adds the half that cannot be a gate: a **warning** on lines this tree has added that carry
-changelog wording — "used to", "previously", "no longer". Each of those has an honest present-tense use,
-so failing on them would be a check authors learn to route around; asked about a line you just wrote, it
-is a question you can answer. Run it before the wrap when a slice edited prose. The scanner underneath
-knows which bytes of a `.rs`, `.nvs`, `.nvst`, `.py`, `.toml`, `.ts` or workflow file are comment rather
-than code, and `prose.py --list` is the file set.
-
 ## The user-facing reference, and its proof
 
 ```sh

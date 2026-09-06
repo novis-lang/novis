@@ -61,8 +61,10 @@ owns it (`docs/decisions/0007.md § 3`, `rule:types/conversion`) instead of rest
 These are therefore never in a comment:
 
 - **A date.** When something was decided, changed or measured is not a property of the code. `git blame`
-  answers it exactly; a comment answers it approximately and then rots. `python tools/prose.py --check`
-  fails the build on one, and that check is why this is stated as an absolute.
+  answers it exactly; a comment answers it approximately and then rots. The apparent exception is not
+  one: a date that is a **value the code handles** — a SQL literal, an epoch constant, the day a fixture
+  is built on — stays, and belongs in backticks like every other literal in these comments. A bare date
+  in a sentence is always either history or a value in the wrong clothes.
 - **A count of anything that can change** — "the four subsystems", "the third of these", "all ten
   members". The next feature makes it wrong, and the only edit such a sentence ever gets is the one that
   bumps the digit, which is a session spent on nothing. Write "each subsystem", "the members below", and

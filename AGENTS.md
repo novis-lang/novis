@@ -88,8 +88,8 @@ Each is one sentence here because not knowing it exists is the entire cost. The 
    fields, playbook bullet, handoff, one commit per slice, status — or refuses and changes nothing.
 6. **A comment says what the code does now, and is rewritten as a whole** — never edited by leaving the
    old sentence beside the new one, so no comment ever reads as a changelog. `git log` is the only
-   history this repository keeps. No dates, no counts of things that can change, no measured figures the
-   code does not enforce; `python tools/prose.py --check` fails on a date and is what makes it stick.
+   history this repository keeps: no dates, no counts of things that can change, no measured figures
+   the code does not enforce.
 
 ## Session workflow
 
