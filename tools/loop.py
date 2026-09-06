@@ -1250,6 +1250,31 @@ def wsl_available():
 
 
 PROGRAM_KINDS = {"exact", "ordered", "contains", "min-bytes"}
+
+
+def is_floor(check):
+    """Is this check the PREVIOUS goal's, carried in as a regression floor?
+
+    `goal-switch.py` relabels the whole of the goal that just passed to stage `"1 floor"`, so the
+    stage is the only thing that distinguishes hundreds of carried checks from the dozen the
+    current goal is actually working on. Stage 0 is the catch-up stage and is a floor in the same
+    sense: work a later ADR reopened inside a milestone already reported done."""
+    text = str(check.get("stage", ""))
+    return "floor" in text.lower() or text.startswith("0")
+
+
+def stage_key(check):
+    """A check's stage as something sortable: its leading integer, then its text.
+
+    Stages are written `"6 the member"`, so the plain string sorts correctly only while the goal
+    has fewer than ten of them -- `"10 x"` sorts before `"2 x"`. Goal 9 already runs to 7 and the
+    floor is stage 1, so this is one goal away from mattering. `"0..."` is the catch-up stage and
+    sorts first by the same rule. A stage with no leading integer sorts last, by its text, rather
+    than raising: an unlabelled check is a goal-file bug for `validate_spec` to name, not a reason
+    for the sweep to die."""
+    text = str(check.get("stage", ""))
+    lead = re.match(r"\s*(\d+)", text)
+    return (int(lead.group(1)) if lead else 10**6, text)
 SUMMARY_RE = re.compile(r"(\d+)\s+passed,\s+(\d+)\s+failed")
 
 # Checks whose cost is minutes and whose answer is a pure function of the tree: the release-profile
@@ -1495,7 +1520,30 @@ class Goal:
         self.checks = spec.get("check", [])
         self.valgrind_skip = set(spec.get("valgrind", {}).get("skip", []))
         self.wsl_target = spec.get("wsl", {}).get("target_dir", "/var/tmp/nvs-target-wsl")
-        self.program_checks = [c for c in self.checks if c["kind"] in PROGRAM_KINDS]
+        # Program checks split in two, and the split is by STAGE rather than by kind.
+        #
+        # All of them used to run before every cargo check -- they need only the native build --
+        # and the sweep stops at the first failure, so a fixture belonging to the goal's LAST
+        # stage decided what the driver reported about a goal whose middle stages were the work
+        # in flight. Measured: goal 9's `examples/schema.nvs [6 the member]` failed for eight
+        # consecutive sessions with the identical line while stages 3, 4 and 5 landed underneath
+        # it. Every one of those sessions was told, at the top of its pack and in the imperative,
+        # to close a check that could not pass until three stages it did not name had landed.
+        #
+        # The floor's fixtures keep their place: they are the previous goal's whole acceptance
+        # list, they are pure regression detection, and catching a regression before paying for a
+        # test build is the reason this tier exists at all. The CURRENT goal's fixtures move
+        # behind the cargo checks, because a goal's fixture is its acceptance surface and the
+        # cargo checks are the stages that build up to it -- running the end-to-end fixture first
+        # can only ever report "the thing at the end is not done yet", which no session can act
+        # on. Both halves stay sorted by stage, so the first failure in either is the earliest.
+        programs = sorted((c for c in self.checks if c["kind"] in PROGRAM_KINDS), key=stage_key)
+        self.program_floor = [c for c in programs if is_floor(c)]
+        self.program_checks = [c for c in programs if not is_floor(c)]
+        # Both halves, in run order. The split above is about WHEN each runs on the native leg;
+        # everything that simply needs every fixture -- the WSL leg, `--leg-only`, the progress
+        # bar's count -- wants this and must not pick one half by accident.
+        self.all_programs = self.program_floor + self.program_checks
         self.ran = []  # (label, seconds) for every check this run actually paid for
         self.short = []  # `min_passing` thresholds not met; see `check()`
         self.verbose = False  # narrate each check as it starts and what it cost
@@ -1536,8 +1584,13 @@ class Goal:
         held = {id(c) for c in self.release_checks}
         self.catch_up_checks = [c for c, first in zip(cargo, catch_up)
                                 if first and id(c) not in held]
-        self.cargo_checks = [c for c, first in zip(cargo, catch_up)
-                             if not first and id(c) not in held]
+        # By stage, for the reason the program checks are: the sweep stops at the first failure,
+        # so file order decides which of a goal's stages the driver reports and a session acts on.
+        # Stable within a stage, so a stage's own checks keep the order its author wrote them in.
+        self.cargo_checks = sorted(
+            (c for c, first in zip(cargo, catch_up) if not first and id(c) not in held),
+            key=stage_key,
+        )
 
     # -- measuring, and the two memos --------------------------------------------------
 
@@ -2098,6 +2151,30 @@ class Goal:
 
     # -- the whole thing ----------------------------------------------------------------
 
+    def report_program_fails(self, fails):
+        """One line for the driver's ledger out of every failing program check.
+
+        The EARLIEST-stage failure leads, because that is the one a session can close: a later
+        stage's fixture is usually red *because* of it, and reporting the later one sends the
+        session at a member three stages of unwritten work away. The rest are named after it by
+        stage, without their output -- a session that needs one reads it out of the goal file or
+        runs the fixture, and it is the shape of the goal's red edge that this line exists to
+        carry, not five error messages.
+        """
+        fails = sorted(fails, key=lambda f: f[0])
+        (_, _, first) = fails[0]
+        if len(fails) == 1:
+            return first
+        others = []
+        for _key, c, _msg in fails[1:]:
+            label = f"{c.get('file', c.get('name', '?'))} [{c.get('stage', '?')}]"
+            if label not in others:
+                others.append(label)
+        return (f"{first}\n"
+                f"       (and {len(fails) - 1} later fixture(s) red, in stage order: "
+                f"{', '.join(others[:6])}"
+                + (f", +{len(others) - 6} more" if len(others) > 6 else "") + ")")
+
     def plan_size(self, mode, wsl):
         """How many `timed()` steps the sweep about to start will pay for.
 
@@ -2109,7 +2186,7 @@ class Goal:
         It is an upper bound in one direction only -- a failing check returns early, so a run can
         end at 40% -- and it never undercounts, so the bar cannot reach 100% with work left.
         """
-        programs = len(self.program_checks)
+        programs = len(self.all_programs)
         sweep = sum(1 for f in self.files if f not in self.valgrind_skip)
         # Only the wsl leg's valgrind is a given: on a native leg the sweep is skipped outright
         # when the platform has no valgrind, and counting it would strand the bar short of 100%.
@@ -2202,11 +2279,20 @@ class Goal:
         # `native`, so this is also the origin the valgrind sweep's own run of `examples/http.nvs`
         # reaches.
         self.origins.enter_context(local_origin(native))
-        for c in self.program_checks:
+        # The FLOOR's fixtures, before the test build: a regression here outranks everything the
+        # current goal is doing, and catching it without paying for a test build is why this tier
+        # runs first. Every one of them, not the first failing one -- the same trade the valgrind
+        # sweep makes below, and for the same reason: "one floor fixture broke" and "eleven did"
+        # are different bugs. The sweep still stops HERE, so a red floor never goes on to pay for
+        # the cargo checks, the WSL leg, the valgrind sweep or the release checks.
+        fails = []
+        for c in self.program_floor:
             trace(f"{native.name} {c['file']}")
             fail = self.program_check(native, c)
             if fail:
-                return fail
+                fails.append((stage_key(c), c, fail))
+        if fails:
+            return self.report_program_fails(fails)
 
         for c in self.cargo_checks:
             if self.remembered(c["name"]):
@@ -2217,6 +2303,19 @@ class Goal:
             if fail:
                 return fail
             self.remember(c["name"])
+
+        # NOW the current goal's own fixtures, behind the cargo checks of the stages they sit on
+        # top of. `Goal.__init__` owns why this is the order; the short version is that a goal's
+        # fixture is its acceptance surface, so reporting it ahead of the unit checks underneath
+        # tells a session only that the end is not built yet.
+        fails = []
+        for c in self.program_checks:
+            trace(f"{native.name} {c['file']}")
+            fail = self.program_check(native, c)
+            if fail:
+                fails.append((stage_key(c), c, fail))
+        if fails:
+            return self.report_program_fails(fails)
 
         # Windows is green, so now pay for the Linux leg.
         #
@@ -2242,11 +2341,16 @@ class Goal:
             if self.remembered("wsl leg"):
                 trace("wsl fixtures (green on these inputs already)")
             else:
-                for c in self.program_checks:
+                # Same sweep-then-report as the native leg above: a Linux-only divergence is
+                # worth knowing the extent of, not just the first instance of.
+                leg_fails = []
+                for c in self.all_programs:
                     trace(f"{leg.name} {c['file']}")
                     fail = self.program_check(leg, c)
                     if fail:
-                        return fail
+                        leg_fails.append((stage_key(c), c, fail))
+                if leg_fails:
+                    return self.report_program_fails(leg_fails)
                 self.remember("wsl leg")
 
         trace("valgrind sweep")
@@ -2407,7 +2511,7 @@ class Goal:
             return fail
         self.origins.enter_context(local_origin(leg))
 
-        for c in self.program_checks:
+        for c in self.all_programs:
             trace(f"{leg.name} {c['file']}")
             fail = self.program_check(leg, c)
             if fail:
@@ -3341,27 +3445,83 @@ def overload_wait(n):
     return OVERLOAD_BACKOFF[min(max(n, 1), len(OVERLOAD_BACKOFF)) - 1]
 
 
+#: The subject of the commit a swept session leaves behind. Matched by `orient.py` and by
+#: `holes.py`, so it is spelled once here rather than three times in prose.
+SWEEP_SUBJECT = "wip(loop): the unfinished slice of"
+
+
 def mark_interrupted(index, why=None):
-    """Record that a session was cut off with work still in the tree. Returns the path count.
+    """End a session with a CLEAN TREE, whatever cut it off. Returns the path count it swept.
 
     A session stopped mid-slice has committed everything it FINISHED -- one commit per slice is
     what buys that -- but whatever it was in the middle of is still uncommitted, and the handoff
-    it never reached does not mention it. Without this the next session finds those files and has
-    no way to tell them from the state it was supposed to start in. `orient.py` reads this file
-    and says so at the top of the pack; the next session to leave a clean tree deletes it.
+    it never reached does not mention it.
 
-    `why` is a `RateLimit`, a sentence, or nothing at all -- the three things that cut a session
-    off, in the order the driver can explain them."""
+    **So the driver commits it.** Leaving it dirty was the old behaviour and it fails in the one
+    way that matters: the next session finds those files and cannot tell them from the state it
+    was supposed to start in, and if the RUN ends there -- `s` at the console, the last session of
+    a `--max-sessions` batch -- nothing ever picks them up. That is not a hypothetical; it is how
+    1,200 lines of goal 9 stage 6 sat uncommitted across a stopped run on 2026-09-06, including a
+    `docs/novis.md` that `verify.py` had regenerated under a session that then never wrapped.
+
+    An unverified commit is the right trade here and the asymmetry is not close. The work is on a
+    branch the loop owns, the acceptance sweep runs against it immediately afterwards, and the
+    next session is told in the pack. Against that: work that only exists in a working tree is one
+    `git checkout` from gone, and nothing in this repository is allowed to depend on a person
+    noticing. A commit is recoverable and reviewable; a dirty tree is neither.
+
+    `INTERRUPTED` is still written, and now carries the sweep's own hash -- the next session reads
+    it out of the pack and continues from a commit rather than from a diff. The next session to
+    end clean deletes it.
+
+    `why` is a `RateLimit`, a sentence, or nothing at all -- the things that cut a session off,
+    in the order the driver can explain them."""
     dirty = [ln for ln in git("status", "--porcelain").split("\n") if ln.strip()]
     if not dirty:
         INTERRUPTED.unlink(missing_ok=True)
         return 0
+
+    said = (why.describe() if isinstance(why, RateLimit)
+            else why or "the CLI exited non-zero")
+    # Index 0 is the Ctrl-C handler, which is outside any session's scope and says so.
+    whose = f"session {index:04d}" if index else "the interrupted run"
+    body = (f"{SWEEP_SUBJECT} {whose}\n"
+            f"\n"
+            f"The session ended before it wrapped -- {said} -- so this is what it had in the\n"
+            f"tree at that moment, committed by the driver rather than left for the next one to\n"
+            f"find as an unexplained diff. It has NOT been through `verify.py`.\n"
+            f"\n"
+            f"`.loop/interrupted.json` names this commit; `orient.py` puts it at the top of the\n"
+            f"next session's pack. Continue it, amend it or revert it -- but read it first.\n")
+    before = git("rev-parse", "HEAD")
+    # `-A`, because the point is a clean tree and a half-swept one is the same bug. Untracked
+    # files included: a new module or `.nvst` case is exactly what a mid-slice session has.
+    git("add", "-A")
+    msg = RUNDIR / "sweep-msg.txt"
+    try:
+        msg.write_text(body, encoding="utf-8", newline="\n")
+        # `--no-verify` is never used here: the commit-msg hook's rule applies to this message
+        # like any other, and this one has no trailer for it to catch.
+        git("commit", "-F", str(msg))
+    except OSError:
+        pass
+    finally:
+        msg.unlink(missing_ok=True)
+    swept = git("rev-parse", "HEAD")
+    # HEAD, not an exception: `git()` swallows a non-zero exit and answers "", so whether the
+    # commit happened is a question only the hash can settle.
+    committed = bool(swept) and swept != before
+    if not committed:
+        # Leave the tree as it was found rather than staged-but-uncommitted, which is the same
+        # bug this function exists to remove, one level down.
+        git("reset")
+        say("   the unfinished slice could NOT be committed -- it is still in the tree, "
+            "uncommitted, and .loop/interrupted.json says so", C.YELLOW)
+
     try:
         INTERRUPTED.write_text(
             json.dumps({"session": index, "when": f"{datetime.now():%Y-%m-%d %H:%M:%S}",
-                        "why": (why.describe() if isinstance(why, RateLimit)
-                                else why or "the CLI exited non-zero"),
-                        "head": git("rev-parse", "HEAD"), "files": dirty}, indent=1),
+                        "why": said, "head": swept, "swept": committed, "files": dirty}, indent=1),
             encoding="utf-8", newline="\n",
         )
     except OSError:
@@ -3732,7 +3892,8 @@ def run_cli():
         legs = ["native"] + (["wsl"] if wsl_available() else [])
         say(f"{GOAL_TOML.relative_to(ROOT).as_posix()}: {len(goal.checks)} checks, "
             f"{len(goal.files)} fixtures, legs: {', '.join(legs)}", C.CYAN)
-        for c in goal.catch_up_checks + goal.program_checks + goal.cargo_checks:
+        for c in (goal.catch_up_checks + goal.program_floor
+                  + goal.cargo_checks + goal.program_checks):
             if "file" in c:
                 extra = " ".join(c.get("args", []))
                 say(f"  [{c.get('stage', '?')}] {c['kind']:<10} {c['file']} {extra}".rstrip())
@@ -3860,12 +4021,19 @@ def run_cli():
         drive(opts, goal, chain)
     except KeyboardInterrupt:
         say("")
+        # Ctrl-C kills the session where it stands, so the driver never reaches the per-session
+        # sweep and this is the one place that can. The old line here asserted that "every session
+        # commits before it exits" and stopped -- true of a session that WRAPS, and exactly wrong
+        # about the one being interrupted, which is the only kind this handler ever sees.
+        swept = mark_interrupted(0, "the run was interrupted with Ctrl-C")
         say(
-            "interrupted -- the working tree is still consistent, because every session commits "
-            "before it exits",
+            f"interrupted -- {swept} uncommitted path(s) swept into a wip commit; "
+            f"the working tree is clean" if swept else
+            "interrupted -- the working tree was already clean",
             C.YELLOW,
         )
-        ledger(f"## run ended {datetime.now():%Y-%m-%d %H:%M} -- interrupted (Ctrl-C)")
+        ledger(f"## run ended {datetime.now():%Y-%m-%d %H:%M} -- interrupted (Ctrl-C)"
+               + (f"; swept {swept} path(s) into a wip commit" if swept else ""))
         # With the count, not a bare verdict: the supervisor adds a leg's `served` to the sessions
         # since the last optimization pass, and a leg cut short by Ctrl-C still served them.
         write_run_end("interrupted", "interrupted (Ctrl-C)",
@@ -4153,9 +4321,19 @@ def drive(opts, goal, chain=None):
         # takes one last look here, because the final slice is committed by the session's last
         # tool call and nothing after it would have polled.
         commits = SLICES.finish()
-        # A session that finished and left nothing behind closes any earlier interruption.
-        if not git("status", "--porcelain").strip():
-            INTERRUPTED.unlink(missing_ok=True)
+        # A session that finished and left nothing behind closes any earlier interruption; one
+        # that left something behind gets it committed here.
+        #
+        # This path used to be the `if not dirty: unlink` half alone, and that is precisely the
+        # hole: a session that exits ZERO without wrapping -- interrupted at the console, cut off
+        # by the harness, or simply out of turns -- reaches here, is counted as served, and its
+        # unfinished slice was neither committed NOR recorded. Only the failure paths below swept,
+        # so the one shutdown a person actually performs was the one that leaked.
+        swept = mark_interrupted(index, "it exited without wrapping")
+        if swept:
+            commits += 1
+            step(f"swept {swept} uncommitted path(s) into a wip commit -- "
+                 f"the session ended without wrapping", C.YELLOW)
         step("collecting subagent transcripts")
         TICKER.set(phase="collecting subagent transcripts")
         started = time.monotonic()
@@ -4164,7 +4342,9 @@ def drive(opts, goal, chain=None):
         if spent >= 1:
             step(f"subagent transcripts took {mmss(spent)}")
         delegated = f" | {agents} subagent(s), {agent_calls} call(s)" if agents else ""
-        ledger(f"- {index:04d} {commits} commit(s){delegated} | {line or '(no status written)'}")
+        wip = f" | swept {swept} path(s) into a wip commit" if swept else ""
+        ledger(f"- {index:04d} {commits} commit(s){delegated}{wip} | "
+               f"{line or '(no status written)'}")
 
         # The deterministic goal check outranks whatever the session reported -- against the list
         # as the session left it, which is why this is re-read rather than held from start-up. A
