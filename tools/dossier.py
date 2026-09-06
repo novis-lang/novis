@@ -2032,7 +2032,7 @@ def goal_prose(n: int, label: str, members: list[Entry], proofs: dict[str, Proof
         "## The target",
         "",
         f"Every feature listed below owes the four proofs of",
-        "`rule:testing/four-proofs`(../../adr/0134-every-shipped-feature-owes-four-proofs.md): the behaviour tested",
+        "`rule:testing/four-proofs`: the behaviour tested",
         "Novis *and* from Rust, three small real-world examples, one measured performance figure,",
         "and one file written to break it. `python tools/dossier.py --id '<feature>'` prints what",
         "one feature has and what it still owes, with the path each proof belongs at.",

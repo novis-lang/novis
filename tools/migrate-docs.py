@@ -836,6 +836,8 @@ DEBRIS = (
      "stranded section"),
     (re.compile(r"\[`rule:[a-z0-9-]+/[a-z0-9-]+`\]"), "rule token inside link brackets"),
     (re.compile(rf"`rule:[a-z0-9-]+/[a-z0-9-]+`{SECTION_GAP}§"), "leftover section marker"),
+    (re.compile(r"`rule:[a-z0-9-]+/[a-z0-9-]+`\((?:\.\./|/docs/|\d{4}-)[^)]*\)"),
+     "stranded link URL"),
 )
 
 
@@ -866,9 +868,20 @@ def rewrite_citations(
         # `[ADR 0020](url)`, `[ADR 0020]`, or a bare `ADR 0020` -- but never the `[ADR 0020]:` of a
         # reference-link definition, which is handled after the last use of it has gone.
         cite = re.compile(
-            rf"(?:\[ADR\s+{record}\]|(?<!\[)ADR\s+{record}(?!\d))"
-            rf"(?:\([^)]*\))?"
-            rf"(?!\s*:)"
+            # The `(?!\s*:)` guard belongs to the bracket alternative alone. Sitting after the URL
+            # group it read a *sentence's* colon -- `[ADR 0004](/docs/adr/0004-…md): one buffer` --
+            # as a reference-link definition's, backtracked to drop the URL from the match, and
+            # left the URL stranded behind the rule token, as `rule:...` followed by the raw
+            # `(/docs/adr/0004-…md)` -- spelled out rather than shown, so the sweep that removed
+            # twenty-seven of those does not eat this sentence's example too. Only
+            # `[ADR NNNN]` can begin a definition, and `ADR NNNN:` in prose is a citation.
+            rf"(?:\[ADR\s+{record}\](?!\s*:)|(?<!\[)ADR\s+{record}(?!\d))"
+            # Possessive on purpose. Every guard after this one can fail, and a plain `?` lets the
+            # engine buy its way out by *shedding the URL* -- matching the bracket half alone and
+            # leaving `(0007-explicit-type-system.md)` behind as prose. `[ADR 0007](…) §\n  7`,
+            # whose § 7 belongs to another topic, is meant to be left whole; instead it lost its
+            # link. Refusing to give the URL back means the whole citation matches or none of it.
+            rf"(?:\([^)]*\))?+"
             rf"(?:(?P<gap>{SECTION_GAP})§+[ \t]*(?P<sections>{SECTION_LIST}))?"
             rf"(?!{SECTION_GAP}§)"
         )
