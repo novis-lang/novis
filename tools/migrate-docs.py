@@ -142,6 +142,24 @@ def run(cmd: list[str], cwd: Path = ROOT) -> tuple[int, str]:
     return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
 
 
+def read_verbatim(path: Path) -> str:
+    """Read a tree file without translating its line endings.
+
+    `Path.read_text` maps `\\r\\n` to `\\n`, and `write_text` writes back what it was handed -- so a
+    transaction that only meant to change one citation rewrote every line ending in the file too.
+    On a CRLF checkout that is ~250 files reported as modified with an empty content diff, and it
+    makes the rollback's "every byte restored" false. Both directions go through these two.
+    """
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        return handle.read()
+
+
+def write_verbatim(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        handle.write(text)
+
+
 def goal_tomls() -> list[Path]:
     return sorted(p for p in GOALS_DIR.glob("*.toml") if p.name != "chain.toml")
 
@@ -646,12 +664,15 @@ def cmd_apply(state: dict, path: Path, dry_run: bool) -> int:
     backup: dict[Path, str | None] = {}
     try:
         for p, text in writes.items():
-            backup[p] = p.read_text(encoding="utf-8") if p.exists() else None
-            p.parent.mkdir(parents=True, exist_ok=True)
-            p.write_text(text, encoding="utf-8")
+            backup[p] = read_verbatim(p) if p.exists() else None
+            write_verbatim(p, text)
         for p, (text, _) in rewrites.items():
-            backup.setdefault(p, p.read_text(encoding="utf-8"))
-            p.write_text(text, encoding="utf-8")
+            backup.setdefault(p, read_verbatim(p))
+            write_verbatim(p, text)
+
+        if any(p.suffix == ".rs" for p in rewrites):
+            for p in format_rust(backup):
+                print(f"  fmt     {rulebook.Rulebook._rel(p)}")
 
         run([sys.executable, "tools/rules.py", "--render"])
         for p in rulebook.Rulebook().generated():
@@ -667,7 +688,7 @@ def cmd_apply(state: dict, path: Path, dry_run: bool) -> int:
             if original is None:
                 p.unlink(missing_ok=True)
             else:
-                p.write_text(original, encoding="utf-8")
+                write_verbatim(p, original)
         print(f"\nROLLED BACK: {exc}")
         print("every byte this transaction touched has been restored.")
         return 1
@@ -679,35 +700,177 @@ def cmd_apply(state: dict, path: Path, dry_run: bool) -> int:
     return 0
 
 
+#: One entry in a citation's section list: `2`, `2a`, the range `2-3`, or a named section like
+#: `*Measured cost*` -- which is how a record with no numbered sections, ADR 0002, gets cited.
+SECTION_ITEM = r"\d+[a-z]?(?:\s*[-–]\s*\d+[a-z]?)?|\*[^*\n]+\*"
+#: What separates them: `§§ 2-3`, `§§ 3, 5`, `§§ 3 and 6`, `§§ 1, 3 and 4`.
+SECTION_SEP = r",\s*and\s+|,\s*|\s+and\s+|\s*&\s*"
+SECTION_LIST = rf"(?:{SECTION_ITEM})(?:\s*(?:{SECTION_SEP})(?:{SECTION_ITEM}))*"
+
+
+def format_rust(backup: dict[Path, str | None]) -> list[Path]:
+    """Re-format the Rust the rewrite touched, recording each file's pre-fmt bytes for rollback.
+
+    A citation rewrite changes line *widths* -- `[ADR 0092](/docs/adr/0092-...md)` is 48 characters
+    and `` `rule:errors/log-level` `` is 23 -- so a doc comment or a `panic!` argument that was
+    correctly wrapped before is not afterwards, and gate check 6 fails on `cargo fmt` for a
+    transaction that is otherwise perfect. B1 rolled back on exactly that.
+
+    Two passes on purpose: `--check` names the files first so their originals are in `backup`
+    before anything is written. Rolling back a formatted file we never recorded would leave the
+    tree neither where it was nor where the transaction meant to put it.
+    """
+    _, out = run(["cargo", "fmt", "--all", "--", "--check"])
+    touched: list[Path] = []
+    for line in out.splitlines():
+        match = re.match(r"^Diff in (.+?):\d+", line.strip())
+        if not match:
+            continue
+        path = Path(match.group(1).replace("\\\\?\\", ""))
+        if path in touched or not path.exists():
+            continue
+        touched.append(path)
+        backup.setdefault(path, read_verbatim(path))
+    if touched:
+        run(["cargo", "fmt", "--all"])
+    return touched
+
+
 def plan_citation_rewrites(remap: dict[str, str]) -> dict[Path, tuple[str, int]]:
-    """Turn `ADR 0007 § 2` into `rule:types/conversion` everywhere, for the anchors this unit owns."""
+    """Turn every spelling of `ADR 0007 § 2` into `rule:types/conversion`, for the anchors this unit owns.
+
+    One pass per *record* rather than per anchor. A citation names a section **list** -- `§§ 2-3`,
+    `§§ 3, 5`, `§§ 1, 3 and 4` -- and an anchor-at-a-time pass rewrote the first number and left the
+    rest as prose debris (`` `rule:errors/log-level`-3's ``). It also has to know the three ways a
+    record is spelled: an inline link, a bare `ADR NNNN`, and a reference-style `[ADR NNNN]` whose
+    `[ADR NNNN]: path` definition is dead once the last use of it is gone. The B1 pilot found 33
+    such sites in 804; unfixed, that is ~700 across the twenty-two topics.
+
+    A citation is rewritten only when **every** section it names resolves. One unowned section
+    leaves the whole citation alone, because half a rewrite is worse than none.
+    """
     if not remap:
         return {}
+    by_record: dict[str, dict[str | None, str]] = {}
+    for anchor, rid in remap.items():
+        record = anchor.split()[0]
+        section = anchor.split("§")[1].strip() if "§" in anchor else None
+        by_record.setdefault(record, {})[section] = rid
+
     out: dict[Path, tuple[str, int]] = {}
-    ordered = sorted(remap.items(), key=lambda kv: -len(kv[0]))
     for pattern in SCAN_GLOBS:
         for path in sorted(ROOT.glob(pattern)):
             if not path.is_file() or ".migration" in path.parts or "target" in path.parts:
                 continue
             try:
-                text = path.read_text(encoding="utf-8")
+                text = read_verbatim(path)
             except (UnicodeDecodeError, OSError):
                 continue
             if rulebook.EXAMPLES_ONLY in text:
                 continue
-            new, hits = text, 0
-            for anchor, rid in ordered:
-                record = anchor.split()[0]
-                section = anchor.split("§")[1].strip() if "§" in anchor else None
-                if section:
-                    pat = re.compile(rf"\[?ADR\s+{record}\]?(?:\([^)]*\))?\s*§+\s*{re.escape(section)}\b")
-                else:
-                    pat = re.compile(rf"\[ADR\s+{record}\]\([^)]*\)|ADR\s+{record}\b(?!\s*§)")
-                new, n = pat.subn(f"`rule:{rid}`", new)
-                hits += n
+            new, hits = rewrite_citations(text, by_record)
             if hits:
+                debris = find_rewrite_debris(new)
+                if debris:
+                    raise RuntimeError(
+                        f"the rewrite would corrupt {path.relative_to(ROOT)}: "
+                        + "; ".join(debris[:3])
+                        + "\nthis is a citation spelling `rewrite_citations` cannot read. Teach it "
+                        "the spelling, or name the section explicitly in a `## remap:` line."
+                    )
                 out[path] = (new, hits)
     return out
+
+
+#: What a correct rewrite never leaves behind. A citation's section list stranded as prose
+#: (``  `rule:errors/log-level`-3  ``), or a rule token still wearing the brackets of the
+#: reference-style link it replaced. Both were silent before the B1 pilot measured them: they
+#: resolve, so gate check 1 passes, and only a reader notices. The transaction refuses instead.
+DEBRIS = (
+    (re.compile(r"`rule:[a-z0-9-]+/[a-z0-9-]+`\s*(?:[-–,]|\s+and\s+)\s*(?:\d|\*[^*\n]{1,40}\*)"),
+     "stranded section"),
+    (re.compile(r"\[`rule:[a-z0-9-]+/[a-z0-9-]+`\]"), "rule token inside link brackets"),
+    (re.compile(r"`rule:[a-z0-9-]+/[a-z0-9-]+`\s*§"), "leftover section marker"),
+)
+
+
+def find_rewrite_debris(text: str) -> list[str]:
+    """Every place a rewrite left a citation half-converted. Empty is the only acceptable answer."""
+    out: list[str] = []
+    for pattern, what in DEBRIS:
+        for match in pattern.finditer(text):
+            line = text[: match.start()].count("\n") + 1
+            out.append(f"{what} at line {line}: {match.group(0).strip()!r}")
+    return out
+
+
+def rewrite_citations(text: str, by_record: dict[str, dict[str | None, str]]) -> tuple[str, int]:
+    """One file's worth of the rewrite above. Split out so it is testable without a tree."""
+    hits = 0
+    for record, sections in by_record.items():
+        # `[ADR 0020](url)`, `[ADR 0020]`, or a bare `ADR 0020` -- but never the `[ADR 0020]:` of a
+        # reference-link definition, which is handled after the last use of it has gone.
+        cite = re.compile(
+            rf"(?:\[ADR\s+{record}\]|(?<!\[)ADR\s+{record}(?!\d))"
+            rf"(?:\([^)]*\))?"
+            rf"(?!\s*:)"
+            rf"(?:\s*§+\s*(?P<sections>{SECTION_LIST}))?"
+            rf"(?!\s*§)"
+        )
+
+        def substitute(match: re.Match[str]) -> str:
+            nonlocal hits
+            ids = resolve_sections(match.group("sections"), sections)
+            if ids is None:
+                return match.group(0)
+            hits += 1
+            tokens = [f"`rule:{rid}`" for rid in ids]
+            return tokens[0] if len(tokens) == 1 else ", ".join(tokens[:-1]) + " and " + tokens[-1]
+
+        text = cite.sub(substitute, text)
+        text = drop_dead_link_definition(text, record)
+    return text, hits
+
+
+def resolve_sections(sections: str | None, table: dict[str | None, str]) -> list[str] | None:
+    """The rule ids a citation's section list names, or None to leave the citation untouched."""
+    if sections is None:
+        rid = table.get(None)
+        return [rid] if rid else None
+    ids: list[str] = []
+    for item in expand_section_list(sections):
+        rid = table.get(item)
+        if rid is None:
+            return None
+        if rid not in ids:
+            ids.append(rid)
+    return ids or None
+
+
+def expand_section_list(sections: str) -> list[str]:
+    """`1, 3 and 4` -> [1, 3, 4]; `2-3` -> [2, 3]. A range is only a range between two integers."""
+    out: list[str] = []
+    for part in re.split(SECTION_SEP, sections.strip()):
+        part = part.strip()
+        if not part:
+            continue
+        span = re.fullmatch(r"(\d+)\s*[-–]\s*(\d+)", part)
+        if span and int(span.group(1)) <= int(span.group(2)):
+            out.extend(str(n) for n in range(int(span.group(1)), int(span.group(2)) + 1))
+        else:
+            out.append(part)
+    return out
+
+
+def drop_dead_link_definition(text: str, record: str) -> str:
+    """Remove `[ADR 0095]: ../path.md` once nothing in the file references it any more.
+
+    Left behind, it is either an orphan definition or -- worse -- gets rewritten itself into
+    ``[`rule:...`]: path``, which is not a link definition at all.
+    """
+    if re.search(rf"\[ADR\s+{record}\](?!\s*:)", text):
+        return text
+    return re.sub(rf"^[^\S\n]*(?://!|///)?[^\S\n]*\[ADR\s+{record}\]:[^\n]*\n?", "", text, flags=re.M)
 
 
 # --------------------------------------------------------------------------- C8: the sweep
@@ -767,7 +930,7 @@ def cmd_sweep(state: dict, fix: bool) -> int:
             if not path.is_file() or ".migration" in path.parts or "target" in path.parts:
                 continue
             try:
-                text = path.read_text(encoding="utf-8")
+                text = read_verbatim(path)
             except (UnicodeDecodeError, OSError):
                 continue
             if rulebook.EXAMPLES_ONLY in text:
