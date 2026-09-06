@@ -1,8 +1,8 @@
 --TEST--
-A folded intrinsic and its runtime twin answer the same value, for each of ADR 0057 § 1's four reached grammars (ADR 0057 §§ 1, 2, 4)
+A folded intrinsic and its runtime twin answer the same value, for each of `rule:expressions/intrinsic-list-is-closed`'s four reached grammars (`rule:expressions/intrinsic-list-is-closed`, `rule:expressions/intrinsic-literals` and `rule:expressions/preparation-preserves-behaviour`)
 --FILE--
 <?nvs
-// ADR 0057's intrinsic literal folding, asserted rather than described.
+// `rule:expressions/intrinsic-literals`'s intrinsic literal folding, asserted rather than described.
 //
 // Four of § 1's closed list, each reached twice: once with a literal argument,
 // which the compiler validates and prepares while checking, and once through a

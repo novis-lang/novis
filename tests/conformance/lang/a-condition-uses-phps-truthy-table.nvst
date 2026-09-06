@@ -1,5 +1,5 @@
 --TEST--
-A condition resolves PHP's full truthy table without an `as` — ADR 0035
+A condition resolves PHP's full truthy table without an `as` — `rule:expressions/truthy-positions`
 --FILE--
 <?nvs
 if ("0") { echo "\"0\" truthy\n"; } else { echo "\"0\" falsy\n"; }

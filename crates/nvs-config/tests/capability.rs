@@ -335,7 +335,7 @@ fn an_operator_exception_names_one_address_and_widens_nothing_else() {
 ///
 /// `allows_host` is what a `nvs check` pass asks and `allows` is what a running request asks
 /// ([ADR 0067](/docs/adr/0067-core-db.md) § 10 and § 3), and a check that disagreed with the run it
-/// precedes is the one failure ADR 0057 § 4 forbids outright. Every wildcard case below goes through
+/// precedes is the one failure `rule:expressions/preparation-preserves-behaviour` forbids outright. Every wildcard case below goes through
 /// here rather than through either half, so a wildcard read by one caller and not the other fails.
 fn grants_host(caps: &Capabilities, cap: Cap, host: &str, disk: &Disk) -> bool {
     let checked = caps.allows_host(cap, host);

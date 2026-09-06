@@ -1,9 +1,9 @@
 --TEST--
-One `mixed` value answers an operator, a condition and a subscript, and each answer agrees with the same value's declared-type twin — ADR 0007 §§ 2, 4, ADR 0035, ADR 0036 § 4
+One `mixed` value answers an operator, a condition and a subscript, and each answer agrees with the same value's declared-type twin — ADR 0007 §§ 2, 4, `rule:expressions/truthy-positions`, ADR 0036 § 4
 --FILE--
 <?nvs
 // Three families read a `mixed` operand's runtime tag rather than its static
-// type: ADR 0007 § 4's arithmetic (`Helper::ValueAdd`), ADR 0035's truthy
+// type: ADR 0007 § 4's arithmetic (`Helper::ValueAdd`), `rule:expressions/truthy-positions`'s truthy
 // table, and ADR 0036 § 4's deferral one storage kind along, a subscript
 // through a base that may not be an array at all. Each has its own case
 // already; what none of them can assert alone is that the three agree with

@@ -1,5 +1,5 @@
 --TEST--
-`!= null` narrows a nullable local so `->` reaches a member of it — ADR 0066, in both branches and after a guard clause
+`!= null` narrows a nullable local so `->` reaches a member of it — `rule:expressions/nullable-conversion`, in both branches and after a guard clause
 --FILE--
 <?nvs
 class Finder {

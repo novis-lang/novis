@@ -131,7 +131,7 @@ pub(crate) fn infer_method_call(
     let contagious = sig
         .as_ref()
         .is_some_and(|s| carries_contagion(s, &slots, &arg_types, env.interner));
-    // ADR 0057 § 1's closed list, at the one point in an instance call where
+    // `rule:expressions/intrinsic-list-is-closed`'s closed list, at the one point in an instance call where
     // the target is resolved and the arguments are typed — `$when->format("y")`
     // is the shape that reaches it here. See [`crate::intrinsics`], which
     // reports and replaces nothing.
@@ -391,7 +391,7 @@ pub(crate) fn infer_static_call(
         // capability — static-only, like the member. See
         // [`crate::capability`], which replaces nothing.
         crate::capability::reject_unknown_capability(owner, name, args, env);
-        // ADR 0057 § 1's closed list — [`infer_method_call`]'s arm of the same
+        // `rule:expressions/intrinsic-list-is-closed`'s closed list — [`infer_method_call`]'s arm of the same
         // hook, for the `Core\Str::format(…)` / `Core\Regex::compile(…)` half
         // of the roster. See [`crate::intrinsics`].
         crate::intrinsics::check_call(owner, name, args, &arg_types, env);

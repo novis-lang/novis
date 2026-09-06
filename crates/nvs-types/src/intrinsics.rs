@@ -1,4 +1,4 @@
-//! [ADR 0057](/docs/adr/0057-intrinsic-literal-folding.md) § 1's
+//! `rule:expressions/intrinsic-list-is-closed`'s
 //! closed list: the `Core` members whose pattern-like argument the compiler
 //! reads while checking, and the hook that consults it.
 //!
@@ -156,7 +156,7 @@ struct Intrinsic {
     grammar: Grammar,
 }
 
-/// [ADR 0057](/docs/adr/0057-intrinsic-literal-folding.md) § 1's
+/// `rule:expressions/intrinsic-list-is-closed`'s
 /// table, and the whole of it. Nothing outside this constant is an intrinsic,
 /// and nothing adds to it at run time.
 const INTRINSICS: &[Intrinsic] = &[

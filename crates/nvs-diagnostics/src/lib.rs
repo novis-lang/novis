@@ -195,8 +195,7 @@ pub mod code {
     pub const E_FOR_INIT_TWO_DECLARATIONS: Code = Code::new("E0125");
     /// `return`, `break` or `continue` as the body of an expression-level
     /// `catch` arm. See
-    /// [ADR 0119](/docs/adr/0119-an-expression-level-catch-is-a-typed-arm-on-one-guarded-expression.md)
-    /// § 3: an arm holds an expression, which admits `throw` — already an
+    /// `rule:expressions/catch-arm-is-an-expression`: an arm holds an expression, which admits `throw` — already an
     /// expression — and refuses the three that are statements. Named rather
     /// than left to the generic expected-expression error, because the fix is
     /// a different construct and not a different token.
@@ -277,7 +276,7 @@ pub mod code {
     /// spelling. See ADR 0034 § 1, which amends ADR 0007 § 2.
     pub const E_LEGACY_CAST_UNSUPPORTED: Code = Code::new("E0225");
     /// PHP's `and`/`or`/`xor` keyword operators — `&&`/`||` are the only
-    /// logical connectives. See ADR 0045 §§ 1-2.
+    /// logical connectives. See `rule:expressions/no-keyword-logical-operators`.
     pub const E_LOGICAL_KEYWORD_UNSUPPORTED: Code = Code::new("E0226");
     /// `trait Name { … }`, `use TraitName, ...;` inside a class body, or
     /// `insteadof` anywhere: traits do not exist — an interface
@@ -300,7 +299,7 @@ pub mod code {
     /// `<?nvs` (plus the short-echo `<?=`). See `rule:statements/nvs-is-the-only-open-tag`.
     pub const E_PHP_OPEN_TAG_UNSUPPORTED: Code = Code::new("E0229");
     /// `list(...)` as a destructuring target: Novis keeps exactly one
-    /// destructuring spelling, `[...]`. See ADR 0050.
+    /// destructuring spelling, `[...]`. See `rule:expressions/bracket-destructuring`.
     pub const E_LIST_DESTRUCTURING_UNSUPPORTED: Code = Code::new("E0230");
     /// A reserved lexical spelling written in anything but lower case —
     /// `<?NVS` rather than `<?nvs`. PHP matches its reserved spellings
@@ -314,8 +313,7 @@ pub mod code {
     pub const E_RESERVED_SPELLING_CASE: Code = Code::new("E0231");
     /// PHP's `===`/`!==` — Novis keeps exactly one equality operator, `==`, and
     /// its negation `!=`. See
-    /// [ADR 0090](/docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
-    /// § 1. This is the one construct in this band the *lexer* reports rather
+    /// `rule:expressions/one-equality-operator`. This is the one construct in this band the *lexer* reports rather
     /// than the parser: there is nothing to parse precisely here, so the
     /// three characters are consumed, named, and lexed as the two-character
     /// operator so the rest of the file still reports its own problems.
@@ -411,8 +409,7 @@ pub mod code {
     /// things by position.
     pub const E_LEADING_BACKSLASH_UNSUPPORTED: Code = Code::new("E0240");
     /// `<>` for inequality, PHP's inherited second spelling of `!=`.
-    /// [ADR 0090](/docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
-    /// § 1 makes
+    /// `rule:expressions/one-equality-operator` makes
     /// `==` and `!=` the whole set, so this is the same decision
     /// [`E_IDENTITY_OPERATOR_UNSUPPORTED`] reports and not a lexical accident;
     /// it is separate from that code because the fix is a different edit and
@@ -442,8 +439,7 @@ pub mod code {
     /// it; the rewrite is one clause per class, each with its own variable
     /// name, or one clause naming a class they all extend. The expression form
     /// refuses the same shape with the same words
-    /// ([ADR 0119](/docs/adr/0119-an-expression-level-catch-is-a-typed-arm-on-one-guarded-expression.md)
-    /// § 1).
+    /// (`rule:expressions/catch-expression`).
     pub const E_CATCH_UNION_TYPE_UNSUPPORTED: Code = Code::new("E0245");
     /// `public const LIMIT = 9;`, PHP's untyped class constant. Every other
     /// binding in the language writes its type
@@ -902,7 +898,7 @@ pub mod code {
     pub const E_TYPE_ARG_NOT_A_CLASS: Code = Code::new("E0465");
     /// An `==`/`!=` — or a `switch` label, or a `match` arm — whose two static
     /// types are **disjoint**: no single value inhabits both, so the compiler
-    /// already knows the answer. ADR 0090 § 2's table, and § 6 for the two
+    /// already knows the answer. `rule:expressions/disjoint-comparison-refused`'s table, and § 6 for the two
     /// comparison forms that are not written with the operator.
     pub const E_DISJOINT_EQUALITY: Code = Code::new("E0466");
     /// `+` or `+=` with an array operand. ADR 0069 § 2 removes PHP's array
@@ -947,7 +943,7 @@ pub mod code {
     /// class's `const` — `rule:attributes/payload-is-a-compile-time-constant`'s whole set — and a parameter to a
     /// literal only.
     pub const E_PROPERTY_DEFAULT_NOT_LITERAL: Code = Code::new("E0472");
-    /// `$obj as ?SomeClass` — ADR 0066 § 3's class row: `instanceof` plus
+    /// `$obj as ?SomeClass` — `rule:expressions/nullable-conversion-availability`'s class row: `instanceof` plus
     /// ADR 0007 § 6's narrowing already answers class membership, so the
     /// conversion would be R17's second spelling of a question the language
     /// already has one for. Reported for the written `?T` sugar only, since
@@ -1211,7 +1207,7 @@ pub mod code {
     /// object at all — `int $n = 1; $n instanceof Box;`.
     ///
     /// PHP answers `false`, having no declaration to read; ADR 0007 § 7 row 14
-    /// refuses it instead, for the reason ADR 0090 refuses two statically
+    /// refuses it instead, for the reason `rule:expressions/one-equality-operator` refuses two statically
     /// disjoint types under `==` — the declaration already answered, so the
     /// test is dead code that reads as a live question. `mixed`, `object`, a
     /// shape, a class and any union holding one all keep the run-time test.
@@ -1389,7 +1385,7 @@ pub mod code {
     /// correct spelling gives on a deployment that granted nothing: the branch
     /// simply never runs, on every machine, and nothing at run time can tell
     /// the two apart. That is `E0798`'s reasoning one class over, and it is why
-    /// only a *written* name is refused — a computed one keeps ADR 0057 § 2's
+    /// only a *written* name is refused — a computed one keeps `rule:expressions/intrinsic-literals`'s
     /// rule that nothing is refused for being dynamic, and answers `false` at
     /// run time. In this band rather than the types one because what it checks
     /// is a capability name, which is `nvs_config::capability::Cap`'s roster and
@@ -1413,8 +1409,7 @@ pub mod code {
     ///
     /// It refuses nothing `nvs_runtime::capability::require` would have
     /// allowed: the same grant list, walked by the same
-    /// `nvs_config::capability::Capabilities::allows_host`, so this is ADR 0057
-    /// § 4's earlier answer and never a different one. It is therefore asked
+    /// `nvs_config::capability::Capabilities::allows_host`, so this is `rule:expressions/preparation-preserves-behaviour`'s earlier answer and never a different one. It is therefore asked
     /// only where both halves are facts at check time — a literal host, and a
     /// configuration this machine actually read. A computed host, or a check
     /// run with no configuration in front of it, says nothing and leaves the
@@ -1820,18 +1815,18 @@ pub mod code {
     /// names the spelling that says what was meant instead.
     ///
     /// A class target is this code's, not [`E_CLASS_CONVERSION_TARGET`]'s:
-    /// that one is ADR 0066 § 3's *written* `as ?T` sugar, and a plain
+    /// that one is `rule:expressions/nullable-conversion-availability`'s *written* `as ?T` sugar, and a plain
     /// `as SomeClass` is the missing row rather than the withdrawn parse
     /// roster. The two never fire on the same expression.
     pub const E_NO_CONVERSION: Code = Code::new("E0708");
-    /// An `expr as ?T` whose row cannot fail, which ADR 0066 § 3 makes a
+    /// An `expr as ?T` whose row cannot fail, which `rule:expressions/nullable-conversion-availability` makes a
     /// compile error naming `as T`.
     ///
     /// `as ?T` "yields `null` exactly where `as T` would throw" — so over a
     /// row that never throws it promises a `null` no run can produce, and
     /// every reader after it is forced to check for it. `$i as ?int` (the
     /// identity), `$i as ?string` (ADR 0007 § 2's total "anything →
-    /// `string`" row), `$x as ?bool` (ADR 0035's, which has an answer for
+    /// `string`" row), `$x as ?bool` (`rule:expressions/truthy-positions`'s, which has an answer for
     /// every type) and `Mode::Read as ?Mode` are the shapes that reach it.
     ///
     /// The sibling refusals are the other two rows of that same table:
@@ -1983,7 +1978,7 @@ pub mod code {
     pub const E_VOID_IS_NOT_AN_OPERAND: Code = Code::new("E0718");
     /// A call that returns `void` tested for truth.
     ///
-    /// ADR 0035 makes a condition the one place a value is tested without
+    /// `rule:expressions/truthy-positions` makes a condition the one place a value is tested without
     /// `as`, and "a value" is exactly what a `void` call is not — so its
     /// truthy table, like ADR 0007 § 4's, has nothing to look a row up for.
     /// The two refusals are one sentence apart and are deliberately two
@@ -1993,7 +1988,7 @@ pub mod code {
     ///
     /// The line between them is *which table has no row*, not which syntax
     /// was used. `&&`, `||` and `??` are ADR 0007 § 4's operands and keep
-    /// [`E_VOID_IS_NOT_AN_OPERAND`]; `!` and `empty()` are ADR 0035 § 2's
+    /// [`E_VOID_IS_NOT_AN_OPERAND`]; `!` and `empty()` are `rule:expressions/truthy-table`'s
     /// truthy test written out and take this one, alongside the four
     /// statement conditions and a ternary's.
     ///
@@ -2646,7 +2641,7 @@ pub mod code {
     /// were walked in.
     pub const E_DUPLICATE_COMMAND: Code = Code::new("E0768");
 
-    /// A literal argument to an ADR 0057 § 1 intrinsic that its own grammar
+    /// A literal argument to an `rule:expressions/intrinsic-list-is-closed` intrinsic that its own grammar
     /// refuses.
     ///
     /// The whole point of that ADR, as one code: the compiler read the
@@ -2662,7 +2657,7 @@ pub mod code {
     /// that does not fit the arguments written beside it.
     ///
     /// Separate from [`E_INTRINSIC_LITERAL_MALFORMED`] because the literal is
-    /// *fine*: the mistake is in the pairing, which is ADR 0057 § 1's own
+    /// *fine*: the mistake is in the pairing, which is `rule:expressions/intrinsic-list-is-closed`'s own
     /// reason for naming this member's placeholder check separately — it turns
     /// PHP's `printf` argument-mismatch bug family into a compile error. ADR
     /// 0067 § 10's placeholder count and its positional-vs-named consistency
@@ -3158,8 +3153,7 @@ pub mod code {
     pub const W_SECRET_FILE_READABLE: Code = Code::new("W1005");
     /// `catch (Throwable) => value` — an expression-level arm naming the root
     /// of the exception tree, binding nothing, whose body is not a `throw`
-    /// ([ADR 0119](/docs/adr/0119-an-expression-level-catch-is-a-typed-arm-on-one-guarded-expression.md)
-    /// § 5). In the block form a `catch (Throwable)` has a body with room to
+    /// (`rule:expressions/bare-throwable-arm-warns`). In the block form a `catch (Throwable)` has a body with room to
     /// log or re-raise; in the expression form the body *is* the value, so an
     /// unbound arm over the root is by construction "discard every failure,
     /// including the ones this site never anticipated" — PHP's `@` operator,
@@ -3168,7 +3162,7 @@ pub mod code {
     /// the class the site expects and binding `$e` to carry the value. A
     /// warning rather than an error because the hazard is a habit and not a
     /// type error, the reason
-    /// [ADR 0066](/docs/adr/0066-nullable-conversion-operator.md) § 6
+    /// `rule:expressions/nullable-condition-lint`
     /// gives for its own.
     pub const W_CATCH_ARM_DISCARDS_EVERY_FAILURE: Code = Code::new("W1006");
     /// A credential the configuration puts in force begins or ends with

@@ -1,4 +1,4 @@
-# ADR 0050 — `list(...)` is rejected; `[...]` is the only destructuring spelling
+# `rule:expressions/bracket-destructuring` — `list(...)` is rejected; `[...]` is the only destructuring spelling
 
 - **Status:** Accepted
 - **Date:** 2026-08-23

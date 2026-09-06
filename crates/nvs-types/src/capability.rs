@@ -18,7 +18,7 @@
 //! applies here for the same reason: the wrong answer and the right one are the
 //! same value.
 //!
-//! Only a **written** name is refused. ADR 0057 § 2's rule — nothing is refused
+//! Only a **written** name is refused. `rule:expressions/intrinsic-literals`'s rule — nothing is refused
 //! for being dynamic — leaves a computed argument to run time, where
 //! `nvs_stdlib::cap`'s helper answers `false` for it.
 //!

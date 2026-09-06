@@ -1,9 +1,9 @@
 --TEST--
-Core\Str::format throws for every argument-mismatch PHP's printf family hides, on the runtime path ADR 0057 § 2 leaves to it
+Core\Str::format throws for every argument-mismatch PHP's printf family hides, on the runtime path `rule:expressions/intrinsic-literals` leaves to it
 --FILE--
 <?nvs
 // Every template below is read out of a variable rather than written at the
-// call. ADR 0057 § 1 makes `Core\Str::format` an intrinsic, so a *literal*
+// call. `rule:expressions/intrinsic-list-is-closed` makes `Core\Str::format` an intrinsic, so a *literal*
 // template is checked while compiling and each of these four would be a
 // compile error instead — pinned as one in crates/nvs-types/tests/intrinsics.rs.
 // § 2 leaves a computed argument to run time with ordinary runtime validation,

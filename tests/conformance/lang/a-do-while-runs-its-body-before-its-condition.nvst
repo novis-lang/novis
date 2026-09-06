@@ -31,7 +31,7 @@ do {
 } while ($k < 10);
 echo "after k=", $k, "\n";
 
-// The condition is an ADR 0035 truthy context like every other, so an
+// The condition is an `rule:expressions/truthy-positions` truthy context like every other, so an
 // unconditional loop is spelled with a literal and left by `break`.
 string $out = "";
 do {

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Test::assertContains` is always strict, so over an `array<mixed>` a `0` finds no `"0"`, `false` or `null` — the boundary `in_array`'s loose default sits on — while `int`, `uint` and `float` stay one numeric domain — `rule:testing/assertions-are-typed`, ADR 0090 § 3
+`Core\Test::assertContains` is always strict, so over an `array<mixed>` a `0` finds no `"0"`, `false` or `null` — the boundary `in_array`'s loose default sits on — while `int`, `uint` and `float` stay one numeric domain — `rule:testing/assertions-are-typed`, `rule:expressions/equality-semantics`
 --FILE--
 <?nvs
 // The comparison this member makes is `Core\Arr::contains`'s, which is
@@ -32,7 +32,7 @@ echo Ask::verdict($zero, 0), " ", Ask::verdict($zero, "0"), " ",
      Ask::verdict($zero, false), " ", Ask::verdict($zero, null), "\n";
 
 // 2. The one row where two tags are one value: `int`, `uint` and `float` are a
-// single numeric domain (ADR 0090 § 3), so `1` and `1.0` find each other in
+// single numeric domain (`rule:expressions/equality-semantics`), so `1` and `1.0` find each other in
 // either direction. This is the deliberate divergence from `in_array` with
 // `strict: true`, and taking it here is what keeps this member and the `==`
 // operator one comparison.

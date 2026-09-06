@@ -1,5 +1,5 @@
 --TEST--
-`&&` and `||` are the only connectives, and each stops evaluating once the answer is fixed — ADR 0045
+`&&` and `||` are the only connectives, and each stops evaluating once the answer is fixed — `rule:expressions/no-keyword-logical-operators`
 --FILE--
 <?nvs
 class Trace {

@@ -110,7 +110,7 @@ populates.
 | `` `ls` `` | none; a backtick is not a token, and no member takes a shell string | `E0001` |
 | `&$x` in a parameter, a `foreach`, or `$b = &$a` | `inout int $x` at the declaration **and** `f(inout $n)` at the call; `&` is bitwise AND only | `E0237` |
 | `f(...$args)` into fixed parameters | only into a `...$rest` variadic; otherwise write the arguments out | `E0489` |
-| `$a <> $b` | `!=` — the same comparison, and inequality has one spelling (ADR 0090 § 1) | `E0241` |
+| `$a <> $b` | `!=` — the same comparison, and inequality has one spelling (`rule:expressions/one-equality-operator`) | `E0241` |
 
 `<=>`, `**`, `??`, `??=`, `?:`, `?->`, `.=` and `instanceof` against a written class name all work
 as in PHP.

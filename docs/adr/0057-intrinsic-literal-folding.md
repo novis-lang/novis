@@ -1,4 +1,4 @@
-# ADR 0057 — Literal arguments to intrinsic `Core` calls are validated and prepared at compile time
+# `rule:expressions/intrinsic-literals` — Literal arguments to intrinsic `Core` calls are validated and prepared at compile time
 
 - **Status:** Accepted
 - **Date:** 2026-08-23

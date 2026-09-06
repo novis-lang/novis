@@ -394,7 +394,7 @@ pub enum CoreTy {
     ///
     /// The same opaque `callable` at the call site: it constrains nothing a
     /// [`Self::Callable`] parameter does not, and a closure value satisfies it
-    /// by ADR 0027 § 2 exactly as before. What it adds is a *binding site* for
+    /// by `rule:expressions/first-class-callable-syntax` exactly as before. What it adds is a *binding site* for
     /// a variable that appears at no argument position at all — `U` is the type
     /// of a value the callback produces, which the argument's own type
     /// (`callable`, and opaque) cannot say. `nvs_types::generics` binds it from
@@ -418,7 +418,7 @@ pub enum CoreTy {
     /// whole reason the member is worth having, since the uniform alternative
     /// answers `array<mixed>` and every call site then pays a cast. No type at
     /// this position can say that: the argument's own type is a shape of
-    /// `callable`s, and ADR 0027 § 2 keeps a `callable` opaque.
+    /// `callable`s, and `rule:expressions/first-class-callable-syntax` keeps a `callable` opaque.
     ///
     /// **The argument has to be *written* at the call site**, and each field's
     /// value has to be a written `fn` literal — `E0773` and `E0774` are the two
@@ -506,7 +506,7 @@ pub enum CoreTy {
     /// would be an argument the caller writes and the member could assume.
     /// `a_literal_type_only_appears_inside_a_union` holds that.
     IntLiteral(i64),
-    /// `?T` — [ADR 0066](/docs/adr/0066-nullable-conversion-operator.md)'s
+    /// `?T` — `rule:expressions/nullable-conversion`'s
     /// nullable, which the spec's own tables write at every member that
     /// answers "absent" (`Core\Arr::first`, `Str::indexOf`, `Path::extension`
     /// — ADR 0063 R5 makes it the *only* absence spelling).
@@ -2031,9 +2031,9 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     (crate::storage::NAME, "list", Some(nvs_config::Cap::FsRead)),
 ];
 
-/// [ADR 0066](/docs/adr/0066-nullable-conversion-operator.md)
+/// `rule:expressions/nullable-conversion`
 /// The `Core` classes that declare a `tryParse` beside their `parse` —
-/// [ADR 0066](/docs/adr/0066-nullable-conversion-operator.md) § 3a's
+/// `rule:expressions/try-parse`'s
 /// closed exception to [ADR 0063](/docs/adr/0063-core-api-conventions.md)
 /// R5's `try…` ban.
 ///
@@ -2045,7 +2045,7 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
 /// deliberately rather than by writing a member with a suggestive name.
 ///
 /// This replaces the withdrawn `PARSE_ROSTER`, which carried one **non**-member
-/// symbol per class for `$s as ?Core\Uri` to lower to. ADR 0066 § 3 withdrew
+/// symbol per class for `$s as ?Core\Uri` to lower to. `rule:expressions/nullable-conversion-availability` withdrew
 /// that form: `as` never targets a class now, with no exceptions, so nothing
 /// here is chained into [`crate::symbols`] and `nvs-ir` has no roster to read.
 pub const TRY_PARSE_CLASSES: &[&str] = &[crate::uri::NAME, crate::uuid::NAME];
@@ -2528,14 +2528,14 @@ mod tests {
 
     use super::*;
 
-    /// ADR 0066 § 3b: a class with a `tryParse` declares no `isValid`,
+    /// `rule:expressions/try-parse`: a class with a `tryParse` declares no `isValid`,
     /// because `Core\Uri::isValid($s)` and `Core\Uri::tryParse($s) != null`
     /// are one predicate and R17 keeps one spelling of it. Named for
     /// `Core\Uri` because that is the one where the deletion cost something:
     /// its `isValid` asked the *narrower* "is this an absolute URI", which is
     /// now `->scheme() != null` on the parsed value — one reader call rather
     /// than a second implementation of the grammar, which is the drift
-    /// ADR 0066 cites CVE-2024-5458 for.
+    /// `rule:expressions/nullable-conversion` cites CVE-2024-5458 for.
     #[test]
     fn core_uri_declares_no_is_valid_member() {
         for name in TRY_PARSE_CLASSES {
@@ -2547,7 +2547,7 @@ mod tests {
         }
     }
 
-    /// ADR 0066 § 3a's three conditions, held mechanically: the class has a
+    /// `rule:expressions/try-parse`'s three conditions, held mechanically: the class has a
     /// `parse` taking exactly one `string` and answering with one of itself,
     /// its `tryParse` takes the same one `string` and answers the **nullable**
     /// of that, and the spelling is `tryParse` — the only `try…` R5 admits.

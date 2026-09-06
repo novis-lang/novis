@@ -66,7 +66,7 @@ echo Core\Arr::isList($shifted) as string, "|", Core\Arr::isList(Core\Arr::fill(
 // The entries are the one `$value` rather than a copy of it, exactly as the
 // padding members' are: `append_copies` stores a fresh reference to the same
 // value each time. Mutating it through the original handle is visible in all
-// three, and ADR 0090 § 4 makes `==` on two objects the identity comparison.
+// three, and `rule:expressions/object-identity-equality` makes `==` on two objects the identity comparison.
 final class Box {
     public int $n = 0;
 }

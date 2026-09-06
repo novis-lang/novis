@@ -1185,7 +1185,7 @@ impl Emitter<'_, '_> {
         // A `string` or `array` comparison is a *content* comparison in the
         // runtime, not a machine instruction: both representations are a
         // pointer, so `icmp` would compare identity, which is never what `==`
-        // means for either (ADR 0090 § 3's string and array rows). Each takes
+        // means for either (`rule:expressions/equality-semantics`'s string and array rows). Each takes
         // a two-pointer call rather than the tagged helper convention because
         // the row is already known here — see `nvs_runtime::nvs_array_eq`.
         if matches!(ty, Ty::Str | Ty::Bytes | Ty::Array) && matches!(op, BinOp::Eq | BinOp::NotEq) {
@@ -1208,7 +1208,7 @@ impl Emitter<'_, '_> {
             ));
         }
 
-        // ADR 0090 § 3's object row is *identity*, so here the pointer
+        // `rule:expressions/equality-semantics`'s object row is *identity*, so here the pointer
         // comparison the two rows above refuse is exactly right — and it is
         // one instruction, which is why an object pair calls nothing at all.
         // Comparing contents is `Comparable::compareTo`, a method call that
@@ -1223,8 +1223,7 @@ impl Emitter<'_, '_> {
         }
 
         // `null == null`, which is the only pair that reaches here in this
-        // representation: a `null` against anything else is either ADR 0090
-        // § 2's disjoint refusal (`E0466`) or a tagged operand, and `$x ==
+        // representation: a `null` against anything else is either `rule:expressions/disjoint-comparison-refused`'s disjoint refusal (`E0466`) or a tagged operand, and `$x ==
         // null` over a `?T` is lowered as a tag test rather than as this
         // instruction. Both operands are the one value the type has, so the
         // answer is a constant and PHP's is the same one.
@@ -1969,7 +1968,7 @@ impl Emitter<'_, '_> {
             // An internal-consistency check with no reachable target left, and
             // the roster is the three rows above plus the checked negation
             // ahead of them. `UnOp` is three variants: `!` arrives only over a
-            // `Ty::Bool`, ADR 0035's truthy table having already answered one
+            // `Ty::Bool`, `rule:expressions/truthy-positions`'s truthy table having already answered one
             // whatever the operand's own type was, and `-` and `~` arrive only
             // over the numeric representations ADR 0007 § 4 tabulates, because
             // `nvs_types::expr::operators::reject_unary_arith_operand` refuses
@@ -2380,7 +2379,7 @@ impl Emitter<'_, '_> {
     /// One compare per candidate, and which compare is read off the subject's
     /// own representation, the way [`Self::emit_instanceof`] reads its own: a
     /// `string` is a *content* comparison through `nvs_runtime::nvs_str_eq` —
-    /// the same call `==` on a `string` makes, and for ADR 0090 § 3's reason —
+    /// the same call `==` on a `string` makes, and for `rule:expressions/equality-semantics`'s reason —
     /// while a descriptor is an *identity* one, a descriptor's address being
     /// its identity (`nvs_runtime::object`).
     ///

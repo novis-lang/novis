@@ -1,5 +1,5 @@
 --TEST--
-`empty($x)` is `!$x` over any expression, and it agrees with PHP on every row of the falsy table, on an absent element and on when the operand runs — ADR 0035 § 2, ADR 0028 § 3
+`empty($x)` is `!$x` over any expression, and it agrees with PHP on every row of the falsy table, on an absent element and on when the operand runs — `rule:expressions/truthy-table`, ADR 0028 § 3
 --FILE--
 <?nvs
 final class Show {
@@ -17,7 +17,7 @@ final class Trace {
 enum Rank: int { Bronze = 0, Gold = 3 }
 final class Bag { public int $n = 0; }
 
-// ADR 0035 § 2's table, negated. Only "" and "0" are falsy strings — " " and
+// `rule:expressions/truthy-table`'s table, negated. Only "" and "0" are falsy strings — " " and
 // "0.0" are not, which is the row a hand-written `$s == ""` gets wrong.
 echo "str ", Show::of(empty("")), Show::of(empty("0")), Show::of(empty("a")),
      Show::of(empty(" ")), Show::of(empty("0.0")), "\n";

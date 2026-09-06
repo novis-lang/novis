@@ -22,7 +22,7 @@
 > registered but for the two members ADR 0146 added to spec § 12 —
 > `crates/nvs-stdlib/tests/spec-members-outstanding.txt` holds those two keys and no others, both
 > owned by goal 29. M1's own section lists the one grammar addition still owed — the pipeline
-> operator, ADR 0098 — which blocks nothing and is scheduled after the current loop goal. Each
+> operator, `rule:expressions/pipeline-substitution` — which blocks nothing and is scheduled after the current loop goal. Each
 > milestone file under [docs/plan/](plan/) states its own acceptance.
 >
 > **On disk:** the workspace and its CI (three platforms, with miri, asan and fuzz legs), and the
@@ -117,7 +117,7 @@ somebody has already followed.
 | backlog 5 | [M16](plan/m16.md) | `nvs/web`, `nvs new`, and the framework (~12 weeks) | ~4 |
 
 **One milestone is not one block of schedule, which is why the cell holds a list.** M8's work sits at goals
-4, 5 and 17, M7's at 6, 16, 18 and 19, and M1's one open item — [ADR 0098](adr/0098-pipeline-operator-is-a-hole-substituted-at-parse-time.md)'s
+4, 5 and 17, M7's at 6, 16, 18 and 19, and M1's one open item — `rule:expressions/pipeline-substitution`'s
 pipeline operator — at 13; five goals (7–11) land in no milestone at all and are tagged `post-parity` in
 the chain. A single number per milestone could say none of that, and for a while it said things that had
 stopped being true. **So the goal is the unit of schedule and the milestone the unit of identity: say

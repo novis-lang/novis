@@ -29,7 +29,7 @@
   cannot express is backreferences and lookaround, and real PHP patterns use both.
 - The choice of tier is a property of the pattern, not of the subject. For a literal pattern — which is the
   overwhelming majority — that property is known at compile time, and
-  [ADR 0057](0057-intrinsic-literal-folding.md) already establishes the mechanism for acting on it.
+  `rule:expressions/intrinsic-literals` already establishes the mechanism for acting on it.
 
 ## Decision
 
@@ -51,7 +51,7 @@ The linear tier has no budget, because it needs none.
 
 ### 3. A literal pattern is tiered at compile time
 
-Under [ADR 0057](0057-intrinsic-literal-folding.md), a literal pattern argument to `Core\Regex` is
+Under `rule:expressions/intrinsic-literals`, a literal pattern argument to `Core\Regex` is
 validated and compiled during checking, and its compiled program is stored in the artifact cache. Three
 consequences follow, none of which costs anything at run time:
 
@@ -128,7 +128,7 @@ The accepted syntax is PCRE's, across both tiers, with these fixed points:
   nothing. That module's own gap list owns what § 5's roster still owes.
 - **Owed, and what each waits on.** § 3's compile-time tiering — a malformed *literal* pattern as a
   compile error, `nvs check` naming the backtracking ones, and `[regex] backtracking = "deny"` — needs
-  [ADR 0057](0057-intrinsic-literal-folding.md)'s folding pass and M6's configuration. § 4's sink — a
+  `rule:expressions/intrinsic-literals`'s folding pass and M6's configuration. § 4's sink — a
   tainted pattern refused while a tainted subject is accepted and produces tainted matches — needs a
   qualifier the `Core` signature registry can state.
 - **M8:** the `preg_*` conformance suite records, per pattern, which tier it lands on, so a future engine

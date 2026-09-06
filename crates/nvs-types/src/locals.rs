@@ -139,7 +139,7 @@ pub(crate) struct LocalScope {
     /// makes resuming one at the end of the body sound.
     shadowed: std::cell::RefCell<Vec<FxHashMap<String, TypeId>>>,
     /// The bindings an expression-level `catch` arm has in scope right now —
-    /// ADR 0119 § 1's `catch (T $e) => …`, whose `$e` is a local of the
+    /// `rule:expressions/catch-expression`'s `catch (T $e) => …`, whose `$e` is a local of the
     /// enclosing function exactly as a clause's is.
     ///
     /// A [`RefCell`](std::cell::RefCell) for the reason `narrowed` is one, and
@@ -335,8 +335,7 @@ impl Narrowing {
 /// variable is not `null`.
 ///
 /// `==`/`!=` are the whole of it, because
-/// [ADR 0090](/docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
-/// § 1 leaves one spelling and its § 3 makes it a tag test rather than PHP's
+/// `rule:expressions/one-equality-operator` leaves one spelling and its § 3 makes it a tag test rather than PHP's
 /// truthy-table question — `0 == null` was *true* in PHP, which is why this
 /// read only `===`/`!==` while both spellings existed. A bare `if ($x)` is
 /// still not a null test: `rule:enums/truthiness` makes it one for a nullable object,
@@ -370,7 +369,7 @@ fn null_test(cond: &Expr) -> Option<(Span, bool)> {
 ///
 /// Three tests install one, and they are tried in that order because no two of
 /// them match one condition. **A `!= null` test drops `null` and keeps the
-/// rest** — ADR 0066's body's own rule, and every residue takes it: a class, an
+/// rest** — `rule:expressions/nullable-conversion`'s body's own rule, and every residue takes it: a class, an
 /// `array<T>`, a scalar, or a union of them. **An `instanceof` test proves the
 /// class it names, on its true edge only** — ADR 0007 § 6's first narrowing
 /// form; see [`instanceof_residue`] for why the false edge proves nothing and
@@ -599,7 +598,7 @@ pub(crate) fn literal_residue(
 /// proved when the condition *holds* — which `!=` inverts, and a `!` inverts
 /// again.
 ///
-/// Either operand may be the variable: ADR 0090 § 1 leaves one equality
+/// Either operand may be the variable: `rule:expressions/one-equality-operator` leaves one equality
 /// operator and it is symmetric, so `"read" == $mode` is the same test.
 fn literal_test(cond: &Expr) -> Option<(Span, &Expr, bool)> {
     match &cond.kind {
@@ -725,7 +724,7 @@ fn declare_binding(
 }
 
 /// Declares an expression-level `catch` arm's `$e` for the length of that arm
-/// — ADR 0119 § 1's "a local of the enclosing function under the block form's
+/// — `rule:expressions/catch-expression`'s "a local of the enclosing function under the block form's
 /// rule", written against the `&LocalScope` the expression checker threads.
 ///
 /// The rule is [`declare_binding`]'s non-strict path: reuse when an existing
@@ -1152,7 +1151,7 @@ pub(crate) fn check_stmt(
                 let mut case_live = live.clone();
                 let mut narrowed = Narrowing::default();
                 if let Some(c) = &case.cond {
-                    // ADR 0090 § 6: a `case` label is compared against the
+                    // `rule:expressions/switch-match-equality`: a `case` label is compared against the
                     // subject by the one equality rule, so a label whose type
                     // is disjoint from the subject's is § 2's refusal written
                     // without the operator.

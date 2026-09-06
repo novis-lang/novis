@@ -35,7 +35,7 @@ form or the query string, which is where the loose values usually come from.*
 or a class carrying a `Codec`, field by field, using the language's own `as` operator and its table
 ([ADR 0007 § 2](../../adr/0007-explicit-type-system.md)) as the whole conversion rule — `"42"` into a
 `uint` field is the `string → uint` row, so `"42abc"` and `""` throw exactly where `as` throws, and a `?T`
-field gets `as ?T` ([ADR 0066](../../adr/0066-nullable-conversion-operator.md)) and answers `null` where
+field gets `as ?T` (`rule:expressions/nullable-conversion`) and answers `null` where
 `as T` would have thrown. Nothing new enters the conversion table. A key the shape does not name is
 ignored (ADR 0036 § 3's width subtyping, unchanged); a required key that is absent, and a value that
 does not convert, are failures — and **every failure of one call is collected into one `ParseError`**,

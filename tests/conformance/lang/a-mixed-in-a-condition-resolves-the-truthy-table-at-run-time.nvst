@@ -1,8 +1,8 @@
 --TEST--
-A `mixed` in a condition, and `$m as bool`, resolve ADR 0035 § 2's table on the value's runtime tag — the table's own last row, over ADR 0007 § 2's one unchecked position
+A `mixed` in a condition, and `$m as bool`, resolve `rule:expressions/truthy-table`'s table on the value's runtime tag — the table's own last row, over ADR 0007 § 2's one unchecked position
 --FILE--
 <?nvs
-// ADR 0035 § 2's table names one row per type and then says a `mixed` or a
+// `rule:expressions/truthy-table`'s table names one row per type and then says a `mixed` or a
 // union is "resolved dynamically per this table, dispatching on the value's
 // runtime type". Every other row is picked by the operand's static type
 // before the program runs; this is the one that cannot be, because ADR 0007
@@ -74,7 +74,7 @@ array<string> $one = ["k" => ""];
 echo Say::truthy("array empty", $empty);
 echo Say::truthy("array one falsy element", $one);
 
-// A class instance is always truthy, and so is a `callable` — ADR 0035 § 2's
+// A class instance is always truthy, and so is a `callable` — `rule:expressions/truthy-table`'s
 // last two type rows, which need no payload read at all.
 final class Box {
     public int $n = 0;

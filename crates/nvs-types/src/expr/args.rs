@@ -1255,7 +1255,7 @@ pub(crate) fn check_generic_args(
         };
         // The one binding that is not read out of a type. A `callable`
         // parameter's argument type says nothing about the value the callback
-        // produces (ADR 0027 § 2), so `Core\Arr::map`'s `U` comes from the
+        // produces (`rule:expressions/first-class-callable-syntax`), so `Core\Arr::map`'s `U` comes from the
         // closure literal's own recorded return type instead — and from
         // nowhere else, which is `crate::generics`' own known gap.
         if let Some(name) = crate::generics::callback_result_var(declared, env.interner) {

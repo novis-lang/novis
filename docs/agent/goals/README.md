@@ -19,7 +19,7 @@ own tree half already done**.
 
 **Then M4B itself, as four goals** — [12 resilient-tree](12-resilient-tree.md),
 [13 surface](13-surface.md), [14 lsp-server](14-lsp-server.md) and [15 editor](15-editor.md). Goal 13 is
-not editor work: it is ADR 0098's pipeline operator and ADR 0124's PHP 8.6 refusals, the two M1 items
+not editor work: it is `rule:expressions/pipeline-substitution`'s pipeline operator and ADR 0124's PHP 8.6 refusals, the two M1 items
 scheduled after M4 and never taken, and it sits before the grammar because a grammar written against a
 surface about to change is written twice.
 
@@ -53,8 +53,7 @@ wrote them. Goal 19 is the last entry the parity program itself needs.
 
 **What goal 19 deliberately does not do**: give `as` a class-building meaning. That was the shape the
 proposal arrived in, and the operator half was rejected — `mixed as Foo` is already a checked downcast,
-`as` is a closed laundering set, and `X as ?Foo` would need two inputs to decide its legality. ADR 0066
-§ 3's *the class row is absolute* survives intact; only the sites that already convert implicitly change.
+`as` is a closed laundering set, and `X as ?Foo` would need two inputs to decide its legality. `rule:expressions/nullable-conversion-availability`'s *the class row is absolute* survives intact; only the sites that already convert implicitly change.
 
 **Then one more, added after goal 19 was written**: [20 unix-sockets](20-unix-sockets.md) is
 [ADR 0142](../../adr/0142-a-configured-store-is-authorized-by-its-configuring.md) — the grant over a
@@ -151,7 +150,7 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [10 typed-callable](10-typed-callable.md) | post-parity, ADR 0136 | `nvs-syntax`, `nvs-types`, `nvs-stdlib`, `nvs-ir`, `nvs-codegen`, `nvs-runtime` |
 | [11 doc-comments](11-doc-comments.md) | post-parity, ADR 0137 + M4B's tree half | `nvs-syntax`, `nvs-diagnostics`, `nvs-hir`, `nvs-cli` |
 | [12 resilient-tree](12-resilient-tree.md) | M4B, ADR 0099 § 1's other half | `nvs-syntax`, `nvs-diagnostics`, `nvs-test`, `nvs-cli` |
-| [13 surface](13-surface.md) | M1 items 5-6, ADR 0098 + ADR 0124 | `nvs-syntax`, `nvs-diagnostics` |
+| [13 surface](13-surface.md) | M1 items 5-6, `rule:expressions/pipeline-substitution` + ADR 0124 | `nvs-syntax`, `nvs-diagnostics` |
 | [14 lsp-server](14-lsp-server.md) | M4B, ADR 0099 §§ 3+5 + ADR 0101 | **`nvs-lsp`** (new), `nvs-cli`, `nvs-types`, `nvs-stdlib` |
 | [15 editor](15-editor.md) | M4B, ADR 0099 §§ 4+6 | **`editors/vscode`** (new, TypeScript) |
 | [16 request-json](16-request-json.md) | M7, ADR 0139 + spec § 15 | `nvs-stdlib`, `nvs-runtime`, `nvs-test`, `nvs-cli` |

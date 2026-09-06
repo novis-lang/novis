@@ -20942,7 +20942,7 @@ populates.
 | `` `ls` `` | none; a backtick is not a token, and no member takes a shell string | `E0001` |
 | `&$x` in a parameter, a `foreach`, or `$b = &$a` | `inout int $x` at the declaration **and** `f(inout $n)` at the call; `&` is bitwise AND only | `E0237` |
 | `f(...$args)` into fixed parameters | only into a `...$rest` variadic; otherwise write the arguments out | `E0489` |
-| `$a <> $b` | `!=` — the same comparison, and inequality has one spelling (ADR 0090 § 1) | `E0241` |
+| `$a <> $b` | `!=` — the same comparison, and inequality has one spelling (`rule:expressions/one-equality-operator`) | `E0241` |
 
 `<=>`, `**`, `??`, `??=`, `?:`, `?->`, `.=` and `instanceof` against a written class name all work
 as in PHP.
@@ -21177,7 +21177,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `ctype_alnum` | dropped | `Core\Regex::matches($s, "^[\\p{L}\\p{N}]+$")` — ASCII-only as a member would be wrong on UTF-8 |
 | `ctype_alpha` | dropped | `Core\Regex::matches($s, "^\\p{L}+$")` |
 | `ctype_cntrl` | dropped | `Core\Regex::matches($s, "^\\p{Cc}+$")` |
-| `ctype_digit` | language | `$s as ?uint != null` ([ADR 0066](adr/0066-nullable-conversion-operator.md)) — a type question, not a character class |
+| `ctype_digit` | language | `$s as ?uint != null` (`rule:expressions/nullable-conversion`) — a type question, not a character class |
 | `ctype_graph` | dropped | `Core\Validate::isPrintable` and a space test |
 | `ctype_lower` | dropped | `$s == Core\Str::lower($s)` |
 | `ctype_print` | member | `Core\Validate::isPrintable` |
@@ -21956,7 +21956,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `setlocale` | dropped | process-global C state, unsound per-core and leaky across requests. Locale is an explicit argument, and there is no ambient one to set ([ADR 0051](adr/0051-standard-library-tiers.md) § 3) |
 | `localeconv` | dropped | reads that global's number and currency table. Formatting takes the locale it formats for |
 | `hebrev` | dropped | it reorders logical-order Hebrew into visual order for terminals that could not do bidi. Text is UTF-8 in logical order ([ADR 0009](adr/0009-string-and-bytes.md)) and ordering is the renderer's |
-| `define` | dropped | a runtime constant table. A constant is a class member ([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)), known where it is used and foldable there ([ADR 0057](adr/0057-intrinsic-literal-folding.md)) |
+| `define` | dropped | a runtime constant table. A constant is a class member ([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)), known where it is used and foldable there (`rule:expressions/intrinsic-literals`) |
 | `defined` | dropped | asks whether that table has a key |
 | `constant` | dropped | reads it by a string name — the dynamic lookup that makes the other three necessary |
 | `get_defined_constants` | dropped | enumerates it |

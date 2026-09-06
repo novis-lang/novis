@@ -142,7 +142,7 @@ echo "reinserted ", Both::walk($order, $same), " ", $order->get($universe[0 as s
 
 // Both key on identity rather than on contents, so two tags spelling the same
 // name are two entries in each, and one tag reached through a second binding
-// is one entry in each (ADR 0090 § 4 — a collection is an object, and these
+// is one entry in each (`rule:expressions/object-identity-equality` — a collection is an object, and these
 // hold objects).
 Tag $twin = new Tag("0");
 Tag $alias = $universe[0 as string];

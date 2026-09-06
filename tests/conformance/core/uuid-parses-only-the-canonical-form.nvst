@@ -1,5 +1,5 @@
 --TEST--
-Core\Uuid::parse and `Uuid::tryParse` answer one question about one spelling — the canonical hyphenated form in either case, with the three shapes a UUID library usually also takes refused — spec § 11, ADR 0063 R4, ADR 0066 § 3a
+Core\Uuid::parse and `Uuid::tryParse` answer one question about one spelling — the canonical hyphenated form in either case, with the three shapes a UUID library usually also takes refused — spec § 11, ADR 0063 R4, `rule:expressions/try-parse`
 --FILE--
 <?nvs
 // `Read` exists because a `catch` does not lower at file scope; every throwing
@@ -13,7 +13,7 @@ class Read {
         }
     }
 
-    // ADR 0066 § 3a: the non-throwing question is `tryParse`, the one `try…`
+    // `rule:expressions/try-parse`: the non-throwing question is `tryParse`, the one `try…`
     // ADR 0063 R5 admits, and there is no `isValid` beside it — one
     // predicate, one spelling, one implementation. `$s as ?Core\Uuid` does
     // not compile; § 3's class row has no exceptions.

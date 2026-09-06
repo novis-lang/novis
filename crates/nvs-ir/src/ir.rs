@@ -1604,14 +1604,14 @@ pub enum Helper {
     /// [ADR 0009](/docs/adr/0009-string-and-bytes.md) `bytes` never
     /// converts to a number, so carrying the quirk over would make a buffer
     /// falsy for a reason that does not apply to it.
-    /// [ADR 0035](/docs/adr/0035-truthy-boolean-context.md) § 2's
+    /// `rule:expressions/truthy-table`'s
     /// table states the row; `nvs_runtime::value_truthy`'s `Tag::Bytes` arm is
     /// the same rule reached through a `mixed`.
     BytesTruthy,
     /// `array<T>` truthiness: falsy iff empty, for any `T`.
     ArrayTruthy,
     /// Truthiness of a [`crate::ty::Ty::Tagged`] value —
-    /// [ADR 0035](/docs/adr/0035-truthy-boolean-context.md) § 2's last
+    /// `rule:expressions/truthy-table`'s last
     /// table row, where a `mixed` or a union "resolved dynamically per this
     /// table, dispatching on the value's runtime type".
     ///
@@ -1619,7 +1619,7 @@ pub enum Helper {
     /// instead: `nvs_runtime::value_truthy` reads the tag and applies the same
     /// rule the matching helper would have, so a `mixed` holding `"0"` and a
     /// `string $s = "0"` answer alike. It is the truthiness twin of
-    /// [`Self::Identical`], which is ADR 0090 § 5's equality row for the same
+    /// [`Self::Identical`], which is `rule:expressions/mixed-equality`'s equality row for the same
     /// operand shape and reached by the same reasoning: a tag is what a type
     /// no longer answers.
     ///
@@ -1738,16 +1738,14 @@ pub enum Helper {
     /// checked half needs a helper, because only the checked half runs
     /// anything.
     BytesToString,
-    /// `$x as ?int` — [ADR 0066](/docs/adr/0066-nullable-conversion-operator.md)
-    /// § 1's non-throwing form of every row above that lands on `int`: the
+    /// `$x as ?int` — `rule:expressions/nullable-conversion`'s non-throwing form of every row above that lands on `int`: the
     /// value `as int` would produce, or `null` where it would throw. Cannot
     /// fail, so unlike the nine throwing rows it carries no error edge, and
     /// its result is a [`crate::ty::Ty::Tagged`] value rather than a bare
     /// `int`.
     ///
     /// **One tag per target, not one per (source, target) pair.** This helper
-    /// dispatches on the operand's runtime tag, which is what makes ADR 0066
-    /// § 2's "a `null` operand yields `null`" and § 3's "from `mixed` every
+    /// dispatches on the operand's runtime tag, which is what makes `rule:expressions/nullable-conversion`'s "a `null` operand yields `null`" and § 3's "from `mixed` every
     /// target has a checked path" the same code as `"42" as ?int` rather than
     /// three lowering branches — the operand is already a tagged `Value` by
     /// the time any helper sees it (`nvs_codegen`'s `store_value`).
@@ -1756,10 +1754,10 @@ pub enum Helper {
     ToUintOrNull,
     /// `$x as ?float` — [`Self::ToIntOrNull`]'s row set, landing on `float`.
     ToFloatOrNull,
-    /// `$x as ?string` — [`Self::TaggedToString`]'s rows in ADR 0066 § 1's
+    /// `$x as ?string` — [`Self::TaggedToString`]'s rows in `rule:expressions/nullable-conversion`'s
     /// non-throwing form, and the one `?` twin whose result is refcounted.
     ///
-    /// ADR 0066 § 1 makes the two spellings differ only in what they do with a
+    /// `rule:expressions/nullable-conversion` makes the two spellings differ only in what they do with a
     /// miss, so this shares that helper's implementation rather than carrying a
     /// second copy of ADR 0007 § 2's table: an operand that renders renders the
     /// same, and one whose *conversion* fails answers `null` instead of
@@ -1767,20 +1765,20 @@ pub enum Helper {
     /// [`Self::BytesToString`], because ADR 0009 § 3's UTF-8 validation is a
     /// row that can fail and so has a `null` answer of its own.
     ///
-    /// **A `toString()` body that throws still throws.** ADR 0066 § 1's `null`
+    /// **A `toString()` body that throws still throws.** `rule:expressions/nullable-conversion`'s `null`
     /// stands for "this conversion had no answer", not for "swallow whatever
     /// the operand did on the way": the exception the body recorded is the
     /// program's own and reaches the request unchanged. `nvs_runtime`'s
     /// `stringify_or_null` is where that line is drawn.
     ToStringOrNull,
-    /// `$x as ?bytes` — [`Self::TaggedToBytes`]'s two rows in ADR 0066 § 1's
+    /// `$x as ?bytes` — [`Self::TaggedToBytes`]'s two rows in `rule:expressions/nullable-conversion`'s
     /// non-throwing form, sharing that helper's one implementation of them for
     /// the reason [`Self::ToStringOrNull`] shares its own.
     ///
     /// The one `?` twin whose *checked* spelling is the only one that ever runs
     /// anything: `string as bytes` is total and free wherever the static type
     /// says so, so this helper exists exclusively for the tagged operand —
-    /// which is also why ADR 0066 § 3's "yields `null` exactly where `as T`
+    /// which is also why `rule:expressions/nullable-conversion-availability`'s "yields `null` exactly where `as T`
     /// would throw" leaves the statically typed `$s as ?bytes` refused
     /// (`E0709`) rather than lowered here.
     ToBytesOrNull,
@@ -1790,7 +1788,7 @@ pub enum Helper {
     /// Throws where the row fails or does not exist, so it carries an error
     /// edge.
     ToDecimal,
-    /// `$x as ?decimal` — [`Self::ToDecimal`]'s rows in ADR 0066 § 1's
+    /// `$x as ?decimal` — [`Self::ToDecimal`]'s rows in `rule:expressions/nullable-conversion`'s
     /// non-throwing form, sharing one implementation of each.
     ToDecimalOrNull,
     /// `$d as int` — integral and in range, or throws. Rounding is
@@ -1839,7 +1837,7 @@ pub enum Helper {
     ///
     /// The throwing twin of [`Self::ToIntOrNull`], over the same row set in
     /// `nvs_runtime` and never a second copy of it: § 2's `as T` throws where
-    /// ADR 0066's `as ?T` answers `null`, so the pair differs only in what it
+    /// `rule:expressions/nullable-conversion`'s `as ?T` answers `null`, so the pair differs only in what it
     /// does with a miss. Fallible, so it is emitted through
     /// `crate::lower::Lowering::emit_fallible` and carries `rule:errors/propagation`'s error
     /// edge — a tag with no row at all (an array, an object, a `bool`) throws
@@ -1888,8 +1886,7 @@ pub enum Helper {
     /// names throws, and so does an operand that is not an array.
     ToArrayOf,
     /// `$x as ?array<U>` —
-    /// [ADR 0066](/docs/adr/0066-nullable-conversion-operator.md)
-    /// § 1's non-throwing form of [`Self::ToArrayOf`], over that helper's one
+    /// `rule:expressions/nullable-conversion`'s non-throwing form of [`Self::ToArrayOf`], over that helper's one
     /// implementation of the walk rather than a second copy of it. Answers
     /// `null` exactly where the checked spelling throws, and cannot fault at
     /// all — the walk runs no user code. Like [`Self::ToBytesOrNull`] it
@@ -1970,8 +1967,7 @@ pub enum Helper {
     /// The operand keeps the ordinary convention and is the caller's.
     LiteralMismatch,
     /// `a == b` where at least one operand is a [`crate::ty::Ty::Tagged`] —
-    /// [ADR 0090](/docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
-    /// § 5's `mixed`-or-union case, the one pairing whose § 3 row is a runtime
+    /// `rule:expressions/mixed-equality`'s `mixed`-or-union case, the one pairing whose § 3 row is a runtime
     /// tag rather than a static type. **`!=` is this helper under
     /// [`UnOp::Not`]**, the arrangement [`Self::DecimalEq`] already uses.
     ///
@@ -1988,8 +1984,7 @@ pub enum Helper {
     Identical,
     /// `a == b` over two operands whose *representations* differ but whose
     /// types are one domain —
-    /// [ADR 0090](/docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
-    /// § 2's numeric row, which makes `int`, `uint` and `float` mutually
+    /// `rule:expressions/disjoint-comparison-refused`'s numeric row, which makes `int`, `uint` and `float` mutually
     /// comparable, and § 3's "mathematically equal across the whole domain".
     /// **`!=` is this helper under [`UnOp::Not`]**, the arrangement
     /// [`Self::DecimalEq`] already uses.
@@ -2366,7 +2361,7 @@ pub enum BinOp {
     /// past the width fills with the sign bit in the first case and with zero
     /// in the second.
     Shr,
-    /// `==` — ADR 0090 makes this the language's only equality operator, with
+    /// `==` — `rule:expressions/one-equality-operator` makes this the language's only equality operator, with
     /// no conversion of either operand. Every operand pair that reaches here
     /// has one statically known representation, and `nvs-codegen` picks that
     /// row's comparison from it: a machine compare for a scalar, a call to

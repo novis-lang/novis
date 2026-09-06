@@ -1,5 +1,5 @@
 --TEST--
-ADR 0066's `as ?T` yields `null` exactly where `as T` would throw
+`rule:expressions/nullable-conversion`'s `as ?T` yields `null` exactly where `as T` would throw
 --FILE--
 <?nvs
 // § 1 — the value the throwing form would produce, wherever it succeeds.

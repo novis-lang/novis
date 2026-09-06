@@ -558,7 +558,7 @@ fn while_loop_carries_locals_through_a_header_phi() {
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
-/// `if ($n)` with an `int` parameter — ADR 0035's truthy table for a
+/// `if ($n)` with an `int` parameter — `rule:expressions/truthy-positions`'s truthy table for a
 /// scalar condition, converted through the new `Helper::IntTruthy`
 /// rather than requiring `$n` already be `bool`.
 #[test]
@@ -581,7 +581,7 @@ fn a_string_while_condition_converts_through_a_truthy_helper() {
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
-/// `if ($a)` with an `array<int>` parameter — ADR 0035's "empty is
+/// `if ($a)` with an `array<int>` parameter — `rule:expressions/truthy-positions`'s "empty is
 /// falsy, regardless of element type" row, via `Helper::ArrayTruthy`.
 /// `$a` is a bare variable read (`is_aliasing_read`), so no release
 /// follows the helper call — the array is still the parameter's own
@@ -671,7 +671,7 @@ fn passing_a_mixed_local_as_a_call_argument_round_trips() {
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
-/// A `mixed` condition is ADR 0035 § 2's last table row: the dispatch it
+/// A `mixed` condition is `rule:expressions/truthy-table`'s last table row: the dispatch it
 /// names moves into `Helper::ValueTruthy`, which reads the operand's tag
 /// and applies whichever of the rows above it names. This used to be a
 /// `#[should_panic]` guard over exactly this source — `Ty::Tagged` gave
@@ -687,7 +687,7 @@ fn a_mixed_condition_dispatches_the_truthy_table_on_the_tag() {
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
-/// `bytes` is the one row ADR 0035 § 2 does not take from PHP, which has
+/// `bytes` is the one row `rule:expressions/truthy-table` does not take from PHP, which has
 /// no such type: falsy iff empty, dropping the one-octet `"0"` case that
 /// exists for a `string` only because PHP reads one as a possible number.
 /// The snapshot pins that a declared `bytes` reaches `Helper::BytesTruthy`
@@ -1478,7 +1478,7 @@ fn concatenating_a_stringable_object_operand_calls_its_to_string() {
 /// `$obj as string` — ADR 0007 § 2's explicit spelling of the very same
 /// conversion, reaching the very same `Self::lower_to_string_call` rather than
 /// getting a second answer of its own, exactly as `as bool` reuses
-/// ADR 0035's truthy table.
+/// `rule:expressions/truthy-positions`'s truthy table.
 #[test]
 fn converting_a_stringable_object_to_string_calls_its_to_string() {
     let (f, map, file) = lower_first_method(
@@ -1950,7 +1950,7 @@ fn a_bool_subscript_key_is_rejected_before_lowering_even_runs() {
     );
 }
 
-/// `$a && $b` — ADR 0035's short-circuit `&&`, the nineteenth slice's
+/// `$a && $b` — `rule:expressions/truthy-positions`'s short-circuit `&&`, the nineteenth slice's
 /// first new form: `$a`'s own truthy test branches straight to a merge
 /// block carrying `const.bool false` when falsy, only evaluating `$b`
 /// (through its own truthy test) on the truthy path — `Lowering::
@@ -3187,7 +3187,7 @@ if (Rank::Bronze) { echo \"y\"; }
 
 /// ADR 0007 § 2's total rows, reached through `as` rather than through
 /// `.`: a scalar to `string` reuses the same `Helper` conversion, and a
-/// value to `bool` reuses ADR 0035's truthy table.
+/// value to `bool` reuses `rule:expressions/truthy-positions`'s truthy table.
 #[test]
 fn as_string_and_as_bool_reuse_the_conversions_that_already_exist() {
     let (f, map, file) = lower_script_src(
@@ -3422,7 +3422,7 @@ echo \"ok\";
 ///
 /// Asserted as an agreement over the four spellings the row has, in one
 /// body, because each of them answers plausibly on its own line: the
-/// checked walk, ADR 0066's `?` twin through the helper that answers
+/// checked walk, `rule:expressions/nullable-conversion`'s `?` twin through the helper that answers
 /// `null`, the nesting that makes the word two nibbles rather than one, and
 /// the `array<mixed>` target that is `Lowering::convert`'s free widening
 /// and must walk *nothing*. The count is what holds the last one down — a

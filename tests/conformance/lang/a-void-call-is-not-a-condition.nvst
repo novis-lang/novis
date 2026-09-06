@@ -1,8 +1,8 @@
 --TEST--
-Every condition refuses a call that returns `void` where it is written, and the operators beside them keep their own code — ADR 0035 § 2, ADR 0007 § 4
+Every condition refuses a call that returns `void` where it is written, and the operators beside them keep their own code — `rule:expressions/truthy-table`, ADR 0007 § 4
 --FILE--
 <?nvs
-// ADR 0035 makes a condition the one place a value is tested without `as`,
+// `rule:expressions/truthy-positions` makes a condition the one place a value is tested without `as`,
 // and its truthy table has a row for every type there is — which is why a
 // call that returns `void` shows up here as nothing at all rather than as a
 // mismatch. Unrefused, each line below reached `nvs-ir`'s truthy slice with

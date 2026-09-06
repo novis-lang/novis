@@ -68,7 +68,7 @@
 //! `parse_url` read differently (CVE-2024-5458), so the surviving spelling is
 //! the one that cannot drift from `parse` because it *is* `parse`.
 //!
-//! **`$text as ?Uri` does not compile**, and an earlier revision of ADR 0066
+//! **`$text as ?Uri` does not compile**, and an earlier revision of `rule:expressions/nullable-conversion`
 //! said it did. Its § 3 withdrew that closed two-class "parse roster": `as?`
 //! spells a *downcast* in every language a reader arrives from, so spelling a
 //! parse that way inverted the one intuition the syntax carried — and it never
@@ -108,8 +108,7 @@
 //! carried a table of them would answer differently as the table grew — while
 //! a caller who wants that reading can write it in one `with` call.
 //!
-//! **`==` is still identity.** [ADR 0090](/docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
-//! § 4 makes `$a == $b` on two objects ask whether they are the same object
+//! **`==` is still identity.** `rule:expressions/object-identity-equality` makes `$a == $b` on two objects ask whether they are the same object
 //! and closes the door on a per-class equality hook, so `compareTo` is the
 //! named spelling that ADR itself points at for content equality — the same
 //! answer [`crate::time`] gives for an `Instant`. Two references are the same
@@ -1219,7 +1218,7 @@ fn port_out_of_range(member: &str) -> Fault {
 
 /// Whether `text` is a URI reference `Core\Uri::parse` would answer for, for
 /// a caller that wants the refusal and not the object —
-/// [ADR 0057](/docs/adr/0057-intrinsic-literal-folding.md)'s fold,
+/// `rule:expressions/intrinsic-literals`'s fold,
 /// which reads a **literal** URI while checking and reports § 3's diagnostic
 /// instead of the throw [`nvs_core_uri_parse`] would have made.
 ///
@@ -1915,8 +1914,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Uri::tryParse(string $uri): ?Uri` —
-    /// [ADR 0066](/docs/adr/0066-nullable-conversion-operator.md)
-    /// § 3a: [`nvs_core_uri_parse`] exactly, with `null` where it throws.
+    /// `rule:expressions/try-parse`: [`nvs_core_uri_parse`] exactly, with `null` where it throws.
     ///
     /// It is `parse` and not a second reader, which is the whole reason R17
     /// allows the question "is this text a URI" one spelling and this is it:
@@ -2191,8 +2189,7 @@ nvs_runtime::nvs_helper! {
     /// the two references' RFC 3986 § 6.2.2 normal forms.
     ///
     /// This is the member that answers "are these the same URI", because
-    /// [ADR 0090](/docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
-    /// § 4 keeps `==` on two objects meaning *the same object* and names
+    /// `rule:expressions/object-identity-equality` keeps `==` on two objects meaning *the same object* and names
     /// `compareTo($other) == 0` as the spelling for the other question. What
     /// normalizing does and where it stops is the module docs' own section;
     /// nothing here rewrites the receiver, so `$uri->toString()` still answers

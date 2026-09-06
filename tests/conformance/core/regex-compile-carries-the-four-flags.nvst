@@ -51,7 +51,7 @@ echo Core\Regex::matches("foobaz", $fancy) as string, "|\n";
 // the pattern as the program wrote it, not the flag-wrapped form the engines
 // are given.
 //
-// The pattern arrives in a variable: written as a literal it is ADR 0057 § 1's
+// The pattern arrives in a variable: written as a literal it is `rule:expressions/intrinsic-list-is-closed`'s
 // compile error instead, which is the same refusal made earlier and therefore
 // not the one a `catch` can see (§ 2).
 string $unclosed = "(unclosed";

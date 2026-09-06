@@ -910,7 +910,7 @@ want = [
 ]
 
 # The previous goal's own guard tests, carried whole. These are the floor's other half: the program
-# fixtures above prove what a program prints, and these prove the rules underneath it -- ADR 0090's
+# fixtures above prove what a program prints, and these prove the rules underneath it -- `rule:expressions/one-equality-operator`'s
 # equality rows, 0094's visibility, 0087's bidi, 0061's autoload, and every measured invariant items
 # 10-22 of that goal bought (the packed array, the stack limit, the string layout, the allocation seam).
 #
@@ -1127,7 +1127,7 @@ tests = [
 # Stage 4 -- assignment targets, `mixed`, and the rest of the conversion table.
 #
 # `hits=2,5` is item 21, `grid=93` item 22, `mixedSum`/`elem`/`flag` the three shapes of item 24 (arith-
-# metic on a tag, a subscript through one, and ADR 0035's truthy table over a `?bool`), `top=point` item
+# metic on a tag, a subscript through one, and `rule:expressions/truthy-positions`'s truthy table over a `?bool`), `top=point` item
 # 25, `asInt`/`asString` and `converted=3` item 26's three rows -- of which `asInt` is a *branch*,
 # ADR 0007 § 2's grid giving a `bool` source the "anything -> `string`" row and no numeric one, so
 # `$yes as int` is `E0708` where it is written and the fixture spells the predicate out loud.
@@ -1368,7 +1368,7 @@ cases = [
   # it, and a multi-diagnostic program is what asserts them, not a checker unit test.
   "tests/conformance/class/a-nullsafe-assignment-target-is-refused.nvst",
   "tests/conformance/array/an-element-write-through-a-hooked-property-is-refused.nvst",
-  # Item 27's pair, and one case owns both: ADR 0066 § 3 is refused at both ends -- `E0709` for a row
+  # Item 27's pair, and one case owns both: `rule:expressions/nullable-conversion-availability` is refused at both ends -- `E0709` for a row
   # that cannot fail, `E0708` for a pair naming no row at all -- and a case asserting one end alone
   # cannot see the table drift open at the other.
   "tests/conformance/lang/the-nullable-conversion-table-is-closed-at-both-ends.nvst",
@@ -1556,7 +1556,7 @@ file = "examples/commands.nvs"
 want = ["greet <name> [--loud]", "migrate [--pretend]", "commands=2"]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 3 -- ADR 0057's intrinsic folding. The soundness rule is the item: the prepared path and the
+# Stage 3 -- `rule:expressions/intrinsic-literals`'s intrinsic folding. The soundness rule is the item: the prepared path and the
 # runtime path are ONE implementation, so a fold can produce an earlier answer and never a different one.
 # The pair of cases below is what asserts that -- the same malformed literal, once as a compile error and
 # once, behind a variable, as the identical runtime throw.
@@ -2229,7 +2229,7 @@ argv = ["python", "tools/check-migration.py", "--min", "36"]
 want = ["inventory:", "classified:"]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 9 -- the expression-level `catch`, ADR 0119. Added 2026-08-30; the handoff runs it ahead of
+# Stage 9 -- the expression-level `catch`, `rule:expressions/catch-expression`. Added 2026-08-30; the handoff runs it ahead of
 # the rest of stage 8. Three checks, one per item: the parser, the checker, the lowered corpus.
 # ---------------------------------------------------------------------------------------------------
 [[check]]

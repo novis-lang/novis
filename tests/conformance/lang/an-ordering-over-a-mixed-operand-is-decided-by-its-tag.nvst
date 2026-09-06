@@ -112,7 +112,7 @@ array<int> $xs = [1, 2];
 echo Ask::lt($xs, $xs), "\n";
 
 // The refusal is the operator's, not the operand's: the same two strings
-// compare for equality with no throw at all (ADR 0090 § 3), and `<=`, `>`,
+// compare for equality with no throw at all (`rule:expressions/equality-semantics`), and `<=`, `>`,
 // `>=` and `<=>` agree with `<` about having no row.
 mixed $s = "a";
 mixed $t = "b";

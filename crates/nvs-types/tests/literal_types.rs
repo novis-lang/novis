@@ -393,7 +393,7 @@ fn a_literal_operand_is_placed_at_its_conversion_target() {
         "    string $raw = \"z\";\n",
         "    \"a\"|\"b\" $checked = $raw as \"a\"|\"b\";\n",
         "    string $wide = \"z\" as string;\n",
-        // ADR 0066's `as ?T` yields `null` rather than throwing, so the target
+        // `rule:expressions/nullable-conversion`'s `as ?T` yields `null` rather than throwing, so the target
         // is not a closed set at all and nothing below is impossible.
         "    ?\"a\" $maybe = \"z\" as ?\"a\";\n",
     ));

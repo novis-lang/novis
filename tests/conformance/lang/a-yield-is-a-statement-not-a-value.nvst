@@ -13,7 +13,7 @@ class Counter {
     }
 
     // The same refusal wherever the value is consumed. A condition is the
-    // one position that accepts any type at all (ADR 0035), so nothing
+    // one position that accepts any type at all (`rule:expressions/truthy-positions`), so nothing
     // else is reported on this line and the `yield` is the whole of it.
     public static function tested(): Iterator<int> {
         yield 1;

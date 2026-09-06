@@ -31,7 +31,7 @@ foreach ($refused as string $text) {
 // text that will not read. `ParseError` descends from `RuntimeError`, so the
 // narrower clause is written first and it is the one that answers.
 //
-// Behind a binding, because ADR 0057 § 1 folds this member's literal argument
+// Behind a binding, because `rule:expressions/intrinsic-list-is-closed` folds this member's literal argument
 // and a malformed one written inline is a compile error rather than a throw.
 string $unreadable = "nope";
 try {

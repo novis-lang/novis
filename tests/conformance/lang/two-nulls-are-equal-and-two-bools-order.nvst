@@ -1,9 +1,9 @@
 --TEST--
-Two `null`s are equal and two `bool`s order, which are ADR 0007 § 4's two non-numeric rows — ADR 0007 § 4, ADR 0090 § 2
+Two `null`s are equal and two `bool`s order, which are ADR 0007 § 4's two non-numeric rows — ADR 0007 § 4, `rule:expressions/disjoint-comparison-refused`
 --FILE--
 <?nvs
 // `null == null` is the one pair whose static types are both `null`, so
-// ADR 0090 § 2's disjointness check passes it and both operands are the
+// `rule:expressions/disjoint-comparison-refused`'s disjointness check passes it and both operands are the
 // single value the type has. The answer is therefore a constant, and it is
 // PHP's — `var_dump(null == null)` is `true` there too.
 echo (null == null) as string, "|\n";

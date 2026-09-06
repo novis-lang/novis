@@ -53,7 +53,7 @@ playbook = [
 
 plan = ["Open now", "Blocking"]
 
-# The acceptance paragraph alone. What these two items build is ADR 0098 and ADR 0124, both of which
+# The acceptance paragraph alone. What these two items build is `rule:expressions/pipeline-substitution` and ADR 0124, both of which
 # this manifest already names whole.
 milestones = ["M1:verify"]
 
@@ -74,7 +74,7 @@ memoize_on = ["crates/nvs-server", "crates/nvs-db", "tests/db"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 0 -- CATCH-UP. ADR 0098's three numbers were allocated elsewhere after it was written. The
+# Stage 0 -- CATCH-UP. `rule:expressions/pipeline-substitution`'s three numbers were allocated elsewhere after it was written. The
 # registry is the allocator; the ADR's table moves. Goal prose stage 0.
 # ---------------------------------------------------------------------------------------------------
 

@@ -96,7 +96,7 @@ const ATOMS: &[&str] = &[
     "7",
     "{a: int}",
     "Marker",
-    // The composites: ADR 0066's `?T`, a union, and an intersection.
+    // The composites: `rule:expressions/nullable-conversion`'s `?T`, a union, and an intersection.
     "?int",
     "int|string",
     "Marker&Other",

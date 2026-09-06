@@ -940,7 +940,7 @@ fn dollar_brace_expr_is_variable_variable() {
     assert!(matches!(e.kind, ExprKind::Error));
 }
 
-// --- ADR 0119's expression `catch` ------------------------------------------
+// --- `rule:expressions/catch-expression`'s expression `catch` ------------------------------------------
 // § 2's table, one test a row. The lowering is not written, so these are the
 // only place the grouping is pinned until stage 9's item 23 lands.
 

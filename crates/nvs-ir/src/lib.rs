@@ -30,9 +30,9 @@
 //!   interpolation, `new`, static/instance/`Core` calls, property and
 //!   array-element read and write, array literals including an explicit
 //!   `key =>` and `$a[] =` append, `&&`/`||`/`!` and the ternary/elvis
-//!   operator, ADR 0035's truthy conversion, ADR 0031 closure literals,
+//!   operator, `rule:expressions/truthy-positions`'s truthy conversion, ADR 0031 closure literals,
 //!   `instanceof`, `??`, the literal `null`, ADR 0007 § 2's scalar conversion
-//!   rows — free, total and checked alike — and ADR 0066's non-throwing
+//!   rows — free, total and checked alike — and `rule:expressions/nullable-conversion`'s non-throwing
 //!   `as ?T` over the checked numeric targets and over its § 3 parse roster.
 //! - **Types** — `int`/`uint`/`float`/`bool`/`decimal` scalars, `string`,
 //!   `bytes`,
@@ -180,7 +180,7 @@
 //!    a declared type ([`lower::Lowering::coerce`]); and `??`
 //!    ([`lower::Lowering::lower_coalesce`]), whose non-`null` arm narrows
 //!    against the type `nvs_types::expr_table::ExprInfo::Coalesce` records.
-//!    ADR 0066's `as ?T` ([`lower::Lowering::convert_or_null`]) is the first
+//!    `rule:expressions/nullable-conversion`'s `as ?T` ([`lower::Lowering::convert_or_null`]) is the first
 //!    thing here that *reads* a tag instead — its helper dispatches on the
 //!    operand's, which is what a `mixed` source costs, and is the shape the
 //!    rest of this gap closes in. `.` and `echo` read one the same way
@@ -196,7 +196,7 @@
 //!    argument all see the narrow representation with no site to forget;
 //!    [`lower::Lowering::untag_receiver`] is the same move for the one
 //!    consumer that predates it.
-//!    ADR 0035's truthy table is read from the tag the same way
+//!    `rule:expressions/truthy-positions`'s truthy table is read from the tag the same way
 //!    ([`ir::Helper::ValueTruthy`]), and so is ADR 0007 § 4's **ordering**
 //!    table: `<`/`<=`/`>`/`>=`/`<=>` with a tagged operand take
 //!    [`ir::Helper::ValueLt`] and its two siblings, which answer the rows the
@@ -210,16 +210,16 @@
 //!    a tagged value without a checker-proven narrowing that still panics
 //!    naming itself. Closing it adds [`ir::Helper`] variants dispatching on
 //!    the tag, not a second representation.
-//! 4. **One conversion row is missing, and ADR 0066's `as ?T` has no helper
+//! 4. **One conversion row is missing, and `rule:expressions/nullable-conversion`'s `as ?T` has no helper
 //!    for the one target that produces a container.**
 //!    ADR 0007 § 2's free, total and checked scalar rows all lower, in both
-//!    the throwing form ([`lower::Lowering::convert`]) and ADR 0066's
+//!    the throwing form ([`lower::Lowering::convert`]) and `rule:expressions/nullable-conversion`'s
 //!    non-throwing `as ?T` ([`lower::Lowering::convert_or_null`]). The row
 //!    still absent is ADR 0010 § 5's integer *into* an enum, in either form:
 //!    it throws on a value no case names, which needs the declaration's case
 //!    set carried to the check, and nothing here expresses one. `EnumName` ↔
 //!    `string` is not a gap — ADR 0010 § 5 leaves it out of the language.
-//!    ADR 0066 § 3's own refusals are all `nvs_types`' and none reaches here:
+//!    `rule:expressions/nullable-conversion-availability`'s own refusals are all `nvs_types`' and none reaches here:
 //!    a conversion that cannot fail (`$i as ?string`) is
 //!    `nvs_diagnostics::code::E_NULLABLE_CONVERSION_CANNOT_FAIL` and one that
 //!    does not exist at all (`$arr as ?int`) is `E_NO_CONVERSION`, that
@@ -448,7 +448,7 @@
 //!     0020's ladder. `tests/conformance/iter/an-abandoned-generator-runs-the-finally-it-is-suspended-inside.nvst`
 //!     and `tests/differential/iter/an-abandoned-generators-finally-matches-phps.nvst`
 //!     pin the rest.
-//! 19. **ADR 0090 is built; what a cross-representation pair still cannot do
+//! 19. **`rule:expressions/one-equality-operator` is built; what a cross-representation pair still cannot do
 //!     is *arithmetic*.** Every row of §§ 2, 3 and 5 lowers: `===`/`!==` no
 //!     longer lex, `== null` takes
 //!     [`lower::Lowering::lower_null_identity`]'s tag test, a same-
@@ -520,7 +520,7 @@
 //!     helper per *target*, chosen by the operand's runtime tag because
 //!     nothing static names a row — [`ir::Helper::TaggedToString`],
 //!     [`ir::Helper::ToDecimal`], and [`ir::Helper::TaggedToInt`] with its
-//!     unsigned and `float` twins, each throwing exactly where ADR 0066's
+//!     unsigned and `float` twins, each throwing exactly where `rule:expressions/nullable-conversion`'s
 //!     [`ir::Helper::ToIntOrNull`] answers `null` over the same rows in
 //!     `nvs_runtime`. So `$any as int` runs, and `$any as Mode` and
 //!     `$any as Mode::Read|Mode::Write` run through it: the recursion above
@@ -557,7 +557,7 @@
 //!     `lower::array_element_tags`' word — one tag nibble per level of `U`,
 //!     the same four bits a closure parameter's entry check compares — to
 //!     [`ir::Helper::ToArrayOf`], which walks the elements against it.
-//!     [`ir::Helper::ToArrayOfOrNull`] is ADR 0066's spelling of the same
+//!     [`ir::Helper::ToArrayOfOrNull`] is `rule:expressions/nullable-conversion`'s spelling of the same
 //!     walk, out of one implementation. The buffer is not copied: an Novis
 //!     array is copy-on-write, so the result is the operand's own allocation
 //!     under one more reference and ADR 0007 § 5's invariance is bought with
@@ -588,7 +588,7 @@
 //!
 //!     A statically settled operand needs no check and already worked, since
 //!     `nvs_types` refuses `E0470` before lowering ever sees it. `as ?"a"`
-//!     ([ADR 0066](/docs/adr/0066-nullable-conversion-operator.md)'s
+//!     (`rule:expressions/nullable-conversion`'s
 //!     non-throwing form) runs no membership test either: its yield-`null`
 //!     miss arm has no shared representation with its hit arm, so it needs a
 //!     merge the throwing form does not.

@@ -3,7 +3,7 @@
 //! `match`, the literals and the array forms.
 //!
 //! Two of its former areas are their own modules, reached the way `lower_expr`
-//! reaches any other: ADR 0007 § 2's conversions and ADR 0035's truthiness are
+//! reaches any other: ADR 0007 § 2's conversions and `rule:expressions/truthy-positions`'s truthiness are
 //! [`super::convert`], and § 4's operator table is [`super::operator`].
 //!
 //! Part of [`super`]'s one `impl Lowering`, split across this directory so a
@@ -99,7 +99,7 @@ impl<'a> Lowering<'a> {
             ExprKind::Match { subject, arms } => {
                 self.lower_match(subject, arms, expected, env, cur)
             }
-            // ADR 0119 § 6: the expression `catch` lowers to the block form —
+            // `rule:expressions/catch-lowers-to-block-form`: the expression `catch` lowers to the block form —
             // one protected region over the guarded expression, a landing pad
             // dispatching the arms, and a phi joining the values every side
             // produces. `Self::lower_catch` owns it.
@@ -161,7 +161,7 @@ impl<'a> Lowering<'a> {
                 // owns why that happens here and nowhere else.
                 self.untag_narrowed(expr.span, v, ty, *cur)
             }
-            // `!` always produces `Ty::Bool` via ADR 0035's truthy table,
+            // `!` always produces `Ty::Bool` via `rule:expressions/truthy-positions`'s truthy table,
             // regardless of `inner`'s own type — a separate arm from the plain
             // arithmetic/bitwise unary operators below, which just pass their
             // operand's own type straight through.
@@ -426,7 +426,7 @@ impl<'a> Lowering<'a> {
             // ADR 0028 § 3's `isset($x)` is `$x != null`, and a list of them
             // is the conjunction — see `Self::lower_isset`.
             ExprKind::Isset(operands) => (self.lower_isset(operands, env, cur), Ty::Bool),
-            // `empty($x)` is `!$x` — ADR 0035 § 2's truthy table negated — so
+            // `empty($x)` is `!$x` — `rule:expressions/truthy-table`'s truthy table negated — so
             // it *is* `Self::lower_not`, down to the release a fresh operand
             // owes. `nvs_types::expr::presence` marks its subscripts guarded,
             // which is what makes `empty($a["nope"])` answer `true`.
@@ -1843,7 +1843,7 @@ impl<'a> Lowering<'a> {
                 // only the comparison sees the relabelled pair.
                 let (cmp_cond_v, cmp_cond_ty) =
                     self.reinterpret_enum_to_backing(cond_v, cond_ty, &mut test_cur);
-                // ADR 0090 § 5's `mixed`-or-union row, which is the same row
+                // `rule:expressions/mixed-equality`'s `mixed`-or-union row, which is the same row
                 // `Self::lower_binary` takes for a written `==`: where either
                 // side's representation is a runtime tag there is no machine
                 // comparison to emit, so the tags decide it in
@@ -1864,7 +1864,7 @@ impl<'a> Lowering<'a> {
                     )
                 } else {
                     // Not a refusal: `nvs_types` has already made every label
-                    // comparable with the subject (`E0466`, ADR 0090 § 6), and the arm above
+                    // comparable with the subject (`E0466`, `rule:expressions/switch-match-equality`), and the arm above
                     // takes the one pairing whose types name no static row. So
                     // an arrival here is a `nvs-ir` site that lowered a label
                     // against an expectation it then did not honour.
@@ -2895,7 +2895,7 @@ impl<'a> Lowering<'a> {
     /// to, and `$params` is lowered exactly as `lower_static_call`'s `Core`
     /// branch would have lowered it. So this is not a fold — the call is still
     /// made, because percent-encoding a run-time value is run-time work — it is
-    /// ADR 0057 § 3's *preparation*, with the lookup and the path's grammar
+    /// `rule:expressions/intrinsic-literals`'s *preparation*, with the lookup and the path's grammar
     /// paid once at compile time.
     ///
     /// `$params` is borrowed like every other `Core` argument

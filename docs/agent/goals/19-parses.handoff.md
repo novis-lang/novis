@@ -7,7 +7,7 @@ Goal 18's whole list is this goal's Stage 1 floor. This is the chain's last entr
 
 The scope line matters here, and it is a *narrowing* the user chose deliberately: **this goal does not
 give `as` a class-building meaning.** The proposal it came from did, and that half was rejected — a
-session that finds itself editing the conversion table, `expr as T`'s lowering, or ADR 0066 § 3's class
+session that finds itself editing the conversion table, `expr as T`'s lowering, or `rule:expressions/nullable-conversion-availability`'s class
 row has left the goal. The three reasons are in *Standing decisions* and are not to be re-derived.
 
 What the goal is buying is one sentence made sayable. Four binding surfaces — a route `{capture}`, a
@@ -29,7 +29,7 @@ changes** — its rows at `:139` and `:148` already are the contract.
 - [ ] **Conformance owes `parse`** — `crates/nvs-types/src/conformance.rs:41` is the walk, and its own
       test at `:570` (`class Money implements Comparable {}` naming `compareTo`) is the shape to copy. A
       class claiming `Parses` with no `parse` names the member and the interface.
-- [ ] **`tryParse` is a default body on the interface, not a second required member** — ADR 0066 § 3a
+- [ ] **`tryParse` is a default body on the interface, not a second required member** — `rule:expressions/try-parse`
       condition 2, whose reason is CVE-2024-5458: `tryParse` *is* `parse` plus a caught throw. Requiring
       both would hand that failure to every implementor. The signature is
       `parse(tainted string $s): static` and `tryParse(tainted string $s): ?static`; `static` is what

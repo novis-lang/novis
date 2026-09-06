@@ -90,7 +90,7 @@ fn nvs_check_with_no_config_reports_no_grant_diagnostic() {
     // doc: no configuration read is not an empty grant set. A program checked
     // outside any project root is measured against nothing, because the door is
     // still `nvs_runtime::capability::require` and this pass only ever moves one
-    // of its refusals earlier (ADR 0057 § 4).
+    // of its refusals earlier (`rule:expressions/preparation-preserves-behaviour`).
     let dir = fixture("no-config", None);
     let out = check(&dir);
     let shown = shown(&out);

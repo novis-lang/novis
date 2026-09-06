@@ -120,7 +120,7 @@ shapes every rule in the table takes:
   with a `diverges` sentence per operand shape: two strings compare as text in Novis where PHP's `==`
   compared two numeric strings numerically; two arrays compare order-sensitively where PHP's `==` did not;
   two objects compare by identity where PHP's `==` walked property values. A **cross-type** comparison has
-  no E or D branch at all — it is ADR 0090 § 2's compile error, so the rule emits the commented-out
+  no E or D branch at all — it is `rule:expressions/disjoint-comparison-refused`'s compile error, so the rule emits the commented-out
   original plus the idiomatic shape, and a 7.x dialect and an 8.x one differ only in what the *comment*
   says the original meant.
 - **`strlen($s)`.** E when the argument is proven `bytes`, where both count bytes. D when it is `string`,

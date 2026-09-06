@@ -695,7 +695,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// `catch (Type '$'? identifier?) { ... }`. The ordinary type grammar is
     /// reused, so PHP's `catch (A | B $e)` parses here — and is refused: the
     /// binding carries one static type, so a clause naming two classes has no
-    /// type to give it. See [`Self::parse_caught_type`], which ADR 0119's
+    /// type to give it. See [`Self::parse_caught_type`], which `rule:expressions/catch-expression`'s
     /// expression arm shares, and [`code::E_CATCH_UNION_TYPE_UNSUPPORTED`].
     pub(super) fn parse_catch_clause(&mut self) -> CatchClause {
         let start = self.bump().span; // 'catch'
@@ -928,7 +928,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     // ADR 0007 § 3.3: destructuring statement
     // ------------------------------------------------------------------------
 
-    /// `list(...)` is rejected in favour of `[...]` — ADR 0050. It is still
+    /// `list(...)` is rejected in favour of `[...]` — `rule:expressions/bracket-destructuring`. It is still
     /// parsed in full (it never means anything but a destructuring target,
     /// so unlike `[...]` it collides with no expression grammar and needs no
     /// backtracking) purely so the diagnostic can span the whole construct
@@ -954,7 +954,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 stmt.span,
                 "use `[...]` instead — it is the only destructuring spelling Novis keeps",
             )
-            .with_help("the element grammar is identical inside either bracket (ADR 0050)"),
+            .with_help("the element grammar is identical inside either bracket (`rule:expressions/bracket-destructuring`)"),
         );
         Stmt {
             span: stmt.span,

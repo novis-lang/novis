@@ -56,7 +56,7 @@ echo $order, "\n";
 
 // Built directly rather than swept, the same eight tags are the same set —
 // and "the same set" is spelled with the algebra, because two collections are
-// two objects and `==` on them is identity (ADR 0090 § 4).
+// two objects and `==` on them is identity (`rule:expressions/object-identity-equality`).
 Core\ObjectSet<Tag> $expected = new Core\ObjectSet<Tag>();
 $i = 0;
 foreach ($tags as Tag $tag) {

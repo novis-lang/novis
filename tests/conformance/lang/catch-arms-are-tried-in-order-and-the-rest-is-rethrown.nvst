@@ -1,8 +1,8 @@
 --TEST--
-an expression `catch`'s arms are clauses of one guard, tried in order, and what none of them matched leaves the frame carrying the same object — ADR 0119 §§ 1 and 6
+an expression `catch`'s arms are clauses of one guard, tried in order, and what none of them matched leaves the frame carrying the same object — `rule:expressions/catch-expression` and `rule:expressions/catch-lowers-to-block-form`
 --FILE--
 <?nvs
-// ADR 0119 § 1: the arms are clauses of the one guard rather than guards of
+// `rule:expressions/catch-expression`: the arms are clauses of the one guard rather than guards of
 // each other, so the chain is the block form's "any number, tried in order;
 // the first whose class matches runs" — a supertype written first shadows the
 // arms after it, exactly as it does there.

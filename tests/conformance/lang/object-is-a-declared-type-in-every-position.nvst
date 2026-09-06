@@ -49,7 +49,7 @@ if ($either == $p) {
     echo "union ok\n";
 }
 
-// ADR 0090 § 4 makes `==` over two objects identity, and the erasure does not
+// `rule:expressions/object-identity-equality` makes `==` over two objects identity, and the erasure does not
 // touch the pointer, so the answer is the one the class-typed handles give.
 object $same = $p;
 if ($p == $same) {

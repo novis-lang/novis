@@ -1,5 +1,5 @@
 --TEST--
-`Rock::class as ?class<Animal>` is the same compile-time refusal the checked spelling is — ADR 0125 § 2 decides a written-out `::class` operand, so there is no run-time throw for ADR 0066 § 3's `?` to answer `null` for
+`Rock::class as ?class<Animal>` is the same compile-time refusal the checked spelling is — ADR 0125 § 2 decides a written-out `::class` operand, so there is no run-time throw for `rule:expressions/nullable-conversion-availability`'s `?` to answer `null` for
 --FILE--
 <?nvs
 class Animal {}

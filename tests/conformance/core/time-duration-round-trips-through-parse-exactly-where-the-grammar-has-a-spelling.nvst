@@ -39,7 +39,7 @@ echo $agree as string, "|", $refused as string, "|\n";
 // One of each, rendered, so the counts above name something.
 echo (90m)->toString(), "|", (90m)->negated()->toString(), "|\n";
 echo (0s)->toString(), "|", (0s)->negated()->toString(), "|\n";
-// Behind a binding: ADR 0057 § 1 folds this member's literal argument, so the
+// Behind a binding: `rule:expressions/intrinsic-list-is-closed` folds this member's literal argument, so the
 // sign is a compile error when it is written inline.
 string $signedText = "-1h30m";
 try {

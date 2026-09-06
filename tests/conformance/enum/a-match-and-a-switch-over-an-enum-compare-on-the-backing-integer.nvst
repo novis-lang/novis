@@ -1,5 +1,5 @@
 --TEST--
-A `match` and a `switch` whose subject is an enum compare each label on the integer its cases are (ADR 0010 §§ 3, 5, ADR 0090 § 2)
+A `match` and a `switch` whose subject is an enum compare each label on the integer its cases are (ADR 0010 §§ 3, 5, `rule:expressions/disjoint-comparison-refused`)
 --FILE--
 <?nvs
 // `Ty::Enum` is a zero-byte tag over an integer and `nvs-codegen`'s `BinOp`
@@ -42,7 +42,7 @@ try {
     echo "threw=", $t->message, "\n";
 }
 
-// The same subject through a `mixed`, which is ADR 0090 § 5's tagged row
+// The same subject through a `mixed`, which is `rule:expressions/mixed-equality`'s tagged row
 // rather than this one: the two agree, and
 // `an-operator-agrees-whether-its-operand-is-typed-or-tagged.nvst` is where
 // that agreement is asserted as an agreement.

@@ -37,7 +37,7 @@
 //!   `Core\Taint::assertTrusted` and `Core\Secret::reveal` are the obvious
 //!   neighbours and are deliberately *not* added on the strength of the
 //!   resemblance: each is its own ADR's decision to make, and widening this to
-//!   "every parameter named `$reason`" is the open extension point ADR 0057 § 1
+//!   "every parameter named `$reason`" is the open extension point `rule:expressions/intrinsic-list-is-closed`
 //!   refuses for the sibling table.
 //!
 //! # Known gaps

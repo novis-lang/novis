@@ -1,5 +1,5 @@
 --TEST--
-Core\Arr::unique, contains, diff and intersect resolve one identity table, not four — spec § 2, ADR 0090 § 3
+Core\Arr::unique, contains, diff and intersect resolve one identity table, not four — spec § 2, `rule:expressions/equality-semantics`
 --FILE--
 <?nvs
 // The depth claim is *agreement*, not another row of answers: every pair below
@@ -43,7 +43,7 @@ class Ask {
 
 var $p = new Point(1);
 
-// One row per line of ADR 0090 § 3's table, plus § 5's cross-type pairs, which
+// One row per line of `rule:expressions/equality-semantics`'s table, plus § 5's cross-type pairs, which
 // only a `mixed` element can even present to these members.
 array<array<mixed>> $rows = [
     [null, null],                                   // null: always

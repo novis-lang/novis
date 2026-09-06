@@ -82,7 +82,7 @@ Novis actually has.
 | `ctype_alnum` | dropped | `Core\Regex::matches($s, "^[\\p{L}\\p{N}]+$")` — ASCII-only as a member would be wrong on UTF-8 |
 | `ctype_alpha` | dropped | `Core\Regex::matches($s, "^\\p{L}+$")` |
 | `ctype_cntrl` | dropped | `Core\Regex::matches($s, "^\\p{Cc}+$")` |
-| `ctype_digit` | language | `$s as ?uint != null` ([ADR 0066](../adr/0066-nullable-conversion-operator.md)) — a type question, not a character class |
+| `ctype_digit` | language | `$s as ?uint != null` (`rule:expressions/nullable-conversion`) — a type question, not a character class |
 | `ctype_graph` | dropped | `Core\Validate::isPrintable` and a space test |
 | `ctype_lower` | dropped | `$s == Core\Str::lower($s)` |
 | `ctype_print` | member | `Core\Validate::isPrintable` |
@@ -518,7 +518,7 @@ needs a capability and every one is constant-foldable. Anything that has to ask 
 ## Types and conversions
 
 `as` is the only conversion spelling ([ADR 0034](../adr/0034-legacy-cast-syntax-rejected.md)), `as ?T` the
-non-throwing one ([ADR 0066](../adr/0066-nullable-conversion-operator.md)), and a declared type makes
+non-throwing one (`rule:expressions/nullable-conversion`), and a declared type makes
 almost every predicate below a question the checker has already answered.
 
 | PHP | Outcome | Novis |
@@ -1338,7 +1338,7 @@ deployment: a program reads the one key it needs through `Core\Config::get`, and
 
 | PHP | Outcome | Novis |
 |---|---|---|
-| `define` | dropped | a runtime constant table. A constant is a class member ([ADR 0011](../adr/0011-functions-and-constants-are-class-members.md)), known where it is used and foldable there ([ADR 0057](../adr/0057-intrinsic-literal-folding.md)) |
+| `define` | dropped | a runtime constant table. A constant is a class member ([ADR 0011](../adr/0011-functions-and-constants-are-class-members.md)), known where it is used and foldable there (`rule:expressions/intrinsic-literals`) |
 | `defined` | dropped | asks whether that table has a key |
 | `constant` | dropped | reads it by a string name — the dynamic lookup that makes the other three necessary |
 | `get_defined_constants` | dropped | enumerates it |

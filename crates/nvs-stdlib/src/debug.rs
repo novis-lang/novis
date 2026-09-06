@@ -255,7 +255,7 @@ fn record_of(tail: &Value) -> Result<Record, Fault> {
 /// one becomes a [`Node::Cycle`] rather than an infinite traversal.
 ///
 /// Keyed by the allocation's address, which is `nvs_runtime::identity`'s own
-/// answer for an object (ADR 0090 § 3 lowers object equality to it) — so the
+/// answer for an object (`rule:expressions/equality-semantics` lowers object equality to it) — so the
 /// id a `Cycle` names is an identity rather than a position, which is what
 /// lets the HTML rendering link the repeat.
 #[derive(Default)]

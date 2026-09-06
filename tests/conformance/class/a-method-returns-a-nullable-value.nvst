@@ -1,5 +1,5 @@
 --TEST--
-A `?T` return type carries either a value or `null` across a call — ADR 0066
+A `?T` return type carries either a value or `null` across a call — `rule:expressions/nullable-conversion`
 --FILE--
 <?nvs
 class Lookup {

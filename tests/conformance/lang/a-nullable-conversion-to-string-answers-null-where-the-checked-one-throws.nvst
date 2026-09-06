@@ -1,5 +1,5 @@
 --TEST--
-`as ?string` renders exactly what `as string` renders and answers `null` only where that one throws, over every source (ADR 0066 § 1, ADR 0007 § 2, ADR 0009 § 3)
+`as ?string` renders exactly what `as string` renders and answers `null` only where that one throws, over every source (`rule:expressions/nullable-conversion`, ADR 0007 § 2, ADR 0009 § 3)
 --FILE--
 <?nvs
 class Tag implements Stringable {
@@ -35,7 +35,7 @@ echo $tag as ?string ?? "<null>", "\n";
 echo $plain as ?string ?? "<null>", "\n";
 echo $b as ?string ?? "<null>", "\n";
 
-// ADR 0066 § 1: the two spellings differ only in what they do with a miss, so
+// `rule:expressions/nullable-conversion`: the two spellings differ only in what they do with a miss, so
 // on every row that does *not* miss they must agree. Counted rather than read
 // off a line: a twin that grew a rendering of its own fails here while still
 // printing plausibly above.
@@ -46,7 +46,7 @@ if (($tag as ?string ?? "<null>") == ($tag as string)) { $agree = $agree + 1; }
 if (($b as ?string ?? "<null>") == ($b as string)) { $agree = $agree + 1; }
 echo $agree, "\n";
 
-// The line `null` does not cross: ADR 0066 § 1's `null` stands for "this
+// The line `null` does not cross: `rule:expressions/nullable-conversion`'s `null` stands for "this
 // conversion had no answer", never for an exception the operand's own body
 // raised on the way. So a throwing `toString` propagates through both
 // spellings alike (`rule:errors/propagation`).

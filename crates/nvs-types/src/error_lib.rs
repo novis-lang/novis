@@ -47,7 +47,7 @@
 //!   built — `new RuntimeError("…", {previous: $e})` stores it, and reading
 //!   the property back yields the `Throwable|null` it was given — but that
 //!   type erases to `nvs_ir::Ty::Tagged`, so reaching `->message` on it needs
-//!   the value bound to a local and narrowed with `!= null` first (ADR 0066).
+//!   the value bound to a local and narrowed with `!= null` first (`rule:expressions/nullable-conversion`).
 //!   A property access straight off `$e->previous` is the tagged-receiver
 //!   case `nvs_ir::Ty::Tagged`'s own known gap names.
 //!

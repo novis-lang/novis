@@ -63,7 +63,7 @@ pub enum LiteralParams<'a> {
 /// against a literal params array, positional-vs-named consistency".
 ///
 /// It is [`nvs_db::sql::rewrite`] itself and deliberately not a second reader of
-/// the same grammar: ADR 0057 § 4 asks that this pass produce an earlier answer
+/// the same grammar: `rule:expressions/preparation-preserves-behaviour` asks that this pass produce an earlier answer
 /// and never a different one, which is a property of *asking the runtime's own
 /// question* rather than of two scanners being kept in step. The message handed
 /// back is the one the first call would have thrown.
@@ -72,7 +72,7 @@ pub enum LiteralParams<'a> {
 /// inside backticks is a placeholder on PostgreSQL and text on MySQL — and a
 /// call site does not name the driver its `[db.<name>]` block will resolve to.
 /// So all four are asked and the first acceptance ends it, which is the
-/// soundness direction ADR 0057 § 4 fixes: a refusal that would be a guess is
+/// soundness direction `rule:expressions/preparation-preserves-behaviour` fixes: a refusal that would be a guess is
 /// not made. Where they all refuse, PostgreSQL's wording is the one reported,
 /// since two dialects can refuse the same query over different placeholder
 /// counts.

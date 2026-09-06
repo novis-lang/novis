@@ -1,5 +1,5 @@
 --TEST--
-`==` and `!=` over two cases of one enum answer their backing integers' comparison — ADR 0090 §§ 2, 3 and ADR 0010 §§ 3, 5
+`==` and `!=` over two cases of one enum answer their backing integers' comparison — `rule:expressions/disjoint-comparison-refused` and `rule:expressions/equality-semantics` and ADR 0010 §§ 3, 5
 --FILE--
 <?nvs
 enum Rank {
@@ -32,7 +32,7 @@ final class Holder {
     }
 }
 
-// ADR 0090 § 2: an enum is its own equality domain — a case against its
+// `rule:expressions/disjoint-comparison-refused`: an enum is its own equality domain — a case against its
 // underlying integer does not compile, and neither do two different enums.
 // So the property `==` has is agreement with the comparison `rule:enums/no-class-machinery`
 // makes cheap, over every ordered pair rather than on one line.
@@ -79,7 +79,7 @@ Holder $h = new Holder(Rank::Silver);
 echo ($h->rank == Rank::Silver) as string, "|";
 echo ($h->rank == Rank::Gold) as string, "|\n";
 
-// `==` in the one position a condition tests without `as bool` (ADR 0035).
+// `==` in the one position a condition tests without `as bool` (`rule:expressions/truthy-positions`).
 if ($h->rank != Rank::Bronze) {
     echo "not bronze\n";
 }

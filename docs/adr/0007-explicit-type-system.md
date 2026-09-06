@@ -12,7 +12,7 @@
 > return — declares a type, and **a binding's declared type never changes**. A *value's* type changes only
 > where the source says so: a new binding, or the conversion operator `expr as T`, which throws rather than
 > silently losing information (`expr as ?T` yields `null` instead of throwing —
-> [ADR 0066](0066-nullable-conversion-operator.md)). The types are
+> `rule:expressions/nullable-conversion`). The types are
 > `null bool int uint float decimal string bytes array<T> object <class> callable`, plus unions
 > (`int|string`), intersections, and `mixed` — the one position that is not checked at all. `int` is signed
 > `i64`; **`uint` is unsigned**, so the full 64-bit range is representable; `float` is always `f64`. Arrays
@@ -92,7 +92,7 @@ joins `eval`, `$$var`, `goto`, `global` and `extract()` on the rejected list, wi
 
 `as` is **total in intent and checked in fact**: it either produces a value of the target type or throws. It
 never rounds, truncates, or substitutes a default. `expr as ?T` is the same operator over a nullable target
-and yields `null` exactly where `expr as T` would throw — [ADR 0066](0066-nullable-conversion-operator.md)
+and yields `null` exactly where `expr as T` would throw — `rule:expressions/nullable-conversion`
 owns which conversions admit that form.
 
 | conversion | behaviour |
@@ -119,7 +119,7 @@ Everything else is a diagnostic. A numeric literal is untyped until placed, so i
 
 The one position where a value is *tested* without `as` is a condition — `if`/`while`/`for`'s middle
 clause/`?:`/`&&`/`||`/`!` — which accepts any type and resolves PHP's full truthy table at runtime
-([ADR 0035](0035-truthy-boolean-context.md)). Every other `bool` position still needs an explicit `as bool`
+(`rule:expressions/truthy-positions`). Every other `bool` position still needs an explicit `as bool`
 or a comparison.
 
 `as` binds tighter than any binary operator, so `$a as int + 1` is `($a as int) + 1`. One grammar wrinkle:
@@ -410,7 +410,7 @@ later. Each is reachable in PHP only *because* a binding somewhere is untyped:
 | 12 | `f(...["k" => "v", "0" => "z"])` is a fatal *"Cannot use positional argument after named argument during unpacking"* | accepted — the tail is built by the one spread rule in *5*, so the string key is preserved and the integer-looking one is renumbered under the tail's own append counter. PHP refuses it because it re-reads a string key as a `name:`; Novis's variadic tail *is* the array, and a name never reaches it ([0063](0063-core-api-conventions.md) R2 is the by-name surface), so there is nothing for a later key to be out of order with. Every spread PHP does accept is byte-identical, string keys included |
 | 13 | `$i->name` on an `int` warns *"Attempt to read property"* and yields `null` | refused where it is written (`E0495`) — row 8's rule at the one storage kind a declared type already answers before the program runs. A union naming no single class takes the same code, having no one property set to resolve against. **`mixed` is the exception and keeps PHP's timing**: it is *2*'s one unchecked position, so `$m->name` defers to [ADR 0036](0036-anonymous-object-shapes.md) § 4's name-keyed fetch, which throws — in PHP's own wording — for a receiver that turns out not to be an object, and for a name its class does not carry |
 
-| 14 | `1 instanceof Box` answers `false`, PHP having no declaration to read | refused where it is written (`E0497`) — a declared scalar, `array<T>`, enum or union naming no class already answered, so the test is dead code that reads as a live question, which is the same call [ADR 0090](0090-one-equality-operator-and-disjoint-types-do-not-compile.md) makes for two statically disjoint types under `==`. **`mixed`, `object`, a shape and any union holding a class keep the run-time test**, and every non-object tag answers `false` there exactly as PHP does — deferring is what *2*'s one unchecked position is for. The class side is not a divergence at all: PHP's dynamic `$x instanceof $name` is spelled over a class reference — `$x instanceof $cls`, where `$cls` is a `class<T>` ([0125](0125-a-class-reference-is-a-type-and-as-is-its-only-source.md)) — which tests the class that value holds. A bare `string` on the right is still `E0496`, beside an enum and a `Core` class, *2* having rejected computed names: the name is checked at the `as` that produced the reference, not at the test |
+| 14 | `1 instanceof Box` answers `false`, PHP having no declaration to read | refused where it is written (`E0497`) — a declared scalar, `array<T>`, enum or union naming no class already answered, so the test is dead code that reads as a live question, which is the same call `rule:expressions/one-equality-operator` makes for two statically disjoint types under `==`. **`mixed`, `object`, a shape and any union holding a class keep the run-time test**, and every non-object tag answers `false` there exactly as PHP does — deferring is what *2*'s one unchecked position is for. The class side is not a divergence at all: PHP's dynamic `$x instanceof $name` is spelled over a class reference — `$x instanceof $cls`, where `$cls` is a `class<T>` ([0125](0125-a-class-reference-is-a-type-and-as-is-its-only-source.md)) — which tests the class that value holds. A bare `string` on the right is still `E0496`, beside an enum and a `Core` class, *2* having rejected computed names: the name is checked at the `as` that produced the reference, not at the test |
 
 | 15 | `f()[0] = 2` writes the element into the temporary the call returned and discards it — no warning, no notice, nothing observable | refused where it is written (`E0700`) — *5* separates the array before the element is written, and a temporary is nowhere for the separated copy to be written back into. The only statement this costs is one that could not have done anything, PHP's write being unobservable by construction, so no program that ran is lost. Every root that *is* storage is unaffected: a local, a property, a static property — and the receiver under a property is evaluated exactly once, PHP's own count, however deep the chain and whichever spelling writes it. A **temporary receiver's** property is included, which is the one direction this row runs the other way: 8.5.9 refuses `(new Box())->rows[0] = 2` at compile time (*"Cannot use temporary expression in write context"*) while accepting `make()->rows[0] = 2`, and Novis accepts both, the field being a slot in a heap object either way. Accepting where PHP refuses loses no program that ran. Parentheses are transparent on both sides — `($a)[0] = 2` writes `$a[0]` here exactly as it does in PHP |
 

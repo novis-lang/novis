@@ -1,5 +1,5 @@
 --TEST--
-A `Core\Heap<T>` holds one entry per `push` — duplicates and equal keys included — and `peek`/`pop` on an empty one throw rather than answering `null` — docs/spec/01-core-library.md § 9, ADR 0063 R5, ADR 0090 § 4
+A `Core\Heap<T>` holds one entry per `push` — duplicates and equal keys included — and `peek`/`pop` on an empty one throw rather than answering `null` — docs/spec/01-core-library.md § 9, ADR 0063 R5, `rule:expressions/object-identity-equality`
 --FILE--
 <?nvs
 class Task implements Comparable {
@@ -46,8 +46,8 @@ try {
 $h->push(2);
 echo "reused ", $h->count(), " ", $h->peek(), "\n";
 
-// The *same object* pushed twice is held twice, not deduplicated — ADR 0090
-// § 4 makes `==` over two objects identity, so this asks whether both pops
+// The *same object* pushed twice is held twice, not deduplicated — `rule:expressions/object-identity-equality`
+// makes `==` over two objects identity, so this asks whether both pops
 // answer the one object that went in.
 var $tasks = new Core\Heap<Task>();
 var $once = new Task("solo", 2);

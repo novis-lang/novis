@@ -162,7 +162,7 @@ try {
 #[test]
 fn two_enum_values_compare_as_their_backing_integer() {
     // `Emitter::emit_binop`'s `integral` set is `Int | Uint | Bool` and there
-    // is no `Ty::Enum` row anywhere in its table, so ADR 0090 § 2's "an enum
+    // is no `Ty::Enum` row anywhere in its table, so `rule:expressions/disjoint-comparison-refused`'s "an enum
     // is its own equality domain" is answered one representation down: the
     // lowering relabels each operand with the free `InstKind::Reinterpret`
     // ADR 0010 § 5 already spends on `$m as int`, and what arrives here is an

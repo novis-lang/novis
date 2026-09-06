@@ -395,8 +395,7 @@ impl<'a> Lowering<'a> {
             self.try_stack.push(frame);
         }
     }
-    /// [ADR 0119](/docs/adr/0119-an-expression-level-catch-is-a-typed-arm-on-one-guarded-expression.md)
-    /// § 6: `expr catch (T $e) => value` — the block form's lowering with a
+    /// `rule:expressions/catch-lowers-to-block-form`: `expr catch (T $e) => value` — the block form's lowering with a
     /// value on every edge that reaches the join.
     ///
     /// Everything structural is [`Self::lower_try`]'s, for the reasons that
@@ -416,8 +415,7 @@ impl<'a> Lowering<'a> {
     /// being an expression rather than a block:
     ///
     /// - **No `finally`.** The expression form has no spelling for one
-    ///   ([ADR 0119](/docs/adr/0119-an-expression-level-catch-is-a-typed-arm-on-one-guarded-expression.md)
-    ///   § 2), so no frame pushed here carries one and no exit out of this
+    ///   (`rule:expressions/catch-expression-precedence`), so no frame pushed here carries one and no exit out of this
     ///   region owes one. Every place [`Self::lower_catch_clauses`] lowers a
     ///   copy of a `finally` body is simply absent, which is also why no arm
     ///   body needs a frame of its own.
@@ -575,7 +573,7 @@ impl<'a> Lowering<'a> {
         (result, ty)
     }
     /// The class label a `catch` clause or an
-    /// [ADR 0119](/docs/adr/0119-an-expression-level-catch-is-a-typed-arm-on-one-guarded-expression.md)
+    /// `rule:expressions/catch-expression`
     /// arm tests against.
     ///
     /// Deliberately the *written* text rather than a resolved `QName`: this

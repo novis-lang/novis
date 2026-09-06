@@ -1,5 +1,5 @@
 --TEST--
-`Core\Str::fold` then `Core\Str::compare` is a caseless equality that contains `compare`'s own `{caseInsensitive: true}` and is strictly coarser than it, and folding a key again changes nothing — spec § 1 *Transformation*, ADR 0090 § 1
+`Core\Str::fold` then `Core\Str::compare` is a caseless equality that contains `compare`'s own `{caseInsensitive: true}` and is strictly coarser than it, and folding a key again changes nothing — spec § 1 *Transformation*, `rule:expressions/one-equality-operator`
 --FILE--
 <?nvs
 // The member's doc comment says folding is "the strict form of `compare`'s

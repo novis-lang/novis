@@ -97,8 +97,7 @@ pub fn check_program(
 /// every program compiled outside a project root, which is the opposite of
 /// what deny-by-default means here: the door is
 /// `nvs_runtime::capability::require`, and this pass only ever moves one of
-/// that door's refusals earlier ([ADR 0057](/docs/adr/0057-intrinsic-literal-folding.md)
-/// § 4). Every fixture in the tree checks with `None` for that reason, and
+/// that door's refusals earlier (`rule:expressions/preparation-preserves-behaviour`). Every fixture in the tree checks with `None` for that reason, and
 /// says nothing about capabilities at all.
 ///
 /// A second entry point rather than a sixth parameter on the first: one call

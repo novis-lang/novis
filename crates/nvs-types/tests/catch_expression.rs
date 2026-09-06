@@ -1,4 +1,4 @@
-//! The expression-level `catch` as the checker sees it — ADR 0119 §§ 3-5.
+//! The expression-level `catch` as the checker sees it — `rule:expressions/catch-arm-is-an-expression`, `rule:expressions/catch-result-type` and `rule:expressions/bare-throwable-arm-warns`.
 //!
 //! The parser's half is `nvs-syntax`'s own tests; what is held here is the
 //! part that has no syntax to point at: the result type, the arm's binding and
@@ -19,7 +19,7 @@ fn check_with_rows(body: &str) -> Diagnostics {
     ))
 }
 
-/// Whether `diags` carries ADR 0119 § 5's advisory.
+/// Whether `diags` carries `rule:expressions/bare-throwable-arm-warns`'s advisory.
 fn warns_about_discarding(diags: &Diagnostics) -> bool {
     diags
         .iter()

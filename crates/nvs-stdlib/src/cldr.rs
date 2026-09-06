@@ -145,7 +145,7 @@
 //!
 //! # Known gaps
 //!
-//! 1. **A pattern is compiled per call.** [ADR 0057](/docs/adr/0057-intrinsic-literal-folding.md)
+//! 1. **A pattern is compiled per call.** `rule:expressions/intrinsic-literals`
 //!    makes `format`/`parse` intrinsics whose *literal* pattern is validated
 //!    and prepared while compiling, which is the same work [`compile`] does
 //!    and would move it off the request path; the reported diagnostic would
@@ -443,7 +443,7 @@ pub(crate) fn compile(pattern: &str) -> Result<Vec<Piece>, String> {
 
 /// Whether `pattern` is one [`compile`] can read, for a caller that wants the
 /// refusal and not the pieces —
-/// [ADR 0057](/docs/adr/0057-intrinsic-literal-folding.md)'s fold,
+/// `rule:expressions/intrinsic-literals`'s fold,
 /// which reads a *literal* pattern while checking and reports § 3's diagnostic
 /// instead of the throw the runtime would have made.
 ///

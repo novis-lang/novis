@@ -17,7 +17,7 @@ try {
     echo "refused\n";
 }
 
-// ADR 0066's non-throwing form answers `null` on the same rows.
+// `rule:expressions/nullable-conversion`'s non-throwing form answers `null` on the same rows.
 echo ("nope" as ?decimal) ?? 0.0 as decimal, "|", ("7.5" as ?decimal) ?? 0.0 as decimal, "\n";
 
 // ADR 0054 § 3: an overflow throws rather than wrapping or reducing scale.

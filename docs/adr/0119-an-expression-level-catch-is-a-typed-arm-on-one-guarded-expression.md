@@ -1,4 +1,4 @@
-# ADR 0119 — An expression-level `catch` is a typed arm on one guarded expression, and it lowers to the block form
+# `rule:expressions/catch-expression` — An expression-level `catch` is a typed arm on one guarded expression, and it lowers to the block form
 
 - **Status:** Accepted
 - **Date:** 2026-08-30

@@ -1,5 +1,5 @@
 --TEST--
-A ternary, an elvis and a `match` whose branches lower to two representations join at one value, and the widening happens at the binding — ADR 0007 §§ 2 and 4, ADR 0035 § 1
+A ternary, an elvis and a `match` whose branches lower to two representations join at one value, and the widening happens at the binding — ADR 0007 §§ 2 and 4, `rule:expressions/truthy-positions`
 --FILE--
 <?nvs
 bool $t = true;
@@ -30,7 +30,7 @@ string $name = "ada";
 mixed $who = $t ? $name : 7;
 echo $who, " ", $name, "\n";
 
-// ADR 0035 § 1: elvis tests the condition once and reuses it as the truthy
+// `rule:expressions/truthy-positions`: elvis tests the condition once and reuses it as the truthy
 // arm, which joins against the else arm exactly as an explicit one would.
 string $empty = "";
 echo ($name ?: 0), "|", ($empty ?: 0), "\n";

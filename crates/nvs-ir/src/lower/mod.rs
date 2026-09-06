@@ -3104,7 +3104,7 @@ pub(crate) fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Opti
         // `null` alone is one value with one representation; anything that
         // admits *more* than one runtime shape is tagged. `?T` reaches here as
         // `Union([Null, T])` — the checker has no separate nullable type — so
-        // the two arms below are the whole of ADR 0066's representation.
+        // the two arms below are the whole of `rule:expressions/nullable-conversion`'s representation.
         CheckedTy::Null => Ty::Null,
         // ADR 0047 § 5 again, and the whole of what it means: there is no
         // second representation, so a union whose members all erase to one
@@ -3468,7 +3468,7 @@ pub const ARRAY_ELEMENT_TAG_LEVELS: usize = u64::BITS as usize / 4;
 /// [`Lowering::convert`](crate::lower::Lowering::convert)'s free row and wants
 /// no walk at all. That is why the caller falls through rather than asserting.
 fn array_element_tags(id: TypeId, checked_types: &TypeInterner) -> Option<u64> {
-    // ADR 0066's `as ?array<U>` asks the same question of the same target, and
+    // `rule:expressions/nullable-conversion`'s `as ?array<U>` asks the same question of the same target, and
     // the `T` node inside the sugar records no checked type of its own
     // (`Lowering::nullable_target_atoms` says why) — so the `?T` is unwrapped
     // here, where the interned `Union([Null, T])` still has it.

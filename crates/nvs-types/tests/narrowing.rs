@@ -79,7 +79,7 @@ fn a_not_null_test_narrows_the_receiver_inside_the_block() {
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
-/// The same body with no test at all is still ADR 0066's refusal — the
+/// The same body with no test at all is still `rule:expressions/nullable-conversion`'s refusal — the
 /// narrowing is what removes it, not a general relaxation of `->`.
 #[test]
 fn an_untested_nullable_receiver_is_still_refused() {
@@ -147,7 +147,7 @@ fn a_write_inside_a_loop_body_widens_the_local_after_it() {
     assert!(refuses_nullable_receiver(&diags), "{diags:?}");
 }
 
-/// ADR 0090 § 1 left one spelling, and `nvs_types::locals`' `null_test` reads
+/// `rule:expressions/one-equality-operator` left one spelling, and `nvs_types::locals`' `null_test` reads
 /// it: `!= null`/`== null` is the narrowing test, where while both operator
 /// pairs existed it had to be `!==`/`===` to stay clear of PHP's truthy table.
 /// § 2 is what keeps it a question only a *nullable* binding can be asked —

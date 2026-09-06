@@ -239,7 +239,7 @@ specific one of these proves to be a real leak vector in practice.
 
 `$provided == $expected`, where both operands are statically `secret`, lowers to a **constant-time**
 comparison helper rather than the short-circuiting one every other operand pair uses. Nothing new is
-spelled: [ADR 0090](0090-one-equality-operator-and-disjoint-types-do-not-compile.md) makes `==` the only
+spelled: `rule:expressions/one-equality-operator` makes `==` the only
 equality operator, this qualifier is already known at the comparison, and the lowering picks the helper.
 
 The gap this closes is narrow and real. [ADR 0060](0060-application-security-protocols.md) guarantees
@@ -256,7 +256,7 @@ qualifier has already poisoned the other under § 2, so the pair is `secret` and
 neither is, nothing changes.
 
 Refusing `==` on `secret` outright, and naming `Core\Hash::equals` in a diagnostic, was the alternative.
-It is more explicit at the call site and it contradicts ADR 0090's premise that `==` is the one equality
+It is more explicit at the call site and it contradicts `rule:expressions/one-equality-operator`'s premise that `==` is the one equality
 operator for everything — and it makes the qualifier awkward for a thing programs legitimately do.
 
 ## Consequences

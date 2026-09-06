@@ -179,7 +179,7 @@ crate::nvs_helper! {
 
 crate::nvs_helper! {
     /// `nvs_ir::Helper::ValueTruthy` —
-    /// [ADR 0035](/docs/adr/0035-truthy-boolean-context.md) § 2's
+    /// `rule:expressions/truthy-table`'s
     /// table over a value whose type the compiler erased, which is the table's
     /// own last row. Every other row is reached without this helper, because
     /// the operand's static type already named it:
@@ -457,8 +457,7 @@ crate::nvs_helper! {
 crate::nvs_helper! {
     /// `nvs_ir::Helper::Identical` — `==` where at least one operand is a
     /// `mixed` or a union, which is
-    /// [ADR 0090](/docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
-    /// § 5's case and the only one whose row is a runtime tag rather than a
+    /// `rule:expressions/mixed-equality`'s case and the only one whose row is a runtime tag rather than a
     /// static type. The row itself is [`crate::value_identical`], so a tagged
     /// operand and a statically typed one answer alike; a pair whose tags name
     /// different rows is `false` there, never a throw, which is why this helper
@@ -472,8 +471,7 @@ crate::nvs_helper! {
 crate::nvs_helper! {
     /// `nvs_ir::Helper::NumericEq` — `==` over two operands whose
     /// representations differ but whose types are
-    /// [ADR 0090](/docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
-    /// § 2's one numeric domain. The row is [`crate::numeric_identical`],
+    /// `rule:expressions/disjoint-comparison-refused`'s one numeric domain. The row is [`crate::numeric_identical`],
     /// which is total, so this carries no error edge; `!=` is this helper
     /// under an `nvs_ir::UnOp::Not`, the arrangement [`nvs_decimal_eq`]
     /// already uses.
@@ -1320,7 +1318,7 @@ fn numeric_does_not_fit(what: &str, target: &str) -> Fault {
 /// tag-dispatching [`to_int`]/[`to_uint`]/[`to_float`], which every operand
 /// whose representation is `nvs_ir::ty::Ty::Tagged` reaches instead. Those
 /// three are read twice each — once throwing, once answering `null` for
-/// [ADR 0066](/docs/adr/0066-nullable-conversion-operator.md)'s
+/// `rule:expressions/nullable-conversion`'s
 /// `expr as ?T`. That ADR's "one implementation now exists because there is one
 /// operation" is what this split makes true rather than promised — the throwing
 /// and the nullable form cannot drift apart, because there is one row.
@@ -1508,7 +1506,7 @@ crate::nvs_helper! {
 
 /// The operand's bytes as text, for the two `string` rows — `None` where a
 /// `Tag::Str` payload is not UTF-8, which is a failed conversion for
-/// ADR 0066's form rather than the miscompile [`numeric_text`] reports.
+/// `rule:expressions/nullable-conversion`'s form rather than the miscompile [`numeric_text`] reports.
 fn str_operand(value: &Value) -> Option<&str> {
     str::from_utf8(value.as_str_bytes()?).ok()
 }
@@ -1517,7 +1515,7 @@ fn str_operand(value: &Value) -> Option<&str> {
 /// `None` where the row fails *or* where no row exists at all.
 ///
 /// Dispatching on the tag is why one function covers every source. That is not
-/// a shortcut: it is what makes ADR 0066 § 2's "a `null` operand yields `null`"
+/// a shortcut: it is what makes `rule:expressions/nullable-conversion`'s "a `null` operand yields `null`"
 /// and § 3's "from `mixed` every target has a checked path" the same code as
 /// `"42" as ?int`, with no branch in lowering and no second implementation of
 /// any row (see [`row`]). A tag ADR 0007 § 2 defines no row from — an array, an
@@ -1528,7 +1526,7 @@ fn str_operand(value: &Value) -> Option<&str> {
 /// Two helpers read it and never a third, the arrangement [`to_decimal`] also
 /// uses: `nvs_tagged_to_int` turns a `None` into [`does_not_fit`] for
 /// `$mixed as int`, and `nvs_to_int_or_null` turns the same `None` into `null`
-/// for ADR 0066's `as ?int`. Neither can drift from the other, because there is
+/// for `rule:expressions/nullable-conversion`'s `as ?int`. Neither can drift from the other, because there is
 /// one row set.
 fn to_int(value: Value) -> Option<i64> {
     match value.tag() {
@@ -1618,7 +1616,7 @@ crate::nvs_helper! {
 }
 
 crate::nvs_helper! {
-    /// `nvs_ir::Helper::ToIntOrNull` — ADR 0066 § 1's non-throwing form of
+    /// `nvs_ir::Helper::ToIntOrNull` — `rule:expressions/nullable-conversion`'s non-throwing form of
     /// [`nvs_tagged_to_int`], sharing [`to_int`]'s one implementation of every
     /// row.
     fn nvs_to_int_or_null(_ctx, args: [1]) {
@@ -1855,7 +1853,7 @@ crate::nvs_helper! {
     }
 }
 
-/// [ADR 0066](/docs/adr/0066-nullable-conversion-operator.md) § 1's
+/// `rule:expressions/nullable-conversion`'s
 /// `as ?string`: [`fn@stringify`]'s answer, with `null` exactly where that one
 /// throws.
 ///
@@ -2002,7 +2000,7 @@ crate::nvs_helper! {
 }
 
 crate::nvs_helper! {
-    /// `nvs_ir::Helper::ToBytesOrNull` — ADR 0066 § 1's non-throwing form of
+    /// `nvs_ir::Helper::ToBytesOrNull` — `rule:expressions/nullable-conversion`'s non-throwing form of
     /// [`nvs_tagged_to_bytes`], sharing [`to_bytes`]'s one implementation of
     /// both rows. Nothing here can fault on the way, so unlike
     /// [`stringify_or_null`] there is no exception of the program's own to keep
@@ -2150,7 +2148,7 @@ crate::nvs_helper! {
 }
 
 crate::nvs_helper! {
-    /// `nvs_ir::Helper::ToArrayOfOrNull` — ADR 0066 § 1's non-throwing form of
+    /// `nvs_ir::Helper::ToArrayOfOrNull` — `rule:expressions/nullable-conversion`'s non-throwing form of
     /// [`nvs_to_array_of`], over [`to_array_of`]'s one implementation of the
     /// walk. Nothing here can fault on the way, so like [`nvs_to_bytes_or_null`]
     /// there is no exception of the program's own to keep out of the `null`.
@@ -2321,7 +2319,7 @@ fn spaceship(ordering: Option<core::cmp::Ordering>) -> i64 {
 }
 
 crate::nvs_helper! {
-    /// `nvs_ir::Helper::DecimalTruthy` — ADR 0035's numeric row: falsy iff
+    /// `nvs_ir::Helper::DecimalTruthy` — `rule:expressions/truthy-positions`'s numeric row: falsy iff
     /// zero, at any scale.
     fn nvs_decimal_truthy(_ctx, args: [1]) {
         Ok(Value::bool(!decimal_operand("nvs_decimal_truthy", args[0])?.is_zero()))
@@ -2358,7 +2356,7 @@ crate::nvs_helper! {
 }
 
 crate::nvs_helper! {
-    /// `nvs_ir::Helper::ToDecimalOrNull` — ADR 0066 § 1's non-throwing form
+    /// `nvs_ir::Helper::ToDecimalOrNull` — `rule:expressions/nullable-conversion`'s non-throwing form
     /// of [`to_decimal`], sharing its one implementation of every row exactly
     /// as `nvs_to_int_or_null` shares [`row`]'s.
     fn nvs_to_decimal_or_null(_ctx, args: [1]) {
@@ -2653,7 +2651,7 @@ crate::nvs_helper! {
     }
 }
 
-/// [ADR 0035](/docs/adr/0035-truthy-boolean-context.md)'s truthy
+/// `rule:expressions/truthy-positions`'s truthy
 /// table, applied to a value whose type is known only at runtime.
 ///
 /// The per-type helpers above are what compiled code reaches wherever a static
@@ -2664,8 +2662,7 @@ crate::nvs_helper! {
 /// a [`Value`] a closure just returned, whose static type is `callable`'s
 /// opaque result and therefore nothing; and compiled code holding a
 /// `nvs_ir::ty::Ty::Tagged` operand — a `mixed`, a union, a `?T` no test
-/// narrowed — reaches it through [`nvs_value_truthy`], which is ADR 0035
-/// § 2's own last table row rather than a fallback below it.
+/// narrowed — reaches it through [`nvs_value_truthy`], which is `rule:expressions/truthy-table`'s own last table row rather than a fallback below it.
 ///
 /// One divergence lives here and it is not this function's to fix: **an enum
 /// case tagged into a `mixed` reads as its backing integer**, so a case backed
@@ -2686,14 +2683,14 @@ pub fn value_truthy(value: Value) -> bool {
         Some(Tag::Int) => value.as_int().is_some_and(|n| n != 0),
         Some(Tag::Uint) => value.as_uint().is_some_and(|n| n != 0),
         Some(Tag::Float) => value.as_float().is_some_and(|n| n != 0.0),
-        // ADR 0035's numeric row, at `decimal`'s own precision: falsy iff the
+        // `rule:expressions/truthy-positions`'s numeric row, at `decimal`'s own precision: falsy iff the
         // value is zero, at any scale.
         Some(Tag::Decimal) => value.as_decimal().is_some_and(|d| !d.is_zero()),
         Some(Tag::Str) => value
             .as_str_bytes()
             .is_some_and(|bytes| !(bytes.is_empty() || bytes == b"0")),
         // Empty is falsy and everything else is truthy — deliberately *not*
-        // `string`'s row. ADR 0035's table names no `bytes` case at all,
+        // `string`'s row. `rule:expressions/truthy-positions`'s table names no `bytes` case at all,
         // because PHP has no such type, and the one place the two rows differ
         // is `"0"`, which is PHP's numeric-string rule; a `bytes` never
         // converts to a number, so carrying that quirk over would make a

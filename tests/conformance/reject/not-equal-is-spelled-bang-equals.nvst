@@ -1,5 +1,5 @@
 --TEST--
-`<>` is refused as a second spelling of `!=`, at the lexer and by name — ADR 0090 § 1
+`<>` is refused as a second spelling of `!=`, at the lexer and by name — `rule:expressions/one-equality-operator`
 --FILE--
 <?nvs
 // The comparison itself is legitimate; only the spelling is not, so the

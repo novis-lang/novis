@@ -33,8 +33,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// of its problems in the same run.
     ///
     /// `help` is the caller's: the block form's fix is another clause and
-    /// [ADR 0119](/docs/adr/0119-an-expression-level-catch-is-a-typed-arm-on-one-guarded-expression.md)
-    /// § 1's is another arm. The message above it is shared, since § 1 makes
+    /// `rule:expressions/catch-expression`'s is another arm. The message above it is shared, since § 1 makes
     /// an arm a clause of one guard and "a `catch` clause names one class" is
     /// true of both.
     pub(super) fn parse_caught_type(&mut self, help: &str) -> Type {

@@ -314,7 +314,7 @@ fn a_ternary_expressions_type_mismatch_is_diagnosed() {
 
 #[test]
 fn a_class_type_still_refuses_the_nullable_conversion() {
-    // ADR 0066 § 3's class row, which is **absolute**: `as` converts between
+    // `rule:expressions/nullable-conversion-availability`'s class row, which is **absolute**: `as` converts between
     // the types ADR 0007 § 2 tabulates, and none of them is a class.
     // `instanceof` plus ADR 0007 § 6's narrowing answers class membership,
     // and § 3a's `tryParse` answers a parse.
@@ -347,7 +347,7 @@ fn a_class_type_still_refuses_the_nullable_conversion() {
 
 #[test]
 fn a_try_parse_answers_the_nullable_of_its_class() {
-    // ADR 0066 § 3a: the member that replaced the withdrawn roster. It reads
+    // `rule:expressions/try-parse`: the member that replaced the withdrawn roster. It reads
     // one `string` and answers `?T`, so a `?Core\Uri` binding accepts it...
     let diags = check_src(
         "<?nvs\nclass T {\n  function m(string $s): void {\n    ?Core\\Uri $v = Core\\Uri::tryParse($s);\n  }\n}\n",

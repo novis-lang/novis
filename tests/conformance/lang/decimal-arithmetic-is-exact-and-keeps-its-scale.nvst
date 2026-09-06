@@ -26,7 +26,7 @@ echo 1234567890123456789012345.6789 as decimal, "\n";
 echo 1.00 as decimal / 3, "\n";
 echo 1 as decimal / 8, "\n";
 
-// A negative, a zero at scale, and ADR 0035's truthy row.
+// A negative, a zero at scale, and `rule:expressions/truthy-positions`'s truthy row.
 decimal $zero = 0.00;
 echo 0 - $price, "|", $zero, "|", ($zero ? "yes" : "no"), "|", ($price ? "yes" : "no"), "\n";
 --EXPECT--

@@ -169,7 +169,7 @@ impl Decimal {
         }
     }
 
-    /// Whether this is zero, at any scale — what ADR 0035's truthy table asks.
+    /// Whether this is zero, at any scale — what `rule:expressions/truthy-positions`'s truthy table asks.
     #[must_use]
     pub const fn is_zero(self) -> bool {
         self.mantissa == 0

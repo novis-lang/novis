@@ -16,7 +16,7 @@
 //! enum and a conversion between two of them.
 //!
 //! Two more refusals are about which operands may *meet* rather than what they
-//! produce. ADR 0090 § 2 refuses `==`/`!=` between two statically **disjoint**
+//! produce. `rule:expressions/disjoint-comparison-refused` refuses `==`/`!=` between two statically **disjoint**
 //! types ([`reject_disjoint_equality`]), and its § 6 points a `switch` label
 //! and a `match` arm at the same check; ADR 0069 § 2 refuses `+`/`+=` with an
 //! array operand ([`reject_array_combination`]), naming `Core\Arr::underlay`.
@@ -35,7 +35,7 @@
 //! ([`reject_enum_to_enum_conversion`], and ADR 0047 § 6's
 //! [`reject_impossible_literal_conversion`] for a conversion whose operand
 //! already names a value the target's closed set does not contain), plus
-//! ADR 0066 § 3's target rule for `as ?T`
+//! `rule:expressions/nullable-conversion-availability`'s target rule for `as ?T`
 //! ([`check_class_target_conversion`]: every class target is refused, with no
 //! exceptions — § 3a's `tryParse` is the member that answers instead), plus
 //! the table's own closure ([`reject_unconvertible`]: § 2 is a *closed* list
@@ -95,7 +95,7 @@ pub(crate) fn infer_conversion(
     };
     // The *object* half only: `as string` is the explicit conversion, and
     // ADR 0007 § 2's table grants it rows — `bytes` among them — that no
-    // implicit site gets. ADR 0066 § 3 row 1 makes `as ?string` available
+    // implicit site gets. `rule:expressions/nullable-conversion-availability` row 1 makes `as ?string` available
     // exactly where `as string` is a row, so the sugar asks the same question
     // of the `T` inside it: an object that cannot render is neither.
     let string_target = nullable_inner_target(result, env).unwrap_or(result);
@@ -108,7 +108,7 @@ pub(crate) fn infer_conversion(
     check_class_target_conversion(ty, result, expr.span, env);
     // The two tables are one question asked of two spellings. `as ?T` interns
     // as `Union([Null, T])`, which is one `ConvKind::Wide` target and so says
-    // nothing to the table below — ADR 0066 § 3 is what judges it, over the
+    // nothing to the table below — `rule:expressions/nullable-conversion-availability` is what judges it, over the
     // `T` inside the sugar, and it refuses one row the plain form has no
     // reason to look at.
     if is_written_nullable(ty) {
@@ -152,7 +152,7 @@ fn reject_impossible_class_reference_conversion(
     let ExprKind::ClassNameConst { class } = &inner.kind else {
         return;
     };
-    // Under `as ?class<T>` as well, and by the same sentence: ADR 0066 § 3
+    // Under `as ?class<T>` as well, and by the same sentence: `rule:expressions/nullable-conversion-availability`
     // makes the sugar answer `null` where the checked form throws, and § 2's
     // written-out operand never throws — it is decided here — so a name
     // outside `T`'s hierarchy has no run-time failure for the `?` to convert
@@ -207,7 +207,7 @@ fn reject_impossible_class_reference_conversion(
 /// A name outside the set and a name naming a `private` property are one
 /// failure with one message, which is § 2's sentence: visibility is decided at
 /// the conversion, once. Under `as ?property<T>` as well, for
-/// [ADR 0066](/docs/adr/0066-nullable-conversion-operator.md) § 3's
+/// `rule:expressions/nullable-conversion-availability`'s
 /// reason the sibling states — the sugar answers `null` where the checked form
 /// throws, and an operand decided here never had a throw to convert.
 ///
@@ -404,8 +404,7 @@ pub(crate) fn binary_result(
     }
 }
 
-/// [ADR 0090](/docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
-/// § 2: a comparison whose two static types are **disjoint** — no single value
+/// `rule:expressions/disjoint-comparison-refused`: a comparison whose two static types are **disjoint** — no single value
 /// inhabits both — is a compile error, because the compiler already knows the
 /// answer and the author did not mean to write it. Reported for `==`/`!=` from
 /// [`binary_result`] and, per that ADR's § 6, for a `switch` label and a
@@ -449,7 +448,7 @@ pub(crate) fn reject_disjoint_equality(lhs: TypeId, rhs: TypeId, span: Span, env
     );
 }
 
-/// Whether no single value inhabits both `lhs` and `rhs` — ADR 0090 § 2's
+/// Whether no single value inhabits both `lhs` and `rhs` — `rule:expressions/disjoint-comparison-refused`'s
 /// table, read as a *disjointness* question rather than an equality-of-types
 /// one, which is what keeps every shape ordinary code writes compiling.
 ///
@@ -489,7 +488,7 @@ fn types_are_disjoint(lhs: TypeId, rhs: TypeId, env: &Env<'_>) -> bool {
     }
 }
 
-/// The domains ADR 0090 § 2's table partitions comparable types into: two
+/// The domains `rule:expressions/disjoint-comparison-refused`'s table partitions comparable types into: two
 /// values can only ever be equal when their types land in the same one.
 /// `None` means "not modeled", and [`types_are_disjoint`] owns what that
 /// buys.
@@ -545,7 +544,7 @@ fn equality_domain(ty: &Ty) -> Option<EqDomain<'_>> {
         // so it lands in its base's domain and nothing more: `$mode == "z"`
         // where `$mode` is `"a"|"b"` compares two strings and is answered at
         // run time. Refusing it because the two literal *sets* do not overlap
-        // would be a new row in ADR 0090 § 2's table, not a consequence of
+        // would be a new row in `rule:expressions/disjoint-comparison-refused`'s table, not a consequence of
         // this one.
         Ty::StringLiteral(_) => EqDomain::Str,
         Ty::IntLiteral(_) => EqDomain::Numeric,
@@ -741,7 +740,7 @@ fn reject_void_operand(
 ///
 /// [`reject_void_operand`] above objects that ADR 0007 § 4's table has no row
 /// for a value that is not one. A condition is the one position that table is
-/// not about — ADR 0035 § 2's truthy table is, and it has a row for every type
+/// not about — `rule:expressions/truthy-table`'s truthy table is, and it has a row for every type
 /// there is, which is exactly why the missing value shows up here as nothing
 /// at all rather than as a mismatch. So the two refusals are one sentence
 /// apart and take two codes: [`code::E_VOID_IS_NOT_A_CONDITION`]'s own doc
@@ -763,7 +762,7 @@ pub(crate) fn reject_void_condition(ty: TypeId, span: Span, env: &mut Env<'_>) {
         )
         .with_primary(span, "tested here")
         .with_help(
-            "ADR 0035 § 2's truthy table is over values, and a `void` call is not one; give the \
+            "`rule:expressions/truthy-table`'s truthy table is over values, and a `void` call is not one; give the \
              callee a return type and `return` from it, or call it as its own statement",
         ),
     );
@@ -1416,7 +1415,7 @@ pub(crate) fn report_int_uint(span: Span, env: &mut Env<'_>) {
 /// operand it would silently pass through unchanged is refused here instead,
 /// naming `as int`.
 ///
-/// Only the three arithmetic prefixes: `!` is ADR 0035's truthy test, which
+/// Only the three arithmetic prefixes: `!` is `rule:expressions/truthy-positions`'s truthy test, which
 /// every type is legal in, and `@` never reaches the checker at all — the
 /// parser refuses it as `E0236`.
 pub(crate) fn reject_unary_arith_operand(op: UnaryOp, ty: TypeId, span: Span, env: &mut Env<'_>) {
@@ -1514,7 +1513,7 @@ pub(crate) fn reject_increment_on_non_numeric(ty: TypeId, span: Span, env: &mut 
     );
 }
 
-/// [ADR 0066](/docs/adr/0066-nullable-conversion-operator.md) § 3's
+/// `rule:expressions/nullable-conversion-availability`'s
 /// class row, which is **absolute**: `as` converts between the types ADR 0007
 /// § 2 tabulates and ADR 0047's literal and enum-case types, and none of those
 /// is a class. `$obj as ?SomeClass` asks class membership, which `instanceof`
@@ -1546,8 +1545,7 @@ fn check_class_target_conversion(ty: &Type, to: TypeId, span: Span, env: &mut En
         return;
     };
     // `Core\Uri` and `Core\Uuid` reach this arm like every other class, and
-    // the help names `tryParse` for them because that is the member ADR 0066
-    // § 3a leaves standing — the whole point of the withdrawal is that they
+    // the help names `tryParse` for them because that is the member `rule:expressions/try-parse` leaves standing — the whole point of the withdrawal is that they
     // are not special here.
     let help = if nvs_stdlib::registry::TRY_PARSE_CLASSES.contains(&class.as_str()) {
         format!(
@@ -1609,7 +1607,7 @@ fn nullable_class_target(to: TypeId, env: &Env<'_>) -> Option<String> {
     }
 }
 
-/// ADR 0066 § 3's table, which is ADR 0007 § 2's asked one row further on:
+/// `rule:expressions/nullable-conversion-availability`'s table, which is ADR 0007 § 2's asked one row further on:
 /// **a conversion that exists and failed is `null`; a conversion that does
 /// not exist is a diagnostic** — and a conversion that cannot fail is a
 /// diagnostic too, because the `?` then promises a `null` no run produces.
@@ -1646,14 +1644,14 @@ fn reject_unavailable_nullable_conversion(from: TypeId, to: TypeId, span: Span, 
         )
         .with_primary(span, "converted here")
         .with_help(format!(
-            "write `as {described_to}`: ADR 0066 § 3 makes a `?T` that is never `null` a compile \
+            "write `as {described_to}`: `rule:expressions/nullable-conversion-availability` makes a `?T` that is never `null` a compile \
              error, since every reader after it then has to check for a value the conversion \
              cannot produce"
         )),
     );
 }
 
-/// Whether `as ?T` would answer `null` on no value at all — ADR 0066 § 3's
+/// Whether `as ?T` would answer `null` on no value at all — `rule:expressions/nullable-conversion-availability`'s
 /// "a conversion that **cannot fail**" row.
 ///
 /// The scalar rows are the `false` arms of `nvs_ir::lower::expr`'s own
@@ -1665,8 +1663,7 @@ fn reject_unavailable_nullable_conversion(from: TypeId, to: TypeId, span: Span, 
 ///
 /// Two rows are this side's alone, because a representation cannot see them:
 /// a value that already *is* one of the target's (`?int as ?int`,
-/// `Mode::Read as ?Mode` — every case of `Mode` is a `Mode`), and ADR 0066
-/// § 3 row 2's literal, enum-case and whole-enum targets, whose membership
+/// `Mode::Read as ?Mode` — every case of `Mode` is a `Mode`), and `rule:expressions/nullable-conversion-availability` row 2's literal, enum-case and whole-enum targets, whose membership
 /// test is fallible however the base representation reads.
 fn nullable_conversion_is_total(from: TypeId, to: TypeId, inner: TypeId, env: &Env<'_>) -> bool {
     // `?int as ?int` is R17's forbidden second spelling and `$i as ?int` the
@@ -1723,7 +1720,7 @@ fn nullable_conversion_is_total(from: TypeId, to: TypeId, inner: TypeId, env: &E
     }
 }
 
-/// Whether the target is one of ADR 0066 § 3 row 2's **closed** sets — a
+/// Whether the target is one of `rule:expressions/nullable-conversion-availability` row 2's **closed** sets — a
 /// literal type, an enum case, or a whole enum — where the conversion is a
 /// membership test that a value of the right representation can still miss.
 /// Their base representation reads as free ([`conversion_kind`] folds
@@ -1750,7 +1747,7 @@ fn is_closed_value_target(to: TypeId, env: &Env<'_>) -> bool {
 /// The rows are that table's own, plus the three it delegates to: ADR 0009 § 3
 /// for `string` ↔ `bytes`, ADR 0054 § 4 for `decimal`, and ADR 0010 § 5 for an
 /// enum and its backing type. Two are not in any ADR's table and are here
-/// because they are true of every type — ADR 0035's `as bool`, which is the
+/// because they are true of every type — `rule:expressions/truthy-positions`'s `as bool`, which is the
 /// condition's own test said out loud, and the widening into a target that
 /// admits more than one runtime shape.
 ///
@@ -1821,7 +1818,7 @@ fn reject_unconvertible(from: TypeId, to: TypeId, span: Span, env: &mut Env<'_>)
 /// Two refusals are left, and they are the two halves of "can this conversion
 /// be *checked*". A target naming a declared class is checked by testing the
 /// value's runtime class, so what it refuses is the pair with **no value in
-/// common** — `types_are_disjoint`'s question, ADR 0090 § 2's, asked of a
+/// common** — `types_are_disjoint`'s question, `rule:expressions/disjoint-comparison-refused`'s, asked of a
 /// conversion rather than of an equality. `$foo as Bar` between two unrelated
 /// classes was worse than a panic before this refusal, because both erase to
 /// `nvs_ir::ty::Ty::Object` and the conversion therefore took
@@ -2100,7 +2097,7 @@ fn conversion_row_exists(from: ConvKind, to: ConvKind) -> bool {
         // operand's tag's and no static pair can be judged. `mixed` is the
         // whole of ADR 0007 § 6 here.
         (Wide, _) | (_, Wide) => true,
-        // ADR 0035, which makes a condition the one place a value is tested
+        // `rule:expressions/truthy-positions`, which makes a condition the one place a value is tested
         // without `as` — so `as bool` is that same test written out, and it
         // has an answer for every type the table above did not already
         // exclude.
@@ -2322,8 +2319,7 @@ pub(crate) fn reject_enum_to_enum_conversion(
 /// to compile.
 ///
 /// This is deliberately not [`types_are_disjoint`]'s business.
-/// [ADR 0090](/docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
-/// § 2 puts a literal type in its base type's domain, so `$mode == "z"` stays
+/// `rule:expressions/disjoint-comparison-refused` puts a literal type in its base type's domain, so `$mode == "z"` stays
 /// an ordinary run-time string comparison; what is refused here is a
 /// *conversion* that can only throw, which is a different question reaching a
 /// different answer.

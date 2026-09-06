@@ -1,4 +1,4 @@
-# ADR 0090 — `==` is the only equality operator, and comparing two disjoint types does not compile
+# `rule:expressions/one-equality-operator` — `==` is the only equality operator, and comparing two disjoint types does not compile
 
 - **Status:** Accepted
 - **Date:** 2026-08-25
@@ -39,8 +39,8 @@
   binding declare a type, and [ADR 0034](0034-legacy-cast-syntax-rejected.md) makes `as` the only
   conversion spelling. Carrying both operators forward would carry the scar without the wound.
 - **This repository already refuses redundant spellings on exactly this reasoning.**
-  [ADR 0045](0045-and-or-xor-keyword-operators-rejected.md) deleted `and`/`or`/`xor` because `&&`/`||`
-  already say it; [ADR 0050](0050-list-destructuring-spelling-rejected.md) deleted `list(…)`;
+  `rule:expressions/no-keyword-logical-operators` deleted `and`/`or`/`xor` because `&&`/`||`
+  already say it; `rule:expressions/bracket-destructuring` deleted `list(…)`;
   `rule:statements/nvs-is-the-only-open-tag` refuses a second open tag and a second
   termination keyword; `rule:statements/nothing-gets-a-second-name` is the general rule. Two operators that
   compile to one instruction is the same finding.

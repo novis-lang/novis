@@ -282,9 +282,9 @@ PHP and a borrowed PHP grammar therefore gets wrong:
 - `#[...]` **attributes**, distinguished from a `#` comment — the lexer already makes that distinction at
   `#[`, and a grammar that does not will colour every attribute in the file as a comment.
 - **Nothing that Novis rejects may be coloured as though it were valid**: `===`/`!==` are not operators
-  ([ADR 0090](0090-one-equality-operator-and-disjoint-types-do-not-compile.md) § 1), legacy casts `(int)$x` are not casts
+  (`rule:expressions/one-equality-operator`), legacy casts `(int)$x` are not casts
   ([ADR 0034](0034-legacy-cast-syntax-rejected.md)), `|>` is not an operator in PHP 8.5's sense
-  ([ADR 0098](0098-pipeline-operator-is-a-hole-substituted-at-parse-time.md)) and the alternative colon
+  (`rule:expressions/pipeline-substitution`) and the alternative colon
   syntax (`if (...): ... endif;`) is not syntax at all. A grammar that colours these confirms a mistake in
   the editor before the server contradicts it, which is worse than no colour.
 

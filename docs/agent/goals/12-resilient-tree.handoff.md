@@ -35,5 +35,5 @@ cost twice.
 - Stages 6 and 7 (`nvs-test`'s section lexer; `nvs ast --json`) are each one file set of their own.
 - **Off path:** `nvs lsp-test`, the `.lspt` format itself, and anything under `editors/`. Those are
   goals 14 and 15. `## Backlog` and move on.
-- When this goal's last check goes green the chain advances to goal 13 — ADR 0098's pipeline operator
+- When this goal's last check goes green the chain advances to goal 13 — `rule:expressions/pipeline-substitution`'s pipeline operator
   and ADR 0124's PHP 8.6 refusals, the two front-end items the editor's grammar must colour correctly.

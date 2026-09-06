@@ -37,7 +37,7 @@ echo (999ns)->negated()->toMicroseconds() as string, "|", (1000ns)->negated()->t
 // rendering is the whole unit table at once, which is the round trip's widest
 // row: every unit carries into the one above it and nothing is left over.
 echo Core\Time\Duration::parse("9223372036854775807ns")->toString(), "|\n";
-// The refused half is written behind a binding, because ADR 0057 § 1 folds
+// The refused half is written behind a binding, because `rule:expressions/intrinsic-list-is-closed` folds
 // this member's literal argument: inline, one nanosecond past the ceiling is
 // refused while checking and this case would never run.
 string $pastCeiling = "9223372036854775808ns";

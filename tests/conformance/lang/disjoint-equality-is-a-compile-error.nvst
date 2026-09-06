@@ -1,5 +1,5 @@
 --TEST--
-Two operands whose static types cannot both hold one value are refused before anything runs, ADR 0090 § 2
+Two operands whose static types cannot both hold one value are refused before anything runs, `rule:expressions/disjoint-comparison-refused`
 --FILE--
 <?nvs
 // One row of that ADR's table per comparison, and every one of them is

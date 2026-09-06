@@ -30,8 +30,8 @@ echo Core\Time::parse("24-06-01", "yy-MM-dd", $berlin)->format("yyyy-MM-dd"), "|
 // arguments wrong reports the pattern — which is what makes this the class a
 // caller sees first.
 //
-// Each pattern is read out of a variable: `Core\Time::parse` is on ADR 0057
-// § 1's list, so its *literal* form is refused while compiling instead, and
+// Each pattern is read out of a variable: `Core\Time::parse` is on `rule:expressions/intrinsic-list-is-closed`
+// 's list, so its *literal* form is refused while compiling instead, and
 // § 2's division leaves the computed spelling as the one whose class a `catch`
 // can still name.
 string $weekYears = "yyyy-MM-dd Y";

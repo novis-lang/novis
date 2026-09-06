@@ -293,7 +293,7 @@ pub enum BinaryOp {
     And,
     /// `||`
     Or,
-    // `==` and `!=` are the whole of equality: ADR 0090 § 1 makes `===`/`!==`
+    // `==` and `!=` are the whole of equality: `rule:expressions/one-equality-operator` makes `===`/`!==`
     // a rejected spelling the lexer names, so there is no second pair here.
     Eq,
     NotEq,
@@ -611,11 +611,10 @@ pub struct MatchArm {
     pub span: Span,
 }
 
-/// One arm of an expression-level `catch` — ADR 0119 § 1.
+/// One arm of an expression-level `catch` — `rule:expressions/catch-expression`.
 ///
 /// Deliberately not a [`CatchClause`]: an arm's body is an [`Expr`] where a
-/// clause's is a [`Block`], and that one difference is the whole of ADR 0119
-/// § 3 — `throw` is admitted because it is already an expression, and `return`
+/// clause's is a [`Block`], and that one difference is the whole of `rule:expressions/catch-arm-is-an-expression` — `throw` is admitted because it is already an expression, and `return`
 /// is refused because it is not.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CatchArm {
@@ -952,7 +951,7 @@ pub enum ExprKind {
         /// The arms, in source order.
         arms: Vec<MatchArm>,
     },
-    /// `expr catch (T $e) => expr`, with any number of arms — ADR 0119.
+    /// `expr catch (T $e) => expr`, with any number of arms — `rule:expressions/catch-expression`.
     Catch {
         /// The one guarded expression: everything the ternary level parsed.
         guarded: Box<Expr>,

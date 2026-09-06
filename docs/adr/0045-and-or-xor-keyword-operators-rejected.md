@@ -1,4 +1,4 @@
-# ADR 0045 — PHP's `and`/`or`/`xor` keyword operators are rejected; `&&`/`||` are the only logical connectives
+# `rule:expressions/no-keyword-logical-operators` — PHP's `and`/`or`/`xor` keyword operators are rejected; `&&`/`||` are the only logical connectives
 
 - **Status:** Accepted
 - **Date:** 2026-08-22
@@ -30,7 +30,7 @@
 - The status quo was already a half-built feature, not a working one: `nvs-syntax` parses `and`/`or`/`xor`
   into `BinaryOp::LowAnd`/`LowOr`/`LowXor`, and `nvs-types` type-checks them to `bool` — but `nvs-ir`
   deliberately never lowers them ([`lower_expr_top`'s doc comment](../../crates/nvs-ir/src/lower/expr.rs) names
-  ADR 0035 as covering only `&&`/`||`/`!`, and the crate's own known-gaps list repeats this). Any program
+  `rule:expressions/truthy-positions` as covering only `&&`/`||`/`!`, and the crate's own known-gaps list repeats this). Any program
   that reached one at codegen already hit `nvs-ir`'s "arithmetic/equality/ordering operators" panic. Nothing
   observable is lost by rejecting them outright; a category of previously-reachable panic is closed instead.
 - Two spellings of one operation, with different precedence to boot, is exactly the shape
@@ -47,7 +47,7 @@ the same way ADR 0034 dropped `ExprKind::Cast`.
 ### 1. `&&`/`||` are the only surviving logical connectives
 
 There is no second, lower-precedence spelling of AND or OR. `$a && $b` and `$a || $b` — already the sole
-short-circuit truthy positions ADR 0035 names — are now also the *only* way to spell those connectives at
+short-circuit truthy positions `rule:expressions/truthy-positions` names — are now also the *only* way to spell those connectives at
 all. `!` is untouched; it never had a keyword sibling to begin with.
 
 ### 2. `xor` has no replacement, and the diagnostic says so
@@ -79,7 +79,7 @@ remain reserved purely to be diagnosed (`rule:statements/require-is-the-only-inc
   code review comment, and no PHP-inherited precedence trap to teach around.
 - Closes a standing gap rather than opening one: `and`/`or`/`xor` were reachable from the parser and type
   checker but panicked in `nvs-ir`. That three-crate half-implementation (`nvs-syntax` parses it,
-  `nvs-types` types it, `nvs-ir` panics on it) is deleted along with the ADR 0035-adjacent doc comments that
+  `nvs-types` types it, `nvs-ir` panics on it) is deleted along with the `rule:expressions/truthy-positions`-adjacent doc comments that
   existed only to explain why the gap was intentional.
 - `nvs-syntax`'s `BinaryOp` loses three variants that existed only to carry a syntax choice with no
   semantics of their own (`LowAnd`/`LowOr` behave exactly like `And`/`Or`, distinguished only by which

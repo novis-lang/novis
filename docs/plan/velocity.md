@@ -50,7 +50,7 @@ and the multiplier each gets:
 
 **Then add 35% for rework**, applied to the total rather than to a row. This is not a hedge; the history
 already spent it. M1 was re-opened four times after being reported done, Stage 0's catch-up list reached
-22 items from ADRs that landed after the milestone owning them closed, and ADR 0090's spelling change had
+22 items from ADRs that landed after the milestone owning them closed, and `rule:expressions/one-equality-operator`'s spelling change had
 reached 48 files before item 1 rewrote them. That cost grows with surface area.
 
 M12 gets no projection. It is measurement-bound — the ledger is

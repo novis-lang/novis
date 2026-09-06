@@ -1,5 +1,5 @@
 --TEST--
-`Core\Str::fold` and `Core\Str::lower` are asked the same question of one table and counted where they part company — spec § 1 *Transformation*, ADR 0090 § 1
+`Core\Str::fold` and `Core\Str::lower` are asked the same question of one table and counted where they part company — spec § 1 *Transformation*, `rule:expressions/one-equality-operator`
 --FILE--
 <?nvs
 // `fold` and `lower` both map a string towards lower case, which is what makes

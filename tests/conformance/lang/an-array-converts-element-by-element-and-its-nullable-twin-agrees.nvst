@@ -1,5 +1,5 @@
 --TEST--
-`array<T> as array<U>` walks every element and throws on the first one `U` does not admit, and `as ?array<U>` answers `null` in exactly the same places — ADR 0007 §§ 2, 5, 6 and ADR 0066 § 1
+`array<T> as array<U>` walks every element and throws on the first one `U` does not admit, and `as ?array<U>` answers `null` in exactly the same places — ADR 0007 §§ 2, 5, 6 and `rule:expressions/nullable-conversion`
 --FILE--
 <?nvs
 // ADR 0007 § 2's one row whose check is per *element* rather than per value.
@@ -9,8 +9,8 @@
 array<mixed> $subjects = [["a", "b"], ["a", 1], [], "not an array"];
 
 // One question asked twice of each, and the assertion is that the two
-// spellings **agree** rather than what either answered on its own: ADR 0066
-// § 1 says `as ?T` yields `null` exactly where `as T` would throw, so a walk
+// spellings **agree** rather than what either answered on its own: `rule:expressions/nullable-conversion`
+// says `as ?T` yields `null` exactly where `as T` would throw, so a walk
 // that stopped one element early would still print plausibly against either
 // half alone.
 int $agreed = 0;

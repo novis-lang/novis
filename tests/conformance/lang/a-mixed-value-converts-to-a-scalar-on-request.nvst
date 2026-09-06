@@ -1,5 +1,5 @@
 --TEST--
-A `mixed` converts to a scalar only on request, and each row throws where it fails — ADR 0007 §§ 2 and 6, with ADR 0066 § 1's `as ?int` twin beside it
+A `mixed` converts to a scalar only on request, and each row throws where it fails — ADR 0007 §§ 2 and 6, with `rule:expressions/nullable-conversion`'s `as ?int` twin beside it
 --FILE--
 <?nvs
 // ADR 0007 § 6: `mixed` is the one unchecked position, so nothing here is known
@@ -31,7 +31,7 @@ class Convert {
         }
     }
 
-    // ADR 0066 § 1: the same row set read a second time, answering `null`
+    // `rule:expressions/nullable-conversion`: the same row set read a second time, answering `null`
     // exactly where the three above throw. `as ?int ?? -1` is the pair, and it
     // reads as one operation — "give me an int, or -1".
     public static function orDefault(mixed $m): string {

@@ -438,7 +438,7 @@ The mechanism already exists in the tree for the other refcounted container —
 `crates/nvs-runtime/src/string.rs` § *An immortal string* — and three properties of the array make it
 cheaper here than it was there. Every mutator goes through `NvsArray::make_unique`, which separates
 whenever the refcount is not 1, so a singleton a thread-local holds one reference to can never be
-written through. `nvs_array_eq` compares by content, so the sharing is unobservable to ADR 0090's
+written through. `nvs_array_eq` compares by content, so the sharing is unobservable to `rule:expressions/one-equality-operator`'s
 identity row. And an array is `!Send + !Sync`, so per-thread is per-owner and the count stays
 non-atomic. The consequence worth having: **no hot path needs a pointer comparison.** The singleton's
 count simply never reaches zero, so `retain`, `release` and the whole teardown path are unchanged and

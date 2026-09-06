@@ -1,5 +1,5 @@
 --TEST--
-`as ?class<T>` answers `null` on every miss the checked form throws for, and the value is an ordinary `?T` under `==`, `??`, `isset` and a condition — ADR 0125 § 2, ADR 0066 § 3
+`as ?class<T>` answers `null` on every miss the checked form throws for, and the value is an ordinary `?T` under `==`, `??`, `isset` and a condition — ADR 0125 § 2, `rule:expressions/nullable-conversion-availability`
 --FILE--
 <?nvs
 class Animal {
@@ -29,7 +29,7 @@ class<Dog> $dog = "Dog" as class<Dog>;
 ?class<Animal> $widened = $dog as ?class<Animal>;
 echo "widened ", $widened == null ? "null" : "set", "\n";
 
-// ADR 0066 § 3's answer is an ordinary `?T`, so `??` takes the right side on
+// `rule:expressions/nullable-conversion-availability`'s answer is an ordinary `?T`, so `??` takes the right side on
 // the miss and the left one on the hit.
 class<Animal> $fallback = "Animal" as class<Animal>;
 class<Animal> $missed = $b ?? $fallback;
@@ -43,7 +43,7 @@ if ($a != null) {
     echo "narrowed ", $made->speak(), "\n";
 }
 
-// ADR 0028 § 3 and ADR 0035 § 2 over the same representation, plus a written
+// ADR 0028 § 3 and `rule:expressions/truthy-table` over the same representation, plus a written
 // `null` reaching the binding.
 ?class<Animal> $written = null;
 echo "isset ", isset($a) ? "y" : "n", isset($b) ? "y" : "n", isset($written) ? "y" : "n", "\n";

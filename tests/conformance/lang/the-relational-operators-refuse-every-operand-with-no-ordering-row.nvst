@@ -48,7 +48,7 @@ mixed $r1 = $r < $r;
 mixed $g1 = $o < $o;
 
 // Equality is untouched on every one of these domains: it is answered
-// rather than ordered, and ADR 0090 owns it.
+// rather than ordered, and `rule:expressions/one-equality-operator` owns it.
 echo ($s == $s) as string, ($xs == $xs) as string, (null == null) as string;
 echo $a1, $a2, $a3, $a4, $a5, $b1, $c1, $d1, $e1, $r1, $g1;
 --EXPECTF-ERROR--

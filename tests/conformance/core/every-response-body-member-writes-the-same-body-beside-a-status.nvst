@@ -21,7 +21,7 @@ var $octets = Core\Out::capture(fn (): void => {
 
 // Counted rather than read off a line, so three writers that each answered
 // plausibly but differently still fail. Interpolated into a `string` first:
-// `Core\Out::capture` answers a `Core\Cli\Text` carrier, and ADR 0090 § 4
+// `Core\Out::capture` answers a `Core\Cli\Text` carrier, and `rule:expressions/object-identity-equality`
 // makes `==` between two objects identity -- comparing the carriers directly
 // answers "differ" for two captures holding the same bytes.
 string $echoedText = "{$echoed}";

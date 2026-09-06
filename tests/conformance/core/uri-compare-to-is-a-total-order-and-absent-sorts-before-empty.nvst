@@ -1,5 +1,5 @@
 --TEST--
-`$uri->compareTo` is a total order and not only an equality test: antisymmetric, reflexive and transitive over a corpus, decided component by component in the readers' declared order rather than over the text, with an absent component sorting before an empty one — spec § 12, ADR 0013, ADR 0090 § 4
+`$uri->compareTo` is a total order and not only an equality test: antisymmetric, reflexive and transitive over a corpus, decided component by component in the readers' declared order rather than over the text, with an absent component sorting before an empty one — spec § 12, ADR 0013, `rule:expressions/object-identity-equality`
 --FILE--
 <?nvs
 // The neighbouring case asserts *what* § 6.2.2 normalizes before the
@@ -95,7 +95,7 @@ echo Core\Uri::parse("/relative")->compareTo(Core\Uri::parse("http://a.example/"
 echo Core\Uri::parse("http://a.example/")->compareTo(Core\Uri::parse("http://a.example/?")), "\n";
 echo Core\Uri::parse("http://a.example/")->compareTo(Core\Uri::parse("http://a.example/#")), "\n";
 
-// ADR 0090 § 4: `==` on two objects is identity and there is no `__equals`, so
+// `rule:expressions/object-identity-equality`: `==` on two objects is identity and there is no `__equals`, so
 // two `Uri`s that compare equal are still two objects. `compareTo($o) == 0` is
 // the spelling for "the same URI", and this is the pair that tells the two
 // questions apart.

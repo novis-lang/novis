@@ -23,7 +23,7 @@ try {
 } catch (Throwable $outer) {
     echo "outer=", $outer->message, "\n";
     // `previous` is `Throwable|null`, so it is bound and narrowed before `->`
-    // reaches a member of it — ADR 0066.
+    // reaches a member of it — `rule:expressions/nullable-conversion`.
     var $cause = $outer->previous;
     if ($cause == null) {
         echo "cause=none\n";

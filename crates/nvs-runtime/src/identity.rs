@@ -6,8 +6,7 @@
 //! `diff` and `intersect` "compare by **strict identity**", and a second
 //! answer living in `nvs-stdlib` would be a second set of PHP-divergence
 //! decisions nothing keeps in step. It is also what `==` means:
-//! [ADR 0090](/docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
-//! § 3's table is this module's rows, reached three ways depending on what the
+//! `rule:expressions/equality-semantics`'s table is this module's rows, reached three ways depending on what the
 //! operands' static types already settled. A scalar pair is one machine
 //! comparison and never arrives here. An array pair arrives through
 //! [`nvs_array_eq`], a string pair through [`crate::nvs_str_eq`] and an object
@@ -31,7 +30,7 @@
 //! * **`int`, `uint`, `float` and `decimal` are one numeric domain**, and
 //!   [`numeric_identical`] is the whole of it: `3` and `3 as uint` are
 //!   identical, `1` and `1.0` are identical, and so is `1.00` written as a
-//!   `decimal`. ADR 0090 § 3 gives that row as "mathematically equal across
+//!   `decimal`. `rule:expressions/equality-semantics` gives that row as "mathematically equal across
 //!   the whole domain", and this comparison takes it **including** where
 //!   `Core\Arr` reads it — so `Arr::contains([1.0], 1)` is `true`, diverging
 //!   from PHP's `1 === 1.0`. The alternative was the worse trap: one
@@ -146,8 +145,7 @@ pub fn value_identical(left: Value, right: Value) -> bool {
 
 /// Whether two arrays hold the same entries in the same order —
 /// `nvs_ir::ir::BinOp::Eq` over a `Ty::Array` operand pair, and
-/// [ADR 0090](/docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
-/// § 3's array row.
+/// `rule:expressions/equality-semantics`'s array row.
 ///
 /// Compiled code reaches [`value_identical`] through this entry point rather
 /// than through [`crate::abi`]'s helper convention because the operands' static
@@ -180,7 +178,7 @@ fn shallow_identical(left: Value, right: Value, worklist: &mut Vec<(Value, Value
     match (left.tag(), right.tag()) {
         (Some(Tag::Null), Some(Tag::Null)) => true,
         (Some(Tag::Bool), Some(Tag::Bool)) => left.bits() == right.bits(),
-        // One arm, not four: ADR 0090 § 3's numeric row is a single row, so
+        // One arm, not four: `rule:expressions/equality-semantics`'s numeric row is a single row, so
         // the four representations delegate to the one comparison that spans
         // them rather than to four that disagree across their edges.
         (
@@ -189,7 +187,7 @@ fn shallow_identical(left: Value, right: Value, worklist: &mut Vec<(Value, Value
         ) => numeric_identical(left, right),
         (Some(Tag::Str), Some(Tag::Str)) => left.as_str_bytes() == right.as_str_bytes(),
         // A `bytes` is a value rather than a handle, so it compares by
-        // content — and only against another `bytes`. ADR 0090 § 3 gives
+        // content — and only against another `bytes`. `rule:expressions/equality-semantics` gives
         // `string` and `bytes` the strict reading two disjoint types get, so a
         // `bytes` whose octets happen to spell UTF-8 is still not the `string`
         // that spells the same thing: that mixed pair falls to the arm below
@@ -389,8 +387,7 @@ fn integer_of(decimal: crate::Decimal) -> Option<i128> {
 
 /// Whether two numeric values are mathematically equal with `int`, `uint`,
 /// `float` and `decimal` read as **one domain** —
-/// [ADR 0090](/docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
-/// § 3's numeric row, which its § 2 admits as a compiling pairing and its § 5
+/// `rule:expressions/equality-semantics`'s numeric row, which its § 2 admits as a compiling pairing and its § 5
 /// resolves a `mixed` operand to.
 ///
 /// It is reached two ways, and answers the same question in both:
@@ -652,7 +649,7 @@ mod tests {
         assert!(!identical(Value::uint(u64::MAX), Value::int(-1)));
     }
 
-    /// ADR 0090 § 3's numeric row reached through [`value_identical`] — the
+    /// `rule:expressions/equality-semantics`'s numeric row reached through [`value_identical`] — the
     /// same row [`numeric_identical`] answers for a statically typed pair, and
     /// the one `Core\Arr`'s strict identity therefore takes too. Every `true`
     /// here also asserts the hash agrees, through [`identical`].
@@ -730,7 +727,7 @@ mod tests {
     }
 
     /// `bytes` takes `string`'s content comparison and none of its domain:
-    /// ADR 0090 § 3 makes the two types disjoint, so a digest is never the
+    /// `rule:expressions/equality-semantics` makes the two types disjoint, so a digest is never the
     /// text that spells it, and the hash keys them apart so that pair does not
     /// share a bucket either.
     #[test]
@@ -854,7 +851,7 @@ mod tests {
         release_all(&[first, copy, second]);
     }
 
-    /// ADR 0090 § 3's string row, at the door compiled code actually uses.
+    /// `rule:expressions/equality-semantics`'s string row, at the door compiled code actually uses.
     /// The three tests above ask [`value_identical`] what a string is; this
     /// one asks [`crate::nvs_str_eq`], which is what `$s == $t` calls, and
     /// pins the divergence that row decides: PHP's `==` read two numeric-
@@ -892,7 +889,7 @@ mod tests {
         assert!(!compiled_eq("e\u{301}".as_bytes(), "é".as_bytes()));
     }
 
-    /// ADR 0090 § 3's array row at that same door — [`nvs_array_eq`], which
+    /// `rule:expressions/equality-semantics`'s array row at that same door — [`nvs_array_eq`], which
     /// is what `$a == $b` calls. Same length, same keys in the same order,
     /// every value equal by the table, recursively.
     #[test]
@@ -950,7 +947,7 @@ mod tests {
         release_all(&[outer, textual]);
     }
 
-    /// ADR 0090 § 3's object row: two instances are equal only when they are
+    /// `rule:expressions/equality-semantics`'s object row: two instances are equal only when they are
     /// **the same instance**. `nvs-codegen` emits that as one pointer
     /// comparison for a statically typed pair, so the row has no runtime door
     /// of its own — what it does have is a reach into the array row, which is
@@ -1001,7 +998,7 @@ mod tests {
         release_all(&[first, copy, second, holds_first, holds_same, holds_second]);
     }
 
-    /// ADR 0090 § 2's numeric row at [`numeric_identical`] itself, which is
+    /// `rule:expressions/disjoint-comparison-refused`'s numeric row at [`numeric_identical`] itself, which is
     /// where `nvs_ir::Helper::NumericEq` enters it — the edges of the domain
     /// rather than the rows [`the_four_numeric_representations_are_one_domain`]
     /// already walks through [`value_identical`].

@@ -2263,7 +2263,7 @@ nvs_runtime::nvs_helper! {
     /// `nvs_runtime::call_closure` trims them to what the closure wants, and
     /// is also where the retain/release around the call lives.
     ///
-    /// Truthiness is [ADR 0035](/docs/adr/0035-truthy-boolean-context.md)'s
+    /// Truthiness is `rule:expressions/truthy-positions`'s
     /// table through `nvs_runtime::value_truthy`, so a predicate returning
     /// `0`, `""` or an empty array behaves here exactly as it would in a
     /// condition.
@@ -4878,7 +4878,7 @@ nvs_runtime::nvs_helper! {
     /// identical to nothing) and the one that diverges from PHP's `===`:
     /// `int`, `uint`, `float` and `decimal` are **one numeric domain**, so
     /// `contains([1.0], 1)` is `true` where `in_array(1, [1.0], true)` is
-    /// `false`. That is ADR 0090 § 3's numeric row, and taking it here is what
+    /// `false`. That is `rule:expressions/equality-semantics`'s numeric row, and taking it here is what
     /// keeps this member and the `==` operator one comparison rather than two.
     fn nvs_core_arr_contains(_ctx, args: [2]) {
         let subject = subject(args, "contains")?;

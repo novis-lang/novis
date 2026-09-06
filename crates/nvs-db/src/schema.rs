@@ -724,8 +724,7 @@ impl Schema {
 /// back, once, and nothing else converts anything.
 ///
 /// A [`Node::Map`] is a `Vec` of pairs rather than a map type on purpose:
-/// [ADR 0090](/docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
-/// § 4 makes key order part of an array's value, so key order is data here too
+/// `rule:expressions/object-identity-equality` makes key order part of an array's value, so key order is data here too
 /// and nothing on the way past may reorder it.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Node {

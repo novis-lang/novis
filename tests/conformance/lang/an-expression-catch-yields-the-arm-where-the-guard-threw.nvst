@@ -1,8 +1,8 @@
 --TEST--
-an expression `catch` produces the arm's value where the guard threw and the guard's own where it did not — ADR 0119 §§ 1, 4 and 6
+an expression `catch` produces the arm's value where the guard threw and the guard's own where it did not — `rule:expressions/catch-expression`, `rule:expressions/catch-result-type` and `rule:expressions/catch-lowers-to-block-form`
 --FILE--
 <?nvs
-// ADR 0119 § 6: the guarded expression runs inside a protected region and each
+// `rule:expressions/catch-lowers-to-block-form`: the guarded expression runs inside a protected region and each
 // arm is a landing pad over it, so the whole expression produces either the
 // guard's value or the matching arm's — one phi, never a statement in between.
 class Repo {

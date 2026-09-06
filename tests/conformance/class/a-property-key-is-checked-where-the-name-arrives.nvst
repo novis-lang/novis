@@ -36,7 +36,7 @@ class Pick {
 }
 echo Pick::through($narrowed) as string, "\n";
 
-// ADR 0066 § 3 over § 2's rows: the sugar answers `null` exactly where the
+// `rule:expressions/nullable-conversion-availability` over § 2's rows: the sugar answers `null` exactly where the
 // checked form throws.
 string $absent = "leg" . "s";
 ?property<Animal> $missed = $absent as ?property<Animal>;

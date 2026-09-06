@@ -1,5 +1,5 @@
 --TEST--
-`$uri->compareTo` normalizes both references per RFC 3986 § 6.2.2 and then compares components, while `parse` still reports what was written — spec § 12, ADR 0013, ADR 0090 § 4
+`$uri->compareTo` normalizes both references per RFC 3986 § 6.2.2 and then compares components, while `parse` still reports what was written — spec § 12, ADR 0013, `rule:expressions/object-identity-equality`
 --FILE--
 <?nvs
 // § 6.2.2.1 and § 6.2.2.2: the scheme and the host fold to lower case, and an

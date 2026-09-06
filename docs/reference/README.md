@@ -31,7 +31,7 @@ a milestone is, and do not care why a decision was made — they need to know wh
   mention a door that is closed says it is closed, not that it will open.
 - **Short sentences, concrete spellings, no rationale.** Write "`and`/`or` do not parse; write
   `&&`/`||`", not why. The ADR that owns a paragraph may be cited for *this repository's* readers
-  in an HTML comment — `<!-- src: ADR 0045 -->` — which the generator strips.
+  in an HTML comment — `<!-- src: `rule:expressions/no-keyword-logical-operators` -->` — which the generator strips.
 - **No links out of the file.** Cross-reference another section by its heading text in backticks
   or by its anchor, `[types](#lang-types)`; anchors are `lang-<id>`, `tools-<id>`,
   `core-<class>` (`core-core-str`), `core-<class>-<member>` (`core-core-str-length`),

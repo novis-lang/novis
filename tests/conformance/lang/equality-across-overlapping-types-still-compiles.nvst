@@ -1,5 +1,5 @@
 --TEST--
-Disjointness, not identity of types, is what `==` refuses — every pair that can hold one value still compiles, ADR 0090 §§ 2 and 6
+Disjointness, not identity of types, is what `==` refuses — every pair that can hold one value still compiles, `rule:expressions/disjoint-comparison-refused` and `rule:expressions/switch-match-equality`
 --FILE--
 <?nvs
 // A literal against its base type, which the table's literal row keeps

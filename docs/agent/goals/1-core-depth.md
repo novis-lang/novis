@@ -136,7 +136,7 @@ not an example to read for inspiration.
 
 ## Stage 3 — the intrinsic-folding pass
 
-7. **[ADR 0057](../../adr/0057-intrinsic-literal-folding.md)'s closed list folds.** A short list of `Core`
+7. **`rule:expressions/intrinsic-literals`'s closed list folds.** A short list of `Core`
    members take an argument that is really a small program — a regex pattern, a URI, a date-format string,
    a format string — and when that argument is a compile-time constant the compiler validates it during
    checking and *prepares* what the runtime would have built on first use. Nothing of this exists: three

@@ -640,7 +640,7 @@ impl<'a> Lowering<'a> {
     /// * **The subject is evaluated once**, before any label is, and every
     ///   label is then compared against that value in source order. The
     ///   comparison is [`BinOp::Eq`] — PHP's `switch` compared loosely and its
-    ///   `match` identically, but ADR 0090 § 6 gives Novis one equality rule for
+    ///   `match` identically, but `rule:expressions/switch-match-equality` gives Novis one equality rule for
     ///   both, and both operands are statically the same Novis type here anyway,
     ///   which is the one condition under which PHP's two agreed; see
     ///   [`Self::lower_expr`]'s `Binary` arm, which lowers the operator the

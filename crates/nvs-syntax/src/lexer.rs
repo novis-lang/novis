@@ -744,7 +744,7 @@ impl<'a> Lexer<'a> {
             }};
         }
 
-        // ADR 0090 § 1: `===` and `!==` are not spellings Novis has. They are
+        // `rule:expressions/one-equality-operator`: `===` and `!==` are not spellings Novis has. They are
         // still *recognised* here, for the reason `rule:statements/nvs-is-the-only-open-tag` recognises
         // `<?php` — a rejected spelling nobody names reappears as two
         // confusing tokens — and then reported and lexed as the two-character
@@ -907,7 +907,7 @@ impl<'a> Lexer<'a> {
                 if self.starts_with("<<=") {
                     op!(3, TokenKind::LtLtEquals)
                 }
-                // ADR 0090 § 1: `!=` is the inequality operator, and `<>` is
+                // `rule:expressions/one-equality-operator`: `!=` is the inequality operator, and `<>` is
                 // PHP's inherited second spelling of it. Recognised and then
                 // rejected for the reason `===` and `!==` are above — a
                 // spelling nobody names comes back as `Lt` followed by `Gt`,
@@ -2009,7 +2009,7 @@ mod tests {
         );
     }
 
-    /// ADR 0090 § 1: neither rejected spelling reaches the parser, and each
+    /// `rule:expressions/one-equality-operator`: neither rejected spelling reaches the parser, and each
     /// is still consumed whole — three characters, one diagnostic — so the
     /// tokens either side of it are the ones the author wrote.
     #[test]
@@ -2045,7 +2045,7 @@ mod tests {
         }
     }
 
-    /// ADR 0090 § 1: `<>` is the third spelling a *lexical* rule refuses, and
+    /// `rule:expressions/one-equality-operator`: `<>` is the third spelling a *lexical* rule refuses, and
     /// like the other two it is consumed whole — two characters, one
     /// diagnostic — so the tokens either side are the ones the author wrote
     /// and no `Lt`/`Gt` pair reaches the parser to be reported about instead.

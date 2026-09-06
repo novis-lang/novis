@@ -1,9 +1,9 @@
 --TEST--
-`Core\Test::assertEqualsDeep` walks 63 levels of containment and refuses at the 64th, naming `$actual` and the whole path -- `rule:testing/assertions-are-typed`, ADR 0090 § 3
+`Core\Test::assertEqualsDeep` walks 63 levels of containment and refuses at the 64th, naming `$actual` and the whole path -- `rule:testing/assertions-are-typed`, `rule:expressions/equality-semantics`
 --FILE--
 <?nvs
 // The bound, asserted on both sides. An Novis array cannot contain itself
-// (ADR 0090 § 3), so the only structure that can recur is an object graph, and
+// (`rule:expressions/equality-semantics`), so the only structure that can recur is an object graph, and
 // the depth cap in `crates/nvs-stdlib/src/test.rs` is what bounds the walk --
 // that module's own doc comment owns the number and why refusing beats
 // comparing half a graph. The subject is therefore built by a loop rather than

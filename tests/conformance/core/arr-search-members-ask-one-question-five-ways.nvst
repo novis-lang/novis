@@ -1,10 +1,10 @@
 --TEST--
-Core\Arr::contains, keyOf, find, findKey and any answer one question over one grid, and never disagree about whether there is a match or which key holds the first one — spec § 2, ADR 0090 § 3
+Core\Arr::contains, keyOf, find, findKey and any answer one question over one grid, and never disagree about whether there is a match or which key holds the first one — spec § 2, `rule:expressions/equality-semantics`
 --FILE--
 <?nvs
 // "Is there an entry equal to this, and where?" is spec § 2's question, asked
 // five ways: two members take the needle itself and three take a predicate
-// that compares against it. Under ADR 0090 § 3 those are one comparison, so
+// that compares against it. Under `rule:expressions/equality-semantics` those are one comparison, so
 // the five can only ever give one answer -- and what this case asserts is that
 // agreement rather than the five answers, which each already have a case.
 //

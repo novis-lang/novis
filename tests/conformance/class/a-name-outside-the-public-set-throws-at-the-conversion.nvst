@@ -38,7 +38,7 @@ try {
     echo $e->message, "\n";
 }
 
-// ADR 0066 § 3's sugar answers `null` in the same place and for the same
+// `rule:expressions/nullable-conversion-availability`'s sugar answers `null` in the same place and for the same
 // reason: it is § 2's row with the throw replaced, not a second check.
 string $again = "bal" . "ances";
 ?property<Account> $maybe = $again as ?property<Account>;

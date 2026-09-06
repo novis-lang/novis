@@ -59,7 +59,7 @@ checker's and not the parser's. Its **value** is the run-time class descriptor �
 `new static(...)` already allocates from — carrying the class's name, its parent chain, its interface
 set and its method table.
 
-It is its own **equality domain** ([ADR 0090](0090-one-equality-operator-and-disjoint-types-do-not-compile.md) § 2):
+It is its own **equality domain** (`rule:expressions/disjoint-comparison-refused`):
 two class references compare by descriptor identity, and nothing else is ever equal to one. An instance
 is not its own class, and `$cls == "Dog"` is exactly the string-as-a-class confusion § 2 exists to keep
 out. Ordering one is refused with the other unordered types.
@@ -91,7 +91,7 @@ conversions produce one, and [ADR 0007](0007-explicit-type-system.md) § 2's gri
 
 The `string` row is the door, and being a row of § 2's grid it inherits everything that grid already
 says: it is checked in fact, it throws rather than substituting, and `as ?class<T>`
-([ADR 0066](0066-nullable-conversion-operator.md)) yields `null` exactly where it would throw. A name
+(`rule:expressions/nullable-conversion`) yields `null` exactly where it would throw. A name
 that resolves to nothing, and a name that resolves to a class outside `T`'s hierarchy, are the same
 failure and throw the same way; the class named is in the message.
 

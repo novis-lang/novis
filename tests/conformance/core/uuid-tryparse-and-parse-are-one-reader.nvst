@@ -1,8 +1,8 @@
 --TEST--
-Core\Uuid::tryParse is Core\Uuid::parse with the throw turned into a null — every subject of one table asked of both, with the agreement counted rather than read off a line — ADR 0066 § 3a, ADR 0063 R4, spec § 11
+Core\Uuid::tryParse is Core\Uuid::parse with the throw turned into a null — every subject of one table asked of both, with the agreement counted rather than read off a line — `rule:expressions/try-parse`, ADR 0063 R4, spec § 11
 --FILE--
 <?nvs
-// ADR 0066 § 3a says `tryParse` *is* `parse`, `null` where it throws — one
+// `rule:expressions/try-parse` says `tryParse` *is* `parse`, `null` where it throws — one
 // reader with two answers, not two readers that happen to agree. A case that
 // asks each member about its own subjects cannot see the difference: a
 // `tryParse` that grew its own idea of the shape still answers plausibly on

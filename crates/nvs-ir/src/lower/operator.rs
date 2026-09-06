@@ -232,7 +232,7 @@ impl<'a> Lowering<'a> {
         )
     }
 
-    /// `!expr` — ADR 0035's truthy table applied to `expr`, then negated;
+    /// `!expr` — `rule:expressions/truthy-positions`'s truthy table applied to `expr`, then negated;
     /// always produces [`Ty::Bool`] regardless of `expr`'s own type, unlike a
     /// plain arithmetic/bitwise unary operator. `expr` is lowered through
     /// [`Self::lower_expr`], so `!($a && $b)`/`!($a ? $b : $c)` compose the
@@ -259,7 +259,7 @@ impl<'a> Lowering<'a> {
     /// runs on one edge only, so an increment written inside it re-points a
     /// binding on that edge alone.
     /// `lhs`/`rhs` each go through [`Self::lower_truthy_cond`], so either may
-    /// itself be any type ADR 0035's table covers, and either may itself be a
+    /// itself be any type `rule:expressions/truthy-positions`'s table covers, and either may itself be a
     /// nested `&&`/`||`/`!`/ternary.
     pub(crate) fn lower_and(
         &mut self,
@@ -445,7 +445,7 @@ impl<'a> Lowering<'a> {
             // `UnaryOp`'s roster is five, and this arm has no reachable target
             // left. `-`, `~` and `+` are the three above; `!` is split out by
             // `Self::lower_expr` into `Self::lower_not` before this function is
-            // called at all (ADR 0035's truthy table answers `Ty::Bool`
+            // called at all (`rule:expressions/truthy-positions`'s truthy table answers `Ty::Bool`
             // whatever the operand's own type is); and `@` never reaches the
             // IR, the parser refusing error suppression outright as `E0236`
             // since `rule:errors/escalation-ladder`'s ladder leaves it nothing to suppress. That
@@ -484,8 +484,7 @@ impl<'a> Lowering<'a> {
     /// exactly one spelling.
     ///
     /// `==`/`!=` are the whole of it:
-    /// [ADR 0090](/docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
-    /// § 1 leaves one spelling, and its § 3 makes that spelling this tag
+    /// `rule:expressions/one-equality-operator` leaves one spelling, and its § 3 makes that spelling this tag
     /// test rather than PHP's truthy-table question (`0 == null` was
     /// *true* there, which is why this arm read `===`/`!==` while both
     /// spellings existed).
@@ -670,7 +669,7 @@ impl<'a> Lowering<'a> {
         {
             return self.lower_carrier_concat(symbol, [(&**lhs, lv), (&**rhs, rv)], env, cur);
         }
-        // ADR 0090 § 5: a `mixed` or union operand is the one pairing whose
+        // `rule:expressions/mixed-equality`: a `mixed` or union operand is the one pairing whose
         // § 3 row is a runtime tag, so it dispatches through
         // `nvs_runtime::value_identical` rather than through a `BinOp` over a
         // representation neither side has. Every other row is statically
@@ -806,7 +805,7 @@ impl<'a> Lowering<'a> {
             self.release_temporaries_since(mark, *cur);
             return (answer, Ty::Tagged);
         }
-        // ADR 0090 § 2's enum row: an enum is its own equality domain — a
+        // `rule:expressions/disjoint-comparison-refused`'s enum row: an enum is its own equality domain — a
         // case against its underlying integer is a compile error and two
         // different enums are disjoint, so a pair that reaches here is one
         // enum compared with itself. It is answered one representation down,
@@ -817,7 +816,7 @@ impl<'a> Lowering<'a> {
         // `Ty::Int`/`Ty::Uint`/`Ty::Bool` and has no `Ty::Enum` row at all.
         //
         // Only `==`/`!=` are relabelled. `<` over two cases has no row in any
-        // ADR, and ADR 0090 § 2 keeps the two domains apart on purpose, so
+        // ADR, and `rule:expressions/disjoint-comparison-refused` keeps the two domains apart on purpose, so
         // ordering an enum stays something `$e as int` says out loud.
         // ADR 0125 § 2's `?class<T>` against `null`, and the reason it is a row
         // here rather than the `Ty::Tagged` arm above: that erasure is a
@@ -850,7 +849,7 @@ impl<'a> Lowering<'a> {
         } else {
             (lv, lty, rv, rty)
         };
-        // ADR 0090 § 2's numeric row: `int`, `uint` and `float` are one
+        // `rule:expressions/disjoint-comparison-refused`'s numeric row: `int`, `uint` and `float` are one
         // domain, so the checker accepts `$n == $f` where the two operands
         // have two *representations*. That pairing is settled here, exactly
         // as the `decimal` and `Tagged` arms above settle theirs, rather than

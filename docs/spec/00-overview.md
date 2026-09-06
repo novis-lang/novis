@@ -215,7 +215,7 @@ destructure-stmt    := destructure-target '=' expr ';'
 ```
 
 `list($a, $b) = $expr;` does not parse: `[...]` is the only destructuring spelling, and `list(...)` is
-diagnosed at parse time naming it ([ADR 0050](../adr/0050-list-destructuring-spelling-rejected.md)). Every
+diagnosed at parse time naming it (`rule:expressions/bracket-destructuring`). Every
 leaf names its type where it is bound, at any nesting depth, mirroring how `array<array<uint>>` nests in the
 type grammar itself; there is no untyped form.
 
@@ -228,7 +228,7 @@ not repeated here.
 
 The target may be nullable, and `expr as ?T` is **not** a second spelling — it is the same operator over a
 type the grammar already accepted, yielding `null` where the throwing form would throw
-([ADR 0066](../adr/0066-nullable-conversion-operator.md), which owns which conversions admit it).
+(`rule:expressions/nullable-conversion`, which owns which conversions admit it).
 
 ### 3.5 `type` aliases
 

@@ -6,7 +6,7 @@ Core\Db\Schema's array form is canonical: what fromArray reads, toArray answers 
 // introspected — and no privileged one, and the property that holds them
 // together is this: `toArray(fromArray(a)) == a` over every construct in the
 // vocabulary. It is stated over the *array* rather than over the objects
-// because ADR 0090 § 4 makes `==` on two objects identity, so the array form
+// because `rule:expressions/object-identity-equality` makes `==` on two objects identity, so the array form
 // is the comparison, and it is also what the diff normalizes into.
 
 array<mixed> $canonical = [

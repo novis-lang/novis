@@ -104,7 +104,7 @@ simplicity cost is accepted are [ADR 0100](0100-against-python-nvs-claims-the-to
   needed) and `die(...)` → `exit(...)` (rename only, argument shape is already identical). Both are
   strictly simpler than the `(int)$x` → `$x as int` rewrite ADR 0034 already committed the converter to.
 - **A further, small subtraction from the "pragmatic superset" promise**, in the same vein as ADR 0034 and
-  ADR 0045. A PHP file opening with `<?php` or calling `die(...)` anywhere no longer parses unconverted.
+  `rule:expressions/no-keyword-logical-operators`. A PHP file opening with `<?php` or calling `die(...)` anywhere no longer parses unconverted.
   Smaller than either of those precedents: both rewrites here are pure renames with no operand or precedence
   reasoning involved at all.
 
@@ -113,7 +113,7 @@ simplicity cost is accepted are [ADR 0100](0100-against-python-nvs-claims-the-to
 - **Keep `<?php` and `die` as permanent aliases, change nothing.** The status quo — argued against above:
   neither spelling differs in behavior from the one kept, so a second spelling buys nothing but a second
   thing to teach, in a project that has already refused exactly that trade three times (`rule:statements/require-is-the-only-inclusion-construct`, ADR 0034,
-  ADR 0045).
+  `rule:expressions/no-keyword-logical-operators`).
 - **Keep `die` but drop `<?php`, or vice versa.** Considered, since they're unrelated constructs bundled into
   one ADR only because they share a reasoning shape. Rejected as inconsistent: both are pure duplicate
   spellings with no behavioral distinction, so keeping one and not the other would need a reason neither

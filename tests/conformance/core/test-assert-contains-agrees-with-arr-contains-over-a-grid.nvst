@@ -75,7 +75,7 @@ array<string> $empty = [];
 echo Ask::contained($empty, ""), " ", Ask::contained($empty, "a"), "\n";
 
 // 4. What "is the needle" means is `Core\Arr::contains`'s comparison and not a
-// second one, so ADR 0090 § 3's numeric row reaches here: `int`, `uint`,
+// second one, so `rule:expressions/equality-semantics`'s numeric row reaches here: `int`, `uint`,
 // `float` and `decimal` are one domain, and `[1.0]` therefore contains `1`.
 array<float> $floats = [1.0, 2.5];
 try {

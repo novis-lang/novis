@@ -174,7 +174,7 @@ pub enum Ty {
     ///
     /// The third type in this enum no source text can spell, and the only one
     /// that is not really a type at all: it accepts exactly what
-    /// [`Self::Callable`] accepts (ADR 0027 § 2 keeps a `callable` opaque, and
+    /// [`Self::Callable`] accepts (`rule:expressions/first-class-callable-syntax` keeps a `callable` opaque, and
     /// this changes nothing about that), and exists only to say *where a
     /// variable comes from* at a position whose own type cannot say it. It
     /// enters the interner only from `nvs_stdlib::registry`'s `CoreTy::CallableTo`

@@ -130,7 +130,7 @@ pub(crate) fn check_expr(
 /// [`check_expr`] for an expression used as a **condition**, and the one site
 /// in this crate that asks what a condition's type is.
 ///
-/// ADR 0035 makes a condition the one place a value is tested without `as`, so
+/// `rule:expressions/truthy-positions` makes a condition the one place a value is tested without `as`, so
 /// there is nothing to check here in the ordinary sense — its truthy table has
 /// a row for every type. What it does not have is a row for a value that is
 /// not one, which is [`reject_void_condition`]'s whole subject. Every position
@@ -264,7 +264,7 @@ pub(crate) fn infer(
             let hint = negated_literal_expectation(*op, expected, env.interner);
             let inner_ty = infer(inner, hint, live, scope, ctx, env);
             match op {
-                // `!` is ADR 0035's truthy test written out rather than one of
+                // `!` is `rule:expressions/truthy-positions`'s truthy test written out rather than one of
                 // ADR 0007 § 4's rows, so its `void` operand is the condition
                 // refusal and not the arithmetic one below it.
                 UnaryOp::Not => {
@@ -637,7 +637,7 @@ pub(crate) fn infer(
                 let mut narrowed = crate::locals::Narrowing::default();
                 if let Some(conds) = &arm.conditions {
                     for c in conds {
-                        // ADR 0090 § 6: an arm is compared against the subject
+                        // `rule:expressions/switch-match-equality`: an arm is compared against the subject
                         // by the one equality rule, so a disjoint arm is § 2's
                         // refusal written without the operator. `match (true)`
                         // is unaffected — every arm there is a `bool` too.
@@ -724,7 +724,7 @@ pub(crate) fn infer(
             env.interner.int()
         }
         // `never` whatever the operand is — the expression does not complete,
-        // which is what ADR 0119 § 3's arm relies on. The operand is still
+        // which is what `rule:expressions/catch-arm-is-an-expression`'s arm relies on. The operand is still
         // held to spec § 10's tree: `nvs_ir::lower::exception` builds a
         // landing pad against it and lowers no other shape.
         ExprKind::Throw(inner) => {
@@ -741,7 +741,7 @@ pub(crate) fn infer(
             }
             env.interner.bool_ty()
         }
-        // `empty($x)` is `!$x` — ADR 0035 § 2's table negated — over any
+        // `empty($x)` is `!$x` — `rule:expressions/truthy-table`'s table negated — over any
         // expression at all, so it shares `isset`'s guarded-subscript rule and
         // none of its shape check. `presence` owns both.
         ExprKind::Empty(operand) => {
@@ -801,7 +801,7 @@ pub(crate) fn infer(
             check_expr(path, None, live, scope, ctx, env);
             env.interner.mixed()
         }
-        // ADR 0119 §§ 4-5. The result is the union of the guarded expression's
+        // `rule:expressions/catch-result-type` and `rule:expressions/bare-throwable-arm-warns`. The result is the union of the guarded expression's
         // type and every arm's, through the same `make_union` the
         // `ExprKind::Match` arm above reaches for — it is the same rule, so
         // neither side is checked against the other and both are checked
@@ -864,7 +864,7 @@ pub(crate) fn infer(
     }
 }
 
-/// ADR 0119 § 5's warning: an arm naming `Throwable` itself, binding nothing,
+/// `rule:expressions/bare-throwable-arm-warns`'s warning: an arm naming `Throwable` itself, binding nothing,
 /// over a body that is not a `throw`.
 ///
 /// All three conditions carry weight. Bound, the value is carried and the site
@@ -961,7 +961,7 @@ fn refused_as_a_write_target(expr: &Expr, base: &Expr, env: &Env<'_>) -> bool {
 /// naming the wrong one costs a session: `mixed` needs the binding declared
 /// as what it holds, a `string` needs ADR 0009 § 2's grapheme indexing said
 /// out loud as `Core\Str::slice`, and a nullable array needs the `!= null`
-/// test ADR 0066 already gives it — [`narrow`](crate::locals) drops the
+/// test `rule:expressions/nullable-conversion` already gives it — [`narrow`](crate::locals) drops the
 /// `null` and the subscript is then an ordinary one.
 fn report_unsubscriptable(base: &Expr, base_ty: TypeId, env: &mut Env<'_>) {
     let residue = env.interner.without_null(base_ty);

@@ -1,11 +1,11 @@
 --TEST--
-`Core\Test::assertNull` asks "is the tag null", not "is this falsy": every falsy value that is not `null` fails, so does every truthy one, and three spellings of `null` hold — `rule:testing/assertions-are-typed`, ADR 0035 § 2, ADR 0047 § 5
+`Core\Test::assertNull` asks "is the tag null", not "is this falsy": every falsy value that is not `null` fails, so does every truthy one, and three spellings of `null` hold — `rule:testing/assertions-are-typed`, `rule:expressions/truthy-table`, ADR 0047 § 5
 --FILE--
 <?nvs
 // `assertNull`'s parameter is `mixed` (ADR 0007 § 2's one unchecked position),
 // which is what lets a subject of *any* type reach it -- so the boundary worth
 // pinning is not a type the checker refuses, it is the values that a reader
-// most expects to pass. ADR 0035 § 2's falsy table and "is null" are two
+// most expects to pass. `rule:expressions/truthy-table`'s falsy table and "is null" are two
 // different questions, and this case asserts they are answered separately by
 // running both sweeps and counting, rather than reading one verdict off a line.
 
@@ -26,7 +26,7 @@ final class Ask {
         return "held";
     }
 
-    // ADR 0035 § 2's table, resolved at run time because the subject is
+    // `rule:expressions/truthy-table`'s table, resolved at run time because the subject is
     // `mixed` -- § 3 makes that the one shape that pays for the helper.
     public static function truthy(mixed $subject): string {
         if ($subject) {
@@ -71,7 +71,7 @@ foreach ($nulls as mixed $isNull) {
 }
 echo "held=", $held, "/3\n";
 
-// 2. Every falsy row of ADR 0035 § 2's table that is *not* `null`: both
+// 2. Every falsy row of `rule:expressions/truthy-table`'s table that is *not* `null`: both
 // integer zeroes (the `uint` one comes from `Core\Arr::count`, which is the
 // only way to name one here without a literal), both float zeroes, the empty
 // string and the one-character `"0"` the string row also calls falsy, `false`,
@@ -96,7 +96,7 @@ echo "falsyFailed=", $falsyFailed, "/9 wereFalsy=", $wereFalsy, "/9\n";
 // 3. The other side of the same boundary: a truthy subject fails identically,
 // so "failed" is never the falsy table's answer being reported under another
 // name. `"0.0"` and a one-element array are the two rows PHP readers most often
-// expect to go the other way -- ADR 0035 § 2 lists both as truthy.
+// expect to go the other way -- `rule:expressions/truthy-table` lists both as truthy.
 array<mixed> $truthy = [1, "a", true, [0], "0.0", Level::On];
 
 int $truthyFailed = 0;

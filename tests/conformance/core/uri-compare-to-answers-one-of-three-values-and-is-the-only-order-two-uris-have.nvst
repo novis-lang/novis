@@ -1,5 +1,5 @@
 --TEST--
-`$uri->compareTo` is bounded to exactly `-1`, `0` and `1` over every ordered pair of a corpus, and it is the only ordering two `Uri`s have: `Core\Arr`'s natural order refuses one at `min`, `max` and `sort` alike, and the way through is `{comparator: ...}` calling this member — spec § 12, ADR 0013, ADR 0090 § 4
+`$uri->compareTo` is bounded to exactly `-1`, `0` and `1` over every ordered pair of a corpus, and it is the only ordering two `Uri`s have: `Core\Arr`'s natural order refuses one at `min`, `max` and `sort` alike, and the way through is `{comparator: ...}` calling this member — spec § 12, ADR 0013, `rule:expressions/object-identity-equality`
 --FILE--
 <?nvs
 // One neighbouring case shows this member is a total order, another that it
@@ -41,7 +41,7 @@ echo "below ", $below, " same ", $same, " above ", $above, "\n";
 // `same` is above the six the reflexive rows account for, because the corpus
 // holds one pair that is two spellings of one reference: `HTTP://A/` and
 // `http://a/` normalize together under RFC 3986 § 6.2.2, and this member is
-// the only place that is observable — ADR 0090 § 4 keeps `==` on two objects
+// the only place that is observable — `rule:expressions/object-identity-equality` keeps `==` on two objects
 // meaning the same object, so the two spellings are never `==`.
 //
 // § 6.2.2 is the *syntax-based* normalization and stops there, which is why

@@ -45,7 +45,7 @@
 //! # The one variable that is not at a position
 //!
 //! `map(array<T> $a, callable $fn): array<U>` has nowhere for the walk above
-//! to find `U`: the argument's own type is `callable`, and ADR 0027 § 2 keeps
+//! to find `U`: the argument's own type is `callable`, and `rule:expressions/first-class-callable-syntax` keeps
 //! that opaque, so no structural position holds the answer. The narrow answer
 //! is [`Ty::CallableTo`] — a parameter type that *is* `callable` for every
 //! purpose the checker has, and additionally names the variable its result

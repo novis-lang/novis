@@ -6,7 +6,7 @@
 //! level's binding power is where it sits in that call graph and nowhere else.
 //! `as` binds tighter than any binary operator (ADR 0007 § 2), and
 //! `and`/`or`/`xor` are caught at the bottom of the chain rather than parsed,
-//! since `&&`/`||` are the only logical connectives Novis keeps (ADR 0045).
+//! since `&&`/`||` are the only logical connectives Novis keeps (`rule:expressions/no-keyword-logical-operators`).
 //!
 //! Beyond the operators: `match`, closures and arrow functions (ADR 0031's one
 //! literal, `fn`, plus the `function` forms it refuses), generators
@@ -36,7 +36,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// that needs "an expression" calls this. A stray `and`/`or`/`xor`
     /// keyword is also caught here — see [`Self::parse_low_or`] — since
     /// `&&`/`||` are the only logical connectives Novis keeps
-    /// ([ADR 0045](/docs/adr/0045-and-or-xor-keyword-operators-rejected.md)).
+    /// (`rule:expressions/no-keyword-logical-operators`).
     #[must_use]
     pub fn parse_expr(&mut self) -> Expr {
         // Any nested expression (a call argument, an array item, a
@@ -105,7 +105,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// [`Self::guarded`]. Also where a stray `and`/`or`/`xor` keyword is
     /// caught: Novis never gave them PHP's lower-precedence meaning distinct
     /// from `&&`/`||`, so each occurrence is diagnosed in place
-    /// ([ADR 0045](/docs/adr/0045-and-or-xor-keyword-operators-rejected.md))
+    /// (`rule:expressions/no-keyword-logical-operators`)
     /// and folded into an `ExprKind::Error`, consuming its right-hand operand
     /// so parsing can continue past it rather than cascading into unrelated
     /// "expected token" errors.
@@ -196,7 +196,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         self.parse_assignment_over(Self::parse_catch)
     }
 
-    /// The assignment level with ADR 0119's `catch` cut out of its head — what
+    /// The assignment level with `rule:expressions/catch-expression`'s `catch` cut out of its head — what
     /// a ternary's *else* branch parses at.
     ///
     /// That branch trails, so parsing it at the ordinary level would let it
@@ -252,7 +252,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         }
     }
 
-    /// ADR 0119 § 2: `catch` sits between assignment and the ternary.
+    /// `rule:expressions/catch-expression-precedence`: `catch` sits between assignment and the ternary.
     ///
     /// The guarded expression is everything the ternary level parses, so one
     /// arm covers a whole `??` chain or a whole `?:`; the arm body is parsed
@@ -302,7 +302,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         }
     }
 
-    /// ADR 0119 § 3: the arm body is parsed as an expression and that is the
+    /// `rule:expressions/catch-arm-is-an-expression`: the arm body is parsed as an expression and that is the
     /// entire rule — `throw` is admitted for free, since `throw expr` is
     /// already an expression, and `return`, `break` and `continue` are out
     /// because they are statements.

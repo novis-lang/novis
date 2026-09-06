@@ -507,8 +507,7 @@ const MATCH_PARAM_DOC: MethodDoc = MethodDoc {
 /// `Core\Router::url`, and `nvs_ir::lower` redirects the call here whenever
 /// `nvs_types::links` resolved its literal name against the compile-time table.
 /// So the *member* is one, and which of the two implementations answers is a
-/// property of what the compiler could prove — the same arrangement ADR 0057
-/// § 4 states for every prepared literal: one implementation, reached at two
+/// property of what the compiler could prove — the same arrangement `rule:expressions/preparation-preserves-behaviour` states for every prepared literal: one implementation, reached at two
 /// entry points, never two implementations.
 ///
 /// **Argument 0 is the route's path, already split.** `nvs_types::routes`'

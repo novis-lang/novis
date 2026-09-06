@@ -5,7 +5,7 @@
 //! `isset($x)` is `$x != null` and `isset($a, $b)` is the conjunction — the
 //! whole semantics, with no magic method to consult ([ADR 0028] § 3 removed
 //! `__isset` along with the ambient fallback it existed to intercept).
-//! `empty($x)` is `!$x`, [ADR 0035] § 2's truthy table negated, and it takes
+//! `empty($x)` is `!$x`, `rule:expressions/truthy-table`'s truthy table negated, and it takes
 //! exactly one operand. So the only rules this module carries are about the
 //! *operand*, and there are two — one shared, one `isset`'s alone.
 //!
@@ -33,7 +33,6 @@
 //! a session editing one rule does not carry the rest in context.
 //!
 //! [ADR 0028]: ../../../../docs/adr/0028-closing-the-remaining-magic-methods.md
-//! [ADR 0035]: ../../../../docs/adr/0035-truthy-boolean-context.md
 
 use nvs_diagnostics::{Diagnostic, code};
 use nvs_syntax::ast::{Expr, ExprKind};
@@ -69,8 +68,7 @@ pub(crate) fn check_isset_operand(
 ///
 /// This is [`check_isset_operand`] without the shape check: `empty` is `!$x`
 /// and PHP has accepted any expression there since 5.5, so only the
-/// guarded-subscript half carries over. What `nvs-ir` then lowers is ADR 0035
-/// § 2's table plus a `Not`, which is `!` exactly.
+/// guarded-subscript half carries over. What `nvs-ir` then lowers is `rule:expressions/truthy-table`'s table plus a `Not`, which is `!` exactly.
 ///
 /// [`ExprInfo`]: crate::expr_table::ExprInfo
 pub(crate) fn check_empty_operand(

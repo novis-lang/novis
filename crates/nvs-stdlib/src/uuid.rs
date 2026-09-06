@@ -88,8 +88,7 @@
 //!    `nvs_runtime::Tag::Bytes` variant [`crate::random`]'s gap 1 does.
 //! 2. **`==` on two `Uuid` values is object identity**, so two instances
 //!    holding the same 128 bits are not equal
-//!    ([ADR 0090](/docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
-//!    § 3's non-scalar row). Comparing `toString()` is the spelling that works
+//!    (`rule:expressions/equality-semantics`'s non-scalar row). Comparing `toString()` is the spelling that works
 //!    today. This is every `Core`-owned instance's gap, not this class's, and
 //!    it is why no member here answers `bool` about another UUID.
 //! 3. **`v7` has no intra-millisecond counter.** RFC 9562's optional
@@ -116,7 +115,7 @@ pub const NAME: &str = r"Core\Uuid";
 
 /// `Core\Uuid`'s registry rows — § 11's second table's four static members,
 /// plus the rendering member that section's table now writes. `isValid` was a
-/// fifth until ADR 0066 § 3b deleted it: `tryParse` is that question asked
+/// fifth until `rule:expressions/try-parse` deleted it: `tryParse` is that question asked
 /// through `parse` itself, so the two were one predicate and R17 keeps one.
 pub const CLASS: CoreClass = CoreClass {
     name: NAME,
@@ -456,8 +455,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Uuid::tryParse(string $s): ?Uuid` —
-    /// [ADR 0066](/docs/adr/0066-nullable-conversion-operator.md)
-    /// § 3a: [`nvs_core_uuid_parse`] exactly, with `null` where it throws.
+    /// `rule:expressions/try-parse`: [`nvs_core_uuid_parse`] exactly, with `null` where it throws.
     ///
     /// This replaces the `isValid` that used to sit here, which was already
     /// [`read`] asked without the throw — so there is still one definition of
@@ -621,7 +619,7 @@ mod tests {
     }
 
     /// Whether `Core\Uuid::tryParse($text)` answers a UUID rather than `null`
-    /// — the spelling ADR 0066 § 3a left standing when this class lost its
+    /// — the spelling `rule:expressions/try-parse` left standing when this class lost its
     /// `isValid`. Releases the string this test built and whatever came back.
     fn valid(text: &str) -> bool {
         let subject = Value::str(nvs_runtime::NvsStr::new(text.as_bytes()));

@@ -182,7 +182,7 @@ equivalent to pass it.
 | `fromCodePoints` | `fromCodePoints(array<uint> $codePoints): string` | `implode(array_map("mb_chr", …))` | neutral |
 | `format` | `format(string $template, mixed ...$arguments): string` | `sprintf`, `vsprintf`, `printf`, `vprintf`, `fprintf`, `vfprintf` | **sink** (template) |
 
-`format` is an [ADR 0057](../adr/0057-intrinsic-literal-folding.md) intrinsic: a literal template has its
+`format` is an `rule:expressions/intrinsic-literals` intrinsic: a literal template has its
 placeholder count and types checked against the argument list at compile time, which turns PHP's
 `printf`-argument-mismatch bug family into a diagnostic. Its template grammar is **`printf`'s**, kept
 deliberately — a closed conversion list (`%s %d %u %f %e %g %x %X %o %b %%`) with `printf`'s flag, width,
@@ -193,7 +193,7 @@ sinks**, because a grammar is an instruction rather than data
 ([ADR 0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md) §§ 1, 6): a tainted `format`
 template hands an attacker `%2$s` and `%999999999d`. The *arguments* stay contagious, and none of the four
 gets a launderer except `Regex::quote` — a grammar is written by the program, so the fix at a rejected call
-site is a literal, which ADR 0057 already folds.
+site is a literal, which `rule:expressions/intrinsic-literals` already folds.
 
 `ucwords` and title casing are **not** here — word segmentation is locale-dependent and belongs to intl;
 the mechanical rewrite for an ASCII-ish name is
@@ -202,7 +202,7 @@ the mechanical rewrite for an ASCII-ish name is
 PHP's `ctype_*` family has **no member and no replacement class**. Each one is a character-class question,
 which is what `Core\Regex` is for — `ctype_alpha($s)` is `Regex::matches($s, "^\\p{L}+$")` — except the two
 numeric ones, which are a *type* question and therefore an `as`: `ctype_digit($s)` is
-`$s as ?uint != null` ([ADR 0066](../adr/0066-nullable-conversion-operator.md)). Adding them as members
+`$s as ?uint != null` (`rule:expressions/nullable-conversion`). Adding them as members
 would import ASCII-only semantics into a type that guarantees UTF-8, which is the mistake
 [ADR 0009](../adr/0009-string-and-bytes.md) exists to prevent; `Core\Validate::isAscii` and `isPrintable`
 are here precisely because they *are* about the ASCII range and say so.
@@ -461,7 +461,7 @@ short.
 | `parse` | `parse(string $text, string $format, Zone $zone): DateTime` | `DateTime::createFromFormat`, `strptime` | |
 | `at` | `at(int $year, uint $month, uint $day, Zone $zone, {hour?, minute?, second?, nanos?}): DateTime` | `mktime`, `gmmktime`, `DateTime::setDate` | neutral |
 
-`Core\Time::parse` is an [ADR 0057](../adr/0057-intrinsic-literal-folding.md) intrinsic — a literal format
+`Core\Time::parse` is an `rule:expressions/intrinsic-literals` intrinsic — a literal format
 string is validated and its plan prepared at compile time. **A CLDR pattern is a `tainted` sink** wherever
 one is taken — `Time::parse`'s `$format` and every `format(string $pattern)` below — because it is one of
 R11's four grammars, per `Core\Str::format`'s note in § 1; the `$text` being parsed is data and stays
@@ -507,7 +507,7 @@ what `Duration::parse` takes. "Next monday" is not a value a config file supplie
 
 | Member | Signature | Notes |
 |---|---|---|
-| `format` | `$d->format(string $pattern): string` | [ADR 0057](../adr/0057-intrinsic-literal-folding.md) intrinsic, CLDR patterns. Replaces `date`, `gmdate`, `idate`, `strftime`, `date_format` |
+| `format` | `$d->format(string $pattern): string` | `rule:expressions/intrinsic-literals` intrinsic, CLDR patterns. Replaces `date`, `gmdate`, `idate`, `strftime`, `date_format` |
 | `plus` / `minus` | `$d->plus(int $count, Unit $unit): DateTime` | calendar arithmetic: adding `1, Unit::Month` lands on the same day-of-month, clamped to the month's length, and crossing a DST boundary is a 23- or 25-hour day. Replaces `date_add`, `date_sub`, `modify`, `strtotime`'s relative half |
 | `next` / `previous` | `$d->next(Weekday $w): DateTime` | the nearest strictly later (earlier) day with that weekday, time-of-day preserved. Replaces `strtotime("next monday")` |
 | `with` | `$d->with({year?, month?, day?, hour?, minute?, second?, nanos?}): DateTime` | replaces `setDate`, `setTime`, `setISODate` |
@@ -646,7 +646,7 @@ only inside `Core\Mail`, which is the one thing that ever needed it.
 names wherever the operation is the same: `length`, `at`, `slice`, `indexOf`, `compare`, `contains`,
 `startsWith`, `endsWith`, `join(array<bytes> $parts, bytes $separator = "")`, `fill`, `repeat`, plus
 `pack(string $format, mixed ...$values)` and `unpack(bytes $b, string $format): array<mixed>` (replacing
-`pack`/`unpack`, with the format string an ADR 0057 intrinsic and, on both members, a **sink** — it is one
+`pack`/`unpack`, with the format string an `rule:expressions/intrinsic-literals` intrinsic and, on both members, a **sink** — it is one
 of R11's four grammars, per `Core\Str::format` above). The three predicates are what magic-byte
 sniffing needs, and `join` rather than a `concat` of its own keeps R6's pairing with `Core\Str`. There is
 no `bytes` literal — see [00-overview § 5](00-overview.md).
@@ -807,7 +807,7 @@ lets a route segment ([ADR 0077](../adr/0077-compile-time-routing.md)) and a dat
 
 **Asking whether text is a UUID is `Uuid::tryParse($s) != null`** — `parse` with `null` where it throws,
 one of the two `tryParse`s [ADR 0063](../adr/0063-core-api-conventions.md) R5 admits
-([ADR 0066](../adr/0066-nullable-conversion-operator.md) § 3a). `$s as ?Uuid` does **not** compile; `as`
+(`rule:expressions/try-parse`). `$s as ?Uuid` does **not** compile; `as`
 never targets a class. There is no `Uuid::isValid`, because it was exactly `tryParse` asked a second time
 and R17 keeps one — the same argument, and the same CVE, that § 12 gives for `Uri`. `v7` is time-ordered across
 milliseconds and random inside one — the property that makes it the right primary key and the wrong public
@@ -871,7 +871,7 @@ input opens two streams.
 | `$uri->sign` | `$uri->sign({keys: array<secret bytes>, until: ?Time\Instant}): Uri` | nothing — Laravel's `URL::signedRoute`, Symfony's `UriSigner` | |
 | `$uri->verifySignature` | `$uri->verifySignature(array<secret bytes> $keys): void` | nothing | neutral |
 
-`Uri::parse` is an ADR 0057 intrinsic. Note what is **not** here: `Core\Uri` never decides whether a URL
+`Uri::parse` is an `rule:expressions/intrinsic-literals` intrinsic. Note what is **not** here: `Core\Uri` never decides whether a URL
 may be *fetched* — that is `Core\Http::allowUrl` in § 16, the SSRF launderer
 ([ADR 0058](../adr/0058-outbound-request-policy.md)).
 
@@ -890,7 +890,7 @@ character becomes that character, and dot segments are removed from an **absolut
 of § 6.2.3's scheme-based normalization, so `http://h:80/` and `http://h/` are two URIs — knowing that
 `80` is `http`'s default is knowledge about a scheme, and a member carrying a table of them would answer
 differently as the table grew. `==` on two `Uri`s is still object identity, which
-[ADR 0090](../adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md) § 4 fixes for every
+`rule:expressions/object-identity-equality` fixes for every
 class; `compareTo` is that ADR's own named answer for content equality, and it gives an order as well —
 component-lexicographic, absent before present.
 
@@ -907,7 +907,7 @@ owns all of it, including why `verifySignature` answers nothing and throws rathe
 
 **Asking whether text is a URI is `Uri::tryParse($s) != null`** — `parse` with `null` where it throws, and
 the one spelling [ADR 0063](../adr/0063-core-api-conventions.md) R5 admits `try…` for
-([ADR 0066](../adr/0066-nullable-conversion-operator.md) § 3a). `$s as ?Uri` does **not** compile: `as`
+(`rule:expressions/try-parse`). `$s as ?Uri` does **not** compile: `as`
 never targets a class, which is § 3's row without exceptions. There is no `Uri::isValid` either, by R17:
 a validator written as a *separate* implementation from the parser is how
 `filter_var(FILTER_VALIDATE_URL)` came to accept user-info that `parse_url` read differently
@@ -955,7 +955,7 @@ PHP's argument order, which R10 exists to stop — and `isIpV4`/`isIpV6` are `{v
 a closed literal set ([ADR 0047](../adr/0047-literal-and-enum-case-types.md)) rather than two more names.
 
 **There is no `isInteger`, `isFloat` or `isBoolean`**: each is `$s as ?int`/`?float`/`?bool != null`
-([ADR 0066](../adr/0066-nullable-conversion-operator.md)), and R17 forbids the second spelling. Every
+(`rule:expressions/nullable-conversion`), and R17 forbids the second spelling. Every
 member that remains names a *format*; only a *type* has an `as`, which is why the roster looks uneven and
 is not.
 

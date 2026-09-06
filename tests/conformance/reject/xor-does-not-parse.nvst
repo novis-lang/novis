@@ -1,5 +1,5 @@
 --TEST--
-`xor` has no direct replacement, so its diagnostic spells out the expression to write instead — ADR 0045
+`xor` has no direct replacement, so its diagnostic spells out the expression to write instead — `rule:expressions/no-keyword-logical-operators`
 --FILE--
 <?nvs
 bool $a = true;

@@ -58,7 +58,7 @@
 //! frees whatever the payload turns out to be.
 //!
 //! Everything else a tagged value needs is a *reader*, not a representation:
-//! [`value_truthy`] answers ADR 0035's table for one and [`value_to_string`]
+//! [`value_truthy`] answers `rule:expressions/truthy-positions`'s table for one and [`value_to_string`]
 //! answers ADR 0007 § 2's string rows, each branching on the tag out of line so
 //! that compiled code keeps knowing exactly one tag layout.
 //!
@@ -84,7 +84,7 @@
 //!   nothing while every `bytes` is statically typed and costs correctness the
 //!   moment one is erased into a `mixed`: [`value_to_string`] would silently
 //!   stringify unvalidated octets, [`value_identical`] would make a digest
-//!   equal to the text that spells it although ADR 0090 § 3 makes the two
+//!   equal to the text that spells it although `rule:expressions/equality-semantics` makes the two
 //!   types disjoint, and `Core\Json::encode` could not tell a payload it must
 //!   refuse from one it may emit. Priority 2 over priority 5, per
 //!   [AGENTS.md](/AGENTS.md)'s ordering.
@@ -102,7 +102,7 @@
 //! retagging the same allocation once the octets validate.
 //! [`value_truthy`] answers *empty is falsy, everything else truthy*, dropping
 //! `string`'s `"0"` case: that case is PHP's numeric-string rule, and a `bytes`
-//! never converts to a number. ADR 0035's table names no `bytes` row at all,
+//! never converts to a number. `rule:expressions/truthy-positions`'s table names no `bytes` row at all,
 //! so this is the runtime's own decision and this is its home.
 //!
 //! # What is here, and what is deliberately not

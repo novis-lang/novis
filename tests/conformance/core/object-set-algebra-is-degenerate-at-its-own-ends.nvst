@@ -1,5 +1,5 @@
 --TEST--
-`Core\ObjectSet<T>`'s `union`, `intersect` and `diff` agree at their degenerate ends — the receiver itself and a disjoint set — over every shape of receiver, counted rather than read off a line — docs/spec/01-core-library.md § 9, ADR 0090 § 4
+`Core\ObjectSet<T>`'s `union`, `intersect` and `diff` agree at their degenerate ends — the receiver itself and a disjoint set — over every shape of receiver, counted rather than read off a line — docs/spec/01-core-library.md § 9, `rule:expressions/object-identity-equality`
 --FILE--
 <?nvs
 final class Tag {
@@ -25,7 +25,7 @@ uint $one = 1;
 array<string> $rowNone = [];
 array<string> $rowOne = ["red"];
 array<string> $rowThree = ["red", "blue", "green"];
-// Identity is what membership means (ADR 0090 § 4), so two equal-looking
+// Identity is what membership means (`rule:expressions/object-identity-equality`), so two equal-looking
 // `Tag`s are two elements — this row is a *two*-member set, and every law
 // below has to hold over it exactly as it does over the three distinct ones.
 array<string> $rowTwins = ["red", "red"];

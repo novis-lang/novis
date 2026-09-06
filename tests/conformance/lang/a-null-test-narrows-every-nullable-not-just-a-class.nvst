@@ -1,5 +1,5 @@
 --TEST--
-A `!= null` test narrows a `?T` local to whatever dropping `null` leaves — an array, a scalar, a class — and the narrowed local is readable, indexable, writable and iterable (ADR 0066, ADR 0007 §§ 2 and 5)
+A `!= null` test narrows a `?T` local to whatever dropping `null` leaves — an array, a scalar, a class — and the narrowed local is readable, indexable, writable and iterable (`rule:expressions/nullable-conversion`, ADR 0007 §§ 2 and 5)
 --FILE--
 <?nvs
 // ADR 0066: `null` is dropped on the branch the test proves, and what is

@@ -103,7 +103,7 @@ array<Box> $none = [];
 array<Box> $boxes = Core\Arr::padEnd($none, 3, $b);
 $b->n = 7;
 echo Core\Arr::count($boxes), " ", $boxes["0"]->n, $boxes["1"]->n, $boxes["2"]->n, "\n";
-// Identity, not just equal contents — ADR 0090 § 4 makes `==` on two objects
+// Identity, not just equal contents — `rule:expressions/object-identity-equality` makes `==` on two objects
 // exactly the identity comparison this needs.
 if ($boxes["0"] == $boxes["2"]) {
     echo "one value, repeated\n";

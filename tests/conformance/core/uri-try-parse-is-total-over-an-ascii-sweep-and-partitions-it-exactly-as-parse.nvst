@@ -1,5 +1,5 @@
 --TEST--
-`Core\Uri::tryParse` answers for every one of the 128 ASCII bytes in a path position — never throwing, and `null` at exactly the bytes `Core\Uri::parse` refuses — spec § 12, ADR 0066 § 3a
+`Core\Uri::tryParse` answers for every one of the 128 ASCII bytes in a path position — never throwing, and `null` at exactly the bytes `Core\Uri::parse` refuses — spec § 12, `rule:expressions/try-parse`
 --FILE--
 <?nvs
 // The neighbouring agreement case sweeps twenty-one hand-picked subjects. This
@@ -10,7 +10,7 @@
 // still prints a plausible `admitted=` line and fails the `agreed=` count.
 //
 // `tryParse` is also asserted **total** here: `parse` throwing 46 times and
-// `tryParse` throwing zero is the whole of ADR 0066 § 3a, and the reason the
+// `tryParse` throwing zero is the whole of `rule:expressions/try-parse`, and the reason the
 // class declares no `isValid` (uri.rs's own doc comment: a validator written
 // as separate code from the parser is CVE-2024-5458).
 string $admitted = "";

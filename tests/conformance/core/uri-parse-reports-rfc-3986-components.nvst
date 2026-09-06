@@ -1,5 +1,5 @@
 --TEST--
-`Core\Uri::parse` reports RFC 3986's components without normalizing one of them, and `Uri::tryParse` is the same parse with `null` where it throws — spec § 12, ADR 0066 § 3a
+`Core\Uri::parse` reports RFC 3986's components without normalizing one of them, and `Uri::tryParse` is the same parse with `null` where it throws — spec § 12, `rule:expressions/try-parse`
 --FILE--
 <?nvs
 // § 12: every component comes back exactly as written — still
@@ -43,7 +43,7 @@ var $six = Core\Uri::parse("http://[::1]:8080/x");
 echo $six->host() as string, "\n";
 echo $six->port() as int, "\n";
 
-// ADR 0066 § 3a: `tryParse` is `parse` with `null` where it throws — and it
+// `rule:expressions/try-parse`: `tryParse` is `parse` with `null` where it throws — and it
 // is the *only* spelling of that question, `isValid` having been deleted so
 // a validator can never drift from the parser. "Is this an absolute URI",
 // the narrower question `isValid` used to ask, is that plus one reader call.

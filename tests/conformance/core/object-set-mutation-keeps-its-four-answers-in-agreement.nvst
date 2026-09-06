@@ -76,7 +76,7 @@ echo $trail, "\n";
 
 // `clear` is `remove` over every element and nothing else: two sets built the
 // same way, emptied the two ways, end in the same state — which is spelled
-// with the algebra, since two collections are two objects (ADR 0090 § 4).
+// with the algebra, since two collections are two objects (`rule:expressions/object-identity-equality`).
 Core\ObjectSet<Tag> $cleared = new Core\ObjectSet<Tag>();
 Core\ObjectSet<Tag> $emptied = new Core\ObjectSet<Tag>();
 foreach ($universe as Tag $tag) {

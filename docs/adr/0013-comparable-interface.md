@@ -17,7 +17,7 @@
 > to that method; a class that does not implement it makes those operators a **compile-time diagnostic**,
 > not a silent property walk. The interface fixes the other side's type to `self` — two different classes
 > are never directly orderable by these operators, even if both implement `Comparable`. Equality is a
-> separate question, owned by [ADR 0090](0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
+> separate question, owned by `rule:expressions/one-equality-operator`
 > and untouched by this decision.
 
 ## Context
@@ -107,12 +107,12 @@ see *Revisiting*.
 ### 5. `==` and `!=` are unaffected
 
 This decision is scoped to ordering. Equality is owned by
-[ADR 0090](0090-one-equality-operator-and-disjoint-types-do-not-compile.md), which makes `==` the one
+`rule:expressions/one-equality-operator`, which makes `==` the one
 spelling and compares two class instances by **identity** — a class may implement `Comparable` purely to
 be ordered while `==` on it keeps asking whether the two operands are the same object. Folding equality
 into this interface, so that `compareTo` returning `0` also means `==`, was considered and rejected; see
 *Alternatives rejected*. Writing `$a->compareTo($b) == 0` is how a class that implements `Comparable` asks
-the content question explicitly, which is ADR 0090 § 4's answer to it.
+the content question explicitly, which is `rule:expressions/object-identity-equality`'s answer to it.
 
 ### 6. The row this adds to [ADR 0007](0007-explicit-type-system.md) § 4
 

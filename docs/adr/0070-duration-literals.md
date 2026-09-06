@@ -112,7 +112,7 @@ same value, and choosing between them is the author's, exactly as `0x10` versus 
 | `nvs.toml` | `request_timeout = "30s"` | at boot, by the same parser |
 
 The three share one parser, so a grammar change cannot land in one and miss the others — the property
-[ADR 0057](0057-intrinsic-literal-folding.md) already requires of every intrinsic. `Duration`'s
+`rule:expressions/intrinsic-literals` already requires of every intrinsic. `Duration`'s
 `Stringable` form emits this grammar too, so a value round-trips through `parse` — exactly over the
 durations the grammar can spell, which is the non-negative ones. The grammar has no sign (*4*), while
 `toString` is total and has to render what `minus` and `negated` can produce, so a negative duration

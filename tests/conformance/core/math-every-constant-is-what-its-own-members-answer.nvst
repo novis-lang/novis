@@ -109,7 +109,7 @@ if ($overflowIsInfinity && $logAtZero && $infinityIsNotFinite) {
 
 // NAN is the one constant that `==` cannot confirm, because IEEE 754 makes it
 // the only float unequal to itself — which is exactly why `isNan` is a member
-// at all (ADR 0090 § 1 leaves `==` a value comparison and gives it no escape).
+// at all (`rule:expressions/one-equality-operator` leaves `==` a value comparison and gives it no escape).
 bool $nanIsNan = Core\Math::isNan(Core\Math::NAN);
 bool $nanEqualsItself = Core\Math::NAN == Core\Math::NAN;
 bool $rootOfNegative = Core\Math::isNan(Core\Math::sqrt(-1.0));

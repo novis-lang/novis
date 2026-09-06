@@ -1,5 +1,5 @@
 --TEST--
-a malformed literal argument to an intrinsic is refused while checking, and the same text behind a variable is not (ADR 0057 §§ 1, 2, 4)
+a malformed literal argument to an intrinsic is refused while checking, and the same text behind a variable is not (`rule:expressions/intrinsic-list-is-closed`, `rule:expressions/intrinsic-literals` and `rule:expressions/preparation-preserves-behaviour`)
 --FILE--
 <?nvs
 // The other half of `core/a-literal-intrinsic-is-validated-while-checking.nvst`.

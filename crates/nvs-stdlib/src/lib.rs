@@ -155,7 +155,7 @@
 //!    by `Core\Arr::hasKey`), a `Core`-owned enum
 //!    ([`registry::CoreTy::Enum`] over [`registry::ENUMS`], first used by
 //!    `Core\Arr::sort`), an **absent** option ([`registry::Const::Null`], the
-//!    same member), and ADR 0066's `?T`
+//!    same member), and `rule:expressions/nullable-conversion`'s `?T`
 //!    ([`registry::CoreTy::Nullable`], first used by `Core\Arr::first`) —
 //!    including as a **parameter** defaulting to `null`, the spec's most common
 //!    optional shape, which `Core\Str::slice`'s `?int $length = null` is the

@@ -26,7 +26,7 @@ class Mode {
         return $only;
     }
 
-    // One equality operator, and it is symmetric (ADR 0090 § 1).
+    // One equality operator, and it is symmetric (`rule:expressions/one-equality-operator`).
     public static function symmetric("read"|"write" $mode): string {
         if ("write" == $mode) {
             "write" $only = $mode;

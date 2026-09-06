@@ -3,7 +3,7 @@ Core\Db\Schema::fromArray normalizes what it reads, so a sparse array and a diff
 --FILE--
 <?nvs
 // § 1's canonical form is **ordered**, not merely structural: key order is part
-// of an array's value (ADR 0090 § 4), so `toArray` emits tables in name order,
+// of an array's value (`rule:expressions/object-identity-equality`), so `toArray` emits tables in name order,
 // columns in declaration order — a `create table` has to reproduce it — and
 // constraints and indexes in name order, since nothing observable depends on
 // the order they were added in. An introspector answering the server's own

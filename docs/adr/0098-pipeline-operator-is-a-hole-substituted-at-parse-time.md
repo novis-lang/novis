@@ -1,4 +1,4 @@
-# ADR 0098 — The pipeline operator is one hole substituted at parse time, never a callable applied at run time
+# `rule:expressions/pipeline-substitution` — The pipeline operator is one hole substituted at parse time, never a callable applied at run time
 
 - **Status:** Accepted
 - **Date:** 2026-08-26

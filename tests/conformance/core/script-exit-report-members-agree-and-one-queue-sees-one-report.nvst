@@ -22,7 +22,7 @@ Every `Core\Script\ExitReport` member answers the same thing on a second call, a
 // Both sets are captured by the two hooks below. Capture is by value (ADR 0031
 // § 2), and an object handle copied is still the one object — which is what
 // lets the second hook count what the first one saw. The comparison is
-// `Core\ObjectSet`'s own, and for an object that is identity (ADR 0090 § 3),
+// `Core\ObjectSet`'s own, and for an object that is identity (`rule:expressions/equality-semantics`),
 // so these counts are claims about *which* object each reading was and not
 // about what it said.
 Core\ObjectSet<mixed> $reports = new Core\ObjectSet<mixed>();

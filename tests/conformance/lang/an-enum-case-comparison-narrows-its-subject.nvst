@@ -28,7 +28,7 @@ if ($m == Mode::Read) {
     echo "other\n";
 }
 
-// ADR 0090 § 1 leaves one equality operator and it is symmetric, so the case
+// `rule:expressions/one-equality-operator` leaves one equality operator and it is symmetric, so the case
 // may be written on either side.
 Mode $s = Mode::Read;
 if (Mode::Read == $s) {

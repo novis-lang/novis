@@ -178,7 +178,7 @@ in that goal. An item's owner is the row it sits in.
 - [ ] **U16** `#[Test(db: …)]` and `#[Test(server: …)]` are accepted and have no reader in the runner.
 - [x] **U17** `array $a = [1, 2];` with no `<T>` is accepted (ground rules: every array declares its
       element type). *php-diff probes*
-- [x] **U18** `<>` parses as `!=` — ADR 0090 § 1 says `==`/`!=` are the whole set. *ref30* The lexer now
+- [x] **U18** `<>` parses as `!=` — `rule:expressions/one-equality-operator` says `==`/`!=` are the whole set. *ref30* The lexer now
       reports `E0241` at the two characters and still pushes the token `<>` means, so a file that writes
       it reports the rest of its own problems in the same run — the recovery `===` and `!==` already had.
 - [x] **U19** `try { … }` with neither `catch` nor `finally` is accepted (PHP refuses it). *ref30* The
@@ -203,14 +203,14 @@ in that goal. An item's owner is the row it sits in.
       gains it by the same rule (spec § 12). `crates/nvs-stdlib/src/time.rs`'s module doc owns why a
       `Core` class satisfies an interface by member at all.
 - [x] **D2** `Core\Time\Duration ==` is identity: `90m == 1h30m` is false; `compareTo` answers `0`.
-      Closed: the binary is ADR 0090 § 3's class row, and `Duration::compareTo`'s card now says so,
+      Closed: the binary is `rule:expressions/equality-semantics`'s class row, and `Duration::compareTo`'s card now says so,
       naming `$a->compareTo($b) == 0` as the content comparison. *types-probes*
 - [x] **D3** `Core\Weekday as int` is zero-based (`Friday` → `4`); the enum card says the cases are
       ordered "as `date("N")`" (Friday = 5). Closed: the card keeps `date("N")` for the **order** and
       states the numbering is not its — `Monday as int` is `0`. *coretime-probes `t_enum_int`*
 - [x] **D4** A literal pattern/duration argument is a **compile error** (E0769), not the
       `LogicError`/`ParseError` the cards name: `->format("yyyy-QQ")`, `Duration::parse("30 seconds")`.
-      Only a computed argument throws. Closed: the three cards on ADR 0057 § 1's roster —
+      Only a computed argument throws. Closed: the three cards on `rule:expressions/intrinsic-list-is-closed`'s roster —
       `Duration::parse`, `DateTime::format` and `Core\Time::parse` — name `E0769` and say only a
       computed argument reaches the throw, and the `DateTime::format` card names `Date::format` and
       `TimeOfDay::format` as the off-roster half `nvs_types::intrinsics` owns.

@@ -28,7 +28,7 @@
 //!
 //! § 4's table is one comparison with two substitutions at the object row:
 //!
-//! * `assertSame` is [`nvs_runtime::identity`] — ADR 0090 § 3's table exactly,
+//! * `assertSame` is [`nvs_runtime::identity`] — `rule:expressions/equality-semantics`'s table exactly,
 //!   so two objects are the same object and nothing else is.
 //! * `assertEquals` is that comparison with the object row replaced by
 //!   [ADR 0013](/docs/adr/0013-comparable-interface.md)'s
@@ -36,7 +36,7 @@
 //! * `assertEqualsDeep` replaces it with the structural walk below.
 //!
 //! Writing them as one comparison rather than three is what keeps the scalar,
-//! `string` and `array<T>` rows from drifting: those are ADR 0090's, not this
+//! `string` and `array<T>` rows from drifting: those are `rule:expressions/one-equality-operator`'s, not this
 //! ADR's, and a second reading of them here would be a second set of
 //! PHP-divergence decisions nothing keeps in step.
 //!
@@ -46,7 +46,7 @@
 //! table without giving them a signature, so each declares its subject here and
 //! the choice is this module's:
 //!
-//! * `assertTrue` takes a **`bool`**, not a `mixed` resolved through ADR 0035's
+//! * `assertTrue` takes a **`bool`**, not a `mixed` resolved through `rule:expressions/truthy-positions`'s
 //!   truthy table. That ADR makes a *condition* the one place a value is tested
 //!   without `as`, and an argument is not one.
 //! * `assertNull` takes a **`mixed`**, ADR 0007 § 2's one position that admits
@@ -1238,7 +1238,7 @@ nvs_runtime::nvs_helper! {
     /// predicate row, and the one member whose subject is a *declared* `bool`
     /// rather than a [`CoreTy::Var`].
     ///
-    /// A `mixed` subject resolved through ADR 0035's truthy table would have
+    /// A `mixed` subject resolved through `rule:expressions/truthy-positions`'s truthy table would have
     /// been the PHPUnit reading, and it is the wrong one here: that ADR makes a
     /// **condition** the one place a value is tested without `as`, and an
     /// argument is not one. So `assertTrue($rows)` is refused where it is
@@ -1351,7 +1351,7 @@ nvs_runtime::nvs_helper! {
     /// `Core\Test::assertContains($xs, $x)` holds exactly when
     /// `Core\Arr::contains($xs, $x)` is `true` and the library asks membership
     /// once. What "is the needle" means is therefore
-    /// [`identity::value_identical`] — ADR 0090 § 3's numeric row included, so
+    /// [`identity::value_identical`] — `rule:expressions/equality-semantics`'s numeric row included, so
     /// `[1.0]` contains `1` — and not ADR 0013's `compareTo`: `assertEquals` is
     /// the member that names an object comparison, and a membership test whose
     /// comparison changed with the element type is the silent fallback 0013
@@ -1693,7 +1693,7 @@ fn held(ctx: &mut Ctx, member: &'static str) -> Value {
 // The object rows — what `assertEquals` and `assertEqualsDeep` substitute
 // ============================================================================
 
-/// § 4's value comparison: ADR 0090 § 3's table, with the object row answered
+/// § 4's value comparison: `rule:expressions/equality-semantics`'s table, with the object row answered
 /// by [ADR 0013](/docs/adr/0013-comparable-interface.md)'s
 /// `compareTo` instead of by pointer identity.
 ///
@@ -1732,14 +1732,14 @@ fn equals(ctx: &mut Ctx, actual: Value, expected: Value) -> Result<bool, Fault> 
 /// `None` when they agree everywhere.
 ///
 /// The scalar, `string` and `bytes` rows are [`identity::value_identical`]'s,
-/// so nothing about ADR 0090 § 3 is read a second time here; what this adds is
+/// so nothing about `rule:expressions/equality-semantics` is read a second time here; what this adds is
 /// the two container rows and the object one, each of which the deep member
 /// exists to descend rather than to answer by identity.
 ///
 /// # Errors
 ///
 /// A catchable [`Fault::thrown`] past [`MAX_DEPTH`] levels of containment.
-/// An Novis array cannot contain itself (ADR 0090 § 3), so the only structure
+/// An Novis array cannot contain itself (`rule:expressions/equality-semantics`), so the only structure
 /// that can recur is an object graph, and a depth cap is what bounds it —
 /// refusing to answer is the honest outcome, an assertion that quietly compared
 /// half a graph being worse than one that says it could not.
@@ -1786,7 +1786,7 @@ fn leaf(actual: Value, expected: Value, path: &str) -> Option<Diff> {
     })
 }
 
-/// ADR 0090 § 3's array row, descended rather than answered: the same length,
+/// `rule:expressions/equality-semantics`'s array row, descended rather than answered: the same length,
 /// the same keys in the same order, and every value equal by this walk.
 fn array_difference(
     actual: Value,
@@ -2043,7 +2043,7 @@ mod tests {
     fn every_predicate_declares_the_one_subject_its_question_admits() {
         for method in asserting_members() {
             let admitted = match method.name {
-                // A `bool`, not a `mixed` resolved through ADR 0035's truthy
+                // A `bool`, not a `mixed` resolved through `rule:expressions/truthy-positions`'s truthy
                 // table: an argument is not a condition.
                 "assertTrue" => vec![CoreTy::Bool],
                 // ADR 0007 § 2's one position that admits every type.

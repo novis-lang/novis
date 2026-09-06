@@ -22,7 +22,7 @@ Core\Path::join($base, Core\Path::relativeTo($p, $base)) normalizes back to $p o
 // and the WSL leg do not spell a separator the same way.
 
 // The answer is `?string`, and a narrowed nullable does not reach an argument
-// position on its own — the narrowing ADR 0066 gives `!= null` is what lets
+// position on its own — the narrowing `rule:expressions/nullable-conversion` gives `!= null` is what lets
 // `->` through, not what re-types the local. `as string` inside the guarded
 // branch is the conversion that does, and it is a checked one (ADR 0007 § 2),
 // so it would throw rather than lie if the guard above it were wrong.

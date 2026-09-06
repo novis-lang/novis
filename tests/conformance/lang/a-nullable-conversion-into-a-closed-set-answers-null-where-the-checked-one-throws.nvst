@@ -1,5 +1,5 @@
 --TEST--
-`as ?T` into a literal, enum-case or whole-enum target answers `null` on exactly the values `as T` throws on, and coerces no more than it does — ADR 0066 § 3 row 2, over ADR 0047 § 5's membership chain and ADR 0010 § 5's two enum rows
+`as ?T` into a literal, enum-case or whole-enum target answers `null` on exactly the values `as T` throws on, and coerces no more than it does — `rule:expressions/nullable-conversion-availability` row 2, over ADR 0047 § 5's membership chain and ADR 0010 § 5's two enum rows
 --FILE--
 <?nvs
 enum Mode: int {
@@ -20,7 +20,7 @@ final class Twin {
         }
     }
 
-    // ADR 0066 § 3 row 2: "that conversion is already checked and throwing;
+    // `rule:expressions/nullable-conversion-availability` row 2: "that conversion is already checked and throwing;
     // this is its non-throwing twin." Same chain, with the miss edge answering
     // `null` instead of reaching `Helper::LiteralMismatch`.
     public static function nullableMode(mixed $m): string {

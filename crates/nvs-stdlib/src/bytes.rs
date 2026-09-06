@@ -73,7 +73,7 @@
 //!   is `memcmp`'s question and PHP's `strcmp`'s: lexicographic over unsigned
 //!   octets. `Core\Str` has no `compare` yet, and when it grows one it takes
 //!   this shape over its own unit. This is *not* the `==` operator
-//!   ([ADR 0090](/docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)),
+//!   (`rule:expressions/one-equality-operator`),
 //!   which already compares two `bytes` for equality and is what a program
 //!   should write when that is the question; `compare` exists for the ordering
 //!   `==` does not answer.
@@ -88,7 +88,7 @@
 //!
 //! # `pack`'s format is a closed grammar, and every code has one meaning
 //!
-//! § 7 says `pack` replaces PHP's, and makes its format string an ADR 0057
+//! § 7 says `pack` replaces PHP's, and makes its format string an `rule:expressions/intrinsic-literals`
 //! intrinsic and a sink — but it does not write the code table, so that is
 //! settled here. PHP's is taken as the starting point and **narrowed to the
 //! codes that name a wire format outright**, because a format string is a
@@ -1449,7 +1449,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// **Two classifications are still owed**, both named by spec § 7 and
     /// neither invented here: the format is an
-    /// [ADR 0057](/docs/adr/0057-intrinsic-literal-folding.md)
+    /// `rule:expressions/intrinsic-literals`
     /// intrinsic, so a *literal* format should have its field count checked
     /// against the argument list at compile time rather than at the call —
     /// exactly as `Core\Str::format`'s template still owes; and it is a
@@ -1692,7 +1692,7 @@ nvs_runtime::nvs_helper! {
     /// parser must not swallow (AGENTS.md's priority 1). A header read off a
     /// longer buffer is `Core\Bytes::slice` and then this, or a trailing `a*`.
     ///
-    /// The format is an ADR 0057 intrinsic and a sink for the same reasons
+    /// The format is an `rule:expressions/intrinsic-literals` intrinsic and a sink for the same reasons
     /// [`nvs_core_bytes_pack`]'s is, and both classifications are owed there.
     fn nvs_core_bytes_unpack(_ctx, args: [2]) {
         let subject = raw(&args[0], "unpack", "the subject")?;

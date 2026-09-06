@@ -1,5 +1,5 @@
 --TEST--
-A `?T` binding holds either representation, and `??` reads it back — ADR 0066
+A `?T` binding holds either representation, and `??` reads it back — `rule:expressions/nullable-conversion`
 --FILE--
 <?nvs
 ?int $absent = null;

@@ -5,7 +5,7 @@ Core\Math::toRadians and toDegrees invert each other over a swept table, and lan
 // The pair is implemented as PHP's own expressions — `($d / 180.0) * PI` and
 // `($r / PI) * 180.0` — rather than as Rust's `f64::to_radians`, which scales
 // by the correctly rounded `PI / 180.0`. The two spellings part by an ulp, and
-// `==` over `float` is exact (ADR 0090), so the round trip below is the thing
+// `==` over `float` is exact (`rule:expressions/one-equality-operator`), so the round trip below is the thing
 // that difference is observable through. `nvs_stdlib::math`'s doc comment on
 // `nvs_core_math_to_radians` owns the reasoning; this case pins the behaviour.
 // What each trigonometric member answers on its own is

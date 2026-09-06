@@ -1,4 +1,4 @@
-# ADR 0066 — `expr as ?T` converts without throwing, yielding `null` on failure
+# `rule:expressions/nullable-conversion` — `expr as ?T` converts without throwing, yielding `null` on failure
 
 - **Status:** Accepted
 - **Date:** 2026-08-23
@@ -169,12 +169,12 @@ the same reason `isInteger` is not: it is `$s as ?uint != null`.
 
 ### 6. A bare `?T` condition is a lint, not an error
 
-Under [ADR 0035](0035-truthy-boolean-context.md) both `null` and `0` are falsy, so `if ($s as ?int)` is
+Under `rule:expressions/truthy-positions` both `null` and `0` are falsy, so `if ($s as ?int)` is
 false for an invalid value *and* for a valid zero — reconstructing precisely the `(int)$x > 0` defect that
 motivated this ADR. `nvs check` warns when a `?T` is used directly as a condition, naming `!= null`.
 
 It is a lint rather than a diagnostic because **the hazard is not new and not specific to this operator**:
-any `?int` in an `if` has always had it. Making it an error would amend ADR 0035 for every nullable value
+any `?int` in an `if` has always had it. Making it an error would amend `rule:expressions/truthy-positions` for every nullable value
 in the language, which is a larger decision than this one and is not taken here.
 
 ## Consequences
@@ -222,7 +222,7 @@ in the language, which is a larger decision than this one and is not taken here.
 - **A `Result`/`Either` return.** Distinguishes *why* a conversion failed. Rejected: Novis has no sum type,
   and adding one for this would be a language-scale decision to avoid a `null` check.
 - **Refusing `?T` in a truthy position outright.** The strongest guarantee against § 6's trap, and rejected
-  there: it amends ADR 0035 for every nullable value rather than for conversions.
+  there: it amends `rule:expressions/truthy-positions` for every nullable value rather than for conversions.
 - **Keeping the three `Validate` predicates.** A validation class with `isEmail` but no `isInteger` reads as
   a hole. Rejected on R17: the hole is apparent rather than real, since the removed three name *types* and
   the survivors name *formats*, and only types have an `as`.

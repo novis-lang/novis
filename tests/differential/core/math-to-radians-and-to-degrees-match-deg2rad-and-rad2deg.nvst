@@ -15,7 +15,7 @@ Core\Math::toRadians and ::toDegrees answer what PHP's deg2rad and rad2deg answe
 // Novis used it until this case was written. The ulp is invisible in a rendered
 // float, which prints 14 significant digits on both sides, so every line
 // below that echoes a number agrees under either spelling. It becomes visible
-// through `==`, which is exact over `float` (ADR 0090): a round trip lands
+// through `==`, which is exact over `float` (`rule:expressions/one-equality-operator`): a round trip lands
 // back on the angle it started from under PHP's spelling and one ulp short of
 // it under the other. So the counted round trip is the whole point of this
 // case, and the rendered tables are what say the two members are otherwise

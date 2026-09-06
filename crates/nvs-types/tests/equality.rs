@@ -1,4 +1,4 @@
-//! ADR 0090 § 2: two statically disjoint operands do not compile — and its
+//! `rule:expressions/disjoint-comparison-refused`: two statically disjoint operands do not compile — and its
 //! § 6, which makes a `switch` label and a `match` arm the same check against
 //! their subject.
 //!
@@ -143,7 +143,7 @@ fn a_union_compares_against_any_type_one_member_holds() {
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
-/// ADR 0090 § 6: a `case` label is compared against the subject by the one
+/// `rule:expressions/switch-match-equality`: a `case` label is compared against the subject by the one
 /// equality rule, so a disjoint label is § 2's refusal without the operator.
 #[test]
 fn a_disjoint_switch_label_does_not_compile() {

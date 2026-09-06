@@ -1951,7 +1951,7 @@ mod tests {
     }
 
     /// `CoreTy::Nullable` is `null|T` and *is* the union the checker already
-    /// had — the one property the whole `?T` half of ADR 0066 rests on, since
+    /// had — the one property the whole `?T` half of `rule:expressions/nullable-conversion` rests on, since
     /// a registry row's `?string` and a source-written `?string` have to be
     /// one interned id for `??` and assignability to meet a single shape.
     #[test]

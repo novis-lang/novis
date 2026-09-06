@@ -1,5 +1,5 @@
 --TEST--
-`==` and `!=` compare value without converting, over ints, strings, floats and bools alike — ADR 0090 § 3
+`==` and `!=` compare value without converting, over ints, strings, floats and bools alike — `rule:expressions/equality-semantics`
 --FILE--
 <?nvs
 echo (1 == 1) as string, "|", (1 == 2) as string, "|\n";

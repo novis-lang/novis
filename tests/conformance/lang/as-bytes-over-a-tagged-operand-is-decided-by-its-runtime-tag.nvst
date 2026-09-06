@@ -1,5 +1,5 @@
 --TEST--
-An operand whose static type names no conversion row takes `as bytes` from its runtime tag, and `as ?bytes` answers `null` on exactly the rows that throw — ADR 0007 §§ 2 and 6, ADR 0009 § 3, ADR 0066 § 1
+An operand whose static type names no conversion row takes `as bytes` from its runtime tag, and `as ?bytes` answers `null` on exactly the rows that throw — ADR 0007 §§ 2 and 6, ADR 0009 § 3, `rule:expressions/nullable-conversion`
 --FILE--
 <?nvs
 class Render {
@@ -14,7 +14,7 @@ class Render {
         }
     }
 
-    // ADR 0066 § 1's twin, which "yields `null` exactly where `expr as T`
+    // `rule:expressions/nullable-conversion`'s twin, which "yields `null` exactly where `expr as T`
     // would throw". One row set under both spellings, so the sweep below
     // asserts that they agree rather than what either one answered.
     public static function nullable(mixed $m): string {

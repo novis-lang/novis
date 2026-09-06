@@ -231,7 +231,7 @@ pub enum Ty {
     /// checker-proven narrowing still panics naming the case, everywhere but
     /// one: rendering it — `.`, `echo` and `as string` — goes through
     /// [`crate::ir::Helper::TaggedToString`]. Arithmetic on a `mixed`,
-    /// ADR 0035's truthy table and an array access through a `mixed`-erased
+    /// `rule:expressions/truthy-positions`'s truthy table and an array access through a `mixed`-erased
     /// base are the ones left, and each closes the same way that one did, by
     /// adding a [`crate::ir::Helper`] variant that dispatches on the tag
     /// rather than a second representation.
@@ -354,7 +354,7 @@ pub enum Ty {
     /// and is taken by the checker, above this boundary.
     ///
     /// **It is the one representation other than [`Self::Tagged`] that can
-    /// hold `null`, and `?class<T>` is why.** ADR 0066's sugar interns as
+    /// hold `null`, and `?class<T>` is why.** `rule:expressions/nullable-conversion`'s sugar interns as
     /// `Union([Null, ClassRef])` and [`crate::lower`]'s `shared_erasure` folds
     /// that pair to this variant rather than tagging it: no class lives at
     /// address zero, so a descriptor already has a spare value meaning "no

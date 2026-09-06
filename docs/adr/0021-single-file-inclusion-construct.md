@@ -67,7 +67,7 @@ spend the "pragmatic superset" budget on that instead of on novelty. Note the na
 it justifies keeping a spelling whose *meaning* Novis wants, never a second spelling of a meaning already
 covered, which is the distinction that decided `<?php`
 (`rule:statements/nvs-is-the-only-open-tag`) and `list(...)`
-([ADR 0050](0050-list-destructuring-spelling-rejected.md)) the other way. `require` passes it, because no
+(`rule:expressions/bracket-destructuring`) the other way. `require` passes it, because no
 other keyword spells what it means. The three rejected
 spellings are not rejected for being PHP-shaped; they are rejected because each names a behaviour (warn-and-
 continue, or an implicit repeat guard) this project has already decided against having anywhere in the

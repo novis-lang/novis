@@ -1,5 +1,5 @@
 --TEST--
-A literal statement handed to `stream` is validated while checking, exactly as `query`'s is: the placeholders are counted against the literal parameter array before the program is ever run — ADR 0067 §§ 4 and 10, ADR 0057 § 1
+A literal statement handed to `stream` is validated while checking, exactly as `query`'s is: the placeholders are counted against the literal parameter array before the program is ever run — ADR 0067 §§ 4 and 10, `rule:expressions/intrinsic-list-is-closed`
 --FILE--
 <?nvs
 // ADR 0067 § 10 validates a *literal* SQL argument during checking — the

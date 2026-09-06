@@ -1,8 +1,8 @@
 --TEST--
-What counts as one member of a `Core\ObjectSet` is `==`'s own table, one row per representation: the numeric domain is one row, a string and an array compare by content, and an object only with itself — docs/spec/01-core-library.md § 9, ADR 0090 §§ 3, 4
+What counts as one member of a `Core\ObjectSet` is `==`'s own table, one row per representation: the numeric domain is one row, a string and an array compare by content, and an object only with itself — docs/spec/01-core-library.md § 9, `rule:expressions/equality-semantics` and `rule:expressions/object-identity-equality`
 --FILE--
 <?nvs
-// § 9 says these collections "key on identity", and ADR 0090 § 3's table is
+// § 9 says these collections "key on identity", and `rule:expressions/equality-semantics`'s table is
 // what identity means — `nvs_runtime::identity` answers `==`, `Core\Arr::
 // contains` and this store from one comparison, so a set's membership is
 // exactly the equality the rest of the language already has.
@@ -38,7 +38,7 @@ $rows->add([1, 2]);
 $rows->add([2, 1]);
 echo $rows->count(), " ", $rows->has([1, 2]) ? "yes" : "no", "\n";
 
-// An object is identical only to itself, whatever it holds: ADR 0090 § 4
+// An object is identical only to itself, whatever it holds: `rule:expressions/object-identity-equality`
 // leaves content equality to `Comparable::compareTo`, so three tags with one
 // name are three members and each keeps its own value.
 final class Tag {

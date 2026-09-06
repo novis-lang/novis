@@ -10,7 +10,7 @@
 // pathless-looking `http://a` would still print plausibly on every other row.
 //
 // The static half of the same claim needs no assertion and cannot have one:
-// `$uri->path() == null` does not compile, ADR 0090 § 4 refusing an equality
+// `$uri->path() == null` does not compile, `rule:expressions/object-identity-equality` refusing an equality
 // whose two sides are statically disjoint, and `string $p = $uri->path();`
 // needs neither an `as` nor a `??`. Both are visible below by their absence.
 

@@ -1,5 +1,5 @@
 --TEST--
-A `Core\ObjectMap` key follows the object it is, so mutating that object does not lose its pair — while a value-typed member is fixed at the moment it is added — docs/spec/01-core-library.md § 9, ADR 0090 § 3
+A `Core\ObjectMap` key follows the object it is, so mutating that object does not lose its pair — while a value-typed member is fixed at the moment it is added — docs/spec/01-core-library.md § 9, `rule:expressions/equality-semantics`
 --FILE--
 <?nvs
 final class Tag {
@@ -18,7 +18,7 @@ $weights->set($red, 3);
 $weights->set($blue, 7);
 
 // An object key is the object, not a picture of it: rewriting every property
-// it has moves nothing, because ADR 0090 § 3's object row never reads one.
+// it has moves nothing, because `rule:expressions/equality-semantics`'s object row never reads one.
 // This is the whole reason § 9's collections exist beside `array<T>`, whose
 // `int|string` key would have had to be derived from those properties.
 $red->name = "crimson";
@@ -47,7 +47,7 @@ $name = $name . "!";
 echo $names->has("ada") ? "yes" : "no", " ", $names->has($name) ? "yes" : "no", "\n";
 
 // Two objects that a `clone` made are two keys, however alike they are —
-// `clone` copies contents and ADR 0090 § 3 does not read contents.
+// `clone` copies contents and `rule:expressions/equality-semantics` does not read contents.
 Tag $copy = clone $blue;
 echo $weights->has($blue) ? "yes" : "no", " ", $weights->has($copy) ? "yes" : "no", "\n";
 $weights->set($copy, 9);

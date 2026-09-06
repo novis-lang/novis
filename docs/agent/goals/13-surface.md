@@ -1,14 +1,14 @@
 # Loop goal 13 — the last two front-end items, before anything colours them
 
 Land the two M1 items that were scheduled after M4 and never taken:
-[ADR 0098](../../adr/0098-pipeline-operator-is-a-hole-substituted-at-parse-time.md)'s **pipeline
+`rule:expressions/pipeline-substitution`'s **pipeline
 operator** and [ADR 0124](../../adr/0124-php-86-lands-as-four-refusals-and-one-session-rule.md)'s **PHP
 8.6 refusals**. Both are written and accepted; this goal implements them and reopens neither.
 [docs/plan/m1.md](../../plan/m1.md) items 5 and 6 are the scope.
 
 **Why here, between the tree and the server.** Goal 15's TextMate grammar must colour `|>` and `let`/`is`
 as things Novis **rejects** ([ADR 0099](../../adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 4),
-and `|>` stops being one the moment ADR 0098 lands. A grammar written against a surface that changes two
+and `|>` stops being one the moment `rule:expressions/pipeline-substitution` lands. A grammar written against a surface that changes two
 goals later is written twice, and its snapshots are re-frozen by a session that has no idea why. Landing
 both now means the grammar, the semantic legend and every `.lspt` case see the final surface once.
 
@@ -19,14 +19,14 @@ is the smallest goal on the chain after goal 8.
 
 ## Stage 0 — the catch-up: three diagnostic numbers are already taken
 
-ADR 0098's table assigns `E0124`, `E0125` and `E0126`. **All three were allocated to other diagnostics
+`rule:expressions/pipeline-substitution`'s table assigns `E0124`, `E0125` and `E0126`. **All three were allocated to other diagnostics
 after it was written** — `E_FOR_INIT_MIXES_DECL_AND_EXPR` and `E_FOR_INIT_TWO_DECLARATIONS`
 (`rule:iteration/for-init-clause`) and
-`E_CATCH_ARM_NOT_AN_EXPRESSION` ([ADR 0119](../../adr/0119-an-expression-level-catch-is-a-typed-arm-on-one-guarded-expression.md)),
+`E_CATCH_ARM_NOT_AN_EXPRESSION` (`rule:expressions/catch-expression`),
 in `crates/nvs-diagnostics/src/lib.rs`. The registry is the allocator and it wins.
 
 So the first slice **reassigns the pipeline's three codes to the next free numbers in the parser band —
-`E0127`, `E0128`, `E0129` — and folds ADR 0098's table to match**, in the ADR's own body, because a
+`E0127`, `E0128`, `E0129` — and folds `rule:expressions/pipeline-substitution`'s table to match**, in the ADR's own body, because a
 later decision is folded into the earlier ADR rather than left as an overlay. This is stage 0 and not a
 detail of stage 2: every conformance case written against the old numbers is a case written twice.
 
@@ -76,7 +76,7 @@ is in the acceptance list.
 
 ## Standing decisions — pre-authorized, do not stop the loop for these
 
-- **The two ADRs are implemented, not reopened.** ADR 0098's `?|>` stays deferred with its trigger named,
+- **The two ADRs are implemented, not reopened.** `rule:expressions/pipeline-substitution`'s `?|>` stays deferred with its trigger named,
   and ADR 0124's non-adoptions stay non-adopted. A session that thinks either is wrong records the
   thought in the handoff's `## Backlog` and implements what is written.
 - **The renumbering is mechanical and it is the ADR's body that moves.** No new ADR number, no overlay

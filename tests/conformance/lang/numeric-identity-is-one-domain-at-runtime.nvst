@@ -1,5 +1,5 @@
 --TEST--
-`int`, `uint`, `float` and `decimal` are one numeric domain wherever equality is resolved at runtime — a `mixed` `==` and `Core\Arr`'s strict identity alike — ADR 0090 §§ 3, 5
+`int`, `uint`, `float` and `decimal` are one numeric domain wherever equality is resolved at runtime — a `mixed` `==` and `Core\Arr`'s strict identity alike — `rule:expressions/equality-semantics` and `rule:expressions/mixed-equality`
 --FILE--
 <?nvs
 // § 5: a `mixed` operand resolves on the runtime tags and applies § 3's

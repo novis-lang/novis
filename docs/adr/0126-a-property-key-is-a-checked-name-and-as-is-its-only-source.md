@@ -74,7 +74,7 @@ written here. `Core\Reflect` landing first is what makes that possible, and is t
 [ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md) § 2 demands.
 
 It is its own **equality domain**
-([ADR 0090](0090-one-equality-operator-and-disjoint-types-do-not-compile.md) § 2): two property keys are
+(`rule:expressions/disjoint-comparison-refused`): two property keys are
 equal when they name the same property, and nothing else is ever equal to one. `$key == "email"` is
 exactly the string-as-a-member confusion this ADR exists to keep out; ordering one is refused with the
 other unordered types.
@@ -102,7 +102,7 @@ program acquires a key by accident. [ADR 0007](0007-explicit-type-system.md) § 
 
 The `string` row is the door, and being a row of that grid it inherits everything the grid already says:
 it is checked in fact, it throws rather than substituting, and `as ?property<T>`
-([ADR 0066](0066-nullable-conversion-operator.md)) yields `null` exactly where it would throw. A name that
+(`rule:expressions/nullable-conversion`) yields `null` exactly where it would throw. A name that
 names nothing and a name that names a `private` property are the same failure and throw the same way —
 visibility is decided at the conversion, once, and the message names the class and the name it was given.
 

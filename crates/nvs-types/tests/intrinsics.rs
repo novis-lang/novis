@@ -1,4 +1,4 @@
-//! ADR 0057's intrinsic folding, at the call site: the closed list of `Core`
+//! `rule:expressions/intrinsic-literals`'s intrinsic folding, at the call site: the closed list of `Core`
 //! members whose literal argument the checker reads, and what it says about
 //! one it cannot.
 //!
@@ -407,7 +407,7 @@ fn a_literal_duration_is_validated_while_checking() {
 
 #[test]
 fn a_nullable_argument_is_not_refused_against_a_numeric_conversion() {
-    // ADR 0057 § 4 as a test: preparation produces an earlier answer and never
+    // `rule:expressions/preparation-preserves-behaviour` as a test: preparation produces an earlier answer and never
     // a different one. `Core\Str::format("%d", $n)` for a `?int` throws at run
     // time only when `$n` is actually `null`, so refusing it while checking
     // would be a *different* answer for every program whose value is not.
@@ -688,7 +688,7 @@ fn an_open_host_matching_no_grant_is_a_diagnostic() {
     // this machine's, so both halves of `db.open`'s question are facts before
     // the program runs — and the answer is the one
     // `nvs_runtime::capability::require` would have given, moved earlier per
-    // ADR 0057 § 4 rather than made stricter.
+    // `rule:expressions/preparation-preserves-behaviour` rather than made stricter.
     let caps = granting("db.granted.test");
     let ungranted = open("\"db.example.test\"", Some(&caps));
     assert!(
@@ -710,7 +710,7 @@ fn an_open_host_matching_no_grant_is_a_diagnostic() {
 fn an_open_host_says_nothing_where_a_half_of_the_question_is_missing() {
     // Two ways for § 10's question to be unanswerable at check time, and both
     // have to leave the call alone rather than deny it — a refusal here is one
-    // the runtime would not have made, which is what ADR 0057 § 4 forbids.
+    // the runtime would not have made, which is what `rule:expressions/preparation-preserves-behaviour` forbids.
     //
     // First: no configuration was read at all, which is every other fixture in
     // this file and every `nvs check` outside a project root. Absent is not

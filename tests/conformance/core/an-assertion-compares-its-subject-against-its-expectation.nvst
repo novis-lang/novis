@@ -26,7 +26,7 @@ class Vault {
 
 int $refused = 0;
 
-// The rows every member shares -- ADR 0090 § 3's scalar and `array<T>` table,
+// The rows every member shares -- `rule:expressions/equality-semantics`'s scalar and `array<T>` table,
 // read once rather than three times.
 int $one = 1;
 int $two = 2;

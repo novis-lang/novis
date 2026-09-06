@@ -233,7 +233,7 @@ is why" — is this file.
   yet" in a handoff as a claim to re-check in one call before scoping around it.
 - **A `loop-goal.toml` check's *comment* is not the specification, and it can contradict a settled
   ADR.** Item 13's comment read "`==` normalizes per RFC 3986 § 6.2.2 and then compares components",
-  which ADR 0090 § 4 forbids outright — `==` on two objects is identity, there is no `__equals`, no
+  which `rule:expressions/object-identity-equality` forbids outright — `==` on two objects is identity, there is no `__equals`, no
   `Equatable`, and that ADR names `$a->compareTo($b) == 0` as *the* spelling for content equality. The
   toml wins over a **plan field** (the bullet above), because both are status; it does not win over an
   ADR, because only one of those is a decision. One `peek.py <adr>:"## 4"` before writing the member
@@ -3236,7 +3236,7 @@ is why" — is this file.
   `php -r` for the *divergence* half instead, where the frozen `--EXPECT--` is Novis's own output and
   PHP's answer only appears in the case's prose — that is the one place the runner cannot check the
   sentence you wrote.
-- **An `int` literal does not reach an `array<float>`'s element type**, so a differential case about Novis's *one numeric domain* has to declare the subject `array<int|float>`. `Core\Arr::contains($floats, 1)` against an `array<float>` is `E0401: expected float, found int` at the argument — the needle is typed `T`, and the widening `1 == 1.0` gets in an expression is not one an argument position performs. Declaring `array<int|float> $numeric = [1.0, 2.5];` makes `T` the union, the literal fits, and `contains($numeric, 1)` then answers `true` — which is the ADR 0090 § 3 row worth pinning, since `in_array(1, [1.0], true)` is `false` and the loose `in_array(1, [1.0])` is `true`, so Novis matches neither of PHP's two modes.
+- **An `int` literal does not reach an `array<float>`'s element type**, so a differential case about Novis's *one numeric domain* has to declare the subject `array<int|float>`. `Core\Arr::contains($floats, 1)` against an `array<float>` is `E0401: expected float, found int` at the argument — the needle is typed `T`, and the widening `1 == 1.0` gets in an expression is not one an argument position performs. Declaring `array<int|float> $numeric = [1.0, 2.5];` makes `T` the union, the literal fits, and `contains($numeric, 1)` then answers `true` — which is the `rule:expressions/equality-semantics` row worth pinning, since `in_array(1, [1.0], true)` is `false` and the loose `in_array(1, [1.0])` is `true`, so Novis matches neither of PHP's two modes.
 - **A `Core` member's refusal is a `FATAL:` line on standard error, not a `Throwable`, so `try`/`catch` cannot pin it.** `Fault::fatal` is what `key_bytes` and every argument-shape guard in `nvs-stdlib` raise, and it unwinds past `catch (Throwable $e)` untouched: a case wrapping `Core\Arr::countBy($floats)` in a `try` prints nothing from its handler and exits 1. Pin it with `--EXPECT-ERROR--` instead, whose presence is also what tells the runner this case's run is *meant* to fail — the stdout before the fatal still has to match `--EXPECT--`, so the agreeing rows can sit in the same case. Get the message by running the scratch under `2>` and `cat -A`: it is one line, `FATAL: ` then the member's own text, and it can carry an internal detail (`got tag 4`) that no other section would let you assert.
 - **A `Core` member's *ordering* refusal is the other kind of `Fault` and a `catch` does reach it.**
   `Fault::thrown` — what `nvs_stdlib::ordering::compare_values` raises for a pair with no natural
@@ -3544,7 +3544,7 @@ is why" — is this file.
   normalize($p)` on every row) and exact only on a path that is already normal. A case asserting
   `join(split($p)) == normalize($p)` fails on 8 of 20 ordinary rows.
 - **A `!= null` guard does not re-type a nullable local for an *argument* position; `as string` inside
-  the guarded branch is what does.** ADR 0066's narrowing is what lets `->` reach a member of a `?Foo`,
+  the guarded branch is what does.** `rule:expressions/nullable-conversion`'s narrowing is what lets `->` reach a member of a `?Foo`,
   and `tests/conformance/lang/a-null-test-narrows-a-nullable-local.nvst` only ever pinned that shape —
   so `Core\Str::replace($r, …)` inside `if ($r != null)`, where `$r` came from a `?string` member like
   `Core\Path::relativeTo`, is `E0401: expected string, found string|null`, and declaring the local
@@ -4077,7 +4077,7 @@ is why" — is this file.
   placeholders has to do; `crates/nvs-types/tests/intrinsics.rs` says so at the one case
   that needs it.
 
-- **Making a member an ADR 0057 intrinsic breaks the conformance case that pinned its runtime
+- **Making a member an `rule:expressions/intrinsic-literals` intrinsic breaks the conformance case that pinned its runtime
   throw, and the failure names the *case*.** `str-format-refuses-every-mismatch.nvst` caught
   four `Core\Str::format` mismatches out of literal templates; the moment the checker read
   those literals, all four became compile errors and the case reported `standard output does
@@ -4085,7 +4085,7 @@ is why" — is this file.
   division rather than deleting the case: read the template out of a `string $t` variable and
   the runtime path is back, unchanged. Expect one such case per grammar as the remaining rows
   land — `grep` the throw's own message text in `tests/conformance/` before writing the arm.
-- **Putting a member on ADR 0057 § 1's list breaks every conformance case that made it throw from a
+- **Putting a member on `rule:expressions/intrinsic-list-is-closed`'s list breaks every conformance case that made it throw from a
   *literal*.** Landing the `Grammar::DateFormat`, `Regex` and `Uri` arms turned six green cases red at the
   full verify — `time-three-format-members-share-one-pattern-compiler`, `time-cldr-patterns-render-and-read`,
   `time-parse-refuses-a-pattern-and-a-text-in-different-classes`, both `regex-compile-*` and
@@ -4096,7 +4096,7 @@ is why" — is this file.
   reports at most one file at a time, so discovering them from the failure log costs a verify run each.
   The same reasoning applies in reverse to a case that must *stay* literal: `Core\Time\Date::format` is not
   on the list, so its inline malformed pattern still throws, and a case can assert both halves side by side.
-- **A case can *look* like it exercises ADR 0057's fold and exercise nothing, because § 1's list names the
+- **A case can *look* like it exercises `rule:expressions/intrinsic-literals`'s fold and exercise nothing, because § 1's list names the
   member that reads the pattern and not its siblings.** `examples/intrinsics.nvs` demonstrated the regex row
   with `Core\Regex::matches("order-4711", "^order-\\d+$")` under a comment naming `Core\Regex::compile`;
   `matches` takes a `Pattern|string` and is *not* on the list, so the literal was never read and the line
@@ -5630,7 +5630,7 @@ is why" — is this file.
   collision is. Renaming the inner binding is the whole workaround, and it costs a `--EXPECT--`
   section nothing.
 - **`Core\Out::capture` answers a `Core\Cli\Text`, so `==` between two captures is identity and a
-  case comparing them counts zero agreements while printing the right bytes.** ADR 0090 § 4 makes
+  case comparing them counts zero agreements while printing the right bytes.** `rule:expressions/object-identity-equality` makes
   `==` on two objects identity, and the carrier is an object — so an agreement case that captures
   the same four bytes from `echo`, from `Core\Response::text` and from `Core\Response::bytes` and
   then counts `$a == $b` reports `agreed 0 of 2` *beside* an `on [body]` that shows all three
@@ -6952,7 +6952,7 @@ sibling in the same namespace unqualified.
   *Known gaps* agreed. It is built: `nvs_types::links` folds a literal route name while checking,
   `nvs_ir::lower::expr::lower_route_link` swaps the written name for a *prepared path* and calls a
   **second symbol** (`nvs_core_router_link`), and that one does the real work. The registry row names
-  the unfolded path because that is the one a computed argument takes. So for any member ADR 0057 § 3
+  the unfolded path because that is the one a computed argument takes. So for any member `rule:expressions/intrinsic-literals`
   *prepares* rather than folds, `grep` the crate for a sibling symbol before believing the body the row
   points at — or just run it: `target/debug/nvs.exe run` on four lines settled in one call what reading
   three doc comments had got backwards.
@@ -7239,7 +7239,7 @@ sibling in the same namespace unqualified.
   pre-empt: `grep -rn "<the card's first clause>" crates/nvs-cli/tests/` before rewording, and copy
   the comment shape from the twin site you are modelling the new fatal on.
 - **A new expression level between assignment and the ternary is not one edit — the ternary's `else`
-  branch parses at the assignment level and will swallow it.** ADR 0119's `catch` slotted into
+  branch parses at the assignment level and will swallow it.** `rule:expressions/catch-expression`'s `catch` slotted into
   `parse_assignment_inner` in one line, and `f() catch (A) => $y ?: 1 catch (B) => 2` still came out
   with one arm: `parse_ternary`'s else calls `parse_assignment`, which now re-enters `parse_catch`.
   The fix is `parse_ternary_else`, the same assignment body over `parse_ternary` instead of
@@ -7247,7 +7247,7 @@ sibling in the same namespace unqualified.
   cannot trail. Any future level added above the ternary owes the same check, and a unit test in
   `crates/nvs-syntax/src/parser/tests/expr.rs` is what caught it, not a `.nvst`.
 - **An ADR can specify a diagnostic code that is already taken, and the orientation pack's
-  next-free-number list does not print the `W1xxx` band at all.** ADR 0119 § 5 said its unbound-arm
+  next-free-number list does not print the `W1xxx` band at all.** `rule:expressions/bare-throwable-arm-warns` said its unbound-arm
   advisory was `E0778`; `E0778` has been `E_INSTANCE_METHOD_CALLED_STATICALLY` since well before it,
   and a *warning* belongs in `W1xxx` regardless — the band exists, at the foot of
   `crates/nvs-diagnostics/src/lib.rs`, and the pack's band list stops at `E09xx`. So the number an
@@ -7267,7 +7267,7 @@ sibling in the same namespace unqualified.
   half a feature.
 - **Adding a `Ty` variant to `nvs-types` breaks exactly one match, and it is not one you would guess.**
   Nearly every `match` over `Ty` in that crate has a `_` arm, so `Ty::ClassRef` compiled everywhere
-  except `expr/operators.rs`'s `equality_domain` — ADR 0090 § 2's domain partition, which is exhaustive
+  except `expr/operators.rs`'s `equality_domain` — `rule:expressions/disjoint-comparison-refused`'s domain partition, which is exhaustive
   on purpose so that a new type cannot silently become comparable to everything. That is the one place a
   new variant owes a *decision* rather than an arm, and it costs two more edits when the answer is a new
   `EqDomain` variant (the enum, `equality_domain`, and `reject_unordered_operand`'s match; the other two
@@ -8608,7 +8608,7 @@ every session. Nothing below was reworded on the way.
   180.0`, and `($radians / PI) * 180.0` replaces `f64::to_degrees`. The std forms are the more
   accurate — over the 3,600 tenths of a degree in a turn they are closer to the true value 851
   times against 118 — and the difference is at most one ulp, invisible at both languages'
-  precision-14 rendering. It is visible through `==`, which is exact over `float` (ADR 0090): under
+  precision-14 rendering. It is visible through `==`, which is exact over `float` (`rule:expressions/one-equality-operator`): under
   PHP's spelling a whole-degree round trip lands back on its angle for 19 of 22 sampled angles and
   under the std one for 13, so the ulp is what a ported program comparing a round trip actually
   sees. AGENTS.md's priority 2 — PHP-compatible *observable* behaviour — is what decides it, and

@@ -1,8 +1,8 @@
 --TEST--
-an expression `catch` arm names one class, and a union is refused asking for a second arm — ADR 0119 § 1's E0245
+an expression `catch` arm names one class, and a union is refused asking for a second arm — `rule:expressions/catch-expression`'s E0245
 --FILE--
 <?nvs
-// ADR 0119 § 1: an arm's `( Type $var? )` is the block form's, resolved and
+// `rule:expressions/catch-expression`: an arm's `( Type $var? )` is the block form's, resolved and
 // refused the same way — the binding carries one static type, so a union has
 // no type to give it. Only the fix differs: another arm, where the block
 // form asks for another clause.

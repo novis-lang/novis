@@ -157,7 +157,7 @@ deleted-in-place.
       ([lower/convert.rs:957](../../crates/nvs-ir/src/lower/convert.rs#L957)), and a scratch `.nvs`
       ran all four of its spellings before a line of the test was written. Now at that exact name in
       [lower/tests.rs:3198](../../crates/nvs-ir/src/lower/tests.rs#L3198), as an agreement over those
-      four rather than a snapshot of one: the checked walk, ADR 0066's `?` twin, the nesting that
+      four rather than a snapshot of one: the checked walk, `rule:expressions/nullable-conversion`'s `?` twin, the nesting that
       makes `array_element_tags`' word two nibbles, and the `array<mixed>` target that is
       `convert`'s free row and must walk nothing — which only a *count* over the whole body can hold
       down

@@ -117,7 +117,7 @@
 //! singleton cannot be written through, by the ordinary copy-on-write path
 //! rather than by a special case. `nvs_array_eq` compares by content, so
 //! sharing is unobservable to
-//! [ADR 0090](/docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)'s
+//! `rule:expressions/one-equality-operator`'s
 //! identity row. And an array is neither `Send` nor `Sync`, so per-thread is
 //! per-owner and the count stays non-atomic.
 //!

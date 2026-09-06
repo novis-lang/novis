@@ -1,5 +1,5 @@
 --TEST--
-`==`/`!=` over two strings and two bools answer by value and never numerically — ADR 0090 § 3 — and `false` renders as the empty string
+`==`/`!=` over two strings and two bools answer by value and never numerically — `rule:expressions/equality-semantics` — and `false` renders as the empty string
 --FILE--
 <?nvs
 echo "a" == "a", ";", "a" == "b", ";", "a" != "b", "\n";

@@ -43,7 +43,7 @@
 //! # One parse, two entry points
 //!
 //! The spec makes `format` an
-//! [ADR 0057](/docs/adr/0057-intrinsic-literal-folding.md)
+//! `rule:expressions/intrinsic-literals`
 //! intrinsic: a **literal** template has its placeholder count and types
 //! checked while compiling. That ADR's § 4 is why the checker does not get a
 //! parser of its own — [`Pieces`] is the one walk over the grammar, [`format`]
@@ -108,7 +108,7 @@ pub(crate) fn format(template: &str, arguments: &[Value]) -> Result<String, Faul
 /// conversion it applies, with everything only a rendering needs — the flags,
 /// the width, the precision — left behind.
 ///
-/// ADR 0057 § 1's `Core\Str::format` row is checked against exactly this, so
+/// `rule:expressions/intrinsic-list-is-closed`'s `Core\Str::format` row is checked against exactly this, so
 /// [`crate::format`]'s grammar stays the one thing that says what a
 /// placeholder is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -121,8 +121,7 @@ pub struct Placeholder {
 }
 
 /// Every placeholder in `template`, in written order, or the message the
-/// runtime would have thrown — [ADR 0057](/docs/adr/0057-intrinsic-literal-folding.md)
-/// § 1's validation half of this module.
+/// runtime would have thrown — `rule:expressions/intrinsic-list-is-closed`'s validation half of this module.
 ///
 /// The count and the argument types are *not* checked here: this answers what
 /// the template asks for, and `nvs_types::intrinsics` is what holds the call's
@@ -823,7 +822,7 @@ mod tests {
         }
     }
 
-    /// ADR 0057 § 4, asserted rather than described: the checker's entry point
+    /// `rule:expressions/preparation-preserves-behaviour`, asserted rather than described: the checker's entry point
     /// and the runtime's are one implementation, so neither can drift into
     /// accepting a template the other refuses.
     ///

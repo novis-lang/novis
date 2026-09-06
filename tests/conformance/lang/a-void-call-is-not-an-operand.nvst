@@ -25,7 +25,7 @@ mixed $div = Effect::run() / $a;
 // Ordering, both the `bool`-valued four and `<=>`.
 mixed $lt = Effect::run() < $a;
 mixed $cmp = Effect::run() <=> $a;
-// Equality, which ADR 0090 § 2 judges by disjointness — a value that does not
+// Equality, which `rule:expressions/disjoint-comparison-refused` judges by disjointness — a value that does not
 // exist is not disjoint from anything, so this one is refused here or nowhere.
 mixed $eq = Effect::run() == $a;
 // The three that are not table rows at all: a condition, a null test and the

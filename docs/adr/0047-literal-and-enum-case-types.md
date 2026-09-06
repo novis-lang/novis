@@ -44,7 +44,7 @@
   the accepted set would not be visible at the call site and would silently grow the day a new `TYPE_*`
   constant is added, which is exactly the kind of implicit, drifting surface the project's "state a fact
   once, visibly" principle already argues against elsewhere (e.g. `rule:statements/require-is-the-only-inclusion-construct`,
-  [ADR 0045](0045-and-or-xor-keyword-operators-rejected.md)).
+  `rule:expressions/no-keyword-logical-operators`).
 - Novis already has two pieces of the real answer, both previously scoped narrower than they needed to be:
   - [ADR 0007](0007-explicit-type-system.md) § 3 already has `true`/`false` as literal atoms sitting inside
     ordinary unions — `bool` was always, quietly, "the union of its two literal values." Nothing before this
@@ -190,7 +190,7 @@ Mode::Read|Mode::Write $m = Mode::Admin as Mode::Read|Mode::Write;
 
 Both are **compile** errors rather than the run-time throw *4*'s checked rows describe, and only where the
 operand settles the question by itself: the target has to be a closed set of literals or cases — one wider
-atom, including the `null` an `as ?T` ([ADR 0066](0066-nullable-conversion-operator.md)) adds, is a member
+atom, including the `null` an `as ?T` (`rule:expressions/nullable-conversion`) adds, is a member
 the operand may well reach — and the operand has to name one value, which a plain `string`, an `enum` or a
 `mixed` does not. Everything those two conditions leave out is *4*'s ordinary checked conversion, answered
 at run time.
@@ -244,7 +244,7 @@ at run time.
   the "subset of an existing group" case. Rejected outright: the accepted set is not visible at the call
   site without reading `Foo`'s source, and it silently grows the day a new `TYPE_*` constant is added —
   exactly the implicit, drifting-surface shape the project already argues against
-  (`rule:statements/require-is-the-only-inclusion-construct`, [ADR 0045](0045-and-or-xor-keyword-operators-rejected.md)).
+  (`rule:statements/require-is-the-only-inclusion-construct`, `rule:expressions/no-keyword-logical-operators`).
   Naming the exact constants or cases (*2*, *3*) gives the same ergonomic win — "reuse an existing group of
   values" — without either problem.
 - **An `#[ExpectedValues(...)]`-style attribute**, now that `rule:attributes/inert-metadata`
@@ -264,7 +264,7 @@ at run time.
   syntax for literal atoms. Rejected: the union syntax and its canonicalisation already exist, and literal
   atoms compose with it for free; a separate keyword would be a second spelling for "this is a closed set of
   values," the exact shape `rule:statements/nothing-gets-a-second-name`/`rule:statements/require-is-the-only-inclusion-construct`/
-  [ADR 0045](0045-and-or-xor-keyword-operators-rejected.md) already argue against elsewhere.
+  `rule:expressions/no-keyword-logical-operators` already argue against elsewhere.
 - **A runtime-only validator call instead of a type** (`Arr::contains(["a","b","c"], $x)`).
   Rejected: it would not be visible in a parameter's declared type the way [ADR 0007](0007-explicit-type-system.md)
   already requires everything to be, and would sit alongside the real type system as a second, weaker

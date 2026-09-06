@@ -13,7 +13,7 @@ final class Box {
 
 // ADR 0007 § 7 row 14: a declared scalar already answered, so the test is dead
 // code that reads as a live question. PHP has no declaration to read and
-// answers `false`; refusing where it is written is the same move ADR 0090
+// answers `false`; refusing where it is written is the same move `rule:expressions/one-equality-operator`
 // makes for two statically disjoint types under `==`.
 int $n = 1;
 bool $a = $n instanceof Box;

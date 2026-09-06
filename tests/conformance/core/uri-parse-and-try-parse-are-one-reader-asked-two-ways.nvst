@@ -1,5 +1,5 @@
 --TEST--
-`Core\Uri::tryParse` answers `null` at exactly the subjects `Core\Uri::parse` throws at and the same URI everywhere else, over a sweep of both of `parse`'s refusing steps — spec § 12, ADR 0066 § 3a
+`Core\Uri::tryParse` answers `null` at exactly the subjects `Core\Uri::parse` throws at and the same URI everywhere else, over a sweep of both of `parse`'s refusing steps — spec § 12, `rule:expressions/try-parse`
 --FILE--
 <?nvs
 // `tryParse` is `parse` with `null` where it throws, and the point of writing

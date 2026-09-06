@@ -1,8 +1,8 @@
 --TEST--
-a `throw` arm produces no value, so the failure leaves through the enclosing region and runs its `finally` on the way out — ADR 0119 §§ 2, 3 and 6
+a `throw` arm produces no value, so the failure leaves through the enclosing region and runs its `finally` on the way out — `rule:expressions/catch-expression-precedence`, `rule:expressions/catch-arm-is-an-expression` and `rule:expressions/catch-lowers-to-block-form`
 --FILE--
 <?nvs
-// ADR 0119 § 3: the arm body is an expression, and `throw expr` is already
+// `rule:expressions/catch-arm-is-an-expression`: the arm body is an expression, and `throw expr` is already
 // one, so an arm may wrap and rethrow with no rule of its own. It is typed
 // `never` (§ 4), which is why it joins neither the union nor the phi § 6
 // builds — the arm has no edge into the join at all.

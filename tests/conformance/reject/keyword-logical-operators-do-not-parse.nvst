@@ -1,5 +1,5 @@
 --TEST--
-`and` is not a second spelling of `&&` — it is refused where it is written, ADR 0045
+`and` is not a second spelling of `&&` — it is refused where it is written, `rule:expressions/no-keyword-logical-operators`
 --FILE--
 <?nvs
 bool $a = true;

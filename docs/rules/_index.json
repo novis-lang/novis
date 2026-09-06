@@ -34,6 +34,11 @@
       "topic": "testing",
       "title": "Testing",
       "order": 70
+    },
+    {
+      "topic": "expressions",
+      "title": "Expressions",
+      "order": 80
     }
   ]
 }

@@ -26,7 +26,7 @@
 //! # Tiering happens at the first call, not while checking
 //!
 //! ADR 0056 § 3 makes a **literal** pattern's tier a compile-time fact, over
-//! [ADR 0057](/docs/adr/0057-intrinsic-literal-folding.md)'s
+//! `rule:expressions/intrinsic-literals`'s
 //! literal-folding mechanism. That mechanism is not built, so today every
 //! pattern — literal or assembled — takes the run-time path in [`compiled`]:
 //! the linear engine is offered the pattern first and the backtracking engine
@@ -945,7 +945,7 @@ fn build(pattern: &str, flags: u8) -> Result<Compiled, String> {
 
 /// Which tier `pattern` compiles on, or the refusal — for a caller that wants
 /// ADR 0056 § 3's compile-time fact and not the automaton —
-/// [ADR 0057](/docs/adr/0057-intrinsic-literal-folding.md)'s fold,
+/// `rule:expressions/intrinsic-literals`'s fold,
 /// which reads a **literal** pattern while checking and reports § 3's
 /// diagnostic instead of the throw [`compiled`] would have made.
 ///

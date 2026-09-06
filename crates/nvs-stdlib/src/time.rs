@@ -70,7 +70,7 @@
 //!    rather than answering with one, is
 //!    [`nvs_core_time_datetime_with_time`].
 //! 2. **`$d->format` and `Core\Time::parse` compile their pattern per call.**
-//!    ADR 0057 makes both intrinsics whose literal pattern is prepared while
+//!    `rule:expressions/intrinsic-literals` makes both intrinsics whose literal pattern is prepared while
 //!    compiling; [`crate::cldr`]'s own gap 1 owns what that changes and what
 //!    it does not.
 //! 3. **`Core\Time::sleep` parks the task rather than blocking the core**, and
@@ -3992,7 +3992,7 @@ nvs_runtime::nvs_helper! {
     /// ([`crate::cldr`]), replacing `date`, `gmdate`, `idate`, `strftime` and
     /// `date_format` at once.
     ///
-    /// The pattern is compiled per call; ADR 0057 is what moves that to
+    /// The pattern is compiled per call; `rule:expressions/intrinsic-literals` is what moves that to
     /// compile time for a literal one, and [`crate::cldr`]'s gap 1 owns it.
     fn nvs_core_time_datetime_format(_ctx, args: [2]) {
         let at = zoned_of(args, 0, "format")?;

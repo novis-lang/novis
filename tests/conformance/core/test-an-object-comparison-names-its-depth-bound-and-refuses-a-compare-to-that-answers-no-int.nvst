@@ -2,7 +2,7 @@
 `Core\Test`'s two object-comparison error paths: the containment bound `assertEqualsDeep` stops at, named on both sides, and the uncatchable refusal of a `compareTo` that answers something other than an `int` — `rule:testing/assertions-are-typed`, ADR 0013
 --FILE--
 <?nvs
-// An Novis array cannot contain itself (ADR 0090 § 3), so an object graph is
+// An Novis array cannot contain itself (`rule:expressions/equality-semantics`), so an object graph is
 // the only structure the deep walk can follow forever, and a depth cap is what
 // bounds it. This case asserts the cap from both sides, because a member that
 // stopped one level early — or one late — reads exactly as plausibly against

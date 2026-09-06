@@ -1,5 +1,5 @@
 --TEST--
-`==` over an array, an object and a `mixed` — ordered and element-wise, by identity, and a mismatched runtime pairing is `false` — ADR 0090 §§ 3, 5
+`==` over an array, an object and a `mixed` — ordered and element-wise, by identity, and a mismatched runtime pairing is `false` — `rule:expressions/equality-semantics` and `rule:expressions/mixed-equality`
 --FILE--
 <?nvs
 class Point {

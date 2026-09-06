@@ -315,7 +315,7 @@ fn grant_of(setting: &Setting) -> Grant<'_> {
 ///
 /// One home for the comparison, because [`Capabilities::allows`] and
 /// [`Capabilities::allows_host`] are the runtime's asker and the compiler's, and a check that
-/// disagreed with the run it precedes is the one failure ADR 0057 § 4 forbids outright. `cap` is a
+/// disagreed with the run it precedes is the one failure `rule:expressions/preparation-preserves-behaviour` forbids outright. `cap` is a
 /// parameter for the same reason: [`Cap::takes_host_wildcard`] decides whether an entry may be a
 /// pattern at all, and the two askers must not be able to answer that differently either.
 fn host_granted(cap: Cap, list: &[String], host: &str) -> bool {

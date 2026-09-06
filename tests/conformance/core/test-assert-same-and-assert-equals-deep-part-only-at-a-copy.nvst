@@ -1,10 +1,10 @@
 --TEST--
-`Core\Test::assertSame` and `assertEqualsDeep` answer the same question on every row but a copied object, and identity never passes where the deep walk fails -- `rule:testing/assertions-are-typed`, ADR 0090 § 3
+`Core\Test::assertSame` and `assertEqualsDeep` answer the same question on every row but a copied object, and identity never passes where the deep walk fails -- `rule:testing/assertions-are-typed`, `rule:expressions/equality-semantics`
 --FILE--
 <?nvs
 // § 4 gives the two members one substitution: identity at the object row,
 // where the deep walk descends instead. Everywhere else -- the scalars, the
-// `string`s, the containers ADR 0090 § 3 already reads element-wise -- they are
+// `string`s, the containers `rule:expressions/equality-semantics` already reads element-wise -- they are
 // the same comparison, so the useful assertion is that they **agree**, counted
 // over the table rather than read off any one line. A member that grew a
 // comparison of its own still looks right on its own row and fails here.

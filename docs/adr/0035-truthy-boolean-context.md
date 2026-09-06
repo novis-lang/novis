@@ -1,4 +1,4 @@
-# ADR 0035 — A condition is judged by PHP's full truthy table; every other `bool` position stays checked
+# `rule:expressions/truthy-positions` — A condition is judged by PHP's full truthy table; every other `bool` position stays checked
 
 - **Status:** Accepted
 - **Date:** 2026-08-21

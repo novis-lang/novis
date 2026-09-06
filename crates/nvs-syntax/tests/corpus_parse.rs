@@ -16,8 +16,7 @@
 //! [ADR 0062](/docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
 //! made keyword matching exact, so a corpus file's mixed-case `IF`/`TRUE`
 //! now lex as ordinary identifiers; and
-//! [ADR 0090](/docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
-//! § 1 makes every `===`/`!==` in the corpus an `E0232`. All three widenings
+//! `rule:expressions/one-equality-operator` makes every `===`/`!==` in the corpus an `E0232`. All three widenings
 //! are deliberate — the bar
 //! this test holds is "the parser does not panic," which is what M1's plan
 //! actually asked for.

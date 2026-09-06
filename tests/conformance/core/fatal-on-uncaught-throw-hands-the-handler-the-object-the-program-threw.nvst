@@ -9,7 +9,7 @@
 // is one — answers every other question here identically and fails on the one
 // line below that asks about identity.
 //
-// ADR 0090 § 4 makes `==` on two objects identity, so this is the whole test:
+// `rule:expressions/object-identity-equality` makes `==` on two objects identity, so this is the whole test:
 // the exception is built here, captured by the handler, and thrown from two
 // frames down.
 var $error = new LogicError("the store said no");

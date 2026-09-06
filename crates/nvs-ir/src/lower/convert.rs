@@ -28,7 +28,7 @@ impl<'a> Lowering<'a> {
     ///   under two tags, minus the UTF-8 promise.
     /// * **Total.** A scalar to `string` reuses the same [`Helper`]
     ///   conversions `.` concatenation already goes through
-    ///   ([`Self::concat_operand`]), and any value to `bool` reuses ADR 0035's
+    ///   ([`Self::concat_operand`]), and any value to `bool` reuses `rule:expressions/truthy-positions`'s
     ///   truthy table ([`Self::truthy_convert`]) — `as bool` is the explicit
     ///   spelling of exactly the test a condition applies implicitly, so
     ///   giving it a second table would be two answers to one question.
@@ -379,8 +379,7 @@ impl<'a> Lowering<'a> {
         }
     }
     /// Lowers one `expr as ?T` —
-    /// [ADR 0066](/docs/adr/0066-nullable-conversion-operator.md)
-    /// § 1's non-throwing form of [`Self::convert`], where `to` is the target
+    /// `rule:expressions/nullable-conversion`'s non-throwing form of [`Self::convert`], where `to` is the target
     /// *inside* the `?`.
     ///
     /// One [`InstKind::HelperCall`] per target type, and for the numeric ones
@@ -406,7 +405,7 @@ impl<'a> Lowering<'a> {
     ///
     /// # Panics
     ///
-    /// Panics for a row ADR 0066 § 3 calls **available** and this crate has no
+    /// Panics for a row `rule:expressions/nullable-conversion-availability` calls **available** and this crate has no
     /// `?` helper to run — `$m as ?array<T>`.
     /// Both of that section's *refusals* are `nvs_types`' now, so neither
     /// reaches here: a conversion that cannot fail is `E0709` and a pair
@@ -441,7 +440,7 @@ impl<'a> Lowering<'a> {
             Ty::Str => Helper::ToStringOrNull,
             Ty::Bytes => Helper::ToBytesOrNull,
             other => panic!(
-                "nvs-ir lowers ADR 0066's `as ?T` for the checked scalar targets and for \
+                "nvs-ir lowers `rule:expressions/nullable-conversion`'s `as ?T` for the checked scalar targets and for \
                  `bytes`, and through `Self::lower_nullable_membership` for ADR 0047's literal \
                  and enum-case ones — got `{from:?} as ?{other:?}`. Both of § 3's refusals are \
                  `nvs_types`' now (`E0709` for a row that cannot fail, `E0708` for a pair naming \
@@ -470,7 +469,7 @@ impl<'a> Lowering<'a> {
         }
         out
     }
-    /// Converts an already-lowered `(v, ty)` pair through ADR 0035's truthy
+    /// Converts an already-lowered `(v, ty)` pair through `rule:expressions/truthy-positions`'s truthy
     /// table, with no ownership decision attached — see [`Self::truthy_value`]
     /// for the usual "release a fresh, non-aliasing refcounted operand once
     /// its truthy test is done" wrapper every caller but
@@ -482,7 +481,7 @@ impl<'a> Lowering<'a> {
     /// `Ty::Bool` passes straight through; `Ty::Int`/`Ty::Uint`/`Ty::Float`/
     /// `Ty::Decimal`/`Ty::Str`/`Ty::Bytes` each convert through their own
     /// [`Helper`] variant; [`Ty::Array`]
-    /// converts through [`Helper::ArrayTruthy`] (falsy iff empty, ADR 0035's
+    /// converts through [`Helper::ArrayTruthy`] (falsy iff empty, `rule:expressions/truthy-positions`'s
     /// table); and [`Ty::Object`] — a class instance or an enum case — needs
     /// no helper at all, since `rule:enums/truthiness` makes either always truthy: this
     /// folds straight to a fresh [`InstKind::ConstBool`] `true` rather than
@@ -491,7 +490,7 @@ impl<'a> Lowering<'a> {
     /// [`Ty::Tagged`] — a `mixed`, a union, or a `?T` no test narrowed — is
     /// the one row this table does **not** settle here: it converts through
     /// [`Helper::ValueTruthy`], which reads the value's tag and applies
-    /// whichever of the rows above it names. That is ADR 0035 § 2's own last
+    /// whichever of the rows above it names. That is `rule:expressions/truthy-table`'s own last
     /// line rather than a fallback, and it is why ADR 0007 § 2 can make
     /// `mixed` the one unchecked position without a condition being a hole in
     /// it: the question a condition asks has an answer for every tag.
@@ -562,7 +561,7 @@ impl<'a> Lowering<'a> {
             // and is still `true` here, where a plain `int` `0` goes through
             // `Helper::IntTruthy` and comes back `false`.
             Ty::Object | Ty::Enum(_) => self.emit(cur, Ty::Bool, InstKind::ConstBool(true)).0,
-            // ADR 0035 § 2's first row, reachable only from the *literal*
+            // `rule:expressions/truthy-table`'s first row, reachable only from the *literal*
             // `null` — a `?T` is one `Ty::Tagged` slot and goes through the
             // arm below. `empty(null)`, `!null` and `if (null)` are the three
             // spellings that get here, and nothing about the value needs
@@ -589,7 +588,7 @@ impl<'a> Lowering<'a> {
                 )
                 .0
             }
-            // ADR 0035 § 2's last row, and the one this table answers at run
+            // `rule:expressions/truthy-table`'s last row, and the one this table answers at run
             // time rather than at compile time: a `mixed`, a union or a `?T`
             // no test narrowed carries its row in its tag, so the dispatch
             // moves into `Helper::ValueTruthy` and the arms above become the
@@ -669,15 +668,14 @@ impl<'a> Lowering<'a> {
         env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
-        // ADR 0066's `as ?T` is read off the *annotation*, before
+        // `rule:expressions/nullable-conversion`'s `as ?T` is read off the *annotation*, before
         // `lower_decl_type` erases it: `?string` and `?int` are both
         // `Ty::Tagged`, so a conversion between them would look like
         // `from == to` — the one shape `Self::convert` answers by
         // doing nothing at all.
         //
         // Every `as ?T` that reaches here is a row of ADR 0007 § 2's table or
-        // one of ADR 0047's types. A **class** target never does: ADR 0066
-        // § 3's class row is absolute, so `nvs_types` has already refused it
+        // one of ADR 0047's types. A **class** target never does: `rule:expressions/nullable-conversion-availability`'s class row is absolute, so `nvs_types` has already refused it
         // with `E0473`. That row used to carry a two-class exception — the
         // parse roster, `$s as ?Core\Uri` — lowered here to one non-member
         // `CoreCall` on a symbol the expression table had to carry, since
@@ -696,11 +694,11 @@ impl<'a> Lowering<'a> {
                 }
                 // No placement here, unlike the arm below: placing a
                 // literal at the target would make `3 as ?uint` the
-                // `from == to` shape ADR 0066 § 3 calls a compile
+                // `from == to` shape `rule:expressions/nullable-conversion-availability` calls a compile
                 // error, which `nvs_types` does not refuse yet, so it
                 // would panic where it now converts.
                 let (v, from) = self.lower_expr(inner, None, env, cur);
-                // ADR 0066 § 3's one **available** row with no `?` helper of
+                // `rule:expressions/nullable-conversion-availability`'s one **available** row with no `?` helper of
                 // its own, and it needs none: the element walk is the same
                 // walk either way, so the `null` is an answer its shared
                 // implementation already had. It is taken off the whole `?T`
@@ -714,7 +712,7 @@ impl<'a> Lowering<'a> {
                 {
                     return self.lower_array_restamp(v, from, tags, inner, true, env, cur);
                 }
-                // ADR 0126 § 2's two run-time rows under ADR 0066 § 3's sugar:
+                // ADR 0126 § 2's two run-time rows under `rule:expressions/nullable-conversion-availability`'s sugar:
                 // the same set and the same chain the checked form below gets,
                 // with the miss answering `null` where that one throws. Ahead
                 // of the atom walk, which cannot answer it — `property<T>` is
@@ -734,7 +732,7 @@ impl<'a> Lowering<'a> {
                         cur,
                     );
                 }
-                // ADR 0066 § 3 row 2 — a literal or enum-case target, the
+                // `rule:expressions/nullable-conversion-availability` row 2 — a literal or enum-case target, the
                 // "non-throwing twin" of the checked conversion. The target
                 // is `T|null` minus `null`, which is the one place it still
                 // exists: see `Self::nullable_target_atoms` for why the `T`
@@ -886,7 +884,7 @@ impl<'a> Lowering<'a> {
                     // to run. Every other base is reached by a row that
                     // happens to be an identity once the test above has
                     // passed (`Helper::TaggedToString` over a tag proved to
-                    // be a string), but `as bool`'s row is ADR 0035's truthy
+                    // be a string), but `as bool`'s row is `rule:expressions/truthy-positions`'s truthy
                     // table — and running it here would answer `true` for a
                     // `mixed` holding `1` that the test has just refused, or
                     // rather could not, since `Helper::Identical` compared
@@ -953,7 +951,7 @@ impl<'a> Lowering<'a> {
     /// released by [`Self::release_temporaries_since`] on the normal edge and
     /// by [`Self::landing_block`] on the throwing one, with no arm of its own.
     ///
-    /// **`nullable` is ADR 0066's `as ?class<T>`, and it is the same lowering
+    /// **`nullable` is `rule:expressions/nullable-conversion`'s `as ?class<T>`, and it is the same lowering
     /// with the refused edge deleted.** § 2 says the sugar "yields `null`
     /// exactly where it would throw", and here that is not a second path but a
     /// shorter one: [`InstKind::ClassDescIn`] answers a miss with the *null
@@ -1016,7 +1014,7 @@ impl<'a> Lowering<'a> {
                 base: base.clone(),
             },
         );
-        // ADR 0066 § 3 over § 2's rows: the miss `ClassDescIn` just answered
+        // `rule:expressions/nullable-conversion-availability` over § 2's rows: the miss `ClassDescIn` just answered
         // *is* the `null`, so the sugar's whole content is stopping here.
         if nullable {
             return (desc, Ty::ClassDesc);
@@ -1293,7 +1291,7 @@ impl<'a> Lowering<'a> {
     /// [ADR 0007](/docs/adr/0007-explicit-type-system.md) § 2's
     /// `array<T> as array<U>` row: every element must satisfy `U`, checked as
     /// the walk goes, in [`Helper::ToArrayOf`] — or in
-    /// [`Helper::ToArrayOfOrNull`] when `or_null`, ADR 0066's spelling of the
+    /// [`Helper::ToArrayOfOrNull`] when `or_null`, `rule:expressions/nullable-conversion`'s spelling of the
     /// same walk.
     ///
     /// **This is not a row of [`Self::convert`] and cannot be one**, for the
@@ -1324,7 +1322,7 @@ impl<'a> Lowering<'a> {
     #[expect(
         clippy::too_many_arguments,
         reason = "the same context `lower_conversion` itself threads, plus the one bit that \
-                  chooses between ADR 0007 § 2's spelling of this row and ADR 0066 § 1's"
+                  chooses between ADR 0007 § 2's spelling of this row and `rule:expressions/nullable-conversion`'s"
     )]
     fn lower_array_restamp(
         &mut self,
@@ -1615,7 +1613,7 @@ impl<'a> Lowering<'a> {
     /// instruction at all. Every comparison over an enum goes through it,
     /// because `nvs-codegen`'s `BinOp` table is `Ty::Int`/`Ty::Uint`/`Ty::Bool`
     /// and carries no `Ty::Enum` row: ADR 0047 § 5's membership chain, and
-    /// ADR 0090 § 2's `==` between two cases of one enum.
+    /// `rule:expressions/disjoint-comparison-refused`'s `==` between two cases of one enum.
     ///
     /// Nothing is released or retained around it: an enum is a scalar, so the
     /// relabelled value borrows no ownership from the operand.
@@ -1636,7 +1634,7 @@ impl<'a> Lowering<'a> {
         }
     }
 
-    /// [ADR 0066](/docs/adr/0066-nullable-conversion-operator.md) § 3
+    /// `rule:expressions/nullable-conversion-availability`
     /// row 2 — `expr as ?T` where `T` is a literal type, an enum-case subset
     /// or a whole enum: "that conversion is already checked and throwing;
     /// this is its non-throwing twin."
@@ -1749,7 +1747,7 @@ impl<'a> Lowering<'a> {
     /// a direct two-pointer `nvs_str_eq` for a string. One helper call over an
     /// encoded set would instead pay `rule:errors/propagation`'s calling convention *and* parse
     /// that encoding on every conversion. Only a [`Ty::Tagged`] operand pays a
-    /// call, and it pays exactly the one ADR 0090 § 5 already charges a
+    /// call, and it pays exactly the one `rule:expressions/mixed-equality` already charges a
     /// `mixed` `==`: [`Helper::Identical`], which answers `false` for a
     /// mismatched tag rather than converting either side.
     ///
@@ -1759,7 +1757,7 @@ impl<'a> Lowering<'a> {
     /// builds is straight-line and assigns nothing.
     ///
     /// `miss` is what happens where every comparison missed, and it is the
-    /// whole difference between the two spellings ADR 0066 § 3 row 2 calls
+    /// whole difference between the two spellings `rule:expressions/nullable-conversion-availability` row 2 calls
     /// twins. `None` is `expr as T`: the throw above, on `rule:errors/propagation`'s error
     /// edge. `Some(block)` is `expr as ?T`, which jumps there instead and
     /// answers `null` — [`Self::lower_nullable_membership`] owns that block,
@@ -1838,7 +1836,7 @@ impl<'a> Lowering<'a> {
             );
             *cur = next;
         }
-        // ADR 0066 § 3 row 2's non-throwing twin: every comparison missed, so
+        // `rule:expressions/nullable-conversion-availability` row 2's non-throwing twin: every comparison missed, so
         // the answer is `null` and the caller's own block builds it.
         if let Some(block) = miss {
             self.seal(*cur, Terminator::Jump(block));
@@ -1959,7 +1957,7 @@ enum LiteralAtom {
 /// [`Ty::Tagged`] (see its own doc comment), so a conversion between them is
 /// indistinguishable from a conversion to the type the value already has.
 /// `(...)` is transparent here, the same way [`lower_decl_type`] treats it.
-/// A `null|T` *union* spelling is deliberately not folded in: ADR 0066 § 1
+/// A `null|T` *union* spelling is deliberately not folded in: `rule:expressions/nullable-conversion`
 /// defines the operator over `?T`, and a union target has no lowering at all
 /// yet — one gap is better than a second spelling that half works.
 /// The one representation a target's atoms share, or [`Ty::Tagged`] where

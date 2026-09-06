@@ -46,8 +46,7 @@ interface Parses {
 ```
 
 **One required member and one default body, not two required members.** This is the whole reason the
-contract is expressible without re-opening a decided question: [ADR 0066](../../adr/0066-nullable-conversion-operator.md)
-§ 3a condition 2 says `tryParse` **is** `parse` plus a caught throw and never a second implementation,
+contract is expressible without re-opening a decided question: `rule:expressions/try-parse` condition 2 says `tryParse` **is** `parse` plus a caught throw and never a second implementation,
 and its stated reason is CVE-2024-5458 — two implementations of one predicate that agree until they do
 not. A contract requiring both would hand that failure back to every implementor. A default body
 (`crates/nvs-hir/src/interfaces.rs`, and the interface default-method rule the language already has) makes
@@ -77,7 +76,7 @@ Nothing after this is writable. It is small because both precedents are in the f
 3. **The default body is inherited, and overridable.** `tryParse` is a `public static` method with a body
    on the interface — the language already admits both (novis.md § A.5's interface members), so this is a
    declaration, not a mechanism. An implementor *may* override it; one that does is writing the second
-   implementation ADR 0066 § 3a warns about and gets no diagnostic for it, which is the same latitude
+   implementation `rule:expressions/try-parse` warns about and gets no diagnostic for it, which is the same latitude
    `Comparable::compareTo` has.
 4. **`static` as the return type** is what makes an implementor's `parse` answer its own class rather than
    the interface — the language's existing late-static-binding return (novis.md § A.5, `: static`), not a
@@ -152,9 +151,9 @@ is refused at the door. Plus:
   holding request text would take the parse path where a downcast was written, which is priority 1 in
   AGENTS.md's ordering and not tradeable. **Two**: `as` is a closed laundering set today (novis.md:1237),
   and a user-extensible `as` makes every implementor a taint launderer to audit — the cost
-  [ADR 0066](../../adr/0066-nullable-conversion-operator.md) refused to pay for `Core\Duration` alone.
+  `rule:expressions/nullable-conversion` refused to pay for `Core\Duration` alone.
   **Three**: `X as ?Foo` would become legal or illegal on two inputs at once, the operand's type and the
-  target's implements-list, so a conversion could not be read without resolving a class. ADR 0066 § 3's
+  target's implements-list, so a conversion could not be read without resolving a class. `rule:expressions/nullable-conversion-availability`'s
   *the class row is absolute* survives this goal intact; what changes is only that the sites which
   already convert implicitly stop naming one class by hand.
 - **`parse` takes `tainted string`, and this is not a laundering hole.** The text at every binding site
@@ -183,7 +182,7 @@ is refused at the door. Plus:
   are today.
 - **This goal may open [ADR 0141] and no other new number.** Everything else is an amendment folded into
   the existing body: ADR 0013 (the roster gains a third global interface, on the precedent it set),
-  ADR 0066 § 3a (the `tryParse` shape is now a contract and its three conditions are what the interface
+  `rule:expressions/try-parse` (the `tryParse` shape is now a contract and its three conditions are what the interface
   encodes), ADR 0077 § 3 and ADR 0102 §§ 3 and 5 (the type roster's last entry becomes a predicate), and
   novis.md's two prose rosters.
 - **What this spends**, per `rule:programs/memory-priority`'s ledger: nothing at run

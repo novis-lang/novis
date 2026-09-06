@@ -19,7 +19,7 @@ contract. `crates/nvs-stdlib` starts here — the Tier 0 crate
 [ADR 0003](../adr/0003-extension-system.md) § *Tier 0* already names, and the workspace manifest already
 declares; `Core\Regex` binds the engine [ADR 0056](../adr/0056-regex-engine-policy.md)
 picks, and `Core\Time`'s `format`/`parse` (CLDR patterns), `Core\Time\Duration::parse` and
-`Core\Str::format` land as [ADR 0057](../adr/0057-intrinsic-literal-folding.md) intrinsics with the
+`Core\Str::format` land as `rule:expressions/intrinsic-literals` intrinsics with the
 compile-time half wired into `nvs-types` — and, per
 [ADR 0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md) § 6, all three grammars are
 `tainted` **sinks** alongside `Core\Regex`'s pattern. **`nvs-stdlib`'s member registry gains a per-parameter
